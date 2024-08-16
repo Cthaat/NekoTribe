@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "nuxt build",
+    "postbuild": "node scripts/copy-db.js",
     "start": "nuxt start",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
