@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, existsSync } from 'fs';
 import { resolve } from 'path';
 
 // 定义源路径和目标路径
-const sourcePath = resolve(process.cwd(), '.data/db.sqlite3');
+const sourcePath = resolve(process.cwd(), 'public/.data/db.sqlite3');
 const targetDir = resolve(process.cwd(), '.output/.data');
 const targetPath = resolve(targetDir, 'db.sqlite3');
 
