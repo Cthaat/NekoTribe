@@ -35,26 +35,26 @@ useHead({
 </script>
 
 <style>
-/* 暗色模式下的滚动条样式 */
+/* 暗色模式下的滚动条样式 (强制版本) */
 
 /* 适用于 Firefox */
 html.dark * {
-  scrollbar-color: #424242 #1E1E1E;
+  scrollbar-color: #424242 #1E1E1E !important;
 }
 
 /* 适用于 Chrome, Safari, Edge 等 Webkit 内核的浏览器 */
 html.dark ::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 12px !important;
+  height: 12px !important;
 }
 
 html.dark ::-webkit-scrollbar-track {
-  background: #1E1E1E;
+  background: #1E1E1E !important;
 }
 
 html.dark ::-webkit-scrollbar-thumb {
-  background-color: #424242;
-  border-radius: 6px;
-  border: 3px solid #1E1E1E;
+  background-color: #424242 !important;
+  border-radius: 6px !important;
+  border: 3px solid #1E1E1E !important;
 }
 </style>
