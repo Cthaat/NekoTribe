@@ -36,34 +36,97 @@ useHead({
 
 <style>
 /*
- * Vuetify 暗色模式滚动条样式
+ * 暗色模式滚动条样式
  * --------------------------
- * 我们使用 Vuetify 自己的暗色主题类 .v-theme--dark 来定位，
- * 而不是 @nuxtjs/color-mode 的 html.dark。
- * 这是在 Vuetify 项目中处理主题样式的正确方法。
+ * 使用 @nuxtjs/color-mode 的类名来正确应用到 html 根元素
+ * 这样可以确保浏览器滚动条正确响应主题变化
 */
 
-/* 适用于 Firefox */
-.v-theme--dark {
+/* 适用于 Firefox - 暗色模式 */
+html.dark {
   scrollbar-color: #424242 #1E1E1E !important;
 }
 
-/* 适用于 Chrome, Safari, Edge 等 Webkit 内核的浏览器 */
-.v-theme--dark::-webkit-scrollbar,
-.v-theme--dark *::-webkit-scrollbar {
+/* 适用于 Firefox - 亮色模式 */
+html.light {
+  scrollbar-color: #C1C1C1 #F5F5F5 !important;
+}
+
+/* 适用于 Chrome, Safari, Edge 等 Webkit 内核的浏览器 - 暗色模式 */
+html.dark::-webkit-scrollbar {
   width: 12px !important;
   height: 12px !important;
 }
 
-.v-theme--dark::-webkit-scrollbar-track,
-.v-theme--dark *::-webkit-scrollbar-track {
+html.dark::-webkit-scrollbar-track {
   background: #1E1E1E !important;
 }
 
-.v-theme--dark::-webkit-scrollbar-thumb,
-.v-theme--dark *::-webkit-scrollbar-thumb {
+html.dark::-webkit-scrollbar-thumb {
   background-color: #424242 !important;
   border-radius: 6px !important;
   border: 3px solid #1E1E1E !important;
+}
+
+html.dark::-webkit-scrollbar-thumb:hover {
+  background-color: #525252 !important;
+}
+
+/* 适用于 Chrome, Safari, Edge 等 Webkit 内核的浏览器 - 亮色模式 */
+html.light::-webkit-scrollbar {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+html.light::-webkit-scrollbar-track {
+  background: #F5F5F5 !important;
+}
+
+html.light::-webkit-scrollbar-thumb {
+  background-color: #C1C1C1 !important;
+  border-radius: 6px !important;
+  border: 3px solid #F5F5F5 !important;
+}
+
+html.light::-webkit-scrollbar-thumb:hover {
+  background-color: #A1A1A1 !important;
+}
+
+/* 内部元素的滚动条样式 - 暗色模式 */
+.v-theme--dark ::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+.v-theme--dark ::-webkit-scrollbar-track {
+  background: #1E1E1E !important;
+}
+
+.v-theme--dark ::-webkit-scrollbar-thumb {
+  background-color: #424242 !important;
+  border-radius: 4px !important;
+}
+
+.v-theme--dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #525252 !important;
+}
+
+/* 内部元素的滚动条样式 - 亮色模式 */
+.v-theme--light ::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+.v-theme--light ::-webkit-scrollbar-track {
+  background: #F5F5F5 !important;
+}
+
+.v-theme--light ::-webkit-scrollbar-thumb {
+  background-color: #C1C1C1 !important;
+  border-radius: 4px !important;
+}
+
+.v-theme--light ::-webkit-scrollbar-thumb:hover {
+  background-color: #A1A1A1 !important;
 }
 </style>
