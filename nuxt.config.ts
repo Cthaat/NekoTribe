@@ -46,7 +46,14 @@ export default {
   },
 
   runtimeConfig: {
-    jwtSecret: process.env.JWT_SECRET
+    jwtSecret: process.env.JWT_SECRET,
+    oracleHost: process.env.ORACLE_HOST,
+    oraclePort: process.env.ORACLE_PORT,
+    oracleSid: process.env.ORACLE_SID,
+    oracleServiceName: process.env.ORACLE_SERVICE_NAME,
+    oracleUser: process.env.ORACLE_USER,
+    oraclePassword: process.env.ORACLE_PASSWORD,
+    
   },
 
   colorMode: {
