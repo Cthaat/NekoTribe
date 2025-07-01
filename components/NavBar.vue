@@ -2,7 +2,7 @@
 <template>
     <v-app-bar app>
         <v-btn icon="mdi-arrow-left" @click="goBack"/>
-        <v-toolbar-title>{{ $t('TwitterClone') }}</v-toolbar-title>
+        <v-toolbar-title>{{ $t('NekoTribe') }}</v-toolbar-title>
         <v-spacer/>
         <v-btn icon="mdi-translate" @click="setLocale(locale === 'en' ? 'zh' : 'en')" />
         <v-btn icon="mdi-theme-light-dark" @click="toggleTheme()"/>

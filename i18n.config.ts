@@ -4,6 +4,7 @@ export default defineI18nConfig(() => ({
     en: {
       welcome: 'Welcome',
       TwitterClone: 'Twitter Clone',
+      NekoTribe: 'Neko Tribee',
       loading: 'Loading',
       login: 'Login',
       register: 'Register',
@@ -14,6 +15,7 @@ export default defineI18nConfig(() => ({
     zh: {
       welcome: '你好',
       TwitterClone: '推特山寨版',
+      NekoTribe: '猫猫',
       loading: '加载中',
       login: '登录',
       register: '注册',
