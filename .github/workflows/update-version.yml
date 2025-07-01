@@ -55,11 +55,11 @@ jobs:
         if [ -n "$PREVIOUS_TAG" ]; then
           echo "上个标签: $PREVIOUS_TAG"
           
-          # 获取两个标签之间的提交信息
+          # 获取两个标签之间的提交信息（不包含上个标签那个提交）
           COMMIT_RANGE="${PREVIOUS_TAG}..HEAD"
           echo "提交范围: $COMMIT_RANGE"
           
-          # 获取提交日志（格式化）
+          # 获取提交日志（格式化，不包含上个标签的提交）
           COMMIT_LOG=$(git log --pretty=format:"- %s (%h)" "$COMMIT_RANGE" 2>/dev/null || echo "")
           
           # 获取提交统计
