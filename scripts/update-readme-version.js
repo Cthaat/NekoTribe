@@ -6,8 +6,13 @@
  * @author Cthaat
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// 获取当前文件的目录路径（ES Module 中需要手动处理）
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * 从环境变量获取服务名和版本号（GitHub Actions调用时）
@@ -202,11 +207,11 @@ function main() {
 }
 
 // 如果直接运行此脚本
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   main();
 }
 
-module.exports = {
+export {
   getVersionFromEnv,
   getVersionFromConfig,
   updateReadmeVersion,
