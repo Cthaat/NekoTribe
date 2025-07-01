@@ -87,7 +87,7 @@ jobs:
         echo "=== 提交日志 ==="
         echo "$COMMIT_LOG"
         
-        # 如果标记有注释，使用注释作为发布标题；否则使用默认格式
+        # 如果标记有注释标题，使用标签注释标题作为发布标题；否则使用默认格式
         if [ -n "$TAG_SUBJECT" ]; then
           RELEASE_TITLE="$TAG_SUBJECT"
         else
@@ -252,7 +252,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.NEKO_TOKEN }}
       with:
         tag_name: ${{ github.ref }}
-        release_name: ${{ steps.get_version.outputs.TAG_MESSAGE }}
+        release_name: ${{ steps.get_version.outputs.RELEASE_TITLE }}
         body: |
           ## 🎉 ${{ steps.get_version.outputs.SERVICE_NAME }} 版本 v${{ steps.get_version.outputs.VERSION }} 发布
 
