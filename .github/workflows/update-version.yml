@@ -1,0 +1,211 @@
+name: 自动更新版本号
+
+# 当推送版本标签时触发工作流
+on:
+  push:
+    tags:
+      - '*/v*.*.*'     # 匹配 user-service/v1.0.0, order-service/v1.2.1 等格式
+      - '*/v*.*.*-*'   # 匹配 payment-service/v3.1.0-beta.1 等预发布版本格式
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # 1. 检出代码
+    - name: 检出代码
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.NEKO_TOKEN }}
+
+    # 2. 设置Node.js环境
+    - name: 设置Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    # 3. 提取服务名和版本号
+    - name: 提取服务名和版本号
+      id: get_version
+      run: |
+        # 完整标签格式：refs/tags/service-name/v1.0.0
+        FULL_TAG=${GITHUB_REF#refs/tags/}
+        echo "完整标签: $FULL_TAG"
+        
+        # 提取服务名（标签中'/'前的部分）
+        SERVICE_NAME=${FULL_TAG%/v*}
+        echo "服务名: $SERVICE_NAME"
+        
+        # 提取版本号（去掉服务名和'v'前缀）
+        VERSION=${FULL_TAG#*/v}
+        echo "版本号: $VERSION"
+        
+        # 输出到GitHub Actions环境变量
+        echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_OUTPUT
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "FULL_TAG=$FULL_TAG" >> $GITHUB_OUTPUT
+        
+        echo "提取完成 - 服务: $SERVICE_NAME, 版本: $VERSION"
+
+    # 4. 更新对应服务的版本信息
+    - name: 更新服务版本信息
+      run: |
+        SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        FULL_TAG="${{ steps.get_version.outputs.FULL_TAG }}"
+        
+        echo "开始更新服务 $SERVICE_NAME 的版本信息到 $VERSION"
+        
+        # 更新 .env 文件中的版本信息
+        if [ -f ".env" ]; then
+          sed -i "s/version: '[^']*'/version: '$VERSION'/g" .env
+          sed -i "s/@version [0-9]*\.[0-9]*\.[0-9]*/@version $VERSION/g" .env
+          echo "已更新 .env 文件"
+        fi
+        
+        # 根据服务名创建或更新特定的版本配置文件
+        VERSION_DIR="config/versions"
+        mkdir -p $VERSION_DIR
+        
+        # 创建服务版本配置文件
+        cat > "$VERSION_DIR/$SERVICE_NAME.json" << 'EOF'
+        {
+          "serviceName": "SERVICE_NAME_PLACEHOLDER",
+          "version": "VERSION_PLACEHOLDER",
+          "tag": "FULL_TAG_PLACEHOLDER",
+          "releaseDate": "RELEASE_DATE_PLACEHOLDER",
+          "buildNumber": "BUILD_NUMBER_PLACEHOLDER"
+        }
+        EOF
+        
+        # 替换占位符
+        sed -i "s/SERVICE_NAME_PLACEHOLDER/$SERVICE_NAME/g" "$VERSION_DIR/$SERVICE_NAME.json"
+        sed -i "s/VERSION_PLACEHOLDER/$VERSION/g" "$VERSION_DIR/$SERVICE_NAME.json"
+        sed -i "s/FULL_TAG_PLACEHOLDER/$FULL_TAG/g" "$VERSION_DIR/$SERVICE_NAME.json"
+        sed -i "s/RELEASE_DATE_PLACEHOLDER/$(date -u +%Y-%m-%dT%H:%M:%SZ)/g" "$VERSION_DIR/$SERVICE_NAME.json"
+        sed -i "s/BUILD_NUMBER_PLACEHOLDER/$GITHUB_RUN_NUMBER/g" "$VERSION_DIR/$SERVICE_NAME.json"
+        
+        echo "已创建/更新服务版本配置: $VERSION_DIR/$SERVICE_NAME.json"
+        
+        # 显示更新内容
+        echo "=== 版本更新内容 ==="
+        if [ -f ".env" ]; then
+          echo "--- .env 文件版本信息 ---"
+          cat .env | grep -E "(version:|@version)" | head -5
+        fi
+        echo "--- 服务版本配置 ---"
+        cat "$VERSION_DIR/$SERVICE_NAME.json"
+
+    # 5. 安装依赖（如果需要）
+    - name: 安装依赖
+      run: |
+        if [ -f package.json ]; then
+          npm install
+        fi
+
+    # 6. 更新README.md版本信息
+    - name: 更新README.md版本信息
+      run: |
+        SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        
+        echo "更新 README.md 中 $SERVICE_NAME 服务的版本信息"
+        
+        # 检查是否有专门的README更新脚本
+        if [ -f "scripts/update-readme-version.js" ]; then
+          cd scripts
+          # 传递服务名和版本号给脚本
+          SERVICE_NAME="$SERVICE_NAME" VERSION="$VERSION" node update-readme-version.js
+          echo "使用脚本更新 README.md 完成"
+        else
+          # 使用sed直接更新README中的版本徽章
+          if [ -f "README.md" ]; then
+            # 更新服务特定的版本徽章
+            sed -i "s|\!\[${SERVICE_NAME}-version\]\[.*\]|\!\[${SERVICE_NAME}-version\]\(https://img.shields.io/badge/${SERVICE_NAME}-v${VERSION}-blue\)|g" README.md
+            
+            # 更新通用版本徽章（如果存在）
+            sed -i "s|\!\[version\]\[.*v[0-9]*\.[0-9]*\.[0-9]*.*\]|\!\[version\]\(https://img.shields.io/badge/version-v${VERSION}-blue\)|g" README.md
+            
+            echo "直接更新 README.md 版本徽章完成"
+          fi
+        fi
+
+    # 7. 提交更改
+    - name: 提交版本更新
+      run: |
+        SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # 添加更改的文件
+        git add .env README.md config/versions/
+        
+        # 检查是否有更改需要提交
+        if git diff --staged --quiet; then
+          echo "没有文件需要提交"
+        else
+          git commit -m "🔖 自动更新 $SERVICE_NAME 版本号到 v$VERSION"
+          
+          # 推送到主分支
+          git push origin HEAD:master
+          
+          echo "版本更新已提交并推送"
+        fi
+
+    # 8. 创建GitHub Release（可选）
+    - name: 创建GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.NEKO_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: ${{ steps.get_version.outputs.SERVICE_NAME }} v${{ steps.get_version.outputs.VERSION }}
+        body: |
+          ## 🎉 ${{ steps.get_version.outputs.SERVICE_NAME }} 版本 v${{ steps.get_version.outputs.VERSION }} 发布
+
+          ### � 发布信息
+          - 🏷️ **服务名称**: ${{ steps.get_version.outputs.SERVICE_NAME }}
+          - 📌 **版本号**: v${{ steps.get_version.outputs.VERSION }}
+          - 🔖 **完整标签**: ${{ steps.get_version.outputs.FULL_TAG }}
+          - 🏗️ **构建编号**: ${{ github.run_number }}
+
+          ### �🔄 自动更新内容
+          - ✅ 更新 `.env` 版本号
+          - ✅ 更新 `README.md` 版本徽章
+          - ✅ 创建服务版本配置文件
+          - ✅ 同步所有版本信息
+
+          ### 📋 完整更新日志
+          请查看提交记录了解详细更改内容。
+
+          ---
+          *此版本由 GitHub Actions 自动发布*
+        draft: false
+        prerelease: ${{ contains(steps.get_version.outputs.VERSION, 'beta') || contains(steps.get_version.outputs.VERSION, 'alpha') || contains(steps.get_version.outputs.VERSION, 'rc') }}
+
+    # 9. 通知完成状态
+    - name: 输出完成信息
+      run: |
+        SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        FULL_TAG="${{ steps.get_version.outputs.FULL_TAG }}"
+        
+        echo "🎉 $SERVICE_NAME 服务版本更新工作流完成！"
+        echo "📌 服务名称: $SERVICE_NAME"
+        echo "📌 版本号: v$VERSION"
+        echo "🏷️ 完整标签: $FULL_TAG"
+        echo "📝 更新的文件:"
+        echo "   - .env (通用版本信息)"
+        echo "   - README.md (版本徽章)"
+        echo "   - config/versions/$SERVICE_NAME.json (服务版本配置)"
+        echo "🚀 GitHub Release 已创建"
+        
+        # 显示版本发布类型
+        if [[ "$VERSION" == *"beta"* ]] || [[ "$VERSION" == *"alpha"* ]] || [[ "$VERSION" == *"rc"* ]]; then
+          echo "⚠️ 这是一个预发布版本"
+        else
+          echo "✅ 这是一个正式发布版本"
+        fi

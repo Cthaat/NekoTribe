@@ -1,4 +1,5 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { version } from 'os';
 import { transformAssetUrls } from 'vite-plugin-vuetify';
 
 export default {
@@ -53,7 +54,6 @@ export default {
     oracleServiceName: process.env.ORACLE_SERVICE_NAME,
     oracleUser: process.env.ORACLE_USER,
     oraclePassword: process.env.ORACLE_PASSWORD,
-    
   },
 
   colorMode: {
