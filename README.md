@@ -3,7 +3,7 @@
 ![icon](./public/icon.png)<br/>
 
 ### 🏷️ 版本信息
-![版本](https://img.shields.io/badge/版本-v1.0.4-blue.svg)
+![版本](https://img.shields.io/badge/版本-v1.0.5-blue.svg)
 ![数据库](https://img.shields.io/badge/数据库-base-green.svg)
 ![开发状态](https://img.shields.io/badge/%E5%BC%80%E5%8F%91%E7%8A%B6%E6%80%81-%E6%AD%A3%E5%9C%A8%E5%BC%80%E5%8F%91-yellow.svg)
 
