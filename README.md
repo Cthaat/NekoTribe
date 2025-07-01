@@ -6,6 +6,13 @@
 
 </div>
 
+---
+
+## Welcome
+
++ A blog website project built on Nuxt3 + Vuetify, including complete user management, tweet publishing, likes and other functions.
+    - 一个基于 Nuxt3 + Vuetify 构建的博客网站项目，包含完整的用户管理、推文发布、点赞等功能。
+
 ### 🏷️ 版本信息
 ![版本](https://img.shields.io/badge/版本-v1.0.8-blue.svg)
 ![数据库](https://img.shields.io/badge/数据库-base-green.svg)
@@ -22,7 +29,6 @@
 ![Oracle](https://img.shields.io/badge/Oracle-19c+-F80000.svg?logo=oracle&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-3.46-003B57.svg?logo=sqlite&logoColor=white)
 
-一个基于 Nuxt3 + Vuetify 构建的 Twitter 克隆项目，包含完整的用户管理、推文发布、点赞等功能。
 
 ## 🚀 部署地址
 - [预览地址](https://neko-tribe.vercel.app)
