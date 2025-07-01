@@ -50,6 +50,43 @@ jobs:
         echo "标记标题: $TAG_SUBJECT"
         echo "标记正文: $TAG_BODY"
         
+        # 获取从上个标签到当前标签的提交信息
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        if [ -n "$PREVIOUS_TAG" ]; then
+          echo "上个标签: $PREVIOUS_TAG"
+          
+          # 获取两个标签之间的提交信息
+          COMMIT_RANGE="${PREVIOUS_TAG}..HEAD"
+          echo "提交范围: $COMMIT_RANGE"
+          
+          # 获取提交日志（格式化）
+          COMMIT_LOG=$(git log --pretty=format:"- %s (%h)" "$COMMIT_RANGE" 2>/dev/null || echo "")
+          
+          # 获取提交统计
+          COMMIT_COUNT=$(git rev-list --count "$COMMIT_RANGE" 2>/dev/null || echo "0")
+          
+          # 获取文件变更统计
+          FILES_CHANGED=$(git diff --name-only "$PREVIOUS_TAG" HEAD | wc -l)
+          INSERTIONS=$(git diff --shortstat "$PREVIOUS_TAG" HEAD | grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo "0")
+          DELETIONS=$(git diff --shortstat "$PREVIOUS_TAG" HEAD | grep -o '[0-9]* deletion' | grep -o '[0-9]*' || echo "0")
+          
+          echo "提交数量: $COMMIT_COUNT"
+          echo "文件变更: $FILES_CHANGED"
+          echo "新增行数: $INSERTIONS"
+          echo "删除行数: $DELETIONS"
+          
+        else
+          echo "这是第一个标签，没有上个标签进行比较"
+          COMMIT_LOG="- 🎉 项目初始版本发布"
+          COMMIT_COUNT="1"
+          FILES_CHANGED="0"
+          INSERTIONS="0"
+          DELETIONS="0"
+        fi
+        
+        echo "=== 提交日志 ==="
+        echo "$COMMIT_LOG"
+        
         # 如果标记有注释，使用注释作为发布标题；否则使用默认格式
         if [ -n "$TAG_SUBJECT" ]; then
           RELEASE_TITLE="$TAG_SUBJECT"
@@ -67,6 +104,12 @@ jobs:
         echo "TAG_SUBJECT=$TAG_SUBJECT" >> $GITHUB_OUTPUT
         echo "TAG_BODY=$TAG_BODY" >> $GITHUB_OUTPUT
         echo "RELEASE_TITLE=$RELEASE_TITLE" >> $GITHUB_OUTPUT
+        echo "COMMIT_LOG=$COMMIT_LOG" >> $GITHUB_OUTPUT
+        echo "COMMIT_COUNT=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+        echo "FILES_CHANGED=$FILES_CHANGED" >> $GITHUB_OUTPUT
+        echo "INSERTIONS=$INSERTIONS" >> $GITHUB_OUTPUT
+        echo "DELETIONS=$DELETIONS" >> $GITHUB_OUTPUT
+        echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
         
         echo "提取完成 - 服务: $SERVICE_NAME, 版本: $VERSION, 标题: $RELEASE_TITLE"
 
@@ -199,15 +242,22 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.NEKO_TOKEN }}
       with:
         tag_name: ${{ github.ref }}
-        release_name: ${{ steps.get_version.outputs.SERVICE_NAME }} v${{ steps.get_version.outputs.VERSION }}
+        release_name: ${{ steps.get_version.outputs.RELEASE_TITLE }}
         body: |
           ## 🎉 ${{ steps.get_version.outputs.SERVICE_NAME }} 版本 v${{ steps.get_version.outputs.VERSION }} 发布
 
-          ### 发布信息
+          ### 📋 发布信息
           - 🏷️ **服务名称**: ${{ steps.get_version.outputs.SERVICE_NAME }}
           - 📌 **版本号**: v${{ steps.get_version.outputs.VERSION }}
           - 🔖 **完整标签**: ${{ steps.get_version.outputs.FULL_TAG }}
           - 🏗️ **构建编号**: ${{ github.run_number }}
+          ${{ steps.get_version.outputs.PREVIOUS_TAG && format('- 📊 **上个版本**: {0}', steps.get_version.outputs.PREVIOUS_TAG) || '' }}
+
+          ### 🏷️ 变更统计
+          - 🔖 **提交数量**: ${{ steps.get_version.outputs.COMMIT_COUNT }} 个提交
+          - 📁 **文件变更**: ${{ steps.get_version.outputs.FILES_CHANGED }} 个文件
+          - ➕ **新增代码**: ${{ steps.get_version.outputs.INSERTIONS }} 行
+          - ➖ **删除代码**: ${{ steps.get_version.outputs.DELETIONS }} 行
 
           ### 🔄 自动更新内容
           - ✅ 更新 `.env` 版本号
@@ -215,8 +265,11 @@ jobs:
           - ✅ 创建服务版本配置文件
           - ✅ 同步所有版本信息
 
-          ### 📋 手动更新日志
-          ${{ steps.get_version.outputs.TAG_MESSAGE }}
+          ### 🚀 提交记录
+          ${{ steps.get_version.outputs.COMMIT_LOG }}
+
+          ### � 标签说明
+          ${{ steps.get_version.outputs.TAG_MESSAGE || '无额外说明' }}
 
           ---
           *此版本由 GitHub Actions 自动发布*
@@ -229,11 +282,23 @@ jobs:
         SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
         VERSION="${{ steps.get_version.outputs.VERSION }}"
         FULL_TAG="${{ steps.get_version.outputs.FULL_TAG }}"
+        COMMIT_COUNT="${{ steps.get_version.outputs.COMMIT_COUNT }}"
+        FILES_CHANGED="${{ steps.get_version.outputs.FILES_CHANGED }}"
+        PREVIOUS_TAG="${{ steps.get_version.outputs.PREVIOUS_TAG }}"
         
         echo "🎉 $SERVICE_NAME 服务版本更新工作流完成！"
         echo "📌 服务名称: $SERVICE_NAME"
         echo "📌 版本号: v$VERSION"
         echo "🏷️ 完整标签: $FULL_TAG"
+        
+        if [ -n "$PREVIOUS_TAG" ]; then
+          echo "📊 版本对比: $PREVIOUS_TAG → $FULL_TAG"
+          echo "🔄 提交数量: $COMMIT_COUNT 个"
+          echo "📁 文件变更: $FILES_CHANGED 个"
+        else
+          echo "🎉 这是首次发布！"
+        fi
+        
         echo "📝 更新的文件:"
         echo "   - .env (通用版本信息)"
         echo "   - README.md (版本徽章)"
