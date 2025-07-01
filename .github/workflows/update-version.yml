@@ -41,12 +41,34 @@ jobs:
         VERSION=${FULL_TAG#*/v}
         echo "版本号: $VERSION"
         
+        # 获取标记的注释信息
+        TAG_MESSAGE=$(git tag -l --format='%(contents)' "$FULL_TAG" 2>/dev/null || echo "")
+        TAG_SUBJECT=$(git tag -l --format='%(contents:subject)' "$FULL_TAG" 2>/dev/null || echo "")
+        TAG_BODY=$(git tag -l --format='%(contents:body)' "$FULL_TAG" 2>/dev/null || echo "")
+        
+        echo "标记注释 (完整): $TAG_MESSAGE"
+        echo "标记标题: $TAG_SUBJECT"
+        echo "标记正文: $TAG_BODY"
+        
+        # 如果标记有注释，使用注释作为发布标题；否则使用默认格式
+        if [ -n "$TAG_SUBJECT" ]; then
+          RELEASE_TITLE="$TAG_SUBJECT"
+        else
+          RELEASE_TITLE="$SERVICE_NAME v$VERSION"
+        fi
+        
+        echo "发布标题: $RELEASE_TITLE"
+        
         # 输出到GitHub Actions环境变量
         echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_OUTPUT
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
         echo "FULL_TAG=$FULL_TAG" >> $GITHUB_OUTPUT
+        echo "TAG_MESSAGE=$TAG_MESSAGE" >> $GITHUB_OUTPUT
+        echo "TAG_SUBJECT=$TAG_SUBJECT" >> $GITHUB_OUTPUT
+        echo "TAG_BODY=$TAG_BODY" >> $GITHUB_OUTPUT
+        echo "RELEASE_TITLE=$RELEASE_TITLE" >> $GITHUB_OUTPUT
         
-        echo "提取完成 - 服务: $SERVICE_NAME, 版本: $VERSION"
+        echo "提取完成 - 服务: $SERVICE_NAME, 版本: $VERSION, 标题: $RELEASE_TITLE"
 
     # 4. 更新对应服务的版本信息
     - name: 更新服务版本信息
@@ -181,20 +203,20 @@ jobs:
         body: |
           ## 🎉 ${{ steps.get_version.outputs.SERVICE_NAME }} 版本 v${{ steps.get_version.outputs.VERSION }} 发布
 
-          ### � 发布信息
+          ### 发布信息
           - 🏷️ **服务名称**: ${{ steps.get_version.outputs.SERVICE_NAME }}
           - 📌 **版本号**: v${{ steps.get_version.outputs.VERSION }}
           - 🔖 **完整标签**: ${{ steps.get_version.outputs.FULL_TAG }}
           - 🏗️ **构建编号**: ${{ github.run_number }}
 
-          ### �🔄 自动更新内容
+          ### 🔄 自动更新内容
           - ✅ 更新 `.env` 版本号
           - ✅ 更新 `README.md` 版本徽章
           - ✅ 创建服务版本配置文件
           - ✅ 同步所有版本信息
 
-          ### 📋 完整更新日志
-          请查看提交记录了解详细更改内容。
+          ### 📋 手动更新日志
+          ${{ steps.get_version.outputs.TAG_MESSAGE }}
 
           ---
           *此版本由 GitHub Actions 自动发布*
