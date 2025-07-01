@@ -4,7 +4,6 @@
 ![数据库](https://img.shields.io/badge/数据库-base-green.svg)
 ![icon](./public/icon.png)<br/>
 
-[![项目版本](https://img.shields.io/badge/%E9%A1%B9%E7%9B%AE%E7%89%88%E6%9C%AC-v1.0.0-blue.svg)](https://github.com/NekoTribe)
 [![开发状态](https://img.shields.io/badge/%E5%BC%80%E5%8F%91%E7%8A%B6%E6%80%81-%E6%AD%A3%E5%9C%A8%E5%BC%80%E5%8F%91-yellow.svg)](https://github.com/NekoTribe)
 
 一个基于 Nuxt3 + Vuetify 构建的 Twitter 克隆项目，包含完整的用户管理、推文发布、点赞等功能。
