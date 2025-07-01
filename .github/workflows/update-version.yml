@@ -41,49 +41,51 @@ jobs:
         VERSION=${FULL_TAG#*/v}
         echo "版本号: $VERSION"
         
-        # 获取标记的注释信息 - 优化的标签注释获取逻辑
+        # 获取标记的注释信息 - 修正的标签注释获取逻辑
         echo "开始获取标签注释信息..."
         
-        # 首先检查是否为带注释标签
-        TAG_TYPE=$(git cat-file -t "$FULL_TAG" 2>/dev/null || echo "commit")
-        echo "标签类型: $TAG_TYPE"
+        # 使用多种方法检查标签类型，确保准确性
+        TAG_TYPE=$(git cat-file -t "$FULL_TAG" 2>/dev/null || echo "unknown")
+        echo "标签类型（cat-file）: $TAG_TYPE"
         
-        if [ "$TAG_TYPE" = "tag" ]; then
-          # 是带注释标签，获取标签注释
-          echo "检测到带注释标签，开始提取注释..."
-          
-          # 方法1: 使用 for-each-ref（最可靠）
-          TAG_MESSAGE=$(git for-each-ref --format='%(contents)' "refs/tags/$FULL_TAG" 2>/dev/null || echo "")
-          
-          # 方法2: 如果方法1失败，使用 cat-file
-          if [ -z "$TAG_MESSAGE" ]; then
-            echo "方法1失败，尝试方法2..."
-            TAG_MESSAGE=$(git cat-file -p "$FULL_TAG" 2>/dev/null | sed -n '/^tagger /,$ p' | tail -n +2 || echo "")
-          fi
-          
-          # 方法3: 最后尝试使用 show 命令
-          if [ -z "$TAG_MESSAGE" ]; then
-            echo "方法2失败，尝试方法3..."
-            TAG_MESSAGE=$(git show "$FULL_TAG" --format="" --no-patch 2>/dev/null || echo "")
-          fi
-          
-        else
-          # 是轻量标签，使用提交信息
-          echo "检测到轻量标签，使用提交信息..."
+        # 尝试直接获取标签注释内容来判断是否为带注释标签
+        TAG_MESSAGE=""
+        
+        # 方法1: 优先使用 for-each-ref 获取注释内容
+        echo "尝试使用 for-each-ref 获取标签注释..."
+        TAG_MESSAGE=$(git for-each-ref --format='%(contents)' "refs/tags/$FULL_TAG" 2>/dev/null | head -1 || echo "")
+        
+        # 方法2: 如果方法1失败或返回空，使用 cat-file 
+        if [ -z "$TAG_MESSAGE" ]; then
+          echo "for-each-ref 失败，尝试使用 cat-file..."
+          TAG_MESSAGE=$(git cat-file -p "$FULL_TAG" 2>/dev/null | awk '/^tagger / {found=1; next} found && NF>0 {print; exit}' || echo "")
+        fi
+        
+        # 方法3: 如果前两种方法都失败，使用 show 命令
+        if [ -z "$TAG_MESSAGE" ]; then
+          echo "cat-file 失败，尝试使用 show 命令..."
+          TAG_MESSAGE=$(git show "$FULL_TAG" --format="%B" --no-patch 2>/dev/null | head -1 || echo "")
+        fi
+        
+        # 方法4: 如果仍然为空，说明可能是轻量标签，使用提交信息
+        if [ -z "$TAG_MESSAGE" ]; then
+          echo "未获取到标签注释，可能是轻量标签，使用提交信息..."
           TAG_MESSAGE=$(git log -1 --pretty=format:"%s" "$FULL_TAG" 2>/dev/null || echo "")
         fi
         
         # 清理和处理标签注释内容
         if [ -n "$TAG_MESSAGE" ]; then
           # 去除首尾空白字符
-          TAG_MESSAGE=$(echo "$TAG_MESSAGE" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-          TAG_SUBJECT=$(echo "$TAG_MESSAGE" | head -n 1)
-          TAG_BODY=$(echo "$TAG_MESSAGE" | tail -n +2 | sed '/^$/d')
+          TAG_MESSAGE=$(echo "$TAG_MESSAGE" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | head -1)
+          TAG_SUBJECT="$TAG_MESSAGE"
+          TAG_BODY=$(echo "$TAG_MESSAGE" | tail -n +2 | sed '/^$/d' || echo "")
         else
           TAG_MESSAGE=""
           TAG_SUBJECT=""
           TAG_BODY=""
         fi
+        
+        echo "最终获取到的标签注释: [$TAG_MESSAGE]"
         
         echo "标记注释 (完整): $TAG_MESSAGE"
         echo "标记标题: $TAG_SUBJECT"
