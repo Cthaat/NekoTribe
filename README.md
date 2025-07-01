@@ -1,10 +1,24 @@
 # NekoTribe
 
-![版本](https://img.shields.io/badge/版本-v1.0.0-blue.svg)
-![数据库](https://img.shields.io/badge/数据库-base-green.svg)
 ![icon](./public/icon.png)<br/>
 
-[![开发状态](https://img.shields.io/badge/%E5%BC%80%E5%8F%91%E7%8A%B6%E6%80%81-%E6%AD%A3%E5%9C%A8%E5%BC%80%E5%8F%91-yellow.svg)](https://github.com/NekoTribe)
+## 📊 项目徽章
+
+### 🏷️ 版本信息
+![版本](https://img.shields.io/badge/版本-v1.0.0-blue.svg)
+![数据库](https://img.shields.io/badge/数据库-base-green.svg)
+![开发状态](https://img.shields.io/badge/%E5%BC%80%E5%8F%91%E7%8A%B6%E6%80%81-%E6%AD%A3%E5%9C%A8%E5%BC%80%E5%8F%91-yellow.svg)
+
+### 🛠️ 技术栈
+![Nuxt](https://img.shields.io/badge/Nuxt-3.12.3-00C58E.svg?logo=nuxt.js&logoColor=white)
+![Vue.js](https://img.shields.io/badge/Vue.js-3.4.0-4FC08D.svg?logo=vue.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6.svg?logo=typescript&logoColor=white)
+![Vuetify](https://img.shields.io/badge/Vuetify-3.6.13-1867C0.svg?logo=vuetify&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-22.0-339933.svg?logo=node.js&logoColor=white)
+
+### 🗄️ 数据库
+![Oracle](https://img.shields.io/badge/Oracle-19c+-F80000.svg?logo=oracle&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-3.46-003B57.svg?logo=sqlite&logoColor=white)
 
 一个基于 Nuxt3 + Vuetify 构建的 Twitter 克隆项目，包含完整的用户管理、推文发布、点赞等功能。
 
