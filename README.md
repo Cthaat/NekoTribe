@@ -2,8 +2,6 @@
 
 ![icon](./public/icon.png)<br/>
 
-## 📊 项目徽章
-
 ### 🏷️ 版本信息
 ![版本](https://img.shields.io/badge/版本-v1.0.0-blue.svg)
 ![数据库](https://img.shields.io/badge/数据库-base-green.svg)
