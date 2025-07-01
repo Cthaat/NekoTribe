@@ -278,8 +278,8 @@ jobs:
           ### 🚀 提交记录
           ${{ steps.get_version.outputs.COMMIT_LOG }}
 
-          ### � 标签说明
-          ${{ steps.get_version.outputs.TAG_MESSAGE || '无额外说明' }}
+          ### 📝 标签注释
+          ${{ steps.get_version.outputs.TAG_MESSAGE || '无标签注释' }}
 
           ---
           *此版本由 GitHub Actions 自动发布*
