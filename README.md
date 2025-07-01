@@ -1,6 +1,10 @@
+<div align="center">
+
 # NekoTribe
 
-![icon](./public/icon.png)<br/>
+> 哈基米莫南北路多，啊西噶哈呀裤那莫，曼波！
+
+</div>
 
 ### 🏷️ 版本信息
 ![版本](https://img.shields.io/badge/版本-v1.0.8-blue.svg)
