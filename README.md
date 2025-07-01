@@ -1,4 +1,7 @@
 # NekoTribe
+
+![版本](https://img.shields.io/badge/版本-v1.0.0-blue.svg)
+![数据库](https://img.shields.io/badge/数据库-base-green.svg)
 ![icon](./public/icon.png)<br/>
 
 [![项目版本](https://img.shields.io/badge/%E9%A1%B9%E7%9B%AE%E7%89%88%E6%9C%AC-v1.0.0-blue.svg)](https://github.com/NekoTribe)
