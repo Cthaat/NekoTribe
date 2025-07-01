@@ -41,10 +41,18 @@ jobs:
         VERSION=${FULL_TAG#*/v}
         echo "版本号: $VERSION"
         
-        # 获取标记的注释信息
-        TAG_MESSAGE=$(git tag -l --format='%(contents)' "$FULL_TAG" 2>/dev/null || echo "")
-        TAG_SUBJECT=$(git tag -l --format='%(contents:subject)' "$FULL_TAG" 2>/dev/null || echo "")
-        TAG_BODY=$(git tag -l --format='%(contents:body)' "$FULL_TAG" 2>/dev/null || echo "")
+        # 获取标记的注释信息 - 使用 cat-file 获取真正的标签注释
+        # 首先检查是否为带注释标签
+        if git cat-file -t "$FULL_TAG" 2>/dev/null | grep -q "tag"; then
+          # 是带注释标签，获取标签注释
+          TAG_MESSAGE=$(git cat-file -p "$FULL_TAG" 2>/dev/null | sed -n '/^$/,$ p' | sed '1d' | tr -d '\0' || echo "")
+        else
+          # 是轻量标签，获取对应提交的信息
+          TAG_MESSAGE=$(git log -1 --pretty=format:"%s" "$FULL_TAG" 2>/dev/null || echo "")
+        fi
+        
+        TAG_SUBJECT=$(echo "$TAG_MESSAGE" | head -n 1 | tr -d '\0' || echo "")
+        TAG_BODY=$(echo "$TAG_MESSAGE" | tail -n +2 | tr -d '\0' || echo "")
         
         echo "标记注释 (完整): $TAG_MESSAGE"
         echo "标记标题: $TAG_SUBJECT"
