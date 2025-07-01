@@ -7,7 +7,7 @@
 一个基于 Nuxt3 + Vuetify 构建的 Twitter 克隆项目，包含完整的用户管理、推文发布、点赞等功能。
 
 ## 🚀 部署地址
-- 预览地址：[https://twitter-clone-kohl-rho.vercel.app/](https://twitter-clone-kohl-rho.vercel.app/)
+- [预览地址](https://neko-tribe.vercel.app)
 
 ## 🛠️ 技术栈
 
