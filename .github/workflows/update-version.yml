@@ -41,18 +41,49 @@ jobs:
         VERSION=${FULL_TAG#*/v}
         echo "版本号: $VERSION"
         
-        # 获取标记的注释信息 - 使用 cat-file 获取真正的标签注释
+        # 获取标记的注释信息 - 优化的标签注释获取逻辑
+        echo "开始获取标签注释信息..."
+        
         # 首先检查是否为带注释标签
-        if git cat-file -t "$FULL_TAG" 2>/dev/null | grep -q "tag"; then
+        TAG_TYPE=$(git cat-file -t "$FULL_TAG" 2>/dev/null || echo "commit")
+        echo "标签类型: $TAG_TYPE"
+        
+        if [ "$TAG_TYPE" = "tag" ]; then
           # 是带注释标签，获取标签注释
-          TAG_MESSAGE=$(git cat-file -p "$FULL_TAG" 2>/dev/null | sed -n '/^$/,$ p' | sed '1d' | tr -d '\0' || echo "")
+          echo "检测到带注释标签，开始提取注释..."
+          
+          # 方法1: 使用 for-each-ref（最可靠）
+          TAG_MESSAGE=$(git for-each-ref --format='%(contents)' "refs/tags/$FULL_TAG" 2>/dev/null || echo "")
+          
+          # 方法2: 如果方法1失败，使用 cat-file
+          if [ -z "$TAG_MESSAGE" ]; then
+            echo "方法1失败，尝试方法2..."
+            TAG_MESSAGE=$(git cat-file -p "$FULL_TAG" 2>/dev/null | sed -n '/^tagger /,$ p' | tail -n +2 || echo "")
+          fi
+          
+          # 方法3: 最后尝试使用 show 命令
+          if [ -z "$TAG_MESSAGE" ]; then
+            echo "方法2失败，尝试方法3..."
+            TAG_MESSAGE=$(git show "$FULL_TAG" --format="" --no-patch 2>/dev/null || echo "")
+          fi
+          
         else
-          # 是轻量标签，获取对应提交的信息
+          # 是轻量标签，使用提交信息
+          echo "检测到轻量标签，使用提交信息..."
           TAG_MESSAGE=$(git log -1 --pretty=format:"%s" "$FULL_TAG" 2>/dev/null || echo "")
         fi
         
-        TAG_SUBJECT=$(echo "$TAG_MESSAGE" | head -n 1 | tr -d '\0' || echo "")
-        TAG_BODY=$(echo "$TAG_MESSAGE" | tail -n +2 | tr -d '\0' || echo "")
+        # 清理和处理标签注释内容
+        if [ -n "$TAG_MESSAGE" ]; then
+          # 去除首尾空白字符
+          TAG_MESSAGE=$(echo "$TAG_MESSAGE" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+          TAG_SUBJECT=$(echo "$TAG_MESSAGE" | head -n 1)
+          TAG_BODY=$(echo "$TAG_MESSAGE" | tail -n +2 | sed '/^$/d')
+        else
+          TAG_MESSAGE=""
+          TAG_SUBJECT=""
+          TAG_BODY=""
+        fi
         
         echo "标记注释 (完整): $TAG_MESSAGE"
         echo "标记标题: $TAG_SUBJECT"
@@ -63,11 +94,11 @@ jobs:
         if [ -n "$PREVIOUS_TAG" ]; then
           echo "上个标签: $PREVIOUS_TAG"
           
-          # 获取从上个标签开始，但跳过前一个提交的提交信息
-          COMMIT_RANGE="${PREVIOUS_TAG}~1..HEAD"
+          # 获取从上个标签开始，但跳过后一个提交的提交信息
+          COMMIT_RANGE="${PREVIOUS_TAG}..HEAD"  
           echo "提交范围: $COMMIT_RANGE"
           
-          # 获取提交日志（格式化，跳过上个标签后的前一个提交）
+          # 获取提交日志（格式化，跳过上个标签后的后一个提交）
           COMMIT_LOG=$(git log --pretty=format:"- %s (%h)" "$COMMIT_RANGE" 2>/dev/null || echo "")
           
           # 获取提交统计
