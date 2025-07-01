@@ -35,34 +35,26 @@
 
 ## 🛠️ 技术栈
 
-### 前端框架
-- [**Nuxt 3**](https://nuxt.com/) - Vue.js 全栈框架
-- [**Vue 3**](https://vuejs.org/) - 渐进式前端框架
-- [**Vuetify 3**](https://vuetifyjs.com/zh-Hans/) - Material Design 组件库
-- [**TypeScript**](https://www.typescriptlang.org/) - 类型安全的 JavaScript
+| 前端框架 | [![Nuxt](https://img.shields.io/badge/Nuxt-3.12.3-00C58E.svg?logo=nuxt.js&logoColor=white)](https://nuxt.com/) | [![Vue.js](https://img.shields.io/badge/Vue.js-3.4.0-4FC08D.svg?logo=vue.js&logoColor=white)](https://vuejs.org/) | [![Vuetify](https://img.shields.io/badge/Vuetify-3.6.13-1867C0.svg?logo=vuetify&logoColor=white)](https://vuetifyjs.com/zh-Hans/) | [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) |
+|:-:|:-:|:-:|:-:|:-:|
 
-### 状态管理
-- [**Pinia**](https://pinia.vuejs.org/) - Vue 状态管理
-- [**@pinia-plugin-persistedstate**](https://github.com/prazdevs/pinia-plugin-persistedstate) - 状态持久化
+| 状态管理 | [![Pinia](https://img.shields.io/badge/Pinia-2.1.6-yellow.svg?logo=pinia&logoColor=white)](https://pinia.vuejs.org/) | [![Persistedstate](https://img.shields.io/badge/Persistedstate-3.2.0-green.svg)](https://github.com/prazdevs/pinia-plugin-persistedstate) |
+|:-:|:-:|:-:|
 
-### 后端 & 数据库
-- [**Nitro**](https://nitro.unjs.io/) - 全栈服务器引擎
-- [**Oracle 19c+**](https://www.oracle.com/database/) - 企业级关系型数据库
-- [**Better SQLite3**](https://github.com/WiseLibs/better-sqlite3) - 轻量级数据库（开发环境）
-- [**JWT**](https://jwt.io/) - 身份验证
-- [**bcrypt**](https://github.com/kelektiv/node.bcrypt.js) - 密码加密
+| 后端 & 数据库 | [![Nitro](https://img.shields.io/badge/Nitro-2.8.1-purple.svg)](https://nitro.unjs.io/) | [![Oracle](https://img.shields.io/badge/Oracle-19c+-F80000.svg?logo=oracle&logoColor=white)](https://www.oracle.com/database/) | [![SQLite](https://img.shields.io/badge/SQLite-3.46-003B57.svg?logo=sqlite&logoColor=white)](https://github.com/WiseLibs/better-sqlite3) | [![JWT](https://img.shields.io/badge/JWT-9.0.2-black.svg)](https://jwt.io/) |
+|:-:|:-:|:-:|:-:|:-:|
 
-### UI & 样式
-- [**Vuetify Nuxt Module**](https://vuetify-nuxt-module.netlify.app/) - Vuetify 集成
-- [**@nuxtjs/color-mode**](https://color-mode.nuxtjs.org/) - 深色模式支持
-- [**Material Design Icons**](https://pictogrammers.com/library/mdi/) - 图标库
-- [**Element Plus**](https://element-plus.org/) - 消息提示组件
+| 认证 & 安全 | [![bcrypt](https://img.shields.io/badge/bcrypt-5.1.1-brown.svg)](https://github.com/kelektiv/node.bcrypt.js) |
+|:-:|:-:|
 
-### 国际化 & 工具
-- [**@nuxtjs/i18n**](https://i18n.nuxtjs.org/) - 国际化支持
-- [**Day.js**](https://day.js.org/) - 日期处理
-- [**Formidable**](https://github.com/node-formidable/formidable) - 文件上传
-- [**ESLint + Prettier**](https://eslint.org/) - 代码规范
+| UI & 样式 | [![Vuetify Module](https://img.shields.io/badge/Vuetify%20Module-0.9.0-1867C0.svg)](https://vuetify-nuxt-module.netlify.app/) | [![Color Mode](https://img.shields.io/badge/Color%20Mode-3.3.2-blue.svg)](https://color-mode.nuxtjs.org/) | [![MDI](https://img.shields.io/badge/Material%20Design%20Icons-7.3.67-2196F3.svg)](https://pictogrammers.com/library/mdi/) | [![Element Plus](https://img.shields.io/badge/Element%20Plus-2.4.2-409EFF.svg)](https://element-plus.org/) |
+|:-:|:-:|:-:|:-:|:-:|
+
+| 国际化 & 工具 | [![i18n](https://img.shields.io/badge/i18n-8.0.0-green.svg)](https://i18n.nuxtjs.org/) | [![Day.js](https://img.shields.io/badge/Day.js-1.11.10-orange.svg)](https://day.js.org/) | [![Formidable](https://img.shields.io/badge/Formidable-3.5.1-red.svg)](https://github.com/node-formidable/formidable) |
+|:-:|:-:|:-:|:-:|
+
+| 代码规范 | [![ESLint](https://img.shields.io/badge/ESLint-8.55.0-4B32C3.svg?logo=eslint&logoColor=white)](https://eslint.org/) | [![Prettier](https://img.shields.io/badge/Prettier-3.1.0-F7B93E.svg?logo=prettier&logoColor=black)](https://prettier.io/) |
+|:-:|:-:|:-:|
 
 ## ✨ 功能特性
 
