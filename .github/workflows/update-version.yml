@@ -94,8 +94,12 @@ jobs:
         if [ -n "$PREVIOUS_TAG" ]; then
           echo "上个标签: $PREVIOUS_TAG"
           
-          # 获取从上个标签开始，但跳过后一个提交的提交信息
-          COMMIT_RANGE="${PREVIOUS_TAG}..HEAD"  
+          FIRST_COMMIT_AFTER_TAG=$(git rev-list --reverse "${PREVIOUS_TAG}..HEAD" | head -n 1)
+          if [ -z "$FIRST_COMMIT_AFTER_TAG" ]; then
+            COMMIT_RANGE=""
+          else
+            COMMIT_RANGE="${FIRST_COMMIT_AFTER_TAG}..HEAD"
+          fi
           echo "提交范围: $COMMIT_RANGE"
           
           # 获取提交日志（格式化，跳过上个标签后的后一个提交）
