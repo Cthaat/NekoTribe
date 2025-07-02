@@ -1,6 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { version } from 'os';
 import { transformAssetUrls } from 'vite-plugin-vuetify';
+import tailwindcss from '@tailwindcss/vite'
 
 export default {
   devtools: { enabled: true },
@@ -15,15 +16,21 @@ export default {
     '@nuxtjs/i18n',
     '@pinia/nuxt',
     '@pinia-plugin-persistedstate/nuxt',
-    '@element-plus/nuxt'
+    '@element-plus/nuxt',
+    'shadcn-nuxt'
   ],
+
+  css: ['~/assets/css/tailwind.css'],
 
   vite: {
     vue: {
       template: {
         transformAssetUrls
       }
-    }
+    },
+    plugins: [
+      tailwindcss(),
+    ],
   },
   
   nitro: {
@@ -101,5 +108,10 @@ export default {
         }
       }
     }
+  },
+
+  shadcn: {
+    prefix: '',
+    componentDir: './components/ui'
   }
 };
