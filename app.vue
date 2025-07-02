@@ -8,14 +8,14 @@
 
 <script setup>
 useSeoMeta({
-  title: '推特山寨版',
-  description: 'Web应用开发大作业🥵🥵🥵',
-  ogTitle: '推特山寨版',
-  ogDescription: 'Web应用开发大作业🥵🥵🥵',
+  title: 'NekoTribe',
+  description: '社交媒体平台',
+  ogTitle: 'NekoTribe',
+  ogDescription: '社交媒体平台',
   ogImage: '/icon.png',
-  ogUrl: 'https://twitter-clone-kohl-rho.vercel.app/',
-  twitterTitle: '推特山寨版',
-  twitterDescription: 'Web应用开发大作业🥵🥵🥵',
+  ogUrl: 'https://neko-tribe.vercel.app/',
+  twitterTitle: 'NekoTribe',
+  twitterDescription: '社交媒体平台',
   twitterImage: '/icon.png',
   twitterCard: '呕心沥血之作🥵'
 });
