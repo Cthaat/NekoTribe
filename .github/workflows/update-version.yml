@@ -249,7 +249,7 @@ jobs:
         git config --local user.name "GitHub Action"
         
         # 获取当前分支名称
-        CURRENT_BRANCH=$(git branch --show-current)
+        CURRENT_BRANCH=${{ steps.get_version.outputs.SERVICE_NAME }}
         echo "当前分支: $CURRENT_BRANCH"
         
         # 如果不在分支上，获取 HEAD 指向的分支
