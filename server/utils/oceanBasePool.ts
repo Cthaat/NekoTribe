@@ -1,36 +1,55 @@
-// server/utils/oraclePool.ts
-import oracledb from 'oracledb'
+// server/utils/oceanBasePool.ts
+import mysql from 'mysql2/promise'
 
-let pool: oracledb.Pool | null = null
+let pool: mysql.Pool | null = null
 
-export async function initOraclePool() {
+export async function initOceanBasePool() {
   if (!pool) {
     const runtimeConfig = useRuntimeConfig()
     
-    pool = await oracledb.createPool({
-      user: runtimeConfig.oracleUser,
-      password: runtimeConfig.oraclePassword,
-      connectString: `${runtimeConfig.oracleHost}:${runtimeConfig.oraclePort}/${runtimeConfig.oracleServiceName}`,
-
-    
-      // 使用环境变量中的连接池配置
-      poolMin: Number(runtimeConfig.oraclePoolMin) || 2,
-      poolMax: Number(runtimeConfig.oraclePoolMax) || 10,
-      poolIncrement: Number(runtimeConfig.oraclePoolIncrement) || 1,
-
-      // 其他配置
-      poolTimeout: 300,  // 连接空闲300秒后释放
-      queueMax: 0,       // 等待队列无限制
-      queueTimeout: 60000 // 等待超时60秒
+    pool = mysql.createPool({
+      host: runtimeConfig.oceanbaseHost,
+      port: Number(runtimeConfig.oceanbasePort) || 2881,
+      user: runtimeConfig.oceanbaseUser,
+      password: runtimeConfig.oceanbasePassword,
+      database: runtimeConfig.oceanbaseDatabase,
+      connectionLimit: 10
     })
     
-    console.log('Oracle 连接池已创建')
+    console.log('OceanBase 连接池已创建')
   }
   
   return pool
 }
 
-export async function getOracleConnection() {
-  const pool = await initOraclePool()
+export async function getOceanBaseConnection() {
+  const pool = await initOceanBasePool()
   return await pool.getConnection()
+}
+
+/**
+ * 执行查询的便捷方法
+ * @param sql SQL 查询语句
+ * @param params 查询参数
+ * @returns 查询结果
+ */
+export async function executeQuery(sql: string, params?: any[]) {
+  const connection = await getOceanBaseConnection()
+  try {
+    const [rows] = await connection.execute(sql, params)
+    return rows
+  } finally {
+    connection.release()
+  }
+}
+
+/**
+ * 关闭连接池
+ */
+export async function closeOceanBasePool() {
+  if (pool) {
+    await pool.end()
+    pool = null
+    console.log('OceanBase 连接池已关闭')
+  }
 }
