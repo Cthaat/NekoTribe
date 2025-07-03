@@ -236,7 +236,7 @@ jobs:
     - name: 安装依赖
       run: |
         if [ -f package.json ]; then
-          npm install
+          yarn install
         fi
 
     # 6. 更新README.md版本信息
