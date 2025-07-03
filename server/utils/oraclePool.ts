@@ -6,9 +6,6 @@ let pool: oracledb.Pool | null = null
 export async function initOraclePool() {
   if (!pool) {
     const runtimeConfig = useRuntimeConfig()
-
-    console.log('正在创建 Oracle 连接池...')
-    console.log(runtimeConfig.oracleUser, runtimeConfig.oraclePassword, runtimeConfig.oracleHost, runtimeConfig.oraclePort, runtimeConfig.oracleServiceName)
     
     pool = await oracledb.createPool({
       user: runtimeConfig.oracleUser,

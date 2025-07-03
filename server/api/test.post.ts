@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     connection = await getOracleConnection()// 执行查询
-    const result = await connection.execute('SELECT * FROM t_users')
+    const result = await connection.execute('SELECT * FROM n_users')
     return { data: result.rows }
   } catch (error) {
     console.error('获取 Oracle 连接失败:', error)
