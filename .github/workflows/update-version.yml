@@ -18,6 +18,7 @@ jobs:
       with:
         fetch-depth: 0
         token: ${{ secrets.NEKO_TOKEN }}
+        ref: ${{ github.head_ref || github.ref_name }}
 
     # 2. 设置Node.js环境
     - name: 设置Node.js
@@ -247,6 +248,25 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         
+        # 获取当前分支名称
+        CURRENT_BRANCH=$(git branch --show-current)
+        echo "当前分支: $CURRENT_BRANCH"
+        
+        # 如果不在分支上，获取 HEAD 指向的分支
+        if [ -z "$CURRENT_BRANCH" ]; then
+          CURRENT_BRANCH="${{ github.head_ref || github.ref_name }}"
+          echo "从 GitHub 上下文获取分支: $CURRENT_BRANCH"
+          
+          # 如果还是为空，使用默认分支
+          if [ -z "$CURRENT_BRANCH" ]; then
+            CURRENT_BRANCH="master"
+            echo "使用默认分支: $CURRENT_BRANCH"
+          fi
+          
+          # 切换到正确的分支
+          git checkout -B "$CURRENT_BRANCH"
+        fi
+        
         # 添加更改的文件
         git add README.md config/versions/
         
@@ -257,9 +277,9 @@ jobs:
           git commit -m "🔖 自动更新 $SERVICE_NAME 版本号到 v$VERSION"
           
           # 推送到当前分支
-          git push origin HEAD
+          git push origin "$CURRENT_BRANCH"
           
-          echo "版本更新已提交并推送"
+          echo "版本更新已提交并推送到 $CURRENT_BRANCH 分支"
         fi
 
     # 8. 创建GitHub Release（可选）
