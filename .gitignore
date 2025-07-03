@@ -1,5 +1,6 @@
 # Nuxt dev/build outputs
 .output
+.data
 .nuxt
 .nitro
 .cache
@@ -17,4 +18,7 @@ logs
 .fleet
 .idea
 
-.history
+# Local env files
+.env
+.env.*
+!.env.example
