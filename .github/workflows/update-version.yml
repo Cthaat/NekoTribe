@@ -269,7 +269,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.NEKO_TOKEN }}
       with:
         tag_name: ${{ github.ref }}
-        release_name: ${{ steps.get_version.outputs.RELEASE_TITLE }}
+        release_name: ${{ steps.get_version.outputs.SERVICE_NAME }} v${{ steps.get_version.outputs.VERSION }}
         body: |
           ## 🎉 ${{ steps.get_version.outputs.SERVICE_NAME }} 版本 v${{ steps.get_version.outputs.VERSION }} 发布
 
