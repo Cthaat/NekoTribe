@@ -23,7 +23,7 @@ jobs:
     - name: 设置Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '22'
 
     # 3. 提取服务名和版本号
     - name: 提取服务名和版本号
