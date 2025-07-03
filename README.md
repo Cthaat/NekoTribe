@@ -149,11 +149,11 @@ npm run dev
 
 本项目提供完整的RESTful API接口，支持用户管理、推文操作、社交功能等。
 
-[![Apifox](https://img.shields.io/badge/github-snowdreams1006-brightgreen.svg)](https://3kjlg46jpj.apifox.cn)
+[![Apifox](https://img.shields.io/badge/Apifox-Neko%20Tribe-brightblue.svg)](https://3kjlg46jpj.apifox.cn)
 
 ## 👨‍💻 开发团队
 
-**Web应用开发大作业** 🥵🥵🥵  
+**社交媒体** 🥵🥵🥵  
 **作者：Cthaat**
 
 ### 🛠️ 技术亮点
