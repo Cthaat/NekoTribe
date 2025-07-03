@@ -2231,6 +2231,13 @@
   resolved "https://registry.npmmirror.com/@types/normalize-package-data/-/normalize-package-data-2.4.4.tgz#56e2cc26c397c038fab0e3a917a12d5c5909e901"
   integrity sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==
 
+"@types/oracledb@^6.6.0":
+  version "6.6.0"
+  resolved "https://registry.npmmirror.com/@types/oracledb/-/oracledb-6.6.0.tgz#b41c435e54c51f5005b10cdc8aa197086752b1d6"
+  integrity sha512-s0iUXICj/MWfZ85+i3m6b9bppyuBGFaUB/k5HJ4zeC/XYiWrZulp1m54oWrNIjoBAfLXvqQBGy6+md8mwKyyKA==
+  dependencies:
+    "@types/node" "*"
+
 "@types/parse-path@^7.0.0":
   version "7.1.0"
   resolved "https://registry.npmmirror.com/@types/parse-path/-/parse-path-7.1.0.tgz#1bdddfe4fb2038e76c7e622234a97d6a050a1be3"
@@ -6927,6 +6934,11 @@ optionator@^0.9.3:
     prelude-ls "^1.2.1"
     type-check "^0.4.0"
     word-wrap "^1.2.5"
+
+oracledb@^6.8.0:
+  version "6.8.0"
+  resolved "https://registry.npmmirror.com/oracledb/-/oracledb-6.8.0.tgz#696c5ba7ee5a1de3947ff4c05a126236acd6651b"
+  integrity sha512-A4ds4n4xtjPTzk1gwrHWuMeWsEcrScF0GFgVebGrhNpHSAzn6eDwMKcSbakZODKfFcI099iqhmqWsgko8D+7Ww==
 
 oxc-parser@^0.72.0:
   version "0.72.3"
