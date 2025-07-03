@@ -665,6 +665,13 @@
   resolved "https://registry.npmmirror.com/@humanwhocodes/retry/-/retry-0.4.3.tgz#c2b9d2e374ee62c586d3adbea87199b1d7a7a6ba"
   integrity sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==
 
+"@iconify-json/radix-icons@^1.2.2":
+  version "1.2.2"
+  resolved "https://registry.npmmirror.com/@iconify-json/radix-icons/-/radix-icons-1.2.2.tgz#9ffbe51a7387c993cd6c2dfe03aa4893922feedf"
+  integrity sha512-+PPmKWDP7pfJMcEc9Ty1zyo/zzq+9rfKW4EGb2HSZcPu1VUhothDLFzWvBqQNoFIOYCJ2nm0Vmf8kVyYhq9G0Q==
+  dependencies:
+    "@iconify/types" "*"
+
 "@iconify/collections@^1.0.563":
   version "1.0.564"
   resolved "https://registry.npmmirror.com/@iconify/collections/-/collections-1.0.564.tgz#d24088e331fee0e4c5fd74439c58071def6ba5fa"
