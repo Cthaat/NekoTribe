@@ -1,4 +1,4 @@
-import { getOracleConnection } from '~/server/utils/oraclePool'
+import { getOracleConnection } from '~/server/utils/oceanBasePool'
 
 export default defineEventHandler(async (event) => {
   let connection
