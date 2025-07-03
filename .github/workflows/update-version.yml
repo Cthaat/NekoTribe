@@ -248,24 +248,25 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         
-        # 获取当前分支名称
-        CURRENT_BRANCH=${{ steps.get_version.outputs.SERVICE_NAME }}
-        echo "当前分支: $CURRENT_BRANCH"
+        # 获取默认分支名称
+        DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
+        echo "默认分支: $DEFAULT_BRANCH"
         
-        # 如果不在分支上，获取 HEAD 指向的分支
-        if [ -z "$CURRENT_BRANCH" ]; then
-          CURRENT_BRANCH="${{ github.head_ref || github.ref_name }}"
-          echo "从 GitHub 上下文获取分支: $CURRENT_BRANCH"
-          
-          # 如果还是为空，使用默认分支
-          if [ -z "$CURRENT_BRANCH" ]; then
-            CURRENT_BRANCH="master"
-            echo "使用默认分支: $CURRENT_BRANCH"
+        # 如果无法获取默认分支，使用常见的分支名
+        if [ -z "$DEFAULT_BRANCH" ]; then
+          # 检查是否存在 main 或 master 分支
+          if git ls-remote --heads origin main | grep -q main; then
+            DEFAULT_BRANCH="main"
+          elif git ls-remote --heads origin master | grep -q master; then
+            DEFAULT_BRANCH="master"
+          else
+            DEFAULT_BRANCH="master"  # 默认使用 master
           fi
-          
-          # 切换到正确的分支
-          git checkout -B "$CURRENT_BRANCH"
+          echo "使用检测到的分支: $DEFAULT_BRANCH"
         fi
+        
+        # 确保我们在正确的分支上
+        git checkout -B "$DEFAULT_BRANCH"
         
         # 添加更改的文件
         git add README.md config/versions/
@@ -276,8 +277,11 @@ jobs:
         else
           git commit -m "🔖 自动更新 $SERVICE_NAME 版本号到 v$VERSION"
           
-          # 推送到当前分支
-          git push origin "$CURRENT_BRANCH"
+          # 推送到默认分支
+          git push origin "$DEFAULT_BRANCH"
+          
+          echo "版本更新已提交并推送到 $DEFAULT_BRANCH 分支"
+        fi
           
           echo "版本更新已提交并推送到 $CURRENT_BRANCH 分支"
         fi
