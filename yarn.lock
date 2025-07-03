@@ -2613,7 +2613,7 @@
   resolved "https://registry.npmmirror.com/@vue/shared/-/shared-3.5.17.tgz#e8b3a41f0be76499882a89e8ed40d86a70fa4b70"
   integrity sha512-CabR+UN630VnsJO/jHWYBC1YVXyMq94KKp6iF5MQgZJs5I8cmjw6oVMO1oDbtBkENSHSSn/UadWlW/OAgdmKrg==
 
-"@vueuse/core@13.5.0", "@vueuse/core@^13.4.0":
+"@vueuse/core@13.5.0", "@vueuse/core@^13.4.0", "@vueuse/core@^13.5.0":
   version "13.5.0"
   resolved "https://registry.npmmirror.com/@vueuse/core/-/core-13.5.0.tgz#1136d3db088945d7b7a2397170737d5a3e557b36"
   integrity sha512-wV7z0eUpifKmvmN78UBZX8T7lMW53Nrk6JP5+6hbzrB9+cJ3jr//hUlhl9TZO/03bUkMK6gGkQpqOPWoabr72g==
