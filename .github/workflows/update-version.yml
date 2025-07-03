@@ -18,6 +18,7 @@ jobs:
       with:
         fetch-depth: 0
         token: ${{ secrets.NEKO_TOKEN }}
+        # 获取所有分支信息
         ref: ${{ github.head_ref || github.ref_name }}
 
     # 2. 设置Node.js环境
@@ -248,25 +249,47 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         
-        # 获取默认分支名称
-        DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
-        echo "默认分支: $DEFAULT_BRANCH"
+        # 获取所有分支信息
+        git fetch --all
         
-        # 如果无法获取默认分支，使用常见的分支名
-        if [ -z "$DEFAULT_BRANCH" ]; then
-          # 检查是否存在 main 或 master 分支
-          if git ls-remote --heads origin main | grep -q main; then
-            DEFAULT_BRANCH="main"
-          elif git ls-remote --heads origin master | grep -q master; then
-            DEFAULT_BRANCH="master"
-          else
-            DEFAULT_BRANCH="master"  # 默认使用 master
+        # 尝试检测标签是从哪个分支推送的
+        echo "检测标签来源分支..."
+        
+        # 获取包含此标签的所有分支
+        BRANCHES_WITH_TAG=$(git branch -r --contains ${{ github.sha }} | grep -v HEAD | sed 's/origin\///' | tr -d ' ')
+        echo "包含此提交的分支: $BRANCHES_WITH_TAG"
+        
+        # 确定目标分支 - 优先使用包含此标签的分支，否则使用默认分支
+        TARGET_BRANCH=""
+        if [ -n "$BRANCHES_WITH_TAG" ]; then
+          # 如果有多个分支，优先选择 main 或 master
+          for branch in $BRANCHES_WITH_TAG; do
+            if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
+              TARGET_BRANCH="$branch"
+              break
+            fi
+          done
+          
+          # 如果没有 main/master，使用第一个分支
+          if [ -z "$TARGET_BRANCH" ]; then
+            TARGET_BRANCH=$(echo "$BRANCHES_WITH_TAG" | head -n1)
           fi
-          echo "使用检测到的分支: $DEFAULT_BRANCH"
         fi
         
-        # 确保我们在正确的分支上
-        git checkout -B "$DEFAULT_BRANCH"
+        # 如果还是没有找到，使用默认分支
+        if [ -z "$TARGET_BRANCH" ]; then
+          DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
+          if [ -n "$DEFAULT_BRANCH" ]; then
+            TARGET_BRANCH="$DEFAULT_BRANCH"
+          else
+            TARGET_BRANCH="main"  # 最后的回退选项
+          fi
+        fi
+        
+        echo "目标分支: $TARGET_BRANCH"
+        
+        # 切换到目标分支
+        git checkout -B "$TARGET_BRANCH" origin/"$TARGET_BRANCH" || git checkout -B "$TARGET_BRANCH"
         
         # 添加更改的文件
         git add README.md config/versions/
@@ -275,15 +298,12 @@ jobs:
         if git diff --staged --quiet; then
           echo "没有文件需要提交"
         else
-          git commit -m "🔖 自动更新 $SERVICE_NAME 版本号到 v$VERSION"
+          git commit -m "🔖 自动更新 $SERVICE_NAME 版本号到 v$VERSION (标签: ${{ github.ref_name }}, 分支: $TARGET_BRANCH, 构建: #${{ github.run_number }})"
           
-          # 推送到默认分支
-          git push origin "$DEFAULT_BRANCH"
+          # 推送到目标分支
+          git push origin "$TARGET_BRANCH"
           
-          echo "版本更新已提交并推送到 $DEFAULT_BRANCH 分支"
-        fi
-          
-          echo "版本更新已提交并推送到 $CURRENT_BRANCH 分支"
+          echo "版本更新已提交并推送到 $TARGET_BRANCH 分支"
         fi
 
     # 8. 创建GitHub Release（可选）
