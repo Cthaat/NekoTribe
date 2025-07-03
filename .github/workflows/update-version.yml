@@ -177,28 +177,6 @@ jobs:
         
         echo "开始更新服务 $SERVICE_NAME 的版本信息到 $VERSION"
         
-        # 更新 .env 文件中的版本信息
-        if [ -f ".env" ]; then
-          # 检查是否已存在版本信息
-          if grep -q "PROJECT_VERSION=" .env; then
-            # 更新现有版本信息
-            sed -i "s|PROJECT_VERSION=.*|PROJECT_VERSION=$VERSION|g" .env
-          else
-            # 添加新的版本信息到文件末尾
-            echo "" >> .env
-            echo "# 项目版本信息" >> .env
-            echo "PROJECT_VERSION=$VERSION" >> .env
-            echo "PROJECT_SERVICE=$SERVICE_NAME" >> .env
-          fi
-          
-          # 同样处理 @version 注释格式（如果存在）
-          if grep -q "@version" .env; then
-            sed -i "s|@version [0-9]*\.[0-9]*\.[0-9]*|@version $VERSION|g" .env
-          fi
-          
-          echo "已更新 .env 文件"
-        fi
-        
         # 根据服务名创建或更新特定的版本配置文件
         VERSION_DIR="config/versions"
         mkdir -p $VERSION_DIR
@@ -223,12 +201,6 @@ jobs:
         
         echo "已创建/更新服务版本配置: $VERSION_DIR/$SERVICE_NAME.json"
         
-        # 显示更新内容
-        echo "=== 版本更新内容 ==="
-        if [ -f ".env" ]; then
-          echo "--- .env 文件版本信息 ---"
-          cat .env | grep -E "(version:|@version)" | head -5
-        fi
         echo "--- 服务版本配置 ---"
         cat "$VERSION_DIR/$SERVICE_NAME.json"
 
@@ -276,7 +248,7 @@ jobs:
         git config --local user.name "GitHub Action"
         
         # 添加更改的文件
-        git add .env README.md config/versions/
+        git add README.md config/versions/
         
         # 检查是否有更改需要提交
         if git diff --staged --quiet; then
@@ -315,7 +287,6 @@ jobs:
           - ➖ **删除代码**: ${{ steps.get_version.outputs.DELETIONS }} 行
 
           ### 🔄 自动更新内容
-          - ✅ 更新 `.env` 版本号
           - ✅ 更新 `README.md` 版本徽章
           - ✅ 创建服务版本配置文件
           - ✅ 同步所有版本信息
@@ -355,7 +326,6 @@ jobs:
         fi
         
         echo "📝 更新的文件:"
-        echo "   - .env (通用版本信息)"
         echo "   - README.md (版本徽章)"
         echo "   - config/versions/$SERVICE_NAME.json (服务版本配置)"
         echo "🚀 GitHub Release 已创建"
