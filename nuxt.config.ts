@@ -40,6 +40,12 @@ export default defineNuxtConfig({
     componentDir: './components/ui'
   },
 
+  nitro: {
+    experimental: {
+      websocket: true
+    }
+  },
+
   // 运行时配置，环境变量通过 process.env 传递
   runtimeConfig: {
     // JWT 密钥
