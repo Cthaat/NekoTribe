@@ -2,8 +2,10 @@
 import jwt from 'jsonwebtoken'
 import type { Secret, SignOptions } from 'jsonwebtoken'
 
-const JWT_SECRET: Secret = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production'
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'
+const runtimeConfig = useRuntimeConfig()
+
+const JWT_SECRET: Secret = runtimeConfig.jwtSecret || 'your-super-secret-key-change-in-production'
+const JWT_EXPIRES_IN = runtimeConfig.jwtExpiresIn || '7d'
 
 /**
  * 用户信息接口

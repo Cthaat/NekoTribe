@@ -16,6 +16,8 @@ import Redis from 'ioredis'
 // 全局变量定义
 // =====================================
 
+const runtimeConfig = useRuntimeConfig()
+
 // Redis 客户端实例 - 用于一般的 Redis 操作（读写数据）
 let redisClient: Redis | null = null
 
@@ -50,8 +52,8 @@ export function isRedisAvailable(): boolean {
  */
 function createRedisConfig() {
   // 优先使用 REDIS_URL 连接字符串
-  const redisUrl = process.env.REDIS_URL
-  
+  const redisUrl = runtimeConfig.redisUrl
+
   if (redisUrl) {
     // 如果设置了 REDIS_URL，直接返回连接字符串
     // 格式示例：redis://username:password@hostname:port/database
@@ -59,10 +61,10 @@ function createRedisConfig() {
   } else {
     // 如果没有 REDIS_URL，使用单独的配置参数
     return {
-      host: process.env.REDIS_HOST || '192.168.2.166',      // Redis 服务器地址
-      port: parseInt(process.env.REDIS_PORT || '6379'),      // Redis 端口号
-      password: process.env.REDIS_PASSWORD,                  // Redis 密码（可选）
-      db: parseInt(process.env.REDIS_DB || '0'),             // 数据库编号（默认为 0）
+      host: runtimeConfig.redisHost,      // Redis 服务器地址
+      port: parseInt(runtimeConfig.redisPort),      // Redis 端口号
+      password: runtimeConfig.redisPassword,                  // Redis 密码（可选）
+      db: parseInt(runtimeConfig.redisDb),             // 数据库编号（默认为 0）
     }
   }
 }
@@ -151,10 +153,10 @@ export function getRedisSubscriber(): Redis | null {
       } else {
         // 使用配置对象
         redisSubscriber = new Redis({
-          host: process.env.REDIS_HOST || '192.168.2.166',
-          port: parseInt(process.env.REDIS_PORT || '6379'),
-          password: process.env.REDIS_PASSWORD,
-          db: parseInt(process.env.REDIS_DB || '0'),
+          host: runtimeConfig.redisHost,
+          port: parseInt(runtimeConfig.redisPort),
+          password: runtimeConfig.redisPassword,
+          db: parseInt(runtimeConfig.redisDb),
         })
       }
 
@@ -208,10 +210,10 @@ export function getRedisPublisher(): Redis | null {
       } else {
         // 使用配置对象
         redisPublisher = new Redis({
-          host: process.env.REDIS_HOST || '192.168.2.166',
-          port: parseInt(process.env.REDIS_PORT || '6379'),
-          password: process.env.REDIS_PASSWORD,
-          db: parseInt(process.env.REDIS_DB || '0'),
+          host: runtimeConfig.redisHost,
+          port: parseInt(runtimeConfig.redisPort),
+          password: runtimeConfig.redisPassword,
+          db: parseInt(runtimeConfig.redisDb),
         })
       }
 
