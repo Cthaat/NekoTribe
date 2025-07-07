@@ -24,6 +24,37 @@ interface RegisterResponse extends Response {
 
 // ========================== get-verification.post ======================================
 
+interface GetVerificationPayload {
+    account: string // 账号
+}
+
 interface GetRandomCode {
     (length?: number): number
+}
+
+interface GetVerificationResponse extends Response {
+    success: true,
+    message: string,
+    data: {
+        account: string
+    }
+    code: 200,
+    timestamp: string
+}
+
+// ========================== check-verification.post ======================================
+
+interface CheckVerificationPayload {
+    account: string // 账号
+    code: string // 验证码
+}
+
+interface CheckVerificationResponse extends Response {
+    success: true,
+    message: string,
+    data: {
+        account: string
+    }
+    code: 200,
+    timestamp: string
 }
