@@ -1,3 +1,5 @@
+// ========================== register.post ======================================
+
 interface registerPayload {
     email: "string", // 邮箱地址
     username: "string", // 用户名（3-20位字母数字下划线）
@@ -18,4 +20,10 @@ interface RegisterResponse extends Response {
     }
     code: 200,
     timestamp: string
+}
+
+// ========================== get-verification.post ======================================
+
+interface GetRandomCode {
+    (length?: number): number
 }
