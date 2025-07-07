@@ -9,3 +9,13 @@ interface registerPayload {
     agreeToTerms: "boolean", // 同意服务条款
     captcha: "string" // 验证码
 }
+
+interface RegisterResponse extends Response {
+    success: true,
+    message: string,
+    data: {
+        
+    }
+    code: 200,
+    timestamp: string
+}

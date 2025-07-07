@@ -75,6 +75,11 @@ export default defineNuxtConfig({
     redisHost: process.env.REDIS_HOST,
     redisPort: process.env.REDIS_PORT,
     redisDb: process.env.REDIS_DB,
+    // 邮箱连接
+    smtpHost: process.env.SMTP_HOST,
+    smtpPort: process.env.SMTP_PORT,
+    smtpUser: process.env.SMTP_USER,
+    smtpPass: process.env.SMTP_PASS,
     public: {
       wsUrl: process.env.NUXT_PUBLIC_WS_URL || 'ws://localhost:3001'
     }

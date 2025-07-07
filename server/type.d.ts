@@ -1,14 +1,14 @@
 interface Response {
     success: true,
-    message: "string",
+    message: string,
     data: {},
     code: 0,
-    timestamp: "string"
+    timestamp: string
 }
 
 interface ErrorResponse {
     success: false,
-    message: "string",
+    message: string,
     code: number,
-    timestamp: "string"
+    timestamp: string
 }
