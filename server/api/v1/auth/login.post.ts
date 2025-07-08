@@ -87,6 +87,7 @@ export default defineEventHandler(async (event) => {
     runtimeConfig.accessSecret,
     { expiresIn: Number(runtimeConfig.accessExpiresIn) } // 15分钟过期
   );
+  
 
   const refreshToken = jwt.sign(
     { 
@@ -116,6 +117,8 @@ export default defineEventHandler(async (event) => {
       VALUES (:refreshTokenId, :userId, :accessToken, :refreshToken, :accessTokenExpiresAt, :refreshTokenExpiresAt, :deviceInfo, :deviceFingerprint, :ipAddress, :userAgent)
     `;
 
+    const req = event.node.req;
+
     await connection.execute(insertSql, {
       refreshTokenId,
       userId: row[0],
@@ -125,7 +128,7 @@ export default defineEventHandler(async (event) => {
       refreshTokenExpiresAt: new Date(Date.now() + Number(runtimeConfig.refreshExpiresIn) * 1000),
       deviceInfo: 'unknown', // 可以根据实际情况获取设备信息
       deviceFingerprint: 'unknown', // 可以根据实际情况获取设备指纹
-      ipAddress: event.node.req.socket.remoteAddress || 'unknown',
+      ipAddress: req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown',
       userAgent: event.node.req.headers['user-agent'] || 'unknown'
     }, { autoCommit: true });
 

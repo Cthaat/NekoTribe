@@ -4,7 +4,6 @@ const runtimeConfig = useRuntimeConfig();
 
 export default defineEventHandler(async (event) => {
   const refreshToken = getCookie(event, 'refresh_token');
-
   
   if (refreshToken) {
     const connection = await getOracleConnection();
@@ -34,7 +33,6 @@ export default defineEventHandler(async (event) => {
         { userId: decoded.userId, refreshToken: refreshToken },
         { autoCommit: true }
       );
-      console.log(`Deleted ${count.rowsAffected} sessions for user ${decoded.userId}`);
     } finally {
     // 5. 关闭数据库连接
     await connection.close();

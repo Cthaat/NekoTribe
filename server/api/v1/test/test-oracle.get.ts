@@ -4,7 +4,7 @@ export default defineEventHandler(async (event) => {
   let connection
   try {
     // 获取数据库连接
-    connection = await getOracleConnection()
+    connection = await getOracleConnection();
     // 查询所有用户
     const result = await connection.execute('SELECT * FROM n_users')
     return {
