@@ -1,7 +1,7 @@
 {
   "serviceName": "oracle-server",
-  "version": "1.0.2",
-  "tag": "oracle-server/v1.0.2",
-  "releaseDate": "2025-07-07T18:30:40Z",
-  "buildNumber": "26"
+  "version": "1.0.3",
+  "tag": "oracle-server/v1.0.3",
+  "releaseDate": "2025-07-08T09:06:32Z",
+  "buildNumber": "27"
 }
