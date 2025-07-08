@@ -144,11 +144,37 @@ type sessionResultRow = [
     number // COUNT
 ]
 
-// ========================== logout.post ======================================
+// ========================== logout.get ======================================
 
 interface LogoutResponse extends Response {
     success: true,
     message: string,
+    code: 200,
+    timestamp: string
+}
+
+// ========================== refresh.get ======================================
+
+type checkSessionResultRow = [
+    number // COUNT
+]
+
+type sessionRow = [
+    string,  // REFRESH_TOKEN_EXPIRES_AT
+    string  // SESSION_ID
+]
+
+type refreshUserRow = [
+    string // USERNAME
+]
+
+interface RefreshResponse extends Response {
+    success: true,
+    message: string,
+    data: {
+        accessToken: string, // 新的JWT令牌
+        refreshToken: string // 新的刷新令牌
+    },
     code: 200,
     timestamp: string
 }

@@ -13,7 +13,6 @@ export default defineEventHandler(async (event) => {
   if (!body.account || !body.password) {
     throw createError({
       statusCode: 400,
-      message: '账号和密码不能为空',
       statusMessage: 'Bad Request',
       data: {
         success: false,
@@ -35,11 +34,11 @@ export default defineEventHandler(async (event) => {
     if (userCount === 0) {
       throw createError({
         statusCode: 409,
-        message: '该邮箱或用户名未注册',
         statusMessage: '邮箱或用户名未注册',
         data: {
           success: false,
           message: '该邮箱或用户名未注册',
+          data: null,
           code: 409,
           timestamp: new Date().toISOString()
         } as ErrorResponse
@@ -67,11 +66,11 @@ export default defineEventHandler(async (event) => {
     if (!isPasswordValid) {
       throw createError({
         statusCode: 401,
-        message: '账号或密码错误',
         statusMessage: 'Unauthorized',
         data: {
           success: false,
           message: '账号或密码错误',
+          data: null,
           code: 401,
           timestamp: new Date().toISOString()
         } as ErrorResponse
