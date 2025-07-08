@@ -27,13 +27,13 @@ export default defineEventHandler(async (event) => {
   // 校验验证码
   if (body.code !== storedCode) {
     return createError({
-      statusCode: 400,
+      statusCode: 401,
       message: 'Invalid verification code',
       statusMessage: 'Invalid verification code',
       data: {
         success: false,
         message: 'Invalid verification code',
-        code: 400,
+        code: 401,
         timestamp: new Date().toISOString()
       } as ErrorResponse
     });
