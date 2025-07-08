@@ -48,10 +48,14 @@ export default defineNuxtConfig({
 
   // 运行时配置，环境变量通过 process.env 传递
   runtimeConfig: {
-    // JWT 密钥
-    jwtSecret: process.env.JWT_SECRET,
-    // JWT 过期时间
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN,
+    // 访问令牌密钥
+    accessSecret: process.env.ACCESS_SECRET,
+    // 访问令牌过期时间
+    accessExpiresIn: process.env.ACCESS_EXPIRES_IN,
+    // 刷新令牌密钥
+    refreshSecret: process.env.REFRESH_SECRET,
+    // 刷新令牌过期时间
+    refreshExpiresIn: process.env.REFRESH_EXPIRES_IN,
     // 当前运行环境
     nodeEnv: process.env.NODE_ENV,
     // Oracle 数据库主机
