@@ -1,4 +1,4 @@
-import RedisClient from '~/server/utils/redisClient'
+import RedisClient from '~/server/utils/auth/redisClient'
 import Redis from 'ioredis'
 
 const redis: Redis = RedisClient.getInstance()

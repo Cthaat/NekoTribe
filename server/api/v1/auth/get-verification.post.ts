@@ -1,5 +1,5 @@
-import RedisClient from '~/server/utils/redisClient' // 引入 Redis 客户端单例
-import Mailer from '~/server/utils/mailer'           // 引入邮件发送工具
+import RedisClient from '~/server/utils/auth/redisClient' // 引入 Redis 客户端单例
+import Mailer from '~/server/utils/auth/mailer'           // 引入邮件发送工具
 import Redis from 'ioredis'
 
 const redis: Redis = RedisClient.getInstance()              // 获取 Redis 实例

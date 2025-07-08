@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { verifyCode } from '~/server/utils/verifyCode';
+import { verifyCode } from '~/server/utils/auth/verifyCode';
 
 export default defineEventHandler(async (event): Promise<RegisterResponse> => {
   const body = await readBody<registerPayload>(event)

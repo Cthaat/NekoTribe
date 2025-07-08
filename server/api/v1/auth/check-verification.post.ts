@@ -1,4 +1,4 @@
-import RedisClient from '~/server/utils/redisClient' // 引入 Redis 客户端单例
+import RedisClient from '~/server/utils/auth/redisClient' // 引入 Redis 客户端单例
 import Redis from 'ioredis'
 
 const redis: Redis = RedisClient.getInstance()              // 获取 Redis 实例
