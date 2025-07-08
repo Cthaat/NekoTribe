@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import { verifyCode } from '~/server/utils/verifyCode';
 
 export default defineEventHandler(async (event): Promise<RegisterResponse> => {
   const body = await readBody<registerPayload>(event)
@@ -30,6 +31,20 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
     });
   }
 
+  if(!/^\S+@\S+\.\S+$/.test(body.email)) {
+    throw createError({
+      statusCode: 400,
+      message: '邮箱地址格式不正确',
+      statusMessage: 'Bad Request',
+      data: {
+        success: false,
+        message: '邮箱地址格式不正确',
+        code: 400,
+        timestamp: new Date().toISOString()
+      } as ErrorResponse
+    });
+  }
+
   if(!body.password) {
     throw createError({
       statusCode: 400,
@@ -38,6 +53,20 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
       data: {
         success: false,
         message: '密码不能为空',
+        code: 400,
+        timestamp: new Date().toISOString()
+      } as ErrorResponse
+    });
+  }
+
+  if(body.password.length < 6) {
+    throw createError({
+      statusCode: 400,
+      message: '密码长度不能少于6个字符',
+      statusMessage: 'Bad Request',
+      data: {
+        success: false,
+        message: '密码长度不能少于6个字符',
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
@@ -86,15 +115,14 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
     });
   }
 
+  await verifyCode(body.email, body.captcha);
 
-  // TODO: 这里可以添加验证码验证逻辑
-  
-
-
-  // TODO: 对密码进行哈希处理
+  const hashedPassword: string = await bcrypt.hash(body.password, 10);
 
   // TODO: 返回成功
   // 这里应该添加实际的注册逻辑
+
+
   // 暂时返回一个成功响应
   return {
     success: true,
