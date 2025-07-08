@@ -7,7 +7,8 @@ const runtimeConfig = useRuntimeConfig();
 
 // 事件处理函数：处理获取邮箱验证码的请求
 export default defineEventHandler(async (event) => {
-  const body = await readBody<LoginPayload>(event)
+  const body = await readBody<LoginPayload>(event);
+  const getOracleConnection = event.context.getOracleConnection;
   
   // 参数验证
   if (!body.account || !body.password) {

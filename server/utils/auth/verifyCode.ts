@@ -1,7 +1,4 @@
-import RedisClient from '~/server/utils/auth/redisClient'
 import Redis from 'ioredis'
-
-const redis: Redis = RedisClient.getInstance()
 
 /**
  * 校验验证码工具函数
@@ -9,7 +6,7 @@ const redis: Redis = RedisClient.getInstance()
  * @param code 用户输入的验证码
  * @returns 校验通过返回 true，否则抛出错误
  */
-export async function verifyCode(account: string, code: string): Promise<boolean> {
+export async function verifyCode(account: string, code: string, redis: Redis): Promise<boolean> {
   const storedCode: string | null = await redis.get(`verification_code:${account}`)
   if (!storedCode) {
     throw createError({

@@ -5,6 +5,7 @@ const runtimeConfig = useRuntimeConfig();
 export default defineEventHandler(async (event) => {
   // 获取refresh token
   const refreshToken = getCookie(event, 'refresh_token');
+  const getOracleConnection = event.context.getOracleConnection;
 
   if (!refreshToken) {
     throw createError({

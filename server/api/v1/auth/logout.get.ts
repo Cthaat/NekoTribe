@@ -4,6 +4,8 @@ const runtimeConfig = useRuntimeConfig();
 
 export default defineEventHandler(async (event) => {
   const refreshToken = getCookie(event, 'refresh_token');
+  const getOracleConnection = event.context.getOracleConnection;
+
   
   if (refreshToken) {
     const connection = await getOracleConnection();

@@ -1,8 +1,5 @@
-import RedisClient from '~/server/utils/auth/redisClient' // 引入 Redis 客户端单例
 import Mailer from '~/server/utils/auth/mailer'           // 引入邮件发送工具
 import Redis from 'ioredis'
-
-const redis: Redis = RedisClient.getInstance()              // 获取 Redis 实例
 
 const getRandomCode: GetRandomCode = (length = 6) => {
   return Number(Array.from({ length }).map(() => Math.floor(Math.random() * 10)).join(''))
@@ -10,7 +7,8 @@ const getRandomCode: GetRandomCode = (length = 6) => {
 
 // 事件处理函数：处理获取邮箱验证码的请求
 export default defineEventHandler(async (event) => {
-  const body = await readBody<GetVerificationPayload>(event)
+  const body = await readBody<GetVerificationPayload>(event);
+  const redis: Redis = event.context.redis as Redis;
   if (!body.account) { // 校验账号参数是否存在
     return createError({
       statusCode: 400, // 状态码 400，参数错误

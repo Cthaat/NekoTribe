@@ -1,36 +1,40 @@
-// server/utils/oraclePool.ts
+import { defineNitroPlugin } from '#imports'
 import oracledb from 'oracledb'
 
 let pool: oracledb.Pool | null = null
 
-export async function initOraclePool() {
+async function initOraclePool() {
   if (!pool) {
     const runtimeConfig = useRuntimeConfig()
-    
     pool = await oracledb.createPool({
       user: runtimeConfig.oracleUser,
       password: runtimeConfig.oraclePassword,
       connectString: `${runtimeConfig.oracleHost}:${runtimeConfig.oraclePort}/${runtimeConfig.oracleServiceName}`,
-
-    
-      // 使用环境变量中的连接池配置
       poolMin: Number(runtimeConfig.oraclePoolMin) || 2,
       poolMax: Number(runtimeConfig.oraclePoolMax) || 10,
       poolIncrement: Number(runtimeConfig.oraclePoolIncrement) || 1,
-
-      // 其他配置
-      poolTimeout: 300,  // 连接空闲300秒后释放
-      queueMax: 0,       // 等待队列无限制
-      queueTimeout: 60000 // 等待超时60秒
+      poolTimeout: 300,
+      queueMax: 0,
+      queueTimeout: 60000
     })
-    
     console.log('Oracle 连接池已创建')
   }
-  
   return pool
 }
 
-export async function getOracleConnection() {
+async function getOracleConnection() {
   const pool = await initOraclePool()
   return await pool.getConnection()
 }
+
+export default defineNitroPlugin((nitroApp) => {
+  // 可以在每个请求里注入 oraclePool 和 getOracleConnection 方法
+  nitroApp.hooks.hook('request', (event) => {
+    event.context.oraclePool = pool
+    event.context.getOracleConnection = getOracleConnection
+  })
+  // 启动时可预初始化（可选）
+  initOraclePool().catch((e) => {
+    console.error('Oracle 连接池初始化失败:', e)
+  })
+})

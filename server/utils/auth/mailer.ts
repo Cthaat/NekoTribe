@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer'
 import type { SentMessageInfo } from 'nodemailer'
-import type { EmailOptions } from './type'
+import type { EmailOptions } from '../type'
 
 const runtimeConfig = useRuntimeConfig()
  

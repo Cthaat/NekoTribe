@@ -1,9 +1,10 @@
 import bcrypt from 'bcrypt';
 import { verifyCode } from '~/server/utils/auth/verifyCode';
-import { getOracleConnection } from '~/server/utils/database/oraclePool';
+import Redis from 'ioredis';
 
 export default defineEventHandler(async (event): Promise<RegisterResponse> => {
   const body = await readBody<registerPayload>(event)
+  const getOracleConnection = event.context.getOracleConnection;
 
   if (!body) {
     throw createError({
@@ -117,7 +118,7 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
     });
   }
 
-  await verifyCode(body.email, body.captcha);
+  await verifyCode(body.email, body.captcha, event.context.redis as Redis);
 
   const hashedPassword: string = await bcrypt.hash(body.password, 10);
 

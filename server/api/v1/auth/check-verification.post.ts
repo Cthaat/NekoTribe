@@ -1,11 +1,10 @@
-import RedisClient from '~/server/utils/auth/redisClient' // 引入 Redis 客户端单例
 import Redis from 'ioredis'
-
-const redis: Redis = RedisClient.getInstance()              // 获取 Redis 实例
 
 // 事件处理函数：处理获取邮箱验证码的请求
 export default defineEventHandler(async (event) => {
   const body = await readBody<CheckVerificationPayload>(event)
+
+  const redis: Redis = event.context.redis as Redis;
   
   // 从redis中获取验证码
   const storedCode: string | null = await redis.get(`verification_code:${body.account}`)
