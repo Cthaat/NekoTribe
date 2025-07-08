@@ -1,4 +1,3 @@
-
 export default defineEventHandler(async (event) => {
   const getOracleConnection = event.context.getOracleConnection;
   const connection = await getOracleConnection();
@@ -13,13 +12,18 @@ export default defineEventHandler(async (event) => {
       timestamp: new Date().toISOString()
     }
   } catch (err: any) {
-    return {
-      success: false,
+    // 直接抛出错误，让框架自动处理
+    throw createError({
+      statusCode: 500,
       message: 'Oracle 数据库连接失败',
-      error: err.message,
-      code: 500,
-      timestamp: new Date().toISOString()
-    }
+      data: {
+        success: false,
+        message: 'Oracle 数据库连接失败',
+        error: err.message,
+        code: 500,
+        timestamp: new Date().toISOString()
+      }
+    })
   } finally {
     // 关闭数据库连接
     if (connection) {
