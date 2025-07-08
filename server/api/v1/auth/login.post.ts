@@ -78,9 +78,101 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // TODO: 设置JWT
+    // 生成双Token
+  const accessToken = jwt.sign(
+    {
+      userId: row[0],
+      userName: row[1],
+      type: 'access' // 标识token类型
+    },
+    runtimeConfig.accessSecret,
+    { expiresIn: Number(runtimeConfig.accessExpiresIn) } // 15分钟过期
+  );
 
-    // TODO: 更新各种时间
+  const refreshToken = jwt.sign(
+    { 
+      userId: row[0],
+      type: 'refresh'
+    },
+    runtimeConfig.refreshSecret,
+    { expiresIn: Number(runtimeConfig.refreshExpiresIn) } // 30天过期
+    );
+    
+    // 生成随机的refresh token ID
+    const refreshTokenId = crypto.randomUUID();
+
+    const insertSql = `
+      INSERT INTO n_user_sessions (
+        session_id,
+        user_id,
+        access_token,
+        refresh_token,
+        access_token_expires_at,
+        refresh_token_expires_at,
+        device_info,
+        device_fingerprint,
+        ip_address,
+        user_agent
+    )
+      VALUES (:refreshTokenId, :userId, :accessToken, :refreshToken, :accessTokenExpiresAt, :refreshTokenExpiresAt, :deviceInfo, :deviceFingerprint, :ipAddress, :userAgent)
+    `;
+
+    await connection.execute(insertSql, {
+      refreshTokenId,
+      userId: row[0],
+      accessToken,
+      refreshToken,
+      accessTokenExpiresAt: new Date(Date.now() + Number(runtimeConfig.accessExpiresIn) * 1000),
+      refreshTokenExpiresAt: new Date(Date.now() + Number(runtimeConfig.refreshExpiresIn) * 1000),
+      deviceInfo: 'unknown', // 可以根据实际情况获取设备信息
+      deviceFingerprint: 'unknown', // 可以根据实际情况获取设备指纹
+      ipAddress: event.node.req.socket.remoteAddress || 'unknown',
+      userAgent: event.node.req.headers['user-agent'] || 'unknown'
+    }, { autoCommit: true });
+
+    // 设置双Cookie
+    setCookie(event, 'access_token', accessToken, {
+      httpOnly: true,
+      secure: false,
+      maxAge: 15 * 60 // 15分钟
+    });
+
+    setCookie(event, 'refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: false,
+      maxAge: 30 * 24 * 60 * 60 // 30天
+    });
+
+    const updateUserTimeSql = `
+      UPDATE n_users
+      SET last_login_at = :lastLoginAt
+      WHERE email = :email OR username = :username
+    `;
+    await connection.execute(updateUserTimeSql, {
+      lastLoginAt: new Date(),
+      email: body.account,
+      username: body.account
+    }, { autoCommit: true });
+
+    const selectSql = `SELECT * FROM n_users WHERE email = :email OR username = :username`;
+
+    const userInfo = await connection.execute(selectSql, { email: body.account , username: body.account });
+    // 取第一行数据
+    const userInfoRow: LoginUserInfo = userInfo.rows?.[0] as LoginUserInfo || [];
+
+    return {
+      success: true,
+      message: '登录成功',
+      data: {
+        user: {
+          userInfo: userInfoRow
+        },
+        token: accessToken,
+        refreshToken: refreshToken
+      },
+      code: 200,
+      timestamp: new Date().toISOString()
+    } as LoginResponse
 
   } finally {
     // 5. 关闭数据库连接

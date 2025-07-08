@@ -101,19 +101,54 @@ type LoginUserRow = [
   string       // PASSWORD_HASH
 ];
 
+type LoginUserInfo = [
+    number, //USER_ID
+    string, // EMAIL
+    string, // USERNAME
+    string, // PASSWORD_HASH
+    string, // AVATAR_URL
+    string, // DISPLAY_NAME
+    string, // BIO
+    string, // LOCATION
+    string, // WEBSITE
+    string, // BIRTH_DATE
+    string, // PHONE
+    number, // IS_VERIFIED
+    number, // IS_ACTIVE
+    number, // FOLLOWERS_COUNT
+    number, // FOLLOWING_COUNT
+    number, // TWEETS_COUNT
+    number, // LIKES_COUNT
+    string, // CREATED_AT
+    string, // UPDATED_AT
+    string, // LAST_LOGIN_AT
+    string, // CREATED_BY
+    string, // UPDATED_BY
+]
+
 interface LoginResponse extends Response {
     success: true,
     message: string,
     data: {
         user: {
-        userId: number,
-        username: string,
-        displayName: string,
-        avatar: string,
+            userInfo: LoginUserInfo
+        },
+        token: string, // JWT令牌
+        refreshToken: string, // 刷新令牌
     },
-    token: string, // JWT令牌
-    refreshToken: string, // 刷新令牌
-    },
+    code: 200,
+    timestamp: string
+}
+
+type sessionResultRow = [
+    number // COUNT
+]
+
+// ========================== logout.post ======================================
+
+interface LogoutResponse extends Response {
+    success: true,
+    message: string,
     code: 200,
     timestamp: string
 }
