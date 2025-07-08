@@ -30,6 +30,10 @@ interface RegisterResponse extends Response {
     timestamp: string
 }
 
+type checkResultRow = [
+    number // COUNT
+]
+
 type UserRow = [
   number,      // USER_ID
   string,      // USERNAME

@@ -127,8 +127,9 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
   try {
     // 2. 检查邮箱是否已注册
     const checkSql = `SELECT COUNT(*) AS count FROM n_users WHERE email = :email`;
-    const checkResult = await connection.execute(checkSql, [body.email]);
-    const userCount = (checkResult.rows?.[0] as any)?.COUNT || 0;
+    const checkResult = await connection.execute(checkSql, { email: body.email });
+    const checkResultRow: checkResultRow = checkResult.rows?.[0] as checkResultRow || [];
+    const userCount = checkResultRow[0] || 0;
     if (userCount > 0) {
       throw createError({
         statusCode: 409,
@@ -168,8 +169,6 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
 
     const selectSql = `SELECT USER_ID, USERNAME, EMAIL, DISPLAY_NAME, AVATAR_URL, IS_VERIFIED, CREATED_AT FROM n_users WHERE email = :email`;
     const userResult = await connection.execute(selectSql, { email: body.email });
-
-    console.log('注册成功，用户信息:', userResult.rows);
 
     // 取第一行数据
     const row: UserRow = userResult.rows?.[0] as UserRow || [];
