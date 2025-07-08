@@ -47,9 +47,9 @@ type UserRow = [
 
 // ========================== get-verification.post ======================================
 
-interface GetVerificationPayload {
-    account: string // 账号
-}
+    interface GetVerificationPayload {
+        account: string // 账号
+    }
 
 interface GetRandomCode {
     (length?: number): number
@@ -78,6 +78,42 @@ interface CheckVerificationResponse extends Response {
     data: {
         account: string
     }
+    code: 200,
+    timestamp: string
+}
+
+// ========================== login.post ======================================
+
+interface LoginPayload {
+    account: string, // 邮箱或用户名
+    password: string, // 密码
+    rememberMe: boolean, // 记住登录状态（可选）
+    captcha: string // 验证码（失败次数过多时需要）（可选）
+}
+
+type LoginUserRow = [
+  number,      // USER_ID
+  string,      // USERNAME
+  string,      // EMAIL
+  string,      // DISPLAY_NAME
+  string,      // AVATAR_URL
+  number,      // IS_VERIFIED
+  string       // PASSWORD_HASH
+];
+
+interface LoginResponse extends Response {
+    success: true,
+    message: string,
+    data: {
+        user: {
+        userId: number,
+        username: string,
+        displayName: string,
+        avatar: string,
+    },
+    token: string, // JWT令牌
+    refreshToken: string, // 刷新令牌
+    },
     code: 200,
     timestamp: string
 }
