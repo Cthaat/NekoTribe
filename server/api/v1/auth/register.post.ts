@@ -88,6 +88,7 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
 
 
   // TODO: 这里可以添加验证码验证逻辑
+  
 
 
   // TODO: 对密码进行哈希处理
