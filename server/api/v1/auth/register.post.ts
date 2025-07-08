@@ -1,8 +1,10 @@
 import bcrypt from 'bcrypt';
 import { verifyCode } from '~/server/utils/auth/verifyCode';
+import { getOracleConnection } from '~/server/utils/database/oraclePool';
 
 export default defineEventHandler(async (event): Promise<RegisterResponse> => {
   const body = await readBody<registerPayload>(event)
+
   if (!body) {
     throw createError({
       statusCode: 400,
@@ -119,16 +121,77 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
 
   const hashedPassword: string = await bcrypt.hash(body.password, 10);
 
-  // TODO: 返回成功
   // 这里应该添加实际的注册逻辑
+  const connection = await getOracleConnection();
 
+  try {
+    // 2. 检查邮箱是否已注册
+    const checkSql = `SELECT COUNT(*) AS count FROM n_users WHERE email = :email`;
+    const checkResult = await connection.execute(checkSql, [body.email]);
+    const userCount = (checkResult.rows?.[0] as any)?.COUNT || 0;
+    if (userCount > 0) {
+      throw createError({
+        statusCode: 409,
+        message: '该邮箱已被注册',
+        statusMessage: '邮箱已存在',
+        data: {
+          success: false,
+          message: '该邮箱已被注册',
+          code: 409,
+          timestamp: new Date().toISOString()
+        } as ErrorResponse
+      });
+    }
 
-  // 暂时返回一个成功响应
-  return {
-    success: true,
-    message: '注册成功',
-    data: {},
-    code: 200,
-    timestamp: new Date().toISOString()
-  } as RegisterResponse;
+    // 3. 插入新用户数据
+    const insertSql = `
+      INSERT INTO n_users (
+        email,
+        username,
+        password_hash,
+        display_name,
+        bio,
+        location,
+        is_verified
+    )
+      VALUES (:email, :username, :password_hash, :display_name, :bio, :location, :is_verified)
+    `;
+    await connection.execute(insertSql, {
+      email: body.email,
+      username: body.username,
+      password_hash: hashedPassword,
+      display_name: body.displayName,
+      bio: body.bio,
+      location: body.location,
+      is_verified: 1 // 默认设置为已验证
+    }, { autoCommit: true });
+
+    const selectSql = `SELECT USER_ID, USERNAME, EMAIL, DISPLAY_NAME, AVATAR_URL, IS_VERIFIED, CREATED_AT FROM n_users WHERE email = :email`;
+    const userResult = await connection.execute(selectSql, { email: body.email });
+
+    console.log('注册成功，用户信息:', userResult.rows);
+
+    // 取第一行数据
+    const row: UserRow = userResult.rows?.[0] as UserRow || [];
+
+    // 4. 返回注册成功
+    return {
+      success: true,
+      message: '注册成功',
+      data: {
+        userId: row[0],
+        username: row[1],
+        email: row[2],
+        displayName: row[3],
+        avatar: row[4],
+        isVerified: row[5] === 1, // IS_VERIFIED 为 1 表示已验证
+        createdAt: row[6]
+      },
+      code: 200,
+      timestamp: new Date().toISOString()
+    } as RegisterResponse;
+  } finally {
+    // 5. 关闭数据库连接
+    await connection.close();
+  }
 });
