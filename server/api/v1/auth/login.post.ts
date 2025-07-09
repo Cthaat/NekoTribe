@@ -1,13 +1,13 @@
-import bcrypt from 'bcrypt'
-import jwt from 'jsonwebtoken'
-import crypto from 'crypto'
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
-const runtimeConfig = useRuntimeConfig()
+const runtimeConfig = useRuntimeConfig();
 
 // 事件处理函数：处理获取邮箱验证码的请求
 export default defineEventHandler(async event => {
-  const body = await readBody<LoginPayload>(event)
-  const getOracleConnection = event.context.getOracleConnection
+  const body = await readBody<LoginPayload>(event);
+  const getOracleConnection = event.context.getOracleConnection;
 
   // 参数验证
   if (!body.account || !body.password) {
@@ -20,21 +20,21 @@ export default defineEventHandler(async event => {
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    })
+    });
   }
 
-  const connection = await getOracleConnection()
+  const connection = await getOracleConnection();
 
   try {
     // 2. 检查邮箱是否已注册
-    const checkSql = `SELECT COUNT(*) AS count FROM n_users WHERE email = :email OR username = :username`
+    const checkSql = `SELECT COUNT(*) AS count FROM n_users WHERE email = :email OR username = :username`;
     const checkResult = await connection.execute(checkSql, {
       email: body.account,
       username: body.account
-    })
+    });
     const checkResultRow: checkResultRow =
-      (checkResult.rows?.[0] as checkResultRow) || []
-    const userCount = checkResultRow[0] || 0
+      (checkResult.rows?.[0] as checkResultRow) || [];
+    const userCount = checkResultRow[0] || 0;
     if (userCount === 0) {
       throw createError({
         statusCode: 409,
@@ -46,7 +46,7 @@ export default defineEventHandler(async event => {
           code: 409,
           timestamp: new Date().toISOString()
         } as ErrorResponse
-      })
+      });
     }
 
     // 3. 验证密码
@@ -58,18 +58,18 @@ export default defineEventHandler(async event => {
     AVATAR_URL,
     IS_VERIFIED,
     PASSWORD_HASH
-    FROM n_users WHERE email = :email OR username = :username`
+    FROM n_users WHERE email = :email OR username = :username`;
 
     const userResult = await connection.execute(userSql, {
       email: body.account,
       username: body.account
-    })
+    });
 
     // 取第一行数据
-    const row: LoginUserRow = (userResult.rows?.[0] as LoginUserRow) || []
+    const row: LoginUserRow = (userResult.rows?.[0] as LoginUserRow) || [];
 
     // 4. 验证密码
-    const isPasswordValid = await bcrypt.compare(body.password, row[6])
+    const isPasswordValid = await bcrypt.compare(body.password, row[6]);
     if (!isPasswordValid) {
       throw createError({
         statusCode: 401,
@@ -81,7 +81,7 @@ export default defineEventHandler(async event => {
           code: 401,
           timestamp: new Date().toISOString()
         } as ErrorResponse
-      })
+      });
     }
 
     // 生成双Token
@@ -93,7 +93,7 @@ export default defineEventHandler(async event => {
       },
       runtimeConfig.accessSecret,
       { expiresIn: Number(runtimeConfig.accessExpiresIn) } // 15分钟过期
-    )
+    );
 
     const refreshToken = jwt.sign(
       {
@@ -102,10 +102,10 @@ export default defineEventHandler(async event => {
       },
       runtimeConfig.refreshSecret,
       { expiresIn: Number(runtimeConfig.refreshExpiresIn) } // 30天过期
-    )
+    );
 
     // 生成随机的refresh token ID
-    const refreshTokenId = crypto.randomUUID()
+    const refreshTokenId = crypto.randomUUID();
 
     const insertSql = `
       INSERT INTO n_user_sessions (
@@ -121,9 +121,9 @@ export default defineEventHandler(async event => {
         user_agent
     )
       VALUES (:refreshTokenId, :userId, :accessToken, :refreshToken, :accessTokenExpiresAt, :refreshTokenExpiresAt, :deviceInfo, :deviceFingerprint, :ipAddress, :userAgent)
-    `
+    `;
 
-    const req = event.node.req
+    const req = event.node.req;
 
     await connection.execute(
       insertSql,
@@ -147,26 +147,26 @@ export default defineEventHandler(async event => {
         userAgent: event.node.req.headers['user-agent'] || 'unknown'
       },
       { autoCommit: true }
-    )
+    );
 
     // 设置双Cookie
     setCookie(event, 'access_token', accessToken, {
       httpOnly: true,
       secure: false,
       maxAge: 15 * 60 // 15分钟
-    })
+    });
 
     setCookie(event, 'refresh_token', refreshToken, {
       httpOnly: true,
       secure: false,
       maxAge: 30 * 24 * 60 * 60 // 30天
-    })
+    });
 
     const updateUserTimeSql = `
       UPDATE n_users
       SET last_login_at = :lastLoginAt
       WHERE email = :email OR username = :username
-    `
+    `;
     await connection.execute(
       updateUserTimeSql,
       {
@@ -175,17 +175,17 @@ export default defineEventHandler(async event => {
         username: body.account
       },
       { autoCommit: true }
-    )
+    );
 
-    const selectSql = `SELECT * FROM n_users WHERE email = :email OR username = :username`
+    const selectSql = `SELECT * FROM n_users WHERE email = :email OR username = :username`;
 
     const userInfo = await connection.execute(selectSql, {
       email: body.account,
       username: body.account
-    })
+    });
     // 取第一行数据
     const userInfoRow: LoginUserInfo =
-      (userInfo.rows?.[0] as LoginUserInfo) || []
+      (userInfo.rows?.[0] as LoginUserInfo) || [];
 
     return {
       success: true,
@@ -199,9 +199,9 @@ export default defineEventHandler(async event => {
       },
       code: 200,
       timestamp: new Date().toISOString()
-    } as LoginResponse
+    } as LoginResponse;
   } finally {
     // 5. 关闭数据库连接
-    await connection.close()
+    await connection.close();
   }
-})
+});
