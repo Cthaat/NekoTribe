@@ -1,7 +1,6 @@
 export default defineEventHandler(async event => {
   const body = await readBody<UpdateUserInfoPayload>(event);
-  // 获取access token
-  const user = event.context.auth;
+  const user: Auth = event.context.auth as Auth;
   const getOracleConnection = event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
