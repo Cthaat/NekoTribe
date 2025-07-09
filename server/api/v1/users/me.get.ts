@@ -15,7 +15,6 @@ export default defineEventHandler(async event => {
     });
     // 取第一行数据
     const userInfoRow: GetUserInfo = (userInfo.rows?.[0] as GetUserInfo) || [];
-    console.log('用户信息', userInfoRow);
 
     return {
       success: true,

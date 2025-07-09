@@ -61,3 +61,22 @@ interface GetUserInfoResponse extends Response {
   code: 200;
   timestamp: string;
 }
+
+// ========================== me.get ======================================
+
+interface UpdateUserInfoPayload {
+  displayName: string;
+  bio: string;
+  location: string;
+  website: string;
+  birthDate: string;
+  phone: string;
+}
+
+interface UpdateUserInfoResponse extends Response {
+  success: boolean;
+  message: string;
+  data: {};
+  code: number;
+  timestamp: string;
+}

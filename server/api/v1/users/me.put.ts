@@ -1,0 +1,56 @@
+export default defineEventHandler(async event => {
+  const body = await readBody<UpdateUserInfoPayload>(event);
+  // 获取access token
+  const user = event.context.auth;
+  const getOracleConnection = event.context.getOracleConnection;
+  const connection = await getOracleConnection();
+
+  try {
+    const updateSql = `
+    UPDATE n_users
+    SET display_name = :display_name,
+        bio = :bio,
+        location = :location,
+        website = :website,
+        birth_date = TO_DATE(:birth_date, 'YYYY-MM-DD'),
+        phone = :phone
+    WHERE user_id = :user_id AND username = :username`;
+
+    const userInfo = await connection.execute(
+      updateSql,
+      {
+        display_name: body.displayName,
+        bio: body.bio,
+        location: body.location,
+        website: body.website,
+        birth_date: body.birthDate,
+        phone: body.phone,
+        user_id: user.userId,
+        username: user.userName
+      },
+      {
+        autoCommit: true
+      }
+    );
+
+    if (userInfo.rows?.length === 0) {
+      return {
+        success: false,
+        message: '更新用户信息失败，用户不存在或信息未更改',
+        code: 400,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    return {
+      success: true,
+      message: '用户信息更新成功',
+      data: {},
+      code: 200,
+      timestamp: new Date().toISOString()
+    } as UpdateUserInfoResponse;
+  } finally {
+    // 5. 关闭数据库连接
+    await connection.close();
+  }
+});
