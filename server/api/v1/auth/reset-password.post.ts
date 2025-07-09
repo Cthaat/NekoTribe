@@ -1,9 +1,9 @@
 export default defineEventHandler(async event => {
-  const body = await readBody<ResetPasswordPayload>(event)
+  const body = await readBody<ResetPasswordPayload>(event);
 
-  const getOracleConnection = event.context.getOracleConnection
+  const getOracleConnection = event.context.getOracleConnection;
 
-  const connection = await getOracleConnection()
+  const connection = await getOracleConnection();
 
   if (!body || !body.resettoken) {
     throw createError({
@@ -16,6 +16,6 @@ export default defineEventHandler(async event => {
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    })
+    });
   }
-})
+});
