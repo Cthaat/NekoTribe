@@ -1,5 +1,5 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
-import tailwindcss from '@tailwindcss/vite'
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-05-15',
@@ -19,9 +19,7 @@ export default defineNuxtConfig({
   css: ['~/assets/css/tailwind.css'],
 
   vite: {
-    plugins: [
-      tailwindcss(),
-    ],
+    plugins: [tailwindcss()]
   },
 
   colorMode: {
@@ -87,5 +85,5 @@ export default defineNuxtConfig({
     public: {
       wsUrl: process.env.NUXT_PUBLIC_WS_URL || 'ws://localhost:3001'
     }
-  },
-})
+  }
+});
