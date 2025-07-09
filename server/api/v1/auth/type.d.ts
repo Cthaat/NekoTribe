@@ -181,5 +181,14 @@ interface RefreshResponse extends Response {
 // ========================== reset-password.post ======================================
 
 interface ResetPasswordPayload {
-  resettoken: string;
+  email: string; // 邮箱地址
+  resettoken: string; //邮箱验证码
+  newPassword: string; // 新密码
+}
+
+interface ResetPasswordResponse extends Response {
+  success: true;
+  message: string;
+  code: 200;
+  timestamp: string;
 }
