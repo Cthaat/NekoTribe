@@ -1,13 +1,15 @@
 import Redis from 'ioredis'
 
 // 事件处理函数：处理获取邮箱验证码的请求
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const body = await readBody<CheckVerificationPayload>(event)
 
-  const redis: Redis = event.context.redis as Redis;
-  
+  const redis: Redis = event.context.redis as Redis
+
   // 从redis中获取验证码
-  const storedCode: string | null = await redis.get(`verification_code:${body.account}`)
+  const storedCode: string | null = await redis.get(
+    `verification_code:${body.account}`
+  )
 
   if (!storedCode) {
     return createError({
@@ -20,7 +22,7 @@ export default defineEventHandler(async (event) => {
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    });
+    })
   }
 
   // 校验验证码
@@ -35,7 +37,7 @@ export default defineEventHandler(async (event) => {
         code: 401,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    });
+    })
   }
 
   // 验证码校验通过，删除redis中的验证码

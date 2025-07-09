@@ -1,15 +1,20 @@
-import Mailer from '~/server/utils/auth/mailer'           // 引入邮件发送工具
+import Mailer from '~/server/utils/auth/mailer' // 引入邮件发送工具
 import Redis from 'ioredis'
 
 const getRandomCode: GetRandomCode = (length = 6) => {
-  return Number(Array.from({ length }).map(() => Math.floor(Math.random() * 10)).join(''))
+  return Number(
+    Array.from({ length })
+      .map(() => Math.floor(Math.random() * 10))
+      .join('')
+  )
 }
 
 // 事件处理函数：处理获取邮箱验证码的请求
-export default defineEventHandler(async (event) => {
-  const body = await readBody<GetVerificationPayload>(event);
-  const redis: Redis = event.context.redis as Redis;
-  if (!body.account) { // 校验账号参数是否存在
+export default defineEventHandler(async event => {
+  const body = await readBody<GetVerificationPayload>(event)
+  const redis: Redis = event.context.redis as Redis
+  if (!body.account) {
+    // 校验账号参数是否存在
     return createError({
       statusCode: 400, // 状态码 400，参数错误
       message: 'account is required', // 错误信息
@@ -20,11 +25,13 @@ export default defineEventHandler(async (event) => {
         code: 400, // 错误码
         timestamp: new Date().toISOString() // 当前时间戳
       } as ErrorResponse
-    });
+    })
   }
 
   // 检查是否过去一分钟，如果不到一分钟，禁止调用
-  const lastRequestTime: string | null = await redis.get(`last_request_time:${body.account}`)
+  const lastRequestTime: string | null = await redis.get(
+    `last_request_time:${body.account}`
+  )
   const currentTime: number = Date.now()
   if (lastRequestTime) {
     return createError({
@@ -37,7 +44,7 @@ export default defineEventHandler(async (event) => {
         code: 429, // 错误码
         timestamp: new Date().toISOString() // 当前时间戳
       } as ErrorResponse
-    });
+    })
   }
 
   const code: number = getRandomCode() // 生成6位随机验证码
@@ -46,8 +53,12 @@ export default defineEventHandler(async (event) => {
   await redis.set(`verification_code:${body.account}`, code, 'EX', 300)
 
   // 记录请求时间
-  await redis.set(`last_request_time:${body.account}`, currentTime.toString(), 'EX', 60) // 设置过期时间为60秒
-
+  await redis.set(
+    `last_request_time:${body.account}`,
+    currentTime.toString(),
+    'EX',
+    60
+  ) // 设置过期时间为60秒
 
   // 发送验证码邮件
   await Mailer.sendMail({
