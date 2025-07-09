@@ -1,18 +1,18 @@
-import Mailer from '~/server/utils/auth/mailer' // 引入邮件发送工具
-import Redis from 'ioredis'
+import Mailer from '~/server/utils/auth/mailer'; // 引入邮件发送工具
+import Redis from 'ioredis';
 
 const getRandomCode: GetRandomCode = (length = 6) => {
   return Number(
     Array.from({ length })
       .map(() => Math.floor(Math.random() * 10))
       .join('')
-  )
-}
+  );
+};
 
 // 事件处理函数：处理获取邮箱验证码的请求
 export default defineEventHandler(async event => {
-  const body = await readBody<GetVerificationPayload>(event)
-  const redis: Redis = event.context.redis as Redis
+  const body = await readBody<GetVerificationPayload>(event);
+  const redis: Redis = event.context.redis as Redis;
   if (!body.account) {
     // 校验账号参数是否存在
     return createError({
@@ -25,14 +25,14 @@ export default defineEventHandler(async event => {
         code: 400, // 错误码
         timestamp: new Date().toISOString() // 当前时间戳
       } as ErrorResponse
-    })
+    });
   }
 
   // 检查是否过去一分钟，如果不到一分钟，禁止调用
   const lastRequestTime: string | null = await redis.get(
     `last_request_time:${body.account}`
-  )
-  const currentTime: number = Date.now()
+  );
+  const currentTime: number = Date.now();
   if (lastRequestTime) {
     return createError({
       statusCode: 429, // 状态码 429，请求过于频繁
@@ -44,13 +44,13 @@ export default defineEventHandler(async event => {
         code: 429, // 错误码
         timestamp: new Date().toISOString() // 当前时间戳
       } as ErrorResponse
-    })
+    });
   }
 
-  const code: number = getRandomCode() // 生成6位随机验证码
+  const code: number = getRandomCode(); // 生成6位随机验证码
   // 将验证码存入 Redis，key 为 verification_code:账号，过期时间5分钟
 
-  await redis.set(`verification_code:${body.account}`, code, 'EX', 300)
+  await redis.set(`verification_code:${body.account}`, code, 'EX', 300);
 
   // 记录请求时间
   await redis.set(
@@ -58,7 +58,7 @@ export default defineEventHandler(async event => {
     currentTime.toString(),
     'EX',
     60
-  ) // 设置过期时间为60秒
+  ); // 设置过期时间为60秒
 
   // 发送验证码邮件
   await Mailer.sendMail({
@@ -66,7 +66,7 @@ export default defineEventHandler(async event => {
     subject: 'Your verification code', // 邮件主题
     text: `Your verification code is ${code}`, // 邮件文本内容
     html: `<p>Your verification code is <strong>${code}</strong></p>` // 邮件 HTML 内容
-  })
+  });
 
   return {
     success: true,
@@ -76,5 +76,5 @@ export default defineEventHandler(async event => {
     },
     code: 200,
     timestamp: new Date().toISOString()
-  } as GetVerificationResponse // 返回成功响应
-})
+  } as GetVerificationResponse; // 返回成功响应
+});
