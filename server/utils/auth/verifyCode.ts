@@ -1,4 +1,4 @@
-import Redis from 'ioredis'
+import Redis from 'ioredis';
 
 /**
  * 校验验证码工具函数
@@ -6,8 +6,14 @@ import Redis from 'ioredis'
  * @param code 用户输入的验证码
  * @returns 校验通过返回 true，否则抛出错误
  */
-export async function verifyCode(account: string, code: string, redis: Redis): Promise<boolean> {
-  const storedCode: string | null = await redis.get(`verification_code:${account}`)
+export async function verifyCode(
+  account: string,
+  code: string,
+  redis: Redis
+): Promise<boolean> {
+  const storedCode: string | null = await redis.get(
+    `verification_code:${account}`
+  );
   if (!storedCode) {
     throw createError({
       statusCode: 400,
@@ -19,7 +25,7 @@ export async function verifyCode(account: string, code: string, redis: Redis): P
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    })
+    });
   }
   if (code !== storedCode) {
     throw createError({
@@ -32,8 +38,8 @@ export async function verifyCode(account: string, code: string, redis: Redis): P
         code: 401,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    })
+    });
   }
-  await redis.del(`verification_code:${account}`)
-  return true
+  await redis.del(`verification_code:${account}`);
+  return true;
 }
