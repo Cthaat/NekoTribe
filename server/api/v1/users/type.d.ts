@@ -141,3 +141,55 @@ interface GetOthersInfoResponse extends Response {
   code: 200;
   timestamp: string;
 }
+
+// ========================== [userId]/stats.get ======================================
+
+type GetOthersStats = [
+  number, //USER_ID
+  string, // USERNAME
+  string, // DISPLAY_NAME
+  string, // EMAIL
+  string, // AVATAR_URL
+  string, // BIO
+  string, // LOCATION
+  string, // WEBSITE
+  number, // IS_VERIFIED
+  number, // FOLLOWERS_COUNT
+  number, // FOLLOWING_COUNT
+  number, // TWEETS_COUNT
+  number, // LIKES_COUNT
+  string, // CREATED_AT
+  string, // LAST_LOGIN_AT
+  string // ACTIVITY_STATUS
+];
+
+interface ReturnOthersStats {
+  userId: number; // 用户ID
+  username: string; // 用户名
+  displayName: string; // 显示名称
+  email: string; // 邮箱
+  avatarUrl: string; // 头像地址
+  bio: string; // 个人简介
+  location: string; // 所在地
+  website: string; // 个人网站
+  isVerified: number; // 是否认证
+  followersCount: number; // 粉丝数
+  followingCount: number; // 关注数
+  tweetsCount: number; // 推文数
+  likesCount: number; // 点赞数
+  createdAt: string; // 创建时间
+  lastLoginAt: string; // 最后登录时间
+  activityStatus: string; // 活跃状态
+}
+
+interface GetOthersStatsResponse extends Response {
+  success: true;
+  message: string;
+  data: {
+    userData: {
+      userInfo: ReturnOthersStats;
+    };
+  };
+  code: 200;
+  timestamp: string;
+}
