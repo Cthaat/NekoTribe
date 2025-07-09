@@ -1,6 +1,6 @@
-export default defineEventHandler(async (event) => {
-  const getOracleConnection = event.context.getOracleConnection;
-  const connection = await getOracleConnection();
+export default defineEventHandler(async event => {
+  const getOracleConnection = event.context.getOracleConnection
+  const connection = await getOracleConnection()
   try {
     // 查询所有用户
     const result = await connection.execute('SELECT * FROM n_users')
