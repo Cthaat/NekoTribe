@@ -1,6 +1,7 @@
 import formidable from 'formidable';
 import fs from 'fs';
 import path from 'path';
+import { checkAvatarFile } from '~/server/utils/users/upload-avatar-check';
 
 // 处理用户头像上传的接口
 export default defineEventHandler(async event => {
@@ -26,25 +27,75 @@ export default defineEventHandler(async event => {
       if (err) {
         return reject(
           createError({
-            success: false,
-            message: '文件上传失败',
-            code: 500,
-            timestamp: new Date().toISOString()
-          } as ErrorResponse)
+            statusCode: 401,
+            statusMessage: 'Bad Request',
+            data: {
+              success: false,
+              message: '上传文件解析失败',
+              code: 401,
+              timestamp: new Date().toISOString()
+            } as ErrorResponse
+          })
         );
       }
-      // 没有上传文件
-      const file = files.avatar?.[0];
-      if (!file) {
+
+      // 检查文件数量
+      const avatarFiles = files.avatar;
+      if (!avatarFiles || avatarFiles.length === 0) {
         return reject(
           createError({
-            success: false,
-            message: '未上传文件',
-            code: 400,
-            timestamp: new Date().toISOString()
-          } as ErrorResponse)
+            statusCode: 400,
+            statusMessage: 'Bad Request',
+            data: {
+              success: false,
+              message: '上传文件为空',
+              code: 400,
+              timestamp: new Date().toISOString()
+            } as ErrorResponse
+          })
         );
       }
+      if (avatarFiles.length > 1) {
+        // 超过一个文件，删除所有临时文件
+        for (const f of avatarFiles) {
+          if (f.filepath) await fs.promises.unlink(f.filepath);
+        }
+        return reject(
+          createError({
+            statusCode: 400,
+            statusMessage: 'Bad Request',
+            data: {
+              success: false,
+              message: '只能上传一个头像文件',
+              code: 400,
+              timestamp: new Date().toISOString()
+            } as ErrorResponse
+          })
+        );
+      }
+
+      const file = avatarFiles[0];
+
+      // 在这里调用工具函数进行校验
+      const check: { valid: boolean; message?: string } =
+        await checkAvatarFile(file);
+      if (!check.valid) {
+        // 不合规，删除临时文件
+        if (file.filepath) await fs.promises.unlink(file.filepath);
+        return reject(
+          createError({
+            statusCode: 402,
+            statusMessage: 'Bad Request',
+            data: {
+              success: false,
+              message: '上传文件不符合要求: ' + check.message,
+              code: 402,
+              timestamp: new Date().toISOString()
+            } as ErrorResponse
+          })
+        );
+      }
+
       // 获取原始扩展名
       const ext = path.extname(file.originalFilename || file.filepath);
       // 生成唯一文件名
@@ -61,11 +112,15 @@ export default defineEventHandler(async event => {
       } catch (e) {
         return reject(
           createError({
-            success: false,
-            message: '保存头像文件失败',
-            code: 500,
-            timestamp: new Date().toISOString()
-          } as ErrorResponse)
+            statusCode: 400,
+            statusMessage: 'Bad Request',
+            data: {
+              success: false,
+              message: '头像文件重命名失败',
+              code: 400,
+              timestamp: new Date().toISOString()
+            } as ErrorResponse
+          })
         );
       }
 
@@ -79,9 +134,11 @@ export default defineEventHandler(async event => {
         code: 200,
         success: true,
         message: '头像上传成功',
-        url: avatarPath,
+        data: {
+          url: avatarPath
+        },
         timestamp: new Date().toISOString()
-      });
+      } as SuccessUploadResponse);
     });
   });
 });

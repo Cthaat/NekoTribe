@@ -80,3 +80,15 @@ interface UpdateUserInfoResponse extends Response {
   code: number;
   timestamp: string;
 }
+
+// ========================== me/avatar.post ======================================
+
+interface SuccessUploadResponse extends Response {
+  success: true;
+  message: string;
+  data: {
+    url: string; // 上传成功后返回的头像 URL
+  };
+  code: number; // 状态码
+  timestamp: string; // 时间戳
+}
