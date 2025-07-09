@@ -193,3 +193,26 @@ interface GetOthersStatsResponse extends Response {
   code: 200;
   timestamp: string;
 }
+
+// ========================== search.get ======================================
+
+interface SearchUsersPayload {
+  q: string; // 搜索关键词
+  page: number; // 页码
+  pageSize: number; // 每页数量
+}
+
+interface ReturnUserInfo {
+  username: string;
+  displayName: string;
+}
+
+interface SearchUsersResponse extends Response {
+  success: true;
+  message: string;
+  data: {
+    users: ReturnUserInfo[]; // 用户信息数组
+  };
+  code: 200;
+  timestamp: string;
+}
