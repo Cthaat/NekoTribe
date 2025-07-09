@@ -34,8 +34,6 @@ export default defineEventHandler(async event => {
       pageSize
     });
 
-    console.log('Search Result:', result.rows);
-
     return {
       success: true,
       message: 'Search users successfully',

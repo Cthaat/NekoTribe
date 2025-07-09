@@ -216,3 +216,19 @@ interface SearchUsersResponse extends Response {
   code: 200;
   timestamp: string;
 }
+
+// ========================== suggestion.get ======================================
+
+interface ReturnSuggestionUserId {
+  userId: number;
+}
+
+interface SuggestionResponse extends Response {
+  success: true;
+  message: string;
+  data: {
+    users: ReturnSuggestionUserId[]; // 推荐用户信息数组
+  };
+  code: 200;
+  timestamp: string;
+}
