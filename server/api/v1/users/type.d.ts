@@ -219,6 +219,9 @@ interface SearchUsersResponse extends Response {
 
 // ========================== suggestion.get ======================================
 
+interface SuggestionUsersPayload {
+  limit: number; // 返回的推荐用户数量
+}
 interface ReturnSuggestionUserId {
   userId: number;
 }

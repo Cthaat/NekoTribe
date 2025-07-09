@@ -1,4 +1,12 @@
 export default defineEventHandler(async event => {
+  // 获取 query 参数
+  const query: SuggestionUsersPayload = getQuery(
+    event
+  ) as SuggestionUsersPayload;
+
+  // 提取参数
+  const limit: number = (query.limit || 10) as number;
+
   const getOracleConnection = event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
@@ -11,12 +19,12 @@ export default defineEventHandler(async event => {
           WHERE u.is_active = 1
           ORDER BY u.followers_count DESC, u.created_at DESC
       )
-      WHERE ROWNUM <= 10
+      WHERE ROWNUM <= :limit
     `;
 
-    const result = await connection.execute(suggestionSql);
-
-    console.log('Search Result:', result.rows);
+    const result = await connection.execute(suggestionSql, {
+      limit
+    });
 
     return {
       success: true,
