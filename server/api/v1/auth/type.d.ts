@@ -178,3 +178,9 @@ interface RefreshResponse extends Response {
     code: 200,
     timestamp: string
 }
+
+// ========================== reset-password.post ======================================
+
+interface ResetPasswordPayload {
+    resettoken: string
+}
