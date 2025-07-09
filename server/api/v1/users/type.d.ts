@@ -62,7 +62,7 @@ interface GetUserInfoResponse extends Response {
   timestamp: string;
 }
 
-// ========================== me.get ======================================
+// ========================== me.put ======================================
 
 interface UpdateUserInfoPayload {
   displayName: string;
@@ -105,6 +105,38 @@ interface ResetEmailResponse extends Response {
   message: string;
   data: {
     newEmail: string;
+  };
+  code: 200;
+  timestamp: string;
+}
+
+// ========================== [userId].get ======================================
+
+type GetOthersInfo = [
+  string, // AVATAR_URL
+  string, // DISPLAY_NAME
+  string, // BIO
+  string, // LOCATION
+  string, // WEBSITE
+  string // BIRTH_DATE
+];
+
+interface ReturnOthersInfo {
+  avatarUrl: string; // 头像地址
+  displayName: string; // 显示名称
+  bio: string; // 个人简介
+  location: string; // 所在地
+  website: string; // 个人网站
+  birthDate: string; // 出生日期
+}
+
+interface GetOthersInfoResponse extends Response {
+  success: true;
+  message: string;
+  data: {
+    userData: {
+      userInfo: ReturnOthersInfo;
+    };
   };
   code: 200;
   timestamp: string;
