@@ -177,7 +177,9 @@ export default defineEventHandler(async event => {
       { autoCommit: true }
     );
 
-    const selectSql = `SELECT * FROM n_users WHERE email = :email OR username = :username`;
+    const selectSql = `
+    SELECT * FROM n_users
+    WHERE email = :email OR username = :username`;
 
     const userInfo = await connection.execute(selectSql, {
       email: body.account,
