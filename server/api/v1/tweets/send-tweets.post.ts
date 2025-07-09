@@ -64,7 +64,7 @@ export default defineEventHandler(async event => {
         message: '推文发布失败，请稍后重试或联系管理员',
         code: 500,
         timestamp: new Date().toISOString()
-      }
+      } as ErrorResponse
     });
   } finally {
     await connection.close();
