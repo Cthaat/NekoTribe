@@ -92,3 +92,20 @@ interface SuccessUploadResponse extends Response {
   code: number; // 状态码
   timestamp: string; // 时间戳
 }
+
+// ========================== me/email.put ======================================
+
+interface ResetEmailPayload {
+  resettoken: string;
+  newEmail: string;
+}
+
+interface ResetEmailResponse extends Response {
+  success: true;
+  message: string;
+  data: {
+    newEmail: string;
+  };
+  code: 200;
+  timestamp: string;
+}
