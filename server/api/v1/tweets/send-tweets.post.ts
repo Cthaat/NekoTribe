@@ -18,6 +18,7 @@ export default defineEventHandler(async event => {
           :p_quote_tweet_id,
           :p_visibility,
           :p_hashtags,
+          :p_mentions,
           :p_tweet_id,
           :p_result
         );
@@ -34,6 +35,7 @@ export default defineEventHandler(async event => {
         p_quote_tweet_id: body.quoteTweetId ?? null,
         p_visibility: body.visibility ?? 'public',
         p_hashtags: body.hashtags ?? null,
+        p_mentions: body.mentions ?? null,
         p_tweet_id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
         p_result: {
           dir: oracledb.BIND_OUT,

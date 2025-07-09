@@ -12,3 +12,12 @@ interface TweetSendPayload {
   scheduledAt?: string; // 定时发布时间（可选，ISO字符串）
   location?: string; // 地理位置（可选）
 }
+
+// ========================== list.get ======================================
+
+interface TweetListPayload {
+  type: 'home' | 'my_tweets' | 'user' | 'mention'; // 推文类型
+  page: number; // 页码
+  pageSize: number; // 每页数量
+  userId?: number; // 用户ID（仅在type为'user'时需要）
+}
