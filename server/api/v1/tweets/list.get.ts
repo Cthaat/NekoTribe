@@ -27,9 +27,9 @@ export default defineEventHandler(async event => {
             FROM v_comprehensive_timeline v
             WHERE (v.author_id = :user_id OR v.is_from_following = 1)
               AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
-              AND is_deleted = 0
         )
-        WHERE rn <= 50 -- 分页限制
+        WHERE rn > (:page - 1) * :pagesize 
+          AND rn <= :page * :pagesize
         ORDER BY created_at DESC;
         `;
         break;
@@ -48,11 +48,19 @@ export default defineEventHandler(async event => {
         }
         const userSql = `
         SELECT *
-        FROM v_comprehensive_timeline v
-        WHERE v.author_id = :target_user_id
-          AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
-          AND is_deleted = 0
-        ORDER BY v.created_at DESC;
+        FROM (
+            SELECT
+                v.*,
+                ROW_NUMBER() OVER (
+                    ORDER BY v.created_at DESC
+                ) AS rn
+            FROM v_comprehensive_timeline v
+            WHERE v.author_id = :target_user_id
+              AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
+        )
+        WHERE rn > (:page - 1) * :pagesize 
+          AND rn <= :page * :pagesize
+        ORDER BY created_at DESC;
         `;
         // 获取用户推文
         break;
@@ -60,36 +68,60 @@ export default defineEventHandler(async event => {
         // 获取我的推文
         const myTweetsSql = `
         SELECT *
-        FROM v_comprehensive_timeline v
-        WHERE v.author_id = :user_id
-            AND is_deleted = 0
-        ORDER BY v.created_at DESC;
+        FROM (
+            SELECT
+                v.*,
+                ROW_NUMBER() OVER (
+                    ORDER BY v.created_at DESC
+                ) AS rn
+            FROM v_comprehensive_timeline v
+            WHERE v.author_id = :user_id
+        )
+        WHERE rn > (:page - 1) * :pagesize 
+          AND rn <= :page * :pagesize
+        ORDER BY created_at DESC;
         `;
         break;
       case 'mention':
         // 获取提及我的推文
         const mentionSql = `
         SELECT *
-        FROM v_comprehensive_timeline v
-        WHERE v.tweet_id IN (
-            SELECT c.tweet_id
-            FROM n_comments c
-            WHERE c.user_id = :user_id
+        FROM (
+            SELECT
+                v.*,
+                ROW_NUMBER() OVER (
+                    ORDER BY v.created_at DESC
+                ) AS rn
+            FROM v_comprehensive_timeline v
+            WHERE v.tweet_id IN (
+                SELECT tm.tweet_id
+                FROM n_tweet_mentions tm
+                WHERE tm.mentioned_user_id = :user_id
+            )
             AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
-            AND is_deleted = 0
         )
-        ORDER BY v.created_at DESC;
+        WHERE rn > (:page - 1) * :pagesize 
+          AND rn <= :page * :pagesize
+        ORDER BY created_at DESC;
         `;
         break;
       case 'trending':
         // 获取热门推文
         const trendingSql = `
         SELECT *
-        FROM v_comprehensive_timeline v
-        WHERE fn_can_view_tweet(:user_id, v.tweet_id) = 1
-          AND v.created_at > SYSDATE - 7 -- 最近7天
-        ORDER BY v.engagement_score DESC, v.created_at DESC
-        FETCH FIRST 50 ROWS ONLY;
+        FROM (
+            SELECT
+                v.*,
+                ROW_NUMBER() OVER (
+                    ORDER BY v.engagement_score DESC, v.created_at DESC
+                ) AS rn
+            FROM v_comprehensive_timeline v
+            WHERE fn_can_view_tweet(:user_id, v.tweet_id) = 1
+              AND v.created_at > SYSDATE - 7 -- 最近7天
+        )
+        WHERE rn > (:page - 1) * :pagesize 
+          AND rn <= :page * :pagesize
+        ORDER BY engagement_score DESC, created_at DESC;
         `;
         break;
       default:
