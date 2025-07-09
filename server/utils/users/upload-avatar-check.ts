@@ -15,13 +15,6 @@ export async function checkAvatarFile(file: File): Promise<{
   const realMime = typeInfo?.mime || '';
   const ext = path.extname(file.originalFilename || '').toLowerCase();
 
-  console.log('检查文件:', {
-    originalFilename: file.originalFilename,
-    mime: realMime,
-    ext,
-    size: file.size
-  });
-
   // 检查真实类型
   if (!ALLOWED_MIME.includes(realMime)) {
     return { valid: false, message: '仅支持jpg、png、gif格式的图片' };

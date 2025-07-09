@@ -33,12 +33,16 @@ export default defineEventHandler(async event => {
     );
 
     if (userInfo.rows?.length === 0) {
-      return {
-        success: false,
-        message: '更新用户信息失败，用户不存在或信息未更改',
-        code: 400,
-        timestamp: new Date().toISOString()
-      };
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Bad Request',
+        data: {
+          success: false,
+          message: '用户信息更新失败，可能是用户不存在或数据不合法',
+          code: 400,
+          timestamp: new Date().toISOString()
+        } as ErrorResponse
+      });
     }
 
     return {

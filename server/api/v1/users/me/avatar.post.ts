@@ -8,6 +8,10 @@ export default defineEventHandler(async event => {
   // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
 
+  // 获取 Oracle 数据库连接
+  const getOracleConnection = event.context.getOracleConnection;
+  const connection = await getOracleConnection();
+
   // 创建 formidable 实例，配置上传参数
   const form = formidable({
     multiples: false, // 只允许单文件上传
@@ -125,20 +129,52 @@ export default defineEventHandler(async event => {
       }
 
       // 构建头像访问路径
-      const avatarPath = `/avatars/${user.userId}/${uniqueName}`;
+      const avatarPath = `./public/avatars/${user.userId}/${uniqueName}`;
 
-      // TODO: 这里可以补充数据库更新逻辑
-
-      // 返回成功响应
-      resolve({
-        code: 200,
-        success: true,
-        message: '头像上传成功',
-        data: {
-          url: avatarPath
-        },
-        timestamp: new Date().toISOString()
-      } as SuccessUploadResponse);
+      try {
+        const updateSql = `
+          UPDATE n_users
+          SET avatar_url = :avatarUrl
+          WHERE user_id = :userId
+        `;
+        const updateResult = await connection.execute(
+          updateSql,
+          {
+            avatarUrl: avatarPath,
+            userId: user.userId
+          },
+          { autoCommit: true }
+        );
+        if (updateResult.row?.length === 0) {
+          // 更新失败，删除新文件
+          await fs.promises.unlink(avatarPath);
+          return reject(
+            createError({
+              statusCode: 400,
+              statusMessage: 'Bad Request',
+              data: {
+                success: false,
+                message: '头像文件重命名失败',
+                code: 400,
+                timestamp: new Date().toISOString()
+              } as ErrorResponse
+            })
+          );
+        }
+        // 返回成功响应
+        resolve({
+          code: 200,
+          success: true,
+          message: '头像上传成功',
+          data: {
+            url: avatarPath
+          },
+          timestamp: new Date().toISOString()
+        } as SuccessUploadResponse);
+      } finally {
+        // 关闭数据库连接
+        await connection.close();
+      }
     });
   });
 });
