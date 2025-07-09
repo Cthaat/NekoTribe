@@ -30,9 +30,56 @@ export default defineEventHandler(async event => {
         )
         WHERE rn > (:page - 1) * :pagesize 
           AND rn <= :page * :pagesize
-        ORDER BY created_at DESC;
+        ORDER BY created_at DESC
         `;
-        break;
+        // 获取首页推文
+        const result = await connection.execute(homeSql, {
+          user_id: user.userId,
+          page,
+          pagesize: pageSize
+        });
+        console.log('Home Tweets Result:', result.rows);
+
+        const tweets = result.rows.map(async (row: TweetRow) => {
+          // 读取CLOB内容
+          let content = '';
+          if (row[1] && typeof row[1].getData === 'function') {
+            content = await row[1].getData();
+          } else if (typeof row[1] === 'string') {
+            content = row[1];
+          }
+          return {
+            tweetId: row[0],
+            content,
+            authorId: row[2],
+            username: row[3],
+            displayName: row[4],
+            avatarUrl: row[5],
+            isVerified: row[6],
+            likesCount: row[7],
+            retweetsCount: row[8],
+            repliesCount: row[9],
+            viewsCount: row[10],
+            visibility: row[11],
+            createdAt: row[12],
+            replyToTweetId: row[13],
+            retweetOfTweetId: row[14],
+            quoteTweetId: row[15],
+            engagementScore: row[16],
+            timelineType: row[17],
+            isFromFollowing: row[18],
+            rn: row[19]
+          } as TweetItem;
+        });
+        return {
+          success: true,
+          message: 'Home tweets fetched successfully',
+          data: {
+            tweets: await Promise.all(tweets)
+          },
+          code: 200,
+          timestamp: new Date().toISOString()
+        } as TweetListResponse;
       case 'user':
         if (!userId) {
           throw createError({
@@ -60,7 +107,7 @@ export default defineEventHandler(async event => {
         )
         WHERE rn > (:page - 1) * :pagesize 
           AND rn <= :page * :pagesize
-        ORDER BY created_at DESC;
+        ORDER BY created_at DESC
         `;
         // 获取用户推文
         break;
@@ -79,7 +126,7 @@ export default defineEventHandler(async event => {
         )
         WHERE rn > (:page - 1) * :pagesize 
           AND rn <= :page * :pagesize
-        ORDER BY created_at DESC;
+        ORDER BY created_at DESC
         `;
         break;
       case 'mention':
@@ -102,7 +149,7 @@ export default defineEventHandler(async event => {
         )
         WHERE rn > (:page - 1) * :pagesize 
           AND rn <= :page * :pagesize
-        ORDER BY created_at DESC;
+        ORDER BY created_at DESC
         `;
         break;
       case 'trending':
@@ -121,7 +168,7 @@ export default defineEventHandler(async event => {
         )
         WHERE rn > (:page - 1) * :pagesize 
           AND rn <= :page * :pagesize
-        ORDER BY engagement_score DESC, created_at DESC;
+        ORDER BY engagement_score DESC, created_at DESC
         `;
         break;
       default:
