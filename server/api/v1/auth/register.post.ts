@@ -1,10 +1,10 @@
-import bcrypt from 'bcrypt';
-import { verifyCode } from '~/server/utils/auth/verifyCode';
-import Redis from 'ioredis';
+import bcrypt from 'bcrypt'
+import { verifyCode } from '~/server/utils/auth/verifyCode'
+import Redis from 'ioredis'
 
 export default defineEventHandler(async (event): Promise<RegisterResponse> => {
   const body = await readBody<registerPayload>(event)
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection = event.context.getOracleConnection
 
   if (!body) {
     throw createError({
@@ -17,10 +17,10 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    });
+    })
   }
 
-  if(!body.email) {
+  if (!body.email) {
     throw createError({
       statusCode: 400,
       message: '邮箱地址不能为空',
@@ -31,10 +31,10 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    });
+    })
   }
 
-  if(!/^\S+@\S+\.\S+$/.test(body.email)) {
+  if (!/^\S+@\S+\.\S+$/.test(body.email)) {
     throw createError({
       statusCode: 400,
       message: '邮箱地址格式不正确',
@@ -45,10 +45,10 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    });
+    })
   }
 
-  if(!body.password) {
+  if (!body.password) {
     throw createError({
       statusCode: 400,
       message: '密码不能为空',
@@ -59,10 +59,10 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    });
+    })
   }
 
-  if(body.password.length < 6) {
+  if (body.password.length < 6) {
     throw createError({
       statusCode: 400,
       message: '密码长度不能少于6个字符',
@@ -73,7 +73,7 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    });
+    })
   }
 
   if (body.password !== body.confirmPassword) {
@@ -87,7 +87,7 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    });
+    })
   }
 
   if (!body.agreeToTerms) {
@@ -101,7 +101,7 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    });
+    })
   }
 
   if (!body.captcha) {
@@ -115,22 +115,25 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
         code: 400,
         timestamp: new Date().toISOString()
       } as ErrorResponse
-    });
+    })
   }
 
-  await verifyCode(body.email, body.captcha, event.context.redis as Redis);
+  await verifyCode(body.email, body.captcha, event.context.redis as Redis)
 
-  const hashedPassword: string = await bcrypt.hash(body.password, 10);
+  const hashedPassword: string = await bcrypt.hash(body.password, 10)
 
   // 这里应该添加实际的注册逻辑
-  const connection = await getOracleConnection();
+  const connection = await getOracleConnection()
 
   try {
     // 2. 检查邮箱是否已注册
-    const checkSql = `SELECT COUNT(*) AS count FROM n_users WHERE email = :email`;
-    const checkResult = await connection.execute(checkSql, { email: body.email });
-    const checkResultRow: checkResultRow = checkResult.rows?.[0] as checkResultRow || [];
-    const userCount = checkResultRow[0] || 0;
+    const checkSql = `SELECT COUNT(*) AS count FROM n_users WHERE email = :email`
+    const checkResult = await connection.execute(checkSql, {
+      email: body.email
+    })
+    const checkResultRow: checkResultRow =
+      (checkResult.rows?.[0] as checkResultRow) || []
+    const userCount = checkResultRow[0] || 0
     if (userCount > 0) {
       throw createError({
         statusCode: 409,
@@ -142,7 +145,7 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
           code: 409,
           timestamp: new Date().toISOString()
         } as ErrorResponse
-      });
+      })
     }
 
     // 3. 插入新用户数据
@@ -157,22 +160,28 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
         is_verified
     )
       VALUES (:email, :username, :password_hash, :display_name, :bio, :location, :is_verified)
-    `;
-    await connection.execute(insertSql, {
-      email: body.email,
-      username: body.username,
-      password_hash: hashedPassword,
-      display_name: body.displayName,
-      bio: body.bio,
-      location: body.location,
-      is_verified: 1 // 默认设置为已验证
-    }, { autoCommit: true });
+    `
+    await connection.execute(
+      insertSql,
+      {
+        email: body.email,
+        username: body.username,
+        password_hash: hashedPassword,
+        display_name: body.displayName,
+        bio: body.bio,
+        location: body.location,
+        is_verified: 1 // 默认设置为已验证
+      },
+      { autoCommit: true }
+    )
 
-    const selectSql = `SELECT USER_ID, USERNAME, EMAIL, DISPLAY_NAME, AVATAR_URL, IS_VERIFIED, CREATED_AT FROM n_users WHERE email = :email`;
-    const userResult = await connection.execute(selectSql, { email: body.email });
+    const selectSql = `SELECT USER_ID, USERNAME, EMAIL, DISPLAY_NAME, AVATAR_URL, IS_VERIFIED, CREATED_AT FROM n_users WHERE email = :email`
+    const userResult = await connection.execute(selectSql, {
+      email: body.email
+    })
 
     // 取第一行数据
-    const row: UserRow = userResult.rows?.[0] as UserRow || [];
+    const row: UserRow = (userResult.rows?.[0] as UserRow) || []
 
     // 4. 返回注册成功
     return {
@@ -189,9 +198,9 @@ export default defineEventHandler(async (event): Promise<RegisterResponse> => {
       },
       code: 200,
       timestamp: new Date().toISOString()
-    } as RegisterResponse;
+    } as RegisterResponse
   } finally {
     // 5. 关闭数据库连接
-    await connection.close();
+    await connection.close()
   }
-});
+})
