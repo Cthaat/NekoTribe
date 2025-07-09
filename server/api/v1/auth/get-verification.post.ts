@@ -15,7 +15,7 @@ export default defineEventHandler(async event => {
   const redis: Redis = event.context.redis as Redis;
   if (!body.account) {
     // 校验账号参数是否存在
-    return createError({
+    throw createError({
       statusCode: 400, // 状态码 400，参数错误
       message: 'account is required', // 错误信息
       statusMessage: 'account is required', // 状态消息
@@ -34,7 +34,7 @@ export default defineEventHandler(async event => {
   );
   const currentTime: number = Date.now();
   if (lastRequestTime) {
-    return createError({
+    throw createError({
       statusCode: 429, // 状态码 429，请求过于频繁
       message: 'Too many requests, please try again later', // 错误信息
       statusMessage: 'Too many requests', // 状态消息
