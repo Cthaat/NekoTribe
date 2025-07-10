@@ -36,7 +36,10 @@ interface TweetGetFollowingItem {
 
 interface TweetGetFollowingResponse extends Response {
   success: boolean;
+  message: string;
   data: {
+    page: number; // 页码
+    pageSize: number; // 每页数量
     list: TweetGetFollowingItem[]; // 关注列表
     totalCount: number; // 总数
   };
@@ -65,7 +68,10 @@ interface TweetGetFollowerItem {
 
 interface TweetGetFollowerResponse extends Response {
   success: boolean;
+  message: string;
   data: {
+    page: number; // 页码
+    pageSize: number; // 每页数量
     list: TweetGetFollowerItem[]; // 关注列表
     totalCount: number; // 总数
   };
@@ -94,8 +100,43 @@ interface MutualFollowsItem {
 
 interface MutualFollowsResponse extends Response {
   success: boolean;
+  message: string;
   data: {
+    page: number; // 页码
+    pageSize: number; // 每页数量
     list: MutualFollowsItem[]; // 关注列表
+    totalCount: number; // 总数
+  };
+  code: number;
+  timestamp: string;
+}
+
+// ========================== [userId].blocked.get ======================================
+
+interface TweetBlockedPayload {
+  page: number; // 页码
+  pageSize: number; // 每页数量
+}
+
+type TweetBlockedRow = [
+  string, // 显示名称
+  string, // 头像 URL
+  number // 行号
+];
+
+interface TweetBlockedItem {
+  displayName: string; // 显示名称
+  avatarUrl: string; // 头像 URL
+  rn: number; // 行号
+}
+
+interface TweetBlockedResponse extends Response {
+  success: boolean;
+  message: string;
+  data: {
+    page: number; // 页码
+    pageSize: number; // 每页数量
+    list: TweetBlockedItem[];
     totalCount: number; // 总数
   };
   code: number;

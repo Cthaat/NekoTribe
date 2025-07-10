@@ -1,43 +1,29 @@
 export default defineEventHandler(async event => {
   // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
-  // 获取 tweetId 路径参数
-  const userId: string = getRouterParam(event, 'userId') as string;
 
   // 获取 query 参数
-  const query: TweetFollowerPayload = getQuery(event) as TweetFollowerPayload;
+  const query: TweetBlockedPayload = getQuery(event) as TweetBlockedPayload;
 
   // 提取参数
   const { page = 1, pageSize = 10 } = query;
-
-  if (!userId) {
-    throw createError({
-      statusCode: 400,
-      message: '缺少用户ID',
-      data: {
-        success: false,
-        message: '缺少用户ID',
-        code: 400,
-        timestamp: new Date().toISOString()
-      } as ErrorResponse
-    });
-  }
 
   const getOracleConnection = event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
-    const followerSql = `
+    const blockedSql = `
     SELECT *
     FROM (
         SELECT
+            u.user_id,
             u.display_name,
             u.avatar_url,
             ROW_NUMBER() OVER (ORDER BY f.created_at DESC) AS rn
         FROM n_follows f
         JOIN n_users u ON f.following_id = u.user_id
-        WHERE u.user_id = :userId
-          AND f.follow_type = 'follow'
+        WHERE f.follower_id = :userId
+          AND f.follow_type = 'block'
           AND f.is_active = 1
     )
     WHERE rn > (:page - 1) * :pagesize
@@ -45,37 +31,37 @@ export default defineEventHandler(async event => {
     ORDER BY rn
     `;
 
-    const followerCountSql = `
+    const blockedCountSql = `
     SELECT
       count(*) AS total_count
     FROM n_follows f
     JOIN n_users u ON f.following_id = u.user_id
-    WHERE u.user_id = :userId
-          AND f.follow_type = 'follow'
+    WHERE f.follower_id = :userId
+          AND f.follow_type = 'block'
           AND f.is_active = 1
     `;
 
-    const result = await connection.execute(followerSql, {
-      userId,
+    const result = await connection.execute(blockedSql, {
+      userId: user.userId,
       page,
       pagesize: pageSize
     });
 
     // 获取总数
-    const totalCountResult = await connection.execute(followerCountSql, {
-      userId
+    const totalCountResult = await connection.execute(blockedCountSql, {
+      userId: user.userId
     });
 
     const totalCount = totalCountResult.rows[0][0] as number;
 
-    const followers: TweetGetFollowerItem[] = await Promise.all(
+    const followers: TweetBlockedItem[] = await Promise.all(
       result.rows.map(
-        async (row: TweetGetFollowerRow) =>
+        async (row: TweetBlockedRow) =>
           ({
             displayName: row[0],
             avatarUrl: row[1],
             rn: row[2]
-          }) as TweetGetFollowerItem
+          }) as TweetBlockedItem
       )
     );
 
@@ -90,7 +76,7 @@ export default defineEventHandler(async event => {
       },
       code: 200,
       timestamp: new Date().toISOString()
-    } as TweetGetFollowerResponse;
+    } as TweetBlockedResponse;
   } finally {
     await connection.close();
   }

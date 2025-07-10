@@ -86,7 +86,10 @@ export default defineEventHandler(async event => {
 
     return {
       success: true,
+      message: '获取成功',
       data: {
+        page,
+        pageSize,
         list: mutualFollows,
         totalCount
       },
