@@ -16,7 +16,7 @@ interface TweetSendPayload {
 // ========================== list.get ============================================
 
 interface TweetListPayload {
-  type: 'home' | 'user' | 'my_tweets' | 'mention' | 'trending'; // 推文类型
+  type: 'home' | 'user' | 'my_tweets' | 'mention' | 'trending' | 'bookmark'; // 推文类型
   page: number; // 页码
   pageSize: number; // 每页数量
   userId?: string; // 用户ID（仅在type为'user'时需要）
@@ -313,4 +313,3 @@ interface TweetGetReLikesResponse extends Response {
   code: 200;
   timestamp: string;
 }
-

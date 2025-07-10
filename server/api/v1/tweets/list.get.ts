@@ -388,6 +388,75 @@ export default defineEventHandler(async event => {
           })
         );
         break;
+      case 'bookmark':
+        // 获取我的推文
+        const bookmarkSql = `
+        SELECT *
+        FROM (
+            SELECT
+                v.*,
+                ROW_NUMBER() OVER (ORDER BY b.created_at DESC) AS rn
+            FROM v_comprehensive_timeline v
+            JOIN n_bookmarks b ON v.tweet_id = b.tweet_id
+            JOIN n_users u ON v.author_id = u.user_id
+            WHERE b.user_id = :user_id
+              AND v.is_deleted = 0
+              AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
+        )
+        WHERE rn > (:page - 1) * :pagesize
+          AND rn <= :page * :pagesize
+        ORDER BY bookmarked_at DESC;
+        `;
+
+        // 获取我的推文总数
+        const bookmarkCountSql = `
+          SELECT COUNT(*)
+          FROM v_comprehensive_timeline v
+          WHERE v.author_id = :user_id
+        `;
+
+        // 获取我的推文
+        const bookmarkResult = await connection.execute(bookmarkSql, {
+          user_id: user.userId,
+          page,
+          pagesize: pageSize
+        });
+
+        // 获取我的推文总数
+        const bookmarkCountResult = await connection.execute(bookmarkCountSql, {
+          user_id: user.userId
+        });
+
+        // 提取总数
+        totalCount = bookmarkCountResult.rows[0][0];
+
+        // 处理推文数据
+        tweets = await Promise.all(
+          bookmarkResult.rows.map(async (row: TweetRow) => {
+            return {
+              tweetId: row[0],
+              authorId: row[1],
+              username: row[2],
+              displayName: row[3],
+              avatarUrl: row[4],
+              isVerified: row[5],
+              likesCount: row[6],
+              retweetsCount: row[7],
+              repliesCount: row[8],
+              viewsCount: row[9],
+              visibility: row[10],
+              createdAt: row[11],
+              replyToTweetId: row[12],
+              retweetOfTweetId: row[13],
+              quoteTweetId: row[14],
+              engagementScore: row[15],
+              timelineType: row[16],
+              isFromFollowing: row[17],
+              rn: row[18]
+            } as TweetItem;
+          })
+        );
+        break;
       default:
         throw createError({
           statusCode: 400,
