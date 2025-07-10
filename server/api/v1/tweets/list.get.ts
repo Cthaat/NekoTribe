@@ -66,34 +66,26 @@ export default defineEventHandler(async event => {
         // 处理推文数据
         tweets = await Promise.all(
           homeResult.rows.map(async (row: TweetRow) => {
-            // 读取CLOB内容
-            let content = '';
-            if (row[1] && typeof row[1].getData === 'function') {
-              content = await row[1].getData();
-            } else if (typeof row[1] === 'string') {
-              content = row[1];
-            }
             return {
               tweetId: row[0],
-              content,
-              authorId: row[2],
-              username: row[3],
-              displayName: row[4],
-              avatarUrl: row[5],
-              isVerified: row[6],
-              likesCount: row[7],
-              retweetsCount: row[8],
-              repliesCount: row[9],
-              viewsCount: row[10],
-              visibility: row[11],
-              createdAt: row[12],
-              replyToTweetId: row[13],
-              retweetOfTweetId: row[14],
-              quoteTweetId: row[15],
-              engagementScore: row[16],
-              timelineType: row[17],
-              isFromFollowing: row[18],
-              rn: row[19]
+              authorId: row[1],
+              username: row[2],
+              displayName: row[3],
+              avatarUrl: row[4],
+              isVerified: row[5],
+              likesCount: row[6],
+              retweetsCount: row[7],
+              repliesCount: row[8],
+              viewsCount: row[9],
+              visibility: row[10],
+              createdAt: row[11],
+              replyToTweetId: row[12],
+              retweetOfTweetId: row[13],
+              quoteTweetId: row[14],
+              engagementScore: row[15],
+              timelineType: row[16],
+              isFromFollowing: row[17],
+              rn: row[18]
             } as TweetItem;
           })
         );
@@ -158,35 +150,27 @@ export default defineEventHandler(async event => {
 
         // 处理推文数据
         tweets = await Promise.all(
-          userResult.rows.map(async (row: TweetRow) => {
-            // 读取CLOB内容
-            let content = '';
-            if (row[1] && typeof row[1].getData === 'function') {
-              content = await row[1].getData();
-            } else if (typeof row[1] === 'string') {
-              content = row[1];
-            }
+          homeResult.rows.map(async (row: TweetRow) => {
             return {
               tweetId: row[0],
-              content,
-              authorId: row[2],
-              username: row[3],
-              displayName: row[4],
-              avatarUrl: row[5],
-              isVerified: row[6],
-              likesCount: row[7],
-              retweetsCount: row[8],
-              repliesCount: row[9],
-              viewsCount: row[10],
-              visibility: row[11],
-              createdAt: row[12],
-              replyToTweetId: row[13],
-              retweetOfTweetId: row[14],
-              quoteTweetId: row[15],
-              engagementScore: row[16],
-              timelineType: row[17],
-              isFromFollowing: row[18],
-              rn: row[19]
+              authorId: row[1],
+              username: row[2],
+              displayName: row[3],
+              avatarUrl: row[4],
+              isVerified: row[5],
+              likesCount: row[6],
+              retweetsCount: row[7],
+              repliesCount: row[8],
+              viewsCount: row[9],
+              visibility: row[10],
+              createdAt: row[11],
+              replyToTweetId: row[12],
+              retweetOfTweetId: row[13],
+              quoteTweetId: row[14],
+              engagementScore: row[15],
+              timelineType: row[16],
+              isFromFollowing: row[17],
+              rn: row[18]
             } as TweetItem;
           })
         );
@@ -234,35 +218,27 @@ export default defineEventHandler(async event => {
 
         // 处理推文数据
         tweets = await Promise.all(
-          myTweetsResult.rows.map(async (row: TweetRow) => {
-            // 读取CLOB内容
-            let content = '';
-            if (row[1] && typeof row[1].getData === 'function') {
-              content = await row[1].getData();
-            } else if (typeof row[1] === 'string') {
-              content = row[1];
-            }
+          homeResult.rows.map(async (row: TweetRow) => {
             return {
               tweetId: row[0],
-              content,
-              authorId: row[2],
-              username: row[3],
-              displayName: row[4],
-              avatarUrl: row[5],
-              isVerified: row[6],
-              likesCount: row[7],
-              retweetsCount: row[8],
-              repliesCount: row[9],
-              viewsCount: row[10],
-              visibility: row[11],
-              createdAt: row[12],
-              replyToTweetId: row[13],
-              retweetOfTweetId: row[14],
-              quoteTweetId: row[15],
-              engagementScore: row[16],
-              timelineType: row[17],
-              isFromFollowing: row[18],
-              rn: row[19]
+              authorId: row[1],
+              username: row[2],
+              displayName: row[3],
+              avatarUrl: row[4],
+              isVerified: row[5],
+              likesCount: row[6],
+              retweetsCount: row[7],
+              repliesCount: row[8],
+              viewsCount: row[9],
+              visibility: row[10],
+              createdAt: row[11],
+              replyToTweetId: row[12],
+              retweetOfTweetId: row[13],
+              quoteTweetId: row[14],
+              engagementScore: row[15],
+              timelineType: row[16],
+              isFromFollowing: row[17],
+              rn: row[18]
             } as TweetItem;
           })
         );
@@ -319,35 +295,27 @@ export default defineEventHandler(async event => {
 
         // 处理推文数据
         tweets = await Promise.all(
-          mentionResult.rows.map(async (row: TweetRow) => {
-            // 读取CLOB内容
-            let content = '';
-            if (row[1] && typeof row[1].getData === 'function') {
-              content = await row[1].getData();
-            } else if (typeof row[1] === 'string') {
-              content = row[1];
-            }
+          homeResult.rows.map(async (row: TweetRow) => {
             return {
               tweetId: row[0],
-              content,
-              authorId: row[2],
-              username: row[3],
-              displayName: row[4],
-              avatarUrl: row[5],
-              isVerified: row[6],
-              likesCount: row[7],
-              retweetsCount: row[8],
-              repliesCount: row[9],
-              viewsCount: row[10],
-              visibility: row[11],
-              createdAt: row[12],
-              replyToTweetId: row[13],
-              retweetOfTweetId: row[14],
-              quoteTweetId: row[15],
-              engagementScore: row[16],
-              timelineType: row[17],
-              isFromFollowing: row[18],
-              rn: row[19]
+              authorId: row[1],
+              username: row[2],
+              displayName: row[3],
+              avatarUrl: row[4],
+              isVerified: row[5],
+              likesCount: row[6],
+              retweetsCount: row[7],
+              repliesCount: row[8],
+              viewsCount: row[9],
+              visibility: row[10],
+              createdAt: row[11],
+              replyToTweetId: row[12],
+              retweetOfTweetId: row[13],
+              quoteTweetId: row[14],
+              engagementScore: row[15],
+              timelineType: row[16],
+              isFromFollowing: row[17],
+              rn: row[18]
             } as TweetItem;
           })
         );
@@ -395,35 +363,27 @@ export default defineEventHandler(async event => {
 
         // 处理推文数据
         tweets = await Promise.all(
-          trendingResult.rows.map(async (row: TweetRow) => {
-            // 读取CLOB内容
-            let content = '';
-            if (row[1] && typeof row[1].getData === 'function') {
-              content = await row[1].getData();
-            } else if (typeof row[1] === 'string') {
-              content = row[1];
-            }
+          homeResult.rows.map(async (row: TweetRow) => {
             return {
               tweetId: row[0],
-              content,
-              authorId: row[2],
-              username: row[3],
-              displayName: row[4],
-              avatarUrl: row[5],
-              isVerified: row[6],
-              likesCount: row[7],
-              retweetsCount: row[8],
-              repliesCount: row[9],
-              viewsCount: row[10],
-              visibility: row[11],
-              createdAt: row[12],
-              replyToTweetId: row[13],
-              retweetOfTweetId: row[14],
-              quoteTweetId: row[15],
-              engagementScore: row[16],
-              timelineType: row[17],
-              isFromFollowing: row[18],
-              rn: row[19]
+              authorId: row[1],
+              username: row[2],
+              displayName: row[3],
+              avatarUrl: row[4],
+              isVerified: row[5],
+              likesCount: row[6],
+              retweetsCount: row[7],
+              repliesCount: row[8],
+              viewsCount: row[9],
+              visibility: row[10],
+              createdAt: row[11],
+              replyToTweetId: row[12],
+              retweetOfTweetId: row[13],
+              quoteTweetId: row[14],
+              engagementScore: row[15],
+              timelineType: row[16],
+              isFromFollowing: row[17],
+              rn: row[18]
             } as TweetItem;
           })
         );

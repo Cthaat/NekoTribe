@@ -2,7 +2,7 @@ import oracledb from 'oracledb';
 
 export default defineEventHandler(async event => {
   // 获取当前登录用户信息
-  const user = event.context.auth;
+  const user: Auth = event.context.auth as Auth;
   // 获取 tweetId 路径参数
   const tweetId = getRouterParam(event, 'tweetId');
 

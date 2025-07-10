@@ -13,7 +13,9 @@ interface TweetSendPayload {
   location?: string; // 地理位置（可选）
 }
 
-// ========================== list.get ======================================
+// ========================== list.get ============================================
+
+// ========================== [tweetId].get ======================================
 
 interface TweetListPayload {
   type: 'home' | 'user' | 'my_tweets' | 'mention' | 'trending'; // 推文类型
@@ -24,7 +26,6 @@ interface TweetListPayload {
 
 type TweetRow = [
   string, // TWEET_ID
-  any, // CONTENT (CLOB类型，可能需要异步读取)
   string, // AUTHOR_ID
   string, // USERNAME
   string, // DISPLAY_NAME
@@ -47,7 +48,6 @@ type TweetRow = [
 
 interface TweetItem {
   tweetId: string; // 推文ID
-  content: string; // 推文内容（已转为字符串）
   authorId: string; // 作者ID
   username: string; // 作者用户名
   displayName: string; // 作者显示名
@@ -81,3 +81,12 @@ interface TweetListResponse extends Response {
   code: 200;
   timestamp: string;
 }
+
+
+// // 读取CLOB内容
+//             let content = '';
+//             if (row[1] && typeof row[1].getData === 'function') {
+//               content = await row[1].getData();
+//             } else if (typeof row[1] === 'string') {
+//               content = row[1];
+//             }
