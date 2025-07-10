@@ -139,3 +139,73 @@ interface TweetGetResponse extends Response {
   code: 200;
   timestamp: string;
 }
+
+// ========================== [tweetId].replies.get ======================================
+
+interface TweetRepliesPayload {
+  page: number; // 页码
+  pageSize: number; // 每页数量
+}
+
+type TweetGetRepliesRow = [
+  string, // TWEET_ID
+  any, // CONTENT
+  string, // AUTHOR_ID
+  string, // USERNAME
+  string, // DISPLAY_NAME
+  string, // AVATAR_URL
+  number, // IS_VERIFIED
+  string, // REPLY_TO_TWEET_ID
+  string, // RETWEET_OF_TWEET_ID
+  string, // QUOTE_TWEET_ID
+  number, // IS_RETWEET
+  number, // IS_QUOTE_TWEET
+  number, // LIKES_COUNT
+  number, // RETWEETS_COUNT
+  number, // REPLIES_COUNT
+  number, // VIEWS_COUNT
+  string, // VISIBILITY
+  string, // LANGUAGE
+  string, // CREATED_AT
+  number, // ENGAGEMENT_SCORE
+  any[], // MEDIA
+  number // RN
+];
+
+interface TweetGetRepliesItem {
+  tweetId: string; // 推文ID
+  content: string; // 推文内容（CLOB需转字符串）
+  authorId: string; // 作者ID
+  username: string; // 作者用户名
+  displayName: string; // 作者显示名
+  avatarUrl: string; // 作者头像
+  isVerified: number; // 是否认证
+  replyToTweetId: string; // 回复的推文ID
+  retweetOfTweetId: string; // 转发的推文ID
+  quoteTweetId: string; // 引用的推文ID
+  isRetweet: number; // 是否为转发
+  isQuoteTweet: number; // 是否为引用
+  likesCount: number; // 点赞数
+  retweetsCount: number; // 转发数
+  repliesCount: number; // 回复数
+  viewsCount: number; // 浏览量
+  visibility: string; // 可见性
+  language: string; // 语言
+  createdAt: string; // 创建时间
+  engagementScore: number; // 互动分数
+  media: any[]; // 媒体文件数组
+  rn: number; // 行号
+}
+
+interface TweetRepliesResponse extends Response {
+  success: true;
+  message: string;
+  data: {
+    page: number; // 当前页码
+    pageSize: number; // 每页数量
+    tweets: TweetGetRepliesItem[]; // 推文列表
+    totalCount?: number; // 总推文数（可选）
+  };
+  code: 200;
+  timestamp: string;
+}
