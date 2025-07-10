@@ -5,7 +5,7 @@ export default defineEventHandler(async event => {
   const userId: string = getRouterParam(event, 'userId') as string;
 
   // 获取 query 参数
-  const query: TweetFollowingPayload = getQuery(event) as TweetFollowingPayload;
+  const query: TweetFollowerPayload = getQuery(event) as TweetFollowerPayload;
 
   // 提取参数
   const { page = 1, pageSize = 10 } = query;
@@ -27,7 +27,7 @@ export default defineEventHandler(async event => {
   const connection = await getOracleConnection();
 
   try {
-    const followingSql = `
+    const followerSql = `
     SELECT *
     FROM (
         SELECT
@@ -35,7 +35,7 @@ export default defineEventHandler(async event => {
             u.avatar_url,
             ROW_NUMBER() OVER (ORDER BY f.created_at DESC) AS rn
         FROM n_follows f
-        JOIN n_users u ON f.following_id = u.user_id
+        JOIN n_users u ON f.follower_id = u.user_id
         WHERE u.user_id = :userId
           AND f.follow_type = 'follow'
           AND f.is_active = 1
@@ -45,49 +45,47 @@ export default defineEventHandler(async event => {
     ORDER BY rn
     `;
 
-    const followingCountSql = `
+    const followerCountSql = `
     SELECT
       count(*) AS total_count
     FROM n_follows f
-    JOIN n_users u ON f.following_id = u.user_id
+    JOIN n_users u ON f.follower_id = u.user_id
     WHERE u.user_id = :userId
           AND f.follow_type = 'follow'
           AND f.is_active = 1
     `;
 
-    const result = await connection.execute(followingSql, {
+    const result = await connection.execute(followerSql, {
       userId,
       page,
       pagesize: pageSize
     });
 
     // 获取总数
-    const totalCountResult = await connection.execute(followingCountSql, {
+    const totalCountResult = await connection.execute(followerCountSql, {
       userId
     });
 
     const totalCount = totalCountResult.rows[0][0] as number;
 
-    const followings: TweetGetFollowingItem[] = await Promise.all(
+    const followers: TweetGetFollowerItem[] = await Promise.all(
       result.rows.map(
-        async (row: TweetGetFollowingRow) =>
+        async (row: TweetGetFollowerRow) =>
           ({
             displayName: row[0],
             avatarUrl: row[1],
             rn: row[2]
-          }) as TweetGetFollowingItem
+          }) as TweetGetFollowerItem
       )
     );
 
     return {
       success: true,
       data: {
-        list: followings,
+        list: followers,
         totalCount
-      },
-      code: 200,
-      timestamp: new Date().toISOString()
-    } as TweetGetFollowingResponse;
+      }
+    };
   } finally {
     await connection.close();
   }

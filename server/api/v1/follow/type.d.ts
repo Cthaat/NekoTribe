@@ -43,3 +43,32 @@ interface TweetGetFollowingResponse extends Response {
   code: number;
   timestamp: string;
 }
+
+// ========================== [userId].follower.get ======================================
+
+interface TweetFollowerPayload {
+  page: number; // 页码
+  pageSize: number; // 每页数量
+}
+
+type TweetGetFollowerRow = [
+  string, // 显示名称
+  string, // 头像 URL
+  number // 行号
+];
+
+interface TweetGetFollowerItem {
+  displayName: string; // 显示名称
+  avatarUrl: string; // 头像 URL
+  rn: number; // 行号
+}
+
+interface TweetGetFollowerResponse extends Response {
+  success: boolean;
+  data: {
+    list: TweetGetFollowerItem[]; // 关注列表
+    totalCount: number; // 总数
+  };
+  code: number;
+  timestamp: string;
+}
