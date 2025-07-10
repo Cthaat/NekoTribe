@@ -3,7 +3,6 @@ import oracledb from 'oracledb';
 export default defineEventHandler(async event => {
   // 获取body
   const body: FollowActionPayload = await readBody(event);
-  console.log('Follow action request body:', body);
   // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
 
