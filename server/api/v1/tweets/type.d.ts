@@ -287,3 +287,29 @@ interface TweetLikesPayload {
   pageSize: number; // 每页数量
 }
 
+type TweetGetReLikesRow = [
+  string, // DISPLAY_NAME
+  string, // AVATAR_URL
+  string, // LIKE_TYPE
+  number // RN
+];
+
+interface TweetGetReLikesItem {
+  displayName: string; // 显示名
+  avatarUrl: string; // 头像URL
+  likeType: string; // 点赞类型（如：like, love, etc.）
+  rn: number; // 行号
+}
+
+interface TweetGetReLikesResponse extends Response {
+  success: true;
+  message: string;
+  data: {
+    page: number; // 当前页码
+    pageSize: number; // 每页数量
+    likes: TweetGetReLikesItem[]; // 推文列表
+    totalCount?: number; // 总推文数（可选）
+  };
+  code: 200;
+  timestamp: string;
+}
