@@ -49,23 +49,23 @@ export default defineEventHandler(async event => {
         `;
 
         // 获取首页推文
-        const result = await connection.execute(homeSql, {
+        const homeResult = await connection.execute(homeSql, {
           user_id: user.userId,
           page,
           pagesize: pageSize
         });
 
         // 获取总数
-        const countResult = await connection.execute(homeCountSql, {
+        const homeCountResult = await connection.execute(homeCountSql, {
           user_id: user.userId
         });
 
         // 提取总数
-        totalCount = countResult.rows[0][0];
+        totalCount = homeCountResult.rows[0][0];
 
         // 处理推文数据
         tweets = await Promise.all(
-          result.rows.map(async (row: TweetRow) => {
+          homeResult.rows.map(async (row: TweetRow) => {
             // 读取CLOB内容
             let content = '';
             if (row[1] && typeof row[1].getData === 'function') {
@@ -139,7 +139,58 @@ export default defineEventHandler(async event => {
             AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
         `;
 
-        
+        // 获取用户推文
+        const userResult = await connection.execute(userSql, {
+          user_id: user.userId,
+          target_user_id: userId,
+          page,
+          pagesize: pageSize
+        });
+
+        // 获取用户推文总数
+        const userCountResult = await connection.execute(userCountSql, {
+          user_id: user.userId,
+          target_user_id: userId
+        });
+
+        // 提取总数
+        totalCount = userCountResult.rows[0][0];
+
+        // 处理推文数据
+        tweets = await Promise.all(
+          userResult.rows.map(async (row: TweetRow) => {
+            // 读取CLOB内容
+            let content = '';
+            if (row[1] && typeof row[1].getData === 'function') {
+              content = await row[1].getData();
+            } else if (typeof row[1] === 'string') {
+              content = row[1];
+            }
+            return {
+              tweetId: row[0],
+              content,
+              authorId: row[2],
+              username: row[3],
+              displayName: row[4],
+              avatarUrl: row[5],
+              isVerified: row[6],
+              likesCount: row[7],
+              retweetsCount: row[8],
+              repliesCount: row[9],
+              viewsCount: row[10],
+              visibility: row[11],
+              createdAt: row[12],
+              replyToTweetId: row[13],
+              retweetOfTweetId: row[14],
+              quoteTweetId: row[15],
+              engagementScore: row[16],
+              timelineType: row[17],
+              isFromFollowing: row[18],
+              rn: row[19]
+            } as TweetItem;
+          })
+        );
+
         break;
       case 'my_tweets':
         // 获取我的推文
@@ -158,6 +209,41 @@ export default defineEventHandler(async event => {
           AND rn <= :page * :pagesize
         ORDER BY created_at DESC
         `;
+
+        // 处理推文数据
+        tweets = await Promise.all(
+          homeResult.rows.map(async (row: TweetRow) => {
+            // 读取CLOB内容
+            let content = '';
+            if (row[1] && typeof row[1].getData === 'function') {
+              content = await row[1].getData();
+            } else if (typeof row[1] === 'string') {
+              content = row[1];
+            }
+            return {
+              tweetId: row[0],
+              content,
+              authorId: row[2],
+              username: row[3],
+              displayName: row[4],
+              avatarUrl: row[5],
+              isVerified: row[6],
+              likesCount: row[7],
+              retweetsCount: row[8],
+              repliesCount: row[9],
+              viewsCount: row[10],
+              visibility: row[11],
+              createdAt: row[12],
+              replyToTweetId: row[13],
+              retweetOfTweetId: row[14],
+              quoteTweetId: row[15],
+              engagementScore: row[16],
+              timelineType: row[17],
+              isFromFollowing: row[18],
+              rn: row[19]
+            } as TweetItem;
+          })
+        );
         break;
       case 'mention':
         // 获取提及我的推文
@@ -181,6 +267,41 @@ export default defineEventHandler(async event => {
           AND rn <= :page * :pagesize
         ORDER BY created_at DESC
         `;
+
+        // 处理推文数据
+        tweets = await Promise.all(
+          homeResult.rows.map(async (row: TweetRow) => {
+            // 读取CLOB内容
+            let content = '';
+            if (row[1] && typeof row[1].getData === 'function') {
+              content = await row[1].getData();
+            } else if (typeof row[1] === 'string') {
+              content = row[1];
+            }
+            return {
+              tweetId: row[0],
+              content,
+              authorId: row[2],
+              username: row[3],
+              displayName: row[4],
+              avatarUrl: row[5],
+              isVerified: row[6],
+              likesCount: row[7],
+              retweetsCount: row[8],
+              repliesCount: row[9],
+              viewsCount: row[10],
+              visibility: row[11],
+              createdAt: row[12],
+              replyToTweetId: row[13],
+              retweetOfTweetId: row[14],
+              quoteTweetId: row[15],
+              engagementScore: row[16],
+              timelineType: row[17],
+              isFromFollowing: row[18],
+              rn: row[19]
+            } as TweetItem;
+          })
+        );
         break;
       case 'trending':
         // 获取热门推文
@@ -200,6 +321,41 @@ export default defineEventHandler(async event => {
           AND rn <= :page * :pagesize
         ORDER BY engagement_score DESC, created_at DESC
         `;
+
+        // 处理推文数据
+        tweets = await Promise.all(
+          homeResult.rows.map(async (row: TweetRow) => {
+            // 读取CLOB内容
+            let content = '';
+            if (row[1] && typeof row[1].getData === 'function') {
+              content = await row[1].getData();
+            } else if (typeof row[1] === 'string') {
+              content = row[1];
+            }
+            return {
+              tweetId: row[0],
+              content,
+              authorId: row[2],
+              username: row[3],
+              displayName: row[4],
+              avatarUrl: row[5],
+              isVerified: row[6],
+              likesCount: row[7],
+              retweetsCount: row[8],
+              repliesCount: row[9],
+              viewsCount: row[10],
+              visibility: row[11],
+              createdAt: row[12],
+              replyToTweetId: row[13],
+              retweetOfTweetId: row[14],
+              quoteTweetId: row[15],
+              engagementScore: row[16],
+              timelineType: row[17],
+              isFromFollowing: row[18],
+              rn: row[19]
+            } as TweetItem;
+          })
+        );
         break;
       default:
         throw createError({
