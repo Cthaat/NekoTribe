@@ -22,13 +22,10 @@ export default defineEventHandler(async event => {
 
   try {
     const getTweetSql = `
-    SELECT
-    *
-    FROM
-      n_tweets t
-    WHERE
-      t.tweet_id = :tweetId
-      AND fn_can_view_tweet(:user_id, :tweetId) = 1
+    SELECT *
+    FROM v_tweet_details
+    WHERE tweet_id = :tweetId
+      AND fn_can_view_tweet(:user_id, tweet_id) = 1
     `;
 
     const result = await connection.execute(getTweetSql, {
@@ -36,7 +33,7 @@ export default defineEventHandler(async event => {
       user_id: user.userId
     });
 
-    const rows = result.rows as TweetGetRow[];
+    const rows: TweetGetRow[] = result.rows as TweetGetRow[];
     if (rows.length === 0) {
       throw createError({
         statusCode: 404,
@@ -50,7 +47,7 @@ export default defineEventHandler(async event => {
       });
     }
 
-    const row = rows[0];
+    const row: TweetGetRow = rows[0] as TweetGetRow;
     // 读取CLOB内容
     let content = '';
     if (row[1] && typeof row[1].getData === 'function') {
@@ -60,26 +57,27 @@ export default defineEventHandler(async event => {
     }
 
     const tweet: TweetGetItem = {
-      tweetId: row[0],
-      content,
-      authorId: row[2],
-      username: row[3],
-      displayName: row[4],
-      avatarUrl: row[5],
-      isVerified: row[6],
-      likesCount: row[7],
-      retweetsCount: row[8],
-      repliesCount: row[9],
-      viewsCount: row[10],
-      visibility: row[11],
-      createdAt: row[12],
-      replyToTweetId: row[13],
-      retweetOfTweetId: row[14],
-      quoteTweetId: row[15],
-      engagementScore: row[16],
-      timelineType: row[17],
-      isFromFollowing: row[18],
-      rn: row[19]
+      tweetId: row[0], // 推文ID
+      content: content, // 推文内容（CLOB需转字符串）
+      authorId: row[2], // 作者ID
+      username: row[3], // 作者用户名
+      displayName: row[4], // 作者显示名
+      avatarUrl: row[5], // 作者头像
+      isVerified: row[6], // 是否认证
+      replyToTweetId: row[7], // 回复的推文ID
+      retweetOfTweetId: row[8], // 转发的推文ID
+      quoteTweetId: row[9], // 引用的推文ID
+      isRetweet: row[10], // 是否为转发
+      isQuoteTweet: row[11], // 是否为引用
+      likesCount: row[12], // 点赞数
+      retweetsCount: row[13], // 转发数
+      repliesCount: row[14], // 回复数
+      viewsCount: row[15], // 浏览量
+      visibility: row[16], // 可见性
+      language: row[17], // 语言
+      createdAt: row[18], // 创建时间
+      engagementScore: row[19], // 互动分数
+      media: row[20] // 媒体文件数组
     } as TweetGetItem;
 
     return {
