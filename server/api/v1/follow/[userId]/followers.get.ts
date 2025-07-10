@@ -35,7 +35,7 @@ export default defineEventHandler(async event => {
             u.avatar_url,
             ROW_NUMBER() OVER (ORDER BY f.created_at DESC) AS rn
         FROM n_follows f
-        JOIN n_users u ON f.follower_id = u.user_id
+        JOIN n_users u ON f.following_id = u.user_id
         WHERE u.user_id = :userId
           AND f.follow_type = 'follow'
           AND f.is_active = 1
@@ -49,7 +49,7 @@ export default defineEventHandler(async event => {
     SELECT
       count(*) AS total_count
     FROM n_follows f
-    JOIN n_users u ON f.follower_id = u.user_id
+    JOIN n_users u ON f.following_id = u.user_id
     WHERE u.user_id = :userId
           AND f.follow_type = 'follow'
           AND f.is_active = 1
