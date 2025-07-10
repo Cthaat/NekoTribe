@@ -150,7 +150,7 @@ export default defineEventHandler(async event => {
 
         // 处理推文数据
         tweets = await Promise.all(
-          homeResult.rows.map(async (row: TweetRow) => {
+          userResult.rows.map(async (row: TweetRow) => {
             return {
               tweetId: row[0],
               authorId: row[1],
@@ -218,7 +218,7 @@ export default defineEventHandler(async event => {
 
         // 处理推文数据
         tweets = await Promise.all(
-          homeResult.rows.map(async (row: TweetRow) => {
+          myTweetsResult.rows.map(async (row: TweetRow) => {
             return {
               tweetId: row[0],
               authorId: row[1],
@@ -295,7 +295,7 @@ export default defineEventHandler(async event => {
 
         // 处理推文数据
         tweets = await Promise.all(
-          homeResult.rows.map(async (row: TweetRow) => {
+          mentionResult.rows.map(async (row: TweetRow) => {
             return {
               tweetId: row[0],
               authorId: row[1],
@@ -331,7 +331,7 @@ export default defineEventHandler(async event => {
                     ORDER BY v.engagement_score DESC, v.created_at DESC
                 ) AS rn
             FROM v_comprehensive_timeline v
-            WHERE fn_can_view_tweet(:user_id, v.tweet_id) = 1
+            WHERE v.visibility = :visibility
               AND v.created_at > SYSDATE - 7 -- 最近7天
         )
         WHERE rn > (:page - 1) * :pagesize 
@@ -343,19 +343,19 @@ export default defineEventHandler(async event => {
         const trendingCountSql = `
         SELECT COUNT(*)
         FROM v_comprehensive_timeline v
-        WHERE fn_can_view_tweet(:user_id, v.tweet_id) = 1;
+        WHERE v.visibility = :visibility
         `;
 
         // 获取热门推文
         const trendingResult = await connection.execute(trendingSql, {
-          user_id: user.userId,
           page,
-          pagesize: pageSize
+          pagesize: pageSize,
+          visibility: 'public' // 只获取公开可见的推文
         });
 
         // 获取热门推文总数
         const trendingCountResult = await connection.execute(trendingCountSql, {
-          user_id: user.userId
+          visibility: 'public' // 只获取公开可见的推文
         });
 
         // 提取总数
@@ -363,7 +363,7 @@ export default defineEventHandler(async event => {
 
         // 处理推文数据
         tweets = await Promise.all(
-          homeResult.rows.map(async (row: TweetRow) => {
+          trendingResult.rows.map(async (row: TweetRow) => {
             return {
               tweetId: row[0],
               authorId: row[1],
