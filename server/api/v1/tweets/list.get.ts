@@ -210,9 +210,31 @@ export default defineEventHandler(async event => {
         ORDER BY created_at DESC
         `;
 
+        // 获取我的推文总数
+        const myTweetsCountSql = `
+          SELECT COUNT(*)
+          FROM v_comprehensive_timeline v
+          WHERE v.author_id = :user_id
+        `;
+
+        // 获取我的推文
+        const myTweetsResult = await connection.execute(myTweetsSql, {
+          user_id: user.userId,
+          page,
+          pagesize: pageSize
+        });
+
+        // 获取我的推文总数
+        const myTweetsCountResult = await connection.execute(myTweetsCountSql, {
+          user_id: user.userId
+        });
+
+        // 提取总数
+        totalCount = myTweetsCountResult.rows[0][0];
+
         // 处理推文数据
         tweets = await Promise.all(
-          homeResult.rows.map(async (row: TweetRow) => {
+          myTweetsResult.rows.map(async (row: TweetRow) => {
             // 读取CLOB内容
             let content = '';
             if (row[1] && typeof row[1].getData === 'function') {
@@ -268,9 +290,36 @@ export default defineEventHandler(async event => {
         ORDER BY created_at DESC
         `;
 
+        // 获取提及我的推文总数
+        const mentionCountSql = `
+          SELECT COUNT(*)
+          FROM v_comprehensive_timeline v
+          WHERE v.tweet_id IN (
+              SELECT tm.tweet_id
+              FROM n_tweet_mentions tm
+              WHERE tm.mentioned_user_id = :user_id
+          )
+          AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
+        `;
+
+        // 获取提及我的推文
+        const mentionResult = await connection.execute(mentionSql, {
+          user_id: user.userId,
+          page,
+          pagesize: pageSize
+        });
+
+        // 获取提及我的推文总数
+        const mentionCountResult = await connection.execute(mentionCountSql, {
+          user_id: user.userId
+        });
+
+        // 提取总数
+        totalCount = mentionCountResult.rows[0][0];
+
         // 处理推文数据
         tweets = await Promise.all(
-          homeResult.rows.map(async (row: TweetRow) => {
+          mentionResult.rows.map(async (row: TweetRow) => {
             // 读取CLOB内容
             let content = '';
             if (row[1] && typeof row[1].getData === 'function') {
@@ -322,9 +371,31 @@ export default defineEventHandler(async event => {
         ORDER BY engagement_score DESC, created_at DESC
         `;
 
+        // 获取热门推文总数
+        const trendingCountSql = `
+        SELECT COUNT(*)
+        FROM v_comprehensive_timeline v
+        WHERE fn_can_view_tweet(:user_id, v.tweet_id) = 1;
+        `;
+
+        // 获取热门推文
+        const trendingResult = await connection.execute(trendingSql, {
+          user_id: user.userId,
+          page,
+          pagesize: pageSize
+        });
+
+        // 获取热门推文总数
+        const trendingCountResult = await connection.execute(trendingCountSql, {
+          user_id: user.userId
+        });
+
+        // 提取总数
+        totalCount = trendingCountResult.rows[0][0];
+
         // 处理推文数据
         tweets = await Promise.all(
-          homeResult.rows.map(async (row: TweetRow) => {
+          trendingResult.rows.map(async (row: TweetRow) => {
             // 读取CLOB内容
             let content = '';
             if (row[1] && typeof row[1].getData === 'function') {
