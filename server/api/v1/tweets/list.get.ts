@@ -13,6 +13,13 @@ export default defineEventHandler(async event => {
   const connection = await getOracleConnection();
 
   try {
+    // 推文列表
+    let tweets: TweetItem[] = [];
+
+    // 文章总数
+    let totalCount: number = 0;
+
+    // 根据 type 获取不同的推文列表
     switch (type) {
       case 'home':
         // 获取首页推文
@@ -32,55 +39,67 @@ export default defineEventHandler(async event => {
           AND rn <= :page * :pagesize
         ORDER BY created_at DESC
         `;
+
+        // 获取首页推文总数
+        const homeCountSql = `
+        SELECT COUNT(*)
+        FROM v_comprehensive_timeline v
+        WHERE (v.author_id = :user_id OR v.is_from_following = 1)
+          AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
+        `;
+
         // 获取首页推文
         const result = await connection.execute(homeSql, {
           user_id: user.userId,
           page,
           pagesize: pageSize
         });
-        console.log('Home Tweets Result:', result.rows);
 
-        const tweets = result.rows.map(async (row: TweetRow) => {
-          // 读取CLOB内容
-          let content = '';
-          if (row[1] && typeof row[1].getData === 'function') {
-            content = await row[1].getData();
-          } else if (typeof row[1] === 'string') {
-            content = row[1];
-          }
-          return {
-            tweetId: row[0],
-            content,
-            authorId: row[2],
-            username: row[3],
-            displayName: row[4],
-            avatarUrl: row[5],
-            isVerified: row[6],
-            likesCount: row[7],
-            retweetsCount: row[8],
-            repliesCount: row[9],
-            viewsCount: row[10],
-            visibility: row[11],
-            createdAt: row[12],
-            replyToTweetId: row[13],
-            retweetOfTweetId: row[14],
-            quoteTweetId: row[15],
-            engagementScore: row[16],
-            timelineType: row[17],
-            isFromFollowing: row[18],
-            rn: row[19]
-          } as TweetItem;
+        // 获取总数
+        const countResult = await connection.execute(homeCountSql, {
+          user_id: user.userId
         });
-        return {
-          success: true,
-          message: 'Home tweets fetched successfully',
-          data: {
-            tweets: await Promise.all(tweets)
-          },
-          code: 200,
-          timestamp: new Date().toISOString()
-        } as TweetListResponse;
+
+        // 提取总数
+        totalCount = countResult.rows[0][0];
+
+        // 处理推文数据
+        tweets = await Promise.all(
+          result.rows.map(async (row: TweetRow) => {
+            // 读取CLOB内容
+            let content = '';
+            if (row[1] && typeof row[1].getData === 'function') {
+              content = await row[1].getData();
+            } else if (typeof row[1] === 'string') {
+              content = row[1];
+            }
+            return {
+              tweetId: row[0],
+              content,
+              authorId: row[2],
+              username: row[3],
+              displayName: row[4],
+              avatarUrl: row[5],
+              isVerified: row[6],
+              likesCount: row[7],
+              retweetsCount: row[8],
+              repliesCount: row[9],
+              viewsCount: row[10],
+              visibility: row[11],
+              createdAt: row[12],
+              replyToTweetId: row[13],
+              retweetOfTweetId: row[14],
+              quoteTweetId: row[15],
+              engagementScore: row[16],
+              timelineType: row[17],
+              isFromFollowing: row[18],
+              rn: row[19]
+            } as TweetItem;
+          })
+        );
+        break;
       case 'user':
+        // 检查 userId 是否存在
         if (!userId) {
           throw createError({
             statusCode: 400,
@@ -93,6 +112,8 @@ export default defineEventHandler(async event => {
             } as ErrorResponse
           });
         }
+
+        // 获取用户推文
         const userSql = `
         SELECT *
         FROM (
@@ -109,7 +130,16 @@ export default defineEventHandler(async event => {
           AND rn <= :page * :pagesize
         ORDER BY created_at DESC
         `;
-        // 获取用户推文
+
+        // 获取用户推文总数
+        const userCountSql = `
+          SELECT COUNT(*)
+          FROM v_comprehensive_timeline v
+          WHERE v.author_id = :target_user_id
+            AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
+        `;
+
+        
         break;
       case 'my_tweets':
         // 获取我的推文
@@ -183,6 +213,20 @@ export default defineEventHandler(async event => {
           } as ErrorResponse
         });
     }
+
+    return {
+      success: true,
+      message: '获取推文列表成功',
+      data: {
+        type,
+        page,
+        pageSize,
+        tweets,
+        totalCount
+      },
+      code: 200,
+      timestamp: new Date().toISOString()
+    } as TweetListResponse;
   } finally {
     await connection.close();
   }

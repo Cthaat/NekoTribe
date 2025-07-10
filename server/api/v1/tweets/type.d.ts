@@ -72,7 +72,11 @@ interface TweetListResponse extends Response {
   success: true;
   message: string;
   data: {
+    type: 'home' | 'user' | 'my_tweets' | 'mention' | 'trending'; // 推文类型
+    page: number; // 当前页码
+    pageSize: number; // 每页数量
     tweets: TweetItem[]; // 推文列表
+    totalCount?: number; // 总推文数（可选）
   };
   code: 200;
   timestamp: string;
