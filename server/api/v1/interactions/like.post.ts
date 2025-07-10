@@ -26,7 +26,7 @@ export default defineEventHandler(async event => {
       {
         user_id: user.userId,
         target_tweet_id: body.tweetId,
-        action: body.likeType,
+        action: body.likeType === 'like' || 'unlike' ? body.likeType : 'like',
         p_result: {
           dir: oracledb.BIND_OUT,
           type: oracledb.STRING,
