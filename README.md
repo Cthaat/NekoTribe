@@ -13,7 +13,7 @@
 <div align="center">
     
 ![版本](https://img.shields.io/badge/版本-v1.0.0-blue.svg)
-![oracle-server](https://img.shields.io/badge/oracle--server-v1.1.5-blue.svg)
+![oracle-server](https://img.shields.io/badge/oracle--server-v1.1.6-blue.svg)
 ![开发状态](https://img.shields.io/badge/%E5%BC%80%E5%8F%91%E7%8A%B6%E6%80%81-%E6%AD%A3%E5%9C%A8%E5%BC%80%E5%8F%91-yellow.svg)
 
 </div>
