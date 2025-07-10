@@ -73,7 +73,31 @@ interface TweetGetFollowerResponse extends Response {
   timestamp: string;
 }
 
+// ========================== [userId].mutual-follows.get ======================================
 
+interface TweetMutualFollowsPayload {
+  page: number; // 页码
+  pageSize: number; // 每页数量
+}
 
+type MutualFollowsRow = [
+  string, // 显示名称
+  string, // 头像 URL
+  number // 行号
+];
 
+interface MutualFollowsItem {
+  displayName: string; // 显示名称
+  avatarUrl: string; // 头像 URL
+  rn: number; // 行号
+}
 
+interface MutualFollowsResponse extends Response {
+  success: boolean;
+  data: {
+    list: MutualFollowsItem[]; // 关注列表
+    totalCount: number; // 总数
+  };
+  code: number;
+  timestamp: string;
+}

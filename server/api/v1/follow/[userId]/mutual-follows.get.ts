@@ -5,7 +5,9 @@ export default defineEventHandler(async event => {
   const userId: string = getRouterParam(event, 'userId') as string;
 
   // 获取 query 参数
-  const query: TweetFollowerPayload = getQuery(event) as TweetFollowerPayload;
+  const query: TweetMutualFollowsPayload = getQuery(
+    event
+  ) as TweetMutualFollowsPayload;
 
   // 提取参数
   const { page = 1, pageSize = 10 } = query;
@@ -27,67 +29,70 @@ export default defineEventHandler(async event => {
   const connection = await getOracleConnection();
 
   try {
-    const followerSql = `
+    const mutualFollowsSql = `
     SELECT *
     FROM (
         SELECT
             u.display_name,
             u.avatar_url,
-            ROW_NUMBER() OVER (ORDER BY f.created_at DESC) AS rn
-        FROM n_follows f
-        JOIN n_users u ON f.following_id = u.user_id
-        WHERE u.user_id = :userId
-          AND f.follow_type = 'follow'
-          AND f.is_active = 1
+            ROW_NUMBER() OVER (ORDER BY u.user_id) AS rn
+        FROM n_users u
+        WHERE
+            fn_get_user_relationship(:user_id_a, u.user_id) IN ('follow', 'mutual')
+            AND fn_get_user_relationship(:user_id_b, u.user_id) IN ('follow', 'mutual')
+            AND u.user_id NOT IN (:user_id_a, :user_id_b)
     )
     WHERE rn > (:page - 1) * :pagesize
       AND rn <= :page * :pagesize
     ORDER BY rn
     `;
 
-    const followerCountSql = `
+    const mutualFollowsCountSql = `
     SELECT
       count(*) AS total_count
-    FROM n_follows f
-    JOIN n_users u ON f.following_id = u.user_id
-    WHERE u.user_id = :userId
-          AND f.follow_type = 'follow'
-          AND f.is_active = 1
+    FROM n_users u
+    WHERE
+        fn_get_user_relationship(:user_id_a, u.user_id) IN ('follow', 'mutual')
+        AND fn_get_user_relationship(:user_id_b, u.user_id) IN ('follow', 'mutual')
+        AND u.user_id NOT IN (:user_id_a, :user_id_b)
+    ORDER BY u.user_id
     `;
 
-    const result = await connection.execute(followerSql, {
-      userId,
+    const result = await connection.execute(mutualFollowsSql, {
+      user_id_a: userId,
+      user_id_b: user.userId,
       page,
       pagesize: pageSize
     });
 
     // 获取总数
-    const totalCountResult = await connection.execute(followerCountSql, {
-      userId
+    const totalCountResult = await connection.execute(mutualFollowsCountSql, {
+      user_id_a: userId,
+      user_id_b: user.userId
     });
 
     const totalCount = totalCountResult.rows[0][0] as number;
 
-    const followers: TweetGetFollowerItem[] = await Promise.all(
+    const mutualFollows: MutualFollowsItem[] = await Promise.all(
       result.rows.map(
-        async (row: TweetGetFollowerRow) =>
+        async (row: MutualFollowsRow) =>
           ({
             displayName: row[0],
             avatarUrl: row[1],
             rn: row[2]
-          }) as TweetGetFollowerItem
+          }) as MutualFollowsItem
       )
     );
 
     return {
       success: true,
       data: {
-        list: followers,
+        list: mutualFollows,
         totalCount
       },
       code: 200,
       timestamp: new Date().toISOString()
-    } as TweetGetFollowerResponse;
+    } as MutualFollowsResponse;
   } finally {
     await connection.close();
   }
