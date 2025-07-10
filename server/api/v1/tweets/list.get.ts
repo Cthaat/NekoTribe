@@ -395,7 +395,6 @@ export default defineEventHandler(async event => {
         FROM (
             SELECT
                 v.*,
-                b.created_at AS bookmarked_at,
                 ROW_NUMBER() OVER (ORDER BY b.created_at DESC) AS rn
             FROM v_comprehensive_timeline v
             JOIN n_bookmarks b ON v.tweet_id = b.tweet_id
@@ -404,7 +403,7 @@ export default defineEventHandler(async event => {
         )
         WHERE rn > (:page - 1) * :pagesize
           AND rn <= :page * :pagesize
-        ORDER BY bookmarked_at DESC;
+        ORDER BY created_at DESC
         `;
 
         // 获取我的推文总数
