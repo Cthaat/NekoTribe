@@ -23,6 +23,34 @@ export default defineEventHandler(async event => {
   const connection = await getOracleConnection();
 
   try {
+    // 检查用户是否有权限删除推文
+    const checkSql = `
+    SELECT COUNT(*)
+    FROM n_tweets v
+    WHERE v.tweet_id = :tweet_id
+      AND v.author_id = :user_id
+    `;
+
+    const checkResult = await connection.execute(checkSql, {
+      tweet_id: tweetId,
+      user_id: user.userId
+    });
+
+    const count = checkResult.rows[0][0] as number;
+
+    if (count === 0) {
+      throw createError({
+        statusCode: 403,
+        message: '您没有权限删除此推文',
+        data: {
+          success: false,
+          message: '您没有权限删除此推文',
+          code: 403,
+          timestamp: new Date().toISOString()
+        } as ErrorResponse
+      });
+    }
+
     const deleteSql = `
     BEGIN
         sp_delete_tweet(
@@ -70,12 +98,12 @@ export default defineEventHandler(async event => {
     }
   } catch (err: any) {
     throw createError({
-      statusCode: 500,
+      statusCode: err.statusCode || 500,
       message: '推文删除失败',
       data: {
         success: false,
         message: err.message,
-        code: 500,
+        code: err.statusCode || 500,
         timestamp: new Date().toISOString()
       } as ErrorResponse
     });
