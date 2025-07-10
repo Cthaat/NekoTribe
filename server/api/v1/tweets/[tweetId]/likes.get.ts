@@ -41,7 +41,7 @@ export default defineEventHandler(async event => {
     )
     WHERE rn > (:page - 1) * :pagesize
       AND rn <= :page * :pagesize
-    ORDER BY rn;
+    ORDER BY rn
     `;
     const likesCountSql = `
     SELECT
