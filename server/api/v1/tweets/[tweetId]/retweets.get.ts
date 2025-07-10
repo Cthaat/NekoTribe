@@ -5,7 +5,7 @@ export default defineEventHandler(async event => {
   const tweetId = getRouterParam(event, 'tweetId');
 
   // 获取 query 参数
-  const query: TweetRepliesPayload = getQuery(event) as TweetRepliesPayload;
+  const query: TweetRetweetsPayload = getQuery(event) as TweetRetweetsPayload;
 
   // 提取参数
   const { page = 1, pageSize = 10 } = query;
@@ -27,14 +27,14 @@ export default defineEventHandler(async event => {
   const connection = await getOracleConnection();
 
   try {
-    const getReplyTweetSql = `
+    const getRetweetsTweetSql = `
     SELECT *
     FROM (
         SELECT
             v.*,
             ROW_NUMBER() OVER (ORDER BY v.created_at DESC) AS rn
         FROM v_tweet_details v
-        WHERE v.reply_to_tweet_id = :tweetId
+        WHERE v.retweet_of_tweet_id = :tweetId
           AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
     )
     WHERE rn > (:page - 1) * :pagesize
@@ -42,14 +42,14 @@ export default defineEventHandler(async event => {
     ORDER BY created_at DESC
     `;
 
-    const getReplyTweetCountSql = `
+    const getRetweetsTweetCountSql = `
     SELECT COUNT(*)
     FROM v_tweet_details
     WHERE reply_to_tweet_id = :tweetId
       AND fn_can_view_tweet(:user_id, tweet_id) = 1
     `;
 
-    const result = await connection.execute(getReplyTweetSql, {
+    const result = await connection.execute(getRetweetsTweetSql, {
       tweetId,
       user_id: user.userId,
       page,
@@ -57,17 +57,20 @@ export default defineEventHandler(async event => {
     });
 
     // 获取总数
-    const ReplyCountResult = await connection.execute(getReplyTweetCountSql, {
-      tweetId,
-      user_id: user.userId
-    });
+    const RetweetsCountResult = await connection.execute(
+      getRetweetsTweetCountSql,
+      {
+        tweetId,
+        user_id: user.userId
+      }
+    );
 
     // 提取总数
-    const totalCount: number = ReplyCountResult.rows[0][0] as number;
+    const totalCount: number = RetweetsCountResult.rows[0][0] as number;
 
     // 处理推文数据
     const tweets = await Promise.all(
-      result.rows.map(async (row: TweetGetRepliesRow) => {
+      result.rows.map(async (row: TweetGetRetweetsRow) => {
         // 读取CLOB内容
         let content = '';
         if (row[1] && typeof row[1].getData === 'function') {
@@ -99,7 +102,7 @@ export default defineEventHandler(async event => {
           engagementScore: row[19], // 互动分数
           media: row[20], // 媒体文件数组
           rn: row[21]
-        } as TweetGetRepliesItem;
+        } as TweetGetRetweetsItem;
       })
     );
 
@@ -114,7 +117,7 @@ export default defineEventHandler(async event => {
       },
       code: 200,
       timestamp: new Date().toISOString()
-    } as TweetRepliesResponse;
+    } as TweetRetweetsResponse;
   } finally {
     await connection.close();
   }
