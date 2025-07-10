@@ -395,12 +395,11 @@ export default defineEventHandler(async event => {
         FROM (
             SELECT
                 v.*,
+                b.created_at AS bookmarked_at,
                 ROW_NUMBER() OVER (ORDER BY b.created_at DESC) AS rn
             FROM v_comprehensive_timeline v
             JOIN n_bookmarks b ON v.tweet_id = b.tweet_id
-            JOIN n_users u ON v.author_id = u.user_id
             WHERE b.user_id = :user_id
-              AND v.is_deleted = 0
               AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
         )
         WHERE rn > (:page - 1) * :pagesize
@@ -410,9 +409,12 @@ export default defineEventHandler(async event => {
 
         // 获取我的推文总数
         const bookmarkCountSql = `
-          SELECT COUNT(*)
-          FROM v_comprehensive_timeline v
-          WHERE v.author_id = :user_id
+          SELECT
+            COUNT(*)
+            FROM v_comprehensive_timeline v
+            JOIN n_bookmarks b ON v.tweet_id = b.tweet_id
+            WHERE b.user_id = :user_id
+              AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
         `;
 
         // 获取我的推文
