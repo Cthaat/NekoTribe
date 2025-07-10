@@ -3,6 +3,7 @@ import oracledb from 'oracledb';
 export default defineEventHandler(async event => {
   // 获取body
   const body: FollowActionPayload = await readBody(event);
+  console.log('Follow action request body:', body);
   // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
 
@@ -12,12 +13,13 @@ export default defineEventHandler(async event => {
   try {
     const actionSql = `
     BEGIN
-      fn_follow_action(
-        :user_id,
-        :target_user_id,
-        :action
-      );
-    END;  
+        sp_manage_follow(
+            p_follower_id => :user_id,
+            p_following_id => :target_user_id,
+            p_action => :action,
+            p_result => :p_result
+        );
+    END;
     `;
 
     const result = await connection.execute(
@@ -35,24 +37,35 @@ export default defineEventHandler(async event => {
       { autoCommit: true }
     );
 
-    return {
-      success: true,
-      message: result.outBinds.p_result,
-      data: {
-        tweetId: result.outBinds.p_tweet_id
-      },
-      code: 200,
-      timestamp: new Date().toISOString()
-    } as FollowActionResponse;
-  } catch (err) {
-    const error = err as any;
+    const msg = result.outBinds.p_result as string;
+
+    if (msg.startsWith('SUCCESS')) {
+      return {
+        success: true,
+        message: result.outBinds.p_result,
+        code: 200,
+        timestamp: new Date().toISOString()
+      } as FollowActionResponse;
+    } else {
+      throw createError({
+        statusCode: 400,
+        message: msg,
+        data: {
+          success: false,
+          message: msg,
+          code: 400,
+          timestamp: new Date().toISOString()
+        } as ErrorResponse
+      });
+    }
+  } catch (err: any) {
     throw createError({
-      statusCode: error.code || 500,
-      message: '操作失败',
+      statusCode: err.statusCode || 500,
+      message: err.message || '关注操作失败',
       data: {
         success: false,
-        message: '操作失败，请稍后重试或联系管理员',
-        code: error.code || 500,
+        message: err.message,
+        code: err.statusCode || 500,
         timestamp: new Date().toISOString()
       } as ErrorResponse
     });
