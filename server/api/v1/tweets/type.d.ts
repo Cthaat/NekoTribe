@@ -279,3 +279,11 @@ interface TweetRetweetsResponse extends Response {
   code: 200;
   timestamp: string;
 }
+
+// ========================== [tweetId].likes.get ======================================
+
+interface TweetLikesPayload {
+  page: number; // 页码
+  pageSize: number; // 每页数量
+}
+
