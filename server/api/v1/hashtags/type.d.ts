@@ -106,3 +106,48 @@ interface TagTweetListResponse {
   code: 200;
   timestamp: string;
 }
+
+// ========================== search.get ======================================
+
+interface SearchPayload {
+  q: string; // 搜索关键词
+  limit: number; // 返回数量限制
+}
+
+type HashtagSearchItemRow = [
+  number, // hashtagId
+  string, // tagName
+  string, // tagNameLower
+  number, // usageCount
+  number, // trendingScore
+  number, // isTrending
+  string, // createdAt
+  string, // updatedAt
+  number // relevanceScore
+];
+
+// 搜索结果项类型
+interface HashtagSearchItem {
+  hashtagId: number;
+  tagName: string;
+  tagNameLower: string;
+  usageCount: number;
+  trendingScore: number;
+  isTrending: number;
+  createdAt: string;
+  updatedAt: string;
+  relevanceScore?: number;
+}
+
+// 搜索响应类型
+interface HashtagSearchResponse {
+  success: true;
+  message: string;
+  data: {
+    hashtags: HashtagSearchItem[];
+    query: string;
+    limit: number;
+  };
+  code: 200;
+  timestamp: string;
+}
