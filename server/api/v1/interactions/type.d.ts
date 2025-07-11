@@ -2,7 +2,7 @@
 
 interface LikePayload {
   tweetId: string;
-  likeType: 'like' | 'unlike';
+  likeType: 'like' | 'unlike' | 'likeComment' | 'unlikeComment';
 }
 
 // ========================== bookmark.post ======================================
