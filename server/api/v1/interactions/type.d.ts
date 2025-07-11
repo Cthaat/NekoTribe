@@ -11,3 +11,11 @@ interface BookmarkPayload {
   tweetId: string;
   bookmarkType: 'mark' | 'unmark';
 }
+
+// ========================== comment.post ======================================
+
+interface CommentPayload {
+  tweetId: string;
+  content: string;
+  parentCommentId?: string;
+}
