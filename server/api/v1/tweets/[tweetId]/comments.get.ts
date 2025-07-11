@@ -73,31 +73,29 @@ export default defineEventHandler(async event => {
 
     // 处理评论数据
     const comments: TweetGetCommentsItem[] = await Promise.all(
-      result.rows.map(
-        async (row: TweetGetCommentsRow) => {
-          // 读取CLOB内容
-          let content = '';
-          if (row[2] && typeof row[2].getData === 'function') {
-            content = await row[2].getData();
-          } else if (typeof row[2] === 'string') {
-            content = row[2];
-          }
-          return {
-            commentId: row[0], // 评论ID
-            tweetId: row[1], // 推文ID
-            content,
-            userId: row[3], // 用户ID
-            parentCommentId: row[4], // 父评论ID
-            username: row[5], // 用户名
-            displayName: row[6], // 显示名
-            avatarUrl: row[7], // 头像URL
-            isVerified: row[8], // 是否认证
-            createdAt: row[9], // 创建时间
-            likesCount: row[10], // 点赞数
-            rn: row[11] // 行号
-          } as TweetGetCommentsItem
+      result.rows.map(async (row: TweetGetCommentsRow) => {
+        // 读取CLOB内容
+        let content = '';
+        if (row[2] && typeof row[2].getData === 'function') {
+          content = await row[2].getData();
+        } else if (typeof row[2] === 'string') {
+          content = row[2];
         }
-      )
+        return {
+          commentId: row[0], // 评论ID
+          tweetId: row[1], // 推文ID
+          content,
+          userId: row[3], // 用户ID
+          parentCommentId: row[4], // 父评论ID
+          username: row[5], // 用户名
+          displayName: row[6], // 显示名
+          avatarUrl: row[7], // 头像URL
+          isVerified: row[8], // 是否认证
+          createdAt: row[9], // 创建时间
+          likesCount: row[10], // 点赞数
+          rn: row[11] // 行号
+        } as TweetGetCommentsItem;
+      })
     );
 
     // 返回响应
