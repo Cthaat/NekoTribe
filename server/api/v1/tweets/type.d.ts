@@ -313,3 +313,11 @@ interface TweetGetReLikesResponse extends Response {
   code: 200;
   timestamp: string;
 }
+
+// ========================== [tweetId].comments.get ======================================
+
+interface TweetCommentsPayload {
+  page: number; // 页码
+  pageSize: number; // 每页数量
+  sort: 'newest' | 'oldest' | 'popular'; // 排序方式
+}
