@@ -365,3 +365,48 @@ interface TweetGetCommentsResponse extends Response {
   code: 200;
   timestamp: string;
 }
+
+// ========================== [tweetId].upload.get ======================================
+
+
+// 上传的单个文件信息类型
+interface UploadedFileInfo {
+  fileName: string;
+  originalName: string;
+  url: string;
+  size: number;
+  mimeType: string;
+  mediaType: 'image' | 'gif' | 'video' | 'audio' | 'unknown';
+  width?: number;
+  height?: number;
+  duration?: number;
+  thumbnailPath?: string;
+}
+
+// 媒体上传成功响应数据类型
+interface MediaUploadData {
+  tweetId: string;
+  uploadedFiles: UploadedFileInfo[];
+  altText?: string;
+  description?: string;
+}
+
+// 媒体上传成功响应类型
+interface SuccessUploadResponse {
+  code: 200;
+  success: true;
+  message: string;
+  data: MediaUploadData;
+  timestamp: string;
+}
+
+// 通用错误响应类型
+interface ErrorResponse {
+  success: false;
+  message: string;
+  code: number;
+  timestamp: string;
+}
+
+// 媒体上传 API 响应联合类型
+type MediaUploadResponse = SuccessUploadResponse | ErrorResponse;
