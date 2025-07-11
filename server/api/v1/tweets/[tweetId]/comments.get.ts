@@ -107,7 +107,7 @@ export default defineEventHandler(async event => {
       data: {
         page,
         pageSize,
-        s
+        sort,
         comments,
         totalCount
       },
