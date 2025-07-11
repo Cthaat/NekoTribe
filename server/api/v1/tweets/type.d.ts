@@ -358,6 +358,7 @@ interface TweetGetCommentsResponse extends Response {
   data: {
     page: number; // 当前页码
     pageSize: number; // 每页数量
+    sort: 'newest' | 'oldest' | 'popular'; // 排序方式
     comments: TweetGetCommentsItem[]; // 推文列表
     totalCount?: number; // 总推文数（可选）
   };

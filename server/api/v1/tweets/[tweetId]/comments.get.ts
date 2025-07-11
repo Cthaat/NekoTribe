@@ -8,7 +8,7 @@ export default defineEventHandler(async event => {
   const query: TweetCommentsPayload = getQuery(event) as TweetCommentsPayload;
 
   // 提取参数
-  const { page = 1, pageSize = 10 } = query;
+  const { page = 1, pageSize = 10, sort = 'newest' } = query;
 
   if (!tweetId) {
     throw createError({
@@ -46,7 +46,7 @@ export default defineEventHandler(async event => {
     )
     WHERE rn > (:page - 1) * :pagesize
       AND rn <= :page * :pagesize
-    ORDER BY rn;
+    ORDER BY rn
     `;
     const commentsCountSql = `
     SELECT
@@ -60,7 +60,7 @@ export default defineEventHandler(async event => {
       tweet_id: tweetId,
       page,
       pagesize: pageSize,
-      sort: query.sort || 'newest' // 默认排序方式为 'newest'
+      sort
     });
 
     // 获取总数
@@ -74,11 +74,18 @@ export default defineEventHandler(async event => {
     // 处理评论数据
     const comments: TweetGetCommentsItem[] = await Promise.all(
       result.rows.map(
-        async (row: TweetGetCommentsRow) =>
-          ({
+        async (row: TweetGetCommentsRow) => {
+          // 读取CLOB内容
+          let content = '';
+          if (row[2] && typeof row[2].getData === 'function') {
+            content = await row[2].getData();
+          } else if (typeof row[2] === 'string') {
+            content = row[2];
+          }
+          return {
             commentId: row[0], // 评论ID
             tweetId: row[1], // 推文ID
-            content: row[2], // 评论内容
+            content,
             userId: row[3], // 用户ID
             parentCommentId: row[4], // 父评论ID
             username: row[5], // 用户名
@@ -88,7 +95,8 @@ export default defineEventHandler(async event => {
             createdAt: row[9], // 创建时间
             likesCount: row[10], // 点赞数
             rn: row[11] // 行号
-          }) as TweetGetCommentsItem
+          } as TweetGetCommentsItem
+        }
       )
     );
 
@@ -99,6 +107,7 @@ export default defineEventHandler(async event => {
       data: {
         page,
         pageSize,
+        s
         comments,
         totalCount
       },
