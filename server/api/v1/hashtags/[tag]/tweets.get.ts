@@ -35,7 +35,7 @@ export default defineEventHandler(async event => {
                     ORDER BY
                             CASE WHEN :sort = 'newest' THEN v.created_at END DESC,
                             CASE WHEN :sort = 'oldest' THEN v.created_at END ASC,
-                            CASE WHEN :sort = 'popular' THEN v.engagement_score END,
+                            CASE WHEN :sort = 'popular' THEN v.engagement_score END DESC,
                             CASE WHEN :sort = 'popular' THEN v.created_at END DESC
                 ) AS rn
             FROM v_comprehensive_timeline v
