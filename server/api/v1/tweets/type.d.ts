@@ -321,3 +321,46 @@ interface TweetCommentsPayload {
   pageSize: number; // 每页数量
   sort: 'newest' | 'oldest' | 'popular'; // 排序方式
 }
+
+type TweetGetCommentsRow = [
+  string, // COMMENT_ID
+  string, // TWEET_ID
+  any, // CONTENT
+  string, // USER_ID
+  string, // PARENT_COMMENT_ID
+  string, // USERNAME
+  string, // DISPLAY_NAME
+  string, // AVATAR_URL
+  number, // IS_VERIFIED
+  string, // CREATED_AT
+  number, // LIKES_COUNT
+  number // RN
+];
+
+interface TweetGetCommentsItem {
+  commentId: string; // 评论ID
+  tweetId: string; // 推文ID
+  content: string; // 评论内容
+  userId: string; // 用户ID
+  parentCommentId: string; // 父评论ID
+  username: string; // 用户名
+  displayName: string; // 显示名
+  avatarUrl: string; // 头像URL
+  isVerified: number; // 是否认证
+  createdAt: string; // 创建时间
+  likesCount: number; // 点赞数
+  rn: number; // 行号
+}
+
+interface TweetGetCommentsResponse extends Response {
+  success: true;
+  message: string;
+  data: {
+    page: number; // 当前页码
+    pageSize: number; // 每页数量
+    comments: TweetGetCommentsItem[]; // 推文列表
+    totalCount?: number; // 总推文数（可选）
+  };
+  code: 200;
+  timestamp: string;
+}

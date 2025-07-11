@@ -71,16 +71,24 @@ export default defineEventHandler(async event => {
     // 提取总数
     const totalCount: number = countResult.rows[0][0] as number;
 
-    // 处理点赞数据
-    const likes: TweetGetReLikesItem[] = await Promise.all(
+    // 处理评论数据
+    const comments: TweetGetCommentsItem[] = await Promise.all(
       result.rows.map(
-        async (row: TweetGetReLikesRow) =>
+        async (row: TweetGetCommentsRow) =>
           ({
-            displayName: row[0],
-            avatarUrl: row[1],
-            likeType: row[2],
-            rn: row[3]
-          }) as TweetGetReLikesItem
+            commentId: row[0], // 评论ID
+            tweetId: row[1], // 推文ID
+            content: row[2], // 评论内容
+            userId: row[3], // 用户ID
+            parentCommentId: row[4], // 父评论ID
+            username: row[5], // 用户名
+            displayName: row[6], // 显示名
+            avatarUrl: row[7], // 头像URL
+            isVerified: row[8], // 是否认证
+            createdAt: row[9], // 创建时间
+            likesCount: row[10], // 点赞数
+            rn: row[11] // 行号
+          }) as TweetGetCommentsItem
       )
     );
 
@@ -91,12 +99,12 @@ export default defineEventHandler(async event => {
       data: {
         page,
         pageSize,
-        likes,
+        comments,
         totalCount
       },
       code: 200,
       timestamp: new Date().toISOString()
-    } as TweetGetReLikesResponse;
+    } as TweetGetCommentsResponse;
   } finally {
     await connection.close();
   }
