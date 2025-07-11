@@ -45,3 +45,9 @@ logs
 .history
 
 .vscode
+
+public/avatars/*
+public/media/*
+
+temp/*
+temp
