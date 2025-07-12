@@ -9,8 +9,7 @@ export default defineEventHandler(async event => {
 
   try {
     const actionSql = `
-    UPDATE n_notifications
-    SET is_read = 1
+    DELETE FROM n_notifications
     WHERE notification_id = :notification_id
       AND user_id = :user_id
     `;
