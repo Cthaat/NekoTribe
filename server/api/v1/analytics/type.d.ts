@@ -74,11 +74,7 @@ interface TweetInteractionsSuccessResponse {
   success: boolean;
   message: string;
   data: {
-    tweets: TweetInteractionItem[];
-    type: string;
-    page: number;
-    pagesize: number;
-    total: number;
+    tweets: TweetInteractionItem;
   };
   code: number;
   timestamp: string;

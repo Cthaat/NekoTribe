@@ -17,25 +17,24 @@ export default defineEventHandler(async event => {
   // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
 
+  const tweetId = getRouterParam(event, 'tweetId');
+
   const getOracleConnection = event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
     const userEngagementStatsSql = `
     SELECT
-      user_id,
-      username,
-      display_name,
-      total_tweets,
-      tweets_this_week,
-      tweets_this_month,
-      total_likes_received,
-      avg_likes_per_tweet,
-      total_likes_given,
-      total_comments_made,
-      engagement_score
-    from  v_user_engagement_stats
-    WHERE user_id = :userId
+      tweet_id,
+      content,
+      author_id,
+      author,
+      created_at,
+      liked_by_users,
+      retweeted_by_users,
+      comments_count
+    from  v_tweet_interactions
+    WHERE tweet_id = :tweetId
     `;
 
     // 执行查询
@@ -44,9 +43,9 @@ export default defineEventHandler(async event => {
     });
 
     // 处理查询结果
-    const rows = result.rows as UserEngagementStatsRow[];
-    const userEngagementStats = rows.map(row =>
-      rowToUserEngagementStatsItem(row)
+    const rows = result.rows as TweetInteractionRow[];
+    const tweetInteractionStats = rows.map(row =>
+      rowToTweetInteractionItem(row)
     );
 
     // 返回成功响应
@@ -54,11 +53,11 @@ export default defineEventHandler(async event => {
       success: true,
       message: '获取用户互动统计成功',
       data: {
-        user: userEngagementStats[0]
+        tweets: tweetInteractionStats[0]
       },
       code: 200,
       timestamp: new Date().toISOString()
-    } as UserEngagementStatsSuccessResponse;
+    } as TweetInteractionsSuccessResponse;
   } catch (error) {
     throw createError({
       statusCode: 500,
@@ -68,7 +67,7 @@ export default defineEventHandler(async event => {
         message: (error as Error).message,
         code: 500,
         timestamp: new Date().toISOString()
-      } as UserEngagementStatsErrorResponse
+      } as TweetInteractionsErrorResponse
     });
   } finally {
     await connection.close();
