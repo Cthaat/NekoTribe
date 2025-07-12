@@ -235,3 +235,82 @@ interface SuggestionResponse extends Response {
   code: 200;
   timestamp: string;
 }
+
+// ========================== search.get ======================================
+
+// 用户搜索参数类型
+interface UserSearchPayload {
+  q: string; // 搜索关键词
+  page?: number; // 页码
+  pageSize?: number; // 每页数量
+  sort?: 'popular' | 'newest' | 'oldest' | 'followers'; // 排序方式
+  verified?: boolean; // 是否只搜索认证用户
+}
+
+// 用户数据库行类型
+type UserSearchRow = [
+  string, // USER_ID
+  string, // USERNAME
+  string, // DISPLAY_NAME
+  string, // BIO
+  string, // AVATAR_URL
+  string, // COVER_URL
+  number, // IS_VERIFIED
+  number, // FOLLOWERS_COUNT
+  number, // FOLLOWING_COUNT
+  number, // TWEETS_COUNT
+  string, // CREATED_AT
+  string, // LAST_ACTIVE_AT
+  number, // IS_PRIVATE
+  string, // LOCATION
+  string, // WEBSITE
+  number // RN
+];
+
+// 用户搜索结果项类型
+interface UserSearchItem {
+  userId: string; // 用户ID
+  username: string; // 用户名
+  displayName: string; // 显示名
+  bio: string; // 个人简介
+  avatarUrl: string; // 头像URL
+  coverUrl: string; // 封面URL
+  isVerified: number; // 是否认证
+  followersCount: number; // 粉丝数
+  followingCount: number; // 关注数
+  tweetsCount: number; // 推文数
+  createdAt: string; // 创建时间
+  lastActiveAt: string; // 最后活跃时间
+  isPrivate: number; // 是否私密账户
+  location: string; // 位置
+  website: string; // 网站
+  rn: number; // 行号
+}
+
+// 用户搜索成功响应类型
+interface UserSearchSuccessResponse {
+  success: true;
+  message: string;
+  data: {
+    sort: 'popular' | 'newest' | 'oldest' | 'followers'; // 排序方式
+    page: number; // 当前页码
+    pageSize: number; // 每页数量
+    users: UserSearchItem[]; // 用户列表
+    totalCount: number; // 总数
+    query: string; // 搜索关键词
+    verified?: boolean; // 是否只搜索认证用户
+  };
+  code: 200;
+  timestamp: string;
+}
+
+// 用户搜索失败响应类型
+interface UserSearchErrorResponse {
+  success: false;
+  message: string;
+  code: number;
+  timestamp: string;
+}
+
+// 用户搜索响应联合类型
+type UserSearchResponse = UserSearchSuccessResponse | UserSearchErrorResponse;
