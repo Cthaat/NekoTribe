@@ -231,8 +231,8 @@ jobs:
             # 使用sed直接更新README中的版本徽章 - 使用不同分隔符避免特殊字符问题
             if [ -f "README.md" ]; then
               # 更新服务特定的版本徽章
-              sed -i "s|!\[${SERVICE_NAME}\](https://img.shields.io/badge/oracle--server-v[0-9]*\.[0-9]*\.[0-9]*[^)]*)|![${SERVICE_NAME}](https://img.shields.io/badge/oracle--server-v${VERSION}-blue.svg)|g" README.md
-              
+              sed -i "s|!\[${SERVICE_NAME}\](https://img.shields.io/badge/shadcn--web-v[0-9]*\.[0-9]*\.[0-9]*[^)]*)|![${SERVICE_NAME}](https://img.shields.io/badge/shadcn--web-v${VERSION}-blue.svg)|g" README.md
+
               # 更新通用版本徽章（如果存在）
               # sed -i "s|!\[version\]\[.*v[0-9]*\.[0-9]*\.[0-9]*.*\]|!\[version\](https://img.shields.io/badge/version-v${VERSION}-blue)|g" README.md
               
