@@ -27,7 +27,24 @@ export default defineEventHandler(async event => {
         SELECT *
         FROM (
             SELECT
-                v.*,
+                v.tweet_id,
+                v.author_id,
+                v.username,
+                v.display_name,
+                v.avatar_url,
+                v.is_verified,
+                v.likes_count,
+                v.retweets_count,
+                v.replies_count,
+                v.views_count,
+                v.visibility,
+                v.created_at,
+                v.reply_to_tweet_id,
+                v.retweet_of_tweet_id,
+                v.quote_tweet_id,
+                v.engagement_score,
+                v.timeline_type,
+                v.is_from_following,
                 ROW_NUMBER() OVER (
                     ORDER BY v.created_at DESC
                 ) AS rn
@@ -110,7 +127,24 @@ export default defineEventHandler(async event => {
         SELECT *
         FROM (
             SELECT
-                v.*,
+                v.tweet_id,
+                v.author_id,
+                v.username,
+                v.display_name,
+                v.avatar_url,
+                v.is_verified,
+                v.likes_count,
+                v.retweets_count,
+                v.replies_count,
+                v.views_count,
+                v.visibility,
+                v.created_at,
+                v.reply_to_tweet_id,
+                v.retweet_of_tweet_id,
+                v.quote_tweet_id,
+                v.engagement_score,
+                v.timeline_type,
+                v.is_from_following,
                 ROW_NUMBER() OVER (
                     ORDER BY v.created_at DESC
                 ) AS rn
@@ -182,7 +216,24 @@ export default defineEventHandler(async event => {
         SELECT *
         FROM (
             SELECT
-                v.*,
+                v.tweet_id,
+                v.author_id,
+                v.username,
+                v.display_name,
+                v.avatar_url,
+                v.is_verified,
+                v.likes_count,
+                v.retweets_count,
+                v.replies_count,
+                v.views_count,
+                v.visibility,
+                v.created_at,
+                v.reply_to_tweet_id,
+                v.retweet_of_tweet_id,
+                v.quote_tweet_id,
+                v.engagement_score,
+                v.timeline_type,
+                v.is_from_following,
                 ROW_NUMBER() OVER (
                     ORDER BY v.created_at DESC
                 ) AS rn
@@ -249,7 +300,24 @@ export default defineEventHandler(async event => {
         SELECT *
         FROM (
             SELECT
-                v.*,
+                v.tweet_id,
+                v.author_id,
+                v.username,
+                v.display_name,
+                v.avatar_url,
+                v.is_verified,
+                v.likes_count,
+                v.retweets_count,
+                v.replies_count,
+                v.views_count,
+                v.visibility,
+                v.created_at,
+                v.reply_to_tweet_id,
+                v.retweet_of_tweet_id,
+                v.quote_tweet_id,
+                v.engagement_score,
+                v.timeline_type,
+                v.is_from_following,
                 ROW_NUMBER() OVER (
                     ORDER BY v.created_at DESC
                 ) AS rn
@@ -326,7 +394,24 @@ export default defineEventHandler(async event => {
         SELECT *
         FROM (
             SELECT
-                v.*,
+                v.tweet_id,
+                v.author_id,
+                v.username,
+                v.display_name,
+                v.avatar_url,
+                v.is_verified,
+                v.likes_count,
+                v.retweets_count,
+                v.replies_count,
+                v.views_count,
+                v.visibility,
+                v.created_at,
+                v.reply_to_tweet_id,
+                v.retweet_of_tweet_id,
+                v.quote_tweet_id,
+                v.engagement_score,
+                v.timeline_type,
+                v.is_from_following,
                 ROW_NUMBER() OVER (
                     ORDER BY v.engagement_score DESC, v.created_at DESC
                 ) AS rn
@@ -394,7 +479,24 @@ export default defineEventHandler(async event => {
         SELECT *
         FROM (
             SELECT
-                v.*,
+                v.tweet_id,
+                v.author_id,
+                v.username,
+                v.display_name,
+                v.avatar_url,
+                v.is_verified,
+                v.likes_count,
+                v.retweets_count,
+                v.replies_count,
+                v.views_count,
+                v.visibility,
+                v.created_at,
+                v.reply_to_tweet_id,
+                v.retweet_of_tweet_id,
+                v.quote_tweet_id,
+                v.engagement_score,
+                v.timeline_type,
+                v.is_from_following,
                 ROW_NUMBER() OVER (ORDER BY b.created_at DESC) AS rn
             FROM v_comprehensive_timeline v
             JOIN n_bookmarks b ON v.tweet_id = b.tweet_id

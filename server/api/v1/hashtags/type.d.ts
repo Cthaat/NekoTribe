@@ -306,3 +306,89 @@ interface HashtagStatisticsErrorResponse {
 type HashtagStatisticsResponse =
   | HashtagStatisticsSuccessResponse
   | HashtagStatisticsErrorResponse;
+
+// ========================== tweet-search 类型定义 ======================================
+
+// 搜索推文参数类型
+interface TweetSearchPayload {
+  q: string; // 搜索关键词
+  page?: number; // 页码
+  pageSize?: number; // 每页数量
+  sort?: 'popular' | 'newest' | 'oldest'; // 排序方式
+}
+
+// 推文数据库行类型
+type TweetSearchRow = [
+  string, // TWEET_ID
+  any, // CONTENT
+  string, // AUTHOR_ID
+  string, // USERNAME
+  string, // DISPLAY_NAME
+  string, // AVATAR_URL
+  number, // IS_VERIFIED
+  number, // LIKES_COUNT
+  number, // RETWEETS_COUNT
+  number, // REPLIES_COUNT
+  number, // VIEWS_COUNT
+  string, // VISIBILITY
+  string, // CREATED_AT
+  string, // REPLY_TO_TWEET_ID
+  string, // RETWEET_OF_TWEET_ID
+  string, // QUOTE_TWEET_ID
+  number, // ENGAGEMENT_SCORE
+  string, // TIMELINE_TYPE
+  number, // IS_FROM_FOLLOWING
+  number, // IS_DELETED
+  number // RN
+];
+
+// 推文搜索结果项类型
+interface TweetSearchItem {
+  tweetId: string; // 推文ID
+  content: string; // 推文内容
+  authorId: string; // 作者ID
+  username: string; // 作者用户名
+  displayName: string; // 作者显示名
+  avatarUrl: string; // 作者头像
+  isVerified: number; // 是否认证
+  likesCount: number; // 点赞数
+  retweetsCount: number; // 转发数
+  repliesCount: number; // 回复数
+  viewsCount: number; // 浏览量
+  visibility: string; // 可见性
+  createdAt: string; // 创建时间
+  replyToTweetId?: string; // 回复的推文ID（可选）
+  retweetOfTweetId?: string; // 转发的推文ID（可选）
+  quoteTweetId?: string; // 引用的推文ID（可选）
+  engagementScore: number; // 互动分数
+  timelineType?: string; // 时间线类型（可选）
+}
+
+// 推文搜索成功响应类型
+interface TweetSearchSuccessResponse {
+  success: true;
+  message: string;
+  data: {
+    sort: 'popular' | 'newest' | 'oldest'; // 排序方式
+    page: number; // 当前页码
+    pageSize: number; // 每页数量
+    tweets: TweetSearchItem[]; // 推文列表
+    totalCount: number; // 总数
+    query: string; // 搜索关键词
+  };
+  code: 200;
+  timestamp: string;
+}
+
+// 推文搜索失败响应类型
+interface TweetSearchErrorResponse {
+  success: false;
+  message: string;
+  code: number;
+  timestamp: string;
+}
+
+// 推文搜索响应联合类型
+type TweetSearchResponse =
+  | TweetSearchSuccessResponse
+  | TweetSearchErrorResponse;
