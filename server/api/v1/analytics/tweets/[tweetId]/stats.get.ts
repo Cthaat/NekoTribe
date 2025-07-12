@@ -1,9 +1,16 @@
-function rowToTweetInteractionItem(
+async function rowToTweetInteractionItem(
   row: TweetInteractionRow
-): TweetInteractionItem {
+): Promise<TweetInteractionItem> {
+  let content = '';
+  if (row[1] && typeof row[1].getData === 'function') {
+    content = await row[1].getData();
+  } else if (typeof row[1] === 'string') {
+    content = row[1];
+  }
+
   return {
     tweetId: row[0],
-    content: row[1],
+    content: content,
     authorId: row[2],
     author: row[3],
     createdAt: row[4],
@@ -39,13 +46,13 @@ export default defineEventHandler(async event => {
 
     // 执行查询
     const result = await connection.execute(userEngagementStatsSql, {
-      userId: user.userId
+      tweetId: tweetId
     });
 
     // 处理查询结果
     const rows = result.rows as TweetInteractionRow[];
-    const tweetInteractionStats = rows.map(row =>
-      rowToTweetInteractionItem(row)
+    const tweetInteractionStats = await Promise.all(
+      rows.map(row => rowToTweetInteractionItem(row))
     );
 
     // 返回成功响应
