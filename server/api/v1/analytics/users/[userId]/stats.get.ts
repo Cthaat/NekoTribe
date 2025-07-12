@@ -20,14 +20,6 @@ export default defineEventHandler(async event => {
   // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
 
-  // 获取 query 参数
-  const query: NotificationSearchPayload = getQuery(
-    event
-  ) as NotificationSearchPayload;
-
-  // 提取参数
-  const { type = 'all', page = 1, pageSize = 10, unreadOnly = false } = query;
-
   const getOracleConnection = event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
@@ -65,10 +57,7 @@ export default defineEventHandler(async event => {
       success: true,
       message: '获取用户互动统计成功',
       data: {
-        users: userEngagementStats,
-        type: 'user_engagement_stats',
-        limit: pageSize,
-        total: userEngagementStats.length
+        user: userEngagementStats[0]
       },
       code: 200,
       timestamp: new Date().toISOString()

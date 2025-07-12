@@ -33,10 +33,7 @@ interface UserEngagementStatsSuccessResponse {
   success: boolean;
   message: string;
   data: {
-    users: UserEngagementStatsItem[];
-    type: string;
-    limit: number;
-    total: number;
+    user: UserEngagementStatsItem;
   };
   code: number;
   timestamp: string;
