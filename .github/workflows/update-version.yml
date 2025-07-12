@@ -4,379 +4,381 @@ name: 自动更新版本号
 on:
   push:
     tags:
-      - '*/v*.*.*'     # 匹配 user-service/v1.0.0, order-service/v1.2.1 等格式
-      - '*/v*.*.*-*'   # 匹配 payment-service/v3.1.0-beta.1 等预发布版本格式
+      - '*/v*.*.*' # 匹配 user-service/v1.0.0, order-service/v1.2.1 等格式
+      - '*/v*.*.*-*' # 匹配 payment-service/v3.1.0-beta.1 等预发布版本格式
 
 jobs:
   update-version:
     runs-on: ubuntu-latest
-    
+
     steps:
-    # 1. 检出代码
-    - name: 检出代码
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        token: ${{ secrets.NEKO_TOKEN }}
-        # 获取所有分支信息
-        ref: ${{ github.head_ref || github.ref_name }}
+      # 1. 检出代码
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.NEKO_TOKEN }}
+          # 获取所有分支信息
+          ref: ${{ github.head_ref || github.ref_name }}
 
-    # 2. 设置Node.js环境
-    - name: 设置Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22'
+      # 2. 设置Node.js环境
+      - name: 设置Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-    # 3. 提取服务名和版本号
-    - name: 提取服务名和版本号
-      id: get_version
-      run: |
-        # 完整标签格式：refs/tags/service-name/v1.0.0
-        FULL_TAG=${GITHUB_REF#refs/tags/}
-        echo "完整标签: $FULL_TAG"
-        
-        # 提取服务名（标签中'/'前的部分）
-        SERVICE_NAME=${FULL_TAG%/v*}
-        echo "服务名: $SERVICE_NAME"
-        
-        # 提取版本号（去掉服务名和'v'前缀）
-        VERSION=${FULL_TAG#*/v}
-        echo "版本号: $VERSION"
-        
-        # 获取标记的注释信息 - 修正的标签注释获取逻辑
-        echo "开始获取标签注释信息..."
-        
-        # 使用多种方法检查标签类型，确保准确性
-        TAG_TYPE=$(git cat-file -t "$FULL_TAG" 2>/dev/null || echo "unknown")
-        echo "标签类型（cat-file）: $TAG_TYPE"
-        
-        # 尝试直接获取标签注释内容来判断是否为带注释标签
-        TAG_MESSAGE=""
-        
-        # 方法1: 优先使用 for-each-ref 获取注释内容
-        echo "尝试使用 for-each-ref 获取标签注释..."
-        TAG_MESSAGE=$(git for-each-ref --format='%(contents)' "refs/tags/$FULL_TAG" 2>/dev/null | head -1 || echo "")
-        
-        # 方法2: 如果方法1失败或返回空，使用 cat-file 
-        if [ -z "$TAG_MESSAGE" ]; then
-          echo "for-each-ref 失败，尝试使用 cat-file..."
-          TAG_MESSAGE=$(git cat-file -p "$FULL_TAG" 2>/dev/null | awk '/^tagger / {found=1; next} found && NF>0 {print; exit}' || echo "")
-        fi
-        
-        # 方法3: 如果前两种方法都失败，使用 show 命令
-        if [ -z "$TAG_MESSAGE" ]; then
-          echo "cat-file 失败，尝试使用 show 命令..."
-          TAG_MESSAGE=$(git show "$FULL_TAG" --format="%B" --no-patch 2>/dev/null | head -1 || echo "")
-        fi
-        
-        # 方法4: 如果仍然为空，说明可能是轻量标签，使用提交信息
-        if [ -z "$TAG_MESSAGE" ]; then
-          echo "未获取到标签注释，可能是轻量标签，使用提交信息..."
-          TAG_MESSAGE=$(git log -1 --pretty=format:"%s" "$FULL_TAG" 2>/dev/null || echo "")
-        fi
-        
-        # 清理和处理标签注释内容
-        if [ -n "$TAG_MESSAGE" ]; then
-          # 去除首尾空白字符
-          TAG_MESSAGE=$(echo "$TAG_MESSAGE" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | head -1)
-          TAG_SUBJECT="$TAG_MESSAGE"
-          TAG_BODY=$(echo "$TAG_MESSAGE" | tail -n +2 | sed '/^$/d' || echo "")
-        else
+      # 3. 提取服务名和版本号
+      - name: 提取服务名和版本号
+        id: get_version
+        run: |
+          # 完整标签格式：refs/tags/service-name/v1.0.0
+          FULL_TAG=${GITHUB_REF#refs/tags/}
+          echo "完整标签: $FULL_TAG"
+
+          # 提取服务名（标签中'/'前的部分）
+          SERVICE_NAME=${FULL_TAG%/v*}
+          echo "服务名: $SERVICE_NAME"
+
+          # 提取版本号（去掉服务名和'v'前缀）
+          VERSION=${FULL_TAG#*/v}
+          echo "版本号: $VERSION"
+
+          # 获取标记的注释信息 - 修正的标签注释获取逻辑
+          echo "开始获取标签注释信息..."
+
+          # 使用多种方法检查标签类型，确保准确性
+          TAG_TYPE=$(git cat-file -t "$FULL_TAG" 2>/dev/null || echo "unknown")
+          echo "标签类型（cat-file）: $TAG_TYPE"
+
+          # 尝试直接获取标签注释内容来判断是否为带注释标签
           TAG_MESSAGE=""
-          TAG_SUBJECT=""
-          TAG_BODY=""
-        fi
-        
-        echo "最终获取到的标签注释: [$TAG_MESSAGE]"
-        
-        echo "标记注释 (完整): $TAG_MESSAGE"
-        echo "标记标题: $TAG_SUBJECT"
-        echo "标记正文: $TAG_BODY"
-        
-        # 获取从上个标签到当前标签的提交信息
-        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-        if [ -n "$PREVIOUS_TAG" ]; then
-          echo "上个标签: $PREVIOUS_TAG"
-          
-          FIRST_COMMIT_AFTER_TAG=$(git rev-list --reverse "${PREVIOUS_TAG}..HEAD" | head -n 1)
-          if [ -z "$FIRST_COMMIT_AFTER_TAG" ]; then
-            COMMIT_RANGE=""
+
+          # 方法1: 优先使用 for-each-ref 获取注释内容
+          echo "尝试使用 for-each-ref 获取标签注释..."
+          TAG_MESSAGE=$(git for-each-ref --format='%(contents)' "refs/tags/$FULL_TAG" 2>/dev/null | head -1 || echo "")
+
+          # 方法2: 如果方法1失败或返回空，使用 cat-file 
+          if [ -z "$TAG_MESSAGE" ]; then
+            echo "for-each-ref 失败，尝试使用 cat-file..."
+            TAG_MESSAGE=$(git cat-file -p "$FULL_TAG" 2>/dev/null | awk '/^tagger / {found=1; next} found && NF>0 {print; exit}' || echo "")
+          fi
+
+          # 方法3: 如果前两种方法都失败，使用 show 命令
+          if [ -z "$TAG_MESSAGE" ]; then
+            echo "cat-file 失败，尝试使用 show 命令..."
+            TAG_MESSAGE=$(git show "$FULL_TAG" --format="%B" --no-patch 2>/dev/null | head -1 || echo "")
+          fi
+
+          # 方法4: 如果仍然为空，说明可能是轻量标签，使用提交信息
+          if [ -z "$TAG_MESSAGE" ]; then
+            echo "未获取到标签注释，可能是轻量标签，使用提交信息..."
+            TAG_MESSAGE=$(git log -1 --pretty=format:"%s" "$FULL_TAG" 2>/dev/null || echo "")
+          fi
+
+          # 清理和处理标签注释内容
+          if [ -n "$TAG_MESSAGE" ]; then
+            # 去除首尾空白字符
+            TAG_MESSAGE=$(echo "$TAG_MESSAGE" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | head -1)
+            TAG_SUBJECT="$TAG_MESSAGE"
+            TAG_BODY=$(echo "$TAG_MESSAGE" | tail -n +2 | sed '/^$/d' || echo "")
           else
-            COMMIT_RANGE="${FIRST_COMMIT_AFTER_TAG}..HEAD"
+            TAG_MESSAGE=""
+            TAG_SUBJECT=""
+            TAG_BODY=""
           fi
-          echo "提交范围: $COMMIT_RANGE"
-          
-          # 获取提交日志（格式化，跳过上个标签后的后一个提交）
-          COMMIT_LOG=$(git log --pretty=format:"- %s (%h)" "$COMMIT_RANGE" 2>/dev/null || echo "")
-          
-          # 获取提交统计
-          COMMIT_COUNT=$(git rev-list --count "$COMMIT_RANGE" 2>/dev/null || echo "0")
-          
-          # 获取文件变更统计
-          FILES_CHANGED=$(git diff --name-only "$PREVIOUS_TAG" HEAD | wc -l)
-          INSERTIONS=$(git diff --shortstat "$PREVIOUS_TAG" HEAD | grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo "0")
-          DELETIONS=$(git diff --shortstat "$PREVIOUS_TAG" HEAD | grep -o '[0-9]* deletion' | grep -o '[0-9]*' || echo "0")
-          
-          echo "提交数量: $COMMIT_COUNT"
-          echo "文件变更: $FILES_CHANGED"
-          echo "新增行数: $INSERTIONS"
-          echo "删除行数: $DELETIONS"
-          
-        else
-          echo "这是第一个标签，没有上个标签进行比较"
-          COMMIT_LOG="- 🎉 项目初始版本发布"
-          COMMIT_COUNT="1"
-          FILES_CHANGED="0"
-          INSERTIONS="0"
-          DELETIONS="0"
-        fi
-        
-        echo "=== 提交日志 ==="
-        echo "$COMMIT_LOG"
-        
-        # 如果标记有注释标题，使用标签注释标题作为发布标题；否则使用默认格式
-        if [ -n "$TAG_SUBJECT" ]; then
-          RELEASE_TITLE="$TAG_SUBJECT"
-        else
-          RELEASE_TITLE="$SERVICE_NAME v$VERSION"
-        fi
-        
-        echo "发布标题: $RELEASE_TITLE"
-        
-        # 输出到GitHub Actions环境变量
-        echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_OUTPUT
-        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-        echo "FULL_TAG=$FULL_TAG" >> $GITHUB_OUTPUT
-        echo "TAG_SUBJECT=$TAG_SUBJECT" >> $GITHUB_OUTPUT
-        echo "RELEASE_TITLE=$RELEASE_TITLE" >> $GITHUB_OUTPUT
-        echo "COMMIT_COUNT=$COMMIT_COUNT" >> $GITHUB_OUTPUT
-        echo "FILES_CHANGED=$FILES_CHANGED" >> $GITHUB_OUTPUT
-        echo "INSERTIONS=$INSERTIONS" >> $GITHUB_OUTPUT
-        echo "DELETIONS=$DELETIONS" >> $GITHUB_OUTPUT
-        echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
-        
-        # 处理多行字符串输出 - 使用特殊分隔符
-        echo "TAG_MESSAGE<<EOF" >> $GITHUB_OUTPUT
-        echo "$TAG_MESSAGE" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-        
-        echo "TAG_BODY<<EOF" >> $GITHUB_OUTPUT
-        echo "$TAG_BODY" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-        
-        echo "COMMIT_LOG<<EOF" >> $GITHUB_OUTPUT
-        echo "$COMMIT_LOG" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-        
-        echo "提取完成 - 服务: $SERVICE_NAME, 版本: $VERSION, 标题: $RELEASE_TITLE"
 
-    # 4. 更新对应服务的版本信息
-    - name: 更新服务版本信息
-      run: |
-        SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
-        VERSION="${{ steps.get_version.outputs.VERSION }}"
-        FULL_TAG="${{ steps.get_version.outputs.FULL_TAG }}"
-        
-        echo "开始更新服务 $SERVICE_NAME 的版本信息到 $VERSION"
-        
-        # 根据服务名创建或更新特定的版本配置文件
-        VERSION_DIR="config/versions"
-        mkdir -p $VERSION_DIR
-        
-        # 创建服务版本配置文件
-        cat > "$VERSION_DIR/$SERVICE_NAME.json" << 'EOF'
-        {
-          "serviceName": "SERVICE_NAME_PLACEHOLDER",
-          "version": "VERSION_PLACEHOLDER",
-          "tag": "FULL_TAG_PLACEHOLDER",
-          "releaseDate": "RELEASE_DATE_PLACEHOLDER",
-          "buildNumber": "BUILD_NUMBER_PLACEHOLDER"
-        }
-        EOF
-        
-        # 替换占位符 - 使用不同的分隔符避免特殊字符问题
-        sed -i "s|SERVICE_NAME_PLACEHOLDER|$SERVICE_NAME|g" "$VERSION_DIR/$SERVICE_NAME.json"
-        sed -i "s|VERSION_PLACEHOLDER|$VERSION|g" "$VERSION_DIR/$SERVICE_NAME.json"
-        sed -i "s|FULL_TAG_PLACEHOLDER|$FULL_TAG|g" "$VERSION_DIR/$SERVICE_NAME.json"
-        sed -i "s|RELEASE_DATE_PLACEHOLDER|$(date -u +%Y-%m-%dT%H:%M:%SZ)|g" "$VERSION_DIR/$SERVICE_NAME.json"
-        sed -i "s|BUILD_NUMBER_PLACEHOLDER|$GITHUB_RUN_NUMBER|g" "$VERSION_DIR/$SERVICE_NAME.json"
-        
-        echo "已创建/更新服务版本配置: $VERSION_DIR/$SERVICE_NAME.json"
-        
-        echo "--- 服务版本配置 ---"
-        cat "$VERSION_DIR/$SERVICE_NAME.json"
+          echo "最终获取到的标签注释: [$TAG_MESSAGE]"
 
-    # 5. 安装依赖（如果需要）
-    - name: 安装依赖
-      run: |
-        if [ -f package.json ]; then
-          yarn install
-        fi
+          echo "标记注释 (完整): $TAG_MESSAGE"
+          echo "标记标题: $TAG_SUBJECT"
+          echo "标记正文: $TAG_BODY"
 
-    # 6. 更新README.md版本信息
-    - name: 更新README.md版本信息
-      run: |
-        SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
-        VERSION="${{ steps.get_version.outputs.VERSION }}"
-        
-        echo "更新 README.md 中 $SERVICE_NAME 服务的版本信息"
-        
-        # 检查是否有专门的README更新脚本
-        if [ -f "scripts/update-readme-version.js" ]; then
-          cd scripts
-          # 传递服务名和版本号给脚本
-          SERVICE_NAME="$SERVICE_NAME" VERSION="$VERSION" node update-readme-version.js
-          echo "使用脚本更新 README.md 完成"
-        else
-          # 使用sed直接更新README中的版本徽章 - 使用不同分隔符避免特殊字符问题
-          if [ -f "README.md" ]; then
-            # 更新服务特定的版本徽章
-            sed -i "s|!\[${SERVICE_NAME}-version\]\[.*\]|!\[${SERVICE_NAME}-version\](https://img.shields.io/badge/${SERVICE_NAME}-v${VERSION}-blue)|g" README.md
+          # 获取从上个标签到当前标签的提交信息
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "上个标签: $PREVIOUS_TAG"
             
-            # 更新通用版本徽章（如果存在）
-            sed -i "s|!\[version\]\[.*v[0-9]*\.[0-9]*\.[0-9]*.*\]|!\[version\](https://img.shields.io/badge/version-v${VERSION}-blue)|g" README.md
-            
-            echo "直接更新 README.md 版本徽章完成"
-          fi
-        fi
-
-    # 7. 提交更改
-    - name: 提交版本更新
-      run: |
-        SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
-        VERSION="${{ steps.get_version.outputs.VERSION }}"
-        
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-        # 获取所有分支信息
-        git fetch --all
-        
-        # 尝试检测标签是从哪个分支推送的
-        echo "检测标签来源分支..."
-        
-        # 获取包含此标签的所有分支
-        BRANCHES_WITH_TAG=$(git branch -r --contains ${{ github.sha }} | grep -v HEAD | sed 's/origin\///' | tr -d ' ')
-        echo "包含此提交的分支: $BRANCHES_WITH_TAG"
-        
-        # 确定目标分支 - 优先使用包含此标签的分支，否则使用默认分支
-        TARGET_BRANCH=""
-        if [ -n "$BRANCHES_WITH_TAG" ]; then
-          # 如果有多个分支，优先选择 main 或 master
-          for branch in $BRANCHES_WITH_TAG; do
-            if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
-              TARGET_BRANCH="$branch"
-              break
+            FIRST_COMMIT_AFTER_TAG=$(git rev-list --reverse "${PREVIOUS_TAG}..HEAD" | head -n 1)
+            if [ -z "$FIRST_COMMIT_AFTER_TAG" ]; then
+              COMMIT_RANGE=""
+            else
+              COMMIT_RANGE="${FIRST_COMMIT_AFTER_TAG}..HEAD"
             fi
-          done
-          
-          # 如果没有 main/master，使用第一个分支
-          if [ -z "$TARGET_BRANCH" ]; then
-            TARGET_BRANCH=$(echo "$BRANCHES_WITH_TAG" | head -n1)
-          fi
-        fi
-        
-        # 如果还是没有找到，使用默认分支
-        if [ -z "$TARGET_BRANCH" ]; then
-          DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
-          if [ -n "$DEFAULT_BRANCH" ]; then
-            TARGET_BRANCH="$DEFAULT_BRANCH"
+            echo "提交范围: $COMMIT_RANGE"
+            
+            # 获取提交日志（格式化，跳过上个标签后的后一个提交）
+            COMMIT_LOG=$(git log --pretty=format:"- %s (%h)" "$COMMIT_RANGE" 2>/dev/null || echo "")
+            
+            # 获取提交统计
+            COMMIT_COUNT=$(git rev-list --count "$COMMIT_RANGE" 2>/dev/null || echo "0")
+            
+            # 获取文件变更统计
+            FILES_CHANGED=$(git diff --name-only "$PREVIOUS_TAG" HEAD | wc -l)
+            INSERTIONS=$(git diff --shortstat "$PREVIOUS_TAG" HEAD | grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo "0")
+            DELETIONS=$(git diff --shortstat "$PREVIOUS_TAG" HEAD | grep -o '[0-9]* deletion' | grep -o '[0-9]*' || echo "0")
+            
+            echo "提交数量: $COMMIT_COUNT"
+            echo "文件变更: $FILES_CHANGED"
+            echo "新增行数: $INSERTIONS"
+            echo "删除行数: $DELETIONS"
+            
           else
-            TARGET_BRANCH="main"  # 最后的回退选项
+            echo "这是第一个标签，没有上个标签进行比较"
+            COMMIT_LOG="- 🎉 项目初始版本发布"
+            COMMIT_COUNT="1"
+            FILES_CHANGED="0"
+            INSERTIONS="0"
+            DELETIONS="0"
           fi
-        fi
-        
-        echo "目标分支: $TARGET_BRANCH"
-        
-        # 切换到目标分支
-        git checkout -B "$TARGET_BRANCH" origin/"$TARGET_BRANCH" || git checkout -B "$TARGET_BRANCH"
-        
-        # 添加更改的文件
-        git add README.md config/versions/
-        
-        # 检查是否有更改需要提交
-        if git diff --staged --quiet; then
-          echo "没有文件需要提交"
-        else
-          git commit -m "🔖 自动更新 $SERVICE_NAME 版本号到 v$VERSION (标签: ${{ github.ref_name }}, 分支: $TARGET_BRANCH, 构建: #${{ github.run_number }})"
-          
-          # 推送到目标分支
-          git push origin "$TARGET_BRANCH"
-          
-          echo "版本更新已提交并推送到 $TARGET_BRANCH 分支"
-        fi
 
-    # 8. 创建GitHub Release（可选）
-    - name: 创建GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.NEKO_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: ${{ steps.get_version.outputs.SERVICE_NAME }} v${{ steps.get_version.outputs.VERSION }}
-        body: |
-          ## 🎉 ${{ steps.get_version.outputs.SERVICE_NAME }} 版本 v${{ steps.get_version.outputs.VERSION }} 发布
+          echo "=== 提交日志 ==="
+          echo "$COMMIT_LOG"
 
-          ### 📋 发布信息
-          - 🏷️ **服务名称**: ${{ steps.get_version.outputs.SERVICE_NAME }}
-          - 📌 **版本号**: v${{ steps.get_version.outputs.VERSION }}
-          - 🔖 **完整标签**: ${{ steps.get_version.outputs.FULL_TAG }}
-          - 🏗️ **构建编号**: ${{ github.run_number }}
-          ${{ steps.get_version.outputs.PREVIOUS_TAG && format('- 📊 **上个版本**: {0}', steps.get_version.outputs.PREVIOUS_TAG) || '' }}
+          # 如果标记有注释标题，使用标签注释标题作为发布标题；否则使用默认格式
+          if [ -n "$TAG_SUBJECT" ]; then
+            RELEASE_TITLE="$TAG_SUBJECT"
+          else
+            RELEASE_TITLE="$SERVICE_NAME v$VERSION"
+          fi
 
-          ### 🏷️ 变更统计
-          - 🔖 **提交数量**: ${{ steps.get_version.outputs.COMMIT_COUNT }} 个提交
-          - 📁 **文件变更**: ${{ steps.get_version.outputs.FILES_CHANGED }} 个文件
-          - ➕ **新增代码**: ${{ steps.get_version.outputs.INSERTIONS }} 行
-          - ➖ **删除代码**: ${{ steps.get_version.outputs.DELETIONS }} 行
+          echo "发布标题: $RELEASE_TITLE"
 
-          ### 🔄 自动更新内容
-          - ✅ 更新 `README.md` 版本徽章
-          - ✅ 创建服务版本配置文件
-          - ✅ 同步所有版本信息
+          # 输出到GitHub Actions环境变量
+          echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "FULL_TAG=$FULL_TAG" >> $GITHUB_OUTPUT
+          echo "TAG_SUBJECT=$TAG_SUBJECT" >> $GITHUB_OUTPUT
+          echo "RELEASE_TITLE=$RELEASE_TITLE" >> $GITHUB_OUTPUT
+          echo "COMMIT_COUNT=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          echo "FILES_CHANGED=$FILES_CHANGED" >> $GITHUB_OUTPUT
+          echo "INSERTIONS=$INSERTIONS" >> $GITHUB_OUTPUT
+          echo "DELETIONS=$DELETIONS" >> $GITHUB_OUTPUT
+          echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
 
-          ### 🚀 提交记录
-          ${{ steps.get_version.outputs.COMMIT_LOG }}
+          # 处理多行字符串输出 - 使用特殊分隔符
+          echo "TAG_MESSAGE<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAG_MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-          ### 📝 标签注释
-          ${{ steps.get_version.outputs.TAG_MESSAGE || '无标签注释' }}
+          echo "TAG_BODY<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAG_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-          ---
-          *此版本由 GitHub Actions 自动发布*
-        draft: false
-        prerelease: ${{ contains(steps.get_version.outputs.VERSION, 'beta') || contains(steps.get_version.outputs.VERSION, 'alpha') || contains(steps.get_version.outputs.VERSION, 'rc') }}
+          echo "COMMIT_LOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMIT_LOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-    # 9. 通知完成状态
-    - name: 输出完成信息
-      run: |
-        SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
-        VERSION="${{ steps.get_version.outputs.VERSION }}"
-        FULL_TAG="${{ steps.get_version.outputs.FULL_TAG }}"
-        COMMIT_COUNT="${{ steps.get_version.outputs.COMMIT_COUNT }}"
-        FILES_CHANGED="${{ steps.get_version.outputs.FILES_CHANGED }}"
-        PREVIOUS_TAG="${{ steps.get_version.outputs.PREVIOUS_TAG }}"
-        
-        echo "🎉 $SERVICE_NAME 服务版本更新工作流完成！"
-        echo "📌 服务名称: $SERVICE_NAME"
-        echo "📌 版本号: v$VERSION"
-        echo "🏷️ 完整标签: $FULL_TAG"
-        
-        if [ -n "$PREVIOUS_TAG" ]; then
-          echo "📊 版本对比: $PREVIOUS_TAG → $FULL_TAG"
-          echo "🔄 提交数量: $COMMIT_COUNT 个"
-          echo "📁 文件变更: $FILES_CHANGED 个"
-        else
-          echo "🎉 这是首次发布！"
-        fi
-        
-        echo "📝 更新的文件:"
-        echo "   - README.md (版本徽章)"
-        echo "   - config/versions/$SERVICE_NAME.json (服务版本配置)"
-        echo "🚀 GitHub Release 已创建"
-        
-        # 显示版本发布类型
-        if [[ "$VERSION" == *"beta"* ]] || [[ "$VERSION" == *"alpha"* ]] || [[ "$VERSION" == *"rc"* ]]; then
-          echo "⚠️ 这是一个预发布版本"
-        else
-          echo "✅ 这是一个正式发布版本"
-        fi
+          echo "提取完成 - 服务: $SERVICE_NAME, 版本: $VERSION, 标题: $RELEASE_TITLE"
+
+      # 4. 更新对应服务的版本信息
+      - name: 更新服务版本信息
+        run: |
+          SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          FULL_TAG="${{ steps.get_version.outputs.FULL_TAG }}"
+
+          echo "开始更新服务 $SERVICE_NAME 的版本信息到 $VERSION"
+
+          # 根据服务名创建或更新特定的版本配置文件
+          VERSION_DIR="config/versions"
+          mkdir -p $VERSION_DIR
+
+          # 创建服务版本配置文件
+          cat > "$VERSION_DIR/$SERVICE_NAME.json" << 'EOF'
+          {
+            "serviceName": "SERVICE_NAME_PLACEHOLDER",
+            "version": "VERSION_PLACEHOLDER",
+            "tag": "FULL_TAG_PLACEHOLDER",
+            "releaseDate": "RELEASE_DATE_PLACEHOLDER",
+            "buildNumber": "BUILD_NUMBER_PLACEHOLDER"
+          }
+          EOF
+
+          # 替换占位符 - 使用不同的分隔符避免特殊字符问题
+          sed -i "s|SERVICE_NAME_PLACEHOLDER|$SERVICE_NAME|g" "$VERSION_DIR/$SERVICE_NAME.json"
+          sed -i "s|VERSION_PLACEHOLDER|$VERSION|g" "$VERSION_DIR/$SERVICE_NAME.json"
+          sed -i "s|FULL_TAG_PLACEHOLDER|$FULL_TAG|g" "$VERSION_DIR/$SERVICE_NAME.json"
+          sed -i "s|RELEASE_DATE_PLACEHOLDER|$(date -u +%Y-%m-%dT%H:%M:%SZ)|g" "$VERSION_DIR/$SERVICE_NAME.json"
+          sed -i "s|BUILD_NUMBER_PLACEHOLDER|$GITHUB_RUN_NUMBER|g" "$VERSION_DIR/$SERVICE_NAME.json"
+
+          echo "已创建/更新服务版本配置: $VERSION_DIR/$SERVICE_NAME.json"
+
+          echo "--- 服务版本配置 ---"
+          cat "$VERSION_DIR/$SERVICE_NAME.json"
+
+      # 5. 安装依赖（如果需要）
+      - name: 安装依赖
+        run: |
+          if [ -f package.json ]; then
+            yarn install
+          fi
+
+      # 6. 更新README.md版本信息
+      - name: 更新README.md版本信息
+        run: |
+          SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+          echo "更新 README.md 中 $SERVICE_NAME 服务的版本信息"
+
+          # 检查是否有专门的README更新脚本
+          if [ -f "scripts/update-readme-version.js" ]; then
+            cd scripts
+            # 传递服务名和版本号给脚本
+            SERVICE_NAME="$SERVICE_NAME" VERSION="$VERSION" node update-readme-version.js
+            echo "使用脚本更新 README.md 完成"
+          else
+            # 使用sed直接更新README中的版本徽章 - 使用不同分隔符避免特殊字符问题
+            if [ -f "README.md" ]; then
+              # 更新服务特定的版本徽章
+              sed -i "s|!\[${SERVICE_NAME}\](https://img.shields.io/badge/oracle--server-v[0-9]*\.[0-9]*\.[0-9]*[^)]*)|![${SERVICE_NAME}](https://img.shields.io/badge/oracle--server-v${VERSION}-blue.svg)|g" README.md
+              
+              # 更新通用版本徽章（如果存在）
+              # sed -i "s|!\[version\]\[.*v[0-9]*\.[0-9]*\.[0-9]*.*\]|!\[version\](https://img.shields.io/badge/version-v${VERSION}-blue)|g" README.md
+              
+              # 更新通用版本徽章（如果存在）
+              # sed -i "s|!\[版本\]\[.*v[0-9]*\.[0-9]*\.[0-9]*.*\]|!\[版本\](https://img.shields.io/badge/版本-v${VERSION}-blue)|g" README.md
+              echo "直接更新 README.md 版本徽章完成"
+            fi
+          fi
+
+      # 7. 提交更改
+      - name: 提交版本更新
+        run: |
+          SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          # 获取所有分支信息
+          git fetch --all
+
+          # 尝试检测标签是从哪个分支推送的
+          echo "检测标签来源分支..."
+
+          # 获取包含此标签的所有分支
+          BRANCHES_WITH_TAG=$(git branch -r --contains ${{ github.sha }} | grep -v HEAD | sed 's/origin\///' | tr -d ' ')
+          echo "包含此提交的分支: $BRANCHES_WITH_TAG"
+
+          # 确定目标分支 - 优先使用包含此标签的分支，否则使用默认分支
+          TARGET_BRANCH=""
+          if [ -n "$BRANCHES_WITH_TAG" ]; then
+            # 如果有多个分支，优先选择 main 或 master
+            for branch in $BRANCHES_WITH_TAG; do
+              if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
+                TARGET_BRANCH="$branch"
+                break
+              fi
+            done
+            
+            # 如果没有 main/master，使用第一个分支
+            if [ -z "$TARGET_BRANCH" ]; then
+              TARGET_BRANCH=$(echo "$BRANCHES_WITH_TAG" | head -n1)
+            fi
+          fi
+
+          # 如果还是没有找到，使用默认分支
+          if [ -z "$TARGET_BRANCH" ]; then
+            DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
+            if [ -n "$DEFAULT_BRANCH" ]; then
+              TARGET_BRANCH="$DEFAULT_BRANCH"
+            else
+              TARGET_BRANCH="main"  # 最后的回退选项
+            fi
+          fi
+
+          echo "目标分支: $TARGET_BRANCH"
+
+          # 切换到目标分支
+          git checkout -B "$TARGET_BRANCH" origin/"$TARGET_BRANCH" || git checkout -B "$TARGET_BRANCH"
+
+          # 添加更改的文件
+          git add README.md config/versions/
+
+          # 检查是否有更改需要提交
+          if git diff --staged --quiet; then
+            echo "没有文件需要提交"
+          else
+            git commit -m "🔖 自动更新 $SERVICE_NAME 版本号到 v$VERSION (标签: ${{ github.ref_name }}, 分支: $TARGET_BRANCH, 构建: #${{ github.run_number }})"
+            
+            # 推送到目标分支
+            git push origin "$TARGET_BRANCH"
+            
+            echo "版本更新已提交并推送到 $TARGET_BRANCH 分支"
+          fi
+
+      # 8. 创建GitHub Release（可选）
+      - name: 创建GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.NEKO_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ steps.get_version.outputs.SERVICE_NAME }} v${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## 🎉 ${{ steps.get_version.outputs.SERVICE_NAME }} 版本 v${{ steps.get_version.outputs.VERSION }} 发布
+
+            ### 📋 发布信息
+            - 🏷️ **服务名称**: ${{ steps.get_version.outputs.SERVICE_NAME }}
+            - 📌 **版本号**: v${{ steps.get_version.outputs.VERSION }}
+            - 🔖 **完整标签**: ${{ steps.get_version.outputs.FULL_TAG }}
+            - 🏗️ **构建编号**: ${{ github.run_number }}
+            ${{ steps.get_version.outputs.PREVIOUS_TAG && format('- 📊 **上个版本**: {0}', steps.get_version.outputs.PREVIOUS_TAG) || '' }}
+
+            ### 🏷️ 变更统计
+            - 🔖 **提交数量**: ${{ steps.get_version.outputs.COMMIT_COUNT }} 个提交
+            - 📁 **文件变更**: ${{ steps.get_version.outputs.FILES_CHANGED }} 个文件
+            - ➕ **新增代码**: ${{ steps.get_version.outputs.INSERTIONS }} 行
+            - ➖ **删除代码**: ${{ steps.get_version.outputs.DELETIONS }} 行
+
+            ### 🔄 自动更新内容
+            - ✅ 更新 `README.md` 版本徽章
+            - ✅ 创建服务版本配置文件
+            - ✅ 同步所有版本信息
+
+            ### 🚀 提交记录
+            ${{ steps.get_version.outputs.COMMIT_LOG }}
+
+            ### 📝 标签注释
+            ${{ steps.get_version.outputs.TAG_MESSAGE || '无标签注释' }}
+
+            ---
+            *此版本由 GitHub Actions 自动发布*
+          draft: false
+          prerelease: ${{ contains(steps.get_version.outputs.VERSION, 'beta') || contains(steps.get_version.outputs.VERSION, 'alpha') || contains(steps.get_version.outputs.VERSION, 'rc') }}
+
+      # 9. 通知完成状态
+      - name: 输出完成信息
+        run: |
+          SERVICE_NAME="${{ steps.get_version.outputs.SERVICE_NAME }}"
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          FULL_TAG="${{ steps.get_version.outputs.FULL_TAG }}"
+          COMMIT_COUNT="${{ steps.get_version.outputs.COMMIT_COUNT }}"
+          FILES_CHANGED="${{ steps.get_version.outputs.FILES_CHANGED }}"
+          PREVIOUS_TAG="${{ steps.get_version.outputs.PREVIOUS_TAG }}"
+
+          echo "🎉 $SERVICE_NAME 服务版本更新工作流完成！"
+          echo "📌 服务名称: $SERVICE_NAME"
+          echo "📌 版本号: v$VERSION"
+          echo "🏷️ 完整标签: $FULL_TAG"
+
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "📊 版本对比: $PREVIOUS_TAG → $FULL_TAG"
+            echo "🔄 提交数量: $COMMIT_COUNT 个"
+            echo "📁 文件变更: $FILES_CHANGED 个"
+          else
+            echo "🎉 这是首次发布！"
+          fi
+
+          echo "📝 更新的文件:"
+          echo "   - README.md (版本徽章)"
+          echo "   - config/versions/$SERVICE_NAME.json (服务版本配置)"
+          echo "🚀 GitHub Release 已创建"
+
+          # 显示版本发布类型
+          if [[ "$VERSION" == *"beta"* ]] || [[ "$VERSION" == *"alpha"* ]] || [[ "$VERSION" == *"rc"* ]]; then
+            echo "⚠️ 这是一个预发布版本"
+          else
+            echo "✅ 这是一个正式发布版本"
+          fi
