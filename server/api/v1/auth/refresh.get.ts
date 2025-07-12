@@ -162,7 +162,9 @@ export default defineEventHandler(async event => {
     access_token = :accessToken,
     refresh_token = :refreshToken,
     access_token_expires_at = :accessTokenExpiresAt,
-    refresh_token_expires_at = :refreshTokenExpiresAt
+    refresh_token_expires_at = :refreshTokenExpiresAt,
+    last_refresh_at = SYSDATE,
+    token_version = token_version + 1
     WHERE user_id = :userId AND session_id = :sessionId
     `;
 
