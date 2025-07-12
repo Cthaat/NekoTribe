@@ -1,26 +1,21 @@
-function rowToUserEngagementStatsItem(
-  row: UserEngagementStatsRow
-): UserEngagementStatsItem {
+function rowToTweetInteractionItem(
+  row: TweetInteractionRow
+): TweetInteractionItem {
   return {
-    userId: row[0],
-    username: row[1],
-    displayName: row[2],
-    totalTweets: row[3],
-    tweetsThisWeek: row[4],
-    tweetsThisMonth: row[5],
-    totalLikesReceived: row[6],
-    avgLikesPerTweet: row[7],
-    totalLikesGiven: row[8],
-    totalCommentsMade: row[9],
-    engagementScore: row[10]
+    tweetId: row[0],
+    content: row[1],
+    authorId: row[2],
+    author: row[3],
+    createdAt: row[4],
+    likedByUsers: row[5],
+    retweetedByUsers: row[6],
+    commentsCount: row[7]
   };
 }
 
 export default defineEventHandler(async event => {
   // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
-
-  const userId = getRouterParam(event, 'userId');
 
   const getOracleConnection = event.context.getOracleConnection;
   const connection = await getOracleConnection();
@@ -45,7 +40,7 @@ export default defineEventHandler(async event => {
 
     // 执行查询
     const result = await connection.execute(userEngagementStatsSql, {
-      userId: userId
+      userId: user.userId
     });
 
     // 处理查询结果

@@ -45,3 +45,48 @@ interface UserEngagementStatsErrorResponse {
   code: number;
   timestamp: string;
 }
+
+// ========================== tweet/stat.get ======================================
+
+type TweetInteractionRow = [
+  number, // tweetId
+  any, // content
+  number, // authorId
+  string, // author
+  string, // createdAt
+  string | null, // likedByUsers
+  string | null, // retweetedByUsers
+  number // commentsCount
+];
+
+interface TweetInteractionItem {
+  tweetId: number;
+  content: string;
+  authorId: number;
+  author: string;
+  createdAt: string;
+  likedByUsers: string | null;
+  retweetedByUsers: string | null;
+  commentsCount: number;
+}
+
+interface TweetInteractionsSuccessResponse {
+  success: boolean;
+  message: string;
+  data: {
+    tweets: TweetInteractionItem[];
+    type: string;
+    page: number;
+    pagesize: number;
+    total: number;
+  };
+  code: number;
+  timestamp: string;
+}
+
+interface TweetInteractionsErrorResponse {
+  success: boolean;
+  message: string;
+  code: number;
+  timestamp: string;
+}
