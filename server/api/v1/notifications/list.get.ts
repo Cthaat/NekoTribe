@@ -90,7 +90,8 @@ export default defineEventHandler(async event => {
         time_category,
         hours_since_created,
         is_recent,
-        total_count
+        total_count,
+        rn
     FROM notification_filter
     WHERE rn BETWEEN ((:page - 1) * :page_size + 1) AND (:page * :page_size)
     ORDER BY created_at DESC
@@ -100,7 +101,7 @@ export default defineEventHandler(async event => {
     const result = await connection.execute(notificationSql, {
       user_id: user.userId,
       type: type,
-      unread_only: unreadOnly ? 1 : 0,
+      unread_only: unreadOnly === 'true' ? 1 : 0,
       page: page,
       page_size: pageSize
     });

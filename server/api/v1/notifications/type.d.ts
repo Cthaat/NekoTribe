@@ -1,10 +1,16 @@
-
 // 通知搜索参数类型
 interface NotificationSearchPayload {
-  type: 'all' | 'like' | 'retweet' | 'comment' | 'follow' | 'mention' | 'system'; // 通知类型
+  type:
+    | 'all'
+    | 'like'
+    | 'retweet'
+    | 'comment'
+    | 'follow'
+    | 'mention'
+    | 'system'; // 通知类型
   page?: number; // 页码，从1开始
   pageSize?: number; // 每页数量，默认20
-  unreadOnly?: boolean; // 是否只获取未读通知
+  unreadOnly?: string; // 是否只获取未读通知
 }
 
 // 通知数据库行类型
@@ -37,7 +43,7 @@ type NotificationRow = [
   number, // HOURS_SINCE_CREATED
   number, // IS_RECENT
   number, // TOTAL_COUNT
-  number  // RN
+  number // RN
 ];
 
 // 通知结果项类型
@@ -78,7 +84,14 @@ interface NotificationSuccessResponse {
   success: true;
   message: string;
   data: {
-    type: 'all' | 'like' | 'retweet' | 'comment' | 'follow' | 'mention' | 'system'; // 通知类型
+    type:
+      | 'all'
+      | 'like'
+      | 'retweet'
+      | 'comment'
+      | 'follow'
+      | 'mention'
+      | 'system'; // 通知类型
     page: number; // 当前页码
     pageSize: number; // 每页数量
     notifications: NotificationItem[]; // 通知列表
@@ -101,4 +114,6 @@ interface NotificationErrorResponse {
 }
 
 // 通知响应联合类型
-type NotificationResponse = NotificationSuccessResponse | NotificationErrorResponse;
+type NotificationResponse =
+  | NotificationSuccessResponse
+  | NotificationErrorResponse;
