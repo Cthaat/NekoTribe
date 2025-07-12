@@ -4,7 +4,12 @@ import path from 'path';
 export default defineEventHandler(async event => {
   try {
     // 假设配置文件为 config.json，存放在项目根目录下
-    const configPath = path.join(process.cwd(), 'config', 'oracle-server.json');
+    const configPath = path.join(
+      process.cwd(),
+      'config',
+      'versions',
+      'oracle-server.json'
+    );
     const configData = await fs.promises.readFile(configPath, 'utf-8');
     const config = JSON.parse(configData);
 
