@@ -1,10 +1,3 @@
-<script lang="ts">
-export const description =
-  '一个双栏注册页面。左侧为注册表单，包含邮箱、用户名、密码、确认密码、显示名称、简介、所在地、手机号、生日、验证码和服务条款勾选。右侧为封面图片。'
-export const iframeHeight = '800px'
-export const containerClass = 'w-full h-full p-4 lg:p-0'
-</script>
-
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
@@ -22,6 +15,23 @@ import { CalendarIcon } from 'lucide-vue-next'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
+const description = t('auth.signUp.description')
+const iframeHeight = '800px'
+const containerClass = 'w-full h-full p-4 lg:p-0'
+
+useHead({
+  title: t('auth.signUp.title'),
+  meta: [
+    {
+      name: 'description',
+      content: description
+    }
+  ],
+})
 
 const form = ref({
   email: '',
@@ -50,7 +60,7 @@ watch(birthDateValue, (val) => {
 
 function handleSubmit() {
   if (!form.value.agreeToTerms) {
-    alert('请先同意服务条款')
+    alert(t('auth.signUp.termsNotAgreed'))
     return
   }
   // 其他校验略
@@ -63,34 +73,37 @@ function handleSubmit() {
     <div class="flex items-center justify-center py-12">
       <form class="mx-auto grid w-[350px] gap-6" @submit.prevent="handleSubmit">
         <div class="grid gap-2 text-center">
-          <h1 class="text-3xl font-bold">注册新账号</h1>
+          <h1 class="text-3xl font-bold">{{ $t('auth.signUp.signUpPrompt') }}</h1>
           <p class="text-balance text-muted-foreground">
-            请填写以下信息以创建新账号
+            {{ $t('auth.signUp.signUpPromptDescription') }}
           </p>
         </div>
         <div class="grid gap-4">
           <!-- 邮箱地址单独一列 -->
           <div class="grid gap-2">
-            <Label for="email">邮箱地址</Label>
+            <Label for="email">{{ $t('auth.signUp.email') }}</Label>
             <Input id="email" v-model="form.email" type="email" placeholder="m@example.com" required />
           </div>
           <!-- 两列并排的表单项（用户名、显示名称、手机号、生日、所在地） -->
           <div class="grid grid-cols-2 gap-4">
             <div class="grid gap-2">
-              <Label for="username">用户名</Label>
-              <Input id="username" v-model="form.username" type="text" placeholder="3-20位字母数字下划线" required />
+              <Label for="username">{{ $t('auth.signUp.username') }}</Label>
+              <Input id="username" v-model="form.username" type="text"
+                placeholder="{{ $t('auth.signUp.usernamePlaceholder') }}" required />
             </div>
             <div class="grid gap-2">
-              <Label for="displayName">显示名称</Label>
-              <Input id="displayName" v-model="form.displayName" type="text" placeholder="昵称" required />
+              <Label for="displayName">{{ $t('auth.signUp.displayName') }}</Label>
+              <Input id="displayName" v-model="form.displayName" type="text"
+                placeholder="{{ $t('auth.signUp.displayNamePlaceholder') }}" required />
             </div>
             <div class="grid gap-2">
-              <Label for="phone">手机号</Label>
-              <Input id="phone" v-model="form.phone" type="tel" placeholder="可选" />
+              <Label for="phone">{{ $t('auth.signUp.phone') }}</Label>
+              <Input id="phone" v-model="form.phone" type="tel"
+                placeholder="{{ $t('auth.signUp.phonePlaceholder') }}" />
             </div>
             <!-- 替换生日输入框为日期选择器 -->
             <div class="grid gap-2">
-              <Label for="birthDate">生日</Label>
+              <Label for="birthDate">{{ $t('auth.signUp.birthDate') }}</Label>
               <Popover>
                 <PopoverTrigger as-child>
                   <Button variant="outline" :class="cn(
@@ -98,7 +111,8 @@ function handleSubmit() {
                     !birthDateValue && 'text-muted-foreground',
                   )">
                     <CalendarIcon class="mr-2 h-4 w-4" />
-                    {{ birthDateValue ? df.format(birthDateValue.toDate(getLocalTimeZone())) : "请选择日期" }}
+                    {{ birthDateValue ? df.format(birthDateValue.toDate(getLocalTimeZone())) :
+                      $t('auth.signUp.birthDatePlaceholder') }}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent class="w-auto p-0">
@@ -107,31 +121,35 @@ function handleSubmit() {
               </Popover>
             </div>
             <div class="grid gap-2">
-              <Label for="location">所在地</Label>
-              <Input id="location" v-model="form.location" type="text" placeholder="城市/地区" />
+              <Label for="location">{{ $t('auth.signUp.location') }}</Label>
+              <Input id="location" v-model="form.location" type="text"
+                placeholder="{{ $t('auth.signUp.locationPlaceholder') }}" />
             </div>
           </div>
           <!-- 简介单独一列 -->
           <div class="grid gap-2">
-            <Label for="bio">简介</Label>
-            <Input id="bio" v-model="form.bio" type="text" placeholder="一句话介绍自己" />
+            <Label for="bio">{{ $t('auth.signUp.bio') }}</Label>
+            <Input id="bio" v-model="form.bio" type="text" placeholder="{{ $t('auth.signUp.bioPlaceholder') }}" />
           </div>
           <!-- 密码和确认密码单独一列 -->
           <div class="grid grid-cols-2 gap-4">
             <div class="grid gap-2">
-              <Label for="password">密码</Label>
-              <Input id="password" v-model="form.password" type="password" placeholder="8-32位，包含字母数字" required />
+              <Label for="password">{{ $t('auth.signUp.password') }}</Label>
+              <Input id="password" v-model="form.password" type="password"
+                placeholder="{{ $t('auth.signUp.passwordPlaceholder') }}" required />
             </div>
             <div class="grid gap-2">
-              <Label for="confirmPassword">确认密码</Label>
-              <Input id="confirmPassword" v-model="form.confirmPassword" type="password" required />
+              <Label for="confirmPassword">{{ $t('auth.signUp.confirmPassword') }}</Label>
+              <Input id="confirmPassword" v-model="form.confirmPassword" type="password"
+                placeholder="{{ $t('auth.signUp.confirmPasswordPlaceholder') }}" required />
             </div>
           </div>
           <!-- 验证码和服务条款并列 -->
           <div class="grid grid-cols-2 gap-4">
             <div class="grid gap-2">
-              <Label for="captcha">验证码</Label>
-              <Input id="captcha" v-model="form.captcha" type="text" placeholder="请输入验证码" required />
+              <Label for="captcha">{{ $t('auth.signUp.captcha') }}</Label>
+              <Input id="captcha" v-model="form.captcha" type="text"
+                placeholder="{{ $t('auth.signUp.captchaPlaceholder') }}" required />
             </div>
             <div class="flex items-center gap-x-2 mt-6">
               <Checkbox id="terms1" v-model:checked="form.agreeToTerms" />
@@ -143,11 +161,11 @@ function handleSubmit() {
               </div>
             </div>
           </div>
-          <Button type="submit" class="w-full mt-2">注册</Button>
+          <Button type="submit" class="w-full mt-2">{{ $t('auth.signUp.signUpButton') }}</Button>
         </div>
         <div class="mt-4 text-center text-sm">
-          已有账号？
-          <a href="/auth/login" class="underline">立即登录</a>
+          {{ $t('auth.signUp.haveAccount') }}<br />
+          <a href="/auth/login" class="underline">{{ $t('auth.signUp.loginPrompt') }}</a>
         </div>
       </form>
     </div>

@@ -10,6 +10,38 @@
       "loginButton": "Login",
       "noAccount": "Don't have an account?",
       "description": "A login page with two columns. The first column has the login form with email and password. There's a Forgot your passwork link and a link to sign up if you do not have an account. The second column has a cover image."
+    },
+    "signUp": {
+      "title": "Sign Up",
+      "description": "A sign up page with two columns. The first column has the sign up form with email, username, password, confirm password, display name, bio, location, phone number, birth date, captcha and terms of service checkbox. The second column has a cover image.",
+      "termsNotAgreed": "Please agree to the terms of service first.",
+      "signUpPrompt": "Create a New Account",
+      "signUpPromptDescription": "Please fill in the following information to create a new account.",
+      "emailPlaceholder": "Please enter your email",
+      "email": "Email",
+      "username": "Username",
+      "usernamePlaceholder": "3-20 characters, letters, numbers, underscores",
+      "password": "Password",
+      "passwordPlaceholder": "8-32 characters, letters and numbers",
+      "confirmPassword": "Confirm Password",
+      "confirmPasswordPlaceholder": "Please re-enter your password",
+      "displayName": "Display Name",
+      "displayNamePlaceholder": "Please enter your nickname",
+      "bio": "Bio",
+      "bioPlaceholder": "A brief introduction about yourself",
+      "location": "Location",
+      "locationPlaceholder": "City/Region",
+      "phone": "Phone Number",
+      "phonePlaceholder": "Optional",
+      "birthDate": "Birth Date",
+      "birthDatePlaceholder": "Please select a date",
+      "captcha": "Captcha",
+      "captchaPlaceholder": "Please enter the captcha",
+      "terms": "Terms of Service",
+      "agreeToTerms": "I have read and agree to the terms of service",
+      "signUpButton": "Sign Up",
+      "haveAccount": "Already have an account?",
+      "loginPrompt": "Log in now"
     }
   }
 }

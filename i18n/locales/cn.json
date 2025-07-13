@@ -11,8 +11,37 @@
       "noAccount": "没有账户？",
       "description": "一个双栏登录页面。\n左侧为登录表单，包含邮箱和密码。有忘记密码链接和注册新账号链接。右侧为封面图片。"
     },
-    "sign-up": {
-      
+    "signUp": {
+      "title": "注册",
+      "description": "一个双栏注册页面。\n左侧为注册表单，包含邮箱、用户名、密码、确认密码、显示名称、简介、所在地、手机号、生日、验证码和服务条款勾选。右侧为封面图片。",
+      "termsNotAgreed": "请先同意服务条款",
+      "signUpPrompt": "注册新账号",
+      "signUpPromptDescription": "请填写以下信息以创建新账号",
+      "emailPlaceholder": "请输入您的电子邮件",
+      "email": "电子邮件",
+      "username": "用户名",
+      "usernamePlaceholder": "3-20位字母数字下划线",
+      "password": "密码",
+      "passwordPlaceholder": "8-32位，包含字母数字",
+      "confirmPassword": "确认密码",
+      "confirmPasswordPlaceholder": "请再次输入密码",
+      "displayName": "显示名称",
+      "displayNamePlaceholder": "请输入您的昵称",
+      "bio": "简介",
+      "bioPlaceholder": "一句话介绍自己",
+      "location": "所在地",
+      "locationPlaceholder": "城市/地区",
+      "phone": "手机号",
+      "phonePlaceholder": "可选",
+      "birthDate": "生日",
+      "birthDatePlaceholder": "请选择日期",
+      "captcha": "验证码",
+      "captchaPlaceholder": "请输入验证码",
+      "terms": "服务条款",
+      "agreeToTerms": "我已阅读并同意服务条款",
+      "signUpButton": "注册",
+      "haveAccount": "已有账号？",
+      "loginPrompt": "立即登录"
     }
   }
 }
