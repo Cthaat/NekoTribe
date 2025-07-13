@@ -42,7 +42,7 @@ export default defineNuxtConfig({
   i18n: {
     locales: [
       { code: 'en', name: 'English', file: 'en.json' },
-      { code: 'cn', name: 'Chinese', file: 'nl.json' }
+      { code: 'cn', name: 'Chinese', file: 'cn.json' }
     ],
     defaultLocale: 'en', // 默认语言
     vueI18n: './i18n.config.ts' // 指向一个单独的 vue-i18n 配置文件
