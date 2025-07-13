@@ -6,6 +6,7 @@ import * as z from 'zod'
 import { toTypedSchema } from '@vee-validate/zod'
 import { useForm } from 'vee-validate'
 import { toast } from 'vue-sonner'
+import { useApiFetch } from '@/composables/useApiFetch' // 导入自定义的 useApiFetch 组合式 API
 // 从你的 UI 库中导入这些基础表单组件
 import {
   FormControl,
@@ -58,6 +59,22 @@ function onValidSubmit(values: Record<string, any>) {
     description: h('pre', { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' }, h('code', { class: 'text-white' }, JSON.stringify(values, null, 2))),
   })
   // 在这里执行页面跳转或API请求
+
+  const { data, pending, error, refresh, execute, status } = useApiFetch('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(values),
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+
+  console.log('API Data:', data.value)
+  console.log('API Pending:', pending.value)
+  console.log('API Error:', error.value)
+  console.log('API Status:', status.value)
+
+  // 输出cookies
+  console.log('Cookies:', document.cookie)
 }
 
 // 4. 创建最终的 onSubmit 函数，它会先验证再决定是否执行 onValidSubmit

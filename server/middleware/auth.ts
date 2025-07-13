@@ -4,6 +4,7 @@ import { getRequestURL } from 'h3';
 const runtimeConfig = useRuntimeConfig();
 
 const WHITE_LIST = [
+  '/auth/',
   '/api/v1/auth/'
   // 可以继续添加其他前缀
 ];
