@@ -18,7 +18,10 @@
       "emailRequired": "Email is required",
       "emailInvalid": "Please enter a valid email address.",
       "passwordRequired": "Password is required",
-      "passwordTooShort": "Password must be at least 6 characters long."
+      "passwordTooShort": "Password must be at least 6 characters long.",
+      "account": "Account",
+      "accountPlaceholder": "Please enter your account",
+      "accountRequired": "Account is required"
     },
     "signUp": {
       "title": "Sign Up",

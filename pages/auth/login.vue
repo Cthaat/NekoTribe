@@ -33,11 +33,10 @@ useHead({
 })
 
 
-// 更新 schema 以匹配UI提示，并添加email验证
+// 更新 schema 以匹配UI提示，并添加account验证
 const schema = z.object({
-  email: z.string()
-    .min(1, { message: t('auth.login.emailRequired') })
-    .email({ message: t('auth.login.emailInvalid') }),
+  account: z.string()
+    .min(1, { message: t('auth.login.accountRequired') }),
   password: z.string()
     .min(1, { message: t('auth.login.passwordRequired') })
     .min(6, { message: t('auth.login.passwordTooShort') }),
@@ -46,7 +45,7 @@ const schema = z.object({
 const form = useForm({
   validationSchema: toTypedSchema(schema),
   initialValues: {
-    email: '', // 将 email 的初始值设为空字符串
+    account: '', // 将 email 的初始值设为空字符串
     password: '', // 将 password 的初始值设为空字符串
   },
 })
@@ -59,6 +58,7 @@ function onValidSubmit(values: Record<string, any>) {
     description: h('pre', { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' }, h('code', { class: 'text-white' }, JSON.stringify(values, null, 2))),
   })
   // 在这里执行页面跳转或API请求
+
 
   const { data, pending, error, refresh, execute, status } = useApiFetch('/auth/login', {
     method: 'POST',
@@ -95,11 +95,11 @@ const onSubmit = form.handleSubmit(onValidSubmit)
         </div>
         <!-- 使用标准的 form 和 FormField 进行重构 -->
         <form class="grid gap-4" :form="form" @submit="onSubmit">
-          <FormField v-slot="{ componentField }" name="email">
+          <FormField v-slot="{ componentField }" name="account">
             <FormItem>
-              <FormLabel>{{ $t('auth.login.email') }}</FormLabel>
+              <FormLabel>{{ $t('auth.login.account') }}</FormLabel>
               <FormControl>
-                <Input type="email" :placeholder="$t('auth.login.emailPlaceholder')" v-bind="componentField" />
+                <Input type="account" :placeholder="$t('auth.login.accountPlaceholder')" v-bind="componentField" />
               </FormControl>
               <FormMessage />
             </FormItem>

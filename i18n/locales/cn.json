@@ -18,7 +18,10 @@
       "emailRequired": "邮箱不能为空",
       "emailInvalid": "请输入有效的邮箱地址。",
       "passwordRequired": "密码不能为空",
-      "passwordTooShort": "密码至少需要6个字符。"
+      "passwordTooShort": "密码至少需要6个字符。",
+      "account": "账号",
+      "accountPlaceholder": "请输入您的账号",
+      "accountRequired": "账号不能为空"
     },
     "signUp": {
       "title": "注册",
