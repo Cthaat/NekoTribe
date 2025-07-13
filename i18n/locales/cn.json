@@ -9,7 +9,16 @@
       "forgotPassword": "忘记密码？",
       "loginButton": "登录",
       "noAccount": "没有账户？",
-      "description": "一个双栏登录页面。\n左侧为登录表单，包含邮箱和密码。有忘记密码链接和注册新账号链接。右侧为封面图片。"
+      "description": "一个双栏登录页面。\n左侧为登录表单，包含邮箱和密码。有忘记密码链接和注册新账号链接。右侧为封面图片。",
+      "emailError": "请输入有效的电子邮件地址。",
+      "passwordError": "密码不能为空。",
+      "emailPlaceholder": "请输入您的电子邮件",
+      "passwordPlaceholder": "请输入您的密码",
+      "signUp": "注册新账号",
+      "emailRequired": "邮箱不能为空",
+      "emailInvalid": "请输入有效的邮箱地址。",
+      "passwordRequired": "密码不能为空",
+      "passwordTooShort": "密码至少需要6个字符。"
     },
     "signUp": {
       "title": "注册",

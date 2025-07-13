@@ -9,7 +9,16 @@
       "forgotPassword": "Forgot your password?",
       "loginButton": "Login",
       "noAccount": "Don't have an account?",
-      "description": "A login page with two columns. The first column has the login form with email and password. There's a Forgot your passwork link and a link to sign up if you do not have an account. The second column has a cover image."
+      "description": "A dual-column login page. The left side contains the login form with email and password fields, a forgot password link, and a sign up link. The right side has a cover image.",
+      "emailError": "Please enter a valid email address.",
+      "passwordError": "Password is required.",
+      "emailPlaceholder": "Please enter your email",
+      "passwordPlaceholder": "Please enter your password",
+      "signUp": "Sign up",
+      "emailRequired": "Email is required",
+      "emailInvalid": "Please enter a valid email address.",
+      "passwordRequired": "Password is required",
+      "passwordTooShort": "Password must be at least 6 characters long."
     },
     "signUp": {
       "title": "Sign Up",
