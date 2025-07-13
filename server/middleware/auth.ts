@@ -23,17 +23,16 @@ export default defineEventHandler(async event => {
 
   const token = getCookie(event, 'access_token');
   if (!token) {
-    return sendRedirect(event, '/auth/login', 302); // 302重定向
-    // throw createError({
-    //   statusCode: 401,
-    //   statusMessage: '未登录',
-    //   data: {
-    //     success: false,
-    //     message: '请先登录',
-    //     code: 401,
-    //     timestamp: new Date().toISOString()
-    //   } as ErrorResponse
-    // });
+    throw createError({
+      statusCode: 401,
+      statusMessage: '未登录',
+      data: {
+        success: false,
+        message: '请先登录',
+        code: 401,
+        timestamp: new Date().toISOString()
+      } as ErrorResponse
+    });
   }
   try {
     const payload = jwt.verify(
