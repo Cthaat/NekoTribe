@@ -6,11 +6,22 @@ export const containerClass = 'w-full h-full p-4 lg:p-0'
 </script>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+
+// 日期选择器相关导入
+import {
+  DateFormatter,
+  type DateValue,
+  getLocalTimeZone,
+} from '@internationalized/date'
+import { CalendarIcon } from 'lucide-vue-next'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 const form = ref({
   email: '',
@@ -21,9 +32,20 @@ const form = ref({
   bio: '',
   location: '',
   phone: '',
-  birthDate: '',
+  birthDate: '', // 这里存储字符串
   agreeToTerms: false,
   captcha: ''
+})
+
+// 日期选择器相关
+const df = new DateFormatter('zh-CN', {
+  dateStyle: 'long',
+})
+const birthDateValue = ref<DateValue>()
+
+// 监听日期选择器变化，更新 form.birthDate
+watch(birthDateValue, (val) => {
+  form.value.birthDate = val ? df.format(val.toDate(getLocalTimeZone())) : ''
 })
 
 function handleSubmit() {
@@ -66,9 +88,23 @@ function handleSubmit() {
               <Label for="phone">手机号</Label>
               <Input id="phone" v-model="form.phone" type="tel" placeholder="可选" />
             </div>
+            <!-- 替换生日输入框为日期选择器 -->
             <div class="grid gap-2">
               <Label for="birthDate">生日</Label>
-              <Input id="birthDate" v-model="form.birthDate" type="date" placeholder="YYYY-MM-DD" />
+              <Popover>
+                <PopoverTrigger as-child>
+                  <Button variant="outline" :class="cn(
+                    'w-full justify-start text-left font-normal',
+                    !birthDateValue && 'text-muted-foreground',
+                  )">
+                    <CalendarIcon class="mr-2 h-4 w-4" />
+                    {{ birthDateValue ? df.format(birthDateValue.toDate(getLocalTimeZone())) : "请选择日期" }}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent class="w-auto p-0">
+                  <Calendar v-model="birthDateValue" initial-focus />
+                </PopoverContent>
+              </Popover>
             </div>
             <div class="grid gap-2">
               <Label for="location">所在地</Label>
