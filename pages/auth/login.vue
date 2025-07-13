@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useI18n } from 'vue-i18n'
+import { h } from 'vue'
+import * as z from 'zod'
+import { AutoForm } from '@/components/ui/auto-form'
+import { toTypedSchema } from '@vee-validate/zod'
+import { useForm } from 'vee-validate'
+import { toast } from 'vue-sonner'
 const { t } = useI18n()
 
 const description = t('auth.login.description')
@@ -18,6 +22,22 @@ useHead({
     }
   ],
 })
+
+
+const schema = z.object({
+  username: z.string(),
+})
+
+const form = useForm({
+  validationSchema: toTypedSchema(schema),
+})
+
+function onSubmit(values: Record<string, any>) {
+  toast({
+    title: 'You submitted the following values:',
+    description: h('pre', { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' }, h('code', { class: 'text-white' }, JSON.stringify(values, null, 2))),
+  })
+}
 </script>
 
 <template>
