@@ -1,0 +1,15 @@
+{
+  "auth": {
+    "login": {
+      "title": "登录",
+      "loginPrompt": "在下面输入您的电子邮件以登录您的帐户。",
+      "email": "电子邮件",
+      "password": "密码",
+      "rememberMe": "记住我",
+      "forgotPassword": "忘记密码？",
+      "loginButton": "登录",
+      "noAccount": "没有账户？",
+      "description": "一个双栏登录页面。\n左侧为登录表单，包含邮箱和密码。有忘记密码链接和注册新账号链接。右侧为封面图片。"
+    }
+  }
+}

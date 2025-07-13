@@ -1,0 +1,15 @@
+{
+  "auth": {
+    "login": {
+      "title": "Login",
+      "loginPrompt": "Enter your email below to login to your account.",
+      "email": "Email",
+      "password": "Password",
+      "rememberMe": "Remember Me",
+      "forgotPassword": "Forgot your password?",
+      "loginButton": "Login",
+      "noAccount": "Don't have an account?",
+      "description": "A login page with two columns. The first column has the login form with email and password. There's a Forgot your passwork link and a link to sign up if you do not have an account. The second column has a cover image."
+    }
+  }
+}
