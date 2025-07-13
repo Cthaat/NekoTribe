@@ -1,39 +1,62 @@
-<template>
-  <div>
-    <Button>
-      <NuxtLink to="/dashboard">Go to Dashboard</NuxtLink>
-    </Button>
-  </div>
-  <div>
-    <Button>
-      <NuxtLink to="/ws">Go to ws demo</NuxtLink>
-    </Button>
-  </div>
-</template>
+<script lang="ts">
+export const description = 'An inset sidebar with secondary navigation.'
+export const iframeHeight = '800px'
+</script>
 
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
+import AppSidebar from '@/components/AppSidebar.vue'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
+import { Separator } from '@/components/ui/separator'
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
 
-import { onMounted } from 'vue'
-
-onMounted(() => {
-  const ws = new WebSocket('ws://localhost:3000/_ws')
-
-  ws.onopen = () => {
-    console.log('WebSocket 已连接')
-    ws.send('ping')
-  }
-
-  ws.onmessage = (event) => {
-    console.log('收到消息:', event.data)
-  }
-
-  ws.onclose = () => {
-    console.log('WebSocket 已关闭')
-  }
-
-  ws.onerror = (error) => {
-    console.log('WebSocket 发生错误:', error)
-  }
-})
+import ColorModeIcon from '@/components/ColorModeIcon.vue'
 </script>
+
+<template>
+  <SidebarProvider>
+    <AppSidebar />
+    <SidebarInset>
+      <header class="flex h-16 shrink-0 items-center gap-2">
+        <div class="flex items-center gap-2 px-4">
+          <SidebarTrigger class="-ml-1" />
+          <Separator orientation="vertical" class="mr-2 data-[orientation=vertical]:h-4" />
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem class="hidden md:block">
+                <BreadcrumbLink href="#">
+                  Building Your Application
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator class="hidden md:block" />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Data Fetching</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </div>
+        <div class="flex-1 color-mode-icon flex items-center justify-end pr-4 padding-right-4">
+          <ColorModeIcon />
+        </div>
+      </header>
+      <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div class="grid auto-rows-min gap-4 md:grid-cols-3">
+          <div class="bg-muted/50 aspect-video rounded-xl" />
+          <div class="bg-muted/50 aspect-video rounded-xl" />
+          <div class="bg-muted/50 aspect-video rounded-xl" />
+        </div>
+        <div class="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
+      </div>
+    </SidebarInset>
+  </SidebarProvider>
+</template>
