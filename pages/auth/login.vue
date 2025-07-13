@@ -7,6 +7,8 @@ import { toTypedSchema } from '@vee-validate/zod'
 import { useForm } from 'vee-validate'
 import { toast } from 'vue-sonner'
 import { useApiFetch } from '@/composables/useApiFetch' // 导入自定义的 useApiFetch 组合式 API
+import { apiFetch } from '@/composables/useApi'
+import { useRouter } from 'vue-router'
 // 从你的 UI 库中导入这些基础表单组件
 import {
   FormControl,
@@ -50,8 +52,13 @@ const form = useForm({
   },
 })
 
+const isLoading = ref(false)
+const errorMessage = ref<string | null>(null)
+
+const router = useRouter()
+
 // 3. 将你的提交逻辑放入一个只在验证成功时才调用的函数中
-function onValidSubmit(values: Record<string, any>) {
+async function onValidSubmit(values: Record<string, any>) {
   console.log('Validation passed, submitting data:', values)
   toast({
     title: 'You submitted the following values:',
@@ -60,21 +67,51 @@ function onValidSubmit(values: Record<string, any>) {
   // 在这里执行页面跳转或API请求
 
 
-  const { data, pending, error, refresh, execute, status } = useApiFetch('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify(values),
-    headers: {
-      'Content-Type': 'application/json'
+  try {
+    // 2. 调用后端 API
+    // 我们使用 `$fetch`，因为它非常适合这种事件驱动的请求
+    interface LoginResponse {
+      success: boolean
+      message?: string
+      data?: {
+        user?: {
+          userInfo: any
+        }
+      }
     }
-  })
+    const response = await $fetch<LoginResponse>('/api/login', { // 你的 API 端点
+      method: 'POST',
+      body: {
+        account: values.account, // 使用表单验证后的值
+        password: values.password,
+      },
+    })
 
-  console.log('API Data:', data.value)
-  console.log('API Pending:', pending.value)
-  console.log('API Error:', error.value)
-  console.log('API Status:', status.value)
+    // 3. 处理成功响应
+    if (response.success && response.data?.user) {
+      console.log('登录成功!', response)
 
-  // 输出cookies
-  console.log('Cookies:', document.cookie)
+      // 将后端返回的用户信息存入 Pinia Store
+      // userStore.setUser(response.data.user.userInfo)
+
+      // 登录成功后，重定向到用户首页或仪表盘
+      await router.push('/') // 或者 '/dashboard'
+    } else {
+      // 如果后端返回的 success 是 false，也作为错误处理
+      throw new Error(response.message || '登录失败，但未返回明确错误信息')
+    }
+
+  } catch (error: any) {
+    // 4. 处理错误响应
+    // Nuxt 的 $fetch 会将非 2xx 的响应抛出为错误
+    // 错误信息在 `error.data` 中
+    console.error('登录失败:', error.data)
+    errorMessage.value = error.data?.message || '发生了未知错误，请稍后重试。'
+
+  } finally {
+    // 5. 结束加载状态
+    isLoading.value = false
+  }
 }
 
 // 4. 创建最终的 onSubmit 函数，它会先验证再决定是否执行 onValidSubmit
