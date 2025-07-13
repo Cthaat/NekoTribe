@@ -21,7 +21,9 @@
       "passwordTooShort": "密码至少需要6个字符。",
       "account": "账号",
       "accountPlaceholder": "请输入您的账号",
-      "accountRequired": "账号不能为空"
+      "accountRequired": "账号不能为空",
+      "loginSuccess": "登录成功",
+      "welcomeBack": "欢迎回来"
     },
     "signUp": {
       "title": "注册",

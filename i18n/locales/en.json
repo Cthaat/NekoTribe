@@ -21,7 +21,9 @@
       "passwordTooShort": "Password must be at least 6 characters long.",
       "account": "Account",
       "accountPlaceholder": "Please enter your account",
-      "accountRequired": "Account is required"
+      "accountRequired": "Account is required",
+      "loginSuccess": "Login successful",
+      "welcomeBack": "Welcome back"
     },
     "signUp": {
       "title": "Sign Up",

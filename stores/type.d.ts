@@ -52,6 +52,10 @@ export interface UserPreference {
   mute_keywords?: string[]; // 屏蔽关键词列表（可选）
   blocked_users?: number[]; // 屏蔽用户ID列表（可选）
 
+  // 7. 用户登录相关
+  access_token: string; // 用户访问令牌
+  refresh_token: string; // 用户刷新令牌
+
   // 更新时间戳等辅助字段
   updated_at?: string; // ISO 时间字符串（可选）
 }

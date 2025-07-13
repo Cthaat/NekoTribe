@@ -9,6 +9,7 @@ import { toast } from 'vue-sonner'
 import { useApiFetch } from '@/composables/useApiFetch' // 导入自定义的 useApiFetch 组合式 API
 import { apiFetch } from '@/composables/useApi'
 import { useRouter } from 'vue-router'
+import { usePreferenceStore } from '~/stores/user'; // 导入 store
 // 从你的 UI 库中导入这些基础表单组件
 import {
   FormControl,
@@ -58,43 +59,34 @@ const isLoading = ref(false)
 
 const router = useRouter()
 
-
-// 3. 修改 onValidSubmit 函数以使用 $fetch 和 try...catch
 async function onValidSubmit(values: Record<string, any>) {
-  console.log('Validation passed, submitting data:', values)
   isLoading.value = true
 
   try {
-    // 使用 $fetch，这是在事件处理器中调用 API 的正确方式
+    // 1. 调用 API，等待它完成
     const response: any = await $fetch('/api/v1/auth/login', {
       method: 'POST',
-      body: values, // 直接传递表单验证后的值
+      body: values,
     })
 
-    // 请求成功，$fetch 直接返回 JSON 响应体
-    console.log('登录成功:', response)
-    // 输出cookie
-    console.log('Cookies:', document.cookie)
+    const preferenceStore = usePreferenceStore();
 
-    // 使用 vue-sonner 的 toast 来显示成功信息，而不是 alert
-    toast.success(t('auth.login.loginSuccess'), {
-      description: t('auth.login.welcomeBack', { username: response.data.user.userInfo.USERNAME }),
-    })
+    // 登录成功后，调用新的 action
+    preferenceStore.setAuthTokens(response.data.token, response.data.refreshToken);
 
-    // 登录成功后，使用 Nuxt 的 navigateTo 进行页面跳转
-    await navigateTo('/')
+    // 2. 成功后，唯一要做的就是导航！
+    //    使用 await 确保导航被正确触发。
+    //    让中间件和目标页面去担心登录状态。
+    console.log('登录成功，即将跳转...', response);
+    await navigateTo('/');
 
   } catch (error: any) {
-    // 如果 $fetch 失败 (API返回4xx或5xx), 它会抛出错误
-    // 错误详情在 error.data 中
-    console.error('登录失败:', error.data)
-
-    // 使用 toast 显示错误信息
-    toast.error(t('auth.login.loginFailed'), {
-      description: error.data?.message || t('auth.login.unknownError'),
+    // 错误处理逻辑保持不变
+    console.error('登录失败:', error.data);
+    toast.error('登录失败', {
+      description: error.data?.message || '未知错误',
     })
   } finally {
-    // 无论成功还是失败，最后都将加载状态设置为 false
     isLoading.value = false
   }
 }

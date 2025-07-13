@@ -4,13 +4,17 @@ const runtimeConfig = useRuntimeConfig();
 
 export default defineEventHandler(async event => {
   const refreshToken = getCookie(event, 'refresh_token');
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
 
   if (refreshToken) {
     const connection = await getOracleConnection();
     try {
       // 1. 验证refresh token
-      const decoded = jwt.verify(refreshToken, runtimeConfig.refreshSecret) as {
+      const decoded = jwt.verify(
+        refreshToken,
+        runtimeConfig.refreshSecret
+      ) as {
         userId: string;
       };
 
@@ -33,7 +37,10 @@ export default defineEventHandler(async event => {
       WHERE USER_ID = :userId AND DBMS_LOB.COMPARE(refresh_token, :refreshToken) = 0`;
       const count = await connection.execute(
         deleteSql,
-        { userId: decoded.userId, refreshToken: refreshToken },
+        {
+          userId: decoded.userId,
+          refreshToken: refreshToken
+        },
         { autoCommit: true }
       );
     } finally {
