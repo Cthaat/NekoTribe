@@ -10607,10 +10607,15 @@ zod-to-json-schema@^3.24.6:
   resolved "https://registry.npmmirror.com/zod-to-json-schema/-/zod-to-json-schema-3.24.6.tgz#5920f020c4d2647edfbb954fa036082b92c9e12d"
   integrity sha512-h/z3PKvcTcTetyjl1fkj79MHNEjm+HpD6NXheWjzOekY7kV+lwDYnHw+ivHkijnCSMz1yJaWBD9vu/Fcmk+vEg==
 
-zod@^3.23.8, zod@^3.25.67, zod@^3.25.69:
+zod@^3.23.8, zod@^3.25.67:
   version "3.25.69"
   resolved "https://registry.npmmirror.com/zod/-/zod-3.25.69.tgz#bf63dd5b91b28a02424395e13cb1abf5146d9084"
   integrity sha512-cjUx+boz8dfYGssYKLGNTF5VUF6NETpcZCDTN3knhUUXQTAAvErzRhV3pgeCZm2YsL4HOwtEHPonlsshPu2I0A==
+
+zod@^4.0.5:
+  version "4.0.5"
+  resolved "https://registry.npmmirror.com/zod/-/zod-4.0.5.tgz#b47825f318e7884d94bcd6f5385a1de805ccfb1c"
+  integrity sha512-/5UuuRPStvHXu7RS+gmvRf4NXrNxpSllGwDnCBcJZtQsKrviYXm54yDGV2KYNLT5kq0lHGcl7lqWJLgSaG+tgA==
 
 zwitch@^2.0.0, zwitch@^2.0.4:
   version "2.0.4"
