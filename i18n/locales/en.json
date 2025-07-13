@@ -38,7 +38,8 @@
       "captcha": "Captcha",
       "captchaPlaceholder": "Please enter the captcha",
       "terms": "Terms of Service",
-      "agreeToTerms": "I have read and agree to the terms of service",
+      "agreeToTerms": "I have read and agree to",
+      "termsLink": "Terms of Service",
       "signUpButton": "Sign Up",
       "haveAccount": "Already have an account?",
       "loginPrompt": "Log in now"

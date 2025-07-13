@@ -38,7 +38,8 @@
       "captcha": "验证码",
       "captchaPlaceholder": "请输入验证码",
       "terms": "服务条款",
-      "agreeToTerms": "我已阅读并同意服务条款",
+      "agreeToTerms": "我已阅读并同意",
+      "termsLink": "服务条款",
       "signUpButton": "注册",
       "haveAccount": "已有账号？",
       "loginPrompt": "立即登录"

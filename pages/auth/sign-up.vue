@@ -71,7 +71,7 @@ function handleSubmit() {
 <template>
   <div class="w-full lg:grid lg:min-h-[600px] lg:grid-cols-2 xl:min-h-[800px]">
     <div class="flex items-center justify-center py-12">
-      <form class="mx-auto grid w-[350px] gap-6" @submit.prevent="handleSubmit">
+      <form class="mx-auto grid w-[400px] gap-6" @submit.prevent="handleSubmit">
         <div class="grid gap-2 text-center">
           <h1 class="text-3xl font-bold">{{ $t('auth.signUp.signUpPrompt') }}</h1>
           <p class="text-balance text-muted-foreground">
@@ -89,17 +89,16 @@ function handleSubmit() {
             <div class="grid gap-2">
               <Label for="username">{{ $t('auth.signUp.username') }}</Label>
               <Input id="username" v-model="form.username" type="text"
-                placeholder="{{ $t('auth.signUp.usernamePlaceholder') }}" required />
+                :placeholder="$t('auth.signUp.usernamePlaceholder')" required />
             </div>
             <div class="grid gap-2">
               <Label for="displayName">{{ $t('auth.signUp.displayName') }}</Label>
               <Input id="displayName" v-model="form.displayName" type="text"
-                placeholder="{{ $t('auth.signUp.displayNamePlaceholder') }}" required />
+                :placeholder="$t('auth.signUp.displayNamePlaceholder')" required />
             </div>
             <div class="grid gap-2">
               <Label for="phone">{{ $t('auth.signUp.phone') }}</Label>
-              <Input id="phone" v-model="form.phone" type="tel"
-                placeholder="{{ $t('auth.signUp.phonePlaceholder') }}" />
+              <Input id="phone" v-model="form.phone" type="tel" :placeholder="$t('auth.signUp.phonePlaceholder')" />
             </div>
             <!-- 替换生日输入框为日期选择器 -->
             <div class="grid gap-2">
@@ -123,40 +122,41 @@ function handleSubmit() {
             <div class="grid gap-2">
               <Label for="location">{{ $t('auth.signUp.location') }}</Label>
               <Input id="location" v-model="form.location" type="text"
-                placeholder="{{ $t('auth.signUp.locationPlaceholder') }}" />
+                :placeholder="$t('auth.signUp.locationPlaceholder')" />
             </div>
           </div>
           <!-- 简介单独一列 -->
           <div class="grid gap-2">
             <Label for="bio">{{ $t('auth.signUp.bio') }}</Label>
-            <Input id="bio" v-model="form.bio" type="text" placeholder="{{ $t('auth.signUp.bioPlaceholder') }}" />
+            <Input id="bio" v-model="form.bio" type="text" :placeholder="$t('auth.signUp.bioPlaceholder')" />
           </div>
           <!-- 密码和确认密码单独一列 -->
           <div class="grid grid-cols-2 gap-4">
             <div class="grid gap-2">
               <Label for="password">{{ $t('auth.signUp.password') }}</Label>
               <Input id="password" v-model="form.password" type="password"
-                placeholder="{{ $t('auth.signUp.passwordPlaceholder') }}" required />
+                :placeholder="$t('auth.signUp.passwordPlaceholder')" required />
             </div>
             <div class="grid gap-2">
               <Label for="confirmPassword">{{ $t('auth.signUp.confirmPassword') }}</Label>
               <Input id="confirmPassword" v-model="form.confirmPassword" type="password"
-                placeholder="{{ $t('auth.signUp.confirmPasswordPlaceholder') }}" required />
+                :placeholder="$t('auth.signUp.confirmPasswordPlaceholder')" required />
             </div>
           </div>
           <!-- 验证码和服务条款并列 -->
           <div class="grid grid-cols-2 gap-4">
             <div class="grid gap-2">
               <Label for="captcha">{{ $t('auth.signUp.captcha') }}</Label>
-              <Input id="captcha" v-model="form.captcha" type="text"
-                placeholder="{{ $t('auth.signUp.captchaPlaceholder') }}" required />
+              <Input id="captcha" v-model="form.captcha" type="text" :placeholder="$t('auth.signUp.captchaPlaceholder')"
+                required />
             </div>
             <div class="flex items-center gap-x-2 mt-6">
               <Checkbox id="terms1" v-model:checked="form.agreeToTerms" />
               <div class="grid gap-1.5 leading-none">
                 <label for="terms1"
                   class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  我已阅读并同意 <a href="/terms" class="underline text-blue-600">服务条款</a>
+                  {{ $t('auth.signUp.agreeToTerms') }} <a href="/terms" class="underline text-blue-600">{{
+                    $t('auth.signUp.termsLink') }}</a>
                 </label>
               </div>
             </div>
