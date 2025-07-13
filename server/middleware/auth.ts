@@ -12,7 +12,8 @@ const WHITE_LIST = [
 export default defineEventHandler(async event => {
   const url = getRequestURL(event).pathname;
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   // 判断是否命中白名单前缀
@@ -34,7 +35,10 @@ export default defineEventHandler(async event => {
     });
   }
   try {
-    const payload = jwt.verify(token, runtimeConfig.accessSecret);
+    const payload = jwt.verify(
+      token,
+      runtimeConfig.accessSecret
+    );
     event.context.auth = payload;
 
     const auth: Auth = payload as Auth;
@@ -67,5 +71,7 @@ export default defineEventHandler(async event => {
         timestamp: new Date().toISOString()
       } as ErrorResponse
     });
+  } finally {
+    await connection.close();
   }
 });

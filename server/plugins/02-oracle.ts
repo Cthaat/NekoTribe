@@ -12,9 +12,10 @@ async function initOraclePool() {
       connectString: `${runtimeConfig.oracleHost}:${runtimeConfig.oraclePort}/${runtimeConfig.oracleServiceName}`,
       poolMin: Number(runtimeConfig.oraclePoolMin) || 2,
       poolMax: Number(runtimeConfig.oraclePoolMax) || 10,
-      poolIncrement: Number(runtimeConfig.oraclePoolIncrement) || 1,
+      poolIncrement:
+        Number(runtimeConfig.oraclePoolIncrement) || 1,
       poolTimeout: 300,
-      queueMax: 0,
+      queueMax: 100,
       queueTimeout: 60000
     });
     console.log('Oracle 连接池已创建');
