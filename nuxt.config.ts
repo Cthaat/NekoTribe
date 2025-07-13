@@ -13,7 +13,8 @@ export default defineNuxtConfig({
     '@nuxt/image',
     '@nuxt/ui',
     'shadcn-nuxt',
-    '@nuxtjs/color-mode'
+    '@nuxtjs/color-mode',
+    '@nuxtjs/i18n'
   ],
 
   css: ['~/assets/css/tailwind.css'],
@@ -36,6 +37,15 @@ export default defineNuxtConfig({
      * @default "./components/ui"
      */
     componentDir: './components/ui'
+  },
+
+  i18n: {
+    locales: [
+      { code: 'en', name: 'English', file: 'en.json' },
+      { code: 'cn', name: 'Chinese', file: 'nl.json' }
+    ],
+    defaultLocale: 'en', // 默认语言
+    vueI18n: './i18n.config.ts' // 指向一个单独的 vue-i18n 配置文件
   },
 
   nitro: {
@@ -83,7 +93,9 @@ export default defineNuxtConfig({
     smtpUser: process.env.SMTP_USER,
     smtpPass: process.env.SMTP_PASS,
     public: {
-      wsUrl: process.env.NUXT_PUBLIC_WS_URL || 'ws://localhost:3001'
+      wsUrl:
+        process.env.NUXT_PUBLIC_WS_URL ||
+        'ws://localhost:3001'
     }
   }
 });
