@@ -73,6 +73,8 @@ async function onValidSubmit(values: Record<string, any>) {
 
     // 请求成功，$fetch 直接返回 JSON 响应体
     console.log('登录成功:', response)
+    // 输出cookie
+    console.log('Cookies:', document.cookie)
 
     // 使用 vue-sonner 的 toast 来显示成功信息，而不是 alert
     toast.success(t('auth.login.loginSuccess'), {
