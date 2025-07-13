@@ -51,7 +51,7 @@ useHead({
           </Button>
         </div>
         <div class="mt-4 text-center text-sm">
-          {{ $t('auth.login.email') }}
+          {{ $t('auth.login.noAccount') }}
           <a href="#" class="underline">
             Sign up
           </a>
