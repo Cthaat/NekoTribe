@@ -187,7 +187,9 @@ class WSSessionManager {
    * 定期调用此方法可以清理长时间不活跃的连接
    * 避免内存泄漏和资源浪费
    */
-  cleanupInactiveSessions(timeoutMs: number = 30 * 60 * 1000): void {
+  cleanupInactiveSessions(
+    timeoutMs: number = 30 * 60 * 1000
+  ): void {
     const now = Date.now(); // 当前时间戳
     const expiredSessions: string[] = []; // 存储过期会话ID的数组
 
@@ -206,7 +208,9 @@ class WSSessionManager {
 
     // 如果清理了会话，记录日志
     if (expiredSessions.length > 0) {
-      console.log(`清理了 ${expiredSessions.length} 个超时会话`);
+      console.log(
+        `清理了 ${expiredSessions.length} 个超时会话`
+      );
     }
   }
 }
