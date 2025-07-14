@@ -2,10 +2,15 @@ export default defineEventHandler(async event => {
   // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
   // 获取 tweetId 路径参数
-  const userId: string = getRouterParam(event, 'userId') as string;
+  const userId: string = getRouterParam(
+    event,
+    'userId'
+  ) as string;
 
   // 获取 query 参数
-  const query: TweetFollowerPayload = getQuery(event) as TweetFollowerPayload;
+  const query: TweetFollowerPayload = getQuery(
+    event
+  ) as TweetFollowerPayload;
 
   // 提取参数
   const { page = 1, pageSize = 10 } = query;
@@ -23,7 +28,8 @@ export default defineEventHandler(async event => {
     });
   }
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -62,22 +68,27 @@ export default defineEventHandler(async event => {
     });
 
     // 获取总数
-    const totalCountResult = await connection.execute(followerCountSql, {
-      userId
-    });
-
-    const totalCount = totalCountResult.rows[0][0] as number;
-
-    const followers: TweetGetFollowerItem[] = await Promise.all(
-      result.rows.map(
-        async (row: TweetGetFollowerRow) =>
-          ({
-            displayName: row[0],
-            avatarUrl: row[1],
-            rn: row[2]
-          }) as TweetGetFollowerItem
-      )
+    const totalCountResult = await connection.execute(
+      followerCountSql,
+      {
+        userId
+      }
     );
+
+    const totalCount = totalCountResult
+      .rows[0][0] as number;
+
+    const followers: TweetGetFollowerItem[] =
+      await Promise.all(
+        result.rows.map(
+          async (row: TweetGetFollowerRow) =>
+            ({
+              displayName: row[0],
+              avatarUrl: row[1],
+              rn: row[2]
+            }) as TweetGetFollowerItem
+        )
+      );
 
     return {
       success: true,
