@@ -17,7 +17,8 @@ export default defineEventHandler(async event => {
     });
   }
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -33,7 +34,8 @@ export default defineEventHandler(async event => {
       user_id: user.userId
     });
 
-    const rows: TweetGetRow[] = result.rows as TweetGetRow[];
+    const rows: TweetGetRow[] =
+      result.rows as TweetGetRow[];
     if (rows.length === 0) {
       throw createError({
         statusCode: 404,
