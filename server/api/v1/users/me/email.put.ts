@@ -7,7 +7,8 @@ export default defineEventHandler(
     const user: Auth = event.context.auth as Auth;
     const body = await readBody<ResetEmailPayload>(event);
 
-    const getOracleConnection = event.context.getOracleConnection;
+    const getOracleConnection =
+      event.context.getOracleConnection;
 
     if (!body || !body.resettoken) {
       throw createError({
