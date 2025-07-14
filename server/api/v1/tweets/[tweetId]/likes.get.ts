@@ -5,7 +5,9 @@ export default defineEventHandler(async event => {
   const tweetId = getRouterParam(event, 'tweetId');
 
   // 获取 query 参数
-  const query: TweetLikesPayload = getQuery(event) as TweetLikesPayload;
+  const query: TweetLikesPayload = getQuery(
+    event
+  ) as TweetLikesPayload;
 
   // 提取参数
   const { page = 1, pageSize = 10 } = query;
@@ -23,7 +25,8 @@ export default defineEventHandler(async event => {
     });
   }
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -58,12 +61,16 @@ export default defineEventHandler(async event => {
     });
 
     // 获取总数
-    const countResult = await connection.execute(likesCountSql, {
-      tweet_id: tweetId
-    });
+    const countResult = await connection.execute(
+      likesCountSql,
+      {
+        tweet_id: tweetId
+      }
+    );
 
     // 提取总数
-    const totalCount: number = countResult.rows[0][0] as number;
+    const totalCount: number = countResult
+      .rows[0][0] as number;
 
     // 处理点赞数据
     const likes: TweetGetReLikesItem[] = await Promise.all(
