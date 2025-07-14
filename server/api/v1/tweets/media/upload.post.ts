@@ -9,7 +9,8 @@ export default defineEventHandler(async event => {
   const user: Auth = event.context.auth as Auth;
 
   // 获取 Oracle 数据库连接
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   // 确保临时目录存在
@@ -62,11 +63,17 @@ export default defineEventHandler(async event => {
         const altText = Array.isArray(fields.altText)
           ? fields.altText[0]
           : fields.altText;
-        const description = Array.isArray(fields.description)
+        const description = Array.isArray(
+          fields.description
+        )
           ? fields.description[0]
           : fields.description;
 
-        console.log('接收到的参数:', { tweetId, altText, description });
+        console.log('接收到的参数:', {
+          tweetId,
+          altText,
+          description
+        });
         console.log('接收到的文件:', files);
 
         // 检查必需参数
@@ -91,13 +98,17 @@ export default defineEventHandler(async event => {
           WHERE tweet_id = :tweetId AND author_id = :userId
         `;
 
-        const checkCount = await connection.execute(checkSql, {
-          userId: user.userId,
-          tweetId: tweetId
-        });
+        const checkCount = await connection.execute(
+          checkSql,
+          {
+            userId: user.userId,
+            tweetId: tweetId
+          }
+        );
 
         // 提取总数
-        const totalCount: number = checkCount.rows[0][0] as number;
+        const totalCount: number = checkCount
+          .rows[0][0] as number;
 
         if (totalCount === 0) {
           throw createError({
@@ -116,7 +127,8 @@ export default defineEventHandler(async event => {
         const mediaFiles = files.file;
         if (
           !mediaFiles ||
-          (Array.isArray(mediaFiles) && mediaFiles.length === 0)
+          (Array.isArray(mediaFiles) &&
+            mediaFiles.length === 0)
         ) {
           return reject(
             createError({
@@ -139,18 +151,28 @@ export default defineEventHandler(async event => {
           'media',
           tweetId.toString()
         );
-        await fs.promises.mkdir(uploadDir, { recursive: true });
+        await fs.promises.mkdir(uploadDir, {
+          recursive: true
+        });
 
         // 确保缩略图目录存在
-        const thumbnailDir = path.join(uploadDir, 'thumbnails');
-        await fs.promises.mkdir(thumbnailDir, { recursive: true });
+        const thumbnailDir = path.join(
+          uploadDir,
+          'thumbnails'
+        );
+        await fs.promises.mkdir(thumbnailDir, {
+          recursive: true
+        });
 
         // 处理单个文件或多个文件
         const filesToProcess = Array.isArray(mediaFiles)
           ? mediaFiles
           : [mediaFiles];
 
-        console.log('待处理文件数量:', filesToProcess.length);
+        console.log(
+          '待处理文件数量:',
+          filesToProcess.length
+        );
 
         // 逐个处理文件
         for (let i = 0; i < filesToProcess.length; i++) {
@@ -164,13 +186,21 @@ export default defineEventHandler(async event => {
 
           // 检查文件是否存在
           try {
-            await fs.promises.access(file.filepath, fs.constants.F_OK);
+            await fs.promises.access(
+              file.filepath,
+              fs.constants.F_OK
+            );
           } catch (accessError) {
-            console.error(`文件不存在: ${file.filepath}`, accessError);
+            console.error(
+              `文件不存在: ${file.filepath}`,
+              accessError
+            );
             // 清理已上传的文件
             for (const uploadedFile of uploadedFiles) {
               try {
-                await fs.promises.unlink(uploadedFile.fullPath);
+                await fs.promises.unlink(
+                  uploadedFile.fullPath
+                );
               } catch (e) {
                 console.error('清理文件失败:', e);
               }
@@ -207,7 +237,9 @@ export default defineEventHandler(async event => {
             // 清理已上传的文件
             for (const uploadedFile of uploadedFiles) {
               try {
-                await fs.promises.unlink(uploadedFile.fullPath);
+                await fs.promises.unlink(
+                  uploadedFile.fullPath
+                );
               } catch (e) {
                 console.error('清理文件失败:', e);
               }
@@ -218,7 +250,8 @@ export default defineEventHandler(async event => {
                 statusMessage: 'Bad Request',
                 data: {
                   success: false,
-                  message: '上传文件不符合要求: ' + check.message,
+                  message:
+                    '上传文件不符合要求: ' + check.message,
                   code: 400,
                   timestamp: new Date().toISOString()
                 } as ErrorResponse
@@ -227,16 +260,26 @@ export default defineEventHandler(async event => {
           }
 
           // 获取原始扩展名
-          const ext = path.extname(file.originalFilename || file.filepath);
+          const ext = path.extname(
+            file.originalFilename || file.filepath
+          );
           // 生成唯一文件名
           const uniqueName = `${tweetId}_${Date.now()}_${Math.floor(Math.random() * 10000)}${ext}`;
           // 新文件完整路径
-          const newFilePath = path.join(uploadDir, uniqueName);
+          const newFilePath = path.join(
+            uploadDir,
+            uniqueName
+          );
 
           try {
             // 移动文件到目标目录
-            await fs.promises.rename(file.filepath, newFilePath);
-            console.log(`文件移动成功: ${file.filepath} -> ${newFilePath}`);
+            await fs.promises.rename(
+              file.filepath,
+              newFilePath
+            );
+            console.log(
+              `文件移动成功: ${file.filepath} -> ${newFilePath}`
+            );
 
             // 记录上传成功的文件信息
             uploadedFiles.push({
@@ -257,7 +300,9 @@ export default defineEventHandler(async event => {
             // 清理已上传的文件
             for (const uploadedFile of uploadedFiles) {
               try {
-                await fs.promises.unlink(uploadedFile.fullPath);
+                await fs.promises.unlink(
+                  uploadedFile.fullPath
+                );
               } catch (e) {
                 console.error('清理文件失败:', e);
               }
@@ -268,7 +313,9 @@ export default defineEventHandler(async event => {
                 statusMessage: 'Internal Server Error',
                 data: {
                   success: false,
-                  message: '媒体文件保存失败: ' + moveError.message,
+                  message:
+                    '媒体文件保存失败: ' +
+                    moveError.message,
                   code: 500,
                   timestamp: new Date().toISOString()
                 } as ErrorResponse
@@ -303,7 +350,8 @@ export default defineEventHandler(async event => {
                 width: fileInfo.width || null,
                 height: fileInfo.height || null,
                 duration: fileInfo.duration || null,
-                thumbnailPath: fileInfo.thumbnailPath || null,
+                thumbnailPath:
+                  fileInfo.thumbnailPath || null,
                 altText: altText || null,
                 isProcessed:
                   fileInfo.width ||
@@ -353,7 +401,9 @@ export default defineEventHandler(async event => {
           // 数据库操作失败，清理已上传的文件和缩略图
           for (const uploadedFile of uploadedFiles) {
             try {
-              await fs.promises.unlink(uploadedFile.fullPath);
+              await fs.promises.unlink(
+                uploadedFile.fullPath
+              );
               // 如果有缩略图，也要删除
               if (uploadedFile.thumbnailPath) {
                 const thumbnailFullPath = path.join(
@@ -374,7 +424,8 @@ export default defineEventHandler(async event => {
               statusMessage: 'Internal Server Error',
               data: {
                 success: false,
-                message: '数据库操作失败: ' + dbError.message,
+                message:
+                  '数据库操作失败: ' + dbError.message,
                 code: 500,
                 timestamp: new Date().toISOString()
               } as ErrorResponse
