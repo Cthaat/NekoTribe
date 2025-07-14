@@ -1,7 +1,8 @@
 export default defineEventHandler(async event => {
   const body = await readBody<UpdateUserInfoPayload>(event);
   const user: Auth = event.context.auth as Auth;
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -38,7 +39,8 @@ export default defineEventHandler(async event => {
         statusMessage: 'Bad Request',
         data: {
           success: false,
-          message: '用户信息更新失败，可能是用户不存在或数据不合法',
+          message:
+            '用户信息更新失败，可能是用户不存在或数据不合法',
           code: 400,
           timestamp: new Date().toISOString()
         } as ErrorResponse
