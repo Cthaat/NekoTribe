@@ -3,12 +3,15 @@ export default defineEventHandler(async event => {
   const user: Auth = event.context.auth as Auth;
 
   // 获取 query 参数
-  const query: TweetBlockedPayload = getQuery(event) as TweetBlockedPayload;
+  const query: TweetBlockedPayload = getQuery(
+    event
+  ) as TweetBlockedPayload;
 
   // 提取参数
   const { page = 1, pageSize = 10 } = query;
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -48,11 +51,15 @@ export default defineEventHandler(async event => {
     });
 
     // 获取总数
-    const totalCountResult = await connection.execute(blockedCountSql, {
-      userId: user.userId
-    });
+    const totalCountResult = await connection.execute(
+      blockedCountSql,
+      {
+        userId: user.userId
+      }
+    );
 
-    const totalCount = totalCountResult.rows[0][0] as number;
+    const totalCount = totalCountResult
+      .rows[0][0] as number;
 
     const followers: TweetBlockedItem[] = await Promise.all(
       result.rows.map(
