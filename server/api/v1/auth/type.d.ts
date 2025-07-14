@@ -51,7 +51,7 @@ interface GetVerificationPayload {
 }
 
 interface GetRandomCode {
-  (length?: number): number;
+  (length?: number): string;
 }
 
 interface GetVerificationResponse extends Response {

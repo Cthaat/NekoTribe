@@ -99,9 +99,26 @@ const isLoading = ref(false)
 
 const router = useRouter()
 
+// --- 新增：为验证码按钮添加状态 ---
+const isCaptchaSending = ref(false)
+const countdown = ref(60)
+let timer: ReturnType<typeof setInterval> | null = null // 用于存储定时器实例
+
 async function sendCaptcha() {
+  const { valid, errors } = await form.validateField('email');
+  if (!valid) {
+    toast.error('发送失败', {
+      description: errors[0] || '请输入有效的邮箱地址。',
+    });
+    return;
+  }
   // 获取邮箱
   const email = form.values.email;
+
+  // 2. 进入发送状态，禁用按钮
+  isCaptchaSending.value = true;
+  countdown.value = 60; // 重置倒计时
+
   try {
     // 1. 调用 API，等待它完成
     const response: any = await apiFetch('/api/v1/auth/get-verification', {
@@ -111,6 +128,26 @@ async function sendCaptcha() {
       },
     })
     console.log(response);
+
+    toast.success('发送成功', {
+      description: '验证码已发送，请注意查收。',
+    });
+
+    // 发送成功后，禁用按钮60秒，并且显示还剩多少时间
+
+    // 4. API 调用成功后，启动定时器
+    timer = setInterval(() => {
+      if (countdown.value > 0) {
+        countdown.value--;
+      } else {
+        // 倒计时结束
+        isCaptchaSending.value = false;
+        if (timer) {
+          clearInterval(timer);
+          timer = null;
+        }
+      }
+    }, 1000); // 每秒执行一次
   } catch (error: any) {
     // 错误处理逻辑保持不变
     console.error('验证码发送失败:', error.data);
@@ -119,6 +156,14 @@ async function sendCaptcha() {
     })
   }
 }
+
+// 在组件卸载时清除定时器，防止内存泄漏 (最佳实践)
+import { onUnmounted } from 'vue'
+onUnmounted(() => {
+  if (timer) {
+    clearInterval(timer);
+  }
+})
 
 async function onValidSubmit(values: Record<string, any>) {
   isLoading.value = true
@@ -349,8 +394,16 @@ const handleCheckboxChange = (checked: boolean) => {
         按钮现在是 Flexbox 的一部分，它会自动收缩以适应其内容大小。
         type="button" 很重要，可以防止它意外触发表单提交。
       -->
-                <Button type="button" @click="sendCaptcha">
-                  {{ $t('auth.signUp.sendCaptcha') }}
+                <Button type="button" @click="sendCaptcha" :disabled="isCaptchaSending">
+                  <!-- 
+    使用 v-if 和 v-else 来根据 isCaptchaSending 的状态显示不同的文本
+  -->
+                  <span v-if="isCaptchaSending">
+                    {{ countdown }} 秒后重试
+                  </span>
+                  <span v-else>
+                    {{ $t('auth.signUp.sendCaptcha') }}
+                  </span>
                 </Button>
               </div>
               <FormMessage />
