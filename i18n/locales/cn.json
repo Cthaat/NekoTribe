@@ -24,7 +24,10 @@
       "accountPlaceholder": "请输入您的账号",
       "accountRequired": "账号不能为空",
       "loginSuccess": "登录成功",
-      "welcomeBack": "欢迎回来"
+      "welcomeBack": "欢迎回来",
+      "successLogin": "登录成功,即将跳转到首页...",
+      "loginFailed": "登录失败,请检查您的账号和密码是否正确。",
+      "unknownError": "发生未知错误，请稍后再试。"
     },
     "signUp": {
       "title": "注册",

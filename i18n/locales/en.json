@@ -24,7 +24,10 @@
       "accountPlaceholder": "Please enter your account",
       "accountRequired": "Account is required",
       "loginSuccess": "Login successful",
-      "welcomeBack": "Welcome back"
+      "welcomeBack": "Welcome back",
+      "successLogin": "Login successful, redirecting to homepage...",
+      "loginFailed": "Login failed, please check your account and password.",
+      "unknownError": "An unknown error occurred, please try again later."
     },
     "signUp": {
       "title": "Sign Up",

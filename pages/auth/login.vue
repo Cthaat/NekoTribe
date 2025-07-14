@@ -88,16 +88,18 @@ async function onValidSubmit(values: Record<string, any>) {
     // 2. 成功后，唯一要做的就是导航！
     //    使用 await 确保导航被正确触发。
     //    让中间件和目标页面去担心登录状态。
-    console.log('登录成功，即将跳转...', response);
-    toast('登录成功,正在跳转到首页...', {
-      description: '欢迎回来！'
+    console.log(t('auth.login.successLogin'), response);
+    toast(t('auth.login.successLogin'), {
+      description:
+        t('auth.login.welcomeBack') +
+        ` ${response.data.user.userInfo.displayName || '用户'}`
     });
     await navigateTo('/');
   } catch (error: any) {
     // 错误处理逻辑保持不变
-    console.error('登录失败:', error.data);
-    toast.error('登录失败', {
-      description: error.data?.message || '未知错误'
+    console.error(t('auth.login.loginFailed'), error.data);
+    toast.error(t('auth.login.loginFailed'), {
+      description: error.data?.message || t('auth.login.unknownError')
     });
   } finally {
     isLoading.value = false;
