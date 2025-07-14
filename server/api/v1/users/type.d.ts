@@ -83,7 +83,7 @@ interface UpdateUserInfoResponse extends Response {
 
 // ========================== me/avatar.post ======================================
 
-interface SuccessUploadResponse extends Response {
+interface SuccessUploadAvatarResponse extends Response {
   success: true;
   message: string;
   data: {

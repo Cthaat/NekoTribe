@@ -9,7 +9,8 @@ export default defineEventHandler(async event => {
   const user: Auth = event.context.auth as Auth;
 
   // 获取 Oracle 数据库连接
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   // 创建 formidable 实例，配置上传参数
@@ -20,9 +21,12 @@ export default defineEventHandler(async event => {
   });
 
   // 确保上传目录存在
-  await fs.promises.mkdir(`./public/avatars/${user.userId}`, {
-    recursive: true
-  });
+  await fs.promises.mkdir(
+    `./public/avatars/${user.userId}`,
+    {
+      recursive: true
+    }
+  );
 
   // 返回 Promise 处理异步上传
   return new Promise((resolve, reject) => {
@@ -62,7 +66,8 @@ export default defineEventHandler(async event => {
       if (avatarFiles.length > 1) {
         // 超过一个文件，删除所有临时文件
         for (const f of avatarFiles) {
-          if (f.filepath) await fs.promises.unlink(f.filepath);
+          if (f.filepath)
+            await fs.promises.unlink(f.filepath);
         }
         return reject(
           createError({
@@ -85,14 +90,16 @@ export default defineEventHandler(async event => {
         await checkAvatarFile(file);
       if (!check.valid) {
         // 不合规，删除临时文件
-        if (file.filepath) await fs.promises.unlink(file.filepath);
+        if (file.filepath)
+          await fs.promises.unlink(file.filepath);
         return reject(
           createError({
             statusCode: 402,
             statusMessage: 'Bad Request',
             data: {
               success: false,
-              message: '上传文件不符合要求: ' + check.message,
+              message:
+                '上传文件不符合要求: ' + check.message,
               code: 402,
               timestamp: new Date().toISOString()
             } as ErrorResponse
@@ -101,7 +108,9 @@ export default defineEventHandler(async event => {
       }
 
       // 获取原始扩展名
-      const ext = path.extname(file.originalFilename || file.filepath);
+      const ext = path.extname(
+        file.originalFilename || file.filepath
+      );
       // 生成唯一文件名
       const uniqueName = `${user.userId}_${Date.now()}_${Math.floor(Math.random() * 10000)}${ext}`;
       // 新文件完整路径
@@ -112,7 +121,10 @@ export default defineEventHandler(async event => {
 
       try {
         // 重命名文件，防止重复
-        await fs.promises.rename(file.filepath, newFilePath);
+        await fs.promises.rename(
+          file.filepath,
+          newFilePath
+        );
       } catch (e) {
         return reject(
           createError({
@@ -170,7 +182,7 @@ export default defineEventHandler(async event => {
             url: avatarPath
           },
           timestamp: new Date().toISOString()
-        } as SuccessUploadResponse);
+        } as SuccessUploadAvatarResponse);
       } finally {
         // 关闭数据库连接
         await connection.close();
