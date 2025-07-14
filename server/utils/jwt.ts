@@ -5,7 +5,8 @@ import type { Secret, SignOptions } from 'jsonwebtoken';
 const runtimeConfig = useRuntimeConfig();
 
 const JWT_SECRET: Secret =
-  runtimeConfig.jwtSecret || 'your-super-secret-key-change-in-production';
+  runtimeConfig.jwtSecret ||
+  'your-super-secret-key-change-in-production';
 const JWT_EXPIRES_IN = runtimeConfig.jwtExpiresIn || '7d';
 
 /**
@@ -21,7 +22,9 @@ export interface UserPayload {
 /**
  * 生成 JWT Token
  */
-export function generateToken(payload: UserPayload): string {
+export function generateToken(
+  payload: UserPayload
+): string {
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: '7d',
     issuer: 'NekoTribe',
@@ -32,7 +35,9 @@ export function generateToken(payload: UserPayload): string {
 /**
  * 验证 JWT Token
  */
-export function verifyToken(token: string): UserPayload | null {
+export function verifyToken(
+  token: string
+): UserPayload | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET, {
       issuer: 'NekoTribe',
@@ -75,7 +80,9 @@ export function extractTokenFromQuery(
 /**
  * 生成刷新 Token
  */
-export function generateRefreshToken(payload: UserPayload): string {
+export function generateRefreshToken(
+  payload: UserPayload
+): string {
   const refreshPayload = { ...payload, type: 'refresh' };
   const options: SignOptions = {
     expiresIn: '30d',
@@ -89,7 +96,9 @@ export function generateRefreshToken(payload: UserPayload): string {
 /**
  * 验证刷新 Token
  */
-export function verifyRefreshToken(token: string): UserPayload | null {
+export function verifyRefreshToken(
+  token: string
+): UserPayload | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET, {
       issuer: 'NekoTribe',

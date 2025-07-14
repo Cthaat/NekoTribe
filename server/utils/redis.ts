@@ -271,7 +271,11 @@ export const REDIS_CHANNELS = {
  * 所有通过 WebSocket 传输的消息都应该遵循这个格式
  */
 export interface WSMessage {
-  type: 'broadcast' | 'user_message' | 'room_message' | 'system_notification'; // 消息类型
+  type:
+    | 'broadcast'
+    | 'user_message'
+    | 'room_message'
+    | 'system_notification'; // 消息类型
   from?: string; // 发送者标识（可选）
   to?: string; // 接收者标识（可选，用于私信）
   room?: string; // 房间标识（可选，用于房间消息）
@@ -291,23 +295,34 @@ export interface WSMessage {
  * 这个函数将消息发布到 Redis 频道，其他服务器实例可以订阅该频道来接收消息
  * 支持降级处理：当 Redis 不可用时，只记录日志不影响程序运行
  */
-export async function publishMessage(channel: string, message: WSMessage) {
+export async function publishMessage(
+  channel: string,
+  message: WSMessage
+) {
   // 如果 Redis 不可用，记录日志并直接返回（降级处理）
   if (!redisAvailable) {
-    console.log(`Redis 不可用，跳过发布消息到频道 ${channel}:`, message);
+    console.log(
+      `Redis 不可用，跳过发布消息到频道 ${channel}:`,
+      message
+    );
     return;
   }
 
   // 获取 Redis 发布者实例
   const publisher = getRedisPublisher();
   if (!publisher) {
-    console.log(`Redis 发布者不可用，跳过发布消息到频道 ${channel}`);
+    console.log(
+      `Redis 发布者不可用，跳过发布消息到频道 ${channel}`
+    );
     return;
   }
 
   try {
     // 将消息对象转换为 JSON 字符串并发布到指定频道
-    await publisher.publish(channel, JSON.stringify(message));
+    await publisher.publish(
+      channel,
+      JSON.stringify(message)
+    );
     console.log(`消息已发布到频道 ${channel}:`, message);
   } catch (error) {
     // 发布失败时记录错误，但不影响程序继续运行
@@ -336,7 +351,9 @@ export async function subscribeToChannel(
   // 获取 Redis 订阅者实例
   const subscriber = getRedisSubscriber();
   if (!subscriber) {
-    console.log(`Redis 订阅者不可用，跳过订阅频道 ${channel}`);
+    console.log(
+      `Redis 订阅者不可用，跳过订阅频道 ${channel}`
+    );
     return;
   }
 
@@ -346,7 +363,9 @@ export async function subscribeToChannel(
     if (error) {
       console.error(`订阅频道 ${channel} 失败:`, error);
     } else {
-      console.log(`成功订阅频道 ${channel}，当前订阅数量: ${count}`);
+      console.log(
+        `成功订阅频道 ${channel}，当前订阅数量: ${count}`
+      );
     }
   });
 
@@ -357,12 +376,16 @@ export async function subscribeToChannel(
     if (receivedChannel === channel) {
       try {
         // 将 JSON 字符串解析为消息对象
-        const parsedMessage: WSMessage = JSON.parse(message);
+        const parsedMessage: WSMessage =
+          JSON.parse(message);
         // 调用回调函数处理收到的消息
         callback(parsedMessage);
       } catch (error) {
         // 解析失败时记录错误
-        console.error(`解析频道 ${channel} 消息失败:`, error);
+        console.error(
+          `解析频道 ${channel} 消息失败:`,
+          error
+        );
       }
     }
   });

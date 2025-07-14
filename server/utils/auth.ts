@@ -6,8 +6,13 @@
  * @param token - 客户端传来的令牌
  * @returns 如果令牌有效，返回 userId，否则返回 null
  */
-export function verifyTokenAndGetUserId(token: string): string | null {
-  if (typeof token !== 'string' || !token.startsWith('fake-jwt-for-user-')) {
+export function verifyTokenAndGetUserId(
+  token: string
+): string | null {
+  if (
+    typeof token !== 'string' ||
+    !token.startsWith('fake-jwt-for-user-')
+  ) {
     return null;
   }
   // 简单地从令牌中提取 userId

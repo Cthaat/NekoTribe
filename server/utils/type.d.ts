@@ -1,5 +1,8 @@
 // ========================= mailer ===========================
-import type { Transporter, SentMessageInfo } from 'nodemailer';
+import type {
+  Transporter,
+  SentMessageInfo
+} from 'nodemailer';
 
 // 导出 EmailOptions 接口
 export interface EmailOptions {
@@ -17,5 +20,7 @@ export declare class Mailer {
   protected static getTransporter(): Transporter;
 
   // 发送邮件
-  static sendMail(options: EmailOptions): Promise<SentMessageInfo>;
+  static sendMail(
+    options: EmailOptions
+  ): Promise<SentMessageInfo>;
 }
