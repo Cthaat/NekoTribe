@@ -313,4 +313,6 @@ interface UserSearchErrorResponse {
 }
 
 // 用户搜索响应联合类型
-type UserSearchResponse = UserSearchSuccessResponse | UserSearchErrorResponse;
+type UserSearchResponse =
+  | UserSearchSuccessResponse
+  | UserSearchErrorResponse;
