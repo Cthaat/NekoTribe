@@ -64,7 +64,7 @@ async function onValidSubmit(values: Record<string, any>) {
 
   try {
     // 1. 调用 API，等待它完成
-    const response: any = await $fetch('/api/v1/auth/login', {
+    const response: any = await apiFetch('/api/v1/auth/login', {
       method: 'POST',
       body: values,
     })
