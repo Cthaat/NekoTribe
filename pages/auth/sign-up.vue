@@ -129,7 +129,7 @@ async function sendCaptcha() {
     })
     console.log(response);
 
-    toast.success('发送成功', {
+    toast('发送成功', {
       description: '验证码已发送，请注意查收。',
     });
 

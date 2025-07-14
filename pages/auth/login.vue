@@ -78,6 +78,9 @@ async function onValidSubmit(values: Record<string, any>) {
     //    使用 await 确保导航被正确触发。
     //    让中间件和目标页面去担心登录状态。
     console.log('登录成功，即将跳转...', response);
+    toast('登录成功,正在跳转到首页...', {
+      description: '欢迎回来！',
+    });
     await navigateTo('/');
 
   } catch (error: any) {
