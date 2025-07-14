@@ -4,9 +4,11 @@ import bcrypt from 'bcrypt';
 
 export default defineEventHandler(
   async (event): Promise<ResetPasswordResponse> => {
-    const body = await readBody<ResetPasswordPayload>(event);
+    const body =
+      await readBody<ResetPasswordPayload>(event);
 
-    const getOracleConnection = event.context.getOracleConnection;
+    const getOracleConnection =
+      event.context.getOracleConnection;
 
     if (!body || !body.resettoken) {
       throw createError({
@@ -50,9 +52,16 @@ export default defineEventHandler(
       });
     }
 
-    await verifyCode(body.email, body.resettoken, event.context.redis as Redis);
+    await verifyCode(
+      body.email,
+      body.resettoken,
+      event.context.redis as Redis
+    );
 
-    const hashedPassword: string = await bcrypt.hash(body.newPassword, 10);
+    const hashedPassword: string = await bcrypt.hash(
+      body.newPassword,
+      10
+    );
 
     const connection = await getOracleConnection();
 
