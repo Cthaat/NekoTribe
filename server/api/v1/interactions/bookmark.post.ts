@@ -6,7 +6,8 @@ export default defineEventHandler(async event => {
   // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -27,7 +28,9 @@ export default defineEventHandler(async event => {
         user_id: user.userId,
         target_tweet_id: body.tweetId,
         action:
-          body.bookmarkType === 'mark' || 'unmark' ? body.bookmarkType : 'mark',
+          body.bookmarkType === 'mark' || 'unmark'
+            ? body.bookmarkType
+            : 'mark',
         p_result: {
           dir: oracledb.BIND_OUT,
           type: oracledb.STRING,
