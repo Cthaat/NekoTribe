@@ -22,7 +22,8 @@ export default defineEventHandler(async event => {
 
   const userId = getRouterParam(event, 'userId');
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -44,9 +45,12 @@ export default defineEventHandler(async event => {
     `;
 
     // 执行查询
-    const result = await connection.execute(userEngagementStatsSql, {
-      userId: userId
-    });
+    const result = await connection.execute(
+      userEngagementStatsSql,
+      {
+        userId: userId
+      }
+    );
 
     // 处理查询结果
     const rows = result.rows as UserEngagementStatsRow[];
