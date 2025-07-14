@@ -1,6 +1,9 @@
 export default defineEventHandler(
-  async (event): Promise<TrendingHashtagsSuccessResponse> => {
-    const getOracleConnection = event.context.getOracleConnection;
+  async (
+    event
+  ): Promise<TrendingHashtagsSuccessResponse> => {
+    const getOracleConnection =
+      event.context.getOracleConnection;
     const connection = await getOracleConnection();
 
     try {
@@ -15,12 +18,14 @@ export default defineEventHandler(
 
       // 类型转换，确保数据结构正确
       const trendingHashtags: TrendingHashtag[] =
-        result.rows?.map((row: TrendingHashtagsDataRow) => ({
-          hashtag_id: row[0] as number,
-          tag_name: row[1] as string,
-          usage_count: row[2] as number,
-          trending_score: row[3] as number
-        })) || [];
+        result.rows?.map(
+          (row: TrendingHashtagsDataRow) => ({
+            hashtag_id: row[0] as number,
+            tag_name: row[1] as string,
+            usage_count: row[2] as number,
+            trending_score: row[3] as number
+          })
+        ) || [];
 
       return {
         success: true,
