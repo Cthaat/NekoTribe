@@ -8,12 +8,16 @@ export default defineNitroPlugin(nitroApp => {
   });
 
   // 响应发送前
-  nitroApp.hooks.hook('beforeResponse', (event, response) => {
-    const duration = Date.now() - (event.context._start || Date.now());
-    console.log(
-      `global-hooks:[${new Date().toISOString()}] 响应: ${event.path} 用时: ${duration}ms`
-    );
-  });
+  nitroApp.hooks.hook(
+    'beforeResponse',
+    (event, response) => {
+      const duration =
+        Date.now() - (event.context._start || Date.now());
+      console.log(
+        `global-hooks:[${new Date().toISOString()}] 响应: ${event.path} 用时: ${duration}ms`
+      );
+    }
+  );
 
   // 捕获全局错误
   nitroApp.hooks.hook('error', (error, event) => {
