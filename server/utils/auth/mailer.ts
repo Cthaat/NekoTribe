@@ -26,7 +26,9 @@ class Mailer {
   }
 
   // 静态异步方法，用于发送邮件
-  static async sendMail(options: EmailOptions): Promise<SentMessageInfo> {
+  static async sendMail(
+    options: EmailOptions
+  ): Promise<SentMessageInfo> {
     const transporter = this.getTransporter();
     return transporter.sendMail({
       from: runtimeConfig.smtpUser,
