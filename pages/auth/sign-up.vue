@@ -102,7 +102,22 @@ const router = useRouter()
 async function sendCaptcha() {
   // 获取邮箱
   const email = form.values.email;
-  
+  try {
+    // 1. 调用 API，等待它完成
+    const response: any = await apiFetch('/api/v1/auth/get-verification', {
+      method: 'POST',
+      body: {
+        account: email
+      },
+    })
+    console.log(response);
+  } catch (error: any) {
+    // 错误处理逻辑保持不变
+    console.error('验证码发送失败:', error.data);
+    toast.error('验证码发送失败', {
+      description: error.data?.message || '未知错误',
+    })
+  }
 }
 
 async function onValidSubmit(values: Record<string, any>) {
