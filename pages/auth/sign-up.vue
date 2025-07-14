@@ -16,6 +16,25 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { useI18n } from 'vue-i18n'
+import { h } from 'vue'
+import * as z from 'zod'
+import { toTypedSchema } from '@vee-validate/zod'
+import { useForm } from 'vee-validate'
+import { toast } from 'vue-sonner'
+import { useApiFetch } from '@/composables/useApiFetch' // 导入自定义的 useApiFetch 组合式 API
+import { apiFetch } from '@/composables/useApi'
+import { useRouter } from 'vue-router'
+import { usePreferenceStore } from '~/stores/user'; // 导入 store
+// 从你的 UI 库中导入这些基础表单组件
+import {
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+
+import { navigateTo } from '#app'
 
 const { t } = useI18n()
 
