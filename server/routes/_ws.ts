@@ -44,11 +44,14 @@ function initializeRedisSubscriptions() {
 
   // 订阅全局广播频道
   // 当有人发送广播消息时，这个回调函数会被执行
-  subscribeToChannel(REDIS_CHANNELS.BROADCAST, (message: WSMessage) => {
-    console.log('收到广播消息:', message);
-    // 将收到的广播消息转发给所有连接的客户端
-    broadcastToAllSessions(message);
-  });
+  subscribeToChannel(
+    REDIS_CHANNELS.BROADCAST,
+    (message: WSMessage) => {
+      console.log('收到广播消息:', message);
+      // 将收到的广播消息转发给所有连接的客户端
+      broadcastToAllSessions(message);
+    }
+  );
 
   // 订阅系统通知频道
   // 用于接收系统级别的通知消息
@@ -93,7 +96,8 @@ function broadcastToAllSessions(message: WSMessage) {
  */
 function sendToRoom(roomId: string, message: WSMessage) {
   // 获取指定房间内的所有会话
-  const roomSessions = sessionManager.getRoomSessions(roomId);
+  const roomSessions =
+    sessionManager.getRoomSessions(roomId);
 
   // 遍历房间内的每个会话，发送消息
   roomSessions.forEach(session => {
@@ -102,7 +106,10 @@ function sendToRoom(roomId: string, message: WSMessage) {
       session.peer.send(JSON.stringify(message));
     } catch (error) {
       // 记录发送失败的错误
-      console.error(`向房间 ${roomId} 发送消息失败:`, error);
+      console.error(
+        `向房间 ${roomId} 发送消息失败:`,
+        error
+      );
     }
   });
 }
@@ -167,7 +174,10 @@ export default defineWebSocketHandler({
     if (!session) return; // 如果会话不存在，直接返回
 
     // 4. 记录收到的消息到控制台
-    console.log(`[ws] 收到消息 - 会话: ${sessionId}`, message.text());
+    console.log(
+      `[ws] 收到消息 - 会话: ${sessionId}`,
+      message.text()
+    );
 
     try {
       // 5. 尝试将消息文本解析为 JSON 对象
@@ -235,7 +245,9 @@ export default defineWebSocketHandler({
         // 对于其他文本消息，简单回显
         const textMessage: WSMessage = {
           type: 'system_notification',
-          data: { message: `收到文本消息: ${message.text()}` },
+          data: {
+            message: `收到文本消息: ${message.text()}`
+          },
           timestamp: Date.now()
         };
         peer.send(JSON.stringify(textMessage));
@@ -254,7 +266,10 @@ export default defineWebSocketHandler({
 
     if (sessionId) {
       // 2. 记录连接关闭信息
-      console.log(`[ws] 连接已关闭 - 会话: ${sessionId}`, event);
+      console.log(
+        `[ws] 连接已关闭 - 会话: ${sessionId}`,
+        event
+      );
 
       // 3. 从会话管理器中移除该会话
       // 这会清理相关资源，包括从房间中移除用户
@@ -279,13 +294,19 @@ export default defineWebSocketHandler({
  * @param sessionId 发起请求的会话ID
  * @param data 请求数据，包含要加入的房间ID
  */
-async function handleJoinRoom(sessionId: string, data: any) {
+async function handleJoinRoom(
+  sessionId: string,
+  data: any
+) {
   // 1. 从请求数据中提取房间ID
   const { roomId } = data;
   if (!roomId) return; // 如果没有提供房间ID，直接返回
 
   // 2. 调用会话管理器的方法，将用户加入指定房间
-  const success = sessionManager.joinRoom(sessionId, roomId);
+  const success = sessionManager.joinRoom(
+    sessionId,
+    roomId
+  );
 
   // 3. 获取会话对象
   const session = sessionManager.getSession(sessionId);
@@ -322,7 +343,10 @@ async function handleJoinRoom(sessionId: string, data: any) {
  * @param sessionId 发起请求的会话ID
  * @param data 请求数据，包含要离开的房间ID
  */
-async function handleLeaveRoom(sessionId: string, data: any) {
+async function handleLeaveRoom(
+  sessionId: string,
+  data: any
+) {
   // 1. 从请求数据中提取房间ID
   const { roomId } = data;
   if (!roomId) return; // 如果没有提供房间ID，直接返回
@@ -331,7 +355,10 @@ async function handleLeaveRoom(sessionId: string, data: any) {
   const session = sessionManager.getSession(sessionId);
 
   // 3. 调用会话管理器的方法，将用户从指定房间中移除
-  const success = sessionManager.leaveRoom(sessionId, roomId);
+  const success = sessionManager.leaveRoom(
+    sessionId,
+    roomId
+  );
 
   // 4. 如果离开成功且会话存在，通知房间内的其他用户
   if (success && session) {
@@ -364,7 +391,10 @@ async function handleLeaveRoom(sessionId: string, data: any) {
  * @param sessionId 发送消息的会话ID
  * @param data 消息数据，包含房间ID和消息内容
  */
-async function handleRoomMessage(sessionId: string, data: any) {
+async function handleRoomMessage(
+  sessionId: string,
+  data: any
+) {
   // 1. 从请求数据中提取房间ID和消息内容
   const { roomId, message: messageText } = data;
   if (!roomId || !messageText) return; // 必须提供房间ID和消息内容
@@ -400,7 +430,10 @@ async function handleRoomMessage(sessionId: string, data: any) {
   };
 
   // 5. 将消息发布到 Redis，让其他服务器实例也能收到
-  await publishMessage(`${REDIS_CHANNELS.ROOM_MESSAGE}${roomId}`, roomMessage);
+  await publishMessage(
+    `${REDIS_CHANNELS.ROOM_MESSAGE}${roomId}`,
+    roomMessage
+  );
 
   // 6. 在本地服务器上向房间内的所有用户发送消息
   sendToRoom(roomId, roomMessage);
@@ -411,7 +444,10 @@ async function handleRoomMessage(sessionId: string, data: any) {
  * @param sessionId 发送广播的会话ID
  * @param data 广播数据，包含要广播的消息内容
  */
-async function handleBroadcast(sessionId: string, data: any) {
+async function handleBroadcast(
+  sessionId: string,
+  data: any
+) {
   // 1. 从请求数据中提取消息内容
   const { message: messageText } = data;
   if (!messageText) return; // 必须提供消息内容
@@ -435,7 +471,10 @@ async function handleBroadcast(sessionId: string, data: any) {
 
   // 4. 将广播消息发布到 Redis
   // 这确保所有服务器实例上的所有用户都能收到广播
-  await publishMessage(REDIS_CHANNELS.BROADCAST, broadcastMessage);
+  await publishMessage(
+    REDIS_CHANNELS.BROADCAST,
+    broadcastMessage
+  );
 
   // 5. 在本地服务器上向所有连接的用户广播消息
   broadcastToAllSessions(broadcastMessage);
