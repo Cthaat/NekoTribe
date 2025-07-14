@@ -3,7 +3,9 @@ export default defineEventHandler(async event => {
   const user: Auth = event.context.auth as Auth;
 
   // 获取 query 参数
-  const query: SearchPayload = getQuery(event) as SearchPayload;
+  const query: SearchPayload = getQuery(
+    event
+  ) as SearchPayload;
 
   const { q, limit = 10 } = query;
 
@@ -20,7 +22,8 @@ export default defineEventHandler(async event => {
     });
   }
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -56,27 +59,32 @@ export default defineEventHandler(async event => {
         `;
 
     // 获取首页推文
-    const tagResult = await connection.execute(tagSearchSql, {
-      q,
-      limit
-    });
+    const tagResult = await connection.execute(
+      tagSearchSql,
+      {
+        q,
+        limit
+      }
+    );
 
     // 处理搜索结果
     const hashtags =
       (await Promise.all(
-        tagResult.rows.map(async (row: HashtagSearchItemRow) => {
-          return {
-            hashtagId: row[0],
-            tagName: row[1],
-            tagNameLower: row[2],
-            usageCount: row[3],
-            trendingScore: row[4],
-            isTrending: row[5],
-            createdAt: row[6],
-            updatedAt: row[7],
-            relevanceScore: row[8]
-          } as HashtagSearchItem;
-        })
+        tagResult.rows.map(
+          async (row: HashtagSearchItemRow) => {
+            return {
+              hashtagId: row[0],
+              tagName: row[1],
+              tagNameLower: row[2],
+              usageCount: row[3],
+              trendingScore: row[4],
+              isTrending: row[5],
+              createdAt: row[6],
+              updatedAt: row[7],
+              relevanceScore: row[8]
+            } as HashtagSearchItem;
+          }
+        )
       )) || [];
 
     return {
