@@ -10,7 +10,10 @@ export default defineEventHandler(async event => {
       'versions',
       'oracle-server.json'
     );
-    const configData = await fs.promises.readFile(configPath, 'utf-8');
+    const configData = await fs.promises.readFile(
+      configPath,
+      'utf-8'
+    );
     const config = JSON.parse(configData);
 
     return {
