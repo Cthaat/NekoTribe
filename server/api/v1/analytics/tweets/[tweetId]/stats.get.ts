@@ -26,7 +26,8 @@ export default defineEventHandler(async event => {
 
   const tweetId = getRouterParam(event, 'tweetId');
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -45,9 +46,12 @@ export default defineEventHandler(async event => {
     `;
 
     // 执行查询
-    const result = await connection.execute(userEngagementStatsSql, {
-      tweetId: tweetId
-    });
+    const result = await connection.execute(
+      userEngagementStatsSql,
+      {
+        tweetId: tweetId
+      }
+    );
 
     // 处理查询结果
     const rows = result.rows as TweetInteractionRow[];
