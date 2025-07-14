@@ -61,7 +61,21 @@
       "signUpButton": "注册",
       "haveAccount": "已有账号？",
       "loginPrompt": "立即登录",
-      "sendCaptcha": "发送验证码"
+      "sendCaptcha": "发送验证码",
+      "emailInvalid": "请输入有效的电子邮件地址。",
+      "usernameRequired": "用户名不能为空",
+      "displayNameRequired": "显示名称不能为空",
+      "passwordTooShort": "密码至少需要6个字符",
+      "passwordMismatch": "两次输入的密码不一致",
+      "captchaSendError": "验证码发送失败，请稍后再试",
+      "captchaRequired": "验证码不能为空",
+      "captchaSent": "验证码已发送",
+      "captchaSentDescription": "请注意查收您的电子邮件或短信验证码。",
+      "unknownError": "发生未知错误，请稍后再试。",
+      "successRegister": "注册成功",
+      "redirectToLogin": "正在跳转到登录页面...",
+      "successRegisterDescription": "请使用您的新账号登录。",
+      "agreeToTermsChanged": "同意服务条款状态已改变"
     }
   }
 }
