@@ -1,12 +1,16 @@
 <template>
   <div>
+    <ClientOnly>
+      <Toaster />
+    </ClientOnly>
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
+import { Toaster } from "@/components/ui/sonner"
 useSeoMeta({
   title: 'NekoTribe',
   description: '社交媒体平台',
@@ -17,7 +21,6 @@ useSeoMeta({
   twitterTitle: 'NekoTribe',
   twitterDescription: '社交媒体平台',
   twitterImage: '/icon.png',
-  twitterCard: '呕心沥血之作🥵'
 });
 
 useHead({

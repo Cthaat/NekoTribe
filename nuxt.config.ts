@@ -15,7 +15,8 @@ export default defineNuxtConfig({
     'shadcn-nuxt',
     '@nuxtjs/color-mode',
     '@nuxtjs/i18n',
-    '@pinia/nuxt'
+    '@pinia/nuxt',
+    'vue-sonner/nuxt'
   ],
 
   css: ['~/assets/css/tailwind.css'],
