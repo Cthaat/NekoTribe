@@ -137,7 +137,7 @@ const onSubmit = form.handleSubmit(onValidSubmit)
         </form>
         <div class="mt-4 text-center text-sm">
           {{ $t('auth.login.noAccount') }}
-          <a href="#" class="underline">
+          <a href="/auth/sign-up" class="underline">
             {{ $t('auth.login.signUp') }}
           </a>
         </div>

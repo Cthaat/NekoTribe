@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-
+// 1. 导入 useField 来手动控制字段
+import { useField } from 'vee-validate'
 // 日期选择器相关导入
 import {
   DateFormatter,
@@ -25,6 +26,11 @@ import { useApiFetch } from '@/composables/useApiFetch' // 导入自定义的 us
 import { apiFetch } from '@/composables/useApi'
 import { useRouter } from 'vue-router'
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
+import {
+  PinInput,
+  PinInputGroup,
+  PinInputSlot,
+} from '@/components/ui/pin-input'
 // 从你的 UI 库中导入这些基础表单组件
 import {
   FormControl,
@@ -99,6 +105,8 @@ const isLoading = ref(false)
 
 const router = useRouter()
 
+const value = ref<string[]>([])
+
 // --- 新增：为验证码按钮添加状态 ---
 const isCaptchaSending = ref(false)
 const countdown = ref(60)
@@ -168,19 +176,22 @@ onUnmounted(() => {
 async function onValidSubmit(values: Record<string, any>) {
   isLoading.value = true
 
+  values.captcha = value.value.join('')
+
   try {
     // 1. 调用 API，等待它完成
-    // const response: any = await apiFetch('/api/v1/auth/login', {
-    //   method: 'POST',
-    //   body: values,
-    // })
+    const response: any = await apiFetch('/api/v1/auth/register', {
+      method: 'POST',
+      body: values,
+    })
 
     console.log('注册表单提交的值:', values);
 
     // 2. 成功后，唯一要做的就是导航！
     //    使用 await 确保导航被正确触发。
     //    让中间件和目标页面去担心登录状态。
-    // console.log('注册成功，即将跳转...', response);
+    toast("注册成功,正在转跳登录页面...")
+    console.log('注册成功，即将跳转...', response);
     await navigateTo('/auth/login');
 
   } catch (error: any) {
@@ -387,8 +398,12 @@ const handleCheckboxChange = (checked: boolean) => {
           flex-1 是关键，它告诉输入框：
           "占据所有可用的剩余空间"。
         -->
-                  <Input id="captcha" type="text" class="flex-1" :placeholder="$t('auth.signUp.captchaPlaceholder')"
-                    v-bind="componentField" />
+                  <PinInput class="flex-1" id="captcha" v-model="value" placeholder="○">
+                    <PinInputGroup>
+                      <PinInputSlot v-for="(id, index) in 6" :key="id" :index="index" />
+                    </PinInputGroup>
+                  </PinInput>
+
                 </FormControl>
                 <!-- 
         按钮现在是 Flexbox 的一部分，它会自动收缩以适应其内容大小。
