@@ -2,7 +2,10 @@ export default defineEventHandler(async event => {
   // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
   // 获取 tweetId 路径参数
-  const userId: string = getRouterParam(event, 'userId') as string;
+  const userId: string = getRouterParam(
+    event,
+    'userId'
+  ) as string;
 
   // 获取 query 参数
   const query: TweetMutualFollowsPayload = getQuery(
@@ -25,7 +28,8 @@ export default defineEventHandler(async event => {
     });
   }
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -58,31 +62,39 @@ export default defineEventHandler(async event => {
     ORDER BY u.user_id
     `;
 
-    const result = await connection.execute(mutualFollowsSql, {
-      user_id_a: userId,
-      user_id_b: user.userId,
-      page,
-      pagesize: pageSize
-    });
+    const result = await connection.execute(
+      mutualFollowsSql,
+      {
+        user_id_a: userId,
+        user_id_b: user.userId,
+        page,
+        pagesize: pageSize
+      }
+    );
 
     // 获取总数
-    const totalCountResult = await connection.execute(mutualFollowsCountSql, {
-      user_id_a: userId,
-      user_id_b: user.userId
-    });
-
-    const totalCount = totalCountResult.rows[0][0] as number;
-
-    const mutualFollows: MutualFollowsItem[] = await Promise.all(
-      result.rows.map(
-        async (row: MutualFollowsRow) =>
-          ({
-            displayName: row[0],
-            avatarUrl: row[1],
-            rn: row[2]
-          }) as MutualFollowsItem
-      )
+    const totalCountResult = await connection.execute(
+      mutualFollowsCountSql,
+      {
+        user_id_a: userId,
+        user_id_b: user.userId
+      }
     );
+
+    const totalCount = totalCountResult
+      .rows[0][0] as number;
+
+    const mutualFollows: MutualFollowsItem[] =
+      await Promise.all(
+        result.rows.map(
+          async (row: MutualFollowsRow) =>
+            ({
+              displayName: row[0],
+              avatarUrl: row[1],
+              rn: row[2]
+            }) as MutualFollowsItem
+        )
+      );
 
     return {
       success: true,
