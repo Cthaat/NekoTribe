@@ -35,7 +35,8 @@ export default defineEventHandler(async event => {
     });
   }
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -51,7 +52,8 @@ export default defineEventHandler(async event => {
     });
 
     // 提取总数
-    const totalCount: number = checkCount.rows[0][0] as number;
+    const totalCount: number = checkCount
+      .rows[0][0] as number;
 
     if (totalCount === 0) {
       throw createError({
@@ -73,12 +75,18 @@ export default defineEventHandler(async event => {
       WHERE media_id = :mediaId AND user_id = :userId
     `;
 
-    const mediaResult = await connection.execute(getMediaSql, {
-      mediaId: mediaId,
-      userId: user.userId
-    });
+    const mediaResult = await connection.execute(
+      getMediaSql,
+      {
+        mediaId: mediaId,
+        userId: user.userId
+      }
+    );
 
-    if (!mediaResult.rows || mediaResult.rows.length === 0) {
+    if (
+      !mediaResult.rows ||
+      mediaResult.rows.length === 0
+    ) {
       throw createError({
         statusCode: 404,
         message: '媒体文件不存在',
@@ -96,7 +104,10 @@ export default defineEventHandler(async event => {
     const filePath = mediaRow[0]; // file_path
     const thumbnailPath = mediaRow[1]; // thumbnail_path
 
-    console.log('准备删除文件:', { filePath, thumbnailPath });
+    console.log('准备删除文件:', {
+      filePath,
+      thumbnailPath
+    });
 
     // 删除数据库记录
     const deleteMediaSql = `
@@ -134,7 +145,11 @@ export default defineEventHandler(async event => {
 
     // 主文件路径
     if (filePath) {
-      const fullFilePath = path.join(process.cwd(), 'public', filePath);
+      const fullFilePath = path.join(
+        process.cwd(),
+        'public',
+        filePath
+      );
       filesToDelete.push(fullFilePath);
     }
 
@@ -151,11 +166,17 @@ export default defineEventHandler(async event => {
     // 删除文件
     for (const fileToDelete of filesToDelete) {
       try {
-        await fs.promises.access(fileToDelete, fs.constants.F_OK);
+        await fs.promises.access(
+          fileToDelete,
+          fs.constants.F_OK
+        );
         await fs.promises.unlink(fileToDelete);
         console.log(`成功删除文件: ${fileToDelete}`);
       } catch (error) {
-        console.error(`删除文件失败: ${fileToDelete}`, error);
+        console.error(
+          `删除文件失败: ${fileToDelete}`,
+          error
+        );
         // 文件删除失败不阻断流程，因为数据库记录已经删除
       }
     }
