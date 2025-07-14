@@ -26,16 +26,20 @@ import {
   SidebarMenuItem,
   type SidebarProps,
 } from '@/components/ui/sidebar'
+import { usePreferenceStore } from '~/stores/user'; // 导入 store
+
 
 const props = withDefaults(defineProps<SidebarProps>(), {
   variant: 'inset',
 })
 
+const preferenceStore = usePreferenceStore();
+
 const data = {
   user: {
-    name: 'shadcn',
-    email: 'm@example.com',
-    avatar: '/avatars/shadcn.jpg',
+    name: preferenceStore.preferences.user.displayName || 'shadcn',
+    email: preferenceStore.preferences.user.email || 'm@example.com',
+    avatar: preferenceStore.preferences.user.avatarUrl || '/avatars/shadcn.jpg',
   },
   navMain: [
     {

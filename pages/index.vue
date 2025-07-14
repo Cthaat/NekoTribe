@@ -31,18 +31,25 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue'
         <div class="flex items-center gap-2 px-4">
           <SidebarTrigger class="-ml-1" />
           <Separator orientation="vertical" class="mr-2 data-[orientation=vertical]:h-4" />
+
           <Breadcrumb>
+
             <BreadcrumbList>
+
               <BreadcrumbItem class="hidden md:block">
                 <BreadcrumbLink href="#">
                   Building Your Application
                 </BreadcrumbLink>
               </BreadcrumbItem>
+
               <BreadcrumbSeparator class="hidden md:block" />
+
               <BreadcrumbItem>
                 <BreadcrumbPage>Data Fetching</BreadcrumbPage>
               </BreadcrumbItem>
+
             </BreadcrumbList>
+
           </Breadcrumb>
         </div>
         <div class="flex-1 color-mode-icon flex items-center justify-end pr-4 padding-right-4">
