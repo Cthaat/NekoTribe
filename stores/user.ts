@@ -32,7 +32,32 @@ const defaultPreferences: UserPreference = {
   blocked_users: [],
   // 用户登录相关
   access_token: '', // 初始值为空字符串
-  refresh_token: '' // 初始值为空字符串
+  refresh_token: '', // 初始值为空字符串
+  // 用户信息对象
+  user: {
+    userId: 0,
+    email: '', // 邮箱
+    username: '', // 用户名
+    passwordHash: '', // 密码哈希
+    avatarUrl: '', // 头像地址
+    displayName: '', // 显示名称
+    bio: '', // 个人简介
+    location: '', // 所在地
+    website: '', // 个人网站
+    birthDate: '', // 生日
+    phone: '', // 手机号
+    isVerified: 0, // 是否已验证
+    isActive: 0, // 是否激活
+    followersCount: 0, // 粉丝数
+    followingCount: 0, // 关注数
+    tweetsCount: 0, // 推文数
+    likesCount: 0, // 点赞数
+    createdAt: '', // 创建时间
+    updatedAt: '', // 更新时间
+    lastLoginAt: '', // 最后登录时间
+    createdBy: '', // 创建人
+    updatedBy: '' // 更新人
+  }
 };
 
 // --- Store 定义 ---

@@ -74,6 +74,7 @@ async function onValidSubmit(values: Record<string, any>) {
     // 登录成功后，调用新的 action
     preferenceStore.setAuthTokens(response.data.token, response.data.refreshToken);
 
+    preferenceStore.updatePreference("user", response.data.user.userInfo);
     // 2. 成功后，唯一要做的就是导航！
     //    使用 await 确保导航被正确触发。
     //    让中间件和目标页面去担心登录状态。

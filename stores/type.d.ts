@@ -17,6 +17,31 @@ export type HomeTab =
   | 'notifications'
   | string;
 
+interface userInfo {
+  userId: number;
+  email: string;
+  username: string;
+  passwordHash: string;
+  avatarUrl: string;
+  displayName: string;
+  bio: string;
+  location: string;
+  website: string;
+  birthDate: string;
+  phone: string;
+  isVerified: number;
+  isActive: number;
+  followersCount: number;
+  followingCount: number;
+  tweetsCount: number;
+  likesCount: number;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt: string;
+  createdBy: string;
+  updatedBy: string;
+}
+
 export interface UserPreference {
   // 1. 主题相关
   theme_mode: ThemeMode; // 主题模式
@@ -55,6 +80,7 @@ export interface UserPreference {
   // 7. 用户登录相关
   access_token: string; // 用户访问令牌
   refresh_token: string; // 用户刷新令牌
+  user: userInfo; // 用户信息对象
 
   // 更新时间戳等辅助字段
   updated_at?: string; // ISO 时间字符串（可选）
