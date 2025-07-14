@@ -9,6 +9,9 @@ export default defineNuxtRouteMiddleware((to, from) => {
     to.path !== '/auth/forgot-password' &&
     !preferenceStore.isLoggedIn
   ) {
+    console.log(
+      'User is not logged in, redirecting to login page'
+    );
     return navigateTo('/auth/login', { replace: true });
   }
 });

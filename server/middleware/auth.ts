@@ -3,23 +3,25 @@ import { getRequestURL } from 'h3';
 
 const runtimeConfig = useRuntimeConfig();
 
-const WHITE_LIST = [
-  '/auth/',
-  '/api/v1/auth/'
-  // 可以继续添加其他前缀
-];
+// 只对 API 路径做鉴权
+const API_PREFIX = '/api/';
+// 定义 Auth 接口
+const API_LOGIN = '/api/v1/auth/';
 
 export default defineEventHandler(async event => {
   const url = getRequestURL(event).pathname;
 
+  // 如果不是 API 请求，直接放行（即前端页面切换不鉴权）
+  if (
+    !url.startsWith(API_PREFIX) ||
+    url.startsWith(API_LOGIN)
+  ) {
+    return;
+  }
+
   const getOracleConnection =
     event.context.getOracleConnection;
   const connection = await getOracleConnection();
-
-  // 判断是否命中白名单前缀
-  if (WHITE_LIST.some(prefix => url.startsWith(prefix))) {
-    return;
-  }
 
   const token = getCookie(event, 'access_token');
   if (!token) {
