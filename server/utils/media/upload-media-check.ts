@@ -92,7 +92,11 @@ async function getMediaInfo(filePath: string): Promise<{
       (stream: any) => stream.codec_type === 'audio'
     );
 
-    const result: { width?: number; height?: number; duration?: number } = {};
+    const result: {
+      width?: number;
+      height?: number;
+      duration?: number;
+    } = {};
 
     // 获取视频尺寸
     if (videoStream) {
@@ -102,11 +106,17 @@ async function getMediaInfo(filePath: string): Promise<{
 
     // 获取时长
     if (info.format?.duration) {
-      result.duration = Math.round(parseFloat(info.format.duration));
+      result.duration = Math.round(
+        parseFloat(info.format.duration)
+      );
     } else if (videoStream?.duration) {
-      result.duration = Math.round(parseFloat(videoStream.duration));
+      result.duration = Math.round(
+        parseFloat(videoStream.duration)
+      );
     } else if (audioStream?.duration) {
-      result.duration = Math.round(parseFloat(audioStream.duration));
+      result.duration = Math.round(
+        parseFloat(audioStream.duration)
+      );
     }
 
     return result;
@@ -156,7 +166,12 @@ export async function checkMediaFile(
 ): Promise<{
   valid: boolean;
   message?: string;
-  fileType?: 'image' | 'gif' | 'video' | 'audio' | 'unknown';
+  fileType?:
+    | 'image'
+    | 'gif'
+    | 'video'
+    | 'audio'
+    | 'unknown';
   width?: number;
   height?: number;
   duration?: number;
@@ -165,7 +180,9 @@ export async function checkMediaFile(
   // 读取文件真实类型
   const typeInfo = await fileTypeFromFile(file.filepath);
   const realMime = typeInfo?.mime || '';
-  const ext = path.extname(file.originalFilename || '').toLowerCase();
+  const ext = path
+    .extname(file.originalFilename || '')
+    .toLowerCase();
 
   // 检查真实类型
   if (!ALLOWED_MIME.includes(realMime)) {
@@ -195,12 +212,17 @@ export async function checkMediaFile(
   try {
     if (fileType === 'image' || fileType === 'gif') {
       // 获取图片尺寸
-      const dimensions = await getImageDimensions(file.filepath);
+      const dimensions = await getImageDimensions(
+        file.filepath
+      );
       if (dimensions) {
         width = dimensions.width;
         height = dimensions.height;
       }
-    } else if (fileType === 'video' || fileType === 'audio') {
+    } else if (
+      fileType === 'video' ||
+      fileType === 'audio'
+    ) {
       // 获取视频/音频信息
       const mediaInfo = await getMediaInfo(file.filepath);
       if (mediaInfo) {
@@ -247,14 +269,23 @@ export async function checkMediaFile(
 }
 
 // 简化版本，只做基本检查
-export async function checkMediaFileBasic(file: File): Promise<{
+export async function checkMediaFileBasic(
+  file: File
+): Promise<{
   valid: boolean;
   message?: string;
-  fileType?: 'image' | 'gif' | 'video' | 'audio' | 'unknown';
+  fileType?:
+    | 'image'
+    | 'gif'
+    | 'video'
+    | 'audio'
+    | 'unknown';
 }> {
   const typeInfo = await fileTypeFromFile(file.filepath);
   const realMime = typeInfo?.mime || '';
-  const ext = path.extname(file.originalFilename || '').toLowerCase();
+  const ext = path
+    .extname(file.originalFilename || '')
+    .toLowerCase();
 
   if (!ALLOWED_MIME.includes(realMime)) {
     return {
