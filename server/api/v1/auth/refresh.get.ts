@@ -5,7 +5,8 @@ const runtimeConfig = useRuntimeConfig();
 export default defineEventHandler(async event => {
   // 获取refresh token
   const refreshToken = getCookie(event, 'refresh_token');
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
 
   if (!refreshToken) {
     throw createError({
@@ -24,7 +25,10 @@ export default defineEventHandler(async event => {
 
   try {
     // 验证refresh token
-    const decoded = jwt.verify(refreshToken, runtimeConfig.refreshSecret) as {
+    const decoded = jwt.verify(
+      refreshToken,
+      runtimeConfig.refreshSecret
+    ) as {
       userId: string;
       type: string;
     };
@@ -52,7 +56,8 @@ export default defineEventHandler(async event => {
       refreshToken: refreshToken
     });
     const checkSessionResultRow: checkSessionResultRow =
-      (checkResult.rows?.[0] as checkSessionResultRow) || [];
+      (checkResult.rows?.[0] as checkSessionResultRow) ||
+      [];
     const checkSessionCount = checkSessionResultRow[0] || 0;
 
     // 如果没有找到有效的session
@@ -75,10 +80,13 @@ export default defineEventHandler(async event => {
     FROM n_user_sessions
     WHERE user_id = :userId AND DBMS_LOB.COMPARE(refresh_token, :refreshToken) = 0 AND is_active = 1
     `;
-    const sessionResult = await connection.execute(sessionSql, {
-      userId: decoded.userId,
-      refreshToken: refreshToken
-    });
+    const sessionResult = await connection.execute(
+      sessionSql,
+      {
+        userId: decoded.userId,
+        refreshToken: refreshToken
+      }
+    );
     const sessionResultRow: sessionRow =
       (sessionResult.rows?.[0] as sessionRow) || [];
 
@@ -92,7 +100,10 @@ export default defineEventHandler(async event => {
       `;
       await connection.execute(
         deleteSql,
-        { userId: decoded.userId, refreshToken: refreshToken },
+        {
+          userId: decoded.userId,
+          refreshToken: refreshToken
+        },
         { autoCommit: true }
       );
 
@@ -177,10 +188,12 @@ export default defineEventHandler(async event => {
         userId: decoded.userId,
         sessionId: sessionResultRow[1],
         accessTokenExpiresAt: new Date(
-          Date.now() + Number(runtimeConfig.accessExpiresIn) * 1000
+          Date.now() +
+            Number(runtimeConfig.accessExpiresIn) * 1000
         ),
         refreshTokenExpiresAt: new Date(
-          Date.now() + Number(runtimeConfig.refreshExpiresIn) * 1000
+          Date.now() +
+            Number(runtimeConfig.refreshExpiresIn) * 1000
         )
       },
       { autoCommit: true }
