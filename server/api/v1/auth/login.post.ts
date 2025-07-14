@@ -7,7 +7,8 @@ const runtimeConfig = useRuntimeConfig();
 // 事件处理函数：处理获取邮箱验证码的请求
 export default defineEventHandler(async event => {
   const body = await readBody<LoginPayload>(event);
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
 
   // 参数验证
   if (!body.account || !body.password) {
@@ -66,10 +67,14 @@ export default defineEventHandler(async event => {
     });
 
     // 取第一行数据
-    const row: LoginUserRow = (userResult.rows?.[0] as LoginUserRow) || [];
+    const row: LoginUserRow =
+      (userResult.rows?.[0] as LoginUserRow) || [];
 
     // 4. 验证密码
-    const isPasswordValid = await bcrypt.compare(body.password, row[6]);
+    const isPasswordValid = await bcrypt.compare(
+      body.password,
+      row[6]
+    );
     if (!isPasswordValid) {
       throw createError({
         statusCode: 401,
@@ -133,18 +138,24 @@ export default defineEventHandler(async event => {
         accessToken,
         refreshToken,
         accessTokenExpiresAt: new Date(
-          Date.now() + Number(runtimeConfig.accessExpiresIn) * 1000
+          Date.now() +
+            Number(runtimeConfig.accessExpiresIn) * 1000
         ),
         refreshTokenExpiresAt: new Date(
-          Date.now() + Number(runtimeConfig.refreshExpiresIn) * 1000
+          Date.now() +
+            Number(runtimeConfig.refreshExpiresIn) * 1000
         ),
         deviceInfo: 'unknown', // 可以根据实际情况获取设备信息
         deviceFingerprint: 'unknown', // 可以根据实际情况获取设备指纹
         ipAddress:
-          req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ||
+          req.headers['x-forwarded-for']
+            ?.toString()
+            .split(',')[0]
+            ?.trim() ||
           req.socket.remoteAddress ||
           'unknown',
-        userAgent: event.node.req.headers['user-agent'] || 'unknown'
+        userAgent:
+          event.node.req.headers['user-agent'] || 'unknown'
       },
       { autoCommit: true }
     );
@@ -189,12 +200,37 @@ export default defineEventHandler(async event => {
     const userInfoRow: LoginUserInfo =
       (userInfo.rows?.[0] as LoginUserInfo) || [];
 
+    const userInfoItem: userInfoItem = {
+      userId: userInfoRow[0],
+      email: userInfoRow[1],
+      username: userInfoRow[2],
+      passwordHash: userInfoRow[3],
+      avatarUrl: userInfoRow[4],
+      displayName: userInfoRow[5],
+      bio: userInfoRow[6],
+      location: userInfoRow[7],
+      website: userInfoRow[8],
+      birthDate: userInfoRow[9],
+      phone: userInfoRow[10],
+      isVerified: userInfoRow[11],
+      isActive: userInfoRow[12],
+      followersCount: userInfoRow[13],
+      followingCount: userInfoRow[14],
+      tweetsCount: userInfoRow[15],
+      likesCount: userInfoRow[16],
+      createdAt: userInfoRow[17],
+      updatedAt: userInfoRow[18],
+      lastLoginAt: userInfoRow[19],
+      createdBy: userInfoRow[20],
+      updatedBy: userInfoRow[21]
+    };
+
     return {
       success: true,
       message: '登录成功',
       data: {
         user: {
-          userInfo: userInfoRow
+          userInfo: userInfoItem
         },
         token: accessToken,
         refreshToken: refreshToken

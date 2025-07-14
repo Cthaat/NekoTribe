@@ -125,12 +125,37 @@ type LoginUserInfo = [
   string // UPDATED_BY
 ];
 
+interface userInfoItem {
+  userId: number;
+  email: string;
+  username: string;
+  passwordHash: string;
+  avatarUrl: string;
+  displayName: string;
+  bio: string;
+  location: string;
+  website: string;
+  birthDate: string;
+  phone: string;
+  isVerified: number;
+  isActive: number;
+  followersCount: number;
+  followingCount: number;
+  tweetsCount: number;
+  likesCount: number;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt: string;
+  createdBy: string;
+  updatedBy: string;
+}
+
 interface LoginResponse extends Response {
   success: true;
   message: string;
   data: {
     user: {
-      userInfo: LoginUserInfo;
+      userInfo: userInfoItem;
     };
     token: string; // JWT令牌
     refreshToken: string; // 刷新令牌
