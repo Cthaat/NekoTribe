@@ -1,6 +1,7 @@
 export default defineEventHandler(async event => {
   const user: Auth = event.context.auth as Auth;
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -13,7 +14,8 @@ export default defineEventHandler(async event => {
       username: user.userName
     });
     // 取第一行数据
-    const userInfoRow: GetUserInfo = (userInfo.rows?.[0] as GetUserInfo) || [];
+    const userInfoRow: GetUserInfo =
+      (userInfo.rows?.[0] as GetUserInfo) || [];
 
     return {
       success: true,
