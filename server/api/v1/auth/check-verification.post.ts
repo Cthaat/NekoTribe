@@ -3,7 +3,8 @@ import Redis from 'ioredis';
 // 事件处理函数：处理获取邮箱验证码的请求
 export default defineEventHandler(
   async (event): Promise<CheckVerificationResponse> => {
-    const body = await readBody<CheckVerificationPayload>(event);
+    const body =
+      await readBody<CheckVerificationPayload>(event);
 
     const redis: Redis = event.context.redis as Redis;
 
