@@ -1,5 +1,7 @@
 // 数据库行转换为对象
-function rowToNotificationItem(row: NotificationRow): NotificationItem {
+function rowToNotificationItem(
+  row: NotificationRow
+): NotificationItem {
   return {
     notificationId: row[0],
     userId: row[1],
@@ -43,9 +45,15 @@ export default defineEventHandler(async event => {
   ) as NotificationSearchPayload;
 
   // 提取参数
-  const { type = 'all', page = 1, pageSize = 10, unreadOnly = false } = query;
+  const {
+    type = 'all',
+    page = 1,
+    pageSize = 10,
+    unreadOnly = false
+  } = query;
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -98,21 +106,28 @@ export default defineEventHandler(async event => {
     `;
 
     // 执行查询
-    const result = await connection.execute(notificationSql, {
-      user_id: user.userId,
-      type: type,
-      unread_only: unreadOnly === 'true' ? 1 : 0,
-      page: page,
-      page_size: pageSize
-    });
+    const result = await connection.execute(
+      notificationSql,
+      {
+        user_id: user.userId,
+        type: type,
+        unread_only: unreadOnly === 'true' ? 1 : 0,
+        page: page,
+        page_size: pageSize
+      }
+    );
 
     // 处理查询结果
     const rows = result.rows as NotificationRow[];
-    const notifications = rows.map(row => rowToNotificationItem(row));
+    const notifications = rows.map(row =>
+      rowToNotificationItem(row)
+    );
 
     // 计算分页信息
     const totalCount =
-      notifications.length > 0 ? notifications[0].totalCount : 0;
+      notifications.length > 0
+        ? notifications[0].totalCount
+        : 0;
     const totalPages = Math.ceil(totalCount / pageSize);
     const hasNext = page < totalPages;
     const hasPrev = page > 1;
