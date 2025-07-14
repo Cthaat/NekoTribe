@@ -1,9 +1,12 @@
 export default defineEventHandler(async event => {
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
   try {
     // 查询所有用户
-    const result = await connection.execute('SELECT * FROM n_users');
+    const result = await connection.execute(
+      'SELECT * FROM n_users'
+    );
     return {
       success: true,
       message: 'Oracle 数据库连接成功',
