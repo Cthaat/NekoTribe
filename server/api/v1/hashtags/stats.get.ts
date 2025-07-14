@@ -1,6 +1,8 @@
 // 获取话题统计信息的API
 export default defineEventHandler(
-  async (event): Promise<HashtagStatisticsSuccessResponse> => {
+  async (
+    event
+  ): Promise<HashtagStatisticsSuccessResponse> => {
     const query = getQuery(event);
     const type = (query.type as string) || 'all'; // all, trending, statistics
     const limit = Math.min(
@@ -15,14 +17,16 @@ export default defineEventHandler(
         message: '无效的查询类型',
         data: {
           success: false,
-          message: '查询类型必须是 all, trending 或 statistics',
+          message:
+            '查询类型必须是 all, trending 或 statistics',
           code: 400,
           timestamp: new Date().toISOString()
         } as HashtagStatisticsErrorResponse
       });
     }
 
-    const getOracleConnection = event.context.getOracleConnection;
+    const getOracleConnection =
+      event.context.getOracleConnection;
     const connection = await getOracleConnection();
 
     try {
@@ -73,7 +77,9 @@ export default defineEventHandler(
       ]);
 
       // 处理数据
-      let hashtags: HashtagStatisticsItem[] | HashtagTrendsItem[] = [];
+      let hashtags:
+        | HashtagStatisticsItem[]
+        | HashtagTrendsItem[] = [];
 
       if (type === 'trending') {
         hashtags =
@@ -137,7 +143,8 @@ export default defineEventHandler(
           })) || [];
       }
 
-      const total = (countResult.rows?.[0]?.[0] as number) || 0;
+      const total =
+        (countResult.rows?.[0]?.[0] as number) || 0;
 
       return {
         success: true,
