@@ -5,9 +5,15 @@ export default defineEventHandler(async event => {
   const tag = getRouterParam(event, 'tag');
 
   // 获取 query 参数
-  const query: TweetListPayload = getQuery(event) as TweetListPayload;
+  const query: TweetListPayload = getQuery(
+    event
+  ) as TweetListPayload;
 
-  const { page = 1, pageSize = 10, sort = 'popular' } = query;
+  const {
+    page = 1,
+    pageSize = 10,
+    sort = 'popular'
+  } = query;
 
   if (!tag) {
     throw createError({
@@ -22,7 +28,8 @@ export default defineEventHandler(async event => {
     });
   }
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -69,10 +76,13 @@ export default defineEventHandler(async event => {
     });
 
     // 获取总数
-    const tagCountResult = await connection.execute(tagCountSql, {
-      tag,
-      visibility: 'public'
-    });
+    const tagCountResult = await connection.execute(
+      tagCountSql,
+      {
+        tag,
+        visibility: 'public'
+      }
+    );
 
     // 提取总数
     const totalCount = tagCountResult.rows[0][0];
