@@ -65,7 +65,8 @@ const formSchema = toTypedSchema(
     password: z.string().min(6, { message: "密码至少需要6个字符" }),
     confirmPassword: z.string().min(6, { message: "确认密码至少需要6个字符" }),
     captcha: z.string().optional(),
-    agreeToTerms: z.boolean().refine((val) => val, {
+    // 简化 agreeToTerms 的验证逻辑
+    agreeToTerms: z.boolean().refine((val) => val === true, {
       message: "您必须同意服务条款",
     }),
   }).refine(data => data.password === data.confirmPassword, {
@@ -90,7 +91,7 @@ const form = useForm({
     password: '',
     confirmPassword: '',
     captcha: '',
-    agreeToTerms: false,
+    agreeToTerms: false, // 默认同意服务条款
   },
 })
 
@@ -134,6 +135,21 @@ const df = new DateFormatter('zh-CN', {
 
 // 4. 创建最终的 onSubmit 函数，它会先验证再决定是否执行 onValidSubmit
 const onSubmit = form.handleSubmit(onValidSubmit)
+
+// 手动管理 agreeToTerms 状态
+const agreeToTermsValue = ref(false)
+
+// 监听变化并同步到表单
+watch(agreeToTermsValue, (newValue) => {
+  console.log('同意服务条款状态变化:', newValue)
+  form.setFieldValue('agreeToTerms', newValue)
+})
+
+// 添加一个点击处理函数来调试
+const handleCheckboxChange = (checked: boolean) => {
+  console.log('复选框点击事件触发:', checked)
+  agreeToTermsValue.value = checked
+}
 </script>
 
 <template>
@@ -305,18 +321,17 @@ const onSubmit = form.handleSubmit(onValidSubmit)
             </FormField>
 
             <!-- 服务条款 (复选框) -->
-            <FormField v-slot="{ value, handleChange }" name="agreeToTerms">
+            <FormField name="agreeToTerms">
               <FormItem class="flex flex-row items-center gap-x-2 mt-6">
                 <FormControl>
-                  <!-- 明确绑定 checked 状态和更新事件 -->
-                  <Checkbox :checked="value" @update:checked="handleChange" />
+                  <!-- 使用原生的 v-model -->
+                  <Checkbox v-model="agreeToTermsValue" />
                 </FormControl>
                 <div class="grid gap-1.5 leading-none">
-                  <!-- 注意：这里的 for 属性应该指向 checkbox 的 id，但 vee-validate 已经处理了关联，因此可以省略 -->
                   <FormLabel
                     class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    {{ $t('auth.signUp.agreeToTerms') }} <a href="/terms" class="underline text-blue-600">{{
-                      $t('auth.signUp.termsLink') }}</a>
+                    {{ $t('auth.signUp.agreeToTerms') }}
+                    <a href="/terms" class="underline text-blue-600">{{ $t('auth.signUp.termsLink') }}</a>
                   </FormLabel>
                 </div>
               </FormItem>
