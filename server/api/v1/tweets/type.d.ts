@@ -16,7 +16,13 @@ interface TweetSendPayload {
 // ========================== list.get ============================================
 
 interface TweetListPayload {
-  type: 'home' | 'user' | 'my_tweets' | 'mention' | 'trending' | 'bookmark'; // 推文类型
+  type:
+    | 'home'
+    | 'user'
+    | 'my_tweets'
+    | 'mention'
+    | 'trending'
+    | 'bookmark'; // 推文类型
   page: number; // 页码
   pageSize: number; // 每页数量
   userId?: string; // 用户ID（仅在type为'user'时需要）
@@ -70,7 +76,12 @@ interface TweetListResponse extends Response {
   success: true;
   message: string;
   data: {
-    type: 'home' | 'user' | 'my_tweets' | 'mention' | 'trending'; // 推文类型
+    type:
+      | 'home'
+      | 'user'
+      | 'my_tweets'
+      | 'mention'
+      | 'trending'; // 推文类型
     page: number; // 当前页码
     pageSize: number; // 每页数量
     tweets: TweetItem[]; // 推文列表
@@ -368,7 +379,6 @@ interface TweetGetCommentsResponse extends Response {
 
 // ========================== [tweetId].upload.get ======================================
 
-
 // 上传的单个文件信息类型
 interface UploadedFileInfo {
   fileName: string;
@@ -376,7 +386,12 @@ interface UploadedFileInfo {
   url: string;
   size: number;
   mimeType: string;
-  mediaType: 'image' | 'gif' | 'video' | 'audio' | 'unknown';
+  mediaType:
+    | 'image'
+    | 'gif'
+    | 'video'
+    | 'audio'
+    | 'unknown';
   width?: number;
   height?: number;
   duration?: number;
@@ -409,4 +424,6 @@ interface ErrorResponse {
 }
 
 // 媒体上传 API 响应联合类型
-type MediaUploadResponse = SuccessUploadResponse | ErrorResponse;
+type MediaUploadResponse =
+  | SuccessUploadResponse
+  | ErrorResponse;

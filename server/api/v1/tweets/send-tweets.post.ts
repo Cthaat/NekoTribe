@@ -4,7 +4,8 @@ export default defineEventHandler(async event => {
   const body = await readBody<TweetSendPayload>(event);
   const user: Auth = event.context.auth as Auth;
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -31,12 +32,16 @@ export default defineEventHandler(async event => {
         p_author_id: user.userId,
         p_content: body.content,
         p_reply_to_tweet_id: body.replyToTweetId ?? null,
-        p_retweet_of_tweet_id: body.retweetOfTweetId ?? null,
+        p_retweet_of_tweet_id:
+          body.retweetOfTweetId ?? null,
         p_quote_tweet_id: body.quoteTweetId ?? null,
         p_visibility: body.visibility ?? 'public',
         p_hashtags: body.hashtags ?? null,
         p_mentions: body.mentions ?? null,
-        p_tweet_id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
+        p_tweet_id: {
+          dir: oracledb.BIND_OUT,
+          type: oracledb.NUMBER
+        },
         p_result: {
           dir: oracledb.BIND_OUT,
           type: oracledb.STRING,

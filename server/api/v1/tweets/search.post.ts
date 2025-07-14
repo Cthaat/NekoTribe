@@ -4,9 +4,16 @@ export default defineEventHandler(
     const user: Auth = event.context.auth as Auth;
 
     // 获取 query 参数
-    const query: TweetSearchPayload = getQuery(event) as TweetSearchPayload;
+    const query: TweetSearchPayload = getQuery(
+      event
+    ) as TweetSearchPayload;
 
-    const { q, page = 1, pageSize = 10, sort = 'popular' } = query;
+    const {
+      q,
+      page = 1,
+      pageSize = 10,
+      sort = 'popular'
+    } = query;
 
     // 验证搜索关键词
     if (!q || q.trim() === '') {
@@ -23,18 +30,26 @@ export default defineEventHandler(
     }
 
     // 验证分页参数
-    const validPage = Math.max(1, parseInt(page.toString()) || 1);
+    const validPage = Math.max(
+      1,
+      parseInt(page.toString()) || 1
+    );
     const validPageSize = Math.min(
       50,
       Math.max(1, parseInt(pageSize.toString()) || 10)
     );
 
     // 验证排序参数
-    const validSort = ['popular', 'newest', 'oldest'].includes(sort)
+    const validSort = [
+      'popular',
+      'newest',
+      'oldest'
+    ].includes(sort)
       ? sort
       : 'popular';
 
-    const getOracleConnection = event.context.getOracleConnection;
+    const getOracleConnection =
+      event.context.getOracleConnection;
     const connection = await getOracleConnection();
 
     try {
@@ -49,7 +64,8 @@ export default defineEventHandler(
           break;
         case 'popular':
         default:
-          orderByClause = 'ORDER BY engagement_score DESC, created_at DESC';
+          orderByClause =
+            'ORDER BY engagement_score DESC, created_at DESC';
           break;
       }
 
@@ -153,7 +169,9 @@ export default defineEventHandler(
           visibility: row[11], // VISIBILITY
           createdAt: row[12], // CREATED_AT
           replyToTweetId: row[13] ? row[13].toString() : '', // REPLY_TO_TWEET_ID
-          retweetOfTweetId: row[14] ? row[14].toString() : '', // RETWEET_OF_TWEET_ID
+          retweetOfTweetId: row[14]
+            ? row[14].toString()
+            : '', // RETWEET_OF_TWEET_ID
           quoteTweetId: row[15] ? row[15].toString() : '', // QUOTE_TWEET_ID
           engagementScore: row[16], // ENGAGEMENT_SCORE
           timelineType: row[17], // TIMELINE_TYPE
@@ -161,7 +179,8 @@ export default defineEventHandler(
           rn: row[20] // RN (注意索引位置)
         })) || [];
 
-      const totalCount = (countResult.rows?.[0]?.[0] as number) || 0;
+      const totalCount =
+        (countResult.rows?.[0]?.[0] as number) || 0;
 
       return {
         success: true,
