@@ -56,7 +56,8 @@
       "termsLink": "Terms of Service",
       "signUpButton": "Sign Up",
       "haveAccount": "Already have an account?",
-      "loginPrompt": "Log in now"
+      "loginPrompt": "Log in now",
+      "sendCaptcha": "Send Captcha"
     }
   }
 }

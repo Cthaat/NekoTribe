@@ -99,6 +99,11 @@ const isLoading = ref(false)
 
 const router = useRouter()
 
+async function sendCaptcha() {
+  // 获取邮箱
+
+}
+
 async function onValidSubmit(values: Record<string, any>) {
   isLoading.value = true
 
@@ -307,19 +312,36 @@ const handleCheckboxChange = (checked: boolean) => {
           </div>
 
           <!-- 验证码和服务条款区域 (两列) -->
-          <div class="grid grid-cols-2 gap-4 items-center">
-            <!-- 验证码 -->
-            <FormField v-slot="{ componentField }" name="captcha">
-              <FormItem>
-                <FormLabel>{{ $t('auth.signUp.captcha') }}</FormLabel>
+          <!-- 验证码区域 (使用 Flexbox 布局) -->
+          <FormField v-slot="{ componentField }" name="captcha">
+            <FormItem>
+              <FormLabel>{{ $t('auth.signUp.captcha') }}</FormLabel>
+              <!-- 
+      使用一个 div 作为 Flexbox 容器，
+      它将包裹输入框和按钮，让它们在同一行显示。
+    -->
+              <div class="flex w-full items-center gap-x-2">
                 <FormControl>
-                  <Input id="captcha" type="text" :placeholder="$t('auth.signUp.captchaPlaceholder')"
+                  <!-- 
+          flex-1 是关键，它告诉输入框：
+          "占据所有可用的剩余空间"。
+        -->
+                  <Input id="captcha" type="text" class="flex-1" :placeholder="$t('auth.signUp.captchaPlaceholder')"
                     v-bind="componentField" />
                 </FormControl>
-                <FormMessage />
-              </FormItem>
-            </FormField>
+                <!-- 
+        按钮现在是 Flexbox 的一部分，它会自动收缩以适应其内容大小。
+        type="button" 很重要，可以防止它意外触发表单提交。
+      -->
+                <Button type="button" @click="sendCaptcha">
+                  {{ $t('auth.signUp.sendCaptcha') }}
+                </Button>
+              </div>
+              <FormMessage />
+            </FormItem>
+          </FormField>
 
+          <div>
             <!-- 服务条款 (复选框) -->
             <FormField name="agreeToTerms">
               <FormItem class="flex flex-row items-center gap-x-2 mt-6">

@@ -56,7 +56,8 @@
       "termsLink": "服务条款",
       "signUpButton": "注册",
       "haveAccount": "已有账号？",
-      "loginPrompt": "立即登录"
+      "loginPrompt": "立即登录",
+      "sendCaptcha": "发送验证码"
     }
   }
 }
