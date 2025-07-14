@@ -4,12 +4,15 @@ export default defineEventHandler(async event => {
   const user: Auth = event.context.auth as Auth;
 
   // 获取 query 参数
-  const query: TweetListPayload = getQuery(event) as TweetListPayload;
+  const query: TweetListPayload = getQuery(
+    event
+  ) as TweetListPayload;
 
   // 提取参数
   const { type, page, pageSize, userId } = query;
 
-  const getOracleConnection = event.context.getOracleConnection;
+  const getOracleConnection =
+    event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
   try {
@@ -66,16 +69,22 @@ export default defineEventHandler(async event => {
         `;
 
         // 获取首页推文
-        const homeResult = await connection.execute(homeSql, {
-          user_id: user.userId,
-          page,
-          pagesize: pageSize
-        });
+        const homeResult = await connection.execute(
+          homeSql,
+          {
+            user_id: user.userId,
+            page,
+            pagesize: pageSize
+          }
+        );
 
         // 获取总数
-        const homeCountResult = await connection.execute(homeCountSql, {
-          user_id: user.userId
-        });
+        const homeCountResult = await connection.execute(
+          homeCountSql,
+          {
+            user_id: user.userId
+          }
+        );
 
         // 提取总数
         totalCount = homeCountResult.rows[0][0];
@@ -115,7 +124,8 @@ export default defineEventHandler(async event => {
             message: 'User ID is required for user tweets',
             data: {
               success: false,
-              message: 'User ID is required for user tweets',
+              message:
+                'User ID is required for user tweets',
               code: 400,
               timestamp: new Date().toISOString()
             } as ErrorResponse
@@ -166,18 +176,24 @@ export default defineEventHandler(async event => {
         `;
 
         // 获取用户推文
-        const userResult = await connection.execute(userSql, {
-          user_id: user.userId,
-          target_user_id: userId,
-          page,
-          pagesize: pageSize
-        });
+        const userResult = await connection.execute(
+          userSql,
+          {
+            user_id: user.userId,
+            target_user_id: userId,
+            page,
+            pagesize: pageSize
+          }
+        );
 
         // 获取用户推文总数
-        const userCountResult = await connection.execute(userCountSql, {
-          user_id: user.userId,
-          target_user_id: userId
-        });
+        const userCountResult = await connection.execute(
+          userCountSql,
+          {
+            user_id: user.userId,
+            target_user_id: userId
+          }
+        );
 
         // 提取总数
         totalCount = userCountResult.rows[0][0];
@@ -253,16 +269,20 @@ export default defineEventHandler(async event => {
         `;
 
         // 获取我的推文
-        const myTweetsResult = await connection.execute(myTweetsSql, {
-          user_id: user.userId,
-          page,
-          pagesize: pageSize
-        });
+        const myTweetsResult = await connection.execute(
+          myTweetsSql,
+          {
+            user_id: user.userId,
+            page,
+            pagesize: pageSize
+          }
+        );
 
         // 获取我的推文总数
-        const myTweetsCountResult = await connection.execute(myTweetsCountSql, {
-          user_id: user.userId
-        });
+        const myTweetsCountResult =
+          await connection.execute(myTweetsCountSql, {
+            user_id: user.userId
+          });
 
         // 提取总数
         totalCount = myTweetsCountResult.rows[0][0];
@@ -347,16 +367,22 @@ export default defineEventHandler(async event => {
         `;
 
         // 获取提及我的推文
-        const mentionResult = await connection.execute(mentionSql, {
-          user_id: user.userId,
-          page,
-          pagesize: pageSize
-        });
+        const mentionResult = await connection.execute(
+          mentionSql,
+          {
+            user_id: user.userId,
+            page,
+            pagesize: pageSize
+          }
+        );
 
         // 获取提及我的推文总数
-        const mentionCountResult = await connection.execute(mentionCountSql, {
-          user_id: user.userId
-        });
+        const mentionCountResult = await connection.execute(
+          mentionCountSql,
+          {
+            user_id: user.userId
+          }
+        );
 
         // 提取总数
         totalCount = mentionCountResult.rows[0][0];
@@ -432,16 +458,20 @@ export default defineEventHandler(async event => {
         `;
 
         // 获取热门推文
-        const trendingResult = await connection.execute(trendingSql, {
-          page,
-          pagesize: pageSize,
-          visibility: 'public' // 只获取公开可见的推文
-        });
+        const trendingResult = await connection.execute(
+          trendingSql,
+          {
+            page,
+            pagesize: pageSize,
+            visibility: 'public' // 只获取公开可见的推文
+          }
+        );
 
         // 获取热门推文总数
-        const trendingCountResult = await connection.execute(trendingCountSql, {
-          visibility: 'public' // 只获取公开可见的推文
-        });
+        const trendingCountResult =
+          await connection.execute(trendingCountSql, {
+            visibility: 'public' // 只获取公开可见的推文
+          });
 
         // 提取总数
         totalCount = trendingCountResult.rows[0][0];
@@ -519,16 +549,20 @@ export default defineEventHandler(async event => {
         `;
 
         // 获取我的推文
-        const bookmarkResult = await connection.execute(bookmarkSql, {
-          user_id: user.userId,
-          page,
-          pagesize: pageSize
-        });
+        const bookmarkResult = await connection.execute(
+          bookmarkSql,
+          {
+            user_id: user.userId,
+            page,
+            pagesize: pageSize
+          }
+        );
 
         // 获取我的推文总数
-        const bookmarkCountResult = await connection.execute(bookmarkCountSql, {
-          user_id: user.userId
-        });
+        const bookmarkCountResult =
+          await connection.execute(bookmarkCountSql, {
+            user_id: user.userId
+          });
 
         // 提取总数
         totalCount = bookmarkCountResult.rows[0][0];
