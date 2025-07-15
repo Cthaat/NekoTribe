@@ -25,6 +25,7 @@ import {
 } from 'lucide-vue-next';
 import type { PropType } from 'vue';
 import { modal } from '#build/ui';
+import { usePreferenceStore } from '~/stores/user'; // 导入 store
 
 // 2. 为 props 定义清晰的 TypeScript 类型
 interface UserData {
@@ -34,9 +35,9 @@ interface UserData {
   email: string;
   avatar: string;
   stats: {
-    earnings: number;
-    projects: number;
-    successRate: number;
+    followersCount: number;
+    followingCount: number;
+    likesCount: number;
   };
   profileCompletion: number;
 }
@@ -129,35 +130,32 @@ const tabValue = defineModel<string>();
                 <p
                   class="flex items-center justify-center gap-1 text-lg font-bold"
                 >
-                  <ArrowUp class="w-4 h-4 text-green-500" />
-                  ${{
-                    user.stats.earnings.toLocaleString()
+                  {{
+                    user.stats.followersCount.toLocaleString()
                   }}
                 </p>
                 <p class="text-xs text-muted-foreground">
-                  Earnings
+                  Followers
                 </p>
               </div>
               <div class="text-center">
                 <p
                   class="flex items-center justify-center gap-1 text-lg font-bold"
                 >
-                  <ArrowDown class="w-4 h-4 text-red-500" />
-                  {{ user.stats.projects }}
+                  {{ user.stats.followingCount }}
                 </p>
                 <p class="text-xs text-muted-foreground">
-                  Projects
+                  followingCount
                 </p>
               </div>
               <div class="text-center">
                 <p
                   class="flex items-center justify-center gap-1 text-lg font-bold"
                 >
-                  <ArrowUp class="w-4 h-4 text-green-500" />
-                  %{{ user.stats.successRate }}
+                  {{ user.stats.likesCount }}
                 </p>
                 <p class="text-xs text-muted-foreground">
-                  Success Rate
+                  likesCount
                 </p>
               </div>
             </div>
