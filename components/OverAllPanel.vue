@@ -14,6 +14,7 @@ import {
   BarChart3,
   Star
 } from 'lucide-vue-next';
+import { useAnimatedNumber } from '~/composables/useAnimatedNumber';
 
 interface UserAnalyticsData {
   totalTweets: number;
@@ -25,12 +26,54 @@ interface UserAnalyticsData {
   engagementScore: number;
 }
 
-defineProps({
+const props = defineProps({
   userAnalytics: {
     type: Object as PropType<UserAnalyticsData>,
     required: true
   }
 });
+
+const totalTweets = computed(
+  () => props.userAnalytics.totalTweets
+);
+const animatedTotalTweets = useAnimatedNumber(totalTweets);
+
+const totalLikesReceived = computed(
+  () => props.userAnalytics.totalLikesReceived
+);
+const animatedTotalLikesReceived = useAnimatedNumber(
+  totalLikesReceived
+);
+
+const avgLikesPerTweet = computed(
+  () => props.userAnalytics.avgLikesPerTweet
+);
+const animatedAvgLikesPerTweet = useAnimatedNumber(
+  avgLikesPerTweet,
+  { duration: 2000 }
+);
+
+const engagementScore = computed(
+  () => props.userAnalytics.engagementScore
+);
+const animatedEngagementScore =
+  useAnimatedNumber(engagementScore);
+
+const totalLikesGiven = computed(
+  () => props.userAnalytics.totalLikesGiven
+);
+const animatedTotalLikesGiven = useAnimatedNumber(
+  totalLikesGiven,
+  { duration: 1000 }
+);
+
+const totalCommentsMade = computed(
+  () => props.userAnalytics.totalCommentsMade
+);
+const animatedTotalCommentsMade = useAnimatedNumber(
+  totalCommentsMade,
+  { duration: 1200 }
+);
 
 // 格式化大数字，例如 10011 -> 10k
 const formatNumber = (num: number) => {
@@ -55,7 +98,7 @@ const formatNumber = (num: number) => {
       </CardHeader>
       <CardContent>
         <div class="text-2xl font-bold">
-          {{ userAnalytics.totalTweets }}
+          {{ animatedTotalTweets.toFixed(0) }}
         </div>
         <p class="text-xs text-muted-foreground">
           本周新增 {{ userAnalytics.tweetsThisWeek }} 条
@@ -75,13 +118,11 @@ const formatNumber = (num: number) => {
       </CardHeader>
       <CardContent>
         <div class="text-2xl font-bold">
-          {{
-            formatNumber(userAnalytics.totalLikesReceived)
-          }}
+          {{ formatNumber(animatedTotalLikesReceived) }}
         </div>
         <p class="text-xs text-muted-foreground">
           平均每条
-          {{ userAnalytics.avgLikesPerTweet.toFixed(1) }} 赞
+          {{ animatedAvgLikesPerTweet.toFixed(1) }} 赞
         </p>
       </CardContent>
     </Card>
@@ -98,7 +139,7 @@ const formatNumber = (num: number) => {
       </CardHeader>
       <CardContent>
         <div class="text-2xl font-bold">
-          {{ userAnalytics.engagementScore.toFixed(0) }}
+          {{ animatedEngagementScore.toFixed(0) }}
         </div>
         <p class="text-xs text-muted-foreground">
           综合评估用户活跃度
@@ -118,10 +159,11 @@ const formatNumber = (num: number) => {
       </CardHeader>
       <CardContent>
         <div class="text-lg font-bold">
-          送出赞: {{ userAnalytics.totalLikesGiven }}
+          送出赞: {{ animatedTotalLikesGiven.toFixed(0) }}
         </div>
         <div class="text-lg font-bold">
-          发表评论: {{ userAnalytics.totalCommentsMade }}
+          发表评论:
+          {{ animatedTotalCommentsMade.toFixed(0) }}
         </div>
       </CardContent>
     </Card>
