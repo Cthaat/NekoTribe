@@ -10,12 +10,13 @@ import {
   Send,
   Settings2,
   SquareTerminal,
-} from 'lucide-vue-next'
+  Award
+} from 'lucide-vue-next';
 
-import NavMain from '@/components/NavMain.vue'
-import NavProjects from '@/components/NavProjects.vue'
-import NavSecondary from '@/components/NavSecondary.vue'
-import NavUser from '@/components/NavUser.vue'
+import NavMain from '@/components/NavMain.vue';
+import NavProjects from '@/components/NavProjects.vue';
+import NavSecondary from '@/components/NavSecondary.vue';
+import NavUser from '@/components/NavUser.vue';
 import {
   Sidebar,
   SidebarContent,
@@ -24,22 +25,27 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  type SidebarProps,
-} from '@/components/ui/sidebar'
+  type SidebarProps
+} from '@/components/ui/sidebar';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
 
-
 const props = withDefaults(defineProps<SidebarProps>(), {
-  variant: 'inset',
-})
+  variant: 'inset'
+});
 
 const preferenceStore = usePreferenceStore();
 
 const data = {
   user: {
-    name: preferenceStore.preferences.user.displayName || 'shadcn',
-    email: preferenceStore.preferences.user.email || 'm@example.com',
-    avatar: preferenceStore.preferences.user.avatarUrl || '/avatars/shadcn.jpg',
+    name:
+      preferenceStore.preferences.user.displayName ||
+      'shadcn',
+    email:
+      preferenceStore.preferences.user.email ||
+      'm@example.com',
+    avatar:
+      preferenceStore.preferences.user.avatarUrl ||
+      '/avatars/shadcn.jpg'
   },
   navMain: [
     {
@@ -50,17 +56,17 @@ const data = {
       items: [
         {
           title: 'History',
-          url: '#',
+          url: '#'
         },
         {
           title: 'Starred',
-          url: '#',
+          url: '#'
         },
         {
           title: 'Settings',
-          url: '#',
-        },
-      ],
+          url: '#'
+        }
+      ]
     },
     {
       title: 'Models',
@@ -69,17 +75,17 @@ const data = {
       items: [
         {
           title: 'Genesis',
-          url: '#',
+          url: '#'
         },
         {
           title: 'Explorer',
-          url: '#',
+          url: '#'
         },
         {
           title: 'Quantum',
-          url: '#',
-        },
-      ],
+          url: '#'
+        }
+      ]
     },
     {
       title: 'Documentation',
@@ -88,76 +94,80 @@ const data = {
       items: [
         {
           title: 'Introduction',
-          url: '#',
+          url: '#'
         },
         {
           title: 'Get Started',
-          url: '#',
+          url: '#'
         },
         {
           title: 'Tutorials',
-          url: '#',
+          url: '#'
         },
         {
           title: 'Changelog',
-          url: '#',
-        },
-      ],
+          url: '#'
+        }
+      ]
     },
     {
-      title: 'Settings',
+      title: 'Account',
       url: '#',
       icon: Settings2,
       items: [
         {
-          title: 'General',
-          url: '#',
+          title: 'Overview',
+          url: '#'
         },
         {
-          title: 'Team',
-          url: '#',
+          title: 'Settings',
+          url: '#'
         },
         {
-          title: 'Billing',
-          url: '#',
+          title: 'Security',
+          url: '#'
         },
         {
-          title: 'Limits',
-          url: '#',
+          title: 'Active',
+          url: '#'
         },
-      ],
-    },
+        {
+          title: 'Statements',
+          url: '#'
+        }
+      ]
+    }
   ],
   navSecondary: [
     {
       title: 'Support',
       url: '#',
-      icon: LifeBuoy,
+      icon: LifeBuoy
     },
     {
       title: 'Feedback',
       url: '#',
-      icon: Send,
-    },
+      icon: Send
+    }
   ],
   projects: [
     {
       name: 'Design Engineering',
       url: '#',
-      icon: Frame,
+      icon: Frame
     },
     {
       name: 'Sales & Marketing',
       url: '#',
-      icon: PieChart,
+      icon: PieChart
     },
     {
       name: 'Travel',
       url: '#',
-      icon: Map,
-    },
-  ],
-}
+      icon: Map
+    }
+  ]
+};
 </script>
 
 <template>
@@ -168,12 +178,21 @@ const data = {
           <SidebarMenuButton size="lg" as-child>
             <a href="#">
               <div
-                class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
+              >
                 <Command class="size-4" />
               </div>
-              <div class="grid flex-1 text-left text-sm leading-tight">
-                <span class="truncate font-medium justify-center">NekoTribe</span>
-                <span class="truncate text-xs justify-center">Edge Walker</span>
+              <div
+                class="grid flex-1 text-left text-sm leading-tight"
+              >
+                <span
+                  class="truncate font-medium justify-center"
+                  >NekoTribe</span
+                >
+                <span
+                  class="truncate text-xs justify-center"
+                  >Edge Walker</span
+                >
               </div>
             </a>
           </SidebarMenuButton>
@@ -183,7 +202,10 @@ const data = {
     <SidebarContent>
       <NavMain :items="data.navMain" />
       <NavProjects :projects="data.projects" />
-      <NavSecondary :items="data.navSecondary" class="mt-auto" />
+      <NavSecondary
+        :items="data.navSecondary"
+        class="mt-auto"
+      />
     </SidebarContent>
     <SidebarFooter>
       <NavUser :user="data.user" />

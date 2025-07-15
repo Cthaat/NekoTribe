@@ -1,4 +1,9 @@
 <script setup lang="ts">
+// 无页面布局
+definePageMeta({
+  layout: false
+});
+
 import { Button } from '@/components/ui/button';
 import { useI18n } from 'vue-i18n';
 import { h } from 'vue';
@@ -99,7 +104,8 @@ async function onValidSubmit(values: Record<string, any>) {
     // 错误处理逻辑保持不变
     console.error(t('auth.login.loginFailed'), error.data);
     toast.error(t('auth.login.loginFailed'), {
-      description: error.data?.message || t('auth.login.unknownError')
+      description:
+        error.data?.message || t('auth.login.unknownError')
     });
   } finally {
     isLoading.value = false;

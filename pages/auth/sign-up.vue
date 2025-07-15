@@ -1,4 +1,9 @@
 <script setup lang="ts">
+// 无页面布局
+definePageMeta({
+  layout: false
+});
+
 import { ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
