@@ -48,7 +48,7 @@ const accountTabs = [
   { name: 'Statements', to: '/account/statements' }
 ];
 
-const activeTab = ref('overview');
+const activeTab = ref('Overview');
 </script>
 
 <template>
@@ -57,7 +57,7 @@ const activeTab = ref('overview');
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold tracking-tight">
-          {{ activeTab }}
+          Account - {{ activeTab }}
         </h1>
         <p class="text-muted-foreground text-sm">
           Home - Account
