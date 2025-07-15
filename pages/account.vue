@@ -10,10 +10,10 @@ const preferenceStore = usePreferenceStore();
 
 // 假设这是从 API 获取的用户数据
 const user = ref({
-  name: 'Max Smith',
-  title: 'Developer',
-  location: 'SF, Bay Area',
-  email: 'max@kt.com',
+  name: '',
+  title: '',
+  location: '',
+  email: '',
   avatar: '',
   stats: {
     followersCount: 0,
@@ -36,48 +36,52 @@ const accountTabs = [
 
 const activeTab = ref('Overview');
 
-try {
-  const response = (await apiFetch('/api/v1/users/me', {
-    method: 'GET'
-  })) as { data?: { userData?: { userInfo?: any } } };
-
-  user.value.name =
-    response.data?.userData?.userInfo?.username || '';
-  user.value.title =
-    response.data?.userData?.userInfo?.displayName || '';
-  user.value.location =
-    response.data?.userData?.userInfo?.location || '';
-  user.value.email =
-    response.data?.userData?.userInfo?.email || '';
-  user.value.avatar =
-    response.data?.userData?.userInfo?.avatarUrl || '';
-
-  console.log('Fetched user info:', user);
-} catch (error) {
-  console.error('Error fetching user info:', error);
-  toast.error('Failed to fetch user info.');
-}
-
-try {
-  const response = (await apiFetch(
-    `/api/v1/users/${preferenceStore.preferences.user.userId}/stats`,
-    {
+onMounted(async () => {
+  try {
+    const response = (await apiFetch('/api/v1/users/me', {
       method: 'GET'
-    }
-  )) as { data?: { userData?: { userInfo?: any } } };
+    })) as { data?: { userData?: { userInfo?: any } } };
 
-  user.value.stats.followersCount =
-    response.data?.userData?.userInfo?.followersCount || 0;
-  user.value.stats.followingCount =
-    response.data?.userData?.userInfo?.followingCount || 0;
-  user.value.stats.likesCount =
-    response.data?.userData?.userInfo?.likesCount || 0;
+    user.value.name =
+      response.data?.userData?.userInfo?.username || '';
+    user.value.title =
+      response.data?.userData?.userInfo?.displayName || '';
+    user.value.location =
+      response.data?.userData?.userInfo?.location || '';
+    user.value.email =
+      response.data?.userData?.userInfo?.email || '';
+    user.value.avatar =
+      response.data?.userData?.userInfo?.avatarUrl || '';
 
-  console.log('Fetched user info analytisc:', user);
-} catch (error) {
-  console.error('Error fetching user info:', error);
-  toast.error('Failed to fetch user info.');
-}
+    console.log('Fetched user info:', user);
+  } catch (error) {
+    console.error('Error fetching user info:', error);
+    toast.error('Failed to fetch user info.');
+  }
+
+  try {
+    const response = (await apiFetch(
+      `/api/v1/users/${preferenceStore.preferences.user.userId}/stats`,
+      {
+        method: 'GET'
+      }
+    )) as { data?: { userData?: { userInfo?: any } } };
+
+    user.value.stats.followersCount =
+      response.data?.userData?.userInfo?.followersCount ||
+      0;
+    user.value.stats.followingCount =
+      response.data?.userData?.userInfo?.followingCount ||
+      0;
+    user.value.stats.likesCount =
+      response.data?.userData?.userInfo?.likesCount || 0;
+
+    console.log('Fetched user info analytics:', user);
+  } catch (error) {
+    console.error('Error fetching user info:', error);
+    toast.error('Failed to fetch user info.');
+  }
+});
 </script>
 
 <template>
