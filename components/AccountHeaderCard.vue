@@ -14,6 +14,7 @@ import {
   AvatarImage
 } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
+import { ref } from 'vue';
 import {
   ArrowUp,
   ArrowDown,
@@ -23,6 +24,7 @@ import {
   MoreHorizontal
 } from 'lucide-vue-next';
 import type { PropType } from 'vue';
+import { modal } from '#build/ui';
 
 // 2. 为 props 定义清晰的 TypeScript 类型
 interface UserData {
@@ -55,6 +57,8 @@ defineProps({
     required: true
   }
 });
+
+const tabValue = defineModel<string>();
 </script>
 
 <template>
@@ -190,7 +194,11 @@ defineProps({
           class="inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           active-class="bg-background text-foreground shadow-sm"
         >
-          <NuxtLink :key="tab.name" :to="tab.to">
+          <NuxtLink
+            :key="tab.name"
+            :to="tab.to"
+            :onclick="() => (tabValue = tab.name)"
+          >
             {{ tab.name }}
           </NuxtLink>
         </TabsTrigger>

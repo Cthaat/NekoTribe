@@ -47,6 +47,8 @@ const accountTabs = [
   { name: 'Active', to: '/account/active' },
   { name: 'Statements', to: '/account/statements' }
 ];
+
+const activeTab = ref('overview');
 </script>
 
 <template>
@@ -55,7 +57,7 @@ const accountTabs = [
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold tracking-tight">
-          Account Overview
+          {{ activeTab }}
         </h1>
         <p class="text-muted-foreground text-sm">
           Home - Account
@@ -70,6 +72,7 @@ const accountTabs = [
     <AccountHeaderCard
       :user="user"
       :account-tabs="accountTabs"
+      v-model="activeTab"
     />
 
     <!-- 4. 子页面渲染出口 -->
