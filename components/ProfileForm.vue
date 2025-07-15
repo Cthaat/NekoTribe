@@ -45,7 +45,7 @@ const userInfo = ref({
   displayName: '',
   bio: '',
   location: '',
-  urls: [{ value: '' }],
+  website: '',
   birthDate: null as DateValue | null,
   phone: ''
 });
@@ -64,6 +64,21 @@ onMounted(async () => {
 
     // 检查 userInfo 是否存在
     if (userInfo.value) {
+      let formattedUrls;
+
+      // 2. 检查从 API 获取的 website 字符串是否存在且不为空
+      if (
+        userInfo.value.website &&
+        userInfo.value.website.trim() !== ''
+      ) {
+        // 如果存在，分割字符串并映射为对象数组
+        formattedUrls = userInfo.value.website
+          .split(',') // -> ['https://a.com', ' https://b.com']
+          .map(url => ({ value: url.trim() })); // -> [{value: 'https://a.com'}, {value: 'https://b.com'}]
+      } else {
+        // 如果不存在或为空，提供一个默认的空输入框
+        formattedUrls = [{ value: '' }];
+      }
       // 使用 resetForm 将获取到的数据填充到表单中**
       resetForm({
         values: {
@@ -72,11 +87,7 @@ onMounted(async () => {
           location: userInfo.value.location || '',
           // 确保 urls 的格式是 [{ value: '...' }]
           // 如果 API 返回的 urls 为空或 null，则提供一个默认的空 URL 字段
-          urls:
-            userInfo.value.urls &&
-            userInfo.value.urls.length > 0
-              ? userInfo.value.urls
-              : [{ value: '' }],
+          urls: formattedUrls,
           // 对于日历组件，最好将日期字符串转换为 DateValue 对象
           // 假设 API 返回的 birthDate 是 'YYYY-MM-DD' 格式的字符串
           birthDate: userInfo.value.birthDate
@@ -134,11 +145,14 @@ const { handleSubmit, resetForm } = useForm({
     displayName: userInfo.value.displayName || '',
     bio: userInfo.value.bio || '',
     location: userInfo.value.location || '',
-    // 确保 urls 的格式是 [{ value: '...' }]
-    // 如果 API 返回的 urls 为空或 null，则提供一个默认的空 URL 字段
+    // 确保 website 的格式是 [{ value: '...' }]
+    // 如果 API 返回的 website 为空或 null，则提供一个默认的空 URL 字段
     urls:
-      userInfo.value.urls && userInfo.value.urls.length > 0
-        ? userInfo.value.urls
+      userInfo.value.website &&
+      userInfo.value.website.length > 0
+        ? userInfo.value.website
+            .split(',')
+            .map((url: string) => ({ value: url.trim() }))
         : [{ value: '' }],
     // 对于日历组件，最好将日期字符串转换为 DateValue 对象
     // 假设 API 返回的 birthDate 是 'YYYY-MM-DD' 格式的字符串
@@ -149,10 +163,46 @@ const { handleSubmit, resetForm } = useForm({
   }
 });
 
-const onSubmit = handleSubmit(values => {
-  toast({
-    title: 'You submitted the following values:'
+const onSubmit = handleSubmit(async values => {
+  let submitValues = {
+    ...values,
+    website: '',
+    birthDate: ''
+  };
+
+  if (values.urls && Array.isArray(values.urls)) {
+    const urlString = values.urls
+      // 从对象数组中提取出 url 字符串 -> ['https://a.com', '', 'https://b.com']
+      .map(urlObject => urlObject.value)
+      // 过滤掉空字符串 -> ['https://a.com', 'https://b.com']
+      .filter(url => url && url.trim() !== '')
+      // 用逗号连接成一个字符串 -> 'https://a.com,https://b.com'
+      .join(',');
+
+    // 用处理好的字符串替换原来的数组
+    submitValues.website = urlString;
+  }
+
+  // 3. (可选但推荐) 同时处理 birthDate 字段
+  //    它现在是一个对象，提交时通常需要转换为 'YYYY-MM-DD' 格式的字符串
+  if (values.birthDate) {
+    values.birthDate = values.birthDate.toString();
+  }
+  console.log('Form submitted with values:', submitValues);
+  toast('Profile updated successfully!', {
+    description: 'Your profile has been updated.',
+    duration: 3000
   });
+  const response = await apiFetch('/api/v1/users/me', {
+    method: 'PUT',
+    body: JSON.stringify(submitValues),
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+  console.log('Profile update response:', response);
+  // 刷新页面
+  window.location.reload();
 });
 
 // 创建日期格式化实例，这部分是正确的
