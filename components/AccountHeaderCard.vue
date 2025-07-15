@@ -39,7 +39,7 @@ interface UserData {
     followingCount: number;
     likesCount: number;
   };
-  profileCompletion: number;
+  point: number;
 }
 
 interface TabItem {
@@ -48,7 +48,7 @@ interface TabItem {
 }
 
 // 3. 使用 defineProps 接收从父组件传递过来的数据
-defineProps({
+const props = defineProps({
   user: {
     type: Object as PropType<UserData>,
     required: true
@@ -57,6 +57,28 @@ defineProps({
     type: Array as PropType<TabItem[]>,
     required: true
   }
+});
+
+const MAX_POSSIBLE_SCORE = 3000;
+
+const normalizedScore = computed(() => {
+  const originalScore = props.user.point;
+  const minScore = 0; // 最小可能分数
+
+  // 应用归一化公式
+  let score_0_to_100 =
+    ((originalScore - minScore) /
+      (MAX_POSSIBLE_SCORE - minScore)) *
+    100;
+
+  // 3. 确保分数不会超过 100 或低于 0（处理边界情况）
+  //    如果原始分数可能超过你设定的最大值，这一步很重要
+  score_0_to_100 = Math.max(
+    0,
+    Math.min(score_0_to_100, 100)
+  );
+
+  return score_0_to_100;
 });
 
 const tabValue = defineModel<string>();
@@ -163,16 +185,16 @@ const tabValue = defineModel<string>();
               <label
                 for="completion"
                 class="text-sm font-medium"
-                >Profile Completion</label
+                >Active Score</label
               >
               <div class="flex items-center gap-2">
                 <Progress
-                  :model-value="user.profileCompletion"
+                  :model-value="normalizedScore"
                   class="w-full"
                 />
-                <span class="font-semibold text-sm"
-                  >{{ user.profileCompletion }}%</span
-                >
+                <span class="font-semibold text-sm">{{
+                  user.point
+                }}</span>
               </div>
             </div>
           </div>

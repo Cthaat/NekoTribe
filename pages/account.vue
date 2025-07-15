@@ -20,7 +20,7 @@ const user = ref({
     followingCount: 0,
     likesCount: 0
   },
-  profileCompletion: 50
+  point: 50
 });
 
 // 为页面内的横向选项卡导航定义数据
@@ -80,6 +80,21 @@ onMounted(async () => {
   } catch (error) {
     console.error('Error fetching user info:', error);
     toast.error('Failed to fetch user info.');
+  }
+
+  try {
+    const response = (await apiFetch(
+      `/api/v1/analytics/users/${preferenceStore.preferences.user.userId}/stats`,
+      {
+        method: 'GET'
+      }
+    )) as { data?: { user?: any } };
+
+    user.value.point =
+      response.data?.user.engagementScore || 0;
+  } catch (error) {
+    console.error('Error fetching user analytics:', error);
+    toast.error('Failed to fetch user analytics.');
   }
 });
 </script>
