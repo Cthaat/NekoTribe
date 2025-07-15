@@ -69,25 +69,6 @@ const data = {
       ]
     },
     {
-      title: 'Models',
-      url: '#',
-      icon: Bot,
-      items: [
-        {
-          title: 'Genesis',
-          url: '#'
-        },
-        {
-          title: 'Explorer',
-          url: '#'
-        },
-        {
-          title: 'Quantum',
-          url: '#'
-        }
-      ]
-    },
-    {
       title: 'Documentation',
       url: '#',
       icon: BookOpen,
@@ -112,28 +93,36 @@ const data = {
     },
     {
       title: 'Account',
-      url: '#',
+      url: '/account/overview',
       icon: Settings2,
       items: [
         {
           title: 'Overview',
-          url: '#'
+          url: '/account/overview'
         },
         {
           title: 'Settings',
-          url: '#'
+          url: '/account/settings'
+        },
+        {
+          title: 'Profile',
+          url: '/account/profile'
+        },
+        {
+          title: 'Appearance',
+          url: '/account/appearance'
         },
         {
           title: 'Security',
-          url: '#'
+          url: '/account/security'
         },
         {
           title: 'Active',
-          url: '#'
+          url: '/account/active'
         },
         {
           title: 'Statements',
-          url: '#'
+          url: '/account/statements'
         }
       ]
     }
