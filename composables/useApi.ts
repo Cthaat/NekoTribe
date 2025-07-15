@@ -1,35 +1,40 @@
-// 我们需要从 ofetch 导入 FetchOptions 类型，以便进行断言
-import type { FetchOptions } from 'ofetch';
+// composables/apiFetch.ts
+
+// 1. 我们不需要从任何地方导入选项类型了！
+//    我们将直接从全局的 $fetch 函数推导出它的类型。
 
 /**
- * 这是您应用中发起 API 请求的【推荐】方式。
- *
- * 它是一个简洁的封装，内部调用了由 `plugins/api.ts` 插件创建并提供的
- * 全局 `$api` 实例。
+ * 直接从全局 $fetch 函数的类型定义中提取出其第二个参数（options 对象）的类型。
+ * 这是最精确、最不会出错的做法。
+ */
+type ApiFetchOptions = Parameters<typeof $fetch>[1];
+
+/**
+ * 封装了 $fetch，并自动添加 baseURL。
+ * 这是用于事件驱动请求（如表单提交）的工具。
  *
  * @param path 你要请求的 API 路径
- * @param options 与全局 $fetch 完全兼容的选项对象
- * @returns Promise<T>
+ * @param options 与 $fetch 完全兼容的选项对象
  */
 export const apiFetch = <T>(
-  // 我们仍然使用从全局 $fetch 推导出的类型，因为它最贴近用户的使用习惯
   path: string,
-  options?: Parameters<typeof $fetch>[1]
+  // 2. 使用我们刚刚推导出的精确类型
+  options: ApiFetchOptions = {}
 ) => {
-  const { $api } = useNuxtApp();
+  // 3. 获取运行时配置
+  const config = useRuntimeConfig();
 
-  // 🔥 核心改动：使用类型断言 `as`
-  // 我们在这里强制告诉 TypeScript：
-  // "尽管你可能觉得这个 options 类型很宽泛，但我保证它与 ofetch 要求的 FetchOptions<'json'> 是兼容的。
-  // 请按照这个类型来处理它。"
-  // 这会直接解决掉关于 `responseType` 不兼容的错误。
-  const assertionOptions = options as FetchOptions<'json'>;
+  // 4. 创建默认选项，同样使用这个精确的类型
+  const defaults: ApiFetchOptions = {
+    baseURL: config.public.apiBase
 
-  // 添加调试信息
-  console.log(`[apiFetch] 发起请求: ${path}`, {
-    options: assertionOptions || '无选项'
-  });
+    // 如果需要全局添加 headers 或拦截器，这里是最佳位置
+    // onRequest({ options }) { ... }
+  };
 
-  // 调用 $api，并传递经过类型断言的选项对象
-  return $api<T>(path, assertionOptions);
+  // 5. 合并选项，TypeScript 现在可以正确推断出 mergedOptions 的类型
+  const mergedOptions = { ...defaults, ...options };
+
+  // 6. 调用 $fetch，现在类型完美匹配，不会再有任何错误
+  return $fetch<T>(path, mergedOptions);
 };
