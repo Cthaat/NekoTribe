@@ -141,7 +141,7 @@ export default defineEventHandler(async event => {
       }
 
       // 构建头像访问路径
-      const avatarPath = `./avatars/${user.userId}/${uniqueName}`;
+      const avatarPath = `/avatars/${user.userId}/${uniqueName}`;
 
       try {
         const updateSql = `

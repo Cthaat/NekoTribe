@@ -109,8 +109,7 @@ const onSubmit = handleSubmit(values => {
         </FormControl>
         <FormDescription>
           This is your public display name. It can be your
-          real name or a pseudonym. You can only change this
-          once every 30 days.
+          real name or a pseudonym.
         </FormDescription>
         <FormMessage />
       </FormItem>

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed } from 'vue';
 import type { UserPreference, ThemeMode } from './type';
+import { apiFetch } from '@/composables/useApi';
 
 // --- 默认状态 ---
 // 这个对象保持不变，它定义了所有用户偏好的初始值。
@@ -129,6 +130,38 @@ export const usePreferenceStore = defineStore(
       updatePreference('refresh_token', newRefreshToken);
     }
 
+    async function refreshAccessToken() {
+      console.log(
+        '[PreferenceStore] Refreshing access token.'
+      );
+      // 这里可以调用 API 来刷新令牌
+      const response: any = await apiFetch(
+        '/api/v1/auth/refresh',
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${preferences.value.access_token}`
+          }
+        }
+      );
+      console.log('[PreferenceStore] 刷新响应:', response);
+      const code = response.code || 200;
+      if (code === 200) {
+        const data = response.data;
+        console.log(
+          '[PreferenceStore] 刷新成功，更新令牌：',
+          'accessToken:',
+          data.accessToken,
+          'refreshToken:',
+          data.refreshToken
+        );
+        setAuthTokens(data.accessToken, data.refreshToken);
+      } else {
+        clearAuthTokens();
+        throw new Error('Failed to refresh access token');
+      }
+    }
+
     /**
      * 在用户登出时调用此 Action。
      */
@@ -139,6 +172,9 @@ export const usePreferenceStore = defineStore(
       // 将令牌重置为初始的空字符串状态
       updatePreference('access_token', '');
       updatePreference('refresh_token', '');
+      // 跳转到
+      // 这里可以使用 Nuxt 的路由跳转方法
+      useRouter().push('/auth/login');
     }
 
     // 您已有的其他 actions (setTheme, toggleCompactMode) 保持不变
@@ -170,6 +206,7 @@ export const usePreferenceStore = defineStore(
       toggleCompactMode,
       resetToDefaults,
       setAuthTokens, // 【新增】
+      refreshAccessToken, // 【新增】
       clearAuthTokens // 【新增】
     };
   }
