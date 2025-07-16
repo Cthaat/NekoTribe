@@ -5,6 +5,7 @@ import {
   TabsList,
   TabsTrigger
 } from '@/components/ui/tabs';
+import AvatarUploader from '@/components/AvatarUploader.vue'; // 导入你的新组件
 // 1. 导入所有这个组件需要的依赖项
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -59,6 +60,30 @@ const props = defineProps({
   }
 });
 
+// 3.定义 emits，声明该组件会触发 'update:user' 事件
+const emit = defineEmits(['update:user']);
+
+// 4. 处理头像更新的正确方式
+const handleAvatarUpdate = (
+  newAvatarRelativePath: string
+) => {
+  // 创建一个 props.user 的副本
+  const updatedUser = { ...props.user };
+  // 更新副本的 avatar 属性 (假设后端返回的是相对路径)
+  // 你需要在这里拼接完整的 URL，或者确保你的 API 调用者来做这件事
+  const BACKEND_URL = ''; // 示例 URL
+  updatedUser.avatar = `${BACKEND_URL}${newAvatarRelativePath}`;
+  // c. 通过 emit 事件将整个更新后的 user 对象发送给父组件
+  emit('update:user', updatedUser);
+};
+
+// 将需要传递给 AvatarUploader 的数据包装成一个 computed 属性
+//    这样可以确保当 props.user 变化时，子组件也能接收到更新
+const avatarUploaderProps = computed(() => ({
+  name: props.user.name,
+  avatar: props.user.avatar
+}));
+
 const MAX_POSSIBLE_SCORE = 3000;
 
 const normalizedScore = computed(() => {
@@ -92,16 +117,11 @@ const tabValue = defineModel<string>();
       <div
         class="flex flex-col sm:flex-row items-start gap-6"
       >
-        <!-- 头像 -->
-        <Avatar class="w-24 h-24 border">
-          <AvatarImage
-            :src="user.avatar"
-            :alt="user.name"
-          />
-          <AvatarFallback>{{
-            user.name.slice(0, 2).toUpperCase()
-          }}</AvatarFallback>
-        </Avatar>
+        <AvatarUploader
+          :user="avatarUploaderProps"
+          @update:avatar="handleAvatarUpdate"
+          class="absolute bottom-0 right-0"
+        />
 
         <!-- 右侧的所有信息，使用 space-y-4 来创建垂直间距 -->
         <div class="flex-1 space-y-4">
