@@ -167,16 +167,10 @@ const onSubmit = handleSubmit(async values => {
           </FormControl>
           <button
             type="button"
-            @click="
-              isConfirmPasswordVisible =
-                !isConfirmPasswordVisible
-            "
+            @click="isPasswordVisible = !isPasswordVisible"
             class="absolute inset-y-0 right-0 flex items-center justify-center h-full px-3 text-muted-foreground"
           >
-            <Eye
-              v-if="!isConfirmPasswordVisible"
-              class="size-4"
-            />
+            <Eye v-if="!isPasswordVisible" class="size-4" />
             <EyeOff v-else class="size-4" />
             <span class="sr-only"
               >Toggle password visibility</span
@@ -197,13 +191,37 @@ const onSubmit = handleSubmit(async values => {
     >
       <FormItem>
         <FormLabel>Confirm Password</FormLabel>
-        <FormControl>
-          <Input
-            type="password"
-            placeholder="Confirm Password"
-            v-bind="componentField"
-          />
-        </FormControl>
+        <div class="relative">
+          <FormControl>
+            <Input
+              :type="
+                isConfirmPasswordVisible
+                  ? 'text'
+                  : 'password'
+              "
+              placeholder="Confirm Password"
+              v-bind="componentField"
+              class="pr-10"
+            />
+          </FormControl>
+          <button
+            type="button"
+            @click="
+              isConfirmPasswordVisible =
+                !isConfirmPasswordVisible
+            "
+            class="absolute inset-y-0 right-0 flex items-center justify-center h-full px-3 text-muted-foreground"
+          >
+            <Eye
+              v-if="!isConfirmPasswordVisible"
+              class="size-4"
+            />
+            <EyeOff v-else class="size-4" />
+            <span class="sr-only"
+              >Toggle password visibility</span
+            >
+          </button>
+        </div>
         <FormDescription>
           Your confirm password must be at least 8
           characters long.
