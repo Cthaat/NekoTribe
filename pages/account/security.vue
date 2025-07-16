@@ -9,11 +9,10 @@ import SecurityPage from '@/components/SecurityPage.vue';
       <div class="hidden space-y-6 p-10 pb-16 md:block">
         <div class="space-y-0.5">
           <h2 class="text-2xl font-bold tracking-tight">
-            Security
+            {{ $t('account.security.title') }}
           </h2>
           <p class="text-muted-foreground">
-            This is how you can change your account security
-            settings.
+            {{ $t('account.security.description') }}
           </p>
         </div>
         <Separator class="my-6" />

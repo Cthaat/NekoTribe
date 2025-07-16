@@ -82,9 +82,16 @@ async function sendCaptcha() {
     );
     console.log(response);
 
-    toast.success('the auth.signUp.captchaSent', {
-      description: t('auth.signUp.captchaSentDescription')
-    });
+    toast.success(
+      t(
+        'account.security.securityPage.password.captchaSent'
+      ),
+      {
+        description: t(
+          'account.security.securityPage.password.captchaSentDescription'
+        )
+      }
+    );
 
     // 发送成功后，禁用按钮60秒，并且显示还剩多少时间
 
@@ -104,13 +111,23 @@ async function sendCaptcha() {
   } catch (error: any) {
     // 错误处理逻辑保持不变
     console.error(
-      t('auth.signUp.captchaSendError'),
+      t(
+        'account.security.securityPage.password.captchaSendError'
+      ),
       error.data
     );
-    toast.error(t('auth.signUp.captchaSendError'), {
-      description:
-        error.data?.message || t('auth.signUp.unknownError')
-    });
+    toast.error(
+      t(
+        'account.security.securityPage.password.captchaSendError'
+      ),
+      {
+        description:
+          error.data?.message ||
+          t(
+            'account.security.securityPage.password.unknownError'
+          )
+      }
+    );
   }
 }
 
@@ -118,17 +135,23 @@ const profileFormSchema = toTypedSchema(
   z
     .object({
       newPassword: z.string().min(6, {
-        message: t('auth.signUp.passwordTooShort')
+        message: t(
+          'account.security.securityPage.password.passwordTooShort'
+        )
       }),
       confirmPassword: z.string().min(6, {
-        message: t('auth.signUp.passwordTooShort')
+        message: t(
+          'account.security.securityPage.password.passwordTooShort'
+        )
       }),
       captcha: z.string().optional()
     })
     .refine(
       data => data.newPassword === data.confirmPassword,
       {
-        message: t('auth.signUp.passwordMismatch'),
+        message: t(
+          'account.security.securityPage.password.passwordMismatch'
+        ),
         path: ['confirmPassword'] // 错误提示显示在确认密码字段
       }
     )
@@ -156,20 +179,35 @@ const onSubmit = handleSubmit(async values => {
         }
       }
     );
-    toast.success('the auth.signUp.resetPasswordSuccess', {
-      description: t(
-        'auth.signUp.resetPasswordSuccessDescription'
-      )
-    });
+    toast.success(
+      t(
+        'account.security.securityPage.password.resetPasswordSuccess'
+      ),
+      {
+        description: t(
+          'account.security.securityPage.password.resetPasswordSuccessDescription'
+        )
+      }
+    );
   } catch (error: any) {
     console.error(
-      t('auth.signUp.resetPasswordError'),
+      t(
+        'account.security.securityPage.password.resetPasswordError'
+      ),
       error.data
     );
-    toast.error(t('auth.signUp.resetPasswordError'), {
-      description:
-        error.data?.message || t('auth.signUp.unknownError')
-    });
+    toast.error(
+      t(
+        'account.security.securityPage.password.resetPasswordError'
+      ),
+      {
+        description:
+          error.data?.message ||
+          t(
+            'account.security.securityPage.password.unknownError'
+          )
+      }
+    );
   } finally {
     try {
       preferenceStore.resetToDefaults(); // 重置用户偏好设置
@@ -185,7 +223,11 @@ const onSubmit = handleSubmit(async values => {
         navigateTo(localePath('auth-login'));
       }, 2000);
     } catch (error) {
-      toast.error('退出登录失败，请重试。');
+      toast.error(
+        t(
+          'account.security.securityPage.password.logoutError'
+        )
+      );
     }
   }
 });
@@ -198,14 +240,22 @@ const onSubmit = handleSubmit(async values => {
       name="newPassword"
     >
       <FormItem>
-        <FormLabel>New Password</FormLabel>
+        <FormLabel>{{
+          $t(
+            'account.security.securityPage.password.newPassword'
+          )
+        }}</FormLabel>
         <div class="relative">
           <FormControl>
             <Input
               :type="
                 isPasswordVisible ? 'text' : 'password'
               "
-              placeholder="New Password"
+              :placeholder="
+                $t(
+                  'account.security.securityPage.password.newPassword'
+                )
+              "
               v-bind="componentField"
               class="pr-10"
             />
@@ -223,8 +273,11 @@ const onSubmit = handleSubmit(async values => {
           </button>
         </div>
         <FormDescription>
-          Your new password must be at least 8 characters
-          long.
+          {{
+            $t(
+              'account.security.securityPage.password.newPasswordDescription'
+            )
+          }}
         </FormDescription>
         <FormMessage />
       </FormItem>
@@ -235,7 +288,11 @@ const onSubmit = handleSubmit(async values => {
       name="confirmPassword"
     >
       <FormItem>
-        <FormLabel>Confirm Password</FormLabel>
+        <FormLabel>{{
+          $t(
+            'account.security.securityPage.password.confirmPassword'
+          )
+        }}</FormLabel>
         <div class="relative">
           <FormControl>
             <Input
@@ -244,7 +301,11 @@ const onSubmit = handleSubmit(async values => {
                   ? 'text'
                   : 'password'
               "
-              placeholder="Confirm Password"
+              :placeholder="
+                $t(
+                  'account.security.securityPage.password.confirmPassword'
+                )
+              "
               v-bind="componentField"
               class="pr-10"
             />
@@ -268,8 +329,11 @@ const onSubmit = handleSubmit(async values => {
           </button>
         </div>
         <FormDescription>
-          Your confirm password must be at least 8
-          characters long.
+          {{
+            $t(
+              'account.security.securityPage.password.confirmPasswordDescription'
+            )
+          }}
         </FormDescription>
         <FormMessage />
       </FormItem>
@@ -279,7 +343,9 @@ const onSubmit = handleSubmit(async values => {
     <FormField v-slot="{ componentField }" name="captcha">
       <FormItem>
         <FormLabel>{{
-          $t('auth.signUp.captcha')
+          $t(
+            'account.security.securityPage.password.captcha'
+          )
         }}</FormLabel>
         <!-- 
       使用一个 div 作为 Flexbox 容器，
@@ -320,10 +386,19 @@ const onSubmit = handleSubmit(async values => {
     使用 v-if 和 v-else 来根据 isCaptchaSending 的状态显示不同的文本
   -->
             <span v-if="isCaptchaSending">
-              {{ countdown }} 秒后重试
+              {{
+                countdown +
+                $t(
+                  'account.security.securityPage.password.captchaSecondsLeft'
+                )
+              }}
             </span>
             <span v-else>
-              {{ $t('auth.signUp.sendCaptcha') }}
+              {{
+                $t(
+                  'account.security.securityPage.password.sendCaptcha'
+                )
+              }}
             </span>
           </Button>
         </div>
@@ -332,7 +407,13 @@ const onSubmit = handleSubmit(async values => {
     </FormField>
 
     <div class="flex gap-2 justify-start">
-      <Button type="submit"> Update profile </Button>
+      <Button type="submit">
+        {{
+          $t(
+            'account.security.securityPage.password.resetPassword'
+          )
+        }}
+      </Button>
     </div>
   </form>
 </template>
