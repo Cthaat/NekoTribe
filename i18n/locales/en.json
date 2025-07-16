@@ -81,6 +81,61 @@
       "redirectToLogin": "Redirecting to login page...",
       "successRegisterDescription": "Please log in with your new account.",
       "agreeToTermsChanged": "Agree to terms of service status changed"
+    },
+    "terms": {
+      "title": "Terms of Service",
+      "description": "Please read the following terms of service and privacy policy carefully.",
+      "lastUpdated": "Last updated",
+      "toc": {
+        "title": "Table of Contents",
+        "acceptance": "Acceptance of Terms",
+        "accounts": "Account Responsibilities",
+        "conduct": "User Conduct",
+        "termination": "Termination of Service",
+        "faq": "Frequently Asked Questions",
+        "privacy": "Privacy Policy"
+      },
+      "sections": {
+        "acceptance": {
+          "title": "1. Acceptance of Terms",
+          "content": "By accessing or using this service, you agree to comply with these terms. If you do not agree with these terms, please do not use this service."
+        },
+        "accounts": {
+          "title": "2. Account Responsibilities",
+          "content": "You are responsible for maintaining the security and confidentiality of your account information. Any activity conducted through your account will be deemed to be carried out by you."
+        },
+        "conduct": {
+          "title": "3. User Conduct",
+          "alertTitle": "3. Warning: Please note that you agree not to engage in any of the following behaviors, or you will bear corresponding responsibilities:",
+          "content": "You agree not to engage in any behavior that may damage, disable, overburden, or interfere with this service.",
+          "prohibited": {
+            "item1": "Impersonating others",
+            "item2": "Posting false information",
+            "item3": "Conducting malicious attacks"
+          }
+        },
+        "termination": {
+          "title": "4. Termination of Service",
+          "content": "We reserve the right to terminate or suspend your access at any time, with or without notice."
+        }
+      },
+      "faq": {
+        "title": "Frequently Asked Questions",
+        "description": "Here are some frequently asked questions and their answers.",
+        "q1": {
+          "question": "Can I change my email address?",
+          "answer": "Yes, you can change your email address in your account settings."
+        },
+        "q2": {
+          "question": "What should I do if I forget my password?",
+          "answer": "You can reset your password by clicking the 'Forgot Password' link on the login page."
+        },
+        "q3": {
+          "question": "How can I delete my account?",
+          "answer": "Please contact customer support to request account deletion."
+        }
+      },
+      "registerButton": "Back to Registration"
     }
   },
   "account": {

@@ -17,6 +17,7 @@ import {
   AlertDescription,
   AlertTitle
 } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import {
   Accordion,
   AccordionContent,
@@ -27,6 +28,9 @@ import { AlertTriangle, FileText } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
+
+// 2. 使用 useLocalePath 来处理路由
+const localePath = useLocalePath();
 
 // 2. 为目录和 FAQ 定义数据 (在实际应用中，这些也可以来自 props 或 API)
 const tocItems = [
@@ -233,6 +237,18 @@ const faqItems = [
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
+            <!-- 添加返回注册的按钮，居中 -->
+            <div
+              class="mt-6 flex content-center justify-center"
+            >
+              <Button
+                @click="
+                  $router.push(localePath('auth-sign-up'))
+                "
+              >
+                {{ $t('auth.terms.registerButton') }}
+              </Button>
+            </div>
           </section>
         </article>
       </CardContent>
