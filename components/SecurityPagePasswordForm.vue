@@ -4,6 +4,7 @@ import { FieldArray, useForm } from 'vee-validate';
 import { h, ref } from 'vue';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
+import { Eye, EyeOff } from 'lucide-vue-next';
 import {
   FormControl,
   FormDescription,
@@ -50,6 +51,9 @@ const preferenceStore = usePreferenceStore();
 const { t } = useI18n();
 
 const value = ref<string[]>([]);
+
+const isConfirmPasswordVisible = ref(false);
+const isPasswordVisible = ref(false);
 
 // --- 新增：为验证码按钮添加状态 ---
 const isCaptchaSending = ref(false);
@@ -152,10 +156,28 @@ const onSubmit = handleSubmit(async values => {
         <FormLabel>New Password</FormLabel>
         <FormControl>
           <Input
-            type="password"
+            :type="isPasswordVisible ? 'text' : 'password'"
             placeholder="New Password"
             v-bind="componentField"
+            class="pr-10"
           />
+          <button
+            type="button"
+            @click="
+              isConfirmPasswordVisible =
+                !isConfirmPasswordVisible
+            "
+            class="absolute inset-y-0 right-0 flex items-center justify-center h-full px-3 text-muted-foreground"
+          >
+            <Eye
+              v-if="!isConfirmPasswordVisible"
+              class="size-4"
+            />
+            <EyeOff v-else class="size-4" />
+            <span class="sr-only"
+              >Toggle password visibility</span
+            >
+          </button>
         </FormControl>
         <FormDescription>
           Your new password must be at least 8 characters
