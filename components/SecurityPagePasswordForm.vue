@@ -111,7 +111,7 @@ async function sendCaptcha() {
 const profileFormSchema = toTypedSchema(
   z
     .object({
-      password: z.string().min(6, {
+      newPassword: z.string().min(6, {
         message: t('auth.signUp.passwordTooShort')
       }),
       confirmPassword: z.string().min(6, {
@@ -120,7 +120,7 @@ const profileFormSchema = toTypedSchema(
       captcha: z.string().optional()
     })
     .refine(
-      data => data.password === data.confirmPassword,
+      data => data.newPassword === data.confirmPassword,
       {
         message: t('auth.signUp.passwordMismatch'),
         path: ['confirmPassword'] // 错误提示显示在确认密码字段
@@ -137,7 +137,9 @@ const { handleSubmit, resetForm } = useForm({
   }
 });
 
-const onSubmit = handleSubmit(async values => {});
+const onSubmit = handleSubmit(async values => {
+  console.log(values);
+});
 </script>
 
 <template>
