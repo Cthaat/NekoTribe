@@ -193,7 +193,20 @@
       "privacySettings": "Privacy Settings",
       "notificationSettings": "Notification Settings",
       "accountSecurity": "Account Security",
-      "logout": "Logout"
+      "logout": "Logout",
+      "overallPanel": {
+        "totalTweets": "Total Tweets",
+        "tweetsThisWeek": "Tweets This Week",
+        "tweetsPiece": "Tweets",
+        "likesReceived": "Likes Received",
+        "avgLikesPerTweet": "Average Likes Per Tweet",
+        "likesPiece": "Likes",
+        "engagementScore": "Engagement Score",
+        "engagementScoreDescription": "Comprehensive assessment of user activity",
+        "outgoingInteractions": "Outgoing Interactions",
+        "likesGiven": "Likes Given",
+        "commentsMade": "Comments Made"
+      }
     },
     "security": {
       "title": "Security Settings",

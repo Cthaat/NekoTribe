@@ -92,7 +92,9 @@ const formatNumber = (num: number) => {
         class="flex flex-row items-center justify-between space-y-0 pb-2"
       >
         <CardTitle class="text-sm font-medium">
-          总推文数
+          {{
+            $t('account.overview.overallPanel.totalTweets')
+          }}
         </CardTitle>
         <Twitter class="size-4 text-muted-foreground" />
       </CardHeader>
@@ -101,7 +103,15 @@ const formatNumber = (num: number) => {
           {{ animatedTotalTweets.toFixed(0) }}
         </div>
         <p class="text-xs text-muted-foreground">
-          本周新增 {{ userAnalytics.tweetsThisWeek }} 条
+          {{
+            $t(
+              'account.overview.overallPanel.tweetsThisWeek'
+            )
+          }}
+          {{ userAnalytics.tweetsThisWeek }}
+          {{
+            $t('account.overview.overallPanel.tweetsPiece')
+          }}
         </p>
       </CardContent>
     </Card>
@@ -112,7 +122,11 @@ const formatNumber = (num: number) => {
         class="flex flex-row items-center justify-between space-y-0 pb-2"
       >
         <CardTitle class="text-sm font-medium">
-          收到的赞
+          {{
+            $t(
+              'account.overview.overallPanel.likesReceived'
+            )
+          }}
         </CardTitle>
         <Heart class="size-4 text-muted-foreground" />
       </CardHeader>
@@ -121,8 +135,15 @@ const formatNumber = (num: number) => {
           {{ formatNumber(animatedTotalLikesReceived) }}
         </div>
         <p class="text-xs text-muted-foreground">
-          平均每条
-          {{ animatedAvgLikesPerTweet.toFixed(1) }} 赞
+          {{
+            $t(
+              'account.overview.overallPanel.avgLikesPerTweet'
+            )
+          }}
+          {{ animatedAvgLikesPerTweet.toFixed(1) }}
+          {{
+            $t('account.overview.overallPanel.likesPiece')
+          }}
         </p>
       </CardContent>
     </Card>
@@ -133,7 +154,11 @@ const formatNumber = (num: number) => {
         class="flex flex-row items-center justify-between space-y-0 pb-2"
       >
         <CardTitle class="text-sm font-medium">
-          互动分数
+          {{
+            $t(
+              'account.overview.overallPanel.engagementScore'
+            )
+          }}
         </CardTitle>
         <Star class="size-4 text-muted-foreground" />
       </CardHeader>
@@ -142,7 +167,11 @@ const formatNumber = (num: number) => {
           {{ animatedEngagementScore.toFixed(0) }}
         </div>
         <p class="text-xs text-muted-foreground">
-          综合评估用户活跃度
+          {{
+            $t(
+              'account.overview.overallPanel.engagementScoreDescription'
+            )
+          }}
         </p>
       </CardContent>
     </Card>
@@ -153,17 +182,26 @@ const formatNumber = (num: number) => {
         class="flex flex-row items-center justify-between space-y-0 pb-2"
       >
         <CardTitle class="text-sm font-medium">
-          发出的互动
+          {{
+            $t(
+              'account.overview.overallPanel.outgoingInteractions'
+            )
+          }}
         </CardTitle>
         <BarChart3 class="size-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
         <div class="text-lg font-bold">
-          送出赞: {{ animatedTotalLikesGiven.toFixed(0) }}
+          {{
+            $t('account.overview.overallPanel.likesGiven')
+          }}: {{ animatedTotalLikesGiven.toFixed(0) }}
         </div>
         <div class="text-lg font-bold">
-          发表评论:
-          {{ animatedTotalCommentsMade.toFixed(0) }}
+          {{
+            $t(
+              'account.overview.overallPanel.commentsMade'
+            )
+          }}: {{ animatedTotalCommentsMade.toFixed(0) }}
         </div>
       </CardContent>
     </Card>

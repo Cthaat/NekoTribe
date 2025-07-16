@@ -193,7 +193,20 @@
       "privacySettings": "隐私设置",
       "notificationSettings": "通知设置",
       "accountSecurity": "账号安全",
-      "logout": "退出登录"
+      "logout": "退出登录",
+      "overallPanel": {
+        "totalTweets": "总推文数",
+        "tweetsThisWeek": "本周新增",
+        "tweetsPiece": "条",
+        "likesReceived": "收到的赞",
+        "avgLikesPerTweet": "平均每条推文",
+        "likesPiece": "赞",
+        "engagementScore": "互动分数",
+        "engagementScoreDescription": "综合评估用户活跃度",
+        "outgoingInteractions": "发出的互动",
+        "likesGiven": "送出赞",
+        "commentsMade": "发表评论"
+      }
     },
     "security": {
       "title": "账号安全",
