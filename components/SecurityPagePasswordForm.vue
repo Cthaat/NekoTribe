@@ -88,37 +88,41 @@ const onSubmit = handleSubmit(async values => {});
   <form class="space-y-8" @submit="onSubmit">
     <FormField
       v-slot="{ componentField }"
-      name="displayName"
+      name="newPassword"
     >
       <FormItem>
-        <FormLabel>DisplayName</FormLabel>
+        <FormLabel>New Password</FormLabel>
         <FormControl>
           <Input
             type="text"
-            placeholder="displayName"
+            placeholder="New Password"
             v-bind="componentField"
           />
         </FormControl>
         <FormDescription>
-          This is your public display name. It can be your
-          real name or a pseudonym.
+          Your new password must be at least 8 characters
+          long.
         </FormDescription>
         <FormMessage />
       </FormItem>
     </FormField>
 
-    <FormField v-slot="{ componentField }" name="bio">
+    <FormField
+      v-slot="{ componentField }"
+      name="repeatPassword"
+    >
       <FormItem>
-        <FormLabel>Bio</FormLabel>
+        <FormLabel>Repeat Password</FormLabel>
         <FormControl>
-          <Textarea
-            placeholder="Tell us a little bit about yourself"
+          <Input
+            type="text"
+            placeholder="Repeat Password"
             v-bind="componentField"
           />
         </FormControl>
         <FormDescription>
-          You can <span>@mention</span> other users and
-          organizations to link to them.
+          Your repeat password must be at least 8 characters
+          long.
         </FormDescription>
         <FormMessage />
       </FormItem>
