@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/avatar';
 import { Loader2 } from 'lucide-vue-next';
 import { apiFetch } from '@/composables/useApi';
+import { usePreferenceStore } from '~/stores/user'; // 导入 store
 
 // --- Props & Emits ---
 const props = defineProps({
@@ -24,7 +25,6 @@ const props = defineProps({
     default: '/api/v1/users/avatar-upload' // 提供一个默认值
   }
 });
-
 
 const emit = defineEmits(['update:avatar']);
 
@@ -93,7 +93,15 @@ const uploadAvatar = async (file: File) => {
     if (response.data?.url) {
       // 上传成功，通知父组件更新头像
       emit('update:avatar', response.data.url);
-      toast.success('头像更新成功！');
+      const preferenceStore = usePreferenceStore();
+      // 更新 store 中的用户头像
+      preferenceStore.updatePreference('user', {
+        ...preferenceStore.preferences.user,
+        avatarUrl: response.data.url
+      });
+      // 刷新页面
+      window.location.reload();
+      toast('头像更新成功！');
     } else {
       throw new Error(
         'API did not return a new avatar URL.'

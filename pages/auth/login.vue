@@ -24,9 +24,11 @@ import {
   FormMessage
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input'; // 导入 Input 组件
+import { navigateTo } from '#app';
+
 const { t } = useI18n();
 
-import { navigateTo } from '#app';
+const preferenceStore = usePreferenceStore();
 
 const description = t('auth.login.description');
 const iframeHeight = '800px';
@@ -77,9 +79,6 @@ async function onValidSubmit(values: Record<string, any>) {
         body: values
       }
     );
-
-    const preferenceStore = usePreferenceStore();
-
     // 登录成功后，调用新的 action
     preferenceStore.setAuthTokens(
       response.data.token,
