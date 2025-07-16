@@ -79,6 +79,15 @@
     }
   },
   "account": {
+    "tabs": {
+      "overview": "Overview",
+      "settings": "Settings",
+      "profile": "Profile",
+      "appearance": "Appearance",
+      "security": "Security",
+      "active": "Active",
+      "statements": "Statements"
+    },
     "overview": {
       "title": "Overview",
       "description": "View your account information and statistics here.",

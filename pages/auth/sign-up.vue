@@ -633,11 +633,12 @@ const handleCheckboxChange = (checked: boolean) => {
                     class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
                     {{ $t('auth.signUp.agreeToTerms') }}
-                    <a
-                      href="/terms"
+                    <NuxtLink
+                      :to="$localePath('/auth/terms')"
                       class="underline text-blue-600"
-                      >{{ $t('auth.signUp.termsLink') }}</a
                     >
+                      {{ $t('auth.signUp.termsLink') }}
+                    </NuxtLink>
                   </FormLabel>
                 </div>
               </FormItem>
@@ -652,9 +653,12 @@ const handleCheckboxChange = (checked: boolean) => {
 
         <div class="mt-4 text-center text-sm">
           {{ $t('auth.signUp.haveAccount') }}<br />
-          <a href="/auth/login" class="underline">{{
-            $t('auth.signUp.loginPrompt')
-          }}</a>
+          <NuxtLink
+            :to="$localePath('/auth/login')"
+            class="underline"
+          >
+            {{ $t('auth.signUp.loginPrompt') }}
+          </NuxtLink>
         </div>
       </form>
     </div>

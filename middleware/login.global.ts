@@ -7,6 +7,7 @@ export default defineNuxtRouteMiddleware((to, from) => {
     to.path !== '/auth/login' &&
     to.path !== '/auth/sign-up' &&
     to.path !== '/auth/forgot-password' &&
+    to.path !== '/auth/terms' &&
     !preferenceStore.isLoggedIn
   ) {
     console.log(

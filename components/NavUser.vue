@@ -32,6 +32,8 @@ import { usePreferenceStore } from '~/stores/user'; // 导入 store
 import { apiFetch } from '@/composables/useApi';
 import { toast } from 'vue-sonner';
 
+const localePath = useLocalePath();
+
 const props = defineProps<{
   user: {
     name: string;
@@ -54,7 +56,11 @@ async function handleLogout() {
       method: 'GET'
     });
     toast('退出登录成功，正在跳转到登录页面...');
-    navigateTo('/auth/login');
+    console.log(
+      'User logged out successfully',
+      localePath('/auth/login')
+    );
+    navigateTo(localePath('/auth/login'));
   } catch (error) {
     toast.error('退出登录失败，请重试。');
   } finally {

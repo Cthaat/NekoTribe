@@ -79,6 +79,15 @@
     }
   },
   "account": {
+    "tabs": {
+      "overview": "概览",
+      "settings": "设置",
+      "profile": "个人资料",
+      "appearance": "外观",
+      "security": "安全",
+      "active": "活跃设备",
+      "statements": "账户状态"
+    },
     "overview": {
       "title": "账号概览",
       "description": "在这里查看您的账号信息和统计。",

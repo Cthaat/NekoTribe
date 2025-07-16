@@ -5,8 +5,14 @@ import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/composables/useApi';
 import { toast } from 'vue-sonner';
 import { Progress } from '@/components/ui/progress';
+import { useI18n } from 'vue-i18n';
 
 const preferenceStore = usePreferenceStore();
+
+// 1. 获取 i18n 的工具函数
+const { t } = useI18n();
+
+const localePath = useLocalePath();
 
 // 假设这是从 API 获取的用户数据
 const user = ref({
@@ -23,16 +29,43 @@ const user = ref({
   point: 50
 });
 
-// 为页面内的横向选项卡导航定义数据
-const accountTabs = [
-  { name: 'Overview', to: '/account/overview' },
-  { name: 'Settings', to: '/account/settings' },
-  { name: 'Profile', to: '/account/profile' },
-  { name: 'Appearance', to: '/account/appearance' },
-  { name: 'Security', to: '/account/security' },
-  { name: 'Active', to: '/account/active' },
-  { name: 'Statements', to: '/account/statements' }
+const baseAccountTabs = [
+  {
+    name: t('account.tabs.overview'),
+    to: 'account-overview'
+  },
+  {
+    name: t('account.tabs.settings'),
+    to: 'account-settings'
+  },
+  {
+    name: t('account.tabs.profile'),
+    to: 'account-profile'
+  },
+  {
+    name: t('account.tabs.appearance'),
+    to: 'account-appearance'
+  },
+  {
+    name: t('account.tabs.security'),
+    to: 'account-security'
+  },
+  { name: t('account.tabs.active'), to: 'account-active' },
+  {
+    name: t('account.tabs.statements'),
+    to: 'account-statements'
+  }
 ];
+
+// 3. ✨ 创建一个 computed 属性来生成最终给模板使用的数据
+const localizedAccountTabs = computed(() => {
+  return baseAccountTabs.map(tab => ({
+    // ✨ 使用 t() 函数来翻译名称
+    name: t(tab.name),
+    // ✨ 使用 localePath() 函数来本地化链接
+    to: localePath(tab.to)
+  }));
+});
 
 const activeTab = ref('Overview');
 
@@ -119,7 +152,7 @@ onMounted(async () => {
 
     <AccountHeaderCard
       :user="user"
-      :account-tabs="accountTabs"
+      :account-tabs="localizedAccountTabs"
       v-model="activeTab"
     />
 

@@ -196,8 +196,12 @@ export const usePreferenceStore = defineStore(
      */
     function resetToDefaults() {
       let language = preferences.value.language;
+      console.log(
+        '[PreferenceStore] Resetting to defaults.',
+        language
+      );
       preferences.value = defaultPreferences;
-      preferences.value.language = language; // 保持语言设置
+      updatePreference('language', language);
     }
 
     // 4. 返回: 暴露出新增的 getters 和 actions

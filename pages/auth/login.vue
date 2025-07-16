@@ -28,6 +28,8 @@ import { navigateTo } from '#app';
 
 const { t } = useI18n();
 
+const localePath = useLocalePath();
+
 const preferenceStore = usePreferenceStore();
 
 const description = t('auth.login.description');
@@ -98,7 +100,8 @@ async function onValidSubmit(values: Record<string, any>) {
         t('auth.login.welcomeBack') +
         ` ${response.data.user.userInfo.displayName || '用户'}`
     });
-    await navigateTo('/');
+    // 使用 $switchLocalePath 来切换到当前用户的语言
+    await navigateTo(localePath('/'));
   } catch (error: any) {
     // 错误处理逻辑保持不变
     console.error(t('auth.login.loginFailed'), error.data);
@@ -181,9 +184,12 @@ const onSubmit = form.handleSubmit(onValidSubmit);
         </form>
         <div class="mt-4 text-center text-sm">
           {{ $t('auth.login.noAccount') }}
-          <a href="/auth/sign-up" class="underline">
+          <NuxtLink
+            :to="$localePath('/auth/sign-up')"
+            class="underline"
+          >
             {{ $t('auth.login.signUp') }}
-          </a>
+          </NuxtLink>
         </div>
       </div>
     </div>
