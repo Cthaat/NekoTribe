@@ -47,7 +47,8 @@ export default defineNuxtConfig({
       { code: 'cn', name: 'Chinese', file: 'cn.json' }
     ],
     defaultLocale: 'en', // 默认语言
-    vueI18n: './i18n.config.ts' // 指向一个单独的 vue-i18n 配置文件
+    lazy: true, // 推荐开启懒加载
+    langDir: 'locales' // 语言文件目录
   },
 
   nitro: {

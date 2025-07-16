@@ -77,5 +77,17 @@
       "successRegisterDescription": "请使用您的新账号登录。",
       "agreeToTermsChanged": "同意服务条款状态已改变"
     }
+  },
+  "account": {
+    "overview": {
+      "title": "账号概览",
+      "description": "在这里查看您的账号信息和统计。",
+      "editProfile": "编辑个人资料",
+      "changePassword": "更改密码",
+      "privacySettings": "隐私设置",
+      "notificationSettings": "通知设置",
+      "accountSecurity": "账号安全",
+      "logout": "退出登录"
+    }
   }
 }

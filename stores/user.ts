@@ -181,19 +181,23 @@ export const usePreferenceStore = defineStore(
     function setTheme(mode: ThemeMode) {
       updatePreference('theme_mode', mode);
     }
+
     function toggleCompactMode() {
       updatePreference(
         'compact_mode',
         !preferences.value.compact_mode
       );
     }
+
     /**
      * 将所有设置重置为默认值。
      * 【可选修改】: 登出时，可以选择完全重置，或只清除令牌。
      * 如果选择只清除令牌，这个函数保持原样。
      */
     function resetToDefaults() {
+      let language = preferences.value.language;
       preferences.value = defaultPreferences;
+      preferences.value.language = language; // 保持语言设置
     }
 
     // 4. 返回: 暴露出新增的 getters 和 actions

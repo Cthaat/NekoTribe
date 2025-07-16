@@ -6,6 +6,9 @@ import { usePreferenceStore } from '~/stores/user'; // 导入 store
 import { onMounted, ref } from 'vue';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'vue-sonner';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const preferenceStore = usePreferenceStore();
 
@@ -70,11 +73,10 @@ onMounted(async () => {
       <div class="hidden space-y-6 p-8 pb-16 md:block">
         <div class="space-y-0.5">
           <h2 class="text-2xl font-bold tracking-tight">
-            Overview
+            {{ $t('account.overview.title') }}
           </h2>
           <p class="text-muted-foreground">
-            This is an overview of your account settings and
-            information.
+            {{ $t('account.overview.description') }}
           </p>
         </div>
         <Separator class="my-6" />

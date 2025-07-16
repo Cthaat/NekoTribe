@@ -1,9 +1,3 @@
-<script lang="ts">
-export const description =
-  'An inset sidebar with secondary navigation.';
-export const iframeHeight = '800px';
-</script>
-
 <script setup lang="ts">
 import AppSidebar from '@/components/AppSidebar.vue';
 import {
@@ -20,8 +14,12 @@ import {
   SidebarProvider,
   SidebarTrigger
 } from '@/components/ui/sidebar';
-
+import LanguageTriggerIcon from '@/components/LanguageTriggerIcon.vue';
 import ColorModeIcon from '@/components/ColorModeIcon.vue';
+
+const description =
+  'An inset sidebar with secondary navigation.';
+const iframeHeight = '800px';
 </script>
 
 <template>
@@ -59,6 +57,7 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
         <div
           class="flex-1 color-mode-icon flex items-center justify-end pr-4 padding-right-4"
         >
+          <LanguageTriggerIcon />
           <ColorModeIcon />
         </div>
       </header>
