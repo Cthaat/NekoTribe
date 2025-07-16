@@ -154,13 +154,17 @@ const onSubmit = handleSubmit(async values => {
     >
       <FormItem>
         <FormLabel>New Password</FormLabel>
-        <FormControl>
-          <Input
-            :type="isPasswordVisible ? 'text' : 'password'"
-            placeholder="New Password"
-            v-bind="componentField"
-            class="pr-10"
-          />
+        <div class="relative">
+          <FormControl>
+            <Input
+              :type="
+                isPasswordVisible ? 'text' : 'password'
+              "
+              placeholder="New Password"
+              v-bind="componentField"
+              class="pr-10"
+            />
+          </FormControl>
           <button
             type="button"
             @click="
@@ -178,7 +182,7 @@ const onSubmit = handleSubmit(async values => {
               >Toggle password visibility</span
             >
           </button>
-        </FormControl>
+        </div>
         <FormDescription>
           Your new password must be at least 8 characters
           long.
