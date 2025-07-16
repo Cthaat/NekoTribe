@@ -560,7 +560,6 @@ const handleCheckboxChange = (checked: boolean) => {
           </div>
 
           <!-- 验证码和服务条款区域 (两列) -->
-          <!-- 验证码区域 (使用 Flexbox 布局) -->
           <FormField
             v-slot="{ componentField }"
             name="captcha"

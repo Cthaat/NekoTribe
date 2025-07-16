@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Separator } from '@/components/ui/separator';
+import SecurityPage from '@/components/SecurityPage.vue';
 </script>
 
 <template>
@@ -16,6 +17,7 @@ import { Separator } from '@/components/ui/separator';
           </p>
         </div>
         <Separator class="my-6" />
+        <SecurityPage />
       </div>
     </CardContent>
   </Card>
