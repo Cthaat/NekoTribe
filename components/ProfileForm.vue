@@ -99,7 +99,17 @@ onMounted(async () => {
     }
   } catch (error) {
     console.error('Error fetching user info:', error);
-    toast.error('Failed to fetch user info.');
+    toast.error(
+      t(
+        'account.profile.profilePage.errorFetchingUserInfo'
+      ),
+      {
+        description: t(
+          'account.profile.profilePage.errorFetchingUserInfoDescription'
+        ),
+        duration: 5000
+      }
+    );
   }
 });
 
@@ -108,25 +118,31 @@ const profileFormSchema = toTypedSchema(
     displayName: z
       .string()
       .min(2, {
-        message:
-          'DisplayName must be at least 2 characters.'
+        message: t(
+          'account.profile.profilePage.displayNameMinLength'
+        )
       })
       .max(30, {
-        message:
-          'DisplayName must not be longer than 30 characters.'
+        message: t(
+          'account.profile.profilePage.displayNameMaxLength'
+        )
       }),
     bio: z
       .string()
       .max(160, {
-        message:
-          'Bio must not be longer than 160 characters.'
+        message: t(
+          'account.profile.profilePage.bioMaxLength'
+        )
       })
       .min(4, {
-        message: 'Bio must be at least 2 characters.'
+        message: t(
+          'account.profile.profilePage.bioMinLength'
+        )
       }),
     location: z.string().max(30, {
-      message:
-        'Location must not be longer than 30 characters.'
+      message: t(
+        'account.profile.profilePage.locationMaxLength'
+      )
     }),
     urls: z.array(
       z.object({
@@ -189,8 +205,10 @@ const onSubmit = handleSubmit(async values => {
     submitValues.birthDate = values.birthDate.toString();
   }
   console.log('Form submitted with values:', submitValues);
-  toast('Profile updated successfully!', {
-    description: 'Your profile has been updated.',
+  toast(t('account.profile.profilePage.successMessage'), {
+    description: t(
+      'account.profile.profilePage.successDescription'
+    ),
     duration: 3000
   });
   const response = await apiFetch('/api/v1/users/me', {
@@ -221,17 +239,26 @@ const df = new DateFormatter(
       name="displayName"
     >
       <FormItem>
-        <FormLabel>DisplayName</FormLabel>
+        <FormLabel>{{
+          $t('account.profile.profilePage.displayName')
+        }}</FormLabel>
         <FormControl>
           <Input
             type="text"
-            placeholder="displayName"
+            :placeholder="
+              $t(
+                'account.profile.profilePage.displayNamePlaceholder'
+              )
+            "
             v-bind="componentField"
           />
         </FormControl>
         <FormDescription>
-          This is your public display name. It can be your
-          real name or a pseudonym.
+          {{
+            $t(
+              'account.profile.profilePage.displayNameDescription'
+            )
+          }}
         </FormDescription>
         <FormMessage />
       </FormItem>
@@ -239,16 +266,26 @@ const df = new DateFormatter(
 
     <FormField v-slot="{ componentField }" name="bio">
       <FormItem>
-        <FormLabel>Bio</FormLabel>
+        <FormLabel>{{
+          $t('account.profile.profilePage.bio')
+        }}</FormLabel>
         <FormControl>
           <Textarea
-            placeholder="Tell us a little bit about yourself"
+            :placeholder="
+              $t(
+                'account.profile.profilePage.bioPlaceholder'
+              )
+            "
             v-bind="componentField"
           />
         </FormControl>
         <FormDescription>
-          You can <span>@mention</span> other users and
-          organizations to link to them.
+          {{
+            $t(
+              'account.profile.profilePage.bioDescription',
+              { atSign: '@' }
+            )
+          }}
         </FormDescription>
         <FormMessage />
       </FormItem>
@@ -256,16 +293,25 @@ const df = new DateFormatter(
 
     <FormField v-slot="{ componentField }" name="location">
       <FormItem>
-        <FormLabel>Location</FormLabel>
+        <FormLabel>{{
+          $t('account.profile.profilePage.location')
+        }}</FormLabel>
         <FormControl>
           <Textarea
-            placeholder="Where are you located?"
+            :placeholder="
+              $t(
+                'account.profile.profilePage.locationPlaceholder'
+              )
+            "
             v-bind="componentField"
           />
         </FormControl>
         <FormDescription>
-          This is optional, but it helps others to know
-          where you are based.
+          {{
+            $t(
+              'account.profile.profilePage.locationDescription'
+            )
+          }}
         </FormDescription>
         <FormMessage />
       </FormItem>
@@ -285,13 +331,18 @@ const df = new DateFormatter(
               <FormLabel
                 :class="cn(index !== 0 && 'sr-only')"
               >
-                URLs
+                {{
+                  $t('account.profile.profilePage.website')
+                }}
               </FormLabel>
               <FormDescription
                 :class="cn(index !== 0 && 'sr-only')"
               >
-                Add links to your website, blog, or social
-                media profiles.
+                {{
+                  $t(
+                    'account.profile.profilePage.websiteDescription'
+                  )
+                }}
               </FormDescription>
               <div class="relative flex items-center">
                 <FormControl>
@@ -313,7 +364,7 @@ const df = new DateFormatter(
           class="text-xs w-20 mt-2"
           @click="push({ value: '' })"
         >
-          Add URL
+          {{ $t('account.profile.profilePage.addWebsite') }}
         </Button>
       </FieldArray>
     </div>
@@ -379,30 +430,43 @@ const df = new DateFormatter(
 
     <FormField v-slot="{ componentField }" name="phone">
       <FormItem>
-        <FormLabel>Phone</FormLabel>
+        <FormLabel>{{
+          $t('account.profile.profilePage.phone')
+        }}</FormLabel>
         <FormControl>
           <Textarea
-            placeholder="Enter your phone number"
+            :placeholder="
+              $t(
+                'account.profile.profilePage.phonePlaceholder'
+              )
+            "
             v-bind="componentField"
           />
         </FormControl>
         <FormDescription>
-          This is optional, but it helps others to contact
-          you.
+          {{
+            $t(
+              'account.profile.profilePage.phoneDescription'
+            )
+          }}
         </FormDescription>
         <FormMessage />
       </FormItem>
     </FormField>
 
     <div class="flex gap-2 justify-start">
-      <Button type="submit"> Update profile </Button>
+      <Button type="submit">
+        {{
+          $t('account.profile.profilePage.updateProfile')
+        }}
+      </Button>
 
       <Button
         type="button"
         variant="outline"
         @click="resetForm"
       >
-        Reset form
+        {{ $t('account.profile.profilePage.resetForm') }}
       </Button>
     </div>
   </form>
