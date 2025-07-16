@@ -131,7 +131,7 @@ const profileFormSchema = toTypedSchema(
 const { handleSubmit, resetForm } = useForm({
   validationSchema: profileFormSchema,
   initialValues: {
-    password: '',
+    newPassword: '',
     confirmPassword: '',
     captcha: ''
   }
@@ -152,7 +152,7 @@ const onSubmit = handleSubmit(async values => {
         <FormLabel>New Password</FormLabel>
         <FormControl>
           <Input
-            type="text"
+            type="password"
             placeholder="New Password"
             v-bind="componentField"
           />
@@ -173,7 +173,7 @@ const onSubmit = handleSubmit(async values => {
         <FormLabel>Confirm Password</FormLabel>
         <FormControl>
           <Input
-            type="text"
+            type="password"
             placeholder="Confirm Password"
             v-bind="componentField"
           />
