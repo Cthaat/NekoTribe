@@ -24,31 +24,43 @@ import {
   AccordionTrigger
 } from '@/components/ui/accordion';
 import { AlertTriangle, FileText } from 'lucide-vue-next';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 // 2. 为目录和 FAQ 定义数据 (在实际应用中，这些也可以来自 props 或 API)
 const tocItems = [
-  { id: '#acceptance', titleKey: 'terms.toc.acceptance' },
-  { id: '#accounts', titleKey: 'terms.toc.accounts' },
-  { id: '#conduct', titleKey: 'terms.toc.conduct' },
-  { id: '#termination', titleKey: 'terms.toc.termination' },
-  { id: '#faq', titleKey: 'terms.toc.faq' }
+  {
+    id: '#acceptance',
+    titleKey: t('auth.terms.toc.acceptance')
+  },
+  {
+    id: '#accounts',
+    titleKey: t('auth.terms.toc.accounts')
+  },
+  { id: '#conduct', titleKey: t('auth.terms.toc.conduct') },
+  {
+    id: '#termination',
+    titleKey: t('auth.terms.toc.termination')
+  },
+  { id: '#faq', titleKey: t('auth.terms.toc.faq') }
 ];
 
 const faqItems = [
   {
     value: 'faq-1',
-    questionKey: 'terms.faq.q1.question',
-    answerKey: 'terms.faq.q1.answer'
+    questionKey: t('auth.terms.faq.q1.question'),
+    answerKey: t('auth.terms.faq.q1.answer')
   },
   {
     value: 'faq-2',
-    questionKey: 'terms.faq.q2.question',
-    answerKey: 'terms.faq.q2.answer'
+    questionKey: t('auth.terms.faq.q2.question'),
+    answerKey: t('auth.terms.faq.q2.answer')
   },
   {
     value: 'faq-3',
-    questionKey: 'terms.faq.q3.question',
-    answerKey: 'terms.faq.q3.answer'
+    questionKey: t('auth.terms.faq.q3.question'),
+    answerKey: t('auth.terms.faq.q3.answer')
   }
 ];
 </script>
@@ -61,15 +73,15 @@ const faqItems = [
           <FileText class="size-8 text-primary" />
           <div>
             <CardTitle class="text-3xl font-bold">
-              {{ $t('terms.title') }}
+              {{ $t('auth.terms.title') }}
             </CardTitle>
             <CardDescription>
-              {{ $t('terms.description') }}
+              {{ $t('auth.terms.description') }}
             </CardDescription>
           </div>
         </div>
         <p class="text-xs text-muted-foreground pt-2">
-          {{ $t('terms.lastUpdated') }}: 2025年7月16日
+          {{ $t('auth.terms.lastUpdated') }}: 2025.7.16
         </p>
       </CardHeader>
 
@@ -79,14 +91,11 @@ const faqItems = [
         <!-- 目录 (Table of Contents) -->
         <div class="p-4 bg-muted/50 rounded-lg">
           <h3 class="font-semibold mb-2">
-            {{ $t('terms.toc.title') }}
+            {{ $t('auth.terms.toc.title') }}
           </h3>
           <ul class="space-y-1 list-inside">
             <li v-for="item in tocItems" :key="item.id">
-              <a
-                :href="item.id"
-                class="text-blue-600 hover:underline"
-              >
+              <a :href="item.id" class="hover:underline">
                 {{ $t(item.titleKey) }}
               </a>
             </li>
@@ -100,10 +109,15 @@ const faqItems = [
             <h2
               class="text-2xl font-semibold border-b pb-2 mb-4"
             >
-              1. {{ $t('terms.sections.acceptance.title') }}
+              1.
+              {{
+                $t('auth.terms.sections.acceptance.title')
+              }}
             </h2>
             <p class="leading-relaxed">
-              {{ $t('terms.sections.acceptance.content') }}
+              {{
+                $t('auth.terms.sections.acceptance.content')
+              }}
             </p>
           </section>
 
@@ -112,10 +126,13 @@ const faqItems = [
             <h2
               class="text-2xl font-semibold border-b pb-2 mb-4"
             >
-              2. {{ $t('terms.sections.accounts.title') }}
+              2.
+              {{ $t('auth.terms.sections.accounts.title') }}
             </h2>
             <p class="leading-relaxed">
-              {{ $t('terms.sections.accounts.content') }}
+              {{
+                $t('auth.terms.sections.accounts.content')
+              }}
             </p>
           </section>
 
@@ -124,38 +141,41 @@ const faqItems = [
             <h2
               class="text-2xl font-semibold border-b pb-2 mb-4"
             >
-              3. {{ $t('terms.sections.conduct.title') }}
+              3.
+              {{ $t('auth.terms.sections.conduct.title') }}
             </h2>
             <p class="leading-relaxed mb-4">
-              {{ $t('terms.sections.conduct.content') }}
+              {{
+                $t('auth.terms.sections.conduct.content')
+              }}
             </p>
 
             <!-- 使用 Alert 组件突出显示重要信息 -->
             <Alert variant="destructive">
               <AlertTriangle class="h-4 w-4" />
               <AlertTitle>{{
-                $t('terms.sections.conduct.alertTitle')
+                $t('auth.terms.sections.conduct.alertTitle')
               }}</AlertTitle>
               <AlertDescription>
                 <ul class="list-disc pl-5 mt-2">
                   <li>
                     {{
                       $t(
-                        'terms.sections.conduct.prohibited.item1'
+                        'auth.terms.sections.conduct.prohibited.item1'
                       )
                     }}
                   </li>
                   <li>
                     {{
                       $t(
-                        'terms.sections.conduct.prohibited.item2'
+                        'auth.terms.sections.conduct.prohibited.item2'
                       )
                     }}
                   </li>
                   <li>
                     {{
                       $t(
-                        'terms.sections.conduct.prohibited.item3'
+                        'auth.terms.sections.conduct.prohibited.item3'
                       )
                     }}
                   </li>
@@ -170,10 +190,16 @@ const faqItems = [
               class="text-2xl font-semibold border-b pb-2 mb-4"
             >
               4.
-              {{ $t('terms.sections.termination.title') }}
+              {{
+                $t('auth.terms.sections.termination.title')
+              }}
             </h2>
             <p class="leading-relaxed">
-              {{ $t('terms.sections.termination.content') }}
+              {{
+                $t(
+                  'auth.terms.sections.termination.content'
+                )
+              }}
             </p>
           </section>
 
@@ -182,8 +208,13 @@ const faqItems = [
             <h2
               class="text-2xl font-semibold border-b pb-2 mb-4"
             >
-              5. {{ $t('terms.faq.title') }}
+              5. {{ $t('auth.terms.faq.title') }}
             </h2>
+            <p class="leading-relaxed mb-4">
+              {{ $t('auth.terms.faq.description') }}
+            </p>
+            <!-- 分割线 -->
+            <Separator class="my-4" />
             <Accordion
               type="single"
               collapsible

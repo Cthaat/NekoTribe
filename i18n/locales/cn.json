@@ -81,6 +81,60 @@
       "redirectToLogin": "正在跳转到登录页面...",
       "successRegisterDescription": "请使用您的新账号登录。",
       "agreeToTermsChanged": "同意服务条款状态已改变"
+    },
+    "terms": {
+      "title": "服务条款",
+      "description": "请仔细阅读以下服务条款和隐私政策。",
+      "lastUpdated": "最后更新日期",
+      "toc": {
+        "title": "目录",
+        "acceptance": "接受条款",
+        "accounts": "账户责任",
+        "conduct": "用户行为",
+        "termination": "终止服务",
+        "faq": "常见问题",
+        "privacy": "隐私政策"
+      },
+      "sections": {
+        "acceptance": {
+          "title": "1. 接受条款",
+          "content": "通过访问或使用本服务，您同意遵守这些条款。如果您不同意这些条款，请不要使用本服务。"
+        },
+        "accounts": {
+          "title": "2. 账户责任",
+          "content": "您有责任维护您的账户信息的安全性和保密性。任何通过您的账户进行的活动都将被视为您本人所为。"
+        },
+        "conduct": {
+          "title": "3. 用户行为",
+          "alertTitle": "3. 警告",
+          "content": "您同意不从事任何可能损害、禁用、过载或干扰本服务的行为。",
+          "prohibited": {
+            "item1": "冒充他人",
+            "item2": "发布虚假信息",
+            "item3": "进行恶意攻击"
+          }
+        },
+        "termination": {
+          "title": "4. 终止服务",
+          "content": "我们保留在任何时候终止或暂停您的访问权限的权利，无论是否通知。"
+        }
+      },
+      "faq": {
+        "title": "常见问题",
+        "description": "以下是一些常见问题及其解答。",
+        "q1": {
+          "question": "我可以更改我的电子邮件地址吗？",
+          "answer": "是的，您可以在账户设置中更改您的电子邮件地址。"
+        },
+        "q2": {
+          "question": "如果我忘记密码怎么办？",
+          "answer": "您可以通过登录页面的“忘记密码”链接重置您的密码。"
+        },
+        "q3": {
+          "question": "如何删除我的账户？",
+          "answer": "请联系客户支持以请求删除您的账户。"
+        }
+      }
     }
   },
   "account": {
