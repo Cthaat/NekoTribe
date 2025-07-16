@@ -1,4 +1,9 @@
 {
+  "middleware": {
+    "login": {
+      "redirecting": "用户未登录，正在跳转到登录页面"
+    }
+  },
   "index": {},
   "auth": {
     "login": {

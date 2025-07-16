@@ -1,4 +1,9 @@
 {
+  "middleware": {
+    "login": {
+      "redirecting": "User is not logged in, redirecting to login page"
+    }
+  },
   "index": {},
   "auth": {
     "login": {
