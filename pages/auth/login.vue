@@ -158,6 +158,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
               <FormMessage />
             </FormItem>
           </FormField>
+
           <FormField
             v-slot="{ componentField }"
             name="password"
@@ -178,6 +179,17 @@ const onSubmit = form.handleSubmit(onValidSubmit);
               <FormMessage />
             </FormItem>
           </FormField>
+
+          <div class="mt-4 text-center text-sm">
+            {{ $t('auth.login.forgotPassword') }}
+            <NuxtLink
+              :to="$localePath('auth-forgot-password')"
+              class="underline"
+            >
+              {{ $t('auth.login.resetPassword') }}
+            </NuxtLink>
+          </div>
+
           <Button type="submit" class="w-full">
             {{ $t('auth.login.loginButton') }}
           </Button>

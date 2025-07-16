@@ -50,6 +50,8 @@ const preferenceStore = usePreferenceStore();
 
 const { t } = useI18n();
 
+const localePath = useLocalePath();
+
 const value = ref<string[]>([]);
 
 const isConfirmPasswordVisible = ref(false);
@@ -142,7 +144,50 @@ const { handleSubmit, resetForm } = useForm({
 });
 
 const onSubmit = handleSubmit(async values => {
-  console.log(values);
+  try {
+    const response = await apiFetch(
+      '/api/v1/auth/reset-password',
+      {
+        method: 'POST',
+        body: {
+          email: preferenceStore.preferences.user.email,
+          resettoken: value.value.join(''),
+          newPassword: values.newPassword
+        }
+      }
+    );
+    toast.success('the auth.signUp.resetPasswordSuccess', {
+      description: t(
+        'auth.signUp.resetPasswordSuccessDescription'
+      )
+    });
+  } catch (error: any) {
+    console.error(
+      t('auth.signUp.resetPasswordError'),
+      error.data
+    );
+    toast.error(t('auth.signUp.resetPasswordError'), {
+      description:
+        error.data?.message || t('auth.signUp.unknownError')
+    });
+  } finally {
+    try {
+      preferenceStore.resetToDefaults(); // 重置用户偏好设置
+      await apiFetch('/api/v1/auth/logout', {
+        method: 'GET'
+      });
+      console.log(
+        'User logged out successfully',
+        localePath('auth-login')
+      );
+      // 等待两秒
+      setTimeout(() => {
+        navigateTo(localePath('auth-login'));
+      }, 2000);
+    } catch (error) {
+      toast.error('退出登录失败，请重试。');
+    }
+  }
 });
 </script>
 

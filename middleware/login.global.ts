@@ -14,8 +14,7 @@ export default defineNuxtRouteMiddleware((to, from) => {
     'auth-terms'
   ];
 
-  // ✨ 1. 新增的出口条件：如果目标已经是登录页，直接放行
-  //    这是打破循环的关键。
+  // 如果目标已经是登录页，直接放行
   if (to.name === 'auth-login') {
     return; // 什么都不做，让导航继续
   }
