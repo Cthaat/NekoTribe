@@ -46,7 +46,7 @@ const userInfo = ref({
   bio: '',
   location: '',
   website: '',
-  birthDate: null as DateValue | null,
+  birthDate: '',
   phone: ''
 });
 
@@ -186,7 +186,7 @@ const onSubmit = handleSubmit(async values => {
   // 3. (可选但推荐) 同时处理 birthDate 字段
   //    它现在是一个对象，提交时通常需要转换为 'YYYY-MM-DD' 格式的字符串
   if (values.birthDate) {
-    values.birthDate = values.birthDate.toString();
+    submitValues.birthDate = values.birthDate.toString();
   }
   console.log('Form submitted with values:', submitValues);
   toast('Profile updated successfully!', {
