@@ -40,6 +40,8 @@ console.log('Locale path:', localePath('account-overview'));
 
 const preferenceStore = usePreferenceStore();
 
+const userId = preferenceStore.preferences.user.userId;
+
 const baseNavData = {
   user: {
     name:
@@ -55,29 +57,29 @@ const baseNavData = {
   navMain: [
     {
       title: 'Trending',
-      url: '/tweet/trending',
+      url: `/tweet/trending/${userId}`,
       icon: Flame
     },
     {
       title: 'Tweet',
-      url: '/tweet/home',
+      url: `/tweet/home/${userId}`,
       icon: Cat,
       items: [
         {
           title: 'Home',
-          url: '/tweet/home'
+          url: `/tweet/home/${userId}`
         },
         {
           title: 'My Tweets',
-          url: '/tweet/my-tweets'
+          url: `/tweet/my-tweets/${userId}`
         },
         {
           title: 'Mention',
-          url: '/tweet/mention'
+          url: `/tweet/mention/${userId}`
         },
         {
           title: 'Bookmark',
-          url: '/tweet/bookmark'
+          url: `/tweet/bookmark/${userId}`
         }
       ]
     },
