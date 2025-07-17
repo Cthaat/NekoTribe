@@ -29,8 +29,11 @@ import {
   Bookmark
 } from 'lucide-vue-next';
 
+const preferenceStore = usePreferenceStore();
+
 // 假设这是从你的状态管理或认证 context 中获取的当前登录用户ID
-const currentUserId = 1120;
+const currentUserId =
+  preferenceStore.preferences.user.userId;
 
 const props = defineProps({
   tweet: {
@@ -87,6 +90,13 @@ function handleDelete() {
     console.log('Deleting tweet:', props.tweet.tweetId);
   }
 }
+
+console.log(
+  'TweetCard component initialized with tweet:',
+  props.tweet,
+  'Is own tweet:',
+  isOwnTweet.value
+);
 </script>
 
 <template>
