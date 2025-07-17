@@ -18,6 +18,7 @@ const route = useRoute();
 
 const page = ref(1); // 当前页码
 const pageSize = ref(15); // 每页条数
+const totalCount = ref(0); // 总条数
 
 const {
   data: tweets,
@@ -37,10 +38,13 @@ if (error.value) {
   toast.error('加载推文失败，请稍后再试。');
   console.error('Error fetching tweets:', error.value);
 } else {
+  totalCount.value = tweets.value.data.totalCount || 0;
   // 在这里，tweets.value 就包含了你的数据
   console.log(
     'Tweets fetched successfully',
-    tweets.value.data.tweets
+    tweets.value.data,
+    'Total count:',
+    totalCount.value
   );
 }
 </script>
@@ -51,8 +55,8 @@ if (error.value) {
   </div>
   <Pagination
     v-slot="{ page }"
-    :items-per-page="10"
-    :total="300"
+    :items-per-page="pageSize"
+    :total="totalCount"
     :default-page="1"
   >
     <PaginationContent v-slot="{ items }">
