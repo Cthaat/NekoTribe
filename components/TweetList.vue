@@ -17,7 +17,7 @@ const tweetData = {
   authorId: 1120, // 这个ID与currentUserId匹配，所以会显示删除按钮
   username: 'admin',
   displayName: '系统管理员',
-  avatarUrl: '/avatars/admin.png',
+  avatarUrl: '/avatars/1147/1147_1752047344682_883.png',
   isVerified: 1,
   replyToTweetId: null,
   retweetOfTweetId: null,
@@ -40,25 +40,4 @@ const tweetData = {
   <div class="bg-background p-10">
     <TweetCard :tweet="tweetData" />
   </div>
-  <Pagination
-    v-slot="{ page }"
-    :items-per-page="10"
-    :total="300"
-    :default-page="2"
-  >
-    <PaginationContent v-slot="{ items }">
-      <PaginationPrevious />
-
-      <template v-for="(item, index) in items" :key="index">
-        <PaginationItem
-          v-if="item.type === 'page'"
-          :value="item.value"
-          :is-active="item.value === page"
-        >
-          {{ item.value }}
-        </PaginationItem>
-      </template>
-      <PaginationNext />
-    </PaginationContent>
-  </Pagination>
 </template>
