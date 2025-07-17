@@ -18,7 +18,7 @@ import {
     v-slot="{ page }"
     :items-per-page="10"
     :total="300"
-    :default-page="2"
+    :default-page="1"
   >
     <PaginationContent v-slot="{ items }">
       <PaginationPrevious />

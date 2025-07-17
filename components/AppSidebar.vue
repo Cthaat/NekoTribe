@@ -10,7 +10,9 @@ import {
   Send,
   Settings2,
   SquareTerminal,
-  Award
+  Award,
+  Cat,
+  Flame
 } from 'lucide-vue-next';
 import NavMain from '@/components/NavMain.vue';
 import NavProjects from '@/components/NavProjects.vue';
@@ -52,22 +54,30 @@ const baseNavData = {
   },
   navMain: [
     {
-      title: 'Playground',
-      url: '#',
-      icon: SquareTerminal,
-      isActive: true,
+      title: 'Trending',
+      url: '/tweet/trending',
+      icon: Flame
+    },
+    {
+      title: 'Tweet',
+      url: '/tweet/home',
+      icon: Cat,
       items: [
         {
-          title: 'History',
-          url: '#'
+          title: 'Home',
+          url: '/tweet/home'
         },
         {
-          title: 'Starred',
-          url: '#'
+          title: 'My Tweets',
+          url: '/tweet/my-tweets'
         },
         {
-          title: 'Settings',
-          url: '#'
+          title: 'Mention',
+          url: '/tweet/mention'
+        },
+        {
+          title: 'Bookmark',
+          url: '/tweet/bookmark'
         }
       ]
     },
