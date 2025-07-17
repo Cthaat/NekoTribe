@@ -19,40 +19,47 @@ const route = useRoute();
 
 const page = ref(1); // 当前页码
 const pageSize = ref(15); // 每页条数
-const totalCount = ref(0); // 总条数
 
 const {
   data: tweets,
   pending,
   error
-} = await useApiFetch('/api/v1/tweets/list', {
+} = useApiFetch('/api/v1/tweets/list', {
   query: {
     type: route.params.type || 'home',
-    page: page.value,
-    pageSize: pageSize.value
+    page: page,
+    pageSize: pageSize
+  },
+  watch: [page]
+});
+
+const totalCount = computed(
+  () => tweets.value?.data?.totalCount || 0
+);
+
+// 【修复 3】使用 watch 来处理副作用，比如错误提示
+// 这个 watcher 只会在 error.value 从无到有时才触发
+watch(error, newError => {
+  if (newError) {
+    // 确保只在客户端显示 toast，避免 SSR 错误
+    if (process.client) {
+      toast.error('加载推文失败，请稍后再试。');
+    }
+    console.error('Error fetching tweets:', newError);
   }
 });
 
-// `await` 之后，数据已经获取完毕（或已出错）
-// 现在可以安全地检查错误或使用数据了
-if (error.value) {
-  toast.error('加载推文失败，请稍后再试。');
-  console.error('Error fetching tweets:', error.value);
-} else {
-  totalCount.value = tweets.value.data.totalCount || 0;
-  // 在这里，tweets.value 就包含了你的数据
-  console.log(
-    'Tweets fetched successfully',
-    tweets.value.data.tweets[0],
-    'Total count:',
-    totalCount.value
-  );
-}
+// (可选) 如果你需要在数据到达时打印日志，也可以用 watch
+watch(tweets, newTweets => {
+  if (newTweets) {
+    console.log('Tweets data arrived:', newTweets.data);
+  }
+});
 </script>
 
 <template>
   <!-- 根容器 -->
-  <div>
+  <div class="pt-2">
     <!-- 主内容区域 -->
     <div class="bg-background p-10">
       <!-- 1. 加载状态：当 pending 为 true 时，显示骨架屏 -->
@@ -77,7 +84,7 @@ if (error.value) {
         v-else-if="error"
         class="text-center text-destructive"
       >
-        抱歉，加载推文时遇到问题，请刷新页面。
+        抱歉，加载推文时遇到问题，请刷新页面。 {{ error }}
       </div>
 
       <!-- 3. 成功状态：当加载完成且无错误时，渲染 TweetList -->
@@ -91,9 +98,11 @@ if (error.value) {
 
     <Pagination
       v-slot="{ page }"
+      v-model:page="page"
       :items-per-page="pageSize"
       :total="totalCount"
       :default-page="1"
+      class="mb-8 flex justify-center"
     >
       <PaginationContent v-slot="{ items }">
         <PaginationPrevious />
