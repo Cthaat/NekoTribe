@@ -13,7 +13,7 @@
 <div align="center">
     
 ![version](https://img.shields.io/badge/版本-v1.0.0-blue.svg)
-![shadcn-web](https://img.shields.io/badge/shadcn--web-v1.3.7-blue.svg)
+![shadcn-web](https://img.shields.io/badge/shadcn--web-v1.4.0-blue.svg)
 ![oracle-server](https://img.shields.io/badge/oracle--server-v1.6.3-blue.svg)
 ![开发状态](https://img.shields.io/badge/%E5%BC%80%E5%8F%91%E7%8A%B6%E6%80%81-%E6%AD%A3%E5%9C%A8%E5%BC%80%E5%8F%91-yellow.svg)
 
