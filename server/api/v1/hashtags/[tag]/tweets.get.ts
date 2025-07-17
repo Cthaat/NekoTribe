@@ -44,7 +44,18 @@ export default defineEventHandler(async event => {
                             CASE WHEN :sort = 'oldest' THEN v.created_at END ASC,
                             CASE WHEN :sort = 'popular' THEN v.engagement_score END DESC,
                             CASE WHEN :sort = 'popular' THEN v.created_at END DESC
-                ) AS rn
+                ) AS rn,
+                 CASE
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_liked_by_user,
+
+                CASE
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_booked_by_user
             FROM v_comprehensive_timeline v
             JOIN n_tweet_hashtags nth ON v.tweet_id = nth.tweet_id
             JOIN n_hashtags h ON nth.hashtag_id = h.hashtag_id
@@ -109,7 +120,9 @@ export default defineEventHandler(async event => {
           engagementScore: row[15],
           timelineType: row[16],
           isFromFollowing: row[17],
-          rn: row[18]
+          rn: row[18],
+          isLikedByUser: row[19],
+          isBookmarkedByUser: row[20]
         } as TweetItem;
       })
     );

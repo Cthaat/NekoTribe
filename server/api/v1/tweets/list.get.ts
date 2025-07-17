@@ -50,7 +50,18 @@ export default defineEventHandler(async event => {
                 v.is_from_following,
                 ROW_NUMBER() OVER (
                     ORDER BY v.created_at DESC
-                ) AS rn
+                ) AS rn,
+                    CASE
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_liked_by_user,
+
+                CASE
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_booked_by_user
             FROM v_comprehensive_timeline v
             WHERE (v.author_id = :user_id OR v.is_from_following = 1)
               AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
@@ -111,7 +122,9 @@ export default defineEventHandler(async event => {
               engagementScore: row[15],
               timelineType: row[16],
               isFromFollowing: row[17],
-              rn: row[18]
+              rn: row[18],
+              isLikedByUser: row[19],
+              isBookmarkedByUser: row[20]
             } as TweetItem;
           })
         );
@@ -157,7 +170,18 @@ export default defineEventHandler(async event => {
                 v.is_from_following,
                 ROW_NUMBER() OVER (
                     ORDER BY v.created_at DESC
-                ) AS rn
+                ) AS rn,
+                 CASE
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_liked_by_user,
+
+                CASE
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_booked_by_user
             FROM v_comprehensive_timeline v
             WHERE v.author_id = :target_user_id
               AND fn_can_view_tweet(:user_id, v.tweet_id) = 1
@@ -220,7 +244,9 @@ export default defineEventHandler(async event => {
               engagementScore: row[15],
               timelineType: row[16],
               isFromFollowing: row[17],
-              rn: row[18]
+              rn: row[18],
+              isLikedByUser: row[19],
+              isBookmarkedByUser: row[20]
             } as TweetItem;
           })
         );
@@ -252,7 +278,18 @@ export default defineEventHandler(async event => {
                 v.is_from_following,
                 ROW_NUMBER() OVER (
                     ORDER BY v.created_at DESC
-                ) AS rn
+                ) AS rn,
+                 CASE
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_liked_by_user,
+
+                CASE
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_booked_by_user
             FROM v_comprehensive_timeline v
             WHERE v.author_id = :user_id
         )
@@ -309,7 +346,9 @@ export default defineEventHandler(async event => {
               engagementScore: row[15],
               timelineType: row[16],
               isFromFollowing: row[17],
-              rn: row[18]
+              rn: row[18],
+              isLikedByUser: row[19],
+              isBookmarkedByUser: row[20]
             } as TweetItem;
           })
         );
@@ -340,7 +379,18 @@ export default defineEventHandler(async event => {
                 v.is_from_following,
                 ROW_NUMBER() OVER (
                     ORDER BY v.created_at DESC
-                ) AS rn
+                ) AS rn,
+                 CASE
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_liked_by_user,
+
+                CASE
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_booked_by_user
             FROM v_comprehensive_timeline v
             WHERE v.tweet_id IN (
                 SELECT tm.tweet_id
@@ -409,7 +459,9 @@ export default defineEventHandler(async event => {
               engagementScore: row[15],
               timelineType: row[16],
               isFromFollowing: row[17],
-              rn: row[18]
+              rn: row[18],
+              isLikedByUser: row[19],
+              isBookmarkedByUser: row[20]
             } as TweetItem;
           })
         );
@@ -440,7 +492,18 @@ export default defineEventHandler(async event => {
                 v.is_from_following,
                 ROW_NUMBER() OVER (
                     ORDER BY v.engagement_score DESC, v.created_at DESC
-                ) AS rn
+                ) AS rn,
+                 CASE
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_liked_by_user,
+
+                CASE
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_booked_by_user
             FROM v_comprehensive_timeline v
             WHERE v.visibility = :visibility
               AND v.created_at > SYSDATE - 7 -- 最近7天
@@ -498,7 +561,9 @@ export default defineEventHandler(async event => {
               engagementScore: row[15],
               timelineType: row[16],
               isFromFollowing: row[17],
-              rn: row[18]
+              rn: row[18],
+              isLikedByUser: row[19],
+              isBookmarkedByUser: row[20]
             } as TweetItem;
           })
         );
@@ -527,7 +592,18 @@ export default defineEventHandler(async event => {
                 v.engagement_score,
                 v.timeline_type,
                 v.is_from_following,
-                ROW_NUMBER() OVER (ORDER BY b.created_at DESC) AS rn
+                ROW_NUMBER() OVER (ORDER BY b.created_at DESC) AS rn,
+                CASE
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_liked_by_user,
+
+                CASE
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    THEN 1
+                    ELSE 0
+                END AS is_booked_by_user
             FROM v_comprehensive_timeline v
             JOIN n_bookmarks b ON v.tweet_id = b.tweet_id
             WHERE b.user_id = :user_id
@@ -589,7 +665,9 @@ export default defineEventHandler(async event => {
               engagementScore: row[15],
               timelineType: row[16],
               isFromFollowing: row[17],
-              rn: row[18]
+              rn: row[18],
+              isLikedByUser: row[19],
+              isBookmarkedByUser: row[20]
             } as TweetItem;
           })
         );

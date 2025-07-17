@@ -47,7 +47,9 @@ type TweetRow = [
   number, // ENGAGEMENT_SCORE
   string, // TIMELINE_TYPE
   number, // IS_FROM_FOLLOWING
-  number // RN
+  number, // RN
+  number, // IS_LIKED_BY_USER
+  number // IS_BOOKMARKED_BY_USER
 ];
 
 interface TweetItem {
@@ -70,6 +72,8 @@ interface TweetItem {
   timelineType: string; // 时间线类型
   isFromFollowing: number; // 是否来自关注
   rn: number; // 行号
+  isLikedByUser: number; // 用户是否点赞
+  isBookmarkedByUser: number; // 用户是否收藏
 }
 
 interface TweetListResponse extends Response {

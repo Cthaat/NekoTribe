@@ -25,7 +25,8 @@ import {
   Heart,
   MoreHorizontal,
   Trash2,
-  BadgeCheck
+  BadgeCheck,
+  Bookmark
 } from 'lucide-vue-next';
 
 // 假设这是从你的状态管理或认证 context 中获取的当前登录用户ID
@@ -130,6 +131,13 @@ function handleDelete() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
+          <DropdownMenuItem
+            @click="handleDelete"
+            class="text-blue-500"
+          >
+            <Bookmark class="mr-2 h-4 w-4" />
+            <span>加入书签</span>
+          </DropdownMenuItem>
           <DropdownMenuItem
             @click="handleDelete"
             class="text-red-500"
