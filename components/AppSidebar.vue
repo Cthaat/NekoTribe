@@ -84,27 +84,9 @@ const baseNavData = {
       ]
     },
     {
-      title: 'Documentation',
-      url: '#',
-      icon: BookOpen,
-      items: [
-        {
-          title: 'Introduction',
-          url: '#'
-        },
-        {
-          title: 'Get Started',
-          url: '#'
-        },
-        {
-          title: 'Tutorials',
-          url: '#'
-        },
-        {
-          title: 'Changelog',
-          url: '#'
-        }
-      ]
+      title: 'Meow',
+      url: 'meow',
+      icon: Send
     },
     {
       title: 'Account',
