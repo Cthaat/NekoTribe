@@ -47,13 +47,28 @@ const isOwnTweet = computed(
   () => props.tweet.authorId === currentUserId
 );
 
-// 将媒体ID字符串转换为URL数组
-// 这里我们假设媒体文件存放在 /media/ 目录下，并以 .png 结尾
-const mediaUrls = computed(() => {
-  if (!props.tweet.media) return [];
-  return props.tweet.media
-    .split(',')
-    .map((id: string) => `/media/${id}.png`);
+const mediaItems = computed(() => {
+  const files = props.tweet.mediaFiles?.split(',') || [];
+  const thumbnails =
+    props.tweet.mediaThumbnails?.split(',') || [];
+
+  // 如果没有文件，返回空数组
+  if (files.length === 0) {
+    return [];
+  }
+
+  return files.map((fileUrl: string, index: number) => {
+    // 根据文件扩展名判断媒体类型
+    const isVideo = fileUrl.toLowerCase().endsWith('.mp4');
+
+    return {
+      type: isVideo ? 'video' : 'image',
+      originalUrl: fileUrl,
+      // 如果有对应的缩略图，就使用它；否则，对于图片，可以直接用原始 URL 作为缩略图
+      thumbnailUrl:
+        thumbnails[index] || (isVideo ? '' : fileUrl)
+    };
+  });
 });
 
 // 格式化时间戳
@@ -166,33 +181,47 @@ console.log(
 
       <!-- 媒体展示区 -->
       <div
-        v-if="mediaUrls.length > 0"
+        v-if="mediaItems.length > 0"
         class="mt-3 rounded-lg overflow-hidden border"
       >
         <div
           class="grid gap-px"
           :class="{
-            'grid-cols-1': mediaUrls.length === 1,
-            'grid-cols-2': mediaUrls.length > 1,
-            'grid-rows-2 h-64 sm:h-80': mediaUrls.length > 2
+            'grid-cols-1': mediaItems.length === 1,
+            'grid-cols-2': mediaItems.length >= 2,
+            // 只有当图片多于 2 张时，才启用更复杂的 2x2 布局
+            'grid-rows-2 h-64 sm:h-80':
+              mediaItems.length > 2
           }"
         >
+          <!-- 只显示前 4 个媒体项 -->
           <div
-            v-for="(url, index) in mediaUrls.slice(0, 4)"
-            :key="index"
-            class="relative"
+            v-for="(item, index) in mediaItems.slice(0, 4)"
+            :key="item.originalUrl"
+            class="relative group cursor-pointer bg-secondary"
           >
+            <!-- 显示缩略图 -->
             <img
-              :src="url"
-              class="object-cover w-full h-full"
-              alt="推文媒体"
+              :src="item.thumbnailUrl"
+              class="object-cover w-full h-full transition-transform group-hover:scale-105"
+              alt="推文媒体缩略图"
             />
+
+            <!-- 如果是视频，在中间叠加一个播放图标 -->
             <div
-              v-if="mediaUrls.length > 4 && index === 3"
-              class="absolute inset-0 bg-black/50 flex items-center justify-center"
+              v-if="item.type === 'video'"
+              class="absolute inset-0 flex items-center justify-center bg-black/30"
+            >
+              <PlayCircle class="h-12 w-12 text-white/80" />
+            </div>
+
+            <!-- 如果媒体项超过 4 个，在第四个上显示“+N”遮罩 -->
+            <div
+              v-if="mediaItems.length > 4 && index === 3"
+              class="absolute inset-0 bg-black/60 flex items-center justify-center"
             >
               <span class="text-white text-2xl font-bold"
-                >+{{ mediaUrls.length - 4 }}</span
+                >+{{ mediaItems.length - 4 }}</span
               >
             </div>
           </div>
