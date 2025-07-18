@@ -118,7 +118,8 @@ type TweetGetRow = [
   string, // LANGUAGE
   string, // CREATED_AT
   number, // ENGAGEMENT_SCORE
-  any[] // MEDIA
+  any[], // MEDIA_FILES
+  any // MEDIA_THUMBNAILS
 ];
 
 interface TweetGetItem {
@@ -142,7 +143,8 @@ interface TweetGetItem {
   language: string; // 语言
   createdAt: string; // 创建时间
   engagementScore: number; // 互动分数
-  media: any[]; // 媒体文件数组
+  mediaFiles: any[]; // 媒体文件数组
+  mediaThumbnails: any; // 媒体缩略图
 }
 
 interface TweetGetResponse extends Response {

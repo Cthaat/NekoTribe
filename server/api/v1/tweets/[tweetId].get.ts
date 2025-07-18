@@ -79,7 +79,8 @@ export default defineEventHandler(async event => {
       language: row[17], // 语言
       createdAt: row[18], // 创建时间
       engagementScore: row[19], // 互动分数
-      media: row[20] // 媒体文件数组
+      mediaFiles: row[20], // 媒体文件数组
+      mediaThumbnails: row[21] // 媒体缩略图
     } as TweetGetItem;
 
     return {
