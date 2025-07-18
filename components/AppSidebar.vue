@@ -71,7 +71,7 @@ const baseNavData = {
         },
         {
           title: 'My Tweets',
-          url: `/tweet/my-tweets/${userId}`
+          url: `/tweet/my_tweets/${userId}`
         },
         {
           title: 'Mention',

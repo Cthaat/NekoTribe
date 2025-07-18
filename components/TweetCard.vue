@@ -26,7 +26,8 @@ import {
   MoreHorizontal,
   Trash2,
   BadgeCheck,
-  Bookmark
+  Bookmark,
+  PlayCircle
 } from 'lucide-vue-next';
 
 const preferenceStore = usePreferenceStore();
