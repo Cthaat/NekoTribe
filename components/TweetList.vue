@@ -24,7 +24,7 @@ console.log(
 </script>
 
 <template>
-  <div class="bg-background p-10">
+  <div class="bg-background">
     <TweetCard
       v-for="tweet in props.tweets"
       :key="tweet.id"

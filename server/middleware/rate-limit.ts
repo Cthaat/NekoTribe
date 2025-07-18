@@ -36,7 +36,7 @@ export default defineEventHandler(async event => {
     await redis.setex(redisKey, 120, JSON.stringify(info));
 
     // 如果超过限制，直接抛出错误，阻止后续执行
-    if (info.count > 100) {
+    if (info.count > 1000) {
       throw createError({
         statusCode: 429,
         message: '请求过于频繁，请稍后再试',

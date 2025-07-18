@@ -12,6 +12,7 @@ import {
   PaginationPrevious
 } from '@/components/ui/pagination';
 import { useApiFetch } from '@/composables/useApiFetch';
+import { apiFetch } from '@/composables/useApi';
 import { toast } from 'vue-sonner';
 import { useRoute } from 'vue-router';
 import { useRequestHeaders } from '#app'; // 确保导入
@@ -60,11 +61,8 @@ watch(
       const basicTweets = newListApiResponse.data.tweets;
 
       const detailPromises = basicTweets.map(basicTweet => {
-        return $fetch(
-          `/api/v1/tweets/${basicTweet.tweetId}`,
-          {
-            headers: useRequestHeaders(['cookie'])
-          }
+        return apiFetch(
+          `/api/v1/tweets/${basicTweet.tweetId}`
         );
       });
 
@@ -101,9 +99,6 @@ const hasError = computed(
 const totalCount = computed(
   () => listApiResponse.value?.data?.totalCount || 0
 );
-
-// 7. 【修复】删除引用了不存在变量的 watch
-// watch(error, ...) 和 watch(tweets, ...) 已被删除
 </script>
 
 <template>
