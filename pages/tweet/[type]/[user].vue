@@ -1,5 +1,8 @@
 <script setup>
+// 1. 【修复】确保导入了所有需要的函数
+import { ref, watch, computed } from 'vue';
 import TweetList from '@/components/TweetList.vue';
+import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue'; // 确保你已经创建了这个骨架组件
 import {
   Pagination,
   PaginationContent,
@@ -8,105 +11,148 @@ import {
   PaginationNext,
   PaginationPrevious
 } from '@/components/ui/pagination';
-import { apiFetch } from '@/composables/useApi';
-import { useApiFetch } from '@/composables/useApiFetch'; // 导入自定义的 useApiFetch 组合式 API
+import { useApiFetch } from '@/composables/useApiFetch';
 import { toast } from 'vue-sonner';
-import { useRoute } from 'vue-router'; // 或者依赖 Nuxt 的自动导入
-import { Skeleton } from '@/components/ui/skeleton';
+import { useRoute } from 'vue-router';
+import { useRequestHeaders } from '#app'; // 确保导入
 
-const preferenceStore = usePreferenceStore();
 const route = useRoute();
+const page = ref(1);
+const pageSize = ref(15);
 
-const page = ref(1); // 当前页码
-const pageSize = ref(15); // 每页条数
+// 2. 【修复】使用正确的 ref() 语法
+const fullTweets = ref([]);
+const detailsPending = ref(false);
+const detailsError = ref(null); // 为详情获取创建一个专门的 error ref
 
+// 3. 【修复】变量名保持一致
 const {
-  data: tweets,
-  pending,
-  error
+  data: listApiResponse,
+  pending: listPending,
+  error: listError
 } = useApiFetch('/api/v1/tweets/list', {
   query: {
     type: route.params.type || 'home',
     page: page,
     pageSize: pageSize
   },
-  watch: [page]
+  watch: [page, () => route.params.type]
 });
 
-const totalCount = computed(
-  () => tweets.value?.data?.totalCount || 0
+watch(
+  listApiResponse,
+  async newListApiResponse => {
+    if (listError.value) {
+      fullTweets.value = [];
+      return;
+    }
+    if (!newListApiResponse?.data?.tweets) {
+      // 4. 【修复】使用 .value 来修改 ref
+      fullTweets.value = [];
+      return;
+    }
+
+    try {
+      detailsPending.value = true;
+      detailsError.value = null;
+      fullTweets.value = []; // 清空旧数据
+
+      const basicTweets = newListApiResponse.data.tweets;
+
+      const detailPromises = basicTweets.map(basicTweet => {
+        return $fetch(
+          `/api/v1/tweets/${basicTweet.tweetId}`,
+          {
+            headers: useRequestHeaders(['cookie'])
+          }
+        );
+      });
+
+      const detailResponses =
+        await Promise.all(detailPromises);
+
+      // 5. 【修复】使用 .value 来赋值
+      fullTweets.value = detailResponses.map(
+        response => response.data.tweet
+      );
+    } catch (err) {
+      console.error('Error fetching tweet details:', err);
+      detailsError.value = err;
+      if (process.client) {
+        toast.error(
+          '加载推文详情失败，部分内容可能无法显示。'
+        );
+      }
+    } finally {
+      detailsPending.value = false;
+    }
+  },
+  { immediate: true }
 );
 
-// 【修复 3】使用 watch 来处理副作用，比如错误提示
-// 这个 watcher 只会在 error.value 从无到有时才触发
-watch(error, newError => {
-  if (newError) {
-    // 确保只在客户端显示 toast，避免 SSR 错误
-    if (process.client) {
-      toast.error('加载推文失败，请稍后再试。');
-    }
-    console.error('Error fetching tweets:', newError);
-  }
-});
+const isLoading = computed(
+  () => listPending.value || detailsPending.value
+);
+const hasError = computed(
+  () => !!listError.value || !!detailsError.value
+);
 
-// (可选) 如果你需要在数据到达时打印日志，也可以用 watch
-watch(tweets, newTweets => {
-  if (newTweets) {
-    console.log('Tweets data arrived:', newTweets.data);
-  }
-});
+// 6. 【修复】totalCount 依赖正确的变量
+const totalCount = computed(
+  () => listApiResponse.value?.data?.totalCount || 0
+);
+
+// 7. 【修复】删除引用了不存在变量的 watch
+// watch(error, ...) 和 watch(tweets, ...) 已被删除
 </script>
 
 <template>
-  <!-- 根容器 -->
   <div class="pt-2">
-    <!-- 主内容区域 -->
     <div class="bg-background p-10">
-      <!-- 1. 加载状态：当 pending 为 true 时，显示骨架屏 -->
-      <div v-if="pending">
-        <div class="space-y-4">
-          <div
-            v-for="i in 5"
-            :key="i"
-            class="flex items-start space-x-4 rounded-md border p-4"
-          >
-            <Skeleton class="size-12 rounded-full" />
-            <div class="flex-1 space-y-2">
-              <Skeleton class="h-4 w-1/4" />
-              <Skeleton class="h-4 w-full" />
-            </div>
-          </div>
-        </div>
+      <div v-if="isLoading" class="space-y-4">
+        <TweetCardSkeleton
+          v-for="i in 5"
+          :key="`skeleton-${i}`"
+        />
       </div>
 
-      <!-- 2. 错误状态：当 error 有值时，显示错误信息 -->
+      <!-- 8. 【修复】模板使用正确的错误状态变量 -->
       <div
-        v-else-if="error"
+        v-else-if="hasError"
         class="text-center text-destructive"
       >
-        抱歉，加载推文时遇到问题，请刷新页面。 {{ error }}
+        抱歉，加载推文时遇到问题，请刷新页面。
+        <pre class="text-xs mt-2" v-if="listError">{{
+          listError.message
+        }}</pre>
+        <pre class="text-xs mt-2" v-if="detailsError">{{
+          detailsError.message
+        }}</pre>
       </div>
 
-      <!-- 3. 成功状态：当加载完成且无错误时，渲染 TweetList -->
-      <!--    并传递正确的推文数组！ -->
+      <!-- 9. 【修复】模板使用最终处理好的 fullTweets 数组 -->
       <TweetList
-        v-else-if="tweets && tweets.data"
-        :tweets="tweets.data.tweets"
-        class="bg-background p-10"
+        v-else-if="fullTweets.length > 0"
+        :tweets="fullTweets"
       />
+
+      <div
+        v-else
+        class="text-center text-muted-foreground py-10"
+      >
+        这里还没有推文哦。
+      </div>
     </div>
 
     <Pagination
-      v-slot="{ page }"
+      v-if="!listPending && !listError && totalCount > 0"
       v-model:page="page"
       :items-per-page="pageSize"
       :total="totalCount"
-      :default-page="1"
       class="mb-8 flex justify-center"
     >
       <PaginationContent v-slot="{ items }">
         <PaginationPrevious />
-
         <template
           v-for="(item, index) in items"
           :key="index"
