@@ -223,190 +223,200 @@ async function handleTweetSubmit(
 </script>
 
 <template>
-  <!-- 
+  <div class="relative min-h-screen">
+    <!-- 
     我们将移除外层的 `hidden md:block`，让页面在所有设备上都可见。
     并调整一些间距，让布局更和谐。
   -->
-  <div class="space-y-6 p-4 sm:p-8">
-    <div
-      class="flex items-center justify-between padding-bottom-4 px-3"
-    >
-      <div>
-        <h2 class="text-2xl font-bold tracking-tight">
-          发布推文
-        </h2>
-        <p class="text-muted-foreground text-sm mt-1">
-          分享你的想法，与世界连接。
-        </p>
+    <div class="space-y-6 p-4 sm:p-8">
+      <div
+        class="flex items-center justify-between padding-bottom-4 px-3"
+      >
+        <div>
+          <h2 class="text-2xl font-bold tracking-tight">
+            发布推文
+          </h2>
+          <p class="text-muted-foreground text-sm mt-1">
+            分享你的想法，与世界连接。
+          </p>
+        </div>
+        <!-- 这个按钮可以链接到草稿箱或执行其他操作 -->
+        <Button variant="secondary">查看草稿</Button>
       </div>
-      <!-- 这个按钮可以链接到草稿箱或执行其他操作 -->
-      <Button variant="secondary">查看草稿</Button>
-    </div>
 
-    <!-- 分割线 -->
-    <Separator class="my-6" />
+      <!-- 分割线 -->
+      <Separator class="my-6" />
 
-    <!-- 
+      <!-- 
       3. 【核心修改】在分割线下方，直接放置我们的推文编辑器组件。
          我们将移除编辑器内部的 Card 样式，让它直接融入当前页面。
          为此，我们需要给它传递一个 prop。
     -->
-    <div class="mx-auto max-w-3xl">
-      <!-- 
+      <div class="mx-auto max-w-3xl">
+        <!-- 
          为了让 TweetComposer 更好地融入页面，
          我们可以给它传递一个 prop 来控制是否显示 Card 样式。
          这需要对 TweetComposer 做一个小小的修改。
        -->
-      <TweetComposer
-        @open-quote-dialog="isQuoteDialogOpen = true"
-        @open-reply-dialog="isReplyDialogOpen = true"
-        @submit="handleTweetSubmit"
-        :quote-to="tweetToQuote"
-        :reply-to="tweetToReply"
-      />
+        <TweetComposer
+          @open-quote-dialog="isQuoteDialogOpen = true"
+          @open-reply-dialog="isReplyDialogOpen = true"
+          @submit="handleTweetSubmit"
+          :quote-to="tweetToQuote"
+          :reply-to="tweetToReply"
+        />
+      </div>
+      <!-- TODO: 未来可以把Dialog单独抽取为一个组件 -->
+      <!-- “引用推文” Dialog -->
+      <Dialog v-model:open="isQuoteDialogOpen">
+        <DialogContent
+          class="sm:max-w-lg bg-background border-gray-700"
+        >
+          <DialogHeader>
+            <DialogTitle class="text-white"
+              >选择要引用的推文</DialogTitle
+            >
+            <DialogDescription
+              >从下面的列表中选择一条推文来添加到你的引用中。</DialogDescription
+            >
+          </DialogHeader>
+
+          <!-- 【核心修改】根据数据状态显示不同的内容 -->
+          <div class="py-4 max-h-[60vh] overflow-y-auto">
+            <!-- 1. 加载状态 -->
+            <div
+              v-if="isDialogLoading"
+              class="flex items-center justify-center h-48"
+            >
+              <p class="text-muted-foreground">
+                正在加载推文...
+              </p>
+              <!-- 你也可以在这里放一个旋转的加载图标 -->
+            </div>
+
+            <!-- 2. 错误状态 -->
+            <div
+              v-else-if="dialogError"
+              class="text-center text-destructive"
+            >
+              <p>{{ dialogError }}</p>
+            </div>
+
+            <!-- 3. 空状态 -->
+            <div
+              v-else-if="selectableTweets.length === 0"
+              class="text-center text-muted-foreground"
+            >
+              <p>没有找到可供引用的推文。</p>
+            </div>
+
+            <!-- 4. 成功状态 -->
+            <div v-else class="grid gap-4">
+              <div
+                v-for="tweet in selectableTweets"
+                :key="tweet.tweetId"
+                class="p-3 border border-gray-800 rounded-lg hover:bg-gray-800/50 cursor-pointer transition-colors"
+                @click="handleSelectQuote(tweet)"
+              >
+                <div class="flex items-center text-sm mb-2">
+                  <img
+                    :src="tweet.author.avatarUrl"
+                    class="h-5 w-5 rounded-full mr-2"
+                  />
+                  <span class="font-bold text-gray-200">{{
+                    tweet.author.displayName
+                  }}</span>
+                  <span class="ml-1 text-gray-500"
+                    >@{{ tweet.author.username }}</span
+                  >
+                </div>
+                <p
+                  class="text-gray-400 text-sm leading-snug"
+                >
+                  {{ tweet.content }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog v-model:open="isReplyDialogOpen">
+        <DialogContent
+          class="sm:max-w-lg bg-background border-gray-700"
+        >
+          <DialogHeader>
+            <DialogTitle class="text-white"
+              >选择要回复的推文</DialogTitle
+            >
+            <DialogDescription
+              >从下面的列表中选择一条推文来添加到你的回复中。</DialogDescription
+            >
+          </DialogHeader>
+
+          <!-- 【核心修改】根据数据状态显示不同的内容 -->
+          <div class="py-4 max-h-[60vh] overflow-y-auto">
+            <!-- 1. 加载状态 -->
+            <div
+              v-if="isDialogLoading"
+              class="flex items-center justify-center h-48"
+            >
+              <p class="text-muted-foreground">
+                正在加载推文...
+              </p>
+              <!-- 你也可以在这里放一个旋转的加载图标 -->
+            </div>
+
+            <!-- 2. 错误状态 -->
+            <div
+              v-else-if="dialogError"
+              class="text-center text-destructive"
+            >
+              <p>{{ dialogError }}</p>
+            </div>
+
+            <!-- 3. 空状态 -->
+            <div
+              v-else-if="selectableTweets.length === 0"
+              class="text-center text-muted-foreground"
+            >
+              <p>没有找到可供回复的推文。</p>
+            </div>
+
+            <!-- 4. 成功状态 -->
+            <div v-else class="grid gap-4">
+              <div
+                v-for="tweet in selectableTweets"
+                :key="tweet.tweetId"
+                class="p-3 border border-gray-800 rounded-lg hover:bg-gray-800/50 cursor-pointer transition-colors"
+                @click="handleSelectReply(tweet)"
+              >
+                <div class="flex items-center text-sm mb-2">
+                  <img
+                    :src="tweet.author.avatarUrl"
+                    class="h-5 w-5 rounded-full mr-2"
+                  />
+                  <span class="font-bold text-gray-200">{{
+                    tweet.author.displayName
+                  }}</span>
+                  <span class="ml-1 text-gray-500"
+                    >@{{ tweet.author.username }}</span
+                  >
+                </div>
+                <p
+                  class="text-gray-400 text-sm leading-snug"
+                >
+                  {{ tweet.content }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
-    <!-- TODO: 未来可以把Dialog单独抽取为一个组件 -->
-    <!-- “引用推文” Dialog -->
-    <Dialog v-model:open="isQuoteDialogOpen">
-      <DialogContent
-        class="sm:max-w-lg bg-background border-gray-700"
-      >
-        <DialogHeader>
-          <DialogTitle class="text-white"
-            >选择要引用的推文</DialogTitle
-          >
-          <DialogDescription
-            >从下面的列表中选择一条推文来添加到你的引用中。</DialogDescription
-          >
-        </DialogHeader>
-
-        <!-- 【核心修改】根据数据状态显示不同的内容 -->
-        <div class="py-4 max-h-[60vh] overflow-y-auto">
-          <!-- 1. 加载状态 -->
-          <div
-            v-if="isDialogLoading"
-            class="flex items-center justify-center h-48"
-          >
-            <p class="text-muted-foreground">
-              正在加载推文...
-            </p>
-            <!-- 你也可以在这里放一个旋转的加载图标 -->
-          </div>
-
-          <!-- 2. 错误状态 -->
-          <div
-            v-else-if="dialogError"
-            class="text-center text-destructive"
-          >
-            <p>{{ dialogError }}</p>
-          </div>
-
-          <!-- 3. 空状态 -->
-          <div
-            v-else-if="selectableTweets.length === 0"
-            class="text-center text-muted-foreground"
-          >
-            <p>没有找到可供引用的推文。</p>
-          </div>
-
-          <!-- 4. 成功状态 -->
-          <div v-else class="grid gap-4">
-            <div
-              v-for="tweet in selectableTweets"
-              :key="tweet.tweetId"
-              class="p-3 border border-gray-800 rounded-lg hover:bg-gray-800/50 cursor-pointer transition-colors"
-              @click="handleSelectQuote(tweet)"
-            >
-              <div class="flex items-center text-sm mb-2">
-                <img
-                  :src="tweet.author.avatarUrl"
-                  class="h-5 w-5 rounded-full mr-2"
-                />
-                <span class="font-bold text-gray-200">{{
-                  tweet.author.displayName
-                }}</span>
-                <span class="ml-1 text-gray-500"
-                  >@{{ tweet.author.username }}</span
-                >
-              </div>
-              <p class="text-gray-400 text-sm leading-snug">
-                {{ tweet.content }}
-              </p>
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-
-    <Dialog v-model:open="isReplyDialogOpen">
-      <DialogContent
-        class="sm:max-w-lg bg-background border-gray-700"
-      >
-        <DialogHeader>
-          <DialogTitle class="text-white"
-            >选择要回复的推文</DialogTitle
-          >
-          <DialogDescription
-            >从下面的列表中选择一条推文来添加到你的回复中。</DialogDescription
-          >
-        </DialogHeader>
-
-        <!-- 【核心修改】根据数据状态显示不同的内容 -->
-        <div class="py-4 max-h-[60vh] overflow-y-auto">
-          <!-- 1. 加载状态 -->
-          <div
-            v-if="isDialogLoading"
-            class="flex items-center justify-center h-48"
-          >
-            <p class="text-muted-foreground">
-              正在加载推文...
-            </p>
-            <!-- 你也可以在这里放一个旋转的加载图标 -->
-          </div>
-
-          <!-- 2. 错误状态 -->
-          <div
-            v-else-if="dialogError"
-            class="text-center text-destructive"
-          >
-            <p>{{ dialogError }}</p>
-          </div>
-
-          <!-- 3. 空状态 -->
-          <div
-            v-else-if="selectableTweets.length === 0"
-            class="text-center text-muted-foreground"
-          >
-            <p>没有找到可供回复的推文。</p>
-          </div>
-
-          <!-- 4. 成功状态 -->
-          <div v-else class="grid gap-4">
-            <div
-              v-for="tweet in selectableTweets"
-              :key="tweet.tweetId"
-              class="p-3 border border-gray-800 rounded-lg hover:bg-gray-800/50 cursor-pointer transition-colors"
-              @click="handleSelectReply(tweet)"
-            >
-              <div class="flex items-center text-sm mb-2">
-                <img
-                  :src="tweet.author.avatarUrl"
-                  class="h-5 w-5 rounded-full mr-2"
-                />
-                <span class="font-bold text-gray-200">{{
-                  tweet.author.displayName
-                }}</span>
-                <span class="ml-1 text-gray-500"
-                  >@{{ tweet.author.username }}</span
-                >
-              </div>
-              <p class="text-gray-400 text-sm leading-snug">
-                {{ tweet.content }}
-              </p>
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <LoadingOverlay
+      v-if="isSubmitting"
+      text="正在发布推文..."
+    />
   </div>
 </template>
