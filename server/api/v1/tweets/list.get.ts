@@ -52,13 +52,13 @@ export default defineEventHandler(async event => {
                     ORDER BY v.created_at DESC
                 ) AS rn,
                     CASE
-                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_liked_by_user,
 
                 CASE
-                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_booked_by_user
@@ -172,13 +172,13 @@ export default defineEventHandler(async event => {
                     ORDER BY v.created_at DESC
                 ) AS rn,
                  CASE
-                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_liked_by_user,
 
                 CASE
-                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_booked_by_user
@@ -280,13 +280,13 @@ export default defineEventHandler(async event => {
                     ORDER BY v.created_at DESC
                 ) AS rn,
                  CASE
-                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_liked_by_user,
 
                 CASE
-                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_booked_by_user
@@ -381,13 +381,13 @@ export default defineEventHandler(async event => {
                     ORDER BY v.created_at DESC
                 ) AS rn,
                  CASE
-                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_liked_by_user,
 
                 CASE
-                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_booked_by_user
@@ -494,13 +494,13 @@ export default defineEventHandler(async event => {
                     ORDER BY v.engagement_score DESC, v.created_at DESC
                 ) AS rn,
                  CASE
-                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_liked_by_user,
 
                 CASE
-                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_booked_by_user
@@ -594,13 +594,13 @@ export default defineEventHandler(async event => {
                 v.is_from_following,
                 ROW_NUMBER() OVER (ORDER BY b.created_at DESC) AS rn,
                 CASE
-                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_liked_by_user,
 
                 CASE
-                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = 1147)
+                    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = :user_id)
                     THEN 1
                     ELSE 0
                 END AS is_booked_by_user

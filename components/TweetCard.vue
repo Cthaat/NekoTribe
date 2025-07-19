@@ -34,8 +34,12 @@ import {
   PlayCircle,
   HeartPlus
 } from 'lucide-vue-next';
+import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
 
 const preferenceStore = usePreferenceStore();
+const tweetStore = useTweetStore(); // 2. 获取 store 实例
+
+const localePath = useLocalePath();
 
 const emit = defineEmits([
   'delete-tweet',
@@ -184,11 +188,21 @@ function openLightbox(index: number) {
   lightboxStartIndex.value = index; // 设置从哪张图片开始显示
   isLightboxOpen.value = true; // 打开灯箱
 }
+
+function toTweetDetail(tweetId: string) {
+  console.log('Navigating to tweet detail:', tweetId);
+  // 在这里实现导航到推文详情的逻辑
+  // 例如使用 Vue Router 的 push 方法
+  const detailPath = localePath(`/tweet/${tweetId}`);
+  tweetStore.setSelectedTweet(props.tweet);
+  navigateTo(detailPath);
+}
 </script>
 
 <template>
   <Card
-    class="max-w-2xl mx-auto my-4 rounded-xl shadow-sm hover:shadow-md transition-shadow"
+    @click.stop="toTweetDetail(tweet.tweetId)"
+    class="max-w-2xl mx-auto my-4 rounded-xl shadow-sm cursor-pointer transition-colors duration-200 ease-in-out hover:shadow-md hover:bg-gray-50 dark:hover:bg-neutral-900"
   >
     <CardHeader class="flex flex-row items-start p-4">
       <Avatar class="h-12 w-12 mr-4">
@@ -223,6 +237,7 @@ function openLightbox(index: number) {
             variant="ghost"
             size="icon"
             class="h-8 w-8"
+            @click.stop="() => {}"
           >
             <MoreHorizontal class="h-4 w-4" />
           </Button>
@@ -230,7 +245,7 @@ function openLightbox(index: number) {
         <DropdownMenuContent>
           <DropdownMenuItem
             v-if="!localIsBookmarked"
-            @click="handleBookmark"
+            @click.stop="handleBookmark"
             class="text-blue-500"
           >
             <BookmarkPlus class="mr-2 h-4 w-4" />
@@ -239,7 +254,7 @@ function openLightbox(index: number) {
 
           <DropdownMenuItem
             v-else
-            @click="handleBookmark"
+            @click.stop="handleBookmark"
             class="text-blue-500"
           >
             <BookmarkCheck class="mr-2 h-4 w-4" />
@@ -248,7 +263,7 @@ function openLightbox(index: number) {
 
           <DropdownMenuItem
             v-if="isOwnTweet"
-            @click="handleDelete"
+            @click.stop="handleDelete"
             class="text-red-500"
           >
             <Trash2 class="mr-2 h-4 w-4" />
@@ -283,7 +298,7 @@ function openLightbox(index: number) {
             v-for="(item, index) in mediaItems.slice(0, 4)"
             :key="item.originalUrl"
             class="relative group cursor-pointer bg-secondary"
-            @click="openLightbox(index)"
+            @click.stop="openLightbox(index)"
           >
             <!-- 显示缩略图 -->
             <img
@@ -319,7 +334,7 @@ function openLightbox(index: number) {
         variant="ghost"
         size="sm"
         class="flex items-center gap-2 text-muted-foreground hover:text-green-500"
-        @click="handleRetweet"
+        @click.stop="handleRetweet"
       >
         <Repeat class="h-5 w-5" />
         <span>{{ tweet.retweetsCount }}</span>
@@ -329,7 +344,7 @@ function openLightbox(index: number) {
         variant="ghost"
         size="sm"
         class="flex items-center gap-2 text-muted-foreground hover:text-blue-500"
-        @click="handleReply"
+        @click.stop="handleReply"
       >
         <MessageCircle class="h-5 w-5" />
         <span>{{ tweet.repliesCount }}</span>
@@ -339,7 +354,7 @@ function openLightbox(index: number) {
         variant="ghost"
         size="sm"
         class="flex items-center gap-2 text-muted-foreground hover:text-red-500"
-        @click="handleLike"
+        @click.stop="handleLike"
       >
         <Heart v-if="localLiked" class="h-5 w-5" />
         <HeartPlus v-else class="h-5 w-5" />

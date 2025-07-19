@@ -23,8 +23,41 @@ export default defineEventHandler(async event => {
 
   try {
     const getTweetSql = `
-    SELECT *
-    FROM v_tweet_details
+    SELECT
+    tweet_id,
+    content,
+    author_id,
+    author_username,
+    author_display_name,
+    author_avatar,
+    author_verified,
+    reply_to_tweet_id,
+    retweet_of_tweet_id,
+    quote_tweet_id,
+    is_retweet,
+    is_quote_tweet,
+    likes_count,
+    retweets_count,
+    replies_count,
+    views_count,
+    visibility,
+    language,
+    created_at,
+    engagement_score,
+    media_files,
+    media_thumbnails,
+    CASE
+    WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.tweet_id AND l.user_id = :user_id)
+    THEN 1
+    ELSE 0
+    END AS is_liked_by_user,
+
+    CASE
+    WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = :user_id)
+    THEN 1
+    ELSE 0
+    END AS is_booked_by_user
+    FROM v_tweet_details v
     WHERE tweet_id = :tweetId
       AND fn_can_view_tweet(:user_id, tweet_id) = 1
     `;
@@ -80,7 +113,9 @@ export default defineEventHandler(async event => {
       createdAt: row[18], // 创建时间
       engagementScore: row[19], // 互动分数
       mediaFiles: row[20], // 媒体文件数组
-      mediaThumbnails: row[21] // 媒体缩略图
+      mediaThumbnails: row[21], // 媒体缩略图
+      isLikedByUser: row[22], // 用户是否点赞
+      isBookmarkedByUser: row[23] // 用户是否收藏
     } as TweetGetItem;
 
     return {

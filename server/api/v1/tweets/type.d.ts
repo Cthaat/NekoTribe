@@ -119,7 +119,9 @@ type TweetGetRow = [
   string, // CREATED_AT
   number, // ENGAGEMENT_SCORE
   any[], // MEDIA_FILES
-  any // MEDIA_THUMBNAILS
+  any, // MEDIA_THUMBNAILS
+  number, // is_liked_by_user
+  number // is_bookmarked_by_user
 ];
 
 interface TweetGetItem {
@@ -145,6 +147,8 @@ interface TweetGetItem {
   engagementScore: number; // 互动分数
   mediaFiles: any[]; // 媒体文件数组
   mediaThumbnails: any; // 媒体缩略图
+  isLikedByUser: number; // 用户是否点赞
+  isBookmarkedByUser: number; // 用户是否收藏
 }
 
 interface TweetGetResponse extends Response {

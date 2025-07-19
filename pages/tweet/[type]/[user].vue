@@ -51,6 +51,7 @@ const {
   }
 );
 
+// TODO: 修复后端，获取推文详情时可以同时获取点赞情况和书签情况
 watch(
   listApiResponse,
   async newListApiResponse => {
@@ -110,6 +111,8 @@ const isLoading = computed(
 const hasError = computed(
   () => !!listError.value || !!detailsError.value
 );
+
+// TODO: 以上为史山代码，等待重构 ---
 
 // 6. 【修复】totalCount 依赖正确的变量
 const totalCount = computed(
