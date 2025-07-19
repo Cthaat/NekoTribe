@@ -13,7 +13,9 @@ import TweetComposer from '@/components/TweetComposer.vue';
     并调整一些间距，让布局更和谐。
   -->
   <div class="space-y-6 p-4 sm:p-8">
-    <div class="flex items-center justify-between">
+    <div
+      class="flex items-center justify-between padding-bottom-4 px-3"
+    >
       <div>
         <h2 class="text-2xl font-bold tracking-tight">
           发布推文
