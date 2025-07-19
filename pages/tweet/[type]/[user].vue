@@ -1,4 +1,5 @@
-<script setup>
+<!-- TODO: 修复类型检查 -->
+<script lang="ts" setup>
 // 1. 【修复】确保导入了所有需要的函数
 import { ref, watch, computed } from 'vue';
 import TweetList from '@/components/TweetList.vue';
@@ -22,23 +23,33 @@ const page = ref(1);
 const pageSize = ref(15);
 
 // 2. 【修复】使用正确的 ref() 语法
-const fullTweets = ref([]);
+const fullTweets = ref<any[]>([]);
 const detailsPending = ref(false);
-const detailsError = ref(null); // 为详情获取创建一个专门的 error ref
+const detailsError = ref<unknown>(null); // 为详情获取创建一个专门的 error ref
 
 // 3. 【修复】变量名保持一致
+interface TweetListApiResponse {
+  data?: {
+    tweets?: any[];
+    totalCount?: number;
+  };
+}
+
 const {
   data: listApiResponse,
   pending: listPending,
   error: listError
-} = useApiFetch('/api/v1/tweets/list', {
-  query: {
-    type: route.params.type || 'home',
-    page: page,
-    pageSize: pageSize
-  },
-  watch: [page, () => route.params.type]
-});
+} = useApiFetch<TweetListApiResponse>(
+  '/api/v1/tweets/list',
+  {
+    query: {
+      type: route.params.type || 'home',
+      page: page,
+      pageSize: pageSize
+    },
+    watch: [page, () => route.params.type]
+  }
+);
 
 watch(
   listApiResponse,
@@ -71,11 +82,16 @@ watch(
 
       // 5. 【修复】使用 .value 来赋值
       fullTweets.value = detailResponses.map(
-        response => response.data.tweet
+        (response: any, index: number) => ({
+          ...response.data.tweet,
+          isLikedByUser: basicTweets[index].isLikedByUser,
+          isBookmarkedByUser:
+            basicTweets[index].isBookmarkedByUser
+        })
       );
     } catch (err) {
       console.error('Error fetching tweet details:', err);
-      detailsError.value = err;
+      detailsError.value = err as Error;
       if (process.client) {
         toast.error(
           '加载推文详情失败，部分内容可能无法显示。'
@@ -100,32 +116,38 @@ const totalCount = computed(
   () => listApiResponse.value?.data?.totalCount || 0
 );
 
-async function handleDeleteTweet(tweetId) {
+async function handleDeleteTweet(tweetId: any) {
   console.log('Deleting tweet:', tweetId);
   // 在这里调用你的API来删除推文
-  const response = await apiFetch(
-    '/api/v1/tweets/send-tweets',
+  const response: any = await apiFetch(
+    `/api/v1/tweets/${tweetId}`,
     {
-      method: 'POST',
-      body: submitForm.value
+      method: 'DELETE'
     }
   );
+  if (!response.success) {
+    toast.error('删除推文失败，请稍后再试。', {
+      description: response.error || '未知错误'
+    });
+    return;
+  }
+  toast.success('推文已成功删除。');
   fullTweets.value = fullTweets.value.filter(
     tweet => tweet.tweetId !== tweetId
   );
 }
 
-function handleReplyTweet(tweet) {
+function handleReplyTweet(tweet: any) {
   console.log('Replying to tweet:', tweet.tweetId);
   // 在这里处理回复逻辑
 }
 
-function handleRetweetTweet(tweet) {
+function handleRetweetTweet(tweet: any) {
   console.log('Retweeting tweet:', tweet.tweetId);
   // 在这里处理转发逻辑
 }
 
-function handleLikeTweet(tweet) {
+function handleLikeTweet(tweet: any) {
   console.log('Liking tweet:', tweet.tweetId);
   // 在这里处理点赞逻辑
 }
@@ -151,7 +173,7 @@ function handleLikeTweet(tweet) {
           listError.message
         }}</pre>
         <pre class="text-xs mt-2" v-if="detailsError">{{
-          detailsError.message
+          (detailsError as Error)?.message || detailsError
         }}</pre>
       </div>
 

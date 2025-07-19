@@ -28,6 +28,7 @@ import {
   Trash2,
   BadgeCheck,
   Bookmark,
+  BookmarkCheck,
   PlayCircle
 } from 'lucide-vue-next';
 
@@ -119,6 +120,11 @@ function handleDelete() {
   }
 }
 
+function handleBookmark() {
+  console.log('Bookmark tweet:', props.tweet.tweetId);
+  // 在这里处理书签逻辑
+}
+
 console.log(
   'TweetCard component initialized with tweet:',
   props.tweet,
@@ -179,7 +185,7 @@ function openLightbox(index: number) {
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuItem
-            @click="handleDelete"
+            @click="handleBookmark"
             class="text-blue-500"
           >
             <Bookmark class="mr-2 h-4 w-4" />
