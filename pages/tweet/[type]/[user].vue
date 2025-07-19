@@ -145,9 +145,68 @@ function handleReplyTweet(tweet: any) {
   // 在这里处理回复逻辑
 }
 
+// --- 转发相关的状态 ---
+
+const isRetweetModalOpen = ref(false);
+const selectedTweetForRetweet = ref(null);
+const isSubmittingRetweet = ref(false);
+
 function handleRetweetTweet(tweet: any) {
   console.log('Retweeting tweet:', tweet.tweetId);
   // 在这里处理转发逻辑
+  selectedTweetForRetweet.value = tweet;
+  isRetweetModalOpen.value = true;
+}
+
+// 这个函数由 RetweetModal 的 @submit-retweet 事件触发
+async function handleSubmitRetweet({
+  content,
+  originalTweetId
+}: {
+  content: any;
+  originalTweetId: any;
+}) {
+  isSubmittingRetweet.value = true;
+  try {
+    const response: any = await apiFetch(
+      '/api/v1/tweets/send-tweets',
+      {
+        method: 'POST',
+        body: {
+          content: content, // 用户的评论
+          replyToTweetId: '', // 告知后端这是对哪条推文的转发
+          retweetOfTweetId: originalTweetId, // 告知后端这是对哪条推文的转发
+          quoteTweetId: '', // 如果是引用转发，这里可以传入原推文ID
+          visibility: 'public', // 可选：设置可见性
+          hashtags: '', // 可选：设置标签
+          mentions: '', // 可选：设置提及用户
+          scheduledAt: '', // 可选：设置定时发送时间
+          location: '' // 可选：设置位置
+        }
+      }
+    );
+
+    console.log(
+      'Submitting retweet with content:',
+      content,
+      'Original tweet ID:',
+      originalTweetId
+    );
+
+    toast.success('转发成功！');
+
+    if (!response.success) {
+      throw new Error(response.message || '转发失败');
+    }
+
+    // 可选：刷新数据或乐观更新UI
+  } catch (err: any) {
+    console.error('Failed to retweet:', err);
+    toast.error(err.message || '转发失败，请稍后重试。');
+  } finally {
+    isSubmittingRetweet.value = false;
+    isRetweetModalOpen.value = false; // 确保模态框关闭
+  }
 }
 
 async function handleLikeTweet(
@@ -216,6 +275,14 @@ function handleBookmarkTweet(
         @bookmark-tweet="handleBookmarkTweet"
         v-else-if="fullTweets.length > 0"
         :tweets="fullTweets"
+      />
+
+      <RetweetModal
+        v-if="selectedTweetForRetweet"
+        v-model:open="isRetweetModalOpen"
+        :tweet="selectedTweetForRetweet"
+        :is-submitting="isSubmittingRetweet"
+        @submit-retweet="handleSubmitRetweet"
       />
 
       <div

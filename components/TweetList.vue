@@ -53,15 +53,16 @@ console.log(
 
 <template>
   <div class="bg-background">
-    <TweetCard
-      @delete-tweet="handleDeleteTweet"
-      @reply-tweet="handleReplyTweet"
-      @retweet-tweet="handleRetweetTweet"
-      @like-tweet="handleLikeTweet"
-      @bookmark-tweet="handleBookmarkTweet"
-      v-for="tweet in props.tweets"
-      :key="tweet.id"
-      :tweet="tweet"
-    />
+    <div v-for="tweet in props.tweets" :key="tweet.id">
+      <TweetCard
+        @delete-tweet="handleDeleteTweet"
+        @reply-tweet="handleReplyTweet"
+        @retweet-tweet="handleRetweetTweet"
+        @like-tweet="handleLikeTweet"
+        @bookmark-tweet="handleBookmarkTweet"
+        :key="tweet.id"
+        :tweet="tweet"
+      />
+    </div>
   </div>
 </template>
