@@ -53,7 +53,6 @@ const submitForm = ref({
 const emit = defineEmits([
   'open-quote-dialog',
   'open-reply-dialog',
-  'submitFiles',
   'submit'
 ]);
 
@@ -143,6 +142,8 @@ function removeMedia(index: number) {
 async function handleSubmit() {
   if (isTweetDisabled.value) return;
 
+  console.log('提交的推文内容:', tweetContent.value);
+
   submitForm.value.content = tweetContent.value;
   submitForm.value.visibility = 'public'; // 默认可见性为公开
 
@@ -157,7 +158,17 @@ async function handleSubmit() {
     );
   }
 
-  emit('submit', submitForm);
+  // 创建 FormData 对象
+  const formData = new FormData();
+  // 只添加媒体文件
+  mediaFiles.value.forEach(file => {
+    formData.append('file', file);
+  });
+  // TODO: 添加描述字段
+  formData.append('altText', '111');
+  formData.append('description', '111123');
+
+  emit('submit', submitForm, formData);
 }
 </script>
 

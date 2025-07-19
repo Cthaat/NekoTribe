@@ -146,7 +146,7 @@ console.log(
           {{ formattedDate }}
         </p>
       </div>
-      <DropdownMenu v-if="isOwnTweet">
+      <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <Button
             variant="ghost"
@@ -164,7 +164,9 @@ console.log(
             <Bookmark class="mr-2 h-4 w-4" />
             <span>加入书签</span>
           </DropdownMenuItem>
+
           <DropdownMenuItem
+            v-if="isOwnTweet"
             @click="handleDelete"
             class="text-red-500"
           >

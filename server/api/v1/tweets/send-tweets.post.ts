@@ -4,6 +4,8 @@ export default defineEventHandler(async event => {
   const body = await readBody<TweetSendPayload>(event);
   const user: Auth = event.context.auth as Auth;
 
+  console.log('Received tweet data:', body.content);
+
   const getOracleConnection =
     event.context.getOracleConnection;
   const connection = await getOracleConnection();

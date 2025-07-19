@@ -4,6 +4,7 @@ import { toast } from 'vue-sonner';
 // 1. 导入 Separator 和 Button (如果它们还没被自动导入)
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { apiFetch } from '@/composables/useApi';
 import {
   Dialog,
   DialogContent,
@@ -163,48 +164,48 @@ watch(isReplyDialogOpen, async isOpen => {
 
 const isSubmitting = ref(false); // 控制提交状态
 const submissionError = ref<string | null>(null); // 存储提交错误信息
-async function handleFileSubmit(files: File[]) {
-  console.log('父组件已收到文件，准备提交...', files);
-  isSubmitting.value = true;
-  submissionError.value = null;
-
-  try {
-    // 在这里执行真正的文件上传逻辑
-    // const response = await useApiFetch('/api/v1/tweets/upload', {
-    //   method: 'POST',
-    //   body: files
-    // });
-
-    console.log('文件上传成功:', files);
-    toast.success('文件上传成功！');
-  } catch (err: any) {
-    console.error('文件上传失败:', err);
-    submissionError.value =
-      err.data?.message || '发生未知错误，请稍后再试。';
-    toast.error(`上传失败: ${submissionError.value}`);
-  } finally {
-    isSubmitting.value = false;
-  }
-}
 // 3. 【核心修改】创建 handleTweetSubmit 方法来处理子组件上报的数据
-async function handleTweetSubmit(formData: any) {
-  console.log(formData);
+async function handleTweetSubmit(
+  submitForm: any,
+  formData: any
+) {
+  console.log(
+    '父组件已收到 FormData，准备提交。其内容如下：'
+  );
+
+  // 【核心修复】使用 for...of 循环来打印 FormData 的内容
+  for (const [key, value] of formData.entries()) {
+    console.log(`${key}:`, value);
+  }
+
+  console.log('推文内容:', submitForm);
 
   isSubmitting.value = true;
   submissionError.value = null;
 
   try {
     // 在这里执行真正的 API 调用
-    // const response = await useApiFetch(
-    //   '/api/v1/tweets/create',
-    //   {
-    //     method: 'POST',
-    //     body: formData
-    //     // 注意：使用 FormData 时，通常不需要手动设置 'Content-Type' header
-    //   }
-    // );
+    const response: any = await apiFetch(
+      '/api/v1/tweets/send-tweets',
+      {
+        method: 'POST',
+        body: submitForm.value
+      }
+    );
 
-    console.log('推文提交成功:', formData);
+    if (!response.success) {
+      throw new Error(`提交失败: ${response.statusText}`);
+    }
+
+    formData.append('tweetId', response.data.tweetId);
+
+    const responseFiles: any = await apiFetch(
+      '/api/v1/tweets/media/upload',
+      {
+        method: 'POST',
+        body: formData
+      }
+    );
 
     toast.success('推文发布成功！');
 
@@ -260,7 +261,6 @@ async function handleTweetSubmit(formData: any) {
         @open-quote-dialog="isQuoteDialogOpen = true"
         @open-reply-dialog="isReplyDialogOpen = true"
         @submit="handleTweetSubmit"
-        @submitFiles="handleFileSubmit"
         :quote-to="tweetToQuote"
         :reply-to="tweetToReply"
       />
