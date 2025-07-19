@@ -6,6 +6,7 @@ import {
   CardFooter,
   CardHeader
 } from '@/components/ui/card';
+import Lightbox from '@/components/Lightbox.vue';
 import {
   Avatar,
   AvatarFallback,
@@ -113,6 +114,15 @@ console.log(
   'Is own tweet:',
   isOwnTweet.value
 );
+
+const isLightboxOpen = ref(false);
+const lightboxStartIndex = ref(0);
+
+// 3. 【核心修改】创建一个方法来打开灯箱
+function openLightbox(index: number) {
+  lightboxStartIndex.value = index; // 设置从哪张图片开始显示
+  isLightboxOpen.value = true; // 打开灯箱
+}
 </script>
 
 <template>
@@ -202,6 +212,7 @@ console.log(
             v-for="(item, index) in mediaItems.slice(0, 4)"
             :key="item.originalUrl"
             class="relative group cursor-pointer bg-secondary"
+            @click="openLightbox(index)"
           >
             <!-- 显示缩略图 -->
             <img
@@ -262,6 +273,12 @@ console.log(
       </Button>
     </CardFooter>
   </Card>
+  <Lightbox
+    v-if="mediaItems.length > 0"
+    v-model:open="isLightboxOpen"
+    :items="mediaItems"
+    :start-index="lightboxStartIndex"
+  />
 </template>
 
 <style scoped>

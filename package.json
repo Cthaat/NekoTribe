@@ -41,6 +41,7 @@
     "nuxt": "^3.17.6",
     "oracledb": "^6.8.0",
     "pinia": "^3.0.3",
+    "radix-vue": "^1.9.17",
     "reka-ui": "^2.3.2",
     "shadcn-nuxt": "2.2.0",
     "sharp": "^0.34.3",
