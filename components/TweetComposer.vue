@@ -80,13 +80,11 @@ const progressColorClass = computed(() => {
 
 function handleQuoteClick() {
   // 当按钮被点击时，向父组件发出 'open-quote-dialog' 事件
-  console.log('引用推文按钮被点击');
   emit('open-quote-dialog');
 }
 
 function handleReplyClick() {
   // 当按钮被点击时，向父组件发出 'open-reply-dialog' 事件
-  console.log('回复推文按钮被点击');
   emit('open-reply-dialog');
 }
 
