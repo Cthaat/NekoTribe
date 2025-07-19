@@ -97,14 +97,17 @@ const formattedDate = computed(() => {
 // 处理交互事件的函数（此处为示例）
 function handleReply() {
   console.log('Common to tweet:', props.tweet.tweetId);
+  emit('reply-tweet', props.tweet);
 }
 
 function handleRetweet() {
   console.log('Retweet tweet:', props.tweet.tweetId);
+  emit('retweet-tweet', props.tweet);
 }
 
 function handleLike() {
   console.log('Like tweet:', props.tweet.tweetId);
+  emit('like-tweet', props.tweet);
 }
 
 function handleDelete() {
@@ -112,6 +115,7 @@ function handleDelete() {
     alert(`确定要删除推文 ${props.tweet.tweetId} 吗？`);
     // 在这里调用你的API来删除推文
     console.log('Deleting tweet:', props.tweet.tweetId);
+    emit('delete-tweet', props.tweet.tweetId);
   }
 }
 

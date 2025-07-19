@@ -99,6 +99,36 @@ const hasError = computed(
 const totalCount = computed(
   () => listApiResponse.value?.data?.totalCount || 0
 );
+
+async function handleDeleteTweet(tweetId) {
+  console.log('Deleting tweet:', tweetId);
+  // 在这里调用你的API来删除推文
+  const response = await apiFetch(
+    '/api/v1/tweets/send-tweets',
+    {
+      method: 'POST',
+      body: submitForm.value
+    }
+  );
+  fullTweets.value = fullTweets.value.filter(
+    tweet => tweet.tweetId !== tweetId
+  );
+}
+
+function handleReplyTweet(tweet) {
+  console.log('Replying to tweet:', tweet.tweetId);
+  // 在这里处理回复逻辑
+}
+
+function handleRetweetTweet(tweet) {
+  console.log('Retweeting tweet:', tweet.tweetId);
+  // 在这里处理转发逻辑
+}
+
+function handleLikeTweet(tweet) {
+  console.log('Liking tweet:', tweet.tweetId);
+  // 在这里处理点赞逻辑
+}
 </script>
 
 <template>
@@ -127,6 +157,10 @@ const totalCount = computed(
 
       <!-- 9. 【修复】模板使用最终处理好的 fullTweets 数组 -->
       <TweetList
+        @delete-tweet="handleDeleteTweet"
+        @reply-tweet="handleReplyTweet"
+        @retweet-tweet="handleRetweetTweet"
+        @like-tweet="handleLikeTweet"
         v-else-if="fullTweets.length > 0"
         :tweets="fullTweets"
       />

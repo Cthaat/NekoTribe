@@ -17,6 +17,29 @@ const props = defineProps({
   }
 });
 
+const emit = defineEmits([
+  'delete-tweet',
+  'reply-tweet',
+  'retweet-tweet',
+  'like-tweet'
+]);
+
+function handleDeleteTweet(tweetId) {
+  emit('delete-tweet', tweetId);
+}
+
+function handleReplyTweet(tweet) {
+  emit('reply-tweet', tweet);
+}
+
+function handleRetweetTweet(tweet) {
+  emit('retweet-tweet', tweet);
+}
+
+function handleLikeTweet(tweet) {
+  emit('like-tweet', tweet);
+}
+
 console.log(
   'TweetList component initialized with tweets:',
   props.tweets
@@ -26,6 +49,10 @@ console.log(
 <template>
   <div class="bg-background">
     <TweetCard
+      @delete-tweet="handleDeleteTweet"
+      @reply-tweet="handleReplyTweet"
+      @retweet-tweet="handleRetweetTweet"
+      @like-tweet="handleLikeTweet"
       v-for="tweet in props.tweets"
       :key="tweet.id"
       :tweet="tweet"
