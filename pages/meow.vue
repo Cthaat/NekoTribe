@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useApiFetch } from '@/composables/useApiFetch';
+import { toast } from 'vue-sonner';
 // 1. 导入 Separator 和 Button (如果它们还没被自动导入)
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
@@ -158,6 +160,65 @@ watch(isReplyDialogOpen, async isOpen => {
     }
   }
 });
+
+const isSubmitting = ref(false); // 控制提交状态
+const submissionError = ref<string | null>(null); // 存储提交错误信息
+async function handleFileSubmit(files: File[]) {
+  console.log('父组件已收到文件，准备提交...', files);
+  isSubmitting.value = true;
+  submissionError.value = null;
+
+  try {
+    // 在这里执行真正的文件上传逻辑
+    // const response = await useApiFetch('/api/v1/tweets/upload', {
+    //   method: 'POST',
+    //   body: files
+    // });
+
+    console.log('文件上传成功:', files);
+    toast.success('文件上传成功！');
+  } catch (err: any) {
+    console.error('文件上传失败:', err);
+    submissionError.value =
+      err.data?.message || '发生未知错误，请稍后再试。';
+    toast.error(`上传失败: ${submissionError.value}`);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+// 3. 【核心修改】创建 handleTweetSubmit 方法来处理子组件上报的数据
+async function handleTweetSubmit(formData: any) {
+  console.log(formData);
+
+  isSubmitting.value = true;
+  submissionError.value = null;
+
+  try {
+    // 在这里执行真正的 API 调用
+    // const response = await useApiFetch(
+    //   '/api/v1/tweets/create',
+    //   {
+    //     method: 'POST',
+    //     body: formData
+    //     // 注意：使用 FormData 时，通常不需要手动设置 'Content-Type' header
+    //   }
+    // );
+
+    console.log('推文提交成功:', formData);
+
+    toast.success('推文发布成功！');
+
+    // 可以在这里执行成功后的操作，比如清空编辑器或跳转页面
+    // (清空编辑器的逻辑最好还是放在 TweetComposer 内部，父组件可以调用一个子组件的方法来实现)
+  } catch (err: any) {
+    console.error('推文提交失败:', err);
+    submissionError.value =
+      err.data?.message || '发生未知错误，请稍后再试。';
+    toast.error(`发布失败: ${submissionError.value}`);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
 </script>
 
 <template>
@@ -198,6 +259,8 @@ watch(isReplyDialogOpen, async isOpen => {
       <TweetComposer
         @open-quote-dialog="isQuoteDialogOpen = true"
         @open-reply-dialog="isReplyDialogOpen = true"
+        @submit="handleTweetSubmit"
+        @submitFiles="handleFileSubmit"
         :quote-to="tweetToQuote"
         :reply-to="tweetToReply"
       />

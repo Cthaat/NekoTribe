@@ -21,6 +21,7 @@ import {
 import TweetPreviewCard from './TweetPreviewCard.vue';
 
 interface PreviewTweet {
+  tweetId: number;
   author: {
     displayName: string;
     username: string;
@@ -34,11 +35,26 @@ const props = defineProps<{
   quoteTo?: PreviewTweet;
 }>();
 
+// --- 提交信息 ---
+const submitForm = ref({
+  content: '', // 推文内容
+  replyToTweetId: '', // 回复的推文 ID
+  retweetOfTweetId: '', // 转发的推文 ID
+  quoteTweetId: '', // 引用的推文 ID
+  visibility: '', // 可见性（公开、私密等）
+  hashtags: '', // 话题标签
+  mentions: '', // 提及的用户
+  scheduledAt: '', // 定时发布时间
+  location: '' // 位置
+});
+
 // --- 传递信息 ---
 
 const emit = defineEmits([
   'open-quote-dialog',
-  'open-reply-dialog'
+  'open-reply-dialog',
+  'submitFiles',
+  'submit'
 ]);
 
 // --- 配置项 ---
@@ -126,19 +142,22 @@ function removeMedia(index: number) {
 
 async function handleSubmit() {
   if (isTweetDisabled.value) return;
-  const formData = new FormData();
-  formData.append('content', tweetContent.value);
-  mediaFiles.value.forEach(file =>
-    formData.append('mediaFiles', file)
-  );
 
-  console.log(
-    '正在提交推文:',
-    Object.fromEntries(formData)
-  );
-  alert('请在浏览器控制台中查看提交的 FormData 内容。');
+  submitForm.value.content = tweetContent.value;
+  submitForm.value.visibility = 'public'; // 默认可见性为公开
 
-  // --- 在这里添加你的 API 调用逻辑 ---
+  if (props.replyTo) {
+    submitForm.value.replyToTweetId = String(
+      props.replyTo.tweetId
+    );
+  }
+  if (props.quoteTo) {
+    submitForm.value.quoteTweetId = String(
+      props.quoteTo.tweetId
+    );
+  }
+
+  emit('submit', submitForm);
 }
 </script>
 
