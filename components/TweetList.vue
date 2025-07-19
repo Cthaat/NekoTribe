@@ -21,7 +21,8 @@ const emit = defineEmits([
   'delete-tweet',
   'reply-tweet',
   'retweet-tweet',
-  'like-tweet'
+  'like-tweet',
+  'bookmark-tweet'
 ]);
 
 function handleDeleteTweet(tweetId) {
@@ -36,8 +37,12 @@ function handleRetweetTweet(tweet) {
   emit('retweet-tweet', tweet);
 }
 
-function handleLikeTweet(tweet) {
-  emit('like-tweet', tweet);
+function handleLikeTweet(tweet, action) {
+  emit('like-tweet', tweet, action);
+}
+
+function handleBookmarkTweet(tweet, action) {
+  emit('bookmark-tweet', tweet, action);
 }
 
 console.log(
@@ -53,6 +58,7 @@ console.log(
       @reply-tweet="handleReplyTweet"
       @retweet-tweet="handleRetweetTweet"
       @like-tweet="handleLikeTweet"
+      @bookmark-tweet="handleBookmarkTweet"
       v-for="tweet in props.tweets"
       :key="tweet.id"
       :tweet="tweet"

@@ -29,7 +29,9 @@ import {
   BadgeCheck,
   Bookmark,
   BookmarkCheck,
-  PlayCircle
+  BookmarkPlus,
+  PlayCircle,
+  HeartPlus
 } from 'lucide-vue-next';
 
 const preferenceStore = usePreferenceStore();
@@ -38,7 +40,8 @@ const emit = defineEmits([
   'delete-tweet',
   'reply-tweet',
   'retweet-tweet',
-  'like-tweet'
+  'like-tweet',
+  'bookmark-tweet'
 ]);
 
 // 假设这是从你的状态管理或认证 context 中获取的当前登录用户ID
@@ -95,6 +98,32 @@ const formattedDate = computed(() => {
   );
 });
 
+const localLiked = ref(
+  props.tweet.isLikedByUser === 1 || false
+);
+
+const likeCount = ref(props.tweet.likeCount || 0);
+
+watch(
+  () => props.tweet.isLikedByUser,
+  newValue => {
+    localLiked.value = newValue === 1 || false;
+  }
+);
+
+const localIsBookmarked = ref(
+  props.tweet.isBookmarkedByUser === 1 || false
+);
+
+// 【修改二：添加 watch 来同步 prop 和本地 ref】
+// 当父组件的数据更新后，prop 会变化。我们需要监听这个变化，
+watch(
+  () => props.tweet.isBookmarkedByUser,
+  newValue => {
+    localIsBookmarked.value = newValue === 1 || false;
+  }
+);
+
 // 处理交互事件的函数（此处为示例）
 function handleReply() {
   console.log('Common to tweet:', props.tweet.tweetId);
@@ -108,7 +137,13 @@ function handleRetweet() {
 
 function handleLike() {
   console.log('Like tweet:', props.tweet.tweetId);
-  emit('like-tweet', props.tweet);
+  localLiked.value = !localLiked.value; // 切换喜欢状态
+  likeCount.value += localLiked.value ? 1 : -1; // 更新喜欢计数
+  emit(
+    'like-tweet',
+    props.tweet,
+    localLiked.value ? 'unlike' : 'like'
+  );
 }
 
 function handleDelete() {
@@ -122,7 +157,12 @@ function handleDelete() {
 
 function handleBookmark() {
   console.log('Bookmark tweet:', props.tweet.tweetId);
-  // 在这里处理书签逻辑
+  localIsBookmarked.value = !localIsBookmarked.value;
+  emit(
+    'bookmark-tweet',
+    props.tweet,
+    localIsBookmarked.value ? 'unbookmark' : 'bookmark'
+  );
 }
 
 console.log(
@@ -185,11 +225,21 @@ function openLightbox(index: number) {
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuItem
+            v-if="!localIsBookmarked"
             @click="handleBookmark"
             class="text-blue-500"
           >
-            <Bookmark class="mr-2 h-4 w-4" />
+            <BookmarkPlus class="mr-2 h-4 w-4" />
             <span>加入书签</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            v-else
+            @click="handleBookmark"
+            class="text-blue-500"
+          >
+            <BookmarkCheck class="mr-2 h-4 w-4" />
+            <span>删除书签</span>
           </DropdownMenuItem>
 
           <DropdownMenuItem
@@ -287,8 +337,9 @@ function openLightbox(index: number) {
         class="flex items-center gap-2 text-muted-foreground hover:text-red-500"
         @click="handleLike"
       >
-        <Heart class="h-5 w-5" />
-        <span>{{ tweet.likesCount }}</span>
+        <Heart v-if="localLiked" class="h-5 w-5" />
+        <HeartPlus v-else class="h-5 w-5" />
+        <span>{{ likeCount }}</span>
       </Button>
     </CardFooter>
   </Card>

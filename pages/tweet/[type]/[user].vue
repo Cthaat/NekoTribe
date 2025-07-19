@@ -147,9 +147,19 @@ function handleRetweetTweet(tweet: any) {
   // 在这里处理转发逻辑
 }
 
-function handleLikeTweet(tweet: any) {
+function handleLikeTweet(
+  tweet: any,
+  action: 'like' | 'unlike'
+) {
   console.log('Liking tweet:', tweet.tweetId);
   // 在这里处理点赞逻辑
+}
+
+function handleBookmarkTweet(
+  tweet: any,
+  action: 'bookmark' | 'unbookmark'
+) {
+  console.log('Bookmarking tweet:', tweet.tweetId);
 }
 </script>
 
@@ -183,6 +193,7 @@ function handleLikeTweet(tweet: any) {
         @reply-tweet="handleReplyTweet"
         @retweet-tweet="handleRetweetTweet"
         @like-tweet="handleLikeTweet"
+        @bookmark-tweet="handleBookmarkTweet"
         v-else-if="fullTweets.length > 0"
         :tweets="fullTweets"
       />
