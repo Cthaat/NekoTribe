@@ -55,7 +55,7 @@ watch(isQuoteDialogOpen, async isOpen => {
     dialogError.value = null;
 
     try {
-      // 在真实应用中，这里会是一个 API 调用
+      // TODO: 在真实应用中，这里会是一个 API 调用
       // 我们用 setTimeout 来模拟一个网络延迟
       await new Promise(resolve =>
         setTimeout(resolve, 1000)
@@ -202,6 +202,7 @@ watch(isReplyDialogOpen, async isOpen => {
         :reply-to="tweetToReply"
       />
     </div>
+    <!-- TODO: 未来可以把Dialog单独抽取为一个组件 -->
     <!-- “引用推文” Dialog -->
     <Dialog v-model:open="isQuoteDialogOpen">
       <DialogContent
