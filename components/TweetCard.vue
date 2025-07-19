@@ -119,6 +119,7 @@ const isLightboxOpen = ref(false);
 const lightboxStartIndex = ref(0);
 
 // 3. 【核心修改】创建一个方法来打开灯箱
+// TODO: 添加视频处理方案
 function openLightbox(index: number) {
   lightboxStartIndex.value = index; // 设置从哪张图片开始显示
   isLightboxOpen.value = true; // 打开灯箱
