@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { toast } from 'vue-sonner';
 import {
   Card,
   CardContent,
@@ -102,7 +103,7 @@ const localLiked = ref(
   props.tweet.isLikedByUser === 1 || false
 );
 
-const likeCount = ref(props.tweet.likeCount || 0);
+const likeCount = ref(props.tweet.likesCount);
 
 watch(
   () => props.tweet.isLikedByUser,
@@ -139,10 +140,13 @@ function handleLike() {
   console.log('Like tweet:', props.tweet.tweetId);
   localLiked.value = !localLiked.value; // 切换喜欢状态
   likeCount.value += localLiked.value ? 1 : -1; // 更新喜欢计数
+  if (localLiked.value) {
+    toast.success('已点赞此推文');
+  }
   emit(
     'like-tweet',
     props.tweet,
-    localLiked.value ? 'unlike' : 'like'
+    localLiked.value ? 'like' : 'unlike'
   );
 }
 

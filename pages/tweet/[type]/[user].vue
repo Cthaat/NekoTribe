@@ -147,12 +147,29 @@ function handleRetweetTweet(tweet: any) {
   // 在这里处理转发逻辑
 }
 
-function handleLikeTweet(
+async function handleLikeTweet(
   tweet: any,
   action: 'like' | 'unlike'
 ) {
-  console.log('Liking tweet:', tweet.tweetId);
+  console.log('Liking tweet:', tweet, action);
   // 在这里处理点赞逻辑
+  const response: any = await apiFetch(
+    '/api/v1/interactions/like',
+    {
+      method: 'POST',
+      body: {
+        tweetId: tweet.tweetId,
+        likeType: action
+      }
+    }
+  );
+  if (!response.success) {
+    console.error(
+      'Failed to like/unlike tweet:',
+      response.error
+    );
+    return;
+  }
 }
 
 function handleBookmarkTweet(
