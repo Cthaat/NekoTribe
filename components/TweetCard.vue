@@ -33,6 +33,13 @@ import {
 
 const preferenceStore = usePreferenceStore();
 
+const emit = defineEmits([
+  'delete-tweet',
+  'reply-tweet',
+  'retweet-tweet',
+  'like-tweet'
+]);
+
 // 假设这是从你的状态管理或认证 context 中获取的当前登录用户ID
 const currentUserId =
   preferenceStore.preferences.user.userId;
@@ -89,7 +96,7 @@ const formattedDate = computed(() => {
 
 // 处理交互事件的函数（此处为示例）
 function handleReply() {
-  console.log('Reply to tweet:', props.tweet.tweetId);
+  console.log('Common to tweet:', props.tweet.tweetId);
 }
 
 function handleRetweet() {
@@ -253,6 +260,7 @@ function openLightbox(index: number) {
         <Repeat class="h-5 w-5" />
         <span>{{ tweet.retweetsCount }}</span>
       </Button>
+
       <Button
         variant="ghost"
         size="sm"
@@ -262,6 +270,7 @@ function openLightbox(index: number) {
         <MessageCircle class="h-5 w-5" />
         <span>{{ tweet.repliesCount }}</span>
       </Button>
+
       <Button
         variant="ghost"
         size="sm"
