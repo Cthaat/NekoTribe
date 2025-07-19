@@ -2,9 +2,162 @@
 // 1. 导入 Separator 和 Button (如果它们还没被自动导入)
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from '@/components/ui/dialog';
 
 // 2. 导入我们功能强大的推文编辑器组件
 import TweetComposer from '@/components/TweetComposer.vue';
+
+interface PreviewTweet {
+  tweetId: number;
+  author: {
+    displayName: string;
+    username: string;
+    avatarUrl: string;
+  };
+  content: string;
+}
+
+const isQuoteDialogOpen = ref(false);
+const isReplyDialogOpen = ref(false);
+const tweetToQuote = ref<PreviewTweet | undefined>(
+  undefined
+);
+const tweetToReply = ref<PreviewTweet | undefined>(
+  undefined
+);
+
+const selectableTweets = ref<PreviewTweet[]>([]); // 存储从 API 获取的推文
+const isDialogLoading = ref(false); // 控制 Dialog 内部的加载状态
+const dialogError = ref<string | null>(null); // 存储 Dialog 获取数据的错误信息
+
+function handleSelectQuote(tweet: PreviewTweet) {
+  tweetToQuote.value = tweet;
+  tweetToReply.value = undefined;
+  isQuoteDialogOpen.value = false;
+}
+function handleSelectReply(tweet: PreviewTweet) {
+  tweetToReply.value = tweet;
+  tweetToQuote.value = undefined;
+  isReplyDialogOpen.value = false;
+}
+
+watch(isQuoteDialogOpen, async isOpen => {
+  // 我们只在 Dialog 打开时执行操作，并且仅当列表为空时才获取 (避免重复获取)
+  if (isOpen && selectableTweets.value.length === 0) {
+    console.log('引用 Dialog 已打开，开始获取推文列表...');
+    isDialogLoading.value = true;
+    dialogError.value = null;
+
+    try {
+      // 在真实应用中，这里会是一个 API 调用
+      // 我们用 setTimeout 来模拟一个网络延迟
+      await new Promise(resolve =>
+        setTimeout(resolve, 1000)
+      );
+
+      // 模拟 API 成功返回的数据
+      selectableTweets.value = [
+        {
+          tweetId: 1001,
+          author: {
+            displayName: '小明',
+            username: 'ming',
+            avatarUrl: '/avatars/01.png'
+          },
+          content:
+            '今天天气真不错！阳光明媚，适合出去走走。'
+        },
+        {
+          tweetId: 1002,
+          author: {
+            displayName: '小红',
+            username: 'hong',
+            avatarUrl: '/avatars/02.png'
+          },
+          content:
+            '刚刚发布了我的新项目 NekoTribe，它是一个基于 Nuxt 和 Vue 构建的社交平台，快来看看吧！'
+        },
+        {
+          tweetId: 1003,
+          author: {
+            displayName: '李华',
+            username: 'lihua',
+            avatarUrl: '/avatars/03.png'
+          },
+          content:
+            '深夜还在修复 Bug，程序员的浪漫你们不懂。 #加班'
+        }
+      ];
+    } catch (err) {
+      console.error('获取可引用推文失败:', err);
+      dialogError.value = '无法加载推文列表，请稍后再试。';
+    } finally {
+      isDialogLoading.value = false;
+    }
+  }
+});
+
+watch(isReplyDialogOpen, async isOpen => {
+  // 我们只在 Dialog 打开时执行操作，并且仅当列表为空时才获取 (避免重复获取)
+  if (isOpen && selectableTweets.value.length === 0) {
+    console.log('回复 Dialog 已打开，开始获取推文列表...');
+    isDialogLoading.value = true;
+    dialogError.value = null;
+
+    try {
+      // 在真实应用中，这里会是一个 API 调用
+      // 我们用 setTimeout 来模拟一个网络延迟
+      await new Promise(resolve =>
+        setTimeout(resolve, 1000)
+      );
+
+      // 模拟 API 成功返回的数据
+      selectableTweets.value = [
+        {
+          tweetId: 1001,
+          author: {
+            displayName: '小明',
+            username: 'ming',
+            avatarUrl: '/avatars/01.png'
+          },
+          content:
+            '今天天气真不错！阳光明媚，适合出去走走。'
+        },
+        {
+          tweetId: 1002,
+          author: {
+            displayName: '小红',
+            username: 'hong',
+            avatarUrl: '/avatars/02.png'
+          },
+          content:
+            '刚刚发布了我的新项目 NekoTribe，它是一个基于 Nuxt 和 Vue 构建的社交平台，快来看看吧！'
+        },
+        {
+          tweetId: 1003,
+          author: {
+            displayName: '李华',
+            username: 'lihua',
+            avatarUrl: '/avatars/03.png'
+          },
+          content:
+            '深夜还在修复 Bug，程序员的浪漫你们不懂。 #加班'
+        }
+      ];
+    } catch (err) {
+      console.error('获取可回复推文失败:', err);
+      dialogError.value = '无法加载推文列表，请稍后再试。';
+    } finally {
+      isDialogLoading.value = false;
+    }
+  }
+});
 </script>
 
 <template>
@@ -42,7 +195,154 @@ import TweetComposer from '@/components/TweetComposer.vue';
          我们可以给它传递一个 prop 来控制是否显示 Card 样式。
          这需要对 TweetComposer 做一个小小的修改。
        -->
-      <TweetComposer />
+      <TweetComposer
+        @open-quote-dialog="isQuoteDialogOpen = true"
+        @open-reply-dialog="isReplyDialogOpen = true"
+        :quote-to="tweetToQuote"
+        :reply-to="tweetToReply"
+      />
     </div>
+    <!-- “引用推文” Dialog -->
+    <Dialog v-model:open="isQuoteDialogOpen">
+      <DialogContent
+        class="sm:max-w-lg bg-background border-gray-700"
+      >
+        <DialogHeader>
+          <DialogTitle class="text-white"
+            >选择要引用的推文</DialogTitle
+          >
+          <DialogDescription
+            >从下面的列表中选择一条推文来添加到你的引用中。</DialogDescription
+          >
+        </DialogHeader>
+
+        <!-- 【核心修改】根据数据状态显示不同的内容 -->
+        <div class="py-4 max-h-[60vh] overflow-y-auto">
+          <!-- 1. 加载状态 -->
+          <div
+            v-if="isDialogLoading"
+            class="flex items-center justify-center h-48"
+          >
+            <p class="text-muted-foreground">
+              正在加载推文...
+            </p>
+            <!-- 你也可以在这里放一个旋转的加载图标 -->
+          </div>
+
+          <!-- 2. 错误状态 -->
+          <div
+            v-else-if="dialogError"
+            class="text-center text-destructive"
+          >
+            <p>{{ dialogError }}</p>
+          </div>
+
+          <!-- 3. 空状态 -->
+          <div
+            v-else-if="selectableTweets.length === 0"
+            class="text-center text-muted-foreground"
+          >
+            <p>没有找到可供引用的推文。</p>
+          </div>
+
+          <!-- 4. 成功状态 -->
+          <div v-else class="grid gap-4">
+            <div
+              v-for="tweet in selectableTweets"
+              :key="tweet.tweetId"
+              class="p-3 border border-gray-800 rounded-lg hover:bg-gray-800/50 cursor-pointer transition-colors"
+              @click="handleSelectQuote(tweet)"
+            >
+              <div class="flex items-center text-sm mb-2">
+                <img
+                  :src="tweet.author.avatarUrl"
+                  class="h-5 w-5 rounded-full mr-2"
+                />
+                <span class="font-bold text-gray-200">{{
+                  tweet.author.displayName
+                }}</span>
+                <span class="ml-1 text-gray-500"
+                  >@{{ tweet.author.username }}</span
+                >
+              </div>
+              <p class="text-gray-400 text-sm leading-snug">
+                {{ tweet.content }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="isReplyDialogOpen">
+      <DialogContent
+        class="sm:max-w-lg bg-background border-gray-700"
+      >
+        <DialogHeader>
+          <DialogTitle class="text-white"
+            >选择要回复的推文</DialogTitle
+          >
+          <DialogDescription
+            >从下面的列表中选择一条推文来添加到你的回复中。</DialogDescription
+          >
+        </DialogHeader>
+
+        <!-- 【核心修改】根据数据状态显示不同的内容 -->
+        <div class="py-4 max-h-[60vh] overflow-y-auto">
+          <!-- 1. 加载状态 -->
+          <div
+            v-if="isDialogLoading"
+            class="flex items-center justify-center h-48"
+          >
+            <p class="text-muted-foreground">
+              正在加载推文...
+            </p>
+            <!-- 你也可以在这里放一个旋转的加载图标 -->
+          </div>
+
+          <!-- 2. 错误状态 -->
+          <div
+            v-else-if="dialogError"
+            class="text-center text-destructive"
+          >
+            <p>{{ dialogError }}</p>
+          </div>
+
+          <!-- 3. 空状态 -->
+          <div
+            v-else-if="selectableTweets.length === 0"
+            class="text-center text-muted-foreground"
+          >
+            <p>没有找到可供回复的推文。</p>
+          </div>
+
+          <!-- 4. 成功状态 -->
+          <div v-else class="grid gap-4">
+            <div
+              v-for="tweet in selectableTweets"
+              :key="tweet.tweetId"
+              class="p-3 border border-gray-800 rounded-lg hover:bg-gray-800/50 cursor-pointer transition-colors"
+              @click="handleSelectReply(tweet)"
+            >
+              <div class="flex items-center text-sm mb-2">
+                <img
+                  :src="tweet.author.avatarUrl"
+                  class="h-5 w-5 rounded-full mr-2"
+                />
+                <span class="font-bold text-gray-200">{{
+                  tweet.author.displayName
+                }}</span>
+                <span class="ml-1 text-gray-500"
+                  >@{{ tweet.author.username }}</span
+                >
+              </div>
+              <p class="text-gray-400 text-sm leading-snug">
+                {{ tweet.content }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

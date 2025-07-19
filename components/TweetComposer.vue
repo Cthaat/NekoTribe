@@ -9,7 +9,37 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
-import { ImageUp, Send, X } from 'lucide-vue-next';
+import {
+  ImageUp,
+  Send,
+  X,
+  Reply,
+  MessageSquareReply,
+  MessageSquareQuote
+} from 'lucide-vue-next';
+
+import TweetPreviewCard from './TweetPreviewCard.vue';
+
+interface PreviewTweet {
+  author: {
+    displayName: string;
+    username: string;
+    avatarUrl: string;
+  };
+  content: string;
+}
+
+const props = defineProps<{
+  replyTo?: PreviewTweet;
+  quoteTo?: PreviewTweet;
+}>();
+
+// --- 传递信息 ---
+
+const emit = defineEmits([
+  'open-quote-dialog',
+  'open-reply-dialog'
+]);
 
 // --- 配置项 ---
 const MAX_CHARS = 280; // 推文最大字符数
@@ -47,6 +77,18 @@ const progressColorClass = computed(() => {
 });
 
 // --- 方法 ---
+
+function handleQuoteClick() {
+  // 当按钮被点击时，向父组件发出 'open-quote-dialog' 事件
+  console.log('引用推文按钮被点击');
+  emit('open-quote-dialog');
+}
+
+function handleReplyClick() {
+  // 当按钮被点击时，向父组件发出 'open-reply-dialog' 事件
+  console.log('回复推文按钮被点击');
+  emit('open-reply-dialog');
+}
 
 function triggerFileInput() {
   fileInputRef.value?.click();
@@ -106,11 +148,20 @@ async function handleSubmit() {
   <!-- 根元素是一个 flex 容器，使其内容能够垂直分布 -->
   <div class="flex flex-col h-full max-w-3xl mx-auto">
     <!-- 编辑器主区域，占据大部分可用空间 -->
-    <div class="flex-1 flex flex-col pt-6">
+    <div class="flex-1 min-h-0 py-2">
       <Textarea
         v-model="tweetContent"
         placeholder="有什么新鲜事？"
-        class="w-full flex-1 bg-transparent text-lg text-gray-200 placeholder:text-gray-500 border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 resize-none"
+        class="w-full h-full bg-transparent text-lg text-gray-200 placeholder:text-gray-500 border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-2 resize-none leading-relaxed tracking-wide"
+      />
+
+      <TweetPreviewCard
+        v-if="props.replyTo"
+        :tweet="props.replyTo"
+      />
+      <TweetPreviewCard
+        v-else-if="props.quoteTo"
+        :tweet="props.quoteTo"
       />
 
       <!-- 媒体预览区 -->
@@ -163,6 +214,42 @@ async function handleSubmit() {
                 class="bg-black text-white border-gray-700"
               >
                 <p>添加媒体</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  @click="handleReplyClick"
+                >
+                  <MessageSquareReply
+                    class="h-6 w-6 text-gray-400 hover:text-white transition-colors"
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent
+                class="bg-black text-white border-gray-700"
+              >
+                <p>回复推文</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  @click="handleQuoteClick"
+                >
+                  <MessageSquareQuote
+                    class="h-6 w-6 text-gray-400 hover:text-white transition-colors"
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent
+                class="bg-black text-white border-gray-700"
+              >
+                <p>引用推文</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
