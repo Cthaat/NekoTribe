@@ -27,8 +27,8 @@ import CommentSection from '@/components/CommentSection.vue';
 const mockComments = ref([
   {
     id: 1,
-    parentId: null, // parentId 为 null，表示是顶级评论
-    authorName: '猫部落族长',
+    parentCommentId: null, // parentCommentId 为 null，表示是顶级评论
+    displayName: '猫部落族长',
     avatarUrl: '/avatars/user1.png',
     content: '这篇文章太棒了！学到了很多。',
     createdAt: '2025-07-19T10:00:00Z',
@@ -37,8 +37,8 @@ const mockComments = ref([
   },
   {
     id: 2,
-    parentId: 1, // 回复 id 为 1 的评论
-    authorName: 'Vue大师',
+    parentCommentId: 1, // 回复 id 为 1 的评论
+    displayName: 'Vue大师',
     avatarUrl: '/avatars/user2.png',
     content:
       '完全同意！特别是递归组件那部分，简直是神来之笔。',
@@ -48,8 +48,8 @@ const mockComments = ref([
   },
   {
     id: 3,
-    parentId: 2, // 回复 id 为 2 的评论
-    authorName: '猫部落族长',
+    parentCommentId: 2, // 回复 id 为 2 的评论
+    displayName: '猫部落族长',
     avatarUrl: '/avatars/user1.png',
     content: '是吧？我已经在构思怎么把它用到我的项目里了。',
     createdAt: '2025-07-19T10:15:00Z',
@@ -58,8 +58,8 @@ const mockComments = ref([
   },
   {
     id: 4,
-    parentId: null, // 另一条顶级评论
-    authorName: '潜水观察员',
+    parentCommentId: null, // 另一条顶级评论
+    displayName: '潜水观察员',
     avatarUrl: '/avatars/user3.png',
     content: '各位说的都很有道理。',
     createdAt: '2025-07-19T11:00:00Z',

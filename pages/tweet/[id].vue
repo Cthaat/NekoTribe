@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import TweetCard from '@/components/TweetCard.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
+import CommentSection from '@/components/CommentSection.vue';
 import {
   Pagination,
   PaginationContent,
@@ -154,7 +155,7 @@ function handleBookmarkTweet(tweet: any, action: any) {
 
 // --- pending属性计算 ---
 const pending = computed(
-  () => tweetPending || commentPending
+  () => tweetPending.value || commentPending.value
 );
 </script>
 
@@ -196,6 +197,10 @@ const pending = computed(
         :tweet="selectedTweetForRetweet"
         :is-submitting="isSubmittingRetweet"
         @submit-retweet="handleSubmitRetweet"
+      />
+      <CommentSection
+        :comments="comments"
+        :post-id="tweet.tweetId"
       />
     </div>
 

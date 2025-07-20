@@ -73,7 +73,7 @@ function handleSubmitReply() {
   if (!replyContent.value.trim()) return;
   // 发送事件，并附带父评论ID和回复内容
   emit('submit-reply', {
-    parentId: props.comment.id,
+    parentCommentId: props.comment.id,
     content: replyContent.value
   });
   // 提交后关闭回复框
@@ -102,14 +102,14 @@ function handleSubmitReply() {
         <Avatar class="h-6 w-6 mr-2">
           <AvatarImage
             :src="comment.avatarUrl"
-            :alt="comment.authorName"
+            :alt="comment.displayName"
           />
           <AvatarFallback>{{
-            comment.authorName?.substring(0, 1)
+            comment.displayName?.substring(0, 1)
           }}</AvatarFallback>
         </Avatar>
         <span class="font-semibold">{{
-          comment.authorName
+          comment.displayName
         }}</span>
         <span class="mx-2 text-muted-foreground">·</span>
         <span class="text-muted-foreground">{{

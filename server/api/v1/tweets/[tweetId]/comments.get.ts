@@ -40,6 +40,11 @@ export default defineEventHandler(async event => {
         SELECT
             v.*,
             c.likes_count,
+            CASE
+            WHEN EXISTS (SELECT 1 FROM n_likes l WHERE l.tweet_id = v.comment_id AND l.user_id = :user_id)
+                THEN 1
+                ELSE 0
+                END AS is_liked_by_user,
             ROW_NUMBER() OVER (
                 ORDER BY
                     CASE WHEN :sort = 'newest' THEN v.created_at END DESC,
@@ -67,7 +72,8 @@ export default defineEventHandler(async event => {
       tweet_id: tweetId,
       page,
       pagesize: pageSize,
-      sort
+      sort,
+      user_id: user.userId
     });
 
     // 获取总数
@@ -109,7 +115,8 @@ export default defineEventHandler(async event => {
               isVerified: row[8], // 是否认证
               createdAt: row[9], // 创建时间
               likesCount: row[10], // 点赞数
-              rn: row[11] // 行号
+              isLikedByUser: row[11], // 是否被当前用户点赞
+              rn: row[12] // 行号
             } as TweetGetCommentsItem;
           }
         )

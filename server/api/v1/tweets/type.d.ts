@@ -355,6 +355,7 @@ type TweetGetCommentsRow = [
   number, // IS_VERIFIED
   string, // CREATED_AT
   number, // LIKES_COUNT
+  number, // IS_LIKED_BY_USER
   number // RN
 ];
 
@@ -370,6 +371,7 @@ interface TweetGetCommentsItem {
   isVerified: number; // 是否认证
   createdAt: string; // 创建时间
   likesCount: number; // 点赞数
+  isLikedByUser: number; // 是否被当前用户点赞
   rn: number; // 行号
 }
 

@@ -24,7 +24,7 @@ const newCommentContent = ref('');
 const isSubmitting = ref(false);
 
 /**
- * 将扁平的列表（通过 parentId 关联）转换为嵌套的树状结构。
+ * 将扁平的列表（通过 parentCommentId 关联）转换为嵌套的树状结构。
  * 这是一个非常关键的辅助函数。
  * @param list 扁平的评论数组
  */
@@ -39,9 +39,11 @@ function flatToTree(list: any[]) {
 
   // 第二次遍历：将每个节点连接到其父节点上
   for (const item of list) {
-    if (item.parentId) {
+    if (item.parentCommentId) {
       // 如果是回复，找到它的父节点，并把自己加到父节点的 children 中
-      map[item.parentId]?.children.push(map[item.id]);
+      map[item.parentCommentId]?.children.push(
+        map[item.id]
+      );
     } else {
       // 如果是顶级评论，直接放入 roots 数组
       roots.push(map[item.id]);
@@ -72,19 +74,19 @@ async function handleLikeComment({
 }
 
 async function handleSubmitReply({
-  parentId,
+  parentCommentId,
   content
 }: {
-  parentId: string | number;
+  parentCommentId: string | number;
   content: string;
 }) {
   isSubmitting.value = true;
   try {
     console.log(
-      `正在回复评论 ${parentId}，内容: "${content}"`
+      `正在回复评论 ${parentCommentId}，内容: "${content}"`
     );
     emit('submit-reply', {
-      parentId,
+      parentCommentId,
       content
     });
   } catch (err) {
@@ -108,12 +110,14 @@ async function handleSubmitReply({
         placeholder="写下你的评论..."
         class="mb-2"
       />
-      <Button
-        @click="handleSubmitReply"
-        :disabled="isSubmitting"
-      >
-        {{ isSubmitting ? '正在发布...' : '发布评论' }}
-      </Button>
+      <div class="flex justify-end mt-3 mr-2">
+        <Button
+          @click="handleSubmitReply"
+          :disabled="isSubmitting"
+        >
+          {{ isSubmitting ? '正在发布...' : '发布评论' }}
+        </Button>
+      </div>
     </div>
 
     <!-- 评论列表的渲染从此开始 -->
