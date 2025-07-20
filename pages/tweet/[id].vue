@@ -23,10 +23,9 @@ const { data, pending, error } = useApiFetch(
 const tweet = computed(() => {
   // data.value 是 API 返回的完整响应
   // 根据您给的 JSON，推文在 data.value.data.tweet
-  return data.value &&
-    data.value.data &&
-    data.value.data.tweet
-    ? data.value.data.tweet
+  const response = data.value as { data?: { tweet?: any } };
+  return response && response.data && response.data.tweet
+    ? response.data.tweet
     : null;
 });
 
@@ -38,15 +37,15 @@ const isSubmittingRetweet = ref(false);
 
 // --- 处理事件 ---
 
-function handleDeleteTweet(tweetId) {
+function handleDeleteTweet(tweetId: any) {
   console.log('Delete tweet:', tweetId);
 }
 
-function handleReplyTweet(tweet) {
+function handleReplyTweet(tweet: any) {
   console.log('Reply to tweet:', tweet.tweetId);
 }
 
-function handleRetweetTweet(tweet) {
+function handleRetweetTweet(tweet: any) {
   console.log('Retweet:', tweet.tweetId);
   selectedTweetForRetweet.value = tweet;
   isRetweetModalOpen.value = true;
@@ -56,10 +55,13 @@ function handleRetweetTweet(tweet) {
 async function handleSubmitRetweet({
   content,
   originalTweetId
+}: {
+  content: any;
+  originalTweetId: any;
 }) {
   isSubmittingRetweet.value = true;
   try {
-    const response = await apiFetch(
+    const response: any = await apiFetch(
       '/api/v1/tweets/send-tweets',
       {
         method: 'POST',
@@ -93,7 +95,7 @@ async function handleSubmitRetweet({
     toast.success('转发成功！');
     isRetweetModalOpen.value = false; // 关闭模态框
     // 可选：刷新数据或乐观更新UI
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to retweet:', err);
     toast.error(err.message || '转发失败，请稍后重试。');
   } finally {
@@ -102,7 +104,7 @@ async function handleSubmitRetweet({
   }
 }
 
-function handleLikeTweet(tweet, action) {
+function handleLikeTweet(tweet: any, action: any) {
   console.log(
     'Liking tweet:',
     tweet.tweetId,
@@ -111,7 +113,7 @@ function handleLikeTweet(tweet, action) {
   );
 }
 
-function handleBookmarkTweet(tweet, action) {
+function handleBookmarkTweet(tweet: any, action: any) {
   console.log(
     'Bookmarking tweet:',
     tweet.tweetId,
