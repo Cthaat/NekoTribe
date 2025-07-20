@@ -121,7 +121,8 @@ type TweetGetRow = [
   any[], // MEDIA_FILES
   any, // MEDIA_THUMBNAILS
   number, // is_liked_by_user
-  number // is_bookmarked_by_user
+  number, // is_bookmarked_by_user
+  number // total_count
 ];
 
 interface TweetGetItem {
@@ -149,6 +150,7 @@ interface TweetGetItem {
   mediaThumbnails: any; // 媒体缩略图
   isLikedByUser: number; // 用户是否点赞
   isBookmarkedByUser: number; // 用户是否收藏
+  totalCount: number; // 总评论数
 }
 
 interface TweetGetResponse extends Response {

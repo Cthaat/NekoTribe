@@ -161,7 +161,7 @@ function handleBookmarkTweet(tweet: any, action: any) {
   );
 }
 
-function handleLikeTweetComment(
+async function handleLikeTweetComment(
   commentId: any,
   action: any
 ) {
@@ -171,13 +171,44 @@ function handleLikeTweetComment(
     'Action:',
     action
   );
+  try {
+    const response = await apiFetch(
+      `/api/v1/interactions/like`,
+      {
+        method: 'POST',
+        body: {
+          tweetId: commentId,
+          likeType: action
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to send tweet comment:', err);
+    toast.error('点赞评论失败，请稍后重试。');
+  }
 }
 
-function handleTweetComment(content: any) {
+async function handleTweetComment(content: any) {
   console.log('Sending tweet comment:', content);
+  try {
+    const response = await apiFetch(
+      `/api/v1/interactions/comment`,
+      {
+        method: 'POST',
+        body: {
+          tweetId: tweet.value.tweetId,
+          content,
+          parentCommentId: ''
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to send tweet comment:', err);
+    toast.error('发送评论失败，请稍后重试。');
+  }
 }
 
-function handleReplyTweetComment(
+async function handleReplyTweetComment(
   parentCommentId: any,
   content: any
 ) {
@@ -187,6 +218,22 @@ function handleReplyTweetComment(
     'Content:',
     content
   );
+  try {
+    const response = await apiFetch(
+      `/api/v1/interactions/comment`,
+      {
+        method: 'POST',
+        body: {
+          tweetId: tweet.value.tweetId,
+          content,
+          parentCommentId: parentCommentId
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to send tweet comment:', err);
+    toast.error('发送评论失败，请稍后重试。');
+  }
 }
 
 // --- pending属性计算 ---

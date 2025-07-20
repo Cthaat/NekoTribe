@@ -73,8 +73,8 @@ async function handleLikeComment({
   console.log(`正在点赞评论，ID: ${commentId} ${action}`);
   // TODO: 在这里实现您的点赞 API 调用
   // await apiFetch(`/api/v1/comments/${id}/like`, { method: 'POST' });
-  toast.info(
-    `已为评论 ${commentId} 进行乐观更新。${action}需要接入 API。`
+  toast.success(
+    `评论 ${commentId} 已成功 ${action === 'likeComment' ? '点赞' : '取消点赞'}`
   );
   emit('like-comment', commentId, action);
 }
@@ -91,6 +91,7 @@ async function handleSubmitReply({
     console.log(
       `正在回复评论 ${parentCommentId}，内容: "${content}"`
     );
+    toast.success('回复已成功发布！');
     emit('submit-reply', parentCommentId, content);
   } catch (err) {
     toast.error('回复评论失败。');
@@ -107,7 +108,9 @@ async function handleSubmitTweetReply() {
     console.log(
       `正在提交新评论到帖子 ${props.postId}，内容: "${newCommentContent.value}"`
     );
+    toast.success('评论已成功发布！');
     emit('send-reply', newCommentContent.value);
+    newCommentContent.value = ''; // 清空输入框
   } catch (err) {
     toast.error('回复评论失败。');
   } finally {

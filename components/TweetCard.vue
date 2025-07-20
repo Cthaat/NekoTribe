@@ -347,7 +347,7 @@ function toTweetDetail(tweetId: string) {
         @click.stop="handleReply"
       >
         <MessageCircle class="h-5 w-5" />
-        <span>{{ tweet.repliesCount }}</span>
+        <span>{{ tweet.totalCount }}</span>
       </Button>
 
       <Button

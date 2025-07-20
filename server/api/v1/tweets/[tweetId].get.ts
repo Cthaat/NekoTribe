@@ -56,7 +56,8 @@ export default defineEventHandler(async event => {
     WHEN EXISTS (SELECT 1 FROM n_bookmarks b WHERE b.tweet_id = v.tweet_id AND b.user_id = :user_id)
     THEN 1
     ELSE 0
-    END AS is_booked_by_user
+    END AS is_booked_by_user,
+    (SELECT COUNT(*) FROM n_comments c WHERE c.tweet_id = :tweetId) AS total_count
     FROM v_tweet_details v
     WHERE tweet_id = :tweetId
       AND fn_can_view_tweet(:user_id, tweet_id) = 1
@@ -115,7 +116,8 @@ export default defineEventHandler(async event => {
       mediaFiles: row[20], // 媒体文件数组
       mediaThumbnails: row[21], // 媒体缩略图
       isLikedByUser: row[22], // 用户是否点赞
-      isBookmarkedByUser: row[23] // 用户是否收藏
+      isBookmarkedByUser: row[23], // 用户是否收藏
+      totalCount: row[24] // 总评论数
     } as TweetGetItem;
 
     return {
