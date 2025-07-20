@@ -28,6 +28,7 @@
     "better-sqlite3": "^12.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "eslint": "^9.0.0",
     "ffprobe-static": "^3.1.0",
     "file-type": "^21.0.0",
