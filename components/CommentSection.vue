@@ -18,7 +18,11 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['like-comment', 'submit-reply']);
+const emit = defineEmits([
+  'like-comment',
+  'submit-reply',
+  'send-reply'
+]);
 
 const newCommentContent = ref('');
 const isSubmitting = ref(false);
@@ -66,13 +70,13 @@ async function handleLikeComment({
   commentId: string | number;
   action: 'likeComment' | 'unlikeComment';
 }) {
-  console.log(`正在点赞评论，ID: ${commentId}`);
+  console.log(`正在点赞评论，ID: ${commentId} ${action}`);
   // TODO: 在这里实现您的点赞 API 调用
   // await apiFetch(`/api/v1/comments/${id}/like`, { method: 'POST' });
   toast.info(
-    `已为评论 ${commentId} 进行乐观更新。需要接入 API。`
+    `已为评论 ${commentId} 进行乐观更新。${action}需要接入 API。`
   );
-  emit('like-comment', { commentId, action });
+  emit('like-comment', commentId, action);
 }
 
 async function handleSubmitReply({
@@ -87,10 +91,23 @@ async function handleSubmitReply({
     console.log(
       `正在回复评论 ${parentCommentId}，内容: "${content}"`
     );
-    emit('submit-reply', {
-      parentCommentId,
-      content
-    });
+    emit('submit-reply', parentCommentId, content);
+  } catch (err) {
+    toast.error('回复评论失败。');
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function handleSubmitTweetReply() {
+  if (!newCommentContent.value.trim()) return;
+
+  isSubmitting.value = true;
+  try {
+    console.log(
+      `正在提交新评论到帖子 ${props.postId}，内容: "${newCommentContent.value}"`
+    );
+    emit('send-reply', newCommentContent.value);
   } catch (err) {
     toast.error('回复评论失败。');
   } finally {
@@ -114,7 +131,7 @@ async function handleSubmitReply({
       />
       <div class="flex justify-end mt-3 mr-2">
         <Button
-          @click="handleSubmitReply"
+          @click="handleSubmitTweetReply"
           :disabled="isSubmitting"
         >
           {{ isSubmitting ? '正在发布...' : '发布评论' }}

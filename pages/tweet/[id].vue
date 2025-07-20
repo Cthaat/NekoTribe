@@ -161,22 +161,29 @@ function handleBookmarkTweet(tweet: any, action: any) {
   );
 }
 
-function handleLikeTweetComment(comment: any, action: any) {
+function handleLikeTweetComment(
+  commentId: any,
+  action: any
+) {
   console.log(
     'Liking comment:',
-    comment.id,
+    commentId,
     'Action:',
     action
   );
 }
 
+function handleTweetComment(content: any) {
+  console.log('Sending tweet comment:', content);
+}
+
 function handleReplyTweetComment(
-  comment: any,
+  parentCommentId: any,
   content: any
 ) {
   console.log(
     'Replying to comment:',
-    comment.id,
+    parentCommentId,
     'Content:',
     content
   );
@@ -232,6 +239,7 @@ const pending = computed(
         :post-id="tweet.tweetId"
         @like-comment="handleLikeTweetComment"
         @submit-reply="handleReplyTweetComment"
+        @send-reply="handleTweetComment"
       />
     </div>
 

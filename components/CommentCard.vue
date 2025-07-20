@@ -73,7 +73,7 @@ function handleSubmitReply() {
   if (!replyContent.value.trim()) return;
   // 发送事件，并附带父评论ID和回复内容
   emit('submit-reply', {
-    parentCommentId: props.comment.parentCommentId,
+    parentCommentId: props.comment.commentId,
     content: replyContent.value
   });
   // 提交后关闭回复框
