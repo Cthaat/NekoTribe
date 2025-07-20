@@ -234,11 +234,28 @@ async function handleLikeTweet(
   }
 }
 
-function handleBookmarkTweet(
+async function handleBookmarkTweet(
   tweet: any,
-  action: 'bookmark' | 'unbookmark'
+  action: 'mark' | 'unmark'
 ) {
-  console.log('Bookmarking tweet:', tweet.tweetId);
+  console.log('Bookmarking tweet:', tweet, action);
+  const response: any = await apiFetch(
+    '/api/v1/interactions/bookmark',
+    {
+      method: 'POST',
+      body: {
+        tweetId: tweet.tweetId,
+        bookmarkType: action
+      }
+    }
+  );
+  if (!response.success) {
+    console.error(
+      'Failed to bookmark/unbookmark tweet:',
+      response.error
+    );
+    return;
+  }
 }
 </script>
 

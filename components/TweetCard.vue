@@ -164,12 +164,21 @@ function handleDelete() {
 }
 
 function handleBookmark() {
-  console.log('Bookmark tweet:', props.tweet.tweetId);
+  console.log(
+    'Bookmark tweet:',
+    props.tweet.tweetId,
+    localIsBookmarked.value ? 'mark' : 'unmark'
+  );
   localIsBookmarked.value = !localIsBookmarked.value;
+  toast.success(
+    localIsBookmarked.value
+      ? '已添加到书签'
+      : '已从书签中移除'
+  );
   emit(
     'bookmark-tweet',
     props.tweet,
-    localIsBookmarked.value ? 'unbookmark' : 'bookmark'
+    localIsBookmarked.value ? 'mark' : 'unmark'
   );
 }
 

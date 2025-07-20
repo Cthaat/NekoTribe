@@ -42,6 +42,7 @@ function handleLikeTweet(tweet, action) {
 }
 
 function handleBookmarkTweet(tweet, action) {
+  console.log('Bookmark tweet:', tweet.tweetId, action);
   emit('bookmark-tweet', tweet, action);
 }
 
