@@ -526,7 +526,8 @@ export default defineEventHandler(async event => {
           {
             page,
             pagesize: pageSize,
-            visibility: 'public' // 只获取公开可见的推文
+            visibility: 'public', // 只获取公开可见的推文
+            user_id: user.userId
           }
         );
 

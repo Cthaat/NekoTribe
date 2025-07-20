@@ -16,17 +16,47 @@ import { toast } from 'vue-sonner';
 const route = useRoute();
 
 // 获取路径参数
-const { data, pending, error } = useApiFetch(
-  `/api/v1/tweets/${route.params.id}`
-);
+const {
+  data: tweetData,
+  pending: tweetPending,
+  error: tweetError
+} = useApiFetch(`/api/v1/tweets/${route.params.id}`);
 
 const tweet = computed(() => {
   // data.value 是 API 返回的完整响应
   // 根据您给的 JSON，推文在 data.value.data.tweet
-  const response = data.value as { data?: { tweet?: any } };
+  const response = tweetData.value as {
+    data?: { tweet?: any };
+  };
   return response && response.data && response.data.tweet
     ? response.data.tweet
     : null;
+});
+
+const {
+  data: commentData,
+  pending: commentPending,
+  error: commentError
+} = useApiFetch(
+  `/api/v1/tweets/${route.params.id}/comments`,
+  {
+    query: {
+      page: 1,
+      pageSize: 100, // 可根据需要调整
+      sort: 'oldest'
+    }
+  }
+);
+
+const comments = computed(() => {
+  // data.value 是 API 返回的完整响应
+  // 根据您给的 JSON，评论在 data.value.data.comments
+  const response = commentData.value as {
+    comments?: any[];
+  };
+  return response && response.comments
+    ? response.comments
+    : [];
 });
 
 // --- 转发相关的状态 ---
@@ -121,6 +151,11 @@ function handleBookmarkTweet(tweet: any, action: any) {
     action
   );
 }
+
+// --- pending属性计算 ---
+const pending = computed(
+  () => tweetPending || commentPending
+);
 </script>
 
 <template>
@@ -132,11 +167,17 @@ function handleBookmarkTweet(tweet: any, action: any) {
 
     <!-- 6. 添加一个错误状态的显示 -->
     <div
-      v-else-if="error"
+      v-else-if="tweetError || commentError"
       class="p-8 text-center text-destructive"
     >
       <p>加载推文失败。</p>
-      <p class="text-sm mt-2">{{ error.message }}</p>
+      <p class="text-sm mt-2">
+        {{
+          tweetError?.message ||
+          '' + commentError?.message ||
+          ''
+        }}
+      </p>
     </div>
 
     <!-- 7. 当数据加载成功后，显示 TweetCard -->
