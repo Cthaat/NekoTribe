@@ -1,24 +1,8 @@
-<template>
-  <div
-    class="flex h-screen w-full items-center justify-center gap-4"
-  >
-    <Button @click="() => toast('一个普通的 Sonner 通知')">
-      普通通知
-    </Button>
-    <Button
-      variant="destructive"
-      @click="() => toast.error('一个错误的 Sonner 通知')"
-    >
-      错误通知
-    </Button>
-  </div>
-  <CommentSection
-    :comments="mockComments"
-    :post-id="postId"
-  />
-</template>
-
 <script setup lang="ts">
+// 无页面布局
+definePageMeta({
+  layout: false
+});
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button'; // 确保你的 Button 组件路径正确
 import CommentSection from '@/components/CommentSection.vue';
@@ -71,3 +55,23 @@ const mockComments = ref([
 console.log('模拟评论数据:', mockComments.value);
 const postId = ref('my-awesome-post-123');
 </script>
+
+<template>
+  <div
+    class="flex h-screen w-full items-center justify-center gap-4"
+  >
+    <Button @click="() => toast('一个普通的 Sonner 通知')">
+      普通通知
+    </Button>
+    <Button
+      variant="destructive"
+      @click="() => toast.error('一个错误的 Sonner 通知')"
+    >
+      错误通知
+    </Button>
+  </div>
+  <CommentSection
+    :comments="mockComments"
+    :post-id="postId"
+  />
+</template>
