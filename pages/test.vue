@@ -26,7 +26,7 @@ import CommentSection from '@/components/CommentSection.vue';
 // 在真实应用中，这些数据应该来自 useApiFetch 或类似的 API 调用
 const mockComments = ref([
   {
-    id: 1,
+    commentId: 1,
     parentCommentId: null, // parentCommentId 为 null，表示是顶级评论
     displayName: '猫部落族长',
     avatarUrl: '/avatars/user1.png',
@@ -36,7 +36,7 @@ const mockComments = ref([
     isLikedByUser: false
   },
   {
-    id: 2,
+    commentId: 2,
     parentCommentId: 1, // 回复 id 为 1 的评论
     displayName: 'Vue大师',
     avatarUrl: '/avatars/user2.png',
@@ -47,7 +47,7 @@ const mockComments = ref([
     isLikedByUser: true
   },
   {
-    id: 3,
+    commentId: 3,
     parentCommentId: 2, // 回复 id 为 2 的评论
     displayName: '猫部落族长',
     avatarUrl: '/avatars/user1.png',
@@ -57,7 +57,7 @@ const mockComments = ref([
     isLikedByUser: false
   },
   {
-    id: 4,
+    commentId: 4,
     parentCommentId: null, // 另一条顶级评论
     displayName: '潜水观察员',
     avatarUrl: '/avatars/user3.png',
@@ -67,5 +67,7 @@ const mockComments = ref([
     isLikedByUser: false
   }
 ]);
+
+console.log('模拟评论数据:', mockComments.value);
 const postId = ref('my-awesome-post-123');
 </script>

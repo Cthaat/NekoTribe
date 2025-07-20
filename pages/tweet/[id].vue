@@ -53,12 +53,20 @@ const comments = computed(() => {
   // data.value 是 API 返回的完整响应
   // 根据您给的 JSON，评论在 data.value.data.comments
   const response = commentData.value as {
-    comments?: any[];
+    data: { comments?: any[] };
   };
-  return response && response.comments
-    ? response.comments
+  return response && response.data.comments
+    ? response.data.comments
     : [];
 });
+
+watch(
+  comments,
+  newComments => {
+    console.log('评论数据已更新:', newComments);
+  },
+  { immediate: true }
+);
 
 // --- 转发相关的状态 ---
 
@@ -153,6 +161,27 @@ function handleBookmarkTweet(tweet: any, action: any) {
   );
 }
 
+function handleLikeTweetComment(comment: any, action: any) {
+  console.log(
+    'Liking comment:',
+    comment.id,
+    'Action:',
+    action
+  );
+}
+
+function handleReplyTweetComment(
+  comment: any,
+  content: any
+) {
+  console.log(
+    'Replying to comment:',
+    comment.id,
+    'Content:',
+    content
+  );
+}
+
 // --- pending属性计算 ---
 const pending = computed(
   () => tweetPending.value || commentPending.value
@@ -201,6 +230,8 @@ const pending = computed(
       <CommentSection
         :comments="comments"
         :post-id="tweet.tweetId"
+        @like-comment="handleLikeTweetComment"
+        @submit-reply="handleReplyTweetComment"
       />
     </div>
 

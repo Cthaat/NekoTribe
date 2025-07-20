@@ -34,7 +34,7 @@ function flatToTree(list: any[]) {
 
   // 第一次遍历：将所有节点放入 map 中，并初始化 children 数组
   for (const item of list) {
-    map[item.id] = { ...item, children: [] };
+    map[item.commentId] = { ...item, children: [] };
   }
 
   // 第二次遍历：将每个节点连接到其父节点上
@@ -42,11 +42,11 @@ function flatToTree(list: any[]) {
     if (item.parentCommentId) {
       // 如果是回复，找到它的父节点，并把自己加到父节点的 children 中
       map[item.parentCommentId]?.children.push(
-        map[item.id]
+        map[item.commentId]
       );
     } else {
       // 如果是顶级评论，直接放入 roots 数组
-      roots.push(map[item.id]);
+      roots.push(map[item.commentId]);
     }
   }
   return roots;
@@ -60,17 +60,19 @@ const nestedComments = computed(() =>
 // --- API 调用处理器 ---
 
 async function handleLikeComment({
-  id,
+  commentId,
   action
 }: {
-  id: string | number;
+  commentId: string | number;
   action: 'likeComment' | 'unlikeComment';
 }) {
-  console.log(`正在点赞评论，ID: ${id}`);
+  console.log(`正在点赞评论，ID: ${commentId}`);
   // TODO: 在这里实现您的点赞 API 调用
   // await apiFetch(`/api/v1/comments/${id}/like`, { method: 'POST' });
-  toast.info(`已为评论 ${id} 进行乐观更新。需要接入 API。`);
-  emit('like-comment', { id, action });
+  toast.info(
+    `已为评论 ${commentId} 进行乐观更新。需要接入 API。`
+  );
+  emit('like-comment', { commentId, action });
 }
 
 async function handleSubmitReply({
@@ -124,7 +126,7 @@ async function handleSubmitReply({
     <div v-if="nestedComments.length > 0" class="space-y-2">
       <CommentCard
         v-for="comment in nestedComments"
-        :key="comment.id"
+        :key="comment.commentId"
         :comment="comment"
         :level="0"
         @like-comment="handleLikeComment"

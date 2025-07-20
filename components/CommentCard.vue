@@ -62,7 +62,7 @@ function handleLike() {
 
   // 2. 发送事件给父组件，让父组件处理 API 调用
   emit('like-comment', {
-    id: props.comment.id,
+    commentId: props.comment.commentId,
     action: localIsLiked.value
       ? 'likeComment'
       : 'unlikeComment'
@@ -73,7 +73,7 @@ function handleSubmitReply() {
   if (!replyContent.value.trim()) return;
   // 发送事件，并附带父评论ID和回复内容
   emit('submit-reply', {
-    parentCommentId: props.comment.id,
+    parentCommentId: props.comment.parentCommentId,
     content: replyContent.value
   });
   // 提交后关闭回复框
@@ -178,7 +178,7 @@ function handleSubmitReply() {
     >
       <CommentCard
         v-for="childComment in comment.children"
-        :key="childComment.id"
+        :key="childComment.commentId"
         :comment="childComment"
         :level="level + 1"
         @like-comment="$emit('like-comment', $event)"
