@@ -13,8 +13,11 @@ import {
 import { apiFetch } from '@/composables/useApi';
 import { useRoute } from 'vue-router';
 import { toast } from 'vue-sonner';
+import { usePreferenceStore } from '~/stores/user'; // 导入 store
 
 const route = useRoute();
+const localePath = useLocalePath();
+const preferenceStore = usePreferenceStore();
 
 // 获取路径参数
 const {
@@ -76,8 +79,26 @@ const isSubmittingRetweet = ref(false);
 
 // --- 处理事件 ---
 
-function handleDeleteTweet(tweetId: any) {
-  console.log('Delete tweet:', tweetId);
+async function handleDeleteTweet(tweetId: any) {
+  console.log('Deleting tweet:', tweetId);
+  // 在这里调用你的API来删除推文
+  const response: any = await apiFetch(
+    `/api/v1/tweets/${tweetId}`,
+    {
+      method: 'DELETE'
+    }
+  );
+  if (!response.success) {
+    toast.error('删除推文失败，请稍后再试。', {
+      description: response.error || '未知错误'
+    });
+    return;
+  }
+  toast.success('推文已成功删除。');
+  const rootPath = localePath(
+    `/tweet/home/${preferenceStore.preferences.user.userId}`
+  );
+  navigateTo(rootPath);
 }
 
 function handleReplyTweet(tweet: any) {
@@ -143,22 +164,53 @@ async function handleSubmitRetweet({
   }
 }
 
-function handleLikeTweet(tweet: any, action: any) {
-  console.log(
-    'Liking tweet:',
-    tweet.tweetId,
-    'Action:',
-    action
+async function handleLikeTweet(
+  tweet: any,
+  action: 'like' | 'unlike'
+) {
+  console.log('Liking tweet:', tweet, action);
+  // 在这里处理点赞逻辑
+  const response: any = await apiFetch(
+    '/api/v1/interactions/like',
+    {
+      method: 'POST',
+      body: {
+        tweetId: tweet.tweetId,
+        likeType: action
+      }
+    }
   );
+  if (!response.success) {
+    console.error(
+      'Failed to like/unlike tweet:',
+      response.error
+    );
+    return;
+  }
 }
 
-function handleBookmarkTweet(tweet: any, action: any) {
-  console.log(
-    'Bookmarking tweet:',
-    tweet.tweetId,
-    'Action:',
-    action
+async function handleBookmarkTweet(
+  tweet: any,
+  action: 'mark' | 'unmark'
+) {
+  console.log('Bookmarking tweet:', tweet, action);
+  const response: any = await apiFetch(
+    '/api/v1/interactions/bookmark',
+    {
+      method: 'POST',
+      body: {
+        tweetId: tweet.tweetId,
+        bookmarkType: action
+      }
+    }
   );
+  if (!response.success) {
+    console.error(
+      'Failed to bookmark/unbookmark tweet:',
+      response.error
+    );
+    return;
+  }
 }
 
 async function handleLikeTweetComment(

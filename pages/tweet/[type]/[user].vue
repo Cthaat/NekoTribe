@@ -18,6 +18,8 @@ import { toast } from 'vue-sonner';
 import { useRoute } from 'vue-router';
 import { useRequestHeaders } from '#app'; // 确保导入
 
+const localePath = useLocalePath();
+
 const route = useRoute();
 const page = ref(1);
 const pageSize = ref(15);
@@ -141,8 +143,8 @@ async function handleDeleteTweet(tweetId: any) {
 }
 
 function handleReplyTweet(tweet: any) {
-  console.log('Replying to tweet:', tweet.tweetId);
-  // 在这里处理回复逻辑
+  const detailPage = localePath(`/tweet/${tweet.tweetId}`);
+  return navigateTo(detailPage, { replace: true });
 }
 
 // --- 转发相关的状态 ---
