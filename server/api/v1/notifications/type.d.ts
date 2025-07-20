@@ -34,8 +34,6 @@ type NotificationRow = [
   string, // ACTOR_DISPLAY_NAME
   string, // ACTOR_AVATAR_URL
   number, // ACTOR_IS_VERIFIED
-  string, // RELATED_TWEET_CONTENT
-  string, // RELATED_COMMENT_CONTENT
   string, // READ_STATUS_DESC
   string, // PRIORITY_DESC
   string, // TYPE_DESC
@@ -67,8 +65,6 @@ interface NotificationItem {
   actorDisplayName: string; // 触发者显示名
   actorAvatarUrl: string; // 触发者头像
   actorIsVerified: number; // 触发者是否认证
-  relatedTweetContent: string; // 相关推文内容
-  relatedCommentContent: string; // 相关评论内容
   readStatusDesc: string; // 读取状态描述
   priorityDesc: string; // 优先级描述
   typeDesc: string; // 类型描述

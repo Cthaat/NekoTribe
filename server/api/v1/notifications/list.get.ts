@@ -1,40 +1,3 @@
-// 数据库行转换为对象
-function rowToNotificationItem(
-  row: NotificationRow
-): NotificationItem {
-  return {
-    notificationId: row[0],
-    userId: row[1],
-    type: row[2],
-    title: row[3],
-    message: row[4],
-    relatedType: row[5],
-    relatedId: row[6],
-    actorId: row[7],
-    isRead: row[8],
-    priority: row[9],
-    createdAt: row[10],
-    readAt: row[11],
-    recipientUsername: row[12],
-    recipientDisplayName: row[13],
-    recipientAvatarUrl: row[14],
-    actorUsername: row[15],
-    actorDisplayName: row[16],
-    actorAvatarUrl: row[17],
-    actorIsVerified: row[18],
-    relatedTweetContent: row[19],
-    relatedCommentContent: row[20],
-    readStatusDesc: row[21],
-    priorityDesc: row[22],
-    typeDesc: row[23],
-    timeCategory: row[24],
-    hoursSinceCreated: row[25],
-    isRecent: row[26],
-    totalCount: row[27],
-    rn: row[28]
-  };
-}
-
 export default defineEventHandler(async event => {
   // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
@@ -90,8 +53,6 @@ export default defineEventHandler(async event => {
         actor_display_name,
         actor_avatar_url,
         actor_is_verified,
-        related_tweet_content,
-        related_comment_content,
         read_status_desc,
         priority_desc,
         type_desc,
@@ -119,8 +80,38 @@ export default defineEventHandler(async event => {
 
     // 处理查询结果
     const rows = result.rows as NotificationRow[];
-    const notifications = rows.map(row =>
-      rowToNotificationItem(row)
+    const notifications = rows.map(
+      (row: NotificationRow) => {
+        return {
+          notificationId: row[0],
+          userId: row[1],
+          type: row[2],
+          title: row[3],
+          message: row[4],
+          relatedType: row[5],
+          relatedId: row[6],
+          actorId: row[7],
+          isRead: row[8],
+          priority: row[9],
+          createdAt: row[10],
+          readAt: row[11],
+          recipientUsername: row[12],
+          recipientDisplayName: row[13],
+          recipientAvatarUrl: row[14],
+          actorUsername: row[15],
+          actorDisplayName: row[16],
+          actorAvatarUrl: row[17],
+          actorIsVerified: row[18],
+          readStatusDesc: row[19],
+          priorityDesc: row[20],
+          typeDesc: row[21],
+          timeCategory: row[22],
+          hoursSinceCreated: row[23],
+          isRecent: row[24],
+          totalCount: row[25],
+          rn: row[26]
+        } as NotificationItem;
+      }
     );
 
     // 计算分页信息
