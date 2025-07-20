@@ -61,7 +61,12 @@ function handleLike() {
   localLikesCount.value += localIsLiked.value ? 1 : -1;
 
   // 2. 发送事件给父组件，让父组件处理 API 调用
-  emit('like-comment', { id: props.comment.id });
+  emit('like-comment', {
+    id: props.comment.id,
+    action: localIsLiked.value
+      ? 'likeComment'
+      : 'unlikeComment'
+  });
 }
 
 function handleSubmitReply() {
@@ -165,7 +170,6 @@ function handleSubmitReply() {
     </div>
 
     <!-- 
-      ✨✨✨ 递归的核心部分 ✨✨✨
       如果这条评论有子评论 (children)，就为每个子评论渲染一个 CommentCard。
     -->
     <div

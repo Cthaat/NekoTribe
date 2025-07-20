@@ -1,4 +1,4 @@
-<script setup>
+<script lang="ts" setup>
 import TweetCard from '@/components/TweetCard.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import {

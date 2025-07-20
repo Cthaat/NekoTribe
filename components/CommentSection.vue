@@ -18,6 +18,8 @@ const props = defineProps({
   }
 });
 
+const emit = defineEmits(['like-comment', 'submit-reply']);
+
 const newCommentContent = ref('');
 const isSubmitting = ref(false);
 
@@ -56,14 +58,17 @@ const nestedComments = computed(() =>
 // --- API 调用处理器 ---
 
 async function handleLikeComment({
-  id
+  id,
+  action
 }: {
   id: string | number;
+  action: 'likeComment' | 'unlikeComment';
 }) {
   console.log(`正在点赞评论，ID: ${id}`);
   // TODO: 在这里实现您的点赞 API 调用
   // await apiFetch(`/api/v1/comments/${id}/like`, { method: 'POST' });
   toast.info(`已为评论 ${id} 进行乐观更新。需要接入 API。`);
+  emit('like-comment', { id, action });
 }
 
 async function handleSubmitReply({
@@ -73,43 +78,17 @@ async function handleSubmitReply({
   parentId: string | number;
   content: string;
 }) {
-  console.log(
-    `正在回复评论 ${parentId}，内容: "${content}"`
-  );
   isSubmitting.value = true;
   try {
-    // TODO: 在这里实现您的回复 API 调用
-    // const newComment = await apiFetch('/api/v1/comments/create', {
-    //   method: 'POST',
-    //   body: { postId: props.postId, parentId, content }
-    // });
-    toast.success(
-      `已提交对评论 ${parentId} 的回复。成功后应刷新评论列表。`
+    console.log(
+      `正在回复评论 ${parentId}，内容: "${content}"`
     );
-    // 理想情况下，API 返回新评论后，您可以将其添加到 `props.comments` 中实现乐观更新
+    emit('submit-reply', {
+      parentId,
+      content
+    });
   } catch (err) {
-    toast.error('提交回复失败。');
-  } finally {
-    isSubmitting.value = false;
-  }
-}
-
-async function handleSubmitTopLevelComment() {
-  if (!newCommentContent.value.trim()) return;
-  console.log(
-    `正在提交顶级评论: "${newCommentContent.value}"`
-  );
-  isSubmitting.value = true;
-  try {
-    // TODO: 在这里实现您的创建顶级评论的 API 调用
-    // await apiFetch('/api/v1/comments/create', {
-    //   method: 'POST',
-    //   body: { postId: props.postId, content: newCommentContent.value }
-    // });
-    toast.success('顶级评论已提交。成功后应刷新评论列表。');
-    newCommentContent.value = '';
-  } catch (err) {
-    toast.error('提交评论失败。');
+    toast.error('回复评论失败。');
   } finally {
     isSubmitting.value = false;
   }
@@ -130,7 +109,7 @@ async function handleSubmitTopLevelComment() {
         class="mb-2"
       />
       <Button
-        @click="handleSubmitTopLevelComment"
+        @click="handleSubmitReply"
         :disabled="isSubmitting"
       >
         {{ isSubmitting ? '正在发布...' : '发布评论' }}
