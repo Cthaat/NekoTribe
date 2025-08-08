@@ -29,7 +29,9 @@ export default defineEventHandler(async event => {
     from n_follows 
     where 
     following_id = :followingID
-    AND follower_id = :followerId`;
+    AND follower_id = :followerId
+    AND follow_type = 'follow'
+    AND is_active = 1`;
 
     const userInfo = await connection.execute(selectSql, {
       followingID: userId,

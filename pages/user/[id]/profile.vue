@@ -30,6 +30,7 @@ const user = ref({
   location: '',
   email: '',
   avatar: '',
+  follow: '',
   stats: {
     followersCount: 0,
     followingCount: 0,
@@ -170,10 +171,53 @@ onMounted(async () => {
     console.error('Error fetching user analytics:', error);
     toast.error('Failed to fetch user analytics.');
   }
+
+  try {
+    const response = (await apiFetch(
+      `/api/v1/users/${userId}/isfollow`,
+      {
+        method: 'GET'
+      }
+    )) as { data?: { isFollowing?: boolean } };
+
+    user.value.follow = response.data?.isFollowing
+      ? 'Follow'
+      : 'Unfollow';
+
+    console.log('User follow status:', user.value.follow);
+  } catch (error) {
+    console.error(
+      'Error fetching user follow status:',
+      error
+    );
+    toast.error('Failed to fetch user follow status.');
+  }
 });
 
-async function followUser(user: any) {
-  console.log('Following user:', user);
+async function followUser(user: any, active: string) {
+  console.log(`Attempting to ${active} user:`, user.name);
+  try {
+    const response: any = (await apiFetch(
+      `/api/v1/follow/action`,
+      {
+        method: 'POST',
+        body: {
+          userId: user.id,
+          action: active
+        }
+      }
+    )) as { data?: { user?: any } };
+    if (response.success) {
+      toast.success(
+        `Successfully ${active}ed ${user.name}.`
+      );
+    } else {
+      toast.error('Failed to update follow status.');
+    }
+  } catch (error) {
+    console.error('Error following user:', error);
+    toast.error('Failed to follow user.');
+  }
 }
 </script>
 

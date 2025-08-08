@@ -38,6 +38,7 @@ interface UserData {
   location: string;
   email: string;
   avatar: string;
+  follow: string;
   stats: {
     followersCount: number;
     followingCount: number;
@@ -111,6 +112,16 @@ const normalizedScore = computed(() => {
 
 const tabValue = defineModel<string>();
 
+const isFollowing = ref(props.user.follow === 'Follow');
+
+watch(
+  () => props.user.follow,
+  newValue => {
+    console.log('Follow status changed:', newValue);
+    isFollowing.value = newValue === 'Follow';
+  }
+);
+
 function followUser() {
   if (
     props.user.id ===
@@ -119,7 +130,13 @@ function followUser() {
     toast.error('你不能关注自己。');
     return;
   }
-  emit('follow', props.user);
+  if (isFollowing.value) {
+    isFollowing.value = false;
+    emit('follow', props.user, 'unfollow');
+  } else {
+    isFollowing.value = true;
+    emit('follow', props.user, 'follow');
+  }
 }
 </script>
 
@@ -170,9 +187,20 @@ function followUser() {
               </div>
             </div>
             <div class="flex items-center space-x-2">
-              <Button variant="outline" @click="followUser"
-                >Follow</Button
+              <Button
+                v-if="!isFollowing"
+                variant="outline"
+                @click="followUser"
               >
+                关注
+              </Button>
+              <Button
+                v-else
+                variant="destructive"
+                @click="followUser"
+              >
+                取消关注
+              </Button>
               <Button variant="ghost" size="icon"
                 ><MoreHorizontal class="w-4 h-4"
               /></Button>
