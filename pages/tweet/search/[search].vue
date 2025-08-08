@@ -37,6 +37,8 @@ interface TweetListApiResponse {
   };
 }
 
+// TODO: 这里获取的数据就是完整的，不要再单独获取一遍了
+// TODO: 日期选择和排序方式
 const {
   data: listApiResponse,
   pending: listPending,
