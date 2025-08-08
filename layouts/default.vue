@@ -22,6 +22,19 @@ const searchQuery = ref('');
 const description =
   'An inset sidebar with secondary navigation.';
 const iframeHeight = '800px';
+
+const localePath = useLocalePath();
+
+function handleSearchEnter(e: KeyboardEvent) {
+  if (e.key === 'Enter' && searchQuery.value.trim()) {
+    navigateTo(
+      localePath(
+        `/tweet/search/${searchQuery.value.trim()}`
+      )
+    );
+    searchQuery.value = '';
+  }
+}
 </script>
 
 <template>
@@ -50,6 +63,7 @@ const iframeHeight = '800px';
               v-model="searchQuery"
               type="text"
               placeholder="Search"
+              @keydown="handleSearchEnter"
               class="w-full h-full bg-transparent border-0 rounded-full pl-12 pr-4 py-2 text-neutral-200 placeholder:text-neutral-500 focus:outline-none focus:ring-0"
             />
           </div>
