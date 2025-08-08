@@ -22,7 +22,9 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import AccountSwitcher from '@/components/AccountSwitcher.vue';
 import MailDisplay from '@/components/MailDisplay.vue';
 import MailList from '@/components/MailList.vue';
-import Nav, { type LinkProp } from '@/components/MailNav.vue';
+import Nav, {
+  type LinkProp
+} from '@/components/MailNav.vue';
 
 interface MailProps {
   accounts: {
@@ -162,7 +164,7 @@ function onExpand() {
     <ResizablePanelGroup
       id="resize-panel-group-1"
       direction="horizontal"
-      class="h-full max-h-[800px] items-stretch"
+      class="h-dvh items-stretch"
     >
       <ResizablePanel
         id="resize-panel-1"
