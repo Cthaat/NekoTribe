@@ -153,7 +153,14 @@ const { isMobile } = useSidebar();
               <CreditCard />
               Billing
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              @select="
+                () =>
+                  navigateTo(
+                    localePath('/user/notifications')
+                  )
+              "
+            >
               <Bell />
               Notifications
             </DropdownMenuItem>
