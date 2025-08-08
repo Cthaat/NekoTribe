@@ -25,11 +25,14 @@ import {
   MoreHorizontal
 } from 'lucide-vue-next';
 import type { PropType } from 'vue';
-import { modal } from '#build/ui';
+import { toast } from 'vue-sonner';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
+
+const preferenceStore = usePreferenceStore();
 
 // 2. 为 props 定义清晰的 TypeScript 类型
 interface UserData {
+  id: number;
   name: string;
   title: string;
   location: string;
@@ -61,7 +64,7 @@ const props = defineProps({
 });
 
 // 3.定义 emits，声明该组件会触发 'update:user' 事件
-const emit = defineEmits(['update:user']);
+const emit = defineEmits(['update:user', 'follow']);
 
 // 4. 处理头像更新的正确方式
 const handleAvatarUpdate = (
@@ -107,6 +110,17 @@ const normalizedScore = computed(() => {
 });
 
 const tabValue = defineModel<string>();
+
+function followUser() {
+  if (
+    props.user.id ===
+    preferenceStore.preferences.user.userId
+  ) {
+    toast.error('你不能关注自己。');
+    return;
+  }
+  emit('follow', props.user);
+}
 </script>
 
 <template>
@@ -156,8 +170,9 @@ const tabValue = defineModel<string>();
               </div>
             </div>
             <div class="flex items-center space-x-2">
-              <Button variant="outline">Follow</Button>
-              <Button>Hire Me</Button>
+              <Button variant="outline" @click="followUser"
+                >Follow</Button
+              >
               <Button variant="ghost" size="icon"
                 ><MoreHorizontal class="w-4 h-4"
               /></Button>

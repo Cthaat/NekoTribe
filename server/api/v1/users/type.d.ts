@@ -113,6 +113,7 @@ interface ResetEmailResponse extends Response {
 // ========================== [userId].get ======================================
 
 type GetOthersInfo = [
+  number, // USER_ID
   string, // AVATAR_URL
   string, // DISPLAY_NAME
   string, // BIO
@@ -122,6 +123,7 @@ type GetOthersInfo = [
 ];
 
 interface ReturnOthersInfo {
+  userId: number; // 用户ID
   avatarUrl: string; // 头像地址
   displayName: string; // 显示名称
   bio: string; // 个人简介
@@ -189,6 +191,26 @@ interface GetOthersStatsResponse extends Response {
     userData: {
       userInfo: ReturnOthersStats;
     };
+  };
+  code: 200;
+  timestamp: string;
+}
+
+// ========================== [userId]/isFollow.get ======================================
+
+type isFollow = [
+  number //COUNT
+];
+
+interface isFollowResponse {
+  count: number;
+}
+
+interface IsFollowResponse extends Response {
+  success: true;
+  message: string;
+  data: {
+    isFollowing: boolean;
   };
   code: 200;
   timestamp: string;

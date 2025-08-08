@@ -2,6 +2,9 @@ export default defineEventHandler(async event => {
   // 获取动态参数 userId
   const userId = getRouterParam(event, 'userId');
 
+  // 获取当前登录用户信息
+  const user: Auth = event.context.auth as Auth;
+
   if (!userId) {
     throw createError({
       statusCode: 400,
@@ -21,19 +24,16 @@ export default defineEventHandler(async event => {
 
   try {
     const selectSql = `
-    SELECT
-      user_id,
-      avatar_url,
-      display_name,
-      bio,
-      location,
-      website,
-      birth_date
-    FROM n_users
-    WHERE user_id = :user_id`;
+    SELECT 
+    count(*) 
+    from n_follows 
+    where 
+    following_id = :followingID
+    AND follower_id = :followerId`;
 
     const userInfo = await connection.execute(selectSql, {
-      user_id: userId
+      followingID: userId,
+      followerId: user.userId
     });
 
     if (!userInfo.rows || userInfo.rows.length === 0) {
@@ -50,30 +50,18 @@ export default defineEventHandler(async event => {
     }
 
     // 取第一行数据
-    const userInfoRow: GetOthersInfo =
-      (userInfo.rows?.[0] as GetOthersInfo) || [];
+    const userInfoRow: isFollow =
+      (userInfo.rows?.[0] as isFollow) || [];
 
     return {
       success: true,
       message: '获取用户信息成功',
       data: {
-        userData: {
-          userInfo: {
-            userId: userInfoRow[0],
-            avatarUrl: userInfoRow[1],
-            displayName: userInfoRow[2] || '',
-            bio: userInfoRow[3] || '',
-            location: userInfoRow[4] || '',
-            website: userInfoRow[5] || '',
-            birthDate: userInfoRow[6]
-              ? new Date(userInfoRow[6]).toISOString()
-              : null
-          }
-        }
+        isFollowing: userInfoRow[0] === 1
       },
       code: 200,
       timestamp: new Date().toISOString()
-    } as GetOthersInfoResponse;
+    } as IsFollowResponse;
   } finally {
     await connection.close();
   }

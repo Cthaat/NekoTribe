@@ -11,6 +11,7 @@ import { usePreferenceStore } from '~/stores/user'; // 导入 store
 import { onMounted, ref } from 'vue';
 import { Card, CardContent } from '@/components/ui/card';
 import { useRoute } from 'vue-router';
+import { id } from 'zod/v4/locales';
 
 const route = useRoute();
 
@@ -23,6 +24,7 @@ const localePath = useLocalePath();
 
 // 假设这是从 API 获取的用户数据
 const user = ref({
+  id: 0,
   name: '',
   title: '',
   location: '',
@@ -116,6 +118,8 @@ onMounted(async () => {
       }
     )) as { data?: { userData?: { userInfo?: any } } };
 
+    user.value.id =
+      response.data?.userData?.userInfo?.userId || 0;
     user.value.name =
       response.data?.userData?.userInfo?.displayName || '';
     user.value.location =
@@ -167,6 +171,10 @@ onMounted(async () => {
     toast.error('Failed to fetch user analytics.');
   }
 });
+
+async function followUser(user: any) {
+  console.log('Following user:', user);
+}
 </script>
 
 <template>
@@ -175,6 +183,7 @@ onMounted(async () => {
       :user="user"
       :account-tabs="localizedAccountTabs"
       v-model="activeTab"
+      @follow="followUser"
     />
     <Card>
       <CardContent>
