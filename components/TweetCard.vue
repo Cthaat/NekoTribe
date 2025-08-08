@@ -214,7 +214,15 @@ function toTweetDetail(tweetId: string) {
     class="max-w-2xl mx-auto my-4 rounded-xl shadow-sm cursor-pointer transition-colors duration-200 ease-in-out hover:shadow-md hover:bg-gray-50 dark:hover:bg-neutral-900"
   >
     <CardHeader class="flex flex-row items-start p-4">
-      <Avatar class="h-12 w-12 mr-4">
+      <Avatar
+        class="h-12 w-12 mr-4"
+        @click.stop="
+          () =>
+            navigateTo(
+              localePath(`/user/${tweet.authorId}/profile`)
+            )
+        "
+      >
         <AvatarImage
           :src="tweet.avatarUrl"
           :alt="tweet.username"

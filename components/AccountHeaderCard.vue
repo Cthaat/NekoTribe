@@ -134,7 +134,9 @@ const tabValue = defineModel<string>();
               <div
                 class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1"
               >
-                <span class="flex items-center gap-1.5"
+                <span
+                  class="flex items-center gap-1.5"
+                  v-if="user.title"
                   ><User class="w-4 h-4" />{{
                     user.title
                   }}</span
@@ -144,7 +146,9 @@ const tabValue = defineModel<string>();
                     user.location
                   }}</span
                 >
-                <span class="flex items-center gap-1.5"
+                <span
+                  class="flex items-center gap-1.5"
+                  v-if="user.email"
                   ><Mail class="w-4 h-4" />{{
                     user.email
                   }}</span
@@ -225,6 +229,7 @@ const tabValue = defineModel<string>();
   <!-- b. 选项卡导航，作为 Card 的直接子元素，以实现正确的边框样式 -->
   <div
     class="inline-flex h-10 items-center justify-center rounded-full bg-muted p-1 text-muted-foreground"
+    v-if="accountTabs.length > 0"
   >
     <Tabs default-value="overview" class="w-full">
       <TabsList>
