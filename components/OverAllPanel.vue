@@ -132,7 +132,11 @@ const formatNumber = (num: number) => {
       </CardHeader>
       <CardContent>
         <div class="text-2xl font-bold">
-          {{ formatNumber(animatedTotalLikesReceived) }}
+          {{
+            formatNumber(
+              Number(animatedTotalLikesReceived.toFixed(0))
+            )
+          }}
         </div>
         <p class="text-xs text-muted-foreground">
           {{
