@@ -298,7 +298,7 @@ function toTweetDetail(tweetId: string) {
       <!-- 媒体展示区 -->
       <div
         v-if="mediaItems.length > 0"
-        class="mt-3 rounded-lg overflow-hidden border border-none"
+        class="mt-3 rounded-lg overflow-hidden border-none"
       >
         <div
           class="grid gap-px"
