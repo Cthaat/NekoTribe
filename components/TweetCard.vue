@@ -211,7 +211,7 @@ function toTweetDetail(tweetId: string) {
 <template>
   <Card
     @click.stop="toTweetDetail(tweet.tweetId)"
-    class="max-w-2xl mx-auto my-4 rounded-xl shadow-sm cursor-pointer transition-colors duration-200 ease-in-out hover:shadow-md hover:bg-gray-50 dark:hover:bg-neutral-900"
+    class="border-none max-w-2xl mx-auto my-4 rounded-xl shadow-sm cursor-pointer transition-colors duration-200 ease-in-out hover:shadow-md hover:bg-gray-50 dark:hover:bg-neutral-900"
   >
     <CardHeader class="flex flex-row items-start p-4">
       <Avatar
@@ -298,7 +298,7 @@ function toTweetDetail(tweetId: string) {
       <!-- 媒体展示区 -->
       <div
         v-if="mediaItems.length > 0"
-        class="mt-3 rounded-lg overflow-hidden border"
+        class="mt-3 rounded-lg overflow-hidden border border-none"
       >
         <div
           class="grid gap-px"
