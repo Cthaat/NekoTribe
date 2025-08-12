@@ -56,7 +56,7 @@ const today = new Date();
 <template>
   <div class="flex h-full flex-col">
     <div class="flex items-center p-2">
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2" v-if="mail">
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
@@ -196,7 +196,10 @@ const today = new Date();
           <TooltipContent>Snooze</TooltipContent>
         </Tooltip>
       </div>
-      <div class="ml-auto flex items-center gap-2">
+      <div
+        class="ml-auto flex items-center gap-2"
+        v-if="mail"
+      >
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
@@ -238,7 +241,7 @@ const today = new Date();
         </Tooltip>
       </div>
       <Separator orientation="vertical" class="mx-2 h-6" />
-      <DropdownMenu>
+      <DropdownMenu v-if="mail">
         <DropdownMenuTrigger as-child>
           <Button
             variant="ghost"
