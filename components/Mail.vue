@@ -120,39 +120,6 @@ const links: LinkProp[] = [
   }
 ];
 
-const links2: LinkProp[] = [
-  {
-    title: 'Social',
-    label: '972',
-    icon: 'lucide:user-2',
-    variant: 'ghost'
-  },
-  {
-    title: 'Updates',
-    label: '342',
-    icon: 'lucide:alert-circle',
-    variant: 'ghost'
-  },
-  {
-    title: 'Forums',
-    label: '128',
-    icon: 'lucide:message-square',
-    variant: 'ghost'
-  },
-  {
-    title: 'Shopping',
-    label: '8',
-    icon: 'lucide:shopping-cart',
-    variant: 'ghost'
-  },
-  {
-    title: 'Promotions',
-    label: '21',
-    icon: 'lucide:archive',
-    variant: 'ghost'
-  }
-];
-
 function onCollapse() {
   isCollapsed.value = true;
 }
@@ -185,24 +152,7 @@ function onExpand() {
         @expand="onExpand"
         @collapse="onCollapse"
       >
-        <div
-          :class="
-            cn(
-              'flex h-[52px] items-center justify-center',
-              isCollapsed ? 'h-[52px]' : 'px-2'
-            )
-          "
-        >
-          <AccountSwitcher
-            v-if="accounts && accounts.length"
-            :is-collapsed="isCollapsed"
-            :accounts="accounts"
-          />
-        </div>
-        <Separator />
         <Nav :is-collapsed="isCollapsed" :links="links" />
-        <Separator />
-        <Nav :is-collapsed="isCollapsed" :links="links2" />
       </ResizablePanel>
       <ResizableHandle id="resize-handle-1" with-handle />
       <ResizablePanel
