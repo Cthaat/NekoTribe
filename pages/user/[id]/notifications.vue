@@ -176,7 +176,7 @@ watch([type, unreadOnly, () => route.params.id], () => {
     <Mail
       :mails="
         notifications.map(n => ({
-          id: n.notificationId,
+          id: String(n.notificationId),
           avatar: n.actorAvatarUrl || '',
           name:
             n.actorDisplayName ||

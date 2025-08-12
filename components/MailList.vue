@@ -87,7 +87,7 @@ onBeforeUnmount(() => {
               selectedMail === item.id && 'bg-muted'
             )
           "
-          @click="selectedMail = item.id"
+          @click="selectedMail = String(item.id)"
         >
           <div class="flex w-full flex-col gap-1">
             <div class="flex items-center">

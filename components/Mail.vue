@@ -49,6 +49,8 @@ const props = withDefaults(defineProps<MailProps>(), {
 const isCollapsed = ref(props.defaultCollapsed);
 const selectedMail = ref<string | undefined>(
   props.mails[0]?.id
+    ? String(props.mails[0]?.id)
+    : undefined
 );
 const searchValue = ref('');
 const debouncedSearch = refDebounced(searchValue, 250);
@@ -197,14 +199,14 @@ function onExpand() {
           </div>
           <TabsContent value="all" class="m-0">
             <MailList
-              v-model:selected-mail="selectedMail"
+              v-model:selectedMail="selectedMail"
               :items="filteredMailList"
               :load-more="props.loadMore"
             />
           </TabsContent>
           <TabsContent value="unread" class="m-0">
             <MailList
-              v-model:selected-mail="selectedMail"
+              v-model:selectedMail="selectedMail"
               :items="unreadMailList"
               :load-more="props.loadMore"
             />
