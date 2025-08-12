@@ -9,7 +9,7 @@ import { toast } from 'vue-sonner';
 // 基础分页与筛选参数
 const route = useRoute();
 const page = ref(1);
-const pageSize = ref(1);
+const pageSize = ref(10);
 const type = ref<string>(
   (route.query.type as string) || 'all'
 );
