@@ -41,7 +41,7 @@ interface MailProps {
   loadMore?: () => void;
 }
 
-const emit = defineEmits(['read-mail']);
+const emit = defineEmits(['read-mail', 'delete-mail']);
 
 const props = withDefaults(defineProps<MailProps>(), {
   defaultCollapsed: false,
@@ -221,7 +221,10 @@ function handleReadMail(mailId: string) {
         id="resize-panel-3"
         :default-size="defaultLayout[2]"
       >
-        <MailDisplay :mail="selectedMailData" />
+        <MailDisplay
+          :mail="selectedMailData"
+          @delete-mail="emit('delete-mail', $event)"
+        />
       </ResizablePanel>
     </ResizablePanelGroup>
   </TooltipProvider>

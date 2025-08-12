@@ -51,6 +51,8 @@ interface MailDisplayProps {
 const props = defineProps<MailDisplayProps>();
 
 const today = new Date();
+
+const emit = defineEmits(['delete-mail']);
 </script>
 
 <template>
@@ -89,6 +91,7 @@ const today = new Date();
               variant="ghost"
               size="icon"
               :disabled="!mail"
+              @click.stop="emit('delete-mail', mail.id)"
             >
               <Trash2 class="size-4" />
               <span class="sr-only">Move to trash</span>

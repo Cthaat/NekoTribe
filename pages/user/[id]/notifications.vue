@@ -187,6 +187,24 @@ async function handleReadMail(mailId: string) {
     console.error('标记邮件为已读失败:', error);
   }
 }
+
+async function handleDeleteMail(mailId: string) {
+  // 删除邮件
+  const mailIndex = notifications.value.findIndex(
+    item => item.notificationId === mailId
+  );
+  if (mailIndex !== -1) {
+    notifications.value.splice(mailIndex, 1);
+  }
+  try {
+    await apiFetch(`/api/v1/notifications/${mailId}`, {
+      method: 'DELETE'
+    });
+    toast.success('邮件已删除');
+  } catch (error) {
+    console.error('删除邮件失败:', error);
+  }
+}
 </script>
 
 <template>
@@ -211,6 +229,7 @@ async function handleReadMail(mailId: string) {
       :nav-collapsed-size="4"
       :load-more="loadNextPage"
       @read-mail="handleReadMail"
+      @delete-mail="handleDeleteMail"
     />
   </div>
 </template>
