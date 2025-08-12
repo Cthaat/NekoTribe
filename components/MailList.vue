@@ -4,12 +4,15 @@ import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { onMounted, onBeforeUnmount, ref } from 'vue';
 
 interface MailListProps {
   items: Mail[];
+  // 可选：当靠近底部时调用的加载更多函数
+  loadMore?: () => void;
 }
 
-defineProps<MailListProps>();
+const props = defineProps<MailListProps>();
 const selectedMail = defineModel<string>('selectedMail', {
   required: false
 });
@@ -23,6 +26,52 @@ function getBadgeVariantFromLabel(label: string) {
 
   return 'secondary';
 }
+
+// 无限滚动：观察列表底部哨兵，接近底部时触发 props.loadMore()
+const sentinel = ref<HTMLDivElement | null>(null);
+let observer: IntersectionObserver | null = null;
+let throttling = false;
+
+function setupObserver() {
+  if (!sentinel.value) return;
+  // 找到 ScrollArea 的 viewport 作为 root
+  const root = sentinel.value.closest(
+    '[data-slot="scroll-area-viewport"]'
+  ) as Element | null;
+
+  observer = new IntersectionObserver(
+    entries => {
+      const entry = entries[0];
+      if (
+        entry.isIntersecting &&
+        props.loadMore &&
+        !throttling
+      ) {
+        throttling = true;
+        try {
+          props.loadMore();
+        } finally {
+          // 简单节流，避免抖动；父级应配合加载状态更严谨控制
+          setTimeout(() => (throttling = false), 800);
+        }
+      }
+    },
+    {
+      root: root || undefined,
+      rootMargin: '0px 0px 200px 0px',
+      threshold: 0.01
+    }
+  );
+  observer.observe(sentinel.value);
+}
+
+onMounted(() => setupObserver());
+onBeforeUnmount(() => {
+  if (observer && sentinel.value)
+    observer.unobserve(sentinel.value);
+  observer?.disconnect();
+  observer = null;
+});
 </script>
 
 <template>
@@ -89,6 +138,8 @@ function getBadgeVariantFromLabel(label: string) {
           </div>
         </button>
       </TransitionGroup>
+      <!-- 无限滚动哨兵：接近底部时触发 loadMore -->
+      <div ref="sentinel" class="h-1 w-full"></div>
     </div>
   </ScrollArea>
 </template>

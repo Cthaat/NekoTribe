@@ -27,7 +27,8 @@ import Nav, {
 } from '@/components/MailNav.vue';
 
 interface MailProps {
-  accounts: {
+  // 改为可选，以便页面不再强制传入
+  accounts?: {
     label: string;
     email: string;
     icon: string;
@@ -36,6 +37,8 @@ interface MailProps {
   defaultLayout?: number[];
   defaultCollapsed?: boolean;
   navCollapsedSize: number;
+  // 新增：下发给列表的加载更多函数
+  loadMore?: () => void;
 }
 
 const props = withDefaults(defineProps<MailProps>(), {
@@ -45,7 +48,7 @@ const props = withDefaults(defineProps<MailProps>(), {
 
 const isCollapsed = ref(props.defaultCollapsed);
 const selectedMail = ref<string | undefined>(
-  props.mails[0].id
+  props.mails[0]?.id
 );
 const searchValue = ref('');
 const debouncedSearch = refDebounced(searchValue, 250);
@@ -191,6 +194,7 @@ function onExpand() {
           "
         >
           <AccountSwitcher
+            v-if="accounts && accounts.length"
             :is-collapsed="isCollapsed"
             :accounts="accounts"
           />
@@ -245,12 +249,14 @@ function onExpand() {
             <MailList
               v-model:selected-mail="selectedMail"
               :items="filteredMailList"
+              :load-more="props.loadMore"
             />
           </TabsContent>
           <TabsContent value="unread" class="m-0">
             <MailList
               v-model:selected-mail="selectedMail"
               :items="unreadMailList"
+              :load-more="props.loadMore"
             />
           </TabsContent>
         </Tabs>

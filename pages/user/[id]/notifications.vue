@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import Mail from '@/components/Mail.vue';
-import { accounts, mails } from '@/data/mails';
 import { ref, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApiFetch } from '@/composables/useApiFetch';
@@ -175,9 +174,23 @@ watch([type, unreadOnly, () => route.params.id], () => {
 <template>
   <div class="hidden flex-col md:flex">
     <Mail
-      :accounts="accounts"
-      :mails="mails"
+      :mails="
+        notifications.map(n => ({
+          id: n.notificationId,
+          name:
+            n.actorDisplayName ||
+            n.actorUsername ||
+            'System',
+          email: n.actorUsername || 'system',
+          subject: n.title || n.type,
+          text: n.message,
+          date: n.createdAt,
+          read: !!n.isRead,
+          labels: [n.type]
+        }))
+      "
       :nav-collapsed-size="4"
+      :load-more="loadNextPage"
     />
   </div>
 </template>
