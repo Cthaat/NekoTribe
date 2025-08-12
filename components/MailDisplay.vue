@@ -302,8 +302,9 @@ const emit = defineEmits(['delete-mail']);
       <div class="flex-1 whitespace-pre-wrap p-4 text-sm">
         {{ mail.text }}
       </div>
-      <Separator class="mt-auto" />
-      <div class="p-4">
+      <!-- <Separator class="mt-auto" /> -->
+      <!-- TODO: 后续添加回复功能 -->
+      <!-- <div class="p-4">
         <form>
           <div class="grid gap-4">
             <Textarea
@@ -333,7 +334,7 @@ const emit = defineEmits(['delete-mail']);
             </div>
           </div>
         </form>
-      </div>
+      </div> -->
     </div>
     <div
       v-else
