@@ -45,17 +45,10 @@ import {
 } from '@/components/ui/tooltip';
 
 interface MailDisplayProps {
-  mail: Mail | undefined;
+  mail: any;
 }
 
 const props = defineProps<MailDisplayProps>();
-
-const mailFallbackName = computed(() => {
-  return props.mail?.name
-    .split(' ')
-    .map(chunk => chunk[0])
-    .join('');
-});
 
 const today = new Date();
 </script>
@@ -271,8 +264,12 @@ const today = new Date();
       <div class="flex items-start p-4">
         <div class="flex items-start gap-4 text-sm">
           <Avatar>
+            <AvatarImage
+              :src="mail.avatar"
+              :alt="mail.name"
+            />
             <AvatarFallback>
-              {{ mailFallbackName }}
+              {{ mail.name }}
             </AvatarFallback>
           </Avatar>
           <div class="grid gap-1">
@@ -322,6 +319,8 @@ const today = new Date();
                 type="button"
                 size="sm"
                 class="ml-auto"
+                :disabled="!mail"
+                @click="() => console.log(mail)"
               >
                 Send
               </Button>
