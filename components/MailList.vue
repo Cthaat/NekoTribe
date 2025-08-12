@@ -8,7 +8,8 @@ import {
   onMounted,
   onBeforeUnmount,
   ref,
-  watch
+  watch,
+  nextTick
 } from 'vue';
 
 interface MailListProps {
@@ -31,6 +32,15 @@ watch(
   items => {
     // 浅克隆每个元素，确保本地修改不影响父级
     localItems.value = (items ?? []).map(it => ({ ...it }));
+    // 渲染完成后重新 observe，若仍在底部可继续触发
+    nextTick(() => {
+      if (observer && sentinel.value) {
+        try {
+          observer.unobserve(sentinel.value);
+        } catch {}
+        observer.observe(sentinel.value);
+      }
+    });
   },
   { immediate: true }
 );
@@ -49,6 +59,14 @@ function getBadgeVariantFromLabel(label: string) {
 const sentinel = ref<HTMLDivElement | null>(null);
 let observer: IntersectionObserver | null = null;
 let throttling = false;
+
+function reobserveSentinel() {
+  if (!observer || !sentinel.value) return;
+  try {
+    observer.unobserve(sentinel.value);
+  } catch {}
+  observer.observe(sentinel.value);
+}
 
 function setupObserver() {
   if (!sentinel.value) return;
@@ -70,14 +88,18 @@ function setupObserver() {
           props.loadMore();
         } finally {
           // 简单节流，避免抖动；父级应配合加载状态更严谨控制
-          setTimeout(() => (throttling = false), 800);
+          setTimeout(() => {
+            throttling = false;
+            // 重新 observe，若仍在底部将继续触发
+            reobserveSentinel();
+          }, 600);
         }
       }
     },
     {
       root: root || undefined,
       rootMargin: '0px 0px 200px 0px',
-      threshold: 0.01
+      threshold: 0
     }
   );
   observer.observe(sentinel.value);
