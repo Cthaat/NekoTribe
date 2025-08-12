@@ -4,7 +4,12 @@ import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { onMounted, onBeforeUnmount, ref } from 'vue';
+import {
+  onMounted,
+  onBeforeUnmount,
+  ref,
+  watch
+} from 'vue';
 
 interface MailListProps {
   items: Mail[];
@@ -18,6 +23,17 @@ const props = defineProps<MailListProps>();
 const selectedMail = defineModel<string>('selectedMail', {
   required: false
 });
+
+// 本地副本：避免直接修改 props.items
+const localItems = ref<Mail[]>([]);
+watch(
+  () => props.items,
+  items => {
+    // 浅克隆每个元素，确保本地修改不影响父级
+    localItems.value = (items ?? []).map(it => ({ ...it }));
+  },
+  { immediate: true }
+);
 
 function getBadgeVariantFromLabel(label: string) {
   if (['work'].includes(label.toLowerCase()))
@@ -77,6 +93,11 @@ onBeforeUnmount(() => {
 
 function selectMail(mailId: string) {
   selectedMail.value = mailId;
+  // 本地设为已读
+  const target = localItems.value.find(
+    m => String(m.id) === String(mailId)
+  );
+  if (target) target.read = true;
 
   emit('read-mail', mailId);
 }
@@ -87,7 +108,7 @@ function selectMail(mailId: string) {
     <div class="flex-1 flex flex-col gap-2 p-4 pt-0">
       <TransitionGroup name="list" appear>
         <button
-          v-for="item of items"
+          v-for="item of localItems"
           :key="item.id"
           :class="
             cn(
