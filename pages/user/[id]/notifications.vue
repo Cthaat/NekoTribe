@@ -4,6 +4,7 @@ import { ref, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApiFetch } from '@/composables/useApiFetch';
 import { toast } from 'vue-sonner';
+import { apiFetch } from '@/composables/useApi';
 
 // 基础分页与筛选参数
 const route = useRoute();
@@ -169,6 +170,23 @@ watch([type, unreadOnly, () => route.params.id], () => {
   // 重置由 listApiResponse watcher 处理
   refreshList();
 });
+
+async function handleReadMail(mailId: string) {
+  // 标记邮件为已读
+  const mail = notifications.value.find(
+    item => item.notificationId === mailId
+  );
+  if (mail) {
+    mail.isRead = 1;
+  }
+  try {
+    await apiFetch(`/api/v1/notifications/${mailId}`, {
+      method: 'PUT'
+    });
+  } catch (error) {
+    console.error('标记邮件为已读失败:', error);
+  }
+}
 </script>
 
 <template>
@@ -192,6 +210,7 @@ watch([type, unreadOnly, () => route.params.id], () => {
       "
       :nav-collapsed-size="4"
       :load-more="loadNextPage"
+      @read-mail="handleReadMail"
     />
   </div>
 </template>

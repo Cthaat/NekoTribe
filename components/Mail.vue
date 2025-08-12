@@ -41,6 +41,8 @@ interface MailProps {
   loadMore?: () => void;
 }
 
+const emit = defineEmits(['read-mail']);
+
 const props = withDefaults(defineProps<MailProps>(), {
   defaultCollapsed: false,
   defaultLayout: () => [265, 440, 655]
@@ -83,43 +85,38 @@ const selectedMailData = computed(() =>
   props.mails.find(item => item.id === selectedMail.value)
 );
 
+// TODO: 后续功能
 const links: LinkProp[] = [
   {
     title: 'Inbox',
     label: '128',
     icon: 'lucide:inbox',
     variant: 'default'
-  },
-  {
-    title: 'Drafts',
-    label: '9',
-    icon: 'lucide:file',
-    variant: 'ghost'
-  },
-  {
-    title: 'Sent',
-    label: '',
-    icon: 'lucide:send',
-    variant: 'ghost'
-  },
-  {
-    title: 'Junk',
-    label: '23',
-    icon: 'lucide:archive',
-    variant: 'ghost'
-  },
-  {
-    title: 'Trash',
-    label: '',
-    icon: 'lucide:trash',
-    variant: 'ghost'
-  },
-  {
-    title: 'Archive',
-    label: '',
-    icon: 'lucide:archive',
-    variant: 'ghost'
   }
+  // {
+  //   title: 'Drafts',
+  //   label: '9',
+  //   icon: 'lucide:file',
+  //   variant: 'ghost'
+  // },
+  // {
+  //   title: 'Sent',
+  //   label: '',
+  //   icon: 'lucide:send',
+  //   variant: 'ghost'
+  // },
+  // {
+  //   title: 'Trash',
+  //   label: '',
+  //   icon: 'lucide:trash',
+  //   variant: 'ghost'
+  // },
+  // {
+  //   title: 'Archive',
+  //   label: '',
+  //   icon: 'lucide:archive',
+  //   variant: 'ghost'
+  // }
 ];
 
 function onCollapse() {
@@ -128,6 +125,10 @@ function onCollapse() {
 
 function onExpand() {
   isCollapsed.value = false;
+}
+
+function handleReadMail(mailId: string) {
+  emit('read-mail', mailId);
 }
 </script>
 
@@ -202,6 +203,7 @@ function onExpand() {
               v-model:selectedMail="selectedMail"
               :items="filteredMailList"
               :load-more="props.loadMore"
+              @read-mail="handleReadMail"
             />
           </TabsContent>
           <TabsContent value="unread" class="m-0">
@@ -209,6 +211,7 @@ function onExpand() {
               v-model:selectedMail="selectedMail"
               :items="unreadMailList"
               :load-more="props.loadMore"
+              @read-mail="handleReadMail"
             />
           </TabsContent>
         </Tabs>

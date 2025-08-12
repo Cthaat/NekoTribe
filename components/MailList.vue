@@ -12,6 +12,8 @@ interface MailListProps {
   loadMore?: () => void;
 }
 
+const emit = defineEmits(['read-mail']);
+
 const props = defineProps<MailListProps>();
 const selectedMail = defineModel<string>('selectedMail', {
   required: false
@@ -72,6 +74,12 @@ onBeforeUnmount(() => {
   observer?.disconnect();
   observer = null;
 });
+
+function selectMail(mailId: string) {
+  selectedMail.value = mailId;
+
+  emit('read-mail', mailId);
+}
 </script>
 
 <template>
@@ -87,7 +95,7 @@ onBeforeUnmount(() => {
               selectedMail === item.id && 'bg-muted'
             )
           "
-          @click="selectedMail = String(item.id)"
+          @click="selectMail(String(item.id))"
         >
           <div class="flex w-full flex-col gap-1">
             <div class="flex items-center">
