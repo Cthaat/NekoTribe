@@ -1,4 +1,20 @@
+import { defineEventHandler, createError } from '#imports';
+
 export default defineEventHandler(async event => {
+  // --- [新增的保护代码] ---
+  // 获取请求路径。event.path 是 h3 提供的标准方式。
+  const path = event.path;
+
+  // 如果请求是针对Nuxt内部API（如 __nuxt_content, _nuxt 等），
+  // 则立即返回，不执行任何限流逻辑。
+  // 这是解决 `nuxt build` 时连接Redis的关键。
+  if (path.startsWith('/__') || path.startsWith('/_nuxt')) {
+    return;
+  }
+  // --- [保护代码结束] ---
+
+  // --- 您原有的逻辑保持不变 ---
+
   // 只有 GET、POST、PUT、DELETE 等 HTTP 方法才进行限流检查
   if (!event.node.req.method) return;
 
@@ -24,7 +40,7 @@ export default defineEventHandler(async event => {
       info = JSON.parse(existingData);
     }
 
-    // 1分钟窗口限制10次
+    // 1分钟窗口限制
     if (now - info.last > 60_000) {
       info.count = 1;
       info.last = now;
