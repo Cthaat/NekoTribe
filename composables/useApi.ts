@@ -2,6 +2,7 @@
 
 // 1. 我们不需要从任何地方导入选项类型了！
 //    我们将直接从全局的 $fetch 函数推导出它的类型。
+import { getCurrentInstance } from 'vue';
 
 /**
  * 直接从全局 $fetch 函数的类型定义中提取出其第二个参数（options 对象）的类型。
@@ -32,8 +33,63 @@ export const apiFetch = <T>(
     // onRequest({ options }) { ... }
   };
 
+  // 追加来源追踪头，帮助服务端定位发起请求的前端“来源”
+  const isServer = typeof window === 'undefined';
+  const route = (() => {
+    try {
+      return useRoute();
+    } catch {
+      return undefined;
+    }
+  })();
+
+  const inst = getCurrentInstance();
+  const compName =
+    (inst?.type as any)?.name ||
+    (inst?.type as any)?.__name;
+
+  let stackSource = '';
+  try {
+    throw new Error('trace');
+  } catch (e: any) {
+    const stack: string = e?.stack || '';
+    const line = stack
+      .split('\n')
+      .find(
+        l =>
+          /https?:\/\//.test(l) &&
+          !/node_modules|nuxt\//i.test(l)
+      );
+    if (line) stackSource = line.trim();
+  }
+
+  const traceHeaders: Record<string, string> = {};
+  if (route?.fullPath)
+    traceHeaders['x-client-route'] = String(route.fullPath);
+  if (compName)
+    traceHeaders['x-client-component'] = String(compName);
+  if (stackSource)
+    traceHeaders['x-client-source'] = String(stackSource);
+  if (!isServer && typeof location !== 'undefined')
+    traceHeaders['x-client-referer'] = String(
+      location.href
+    );
+  traceHeaders['x-client-platform'] = isServer
+    ? 'server'
+    : 'client';
+
+  // 合并 headers（调用方的 headers 优先）
+  const mergedHeaders: Record<string, any> = {
+    ...traceHeaders,
+    ...((options as any).headers || {})
+  };
+
   // 5. 合并选项，TypeScript 现在可以正确推断出 mergedOptions 的类型
-  const mergedOptions = { ...defaults, ...options };
+  const mergedOptions: ApiFetchOptions = {
+    ...defaults,
+    ...options,
+    headers: mergedHeaders
+  };
 
   // 6. 调用 $fetch，现在类型完美匹配，不会再有任何错误
   return $fetch<T>(path, mergedOptions);
