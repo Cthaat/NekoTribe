@@ -1,0 +1,59 @@
+# 工作流的名称，会显示在GitHub的Actions页面
+name: Build and Push Docker Image
+
+# 定义触发工作流的事件
+on:
+  # 当有代码推送到 main 分支时触发
+  push:
+    branches:
+      - main
+      - shadcn-web
+  # 允许您在GitHub Actions页面手动触发此工作流
+  workflow_dispatch:
+
+# 定义一个或多个"作业"（jobs）
+jobs:
+  # 我们定义一个名为 "build-and-push" 的作业
+  build-and-push:
+    # 指定此作业运行在GitHub提供的最新版Ubuntu服务器上
+    runs-on: ubuntu-latest
+
+    # 定义此作业的一系列步骤（steps）
+    steps:
+      # 第一步：检出代码
+      # 使用官方的 actions/checkout@v4 动作来获取您仓库的最新代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 第二步：登录到GitHub容器仓库 (GHCR)
+      # 这是将镜像推送到仓库的必要认证步骤
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          # GITHUB_ACTOR 是您的GitHub用户名
+          username: ${{ github.actor }}
+          # NEKO_TOKEN 是GitHub Actions自动生成的临时令牌，用于认证
+          password: ${{ secrets.NEKO_TOKEN }}
+
+      # 第三步：提取Docker镜像的元数据（标签等）
+      # 这个步骤非常有用，它会自动为您的镜像生成合适的标签
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+
+      # 第四步：构建并推送Docker镜像
+      # 这是核心步骤，它会执行 docker build 和 docker push
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          # 构建的上下文目录，"." 表示项目根目录
+          context: .
+          # 推送镜像到仓库
+          push: true
+          # 使用上一步生成的标签
+          tags: ${{ steps.meta.outputs.tags }}
+          # 使用上一步生成的标签作为镜像的元信息
+          labels: ${{ steps.meta.outputs.labels }}
