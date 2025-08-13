@@ -59,6 +59,22 @@ export default defineNuxtConfig({
       // 彻底禁用预渲染功能
       crawlLinks: false,
       routes: []
+    },
+    hooks: {
+      // 在 Nitro 实例关闭时，执行此函数
+      close: () => {
+        // 当这个钩子被触发时，我们知道所有构建工作都已完成
+        console.log(
+          'Nuxt build process complete. Forcing exit to release OracleDB handles...'
+        );
+
+        // 我们不直接退出，而是设置一个短暂的延时
+        // 这给日志信息完全刷新到控制台留出了一点时间
+        setTimeout(() => {
+          // 传递 0 表示“成功退出”
+          process.exit(0);
+        }, 500); // 500毫秒的延迟
+      }
     }
   },
 

@@ -5,7 +5,7 @@ import {
 import oracledb from 'oracledb';
 
 // 1. 单例容器 (Singleton Container) - 无需改动
-let pool: oracledb.Pool | null = null;
+export let pool: oracledb.Pool | null = null;
 
 // 2. 初始化函数 - 无需改动
 async function initOraclePool() {
@@ -62,7 +62,17 @@ export default defineNitroPlugin(nitroApp => {
       }
     );
 
-    // 同样，不要再注入 pool，因为它在请求开始时是 null。
-    // event.context.oraclePool = pool; // <- 删除这一行
+    nitroApp.hooks.hook('close', async () => {
+      // 检查连接池是否在应用的生命周期中被创建了
+      if (pool) {
+        console.log(
+          'Nitro 正在关闭，开始清理 Oracle 连接池...'
+        );
+        // 如果创建了，就优雅地关闭它
+        await pool.close();
+        console.log('Oracle 连接池已成功关闭。');
+        pool = null; // 帮助垃圾回收
+      }
+    });
   });
 });
