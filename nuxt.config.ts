@@ -54,6 +54,11 @@ export default defineNuxtConfig({
   nitro: {
     experimental: {
       websocket: true
+    },
+    prerender: {
+      // 彻底禁用预渲染功能
+      crawlLinks: false,
+      routes: []
     }
   },
 
