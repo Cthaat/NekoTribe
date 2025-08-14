@@ -1,10 +1,37 @@
 version: '3.8'
 
 services:
-  NekoTribe:
+  # 1. 您的Nuxt应用服务
+  app:
     image: ghcr.io/cthaat/nekotribe:shadcn-web
     restart: always
     ports:
       - '30001:3000'
     env_file:
-      - ./.env
+      - ./.env.docker
+    # [新增] 将app服务连接到我们定义的neko-network网络
+    networks:
+      - neko-network
+    # [新增] 确保'host.docker.internal'能被正确解析为主机IP
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    # [保持] 声明此服务依赖于redis服务，控制启动顺序
+    depends_on:
+      - redis
+
+  # 2. Redis服务
+  redis:
+    image: redis:7-alpine
+    restart: always
+    env_file:
+      - ./.env.docker
+    command: redis-server --requirepass '123456..a'
+    # [新增] 同样将redis服务连接到neko-network网络
+    networks:
+      - neko-network
+
+# [新增] 在顶层定义一个我们自己的网络
+# 这让所有连接到此网络的服务都可以通过服务名互相通信
+networks:
+  neko-network:
+    driver: bridge
