@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { toast } from 'vue-sonner';
+import { apiFetch } from '@/composables/useApi';
 import {
   Card,
   CardContent,
@@ -206,6 +207,60 @@ function toTweetDetail(tweetId: string) {
   tweetStore.setSelectedTweet(props.tweet);
   navigateTo(detailPath);
 }
+
+// ------- 转推：原文信息懒加载（作者与摘要） -------
+const originalTweet = ref<any | null>(null);
+const originalLoading = ref(false);
+const originalError = ref<string | null>(null);
+
+async function fetchOriginalTweet() {
+  if (
+    props.tweet?.isRetweet === 1 &&
+    props.tweet?.retweetOfTweetId
+  ) {
+    originalLoading.value = true;
+    originalError.value = null;
+    try {
+      const res: any = await apiFetch(
+        `/api/v1/tweets/${props.tweet.retweetOfTweetId}`
+      );
+      originalTweet.value = res?.data?.tweet || null;
+    } catch (e: any) {
+      originalError.value = e?.message || '加载原文失败';
+      originalTweet.value = null;
+    } finally {
+      originalLoading.value = false;
+    }
+  } else {
+    originalTweet.value = null;
+    originalLoading.value = false;
+    originalError.value = null;
+  }
+}
+
+watch(
+  () => [
+    props.tweet?.isRetweet,
+    props.tweet?.retweetOfTweetId
+  ],
+  () => fetchOriginalTweet(),
+  { immediate: true }
+);
+
+const originalAuthorHandle = computed(() => {
+  return originalTweet.value?.username
+    ? `@${originalTweet.value.username}`
+    : '';
+});
+
+const originalExcerpt = computed(() => {
+  const text: string = originalTweet.value?.content || '';
+  const compact = text.replace(/\n+/g, ' ').trim();
+  const max = 120;
+  return compact.length > max
+    ? compact.slice(0, max) + '…'
+    : compact;
+});
 </script>
 
 <template>
@@ -291,18 +346,107 @@ function toTweetDetail(tweetId: string) {
     </CardHeader>
 
     <CardContent class="px-4 pb-2">
-      <!-- 若为转发推文，展示原文链接 -->
-      <div v-if="tweet.isRetweet === 1" class="mb-2 -mt-1">
-        <NuxtLink
-          :to="
-            localePath(`/tweet/${tweet.retweetOfTweetId}`)
-          "
-          @click.stop
-          class="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
+      <!-- 若为转发推文，展示“转推自 @xxx”与原文摘要预览 -->
+      <div
+        v-if="tweet.isRetweet === 1"
+        class="mb-2 -mt-1 space-y-2"
+      >
+        <div class="flex items-center gap-2 text-xs">
+          <Repeat class="h-4 w-4 text-green-600" />
+          <template
+            v-if="originalTweet && !originalLoading"
+          >
+            <span class="text-muted-foreground"
+              >转推自</span
+            >
+            <NuxtLink
+              :to="
+                localePath(
+                  `/user/${originalTweet.authorId}/profile`
+                )
+              "
+              @click.stop
+              class="text-blue-600 hover:underline"
+            >
+              {{ originalAuthorHandle || '@未知用户' }}
+            </NuxtLink>
+            <span class="text-muted-foreground">·</span>
+            <NuxtLink
+              :to="
+                localePath(
+                  `/tweet/${originalTweet.tweetId}`
+                )
+              "
+              @click.stop
+              class="text-blue-600 hover:underline"
+              >查看原文</NuxtLink
+            >
+          </template>
+          <template v-else-if="originalLoading">
+            <span class="text-muted-foreground"
+              >正在加载原文…</span
+            >
+          </template>
+          <template v-else>
+            <NuxtLink
+              :to="
+                localePath(
+                  `/tweet/${tweet.retweetOfTweetId}`
+                )
+              "
+              @click.stop
+              class="text-blue-600 hover:underline"
+              >查看原文</NuxtLink
+            >
+          </template>
+        </div>
+
+        <!-- 原文摘要预览卡片（点击跳转原文），失败时给出降级显示 -->
+        <div
+          v-if="originalTweet && !originalLoading"
+          class="rounded-lg border p-3 bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+          @click.stop="toTweetDetail(originalTweet.tweetId)"
         >
-          <Repeat class="h-4 w-4" />
-          查看原文
-        </NuxtLink>
+          <div class="flex items-center gap-2 mb-1 text-sm">
+            <Avatar class="h-6 w-6">
+              <AvatarImage
+                :src="originalTweet.avatarUrl"
+                :alt="originalTweet.username"
+              />
+              <AvatarFallback>
+                {{
+                  (originalTweet.username || '')
+                    .substring(0, 2)
+                    .toUpperCase()
+                }}
+              </AvatarFallback>
+            </Avatar>
+            <span class="font-medium">
+              {{ originalTweet.displayName || '未知' }}
+            </span>
+            <span class="text-muted-foreground">
+              {{ originalAuthorHandle || '@未知用户' }}
+            </span>
+          </div>
+          <p class="text-sm text-foreground/90">
+            {{ originalExcerpt || '（无内容）' }}
+          </p>
+        </div>
+
+        <div
+          v-else-if="originalError && !originalLoading"
+          class="text-xs text-muted-foreground"
+        >
+          原文不可用或已删除，
+          <NuxtLink
+            :to="
+              localePath(`/tweet/${tweet.retweetOfTweetId}`)
+            "
+            @click.stop
+            class="text-blue-600 hover:underline"
+            >尝试打开原文</NuxtLink
+          >
+        </div>
       </div>
 
       <p class="whitespace-pre-wrap text-base">
