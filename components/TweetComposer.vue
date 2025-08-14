@@ -244,6 +244,9 @@ async function handleSubmit() {
                 <p>添加媒体</p>
               </TooltipContent>
             </Tooltip>
+
+            <!-- TODO: 添加回复和引用功能 -->
+            <!--
             <Tooltip>
               <TooltipTrigger as-child>
                 <Button
@@ -262,6 +265,7 @@ async function handleSubmit() {
                 <p>回复推文</p>
               </TooltipContent>
             </Tooltip>
+
             <Tooltip>
               <TooltipTrigger as-child>
                 <Button
@@ -279,7 +283,8 @@ async function handleSubmit() {
               >
                 <p>引用推文</p>
               </TooltipContent>
-            </Tooltip>
+            </Tooltip> 
+            -->
           </TooltipProvider>
         </div>
 
