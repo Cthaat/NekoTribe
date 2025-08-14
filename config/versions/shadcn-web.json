@@ -1,7 +1,7 @@
 {
   "serviceName": "shadcn-web",
-  "version": "1.7.0",
-  "tag": "shadcn-web/v1.7.0",
-  "releaseDate": "2025-08-14T16:00:49Z",
-  "buildNumber": "90"
+  "version": "1.7.1",
+  "tag": "shadcn-web/v1.7.1",
+  "releaseDate": "2025-08-14T16:03:39Z",
+  "buildNumber": "91"
 }
