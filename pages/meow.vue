@@ -229,23 +229,26 @@ async function handleTweetSubmit(
     并调整一些间距，让布局更和谐。
   -->
     <div class="space-y-6 p-4 sm:p-8">
-      <div
-        class="flex items-center justify-between padding-bottom-4 px-3"
-      >
-        <div>
-          <h2 class="text-2xl font-bold tracking-tight">
-            发布推文
-          </h2>
-          <p class="text-muted-foreground text-sm mt-1">
-            分享你的想法，与世界连接。
-          </p>
+      <!-- 让标题与输入框左侧对齐：使用与编辑器相同的容器 -->
+      <div class="mx-auto max-w-3xl">
+        <div
+          class="flex items-center justify-between padding-bottom-4"
+        >
+          <div>
+            <h2 class="text-2xl font-bold tracking-tight">
+              发布推文
+            </h2>
+            <p class="text-muted-foreground text-sm mt-1">
+              分享你的想法，与世界连接。
+            </p>
+          </div>
+          <!-- TODO: 这个按钮可以链接到草稿箱或执行其他操作 -->
+          <!-- <Button variant="secondary">查看草稿</Button> -->
         </div>
-        <!-- 这个按钮可以链接到草稿箱或执行其他操作 -->
-        <Button variant="secondary">查看草稿</Button>
-      </div>
 
-      <!-- 分割线 -->
-      <Separator class="my-6" />
+        <!-- 分割线（也放入相同容器中以保持对齐） -->
+        <Separator class="my-6" />
+      </div>
 
       <!-- 
       3. 【核心修改】在分割线下方，直接放置我们的推文编辑器组件。
