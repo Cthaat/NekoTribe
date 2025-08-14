@@ -531,8 +531,12 @@ const originalExcerpt = computed(() => {
         class="flex items-center gap-2 text-muted-foreground hover:text-red-500"
         @click.stop="handleLike"
       >
-        <Heart v-if="localLiked" class="h-5 w-5" />
-        <HeartPlus v-else class="h-5 w-5" />
+        <Heart
+          class="h-4 w-4"
+          :class="{
+            'fill-red-500 text-red-500': localLiked
+          }"
+        />
         <span>{{ likeCount }}</span>
       </Button>
     </CardFooter>
