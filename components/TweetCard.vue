@@ -291,6 +291,20 @@ function toTweetDetail(tweetId: string) {
     </CardHeader>
 
     <CardContent class="px-4 pb-2">
+      <!-- 若为转发推文，展示原文链接 -->
+      <div v-if="tweet.isRetweet === 1" class="mb-2 -mt-1">
+        <NuxtLink
+          :to="
+            localePath(`/tweet/${tweet.retweetOfTweetId}`)
+          "
+          @click.stop
+          class="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
+        >
+          <Repeat class="h-4 w-4" />
+          查看原文
+        </NuxtLink>
+      </div>
+
       <p class="whitespace-pre-wrap text-base">
         {{ tweet.content }}
       </p>
