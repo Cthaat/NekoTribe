@@ -89,7 +89,7 @@ const selectedMailData = computed(() =>
 const links: LinkProp[] = [
   {
     title: 'Inbox',
-    label: '128',
+    // label: '128',
     icon: 'lucide:inbox',
     variant: 'default'
   }
