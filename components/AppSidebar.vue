@@ -190,7 +190,8 @@ console.log('Localized nav data:', localizedNav.value);
     </SidebarHeader>
     <SidebarContent>
       <NavMain :items="localizedNav.navMain" />
-      <NavProjects :projects="localizedNav.projects" />
+      <!-- TODO： 后续可以开发新功能 -->
+      <!-- <NavProjects :projects="localizedNav.projects" /> -->
       <NavSecondary
         :items="localizedNav.navSecondary"
         class="mt-auto"
