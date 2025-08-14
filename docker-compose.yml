@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  NekoTribe:
+    image: ghcr.io/cthaat/nekotribe:shadcn-web
+    restart: always
+    ports:
+      - '30001:3000'
+    env_file:
+      - ./.env

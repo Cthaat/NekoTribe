@@ -20,6 +20,8 @@ function getRedisInstance() {
 
     const runtimeConfig = useRuntimeConfig();
 
+    console.log(runtimeConfig);
+
     // 3. 创建新的 Redis 实例。
     redisInstance = new Redis({
       host: runtimeConfig.redisHost,
