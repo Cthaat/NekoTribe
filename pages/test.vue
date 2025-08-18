@@ -6,8 +6,7 @@ definePageMeta({
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button'; // 确保你的 Button 组件路径正确
 import CommentSection from '@/components/CommentSection.vue';
-import Mail from '@/components/Mail.vue'
-import { accounts, mails } from '@/data/mails'
+import Mail from '@/components/Mail.vue';
 
 // 在真实应用中，这些数据应该来自 useApiFetch 或类似的 API 调用
 const mockComments = ref([
@@ -76,11 +75,4 @@ const postId = ref('my-awesome-post-123');
     :comments="mockComments"
     :post-id="postId"
   />
-  <div class="hidden flex-col md:flex">
-    <Mail
-      :accounts="accounts"
-      :mails="mails"
-      :nav-collapsed-size="4"
-    />
-  </div>
 </template>
