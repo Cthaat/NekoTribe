@@ -9,13 +9,10 @@ services:
       - '30001:3000'
     env_file:
       - ./.env.docker
-    # [新增] 将app服务连接到我们定义的neko-network网络
     networks:
       - neko-network
-    # [新增] 确保'host.docker.internal'能被正确解析为主机IP
     extra_hosts:
       - 'host.docker.internal:host-gateway'
-    # [保持] 声明此服务依赖于redis服务，控制启动顺序
     depends_on:
       - redis
 
@@ -26,7 +23,6 @@ services:
     env_file:
       - ./.env.docker
     command: redis-server --requirepass '123456..a'
-    # [新增] 同样将redis服务连接到neko-network网络
     networks:
       - neko-network
 
@@ -36,18 +32,17 @@ services:
     container_name: nekotribe-nginx-dev
     restart: unless-stopped
     ports:
-      - '30002:80' # 如端口被占用，可改为 "30002:80"
+      - '30002:80'
     volumes:
-      # 挂载自定义站点配置
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # 挂载上传目录，只读直出
       - ./upload:/usr/share/nginx/upload:ro
-    # 让容器内可访问宿主机 127.0.0.1，通过 host.docker.internal 反代 Nuxt dev
     extra_hosts:
       - 'host.docker.internal:host-gateway'
+    networks:
+      - neko-network
+    depends_on:
+      - app
 
-# [新增] 在顶层定义一个我们自己的网络
-# 这让所有连接到此网络的服务都可以通过服务名互相通信
 networks:
   neko-network:
     driver: bridge
