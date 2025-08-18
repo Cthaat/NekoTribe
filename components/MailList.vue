@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import type { Mail } from '../data/mails';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +12,7 @@ import {
 } from 'vue';
 
 interface MailListProps {
-  items: Mail[];
+  items: any[];
   // 可选：当靠近底部时调用的加载更多函数
   loadMore?: () => void;
 }
@@ -26,7 +25,7 @@ const selectedMail = defineModel<string>('selectedMail', {
 });
 
 // 本地副本：避免直接修改 props.items
-const localItems = ref<Mail[]>([]);
+const localItems = ref<any[]>([]);
 watch(
   () => props.items,
   items => {

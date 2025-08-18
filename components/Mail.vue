@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { Mail } from '@/data/mails';
-
 import { refDebounced } from '@vueuse/core';
 import { Search } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
@@ -33,7 +31,7 @@ interface MailProps {
     email: string;
     icon: string;
   }[];
-  mails: Mail[];
+  mails: any[];
   defaultLayout?: number[];
   defaultCollapsed?: boolean;
   navCollapsedSize: number;
@@ -58,7 +56,7 @@ const searchValue = ref('');
 const debouncedSearch = refDebounced(searchValue, 250);
 
 const filteredMailList = computed(() => {
-  let output: Mail[] = [];
+  let output: any[] = [];
   const searchValue = debouncedSearch.value?.trim();
   if (!searchValue) {
     output = props.mails;

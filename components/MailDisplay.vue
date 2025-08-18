@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import type { Mail } from '../data/mails';
 import {
   addDays,
   addHours,
