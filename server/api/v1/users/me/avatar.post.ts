@@ -16,13 +16,13 @@ export default defineEventHandler(async event => {
   // 创建 formidable 实例，配置上传参数
   const form = formidable({
     multiples: false, // 只允许单文件上传
-    uploadDir: `./public/avatars/${user.userId}`, // 上传目录
+    uploadDir: `./upload/avatars/${user.userId}`, // 上传目录
     keepExtensions: true // 保留原始扩展名
   });
 
   // 确保上传目录存在
   await fs.promises.mkdir(
-    `./public/avatars/${user.userId}`,
+    `./upload/avatars/${user.userId}`,
     {
       recursive: true
     }
@@ -115,7 +115,7 @@ export default defineEventHandler(async event => {
       const uniqueName = `${user.userId}_${Date.now()}_${Math.floor(Math.random() * 10000)}${ext}`;
       // 新文件完整路径
       const newFilePath = path.join(
-        `./public/avatars/${user.userId}`,
+        `./upload/avatars/${user.userId}`,
         uniqueName
       );
 
@@ -140,8 +140,8 @@ export default defineEventHandler(async event => {
         );
       }
 
-      // 构建头像访问路径
-      const avatarPath = `/avatars/${user.userId}/${uniqueName}`;
+      // 构建头像访问 URL（由 nitro.publicAssets 暴露的静态路径），与磁盘路径分离
+      const avatarUrl = `/upload/avatars/${user.userId}/${uniqueName}`;
 
       try {
         const updateSql = `
@@ -152,14 +152,17 @@ export default defineEventHandler(async event => {
         const updateResult = await connection.execute(
           updateSql,
           {
-            avatarUrl: avatarPath,
+            avatarUrl: avatarUrl,
             userId: user.userId
           },
           { autoCommit: true }
         );
-        if (updateResult.row?.length === 0) {
-          // 更新失败，删除新文件
-          await fs.promises.unlink(avatarPath);
+        if (
+          !updateResult.rowsAffected ||
+          updateResult.rowsAffected === 0
+        ) {
+          // 更新失败，删除新文件（使用文件系统路径）
+          await fs.promises.unlink(newFilePath);
           return reject(
             createError({
               statusCode: 400,
@@ -179,7 +182,7 @@ export default defineEventHandler(async event => {
           success: true,
           message: '头像上传成功',
           data: {
-            url: avatarPath
+            url: avatarUrl
           },
           timestamp: new Date().toISOString()
         } as SuccessUploadAvatarResponse);

@@ -13,6 +13,8 @@ import {
   DialogDescription
 } from '@/components/ui/dialog';
 
+const localePath = useLocalePath();
+
 // 2. 导入我们功能强大的推文编辑器组件
 import TweetComposer from '@/components/TweetComposer.vue';
 
@@ -208,6 +210,9 @@ async function handleTweetSubmit(
     );
 
     toast.success('推文发布成功！');
+
+    // 跳转到推文页
+    await navigateTo(localePath('/'));
 
     // 可以在这里执行成功后的操作，比如清空编辑器或跳转页面
     // (清空编辑器的逻辑最好还是放在 TweetComposer 内部，父组件可以调用一个子组件的方法来实现)

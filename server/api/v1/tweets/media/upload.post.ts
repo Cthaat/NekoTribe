@@ -147,7 +147,7 @@ export default defineEventHandler(async event => {
         // 确保上传目录存在
         const uploadDir = path.join(
           process.cwd(),
-          'public',
+          'upload',
           'media',
           tweetId.toString()
         );
@@ -286,7 +286,7 @@ export default defineEventHandler(async event => {
               originalName: file.originalFilename,
               uniqueName: uniqueName,
               fullPath: newFilePath,
-              relativePath: `/media/${tweetId}/${uniqueName}`,
+              relativePath: `/upload/media/${tweetId}/${uniqueName}`,
               size: file.size,
               mimeType: file.mimetype,
               mediaType: check.fileType, // 从工具函数获取媒体类型
@@ -408,7 +408,7 @@ export default defineEventHandler(async event => {
               if (uploadedFile.thumbnailPath) {
                 const thumbnailFullPath = path.join(
                   process.cwd(),
-                  'public',
+                  'upload',
                   uploadedFile.thumbnailPath
                 );
                 await fs.promises.unlink(thumbnailFullPath);
@@ -442,7 +442,7 @@ export default defineEventHandler(async event => {
             if (uploadedFile.thumbnailPath) {
               const thumbnailFullPath = path.join(
                 process.cwd(),
-                'public',
+                'upload',
                 uploadedFile.thumbnailPath
               );
               await fs.promises.unlink(thumbnailFullPath);
