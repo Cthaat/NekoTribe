@@ -43,6 +43,26 @@ services:
     depends_on:
       - app
 
+  oracle19c:
+    image: container-registry.oracle.com/database/enterprise:19.3.0.0
+    container_name: oracle19c
+    ports:
+      - '5501:1521' # Oracle SQL*Net 端口（供 DataGrip 使用）
+      - '5500:5500' # Oracle EM Express 控制台
+    environment:
+      - ORACLE_PWD=123456..a
+    volumes:
+      - ./oracle-data:/opt/oracle/oradata # 数据持久化目录（相对路径）
+      - ./oracle-init:/opt/oracle/scripts/setup:ro # 初始化脚本目录
+    healthcheck: # 可选，用于自动检测数据库是否健康
+      test: ['CMD', 'lsnrctl', 'status']
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - neko-network
+
 networks:
   neko-network:
     driver: bridge
