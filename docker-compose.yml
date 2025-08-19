@@ -52,8 +52,8 @@ services:
     environment:
       - ORACLE_PWD=123456..a
     volumes:
-      - ./oracle-data:/opt/oracle/oradata # 数据持久化目录（相对路径）
-      - ./oracle-init:/opt/oracle/scripts/setup:ro # 初始化脚本目录
+      - ./data/oracle-data:/opt/oracle/oradata # 数据持久化目录（相对路径）
+      - ./data/oracle-init:/opt/oracle/scripts/setup:ro # 初始化脚本目录
     healthcheck: # 可选，用于自动检测数据库是否健康
       test: ['CMD', 'lsnrctl', 'status']
       interval: 30s
