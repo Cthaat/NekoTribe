@@ -63,10 +63,10 @@
   - [x] 邮箱修改
   - [x] 用户名修改
   - [x] 年龄设置
-  - [x] 用户ID显示
-- [x] **账户删除** - 密码确认后删除账户
-- [ ] 关注系统（待实现）
-- [ ] 粉丝系统（待实现）
+  - [ ] 用户ID显示
+- [ ] **账户删除** - 密码确认后删除账户
+- [x] 关注系统
+- [x] 粉丝系统
 
 ### 📝 推文管理系统
 
@@ -77,9 +77,9 @@
 - [x] **我的文章** - 查看个人发布的推文
 - [ ] 推文修改（待实现）
 - [x] **推文点赞** - 点赞/取消点赞功能
-- [x] **我的点赞** - 查看已点赞的推文
-- [ ] 推文评论（UI已实现，后端待开发）
-- [ ] 推文转发（待实现）
+- [ ] **我的点赞** - 查看已点赞的推文
+- [x] **推文评论** - 支持评论功能
+- [x] **推文转发** - 支持转发功能
 
 ### 🎨 推文组成
 
@@ -87,13 +87,13 @@
 - [x] **多媒体支持**
   - [x] 封面图片上传
   - [x] 头像图片上传
-  - [ ] 视频支持（待实现）
+  - [x] 视频支持
   - [ ] 音频支持（待实现）
-- [x] **评论区界面** - UI 组件已完成
+- [x] **评论区界面**
 - [x] **互动数据**
   - [x] 点赞功能
-  - [x] 星级评分（前端组件）
-  - [ ] 转发功能（待实现）
+  - [ ] 星级评分（前端组件）
+  - [x] 转发功能
 
 ### 🌟 界面与体验
 
@@ -124,41 +124,98 @@ npm install
 创建 `.env` 文件：
 
 ```env
-# JWT密钥
-JWT_SECRET=your-super-secret-jwt-key
+# JWT_SECRET: 用于生成和验证 JSON Web Token 的密钥
+ACCESS_SECRET=NekoTribe
+# ACCESS_EXPIRES_IN: 访问令牌的过期时间，默认 15 分钟
+ACCESS_EXPIRES_IN=900
 
-# Oracle数据库连接（生产环境）
-ORACLE_HOST=localhost
-ORACLE_PORT=1521
-ORACLE_SID=ORCL
-ORACLE_USERNAME=twitter_app
-ORACLE_PASSWORD=TwitterApp2025#
+REFRESH_SECRET=NekoTribeRefresh
+# REFRESH_EXPIRES_IN: 刷新令牌的过期时间，默认 30 天
+REFRESH_EXPIRES_IN=2592000
 
-# SQLite数据库（开发环境）
-DATABASE_URL=file:./data/db.sqlite3
+# NODE_ENV: 当前运行环境，通常为 development、production 或 test
+NODE_ENV=test
+
+# DATABASE_URL: 数据库连接字符串，指定数据库类型和路径
+DATABASE_URL=sqlite:./.data/db.sqlite3
+
+# ========================== Oracle 数据库连接配置 =========================================
+
+# Oracle test 数据库连接配置
+ORACLE_HOST=          # Oracle 服务器地址
+ORACLE_PORT=              # Oracle 端口，默认 1521
+ORACLE_SID=           # Oracle 实例名
+ORACLE_SERVICE_NAME=   # 或者使用服务名
+ORACLE_USER=       # 数据库用户名
+ORACLE_PASSWORD='' # 数据库密码
+
+# ========================== Oracle 数据库连接配置 ==========================================
+
+# 连接池配置
+ORACLE_POOL_MIN=3             # 最小连接数
+ORACLE_POOL_MAX=15            # 最大连接数
+ORACLE_POOL_INCREMENT=2       # 连接增量
+
+#oceanbase
+OCEANBASE_HOST=         # OceanBase 服务器地址
+OCEANBASE_PORT=                 # OceanBase 端口，默认 2881
+OCEANBASE_USER=neko_app@test         # OceanBase 用户名
+OCEANBASE_PASSWORD='NekoApp2025#'   # OceanBase 密码
+OCEANBASE_DATABASE=neko_tribe          # OceanBase 数据库名
+
+# ========================== Redis 连接信息 ==========================================
+
+# Redis test 连接信息
+REDIS_URL=redis://localhost:6379
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+REDIS_PASSWORD=
+
+# ========================== Redis 连接信息 ==========================================
+
+# WebSocket 服务器配置
+NUXT_PUBLIC_WS_URL=http://localhost:3001
+
+# ========================== 邮件发送 ==========================================
+
+SMTP_HOST=smtp.163.com
+SMTP_PORT=465
+SMTP_USER=
+SMTP_PASS=
+
+# ========================== 邮件发送 ==========================================
+
+# ========================== 后端服务器 ==========================================
+
+NUXT_PUBLIC_API_BASE=""
+
+# ========================== 后端服务器 ==========================================
 ```
 
 ### 运行开发服务器
 
 ```bash
-npm run dev
+yarn run dev
 ```
 
 ### 构建生产版本
 
 ```bash
-npm run build
-npm run start
+yarn run build
+yarn run start
 ```
 
 ### 数据库初始化
 
 #### SQLite 数据库（开发环境）
 
+````bash
+yarn run migrate
 ```bash
 # 数据库文件会自动创建在 .data/ 目录下
-npm run dev
-```
+yarn run dev
+````
 
 ## 🎯 API 接口文档
 
@@ -168,13 +225,12 @@ npm run dev
 
 ## 👨‍💻 开发团队
 
-**社交媒体** 🥵🥵🥵  
 **作者：Cthaat**
 
 ### 🛠️ 技术亮点
 
 - **企业级数据库设计** - 完整的Oracle数据库架构，支持大规模用户和高并发
-- **现代化前端技术栈** - Vue3 + Nuxt3 + Vuetify3 + TypeScript
+- **现代化前端技术栈** - Vue3 + Nuxt3 + Shadcn-vue + TypeScript
 - **RESTful API设计** - 标准化的API接口，支持前后端分离
 - **响应式设计** - 完美适配桌面端和移动端
 - **国际化支持** - 中英文双语界面
@@ -183,9 +239,9 @@ npm run dev
 ### 📈 项目数据
 
 - **代码行数**：10,000+ 行
-- **数据库表**：9个核心表 + 6个视图 + 2个物化视图
-- **API接口**：20+ 个RESTful接口
-- **前端组件**：15+ 个可复用组件
+- **数据库表**：12个核心表 + 6个视图 + 2个物化视图
+- **API接口**：30+ 个RESTful接口
+- **前端组件**：25+ 个可复用组件
 - **功能模块**：用户管理、推文发布、社交互动、媒体上传等
 
 ### 🏆 设计理念
@@ -198,5 +254,5 @@ npm run dev
 
 ---
 
-_最后更新：2025年6月25日_  
-_项目版本：v2.0.0-oracle_
+_最后更新：2025年8月30日_  
+_项目版本：v1.0.0-oracle_
