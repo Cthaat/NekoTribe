@@ -1,0 +1,22 @@
+# Git 和编辑器配置
+.git
+.github
+.vscode
+
+# Nuxt 3 的构建输出和缓存
+# 我们希望在构建阶段重新生成它们，而不是复制本地的
+.output
+.nuxt
+dist
+
+# 依赖文件夹 (这些会在Docker构建过程中重新安装)
+node_modules
+
+# 本地环境变量文件 (这些应该在运行时注入，而不是打包到镜像里)
+.env
+.env.*
+!.env.example
+
+# 系统和日志文件
+.DS_Store
+npm-debug.log*

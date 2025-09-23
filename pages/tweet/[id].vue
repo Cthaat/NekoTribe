@@ -1,0 +1,353 @@
+<script lang="ts" setup>
+import TweetCard from '@/components/TweetCard.vue';
+import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
+import CommentSection from '@/components/CommentSection.vue';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious
+} from '@/components/ui/pagination';
+import { apiFetch } from '@/composables/useApi';
+import { useRoute } from 'vue-router';
+import { toast } from 'vue-sonner';
+import { usePreferenceStore } from '~/stores/user'; // 导入 store
+
+const route = useRoute();
+const localePath = useLocalePath();
+const preferenceStore = usePreferenceStore();
+
+// 获取路径参数
+const {
+  data: tweetData,
+  pending: tweetPending,
+  error: tweetError
+} = useApiFetch(`/api/v1/tweets/${route.params.id}`);
+
+const tweet = computed(() => {
+  // data.value 是 API 返回的完整响应
+  // 根据您给的 JSON，推文在 data.value.data.tweet
+  const response = tweetData.value as {
+    data?: { tweet?: any };
+  };
+  return response && response.data && response.data.tweet
+    ? response.data.tweet
+    : null;
+});
+
+const {
+  data: commentData,
+  pending: commentPending,
+  error: commentError
+} = useApiFetch(
+  `/api/v1/tweets/${route.params.id}/comments`,
+  {
+    query: {
+      page: 1,
+      pageSize: 100, // 可根据需要调整
+      sort: 'oldest'
+    }
+  }
+);
+
+const comments = computed(() => {
+  // data.value 是 API 返回的完整响应
+  // 根据您给的 JSON，评论在 data.value.data.comments
+  const response = commentData.value as {
+    data: { comments?: any[] };
+  };
+  return response && response.data.comments
+    ? response.data.comments
+    : [];
+});
+
+watch(
+  comments,
+  newComments => {
+    console.log('评论数据已更新:', newComments);
+  },
+  { immediate: true }
+);
+
+// --- 转发相关的状态 ---
+
+const isRetweetModalOpen = ref(false);
+const selectedTweetForRetweet = ref(null);
+const isSubmittingRetweet = ref(false);
+
+// --- 处理事件 ---
+
+async function handleDeleteTweet(tweetId: any) {
+  console.log('Deleting tweet:', tweetId);
+  // 在这里调用你的API来删除推文
+  const response: any = await apiFetch(
+    `/api/v1/tweets/${tweetId}`,
+    {
+      method: 'DELETE'
+    }
+  );
+  if (!response.success) {
+    toast.error('删除推文失败，请稍后再试。', {
+      description: response.error || '未知错误'
+    });
+    return;
+  }
+  toast.success('推文已成功删除。');
+  const rootPath = localePath(
+    `/tweet/home/${preferenceStore.preferences.user.userId}`
+  );
+  navigateTo(rootPath);
+}
+
+function handleReplyTweet(tweet: any) {
+  console.log('Reply to tweet:', tweet.tweetId);
+}
+
+function handleRetweetTweet(tweet: any) {
+  console.log('Retweet:', tweet.tweetId);
+  selectedTweetForRetweet.value = tweet;
+  isRetweetModalOpen.value = true;
+}
+
+// 这个函数由 RetweetModal 的 @submit-retweet 事件触发
+async function handleSubmitRetweet({
+  content,
+  originalTweetId
+}: {
+  content: any;
+  originalTweetId: any;
+}) {
+  isSubmittingRetweet.value = true;
+  try {
+    const response: any = await apiFetch(
+      '/api/v1/tweets/send-tweets',
+      {
+        method: 'POST',
+        body: {
+          content: content, // 用户的评论
+          replyToTweetId: '', // 告知后端这是对哪条推文的转发
+          retweetOfTweetId: originalTweetId, // 告知后端这是对哪条推文的转发
+          quoteTweetId: '', // 如果是引用转发，这里可以传入原推文ID
+          visibility: 'public', // 可选：设置可见性
+          hashtags: '', // 可选：设置标签
+          mentions: '', // 可选：设置提及用户
+          scheduledAt: '', // 可选：设置定时发送时间
+          location: '' // 可选：设置位置
+        }
+      }
+    );
+
+    console.log(
+      'Submitting retweet with content:',
+      content,
+      'Original tweet ID:',
+      originalTweetId
+    );
+
+    toast.success('转发成功！');
+
+    if (!response.success) {
+      throw new Error(response.message || '转发失败');
+    }
+
+    toast.success('转发成功！');
+    isRetweetModalOpen.value = false; // 关闭模态框
+    // 可选：刷新数据或乐观更新UI
+  } catch (err: any) {
+    console.error('Failed to retweet:', err);
+    toast.error(err.message || '转发失败，请稍后重试。');
+  } finally {
+    isSubmittingRetweet.value = false;
+    isRetweetModalOpen.value = false; // 确保模态框关闭
+  }
+}
+
+async function handleLikeTweet(
+  tweet: any,
+  action: 'like' | 'unlike'
+) {
+  console.log('Liking tweet:', tweet, action);
+  // 在这里处理点赞逻辑
+  const response: any = await apiFetch(
+    '/api/v1/interactions/like',
+    {
+      method: 'POST',
+      body: {
+        tweetId: tweet.tweetId,
+        likeType: action
+      }
+    }
+  );
+  if (!response.success) {
+    console.error(
+      'Failed to like/unlike tweet:',
+      response.error
+    );
+    return;
+  }
+}
+
+async function handleBookmarkTweet(
+  tweet: any,
+  action: 'mark' | 'unmark'
+) {
+  console.log('Bookmarking tweet:', tweet, action);
+  const response: any = await apiFetch(
+    '/api/v1/interactions/bookmark',
+    {
+      method: 'POST',
+      body: {
+        tweetId: tweet.tweetId,
+        bookmarkType: action
+      }
+    }
+  );
+  if (!response.success) {
+    console.error(
+      'Failed to bookmark/unbookmark tweet:',
+      response.error
+    );
+    return;
+  }
+}
+
+async function handleLikeTweetComment(
+  commentId: any,
+  action: any
+) {
+  console.log(
+    'Liking comment:',
+    commentId,
+    'Action:',
+    action
+  );
+  try {
+    const response = await apiFetch(
+      `/api/v1/interactions/like`,
+      {
+        method: 'POST',
+        body: {
+          tweetId: commentId,
+          likeType: action
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to send tweet comment:', err);
+    toast.error('点赞评论失败，请稍后重试。');
+  }
+}
+
+async function handleTweetComment(content: any) {
+  console.log('Sending tweet comment:', content);
+  try {
+    const response = await apiFetch(
+      `/api/v1/interactions/comment`,
+      {
+        method: 'POST',
+        body: {
+          tweetId: tweet.value.tweetId,
+          content,
+          parentCommentId: ''
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to send tweet comment:', err);
+    toast.error('发送评论失败，请稍后重试。');
+  }
+}
+
+async function handleReplyTweetComment(
+  parentCommentId: any,
+  content: any
+) {
+  console.log(
+    'Replying to comment:',
+    parentCommentId,
+    'Content:',
+    content
+  );
+  try {
+    const response = await apiFetch(
+      `/api/v1/interactions/comment`,
+      {
+        method: 'POST',
+        body: {
+          tweetId: tweet.value.tweetId,
+          content,
+          parentCommentId: parentCommentId
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to send tweet comment:', err);
+    toast.error('发送评论失败，请稍后重试。');
+  }
+}
+
+// --- pending属性计算 ---
+const pending = computed(
+  () => tweetPending.value || commentPending.value
+);
+</script>
+
+<template>
+  <div class="bg-background pt-4">
+    <!-- 5. 根据 pending 状态来条件渲染 -->
+    <div v-if="pending">
+      <TweetCardSkeleton />
+    </div>
+
+    <!-- 6. 添加一个错误状态的显示 -->
+    <div
+      v-else-if="tweetError || commentError"
+      class="p-8 text-center text-destructive"
+    >
+      <p>加载推文失败。</p>
+      <p class="text-sm mt-2">
+        {{
+          tweetError?.message ||
+          '' + commentError?.message ||
+          ''
+        }}
+      </p>
+    </div>
+
+    <!-- 7. 当数据加载成功后，显示 TweetCard -->
+    <div v-else-if="tweet">
+      <TweetCard
+        :tweet="tweet"
+        @delete-tweet="handleDeleteTweet"
+        @reply-tweet="handleReplyTweet"
+        @retweet-tweet="handleRetweetTweet"
+        @like-tweet="handleLikeTweet"
+        @bookmark-tweet="handleBookmarkTweet"
+      />
+      <RetweetModal
+        v-if="selectedTweetForRetweet"
+        v-model:open="isRetweetModalOpen"
+        :tweet="selectedTweetForRetweet"
+        :is-submitting="isSubmittingRetweet"
+        @submit-retweet="handleSubmitRetweet"
+      />
+      <CommentSection
+        :comments="comments"
+        :post-id="tweet.tweetId"
+        @like-comment="handleLikeTweetComment"
+        @submit-reply="handleReplyTweetComment"
+        @send-reply="handleTweetComment"
+      />
+    </div>
+
+    <!-- 8. (可选) 添加一个推文不存在的最终状态 -->
+    <div
+      v-else
+      class="p-8 text-center text-muted-foreground"
+    >
+      <p>此推文不存在或已被删除。</p>
+    </div>
+  </div>
+</template>

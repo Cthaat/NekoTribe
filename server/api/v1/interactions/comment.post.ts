@@ -1,0 +1,77 @@
+import oracledb from 'oracledb';
+
+export default defineEventHandler(async event => {
+  // 获取body
+  const body: CommentPayload = await readBody(event);
+  // 获取当前登录用户信息
+  const user: Auth = event.context.auth as Auth;
+
+  const getOracleConnection =
+    event.context.getOracleConnection;
+  const connection = await getOracleConnection();
+
+  try {
+    const actionSql = `
+    BEGIN
+        sp_create_comment(
+            p_tweet_id => :target_tweet_id,
+            p_user_id => :user_id,
+            p_content => :content,
+            p_parent_id => :parent_comment_id,
+            p_result => :p_result
+        );
+    END;
+    `;
+
+    const result = await connection.execute(
+      actionSql,
+      {
+        target_tweet_id: body.tweetId,
+        user_id: user.userId,
+        content: body.content,
+        parent_comment_id: body.parentCommentId,
+        p_result: {
+          dir: oracledb.BIND_OUT,
+          type: oracledb.STRING,
+          maxSize: 200
+        }
+      },
+      { autoCommit: true }
+    );
+
+    const msg = result.outBinds.p_result as string;
+
+    if (msg.startsWith('SUCCESS')) {
+      return {
+        success: true,
+        message: result.outBinds.p_result,
+        code: 200,
+        timestamp: new Date().toISOString()
+      } as FollowActionResponse;
+    } else {
+      throw createError({
+        statusCode: 400,
+        message: msg,
+        data: {
+          success: false,
+          message: msg,
+          code: 400,
+          timestamp: new Date().toISOString()
+        } as ErrorResponse
+      });
+    }
+  } catch (err: any) {
+    throw createError({
+      statusCode: err.statusCode || 500,
+      message: err.message || '评论操作失败',
+      data: {
+        success: false,
+        message: err.message,
+        code: err.statusCode || 500,
+        timestamp: new Date().toISOString()
+      } as ErrorResponse
+    });
+  } finally {
+    await connection.close();
+  }
+});

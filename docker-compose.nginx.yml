@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: nekotribe-nginx-dev
+    restart: unless-stopped
+    ports:
+      - '30002:80' # 如端口被占用，可改为 "30002:80"
+    volumes:
+      # 挂载自定义站点配置
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # 挂载上传目录，只读直出
+      - ./upload:/usr/share/nginx/upload:ro
+    # 让容器内可访问宿主机 127.0.0.1，通过 host.docker.internal 反代 Nuxt dev
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
