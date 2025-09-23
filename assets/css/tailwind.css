@@ -1,8 +1,20 @@
+/*
+  全局 Tailwind 入口样式
+  - 引入 tailwindcss 与动画插件
+  - 定义 CSS 变量主题（与 @nuxt/ui/shadcn 配合）
+  - 提供 base 层的全局边框/文本色
+  - 通过 data- 属性与 .compact 类实现外观偏好的全局切换
+*/
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* 自定义暗色变体：在 .dark 作用域下触发（由 <html> 的 .dark 控制） */
 @custom-variant dark (&:is(.dark *));
 
+/*
+  将 CSS 变量映射到 Tailwind 主题 token，方便在类中使用
+  例如 bg-background -> 使用 --background 变量
+*/
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -42,40 +54,49 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
+
   @keyframes accordion-down {
-  from {
-    height: 0;
+    from {
+      height: 0;
     }
-  to {
-    height: var(--reka-accordion-content-height);
+
+    to {
+      height: var(--reka-accordion-content-height);
     }
   }
+
   @keyframes accordion-up {
-  from {
-    height: var(--reka-accordion-content-height);
+    from {
+      height: var(--reka-accordion-content-height);
     }
-  to {
-    height: 0;
+
+    to {
+      height: 0;
     }
   }
+
   @keyframes accordion-down {
-  from {
-    height: 0;
+    from {
+      height: 0;
     }
-  to {
-    height: var(--reka-accordion-content-height);
+
+    to {
+      height: var(--reka-accordion-content-height);
     }
   }
+
   @keyframes accordion-up {
-  from {
-    height: var(--reka-accordion-content-height);
+    from {
+      height: var(--reka-accordion-content-height);
     }
-  to {
-    height: 0;
+
+    to {
+      height: 0;
     }
   }
 }
 
+/* 亮色主题默认值（通过 .dark 切换到暗色） */
 :root {
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.141 0.005 285.823);
@@ -112,6 +133,7 @@
   --foreground: oklch(0.141 0.005 285.823);
 }
 
+/* 暗色主题变量覆盖 */
 .dark {
   --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.985 0 0);
@@ -147,11 +169,87 @@
   --sidebar-ring: oklch(0.442 0.017 285.786);
 }
 
+/* 基础层：统一边框/轮廓与 body 的背景/前景色 */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/*
+  基于 <html data-font-size> 的全局字号映射：
+  - 由插件写入 data-font-size=small|normal|large
+  - 此处映射到实际根字号，实现全站字号切换
+*/
+@layer base {
+  html[data-font-size='small'] {
+    font-size: 14px;
+  }
+
+  html[data-font-size='normal'] {
+    font-size: 16px;
+  }
+
+  html[data-font-size='large'] {
+    font-size: 18px;
+  }
+}
+
+/*
+  紧凑模式工具：在 <html>.compact 作用域下收紧常见间距
+  - 不要求组件内改类名，直接通过父选择器覆盖
+*/
+@layer utilities {
+
+  /* Card layout tightening */
+  .compact [data-slot='card'] {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    gap: 1rem;
+    border-radius: 0.75rem;
+  }
+
+  /* Common gap/padding utilities under compact */
+  .compact .gap-6 {
+    gap: 1rem;
+  }
+
+  .compact .p-6 {
+    padding: 1rem;
+  }
+
+  .compact .px-6 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .compact .py-6 {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  /* space-y-6 equivalent under compact */
+  .compact .space-y-6> :not([hidden])~ :not([hidden]) {
+    --tw-space-y-reverse: 0;
+    margin-top: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+    margin-bottom: calc(0.75rem * var(--tw-space-y-reverse));
+  }
+
+  /* Slightly smaller controls/typography hints */
+  .compact .h-10 {
+    height: 2.25rem;
+  }
+
+  .compact .min-h-10 {
+    min-height: 2.25rem;
+  }
+
+  .compact .text-base {
+    font-size: 0.95rem;
+    line-height: 1.35;
   }
 }

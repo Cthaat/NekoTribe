@@ -8,6 +8,13 @@ const API_PREFIX = '/api/';
 // 定义 Auth 接口
 const API_LOGIN = '/api/v1/auth/';
 
+/**
+ * API 鉴权中间件
+ * - 仅拦截 /api/** 路由，且放行 /api/v1/auth/** 登录注册等接口
+ * - 优先从 Cookie 读取 access_token，若无再尝试 Authorization: Bearer
+ * - 校验通过后将 payload 写入 event.context.auth
+ * - 连接 Oracle，更新会话最后访问时间（心跳）
+ */
 export default defineEventHandler(async event => {
   const url = getRequestURL(event).pathname;
 
@@ -23,7 +30,21 @@ export default defineEventHandler(async event => {
     event.context.getOracleConnection;
   const connection = await getOracleConnection();
 
-  const token = getCookie(event, 'access_token');
+  // 优先从 Cookie 读取，其次回退到 Authorization 头（Bearer）
+  let token = getCookie(event, 'access_token');
+  if (!token) {
+    const authHeader =
+      getHeader(event, 'authorization') ||
+      getHeader(event, 'Authorization');
+    if (
+      authHeader &&
+      /^Bearer\s+/.test(String(authHeader))
+    ) {
+      token = String(authHeader)
+        .replace(/^Bearer\s+/i, '')
+        .trim();
+    }
+  }
   if (!token) {
     throw createError({
       statusCode: 401,

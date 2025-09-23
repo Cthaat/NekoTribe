@@ -1,4 +1,14 @@
 {
+  "common": {
+    "refresh": "Refresh",
+    "empty": "No data",
+    "prev": "Previous",
+    "next": "Next",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "networkError": "Network error",
+    "pagination": "Page {page} / {totalPages} · Total {total}"
+  },
   "middleware": {
     "login": {
       "redirecting": "User is not logged in, redirecting to login page"
@@ -184,6 +194,95 @@
       "security": "Security",
       "active": "Active",
       "statements": "Statements"
+    },
+    "appearance": {
+      "title": "Appearance",
+      "description": "Customize theme, color mode and layout preferences.",
+      "contentPlaceholder": "Appearance settings coming soon.",
+      "theme": "Theme",
+      "themeLight": "Light",
+      "themeDark": "Dark",
+      "themeSystem": "System",
+      "language": "Language",
+      "fontSize": "Font size",
+      "fontSmall": "Small",
+      "fontNormal": "Normal",
+      "fontLarge": "Large",
+      "compactMode": "Compact mode",
+      "compactOn": "On",
+      "compactOff": "Off"
+    },
+    "settings": {
+      "title": "Account Settings",
+      "description": "Manage your security, email and account preferences here.",
+      "privacy": "Privacy",
+      "visibility": "Profile visibility",
+      "visibilityDesc": "Control who can view your profile.",
+      "visibilityPublic": "Public",
+      "visibilityPrivate": "Private",
+      "showOnline": "Show online status",
+      "showOnlineDesc": "Allow others to see when you are online.",
+      "allowDM": "Allow DMs from strangers",
+      "allowDMDesc": "Let anyone send you direct messages.",
+      "notifications": "Notifications",
+      "push": "Push notifications",
+      "pushDesc": "Receive push notifications on this device.",
+      "email": "Email notifications",
+      "emailDesc": "Receive important messages by email.",
+      "securityOther": "Security",
+      "2fa": "Two-factor authentication",
+      "2faDesc": "Add an extra layer of security to your account.",
+      "loginAlerts": "Login alerts",
+      "loginAlertsDesc": "Get notified when a new device logs in.",
+      "save": "Save settings"
+    },
+    "active": {
+      "title": "Active Sessions",
+      "description": "Manage devices and sessions currently signed in.",
+      "revoke": "Revoke",
+      "revokeOthers": "Sign out other devices",
+      "thisDevice": "This device",
+      "otherDevice": "Other device",
+      "contentPlaceholder": "Active sessions list coming soon."
+    },
+    "statements": {
+      "title": "Account Status",
+      "description": "Review account state, strikes and compliance notices.",
+      "contentPlaceholder": "Account statements will appear here.",
+      "filters": {
+        "type": "Type",
+        "status": "Status"
+      },
+      "types": {
+        "all": "All",
+        "info": "Info",
+        "warning": "Warning",
+        "strike": "Strike",
+        "suspension": "Suspension"
+      },
+      "status": {
+        "all": "All",
+        "unread": "Unread",
+        "read": "Read",
+        "appealed": "Appealed",
+        "resolved": "Resolved",
+        "dismissed": "Dismissed"
+      },
+      "actions": {
+        "markRead": "Mark as read",
+        "markUnread": "Mark as unread",
+        "resolve": "Resolve",
+        "dismiss": "Dismiss",
+        "appeal": "Appeal"
+      },
+      "appealTitle": "Submit an Appeal",
+      "appealPlaceholder": "Describe why you believe this is a mistake (at least 10 characters).",
+      "appealTooShort": "Please provide at least 10 characters.",
+      "appealSubmitted": "Appeal submitted.",
+      "appealFailed": "Failed to submit appeal.",
+      "appealStatus": "Appeal status",
+      "actionSuccess": "Operation succeeded.",
+      "actionFailed": "Operation failed."
     },
     "overview": {
       "title": "Overview",
