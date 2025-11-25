@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
+import { MessageSquare } from 'lucide-vue-next';
 import CommentCard from './CommentCard.vue';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ const emit = defineEmits([
 
 const newCommentContent = ref('');
 const isSubmitting = ref(false);
+const isCommentInputFocused = ref(false);
 
 /**
  * 将扁平的列表（通过 parentCommentId 关联）转换为嵌套的树状结构。
@@ -120,30 +122,73 @@ async function handleSubmitTweetReply() {
 </script>
 
 <template>
-  <div class="w-full max-w-3xl mx-auto p-4 font-sans">
-    <h2 class="text-2xl font-bold mb-4">
-      评论区 ({{ comments.length }})
-    </h2>
+  <div class="w-full max-w-3xl mx-auto p-6 font-sans">
+    <!-- 评论区标题 -->
+    <div class="flex items-center gap-3 mb-6">
+      <h2
+        class="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent"
+      >
+        评论区
+      </h2>
+      <span
+        class="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full"
+      >
+        {{ comments.length }} 条评论
+      </span>
+    </div>
 
     <!-- 发表顶级评论的表单 -->
-    <div class="mb-6">
+    <div
+      class="mb-8 p-4 rounded-xl border-2 transition-all duration-300"
+      :class="
+        isCommentInputFocused
+          ? 'border-primary bg-accent/5 shadow-lg shadow-primary/10'
+          : 'border-border bg-card'
+      "
+    >
       <Textarea
         v-model="newCommentContent"
         placeholder="写下你的评论..."
-        class="mb-2"
+        class="mb-2 border-none focus-visible:ring-0 resize-none min-h-[80px] text-base bg-transparent"
+        @focus="isCommentInputFocused = true"
+        @blur="
+          setTimeout(
+            () => (isCommentInputFocused = false),
+            200
+          )
+        "
       />
-      <div class="flex justify-end mt-3 mr-2">
-        <Button
-          @click="handleSubmitTweetReply"
-          :disabled="isSubmitting"
+      <Transition
+        enter-active-class="transition-all duration-300 ease-out"
+        enter-from-class="opacity-0 transform translate-y-2"
+        enter-to-class="opacity-100 transform translate-y-0"
+        leave-active-class="transition-all duration-200 ease-in"
+        leave-from-class="opacity-100 transform translate-y-0"
+        leave-to-class="opacity-0 transform translate-y-2"
+      >
+        <div
+          v-if="isCommentInputFocused"
+          class="flex justify-between items-center mt-3"
         >
-          {{ isSubmitting ? '正在发布...' : '发布评论' }}
-        </Button>
-      </div>
+          <span class="text-xs text-muted-foreground ml-2">
+            {{ newCommentContent.length }} / 500 字符
+          </span>
+          <Button
+            @click="handleSubmitTweetReply"
+            :disabled="
+              isSubmitting || !newCommentContent.trim()
+            "
+            class="shadow-md hover:shadow-lg transition-all duration-200"
+            size="sm"
+          >
+            {{ isSubmitting ? '发布中...' : '发布评论' }}
+          </Button>
+        </div>
+      </Transition>
     </div>
 
     <!-- 评论列表的渲染从此开始 -->
-    <div v-if="nestedComments.length > 0" class="space-y-2">
+    <div v-if="nestedComments.length > 0" class="space-y-3">
       <CommentCard
         v-for="comment in nestedComments"
         :key="comment.commentId"
@@ -153,11 +198,20 @@ async function handleSubmitTweetReply() {
         @submit-reply="handleSubmitReply"
       />
     </div>
-    <div
-      v-else
-      class="text-center text-muted-foreground py-8"
-    >
-      还没有人评论，快来抢占第一个沙发吧！
+    <div v-else class="text-center py-16 px-4">
+      <div
+        class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4"
+      >
+        <MessageSquare
+          class="w-8 h-8 text-muted-foreground"
+        />
+      </div>
+      <p class="text-lg font-medium text-foreground mb-2">
+        暂无评论
+      </p>
+      <p class="text-sm text-muted-foreground">
+        快来抢占第一个沙发吧！
+      </p>
     </div>
   </div>
 </template>

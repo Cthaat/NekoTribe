@@ -31,6 +31,7 @@ const emit = defineEmits(['like-comment', 'submit-reply']);
 // --- 用于 UI 交互的本地状态 ---
 const isReplyBoxOpen = ref(false);
 const replyContent = ref('');
+const isReplyInputFocused = ref(false);
 
 // 用于点赞的“乐观更新”，提供即时反馈
 const localIsLiked = ref(props.comment.isLikedByUser);
@@ -95,11 +96,13 @@ function handleSubmitReply() {
     ></div>
 
     <div
-      class="p-3 rounded-md transition-colors hover:bg-muted/50"
+      class="p-4 rounded-lg transition-all duration-200 hover:bg-accent/50 border border-transparent hover:border-border hover:shadow-sm"
     >
       <!-- 评论头部：头像、昵称、时间 -->
-      <div class="flex items-center text-sm mb-2">
-        <Avatar class="h-6 w-6 mr-2">
+      <div class="flex items-center text-sm mb-3">
+        <Avatar
+          class="h-8 w-8 mr-3 ring-2 ring-background shadow-sm"
+        >
           <AvatarImage
             :src="comment.avatarUrl"
             :alt="comment.displayName"
@@ -119,54 +122,99 @@ function handleSubmitReply() {
 
       <!-- 评论内容 -->
       <p
-        class="text-base whitespace-pre-wrap leading-relaxed"
+        class="text-base whitespace-pre-wrap leading-relaxed text-foreground/90 mb-3"
       >
         {{ comment.content }}
       </p>
 
       <!-- 评论操作：点赞、回复 -->
-      <div class="mt-2 flex items-center gap-4">
+      <div class="mt-3 flex items-center gap-2">
         <Button
           variant="ghost"
           size="sm"
-          class="flex items-center gap-2 text-muted-foreground"
+          class="flex items-center gap-2 text-muted-foreground hover:text-red-500 transition-colors h-8 px-3"
           @click="handleLike"
         >
           <Heart
-            class="h-4 w-4"
+            class="h-4 w-4 transition-all duration-200"
             :class="{
-              'fill-red-500 text-red-500': localIsLiked
+              'fill-red-500 text-red-500 scale-110':
+                localIsLiked
             }"
           />
-          <span>{{ localLikesCount }}</span>
+          <span class="text-xs font-medium">{{
+            localLikesCount
+          }}</span>
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          class="flex items-center gap-2 text-muted-foreground"
+          class="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors h-8 px-3"
           @click="toggleReplyBox"
         >
           <MessageSquare class="h-4 w-4" />
-          <span>回复</span>
+          <span class="text-xs font-medium">回复</span>
         </Button>
       </div>
 
       <!-- 回复框 (条件渲染) -->
-      <div v-if="isReplyBoxOpen" class="mt-3">
-        <Textarea
-          v-model="replyContent"
-          placeholder="写下你的回复..."
-          class="mb-2"
-        />
-        <div class="flex justify-end gap-2">
-          <Button variant="ghost" @click="toggleReplyBox"
-            >取消</Button
+      <Transition
+        enter-active-class="transition-all duration-300 ease-out"
+        enter-from-class="opacity-0 transform -translate-y-2"
+        enter-to-class="opacity-100 transform translate-y-0"
+        leave-active-class="transition-all duration-200 ease-in"
+        leave-from-class="opacity-100 transform translate-y-0"
+        leave-to-class="opacity-0 transform -translate-y-2"
+      >
+        <div
+          v-if="isReplyBoxOpen"
+          class="mt-4 p-3 rounded-lg border-2 transition-all duration-300"
+          :class="
+            isReplyInputFocused
+              ? 'border-primary bg-accent/5'
+              : 'border-border bg-muted/30'
+          "
+        >
+          <Textarea
+            v-model="replyContent"
+            placeholder="写下你的回复..."
+            class="mb-2 border-none focus-visible:ring-0 resize-none min-h-[60px] bg-transparent"
+            @focus="isReplyInputFocused = true"
+            @blur="
+              setTimeout(
+                () => (isReplyInputFocused = false),
+                200
+              )
+            "
+          />
+          <Transition
+            enter-active-class="transition-all duration-300 ease-out"
+            enter-from-class="opacity-0 transform translate-y-2"
+            enter-to-class="opacity-100 transform translate-y-0"
+            leave-active-class="transition-all duration-200 ease-in"
+            leave-from-class="opacity-100 transform translate-y-0"
+            leave-to-class="opacity-0 transform translate-y-2"
           >
-          <Button @click="handleSubmitReply"
-            >提交回复</Button
-          >
+            <div
+              v-if="isReplyInputFocused"
+              class="flex justify-end gap-2 mt-2"
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                @click="toggleReplyBox"
+                >取消</Button
+              >
+              <Button
+                size="sm"
+                @click="handleSubmitReply"
+                :disabled="!replyContent.trim()"
+                >提交回复</Button
+              >
+            </div>
+          </Transition>
         </div>
-      </div>
+      </Transition>
     </div>
 
     <!-- 
