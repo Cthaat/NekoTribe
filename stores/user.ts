@@ -130,36 +130,78 @@ export const usePreferenceStore = defineStore(
       updatePreference('refresh_token', newRefreshToken);
     }
 
+    // 用于防止重复刷新的Promise缓存
+    let refreshPromise: Promise<void> | null = null;
+
     async function refreshAccessToken() {
-      console.log(
-        '[PreferenceStore] Refreshing access token.'
-      );
-      // 这里可以调用 API 来刷新令牌
-      const response: any = await apiFetch(
-        '/api/v1/auth/refresh',
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${preferences.value.access_token}`
-          }
-        }
-      );
-      console.log('[PreferenceStore] 刷新响应:', response);
-      const code = response.code || 200;
-      if (code === 200) {
-        const data = response.data;
+      // 如果已经有一个刷新请求在进行中，直接返回该Promise
+      if (refreshPromise) {
         console.log(
-          '[PreferenceStore] 刷新成功，更新令牌：',
-          'accessToken:',
-          data.accessToken,
-          'refreshToken:',
-          data.refreshToken
+          '[PreferenceStore] Token刷新已在进行中，复用现有请求'
         );
-        setAuthTokens(data.accessToken, data.refreshToken);
-      } else {
-        clearAuthTokens();
-        throw new Error('Failed to refresh access token');
+        return refreshPromise;
       }
+
+      console.log('[PreferenceStore] 开始刷新access token');
+
+      // 创建刷新Promise
+      refreshPromise = (async () => {
+        try {
+          // 这里调用 API 来刷新令牌
+          // 注意：服务端从 Cookie 中读取 refresh_token，不需要手动传递
+          // 服务端会自动通过 setCookie 更新 HttpOnly Cookie
+          const response: any = await apiFetch(
+            '/api/v1/auth/refresh',
+            {
+              method: 'GET'
+            }
+          );
+
+          console.log(
+            '[PreferenceStore] 刷新响应:',
+            response
+          );
+          const code = response.code || 200;
+
+          if (code === 200) {
+            const data = response.data;
+            console.log(
+              '[PreferenceStore] 刷新成功，更新令牌：',
+              'accessToken:',
+              data.accessToken,
+              'refreshToken:',
+              data.refreshToken
+            );
+            // 更新客户端 store 中的 token（与 HttpOnly Cookie 同步）
+            // 这样可以让前端代码也能访问到最新的 token
+            setAuthTokens(
+              data.accessToken,
+              data.refreshToken
+            );
+          } else {
+            console.error(
+              '[PreferenceStore] 刷新失败，清除认证信息'
+            );
+            clearAuthTokens();
+            throw new Error(
+              'Failed to refresh access token'
+            );
+          }
+        } catch (error) {
+          console.error(
+            '[PreferenceStore] Token刷新失败:',
+            error
+          );
+          // 刷新失败时清除认证信息并跳转登录
+          clearAuthTokens();
+          throw error;
+        } finally {
+          // 清除Promise缓存，允许下次刷新
+          refreshPromise = null;
+        }
+      })();
+
+      return refreshPromise;
     }
 
     /**
