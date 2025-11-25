@@ -13,7 +13,7 @@
 <div align="center">
     
 ![version](https://img.shields.io/badge/版本-v1.0.0-blue.svg)
-![shadcn-web](https://img.shields.io/badge/shadcn--web-v1.7.6-blue.svg)
+![shadcn-web](https://img.shields.io/badge/shadcn--web-v1.7.7-blue.svg)
 ![oracle-server](https://img.shields.io/badge/oracle--server-v1.6.3-blue.svg)
 ![开发状态](https://img.shields.io/badge/%E5%BC%80%E5%8F%91%E7%8A%B6%E6%80%81-%E6%AD%A3%E5%9C%A8%E5%BC%80%E5%8F%91-yellow.svg)
 
@@ -58,12 +58,25 @@
 - [x] **用户注册** - 邮箱密码注册，密码 bcrypt 加密
 - [x] **用户登录** - JWT token 身份验证
 - [x] **用户注销** - 清除登录状态
+- [ ] **用户注销指定对话** - 支持多设备登录
+- [ ] **多用户状态** - 支持用户查看多设备状态
+- [x] **密码重置** - 邮箱验证码重置密码
+- [x] **邮箱验证** - 注册及修改邮箱时发送验证码
 - [x] **用户资料管理**
   - [x] 头像上传与更新
   - [x] 邮箱修改
   - [x] 用户名修改
   - [x] 年龄设置
   - [ ] 用户ID显示
+- [ ] **用户设置**
+  - [x] 消息通知设置
+  - [x] 隐私设置
+  - [ ] 账号绑定（待实现）
+  - [ ] 更新用户设置
+- [x] **用户资料完善** - 注册后补全资料
+- [ ] **账户申诉** - 通过邮箱申诉找回账户（待实现）
+- [ ] **更新用户状态** - 在线、离线、隐身等状态（待实现）
+- [ ] **账户审查** - 举报封禁（待实现）
 - [ ] **账户删除** - 密码确认后删除账户
 - [x] 关注系统
 - [x] 粉丝系统

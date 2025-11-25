@@ -15,7 +15,7 @@ const { t } = useI18n();
 const localePath = useLocalePath();
 
 // 假设这是从 API 获取的用户数据
-const user = ref({
+const user = ref<any>({
   name: '',
   title: '',
   location: '',
