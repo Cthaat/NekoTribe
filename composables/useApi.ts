@@ -104,14 +104,14 @@ export const apiFetch = <T>(
 
   const traceHeaders: Record<string, string> = {};
   if (route?.fullPath)
-    traceHeaders['x-client-route'] = String(route.fullPath);
+    traceHeaders['x-client-route'] = encodeURI(String(route.fullPath));
   if (compName)
     traceHeaders['x-client-component'] = String(compName);
   if (stackSource)
-    traceHeaders['x-client-source'] = String(stackSource);
+    traceHeaders['x-client-source'] = encodeURIComponent(String(stackSource));
   if (!isServer && typeof location !== 'undefined')
-    traceHeaders['x-client-referer'] = String(
-      location.href
+    traceHeaders['x-client-referer'] = encodeURI(
+      String(location.href)
     );
   traceHeaders['x-client-platform'] = isServer
     ? 'server'

@@ -53,13 +53,13 @@ export function useApiFetch<T>(
     ...(options.headers || {})
   };
   if (route?.fullPath)
-    headers['x-client-route'] = String(route.fullPath);
+    headers['x-client-route'] = encodeURI(String(route.fullPath));
   if (compName)
     headers['x-client-component'] = String(compName);
   if (stackSource)
-    headers['x-client-source'] = String(stackSource);
+    headers['x-client-source'] = encodeURIComponent(String(stackSource));
   if (!isServer && typeof location !== 'undefined')
-    headers['x-client-referer'] = String(location.href);
+    headers['x-client-referer'] = encodeURI(String(location.href));
   headers['x-client-platform'] = isServer
     ? 'server'
     : 'client';
