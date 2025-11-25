@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import {
 } from 'lucide-vue-next';
 
 import TweetPreviewCard from './TweetPreviewCard.vue';
+import MentionPicker from './MentionPicker.vue';
 
 interface PreviewTweet {
   tweetId: number;
@@ -64,6 +65,17 @@ const tweetContent = ref(''); // 存储推文的文本内容
 const mediaFiles = ref<File[]>([]); // 存储用于上传的真实文件对象
 const mediaPreviews = ref<string[]>([]); // 存储用于预览的临时本地 URL
 const fileInputRef = ref<HTMLInputElement | null>(null); // 用于引用隐藏的文件输入框
+const textareaRef = ref<HTMLTextAreaElement | null>(null); // Textarea 引用
+
+// @ 提及功能
+const showMentionPicker = ref(false);
+const mentionSearchQuery = ref('');
+const mentionPickerPosition = ref({ top: 0, left: 0 });
+const mentionStartIndex = ref(-1);
+const mentionPickerRef =
+  ref<InstanceType<typeof MentionPicker>>();
+const mentions = ref<string[]>([]); // 存储所有提及的用户名
+const mentionUserIds = ref<Record<string, string>>({}); // username -> userId 映射
 
 // --- 计算属性 ---
 
@@ -143,8 +155,6 @@ async function handleSubmit() {
   if (isTweetDisabled.value) return;
 
   console.log('提交的推文内容:', tweetContent.value);
-
-  submitForm.value.content = tweetContent.value;
   submitForm.value.visibility = 'public'; // 默认可见性为公开
 
   if (props.replyTo) {
@@ -168,7 +178,135 @@ async function handleSubmit() {
   formData.append('altText', '111');
   formData.append('description', '111123');
 
+  // 将提及的用户保存到表单
+  submitForm.value.mentions = mentions.value.join(',');
+
+  // 在内容中将 @username 替换为包含 userId 的格式: @[userId:username]
+  let processedContent = tweetContent.value;
+  mentions.value.forEach(username => {
+    const userId = mentionUserIds.value[username];
+    if (userId) {
+      const regex = new RegExp(`@${username}\\b`, 'g');
+      processedContent = processedContent.replace(
+        regex,
+        `@[${userId}:${username}]`
+      );
+    }
+  });
+  submitForm.value.content = processedContent;
+
   emit('submit', submitForm, formData);
+}
+
+// 处理文本输入，检测 @ 符号
+function handleInput(event: Event) {
+  const textarea = event.target as HTMLTextAreaElement;
+  const content = textarea.value;
+  const cursorPos = textarea.selectionStart;
+
+  // 查找最近的 @ 符号
+  const textBeforeCursor = content.substring(0, cursorPos);
+  const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+  if (lastAtIndex >= 0) {
+    // 检查 @ 符号后面的文本
+    const textAfterAt = textBeforeCursor.substring(
+      lastAtIndex + 1
+    );
+
+    // 如果 @ 后面没有空格，显示提及选择器
+    if (
+      !textAfterAt.includes(' ') &&
+      !textAfterAt.includes('\n')
+    ) {
+      mentionSearchQuery.value = textAfterAt;
+      mentionStartIndex.value = lastAtIndex;
+      showMentionPicker.value = true;
+
+      // 计算下拉框位置
+      nextTick(() => {
+        if (textarea) {
+          const rect = textarea.getBoundingClientRect();
+          const lineHeight = 24; // 估算行高
+          const lines = textBeforeCursor.split('\n').length;
+          mentionPickerPosition.value = {
+            top: rect.top + lines * lineHeight + 10,
+            left: rect.left + 20
+          };
+        }
+      });
+      return;
+    }
+  }
+
+  // 否则隐藏选择器
+  showMentionPicker.value = false;
+}
+
+// 选择提及项
+function handleMentionSelect(item: {
+  type: string;
+  id: string;
+  displayName: string;
+}) {
+  if (!textareaRef.value || mentionStartIndex.value < 0)
+    return;
+
+  const textarea = textareaRef.value;
+  const content = tweetContent.value;
+  const cursorPos = textarea.selectionStart;
+
+  // 构造提及文本
+  const mentionText =
+    item.type === 'user' ? `@${item.id}` : `#${item.id}`;
+
+  // 找到 @ 后面已输入的文本结束位置（空格或换行符之前）
+  let endPos = mentionStartIndex.value + 1; // 从 @ 后面开始
+  while (
+    endPos < content.length &&
+    content[endPos] !== ' ' &&
+    content[endPos] !== '\n' &&
+    content[endPos] !== '\t'
+  ) {
+    endPos++;
+  }
+
+  // 替换从 @ 符号到已输入文本结束的部分
+  const before = content.substring(
+    0,
+    mentionStartIndex.value
+  );
+  const after = content.substring(endPos);
+  tweetContent.value = before + mentionText + ' ' + after;
+
+  // 保存提及
+  if (
+    item.type === 'user' &&
+    !mentions.value.includes(item.id)
+  ) {
+    mentions.value.push(item.id);
+    // 保存 username -> userId 映射
+    if (item.userId) {
+      mentionUserIds.value[item.id] = item.userId;
+    }
+  }
+
+  // 设置光标位置
+  nextTick(() => {
+    const newCursorPos =
+      mentionStartIndex.value + mentionText.length + 1;
+    textarea.setSelectionRange(newCursorPos, newCursorPos);
+    textarea.focus();
+  });
+
+  showMentionPicker.value = false;
+}
+
+// 处理键盘事件
+function handleKeyDown(event: KeyboardEvent) {
+  if (showMentionPicker.value && mentionPickerRef.value) {
+    mentionPickerRef.value.handleKeyDown(event);
+  }
 }
 </script>
 
@@ -176,11 +314,24 @@ async function handleSubmit() {
   <!-- 根元素是一个 flex 容器，使其内容能够垂直分布 -->
   <div class="flex flex-col h-full max-w-3xl mx-auto">
     <!-- 编辑器主区域，占据大部分可用空间 -->
-    <div class="flex-1 min-h-0 py-2">
+    <div class="flex-1 min-h-0 py-2 relative">
       <Textarea
+        ref="textareaRef"
         v-model="tweetContent"
         placeholder="有什么新鲜事？"
         class="w-full h-full bg-transparent text-lg text-gray-200 placeholder:text-gray-500 border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-2 resize-none leading-relaxed tracking-wide"
+        @input="handleInput"
+        @keydown="handleKeyDown"
+      />
+
+      <!-- @ 提及选择器 -->
+      <MentionPicker
+        ref="mentionPickerRef"
+        :show="showMentionPicker"
+        :search-query="mentionSearchQuery"
+        :position="mentionPickerPosition"
+        @select="handleMentionSelect"
+        @close="showMentionPicker = false"
       />
 
       <TweetPreviewCard

@@ -36,6 +36,7 @@ import {
   HeartPlus
 } from 'lucide-vue-next';
 import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
+import TweetContent from '@/components/TweetContent.vue';
 
 const preferenceStore = usePreferenceStore();
 const tweetStore = useTweetStore(); // 2. 获取 store 实例
@@ -449,9 +450,9 @@ const originalExcerpt = computed(() => {
         </div>
       </div>
 
-      <p class="whitespace-pre-wrap text-base">
-        {{ tweet.content }}
-      </p>
+      <div class="text-base">
+        <TweetContent :content="tweet.content" />
+      </div>
 
       <!-- 媒体展示区 -->
       <div
