@@ -102,16 +102,37 @@ export const apiFetch = <T>(
     if (line) stackSource = line.trim();
   }
 
+  // 辅助函数：将字符串转换为安全的 ASCII header 值（处理中文等非 ASCII 字符）
+  const toSafeHeaderValue = (value: string): string => {
+    try {
+      // 检测是否包含非 ASCII 字符（字符码 > 255）
+      if (/[^\x00-\xFF]/.test(value)) {
+        // 使用 encodeURIComponent 编码，然后标记为已编码
+        return 'utf8:' + encodeURIComponent(value);
+      }
+      return value;
+    } catch (e) {
+      // 编码失败时返回安全的占位符
+      return 'encoded-error';
+    }
+  };
+
   const traceHeaders: Record<string, string> = {};
   if (route?.fullPath)
-    traceHeaders['x-client-route'] = String(route.fullPath);
+    traceHeaders['x-client-route'] = toSafeHeaderValue(
+      String(route.fullPath)
+    );
   if (compName)
-    traceHeaders['x-client-component'] = String(compName);
+    traceHeaders['x-client-component'] = toSafeHeaderValue(
+      String(compName)
+    );
   if (stackSource)
-    traceHeaders['x-client-source'] = String(stackSource);
+    traceHeaders['x-client-source'] = toSafeHeaderValue(
+      String(stackSource)
+    );
   if (!isServer && typeof location !== 'undefined')
-    traceHeaders['x-client-referer'] = String(
-      location.href
+    traceHeaders['x-client-referer'] = toSafeHeaderValue(
+      String(location.href)
     );
   traceHeaders['x-client-platform'] = isServer
     ? 'server'
