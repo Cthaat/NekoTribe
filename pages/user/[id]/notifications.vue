@@ -190,19 +190,21 @@ async function handleReadMail(mailId: string) {
 
 async function handleDeleteMail(mailId: string) {
   // 将邮件移至垃圾桶（软删除）
-  const mailIndex = notifications.value.findIndex(
-    item => item.notificationId === mailId
-  );
-  if (mailIndex !== -1) {
-    notifications.value.splice(mailIndex, 1);
-  }
   try {
     await apiFetch(`/api/v1/notifications/${mailId}`, {
       method: 'DELETE'
     });
+    // API调用成功后再从列表中移除
+    const mailIndex = notifications.value.findIndex(
+      item => item.notificationId === mailId
+    );
+    if (mailIndex !== -1) {
+      notifications.value.splice(mailIndex, 1);
+    }
     toast.success('邮件已移至垃圾桶');
   } catch (error) {
     console.error('移至垃圾桶失败:', error);
+    toast.error('移至垃圾桶失败');
   }
 }
 </script>

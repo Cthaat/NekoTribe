@@ -14,11 +14,11 @@ export default defineEventHandler(async event => {
   try {
     // 使用软删除：设置 is_deleted = 1 而不是直接删除记录
     const actionSql = `
-    UPDATE n_notifications
-    SET is_deleted = 1, deleted_at = SYSDATE
-    WHERE notification_id = :notification_id
-      AND user_id = :user_id
-      AND (is_deleted = 0 OR is_deleted IS NULL)
+      UPDATE n_notifications
+      SET is_deleted = 1, deleted_at = SYSDATE
+      WHERE notification_id = :notification_id
+        AND user_id = :user_id
+        AND (is_deleted = 0 OR is_deleted IS NULL)
     `;
 
     const result = await connection.execute(
