@@ -32,6 +32,7 @@ export default defineEventHandler(async event => {
             AND (:type = 'all' OR n.type = :type)
             AND (:unread_only = 0 OR n.is_read = 0)
             AND n.user_id IN (SELECT user_id FROM n_users WHERE is_active = 1)
+            AND (n.is_deleted = 0 OR n.is_deleted IS NULL)
     )
     SELECT 
         notification_id,
