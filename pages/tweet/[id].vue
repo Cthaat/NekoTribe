@@ -40,7 +40,8 @@ const tweet = computed(() => {
 const {
   data: commentData,
   pending: commentPending,
-  error: commentError
+  error: commentError,
+  refresh: refreshComments
 } = useApiFetch(
   `/api/v1/tweets/${route.params.id}/comments`,
   {
@@ -254,6 +255,9 @@ async function handleTweetComment(content: any) {
         }
       }
     );
+
+    // 评论发布成功后，立即刷新评论列表
+    await refreshComments();
   } catch (err) {
     console.error('Failed to send tweet comment:', err);
     toast.error('发送评论失败，请稍后重试。');
@@ -282,6 +286,9 @@ async function handleReplyTweetComment(
         }
       }
     );
+
+    // 评论发布成功后，立即刷新评论列表
+    await refreshComments();
   } catch (err) {
     console.error('Failed to send tweet comment:', err);
     toast.error('发送评论失败，请稍后重试。');
