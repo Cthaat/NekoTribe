@@ -199,15 +199,27 @@ async function handleTweetSubmit(
       throw new Error(`提交失败: ${response.statusText}`);
     }
 
-    formData.append('tweetId', response.data.tweetId);
-
-    const responseFiles: any = await apiFetch(
-      '/api/v1/tweets/media/upload',
-      {
-        method: 'POST',
-        body: formData
+    // 检查 FormData 中是否有文件
+    let hasFiles = false;
+    for (const [key, value] of formData.entries()) {
+      if (key === 'file' && value instanceof File) {
+        hasFiles = true;
+        break;
       }
-    );
+    }
+
+    // 只在有文件时才调用上传接口
+    if (hasFiles) {
+      formData.append('tweetId', response.data.tweetId);
+
+      const responseFiles: any = await apiFetch(
+        '/api/v1/tweets/media/upload',
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
+    }
 
     toast.success('推文发布成功！');
 
