@@ -10,9 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import ProfileForm from '@/components/ProfileForm.vue';
 import TweetList from '@/components/TweetList.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
-import { usePreferenceStore } from '~/stores/user'; // 导入 store
-import { onMounted, ref, computed, watch } from 'vue';
-import { Card, CardContent } from '@/components/ui/card';
+import RetweetModal from '@/components/RetweetModal.vue';
 import {
   Pagination,
   PaginationContent,
@@ -169,11 +167,136 @@ watch(
   { immediate: true }
 );
 
-// 计算总页数
-const totalPages = computed(() => {
-  return Math.ceil(totalTweets.value / pageSize.value);
-});
+const isTweetsLoading = computed(
+  () => listPending.value || detailsPending.value
+);
+const hasTweetsError = computed(
+  () => !!listError.value || !!detailsError.value
+);
+const totalCount = computed(
+  () => listApiResponse.value?.data?.totalCount || 0
+);
 
+// --- Tweet interactions ---
+async function handleDeleteTweet(tweetId: any) {
+  const response: any = await apiFetch(
+    `/api/v1/tweets/${tweetId}`,
+    {
+      method: 'DELETE'
+    }
+  );
+  if (!response.success) {
+    toast.error(t('userProfile.tweets.deleteError'), {
+      description: response.error || ''
+    });
+    return;
+  }
+  toast.success(t('userProfile.tweets.deleteSuccess'));
+  fullTweets.value = fullTweets.value.filter(
+    tweet => tweet.tweetId !== tweetId
+  );
+}
+
+function handleReplyTweet(tweet: any) {
+  const detailPage = localePath(`/tweet/${tweet.tweetId}`);
+  return navigateTo(detailPage, { replace: true });
+}
+
+const isRetweetModalOpen = ref(false);
+const selectedTweetForRetweet = ref(null);
+const isSubmittingRetweet = ref(false);
+
+function handleRetweetTweet(tweet: any) {
+  selectedTweetForRetweet.value = tweet;
+  isRetweetModalOpen.value = true;
+}
+
+async function handleSubmitRetweet({
+  content,
+  originalTweetId
+}: {
+  content: any;
+  originalTweetId: any;
+}) {
+  isSubmittingRetweet.value = true;
+  try {
+    const response: any = await apiFetch(
+      '/api/v1/tweets/send-tweets',
+      {
+        method: 'POST',
+        body: {
+          content: content,
+          replyToTweetId: '',
+          retweetOfTweetId: originalTweetId,
+          quoteTweetId: '',
+          visibility: 'public',
+          hashtags: '',
+          mentions: '',
+          scheduledAt: '',
+          location: ''
+        }
+      }
+    );
+
+    if (!response.success) {
+      throw new Error(response.message || t('userProfile.tweets.retweetError'));
+    }
+
+    toast.success(t('userProfile.tweets.retweetSuccess'));
+  } catch (err: any) {
+    console.error('Failed to retweet:', err);
+    toast.error(err.message || t('userProfile.tweets.retweetError'));
+  } finally {
+    isSubmittingRetweet.value = false;
+    isRetweetModalOpen.value = false;
+  }
+}
+
+async function handleLikeTweet(
+  tweet: any,
+  action: 'like' | 'unlike'
+) {
+  const response: any = await apiFetch(
+    '/api/v1/interactions/like',
+    {
+      method: 'POST',
+      body: {
+        tweetId: tweet.tweetId,
+        likeType: action
+      }
+    }
+  );
+  if (!response.success) {
+    console.error(
+      'Failed to like/unlike tweet:',
+      response.error
+    );
+  }
+}
+
+async function handleBookmarkTweet(
+  tweet: any,
+  action: 'mark' | 'unmark'
+) {
+  const response: any = await apiFetch(
+    '/api/v1/interactions/bookmark',
+    {
+      method: 'POST',
+      body: {
+        tweetId: tweet.tweetId,
+        bookmarkType: action
+      }
+    }
+  );
+  if (!response.success) {
+    console.error(
+      'Failed to bookmark/unbookmark tweet:',
+      response.error
+    );
+  }
+}
+
+// --- User data fetching ---
 onMounted(async () => {
   try {
     const response = (await apiFetch(
