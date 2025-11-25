@@ -190,10 +190,11 @@ export function useApiFetch<T>(
 
     // 使用ref跟踪是否正在刷新token，避免重复刷新
     const isRefreshing = ref(false);
+    const isProcessing401 = ref(false); // 标记是否正在处理401
     let refreshAttempts = 0;
     const MAX_REFRESH_ATTEMPTS = 2;
 
-    // 监听status变化来检测401错误
+    // 使用watch处理401错误 - 先处理，再清除
     watch(
       [originalError, originalStatus],
       async ([newError, newStatus]) => {
@@ -203,8 +204,7 @@ export function useApiFetch<T>(
             (newError as any).statusCode === 401) ||
           (newError && (newError as any).status === 401) ||
           (newError &&
-            (newError as any).data?.code === 401) ||
-          newStatus === 'error';
+            (newError as any).data?.code === 401);
 
         if (
           is401 &&
@@ -213,8 +213,15 @@ export function useApiFetch<T>(
           refreshAttempts < MAX_REFRESH_ATTEMPTS
         ) {
           console.log(
-            '[useApiFetch] 检测到401错误，尝试刷新token'
+            '[useApiFetch] 检测到401错误，开始处理'
           );
+
+          // 标记正在处理
+          isProcessing401.value = true;
+
+          // 立即清除错误，防止UI显示
+          result.error.value = null;
+
           isRefreshing.value = true;
           refreshAttempts++;
 
@@ -231,11 +238,6 @@ export function useApiFetch<T>(
               '[useApiFetch] Token刷新成功，重新请求数据'
             );
 
-            // 清除错误状态
-            if (result.error.value) {
-              result.error.value = null;
-            }
-
             // token刷新成功后，自动重新请求
             if (originalRefresh) {
               await originalRefresh();
@@ -246,18 +248,24 @@ export function useApiFetch<T>(
               error
             );
 
-            // 刷新失败后，跳转登录页
+            // 刷新失败后，恢复错误显示并跳转登录页
             if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
+              result.error.value = newError;
               const router = useRouter();
               const localePath = useLocalePath();
               await router.push(localePath('/auth/login'));
             }
           } finally {
             isRefreshing.value = false;
+            isProcessing401.value = false;
           }
         }
       },
-      { deep: true }
+      {
+        deep: true,
+        immediate: false,
+        flush: 'sync' // 同步执行，确保立即处理
+      }
     );
   }
 

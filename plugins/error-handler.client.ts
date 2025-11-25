@@ -1,6 +1,6 @@
 /**
- * 全局错误处理插件 - 处理401错误的token刷新
- * 这个插件会拦截所有Nuxt的错误，在显示给用户之前尝试刷新token
+ * 全局错误处理插件 - 处理401错误的token刷新（后备方案）
+ * 这个插件作为最后一道防线，处理未被useApiFetch捕获的401错误
  */
 export default defineNuxtPlugin(nuxtApp => {
   // 用于防止重复刷新的标志
@@ -18,7 +18,7 @@ export default defineNuxtPlugin(nuxtApp => {
 
     if (is401Error && !isHandling401) {
       console.log(
-        '[ErrorHandler] 检测到401错误，尝试刷新token'
+        '[ErrorHandler] 检测到401错误（后备方案）'
       );
       isHandling401 = true;
 
@@ -31,19 +31,12 @@ export default defineNuxtPlugin(nuxtApp => {
         // 尝试刷新token
         await preferenceStore.refreshAccessToken();
 
-        console.log(
-          '[ErrorHandler] Token刷新成功，请重新操作'
-        );
+        console.log('[ErrorHandler] Token刷新成功');
 
         // 清除错误，不显示给用户
         clearError();
 
-        // 刷新当前页面以重新获取数据
-        if (process.client) {
-          // 使用router重新加载当前路由
-          const router = useRouter();
-          router.go(0);
-        }
+        // 不刷新页面，让组件自己重试
       } catch (refreshError) {
         console.error(
           '[ErrorHandler] Token刷新失败:',
@@ -68,7 +61,7 @@ export default defineNuxtPlugin(nuxtApp => {
 
     if (is401Error && !isHandling401) {
       console.log(
-        '[ErrorHandler] App检测到401错误，尝试刷新token'
+        '[ErrorHandler] App检测到401错误（后备方案）'
       );
       isHandling401 = true;
 
@@ -81,20 +74,12 @@ export default defineNuxtPlugin(nuxtApp => {
         // 尝试刷新token
         await preferenceStore.refreshAccessToken();
 
-        console.log(
-          '[ErrorHandler] Token刷新成功，请重新操作'
-        );
+        console.log('[ErrorHandler] Token刷新成功');
 
         // 清除错误，不显示给用户
         clearError();
 
-        // 刷新当前页面以重新获取数据
-        if (process.client) {
-          const router = useRouter();
-          await router.replace(
-            router.currentRoute.value.fullPath
-          );
-        }
+        // 不刷新页面，让组件自己重试
       } catch (refreshError) {
         console.error(
           '[ErrorHandler] Token刷新失败:',
