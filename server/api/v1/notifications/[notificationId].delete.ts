@@ -12,10 +12,13 @@ export default defineEventHandler(async event => {
   const connection = await getOracleConnection();
 
   try {
+    // 使用软删除：设置 is_deleted = 1 而不是直接删除记录
     const actionSql = `
-    DELETE FROM n_notifications
+    UPDATE n_notifications
+    SET is_deleted = 1, deleted_at = SYSDATE
     WHERE notification_id = :notification_id
       AND user_id = :user_id
+      AND (is_deleted = 0 OR is_deleted IS NULL)
     `;
 
     const result = await connection.execute(
@@ -41,7 +44,7 @@ export default defineEventHandler(async event => {
     }
     return {
       success: true,
-      message: '通知删除操作成功',
+      message: '通知已移至垃圾桶',
       data: {},
       code: 200,
       timestamp: new Date().toISOString()
@@ -49,7 +52,7 @@ export default defineEventHandler(async event => {
   } catch (err: any) {
     throw createError({
       statusCode: err.statusCode || 500,
-      message: err.message || '通知删除操作失败',
+      message: err.message || '通知移至垃圾桶失败',
       data: {
         success: false,
         message: err.message,

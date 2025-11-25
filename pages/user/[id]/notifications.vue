@@ -189,7 +189,7 @@ async function handleReadMail(mailId: string) {
 }
 
 async function handleDeleteMail(mailId: string) {
-  // 删除邮件
+  // 将邮件移至垃圾桶（软删除）
   const mailIndex = notifications.value.findIndex(
     item => item.notificationId === mailId
   );
@@ -200,9 +200,9 @@ async function handleDeleteMail(mailId: string) {
     await apiFetch(`/api/v1/notifications/${mailId}`, {
       method: 'DELETE'
     });
-    toast.success('邮件已删除');
+    toast.success('邮件已移至垃圾桶');
   } catch (error) {
-    console.error('删除邮件失败:', error);
+    console.error('移至垃圾桶失败:', error);
   }
 }
 </script>
