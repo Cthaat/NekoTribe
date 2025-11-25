@@ -437,5 +437,17 @@
         }
       }
     }
+  },
+  "userProfile": {
+    "tweets": {
+      "title": "用户推文",
+      "description": "查看该用户发布的推文。",
+      "empty": "该用户还没有发布推文。",
+      "loadError": "加载推文失败，请稍后重试。",
+      "deleteSuccess": "推文已成功删除。",
+      "deleteError": "删除推文失败，请稍后再试。",
+      "retweetSuccess": "转发成功！",
+      "retweetError": "转发失败，请稍后重试。"
+    }
   }
 }

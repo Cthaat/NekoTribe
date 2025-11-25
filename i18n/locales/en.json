@@ -437,5 +437,17 @@
         }
       }
     }
+  },
+  "userProfile": {
+    "tweets": {
+      "title": "User Tweets",
+      "description": "View tweets posted by this user.",
+      "empty": "This user hasn't posted any tweets yet.",
+      "loadError": "Failed to load tweets. Please try again later.",
+      "deleteSuccess": "Tweet deleted successfully.",
+      "deleteError": "Failed to delete tweet. Please try again later.",
+      "retweetSuccess": "Retweet successful!",
+      "retweetError": "Failed to retweet. Please try again later."
+    }
   }
 }
