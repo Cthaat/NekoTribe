@@ -20,7 +20,14 @@ interface NavProps {
   links: LinkProp[];
 }
 
-defineProps<NavProps>();
+const props = defineProps<NavProps>();
+const emit = defineEmits<{
+  (e: 'nav-click', title: string): void;
+}>();
+
+function handleClick(title: string) {
+  emit('nav-click', title);
+}
 </script>
 
 <template>
@@ -51,6 +58,7 @@ defineProps<NavProps>();
                     'dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white'
                 )
               "
+              @click.prevent="handleClick(link.title)"
             >
               <Icon :icon="link.icon" class="size-4" />
               <span class="sr-only">{{ link.title }}</span>
@@ -85,6 +93,7 @@ defineProps<NavProps>();
               'justify-start'
             )
           "
+          @click.prevent="handleClick(link.title)"
         >
           <Icon :icon="link.icon" class="mr-2 size-4" />
           {{ link.title }}

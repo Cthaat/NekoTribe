@@ -27,7 +27,16 @@ export default defineNuxtRouteMiddleware((to, from) => {
   //    判断条件：
   //    a. 检查目标路由的名称是否不在白名单中
   //    b. 检查用户是否未登录
+  //    c. 确保不在刷新token过程中（避免干扰token刷新）
   if (!isAuthRoute && !preferenceStore.isLoggedIn) {
+    // 如果正在刷新token，暂时不跳转，等待刷新完成
+    if (preferenceStore.isRefreshingToken) {
+      console.log(
+        '[Middleware] 正在刷新token，暂不跳转登录页'
+      );
+      return;
+    }
+
     toast.error(
       'User is not logged in, redirecting to localized login page'
     );

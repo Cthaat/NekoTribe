@@ -13,7 +13,8 @@ import {
   MoreVertical,
   Reply,
   ReplyAll,
-  Trash2
+  Trash2,
+  RotateCcw
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import {
@@ -45,13 +46,14 @@ import {
 
 interface MailDisplayProps {
   mail: any;
+  isTrashView?: boolean;
 }
 
 const props = defineProps<MailDisplayProps>();
 
 const today = new Date();
 
-const emit = defineEmits(['delete-mail']);
+const emit = defineEmits(['delete-mail', 'restore-mail']);
 </script>
 
 <template>
@@ -84,7 +86,7 @@ const emit = defineEmits(['delete-mail']);
           </TooltipTrigger>
           <TooltipContent>Move to junk</TooltipContent>
         </Tooltip>
-        <Tooltip>
+        <Tooltip v-if="!isTrashView">
           <TooltipTrigger as-child>
             <Button
               variant="ghost"
@@ -97,6 +99,22 @@ const emit = defineEmits(['delete-mail']);
             </Button>
           </TooltipTrigger>
           <TooltipContent>Move to trash</TooltipContent>
+        </Tooltip>
+        <Tooltip v-else>
+          <TooltipTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon"
+              :disabled="!mail"
+              @click.stop="emit('restore-mail', mail.id)"
+            >
+              <RotateCcw class="size-4" />
+              <span class="sr-only">Restore</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent
+            >Restore from trash</TooltipContent
+          >
         </Tooltip>
         <Separator
           orientation="vertical"

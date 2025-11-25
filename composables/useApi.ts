@@ -27,47 +27,23 @@ export const apiFetch = <T>(
   const config = useRuntimeConfig();
 
   // 4. 创建默认选项，同样使用这个精确的类型
+  // 用于防止重复刷新的Promise缓存
+  let refreshingPromise: Promise<void> | null = null;
+
   const defaults: ApiFetchOptions = {
     baseURL: config.public.apiBase,
+    credentials: 'include', // 默认发送Cookie，这是关键！
 
-    // 响应拦截器：处理token过期错误
+    // 响应拦截器：记录错误（实际的401处理在外层catch中）
     async onResponseError({
       response,
       options: requestOptions
-    }) {
-      // 检测401错误且不是刷新token接口本身
-      if (
-        response.status === 401 &&
-        !path.includes('/auth/refresh')
-      ) {
+    }): Promise<void> {
+      // 只记录非401错误
+      if (response.status !== 401) {
         console.log(
-          '[apiFetch] 检测到401错误，尝试刷新token'
+          `[apiFetch] 请求失败: ${response.status} ${response.statusText}`
         );
-
-        try {
-          // 获取store并刷新token
-          const { usePreferenceStore } = await import(
-            '~/stores/user'
-          );
-          const preferenceStore = usePreferenceStore();
-
-          // 调用store的刷新方法
-          await preferenceStore.refreshAccessToken();
-
-          console.log(
-            '[apiFetch] Token刷新成功，重试原始请求'
-          );
-
-          // 重试原始请求
-          return $fetch(path, {
-            ...(requestOptions as any),
-            baseURL: config.public.apiBase
-          } as any);
-        } catch (error) {
-          console.error('[apiFetch] Token刷新失败:', error);
-          // 刷新失败，让错误继续传播
-          throw error;
-        }
       }
     }
   };
@@ -148,9 +124,54 @@ export const apiFetch = <T>(
   const mergedOptions: ApiFetchOptions = {
     ...defaults,
     ...options,
-    headers: mergedHeaders
+    headers: mergedHeaders,
+    credentials: 'include' // 确保每次请求都发送Cookie
   };
 
-  // 6. 调用 $fetch，现在类型完美匹配，不会再有任何错误
-  return $fetch<T>(path, mergedOptions);
+  // 6. 包装$fetch调用，处理401错误的自动重试
+  const executeFetch = async () => {
+    try {
+      return await $fetch<T>(path, mergedOptions as any);
+    } catch (error: any) {
+      // 如果是401错误且不是刷新token接口，尝试刷新后重试
+      if (
+        (error?.response?.status === 401 ||
+          error?.statusCode === 401) &&
+        !path.includes('/auth/refresh')
+      ) {
+        console.log(
+          '[apiFetch] 捕获到401错误，刷新token后重试一次'
+        );
+
+        try {
+          const { usePreferenceStore } = await import(
+            '~/stores/user'
+          );
+          const preferenceStore = usePreferenceStore();
+          await preferenceStore.refreshAccessToken();
+
+          // 等待Cookie更新
+          await new Promise(resolve =>
+            setTimeout(resolve, 100)
+          );
+
+          console.log('[apiFetch] Token刷新完成，重试请求');
+
+          // 重试请求 - 这次应该成功
+          return await $fetch<T>(
+            path,
+            mergedOptions as any
+          );
+        } catch (retryError) {
+          console.error('[apiFetch] 重试失败:', retryError);
+          throw retryError;
+        }
+      }
+
+      // 非401错误或刷新失败，直接抛出
+      throw error;
+    }
+  };
+
+  return executeFetch();
 };

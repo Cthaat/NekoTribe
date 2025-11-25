@@ -19,6 +19,8 @@ const unreadOnly = ref<string>(
     ? 'true'
     : 'false'
 );
+// 是否显示已删除的通知（垃圾桶）
+const showDeleted = ref<string>('false');
 
 // 通知项与响应类型（提取最常用字段，便于页面展示）
 type NotificationItem = {
@@ -57,6 +59,7 @@ interface NotificationListApiResponse {
     notifications?: NotificationItem[];
     totalCount?: number;
     unreadOnly?: boolean | string;
+    showDeleted?: boolean | string;
     hasNext?: boolean;
     hasPrev?: boolean;
     totalPages?: number;
@@ -70,7 +73,7 @@ const seenIds = ref<Set<string>>(new Set());
 
 // 生成查询键用于判断筛选是否变化
 const makeQueryKey = () =>
-  `${route.params.id || ''}|${type.value}|${unreadOnly.value}`;
+  `${route.params.id || ''}|${type.value}|${unreadOnly.value}|${showDeleted.value}`;
 const lastQueryKey = ref<string>(makeQueryKey());
 
 // 调用封装的 useApiFetch 获取通知列表
@@ -86,7 +89,8 @@ const {
       type,
       page,
       pageSize,
-      unreadOnly
+      unreadOnly,
+      showDeleted
     },
     // 跟随分页/筛选和路由变化自动刷新
     watch: [
@@ -94,6 +98,7 @@ const {
       pageSize,
       type,
       unreadOnly,
+      showDeleted,
       () => route.params.id
     ]
   }
@@ -165,11 +170,27 @@ function loadNextPage() {
 }
 
 // 当筛选项变化时，重置页码并主动刷新
-watch([type, unreadOnly, () => route.params.id], () => {
-  page.value = 1;
-  // 重置由 listApiResponse watcher 处理
-  refreshList();
-});
+watch(
+  [type, unreadOnly, showDeleted, () => route.params.id],
+  () => {
+    page.value = 1;
+    // 重置由 listApiResponse watcher 处理
+    refreshList();
+  }
+);
+
+// 获取 Mail 组件的引用，监听其 currentView 变化
+const mailRef = ref<InstanceType<typeof Mail>>();
+watch(
+  () => mailRef.value?.currentView,
+  newView => {
+    if (newView === 'trash') {
+      showDeleted.value = 'true';
+    } else {
+      showDeleted.value = 'false';
+    }
+  }
+);
 
 async function handleReadMail(mailId: string) {
   // 标记邮件为已读
@@ -189,20 +210,45 @@ async function handleReadMail(mailId: string) {
 }
 
 async function handleDeleteMail(mailId: string) {
-  // 删除邮件
-  const mailIndex = notifications.value.findIndex(
-    item => item.notificationId === mailId
-  );
-  if (mailIndex !== -1) {
-    notifications.value.splice(mailIndex, 1);
-  }
+  // 将邮件移至垃圾桶（软删除）
   try {
     await apiFetch(`/api/v1/notifications/${mailId}`, {
       method: 'DELETE'
     });
-    toast.success('邮件已删除');
+    // API调用成功后再从列表中移除
+    const mailIndex = notifications.value.findIndex(
+      item => item.notificationId === mailId
+    );
+    if (mailIndex !== -1) {
+      notifications.value.splice(mailIndex, 1);
+    }
+    toast.success('邮件已移至垃圾桶');
   } catch (error) {
-    console.error('删除邮件失败:', error);
+    console.error('移至垃圾桶失败:', error);
+    toast.error('移至垃圾桶失败');
+  }
+}
+
+async function handleRestoreMail(mailId: string) {
+  // 从垃圾桶恢复邮件
+  try {
+    await apiFetch(
+      `/api/v1/notifications/${mailId}/restore`,
+      {
+        method: 'POST'
+      }
+    );
+    // API调用成功后从列表中移除（因为已不在垃圾桶）
+    const mailIndex = notifications.value.findIndex(
+      item => item.notificationId === mailId
+    );
+    if (mailIndex !== -1) {
+      notifications.value.splice(mailIndex, 1);
+    }
+    toast.success('邮件已恢复');
+  } catch (error) {
+    console.error('恢复邮件失败:', error);
+    toast.error('恢复邮件失败');
   }
 }
 </script>
@@ -210,6 +256,7 @@ async function handleDeleteMail(mailId: string) {
 <template>
   <div class="hidden flex-col md:flex">
     <Mail
+      ref="mailRef"
       :mails="
         notifications.map(n => ({
           id: String(n.notificationId),
@@ -228,8 +275,10 @@ async function handleDeleteMail(mailId: string) {
       "
       :nav-collapsed-size="4"
       :load-more="loadNextPage"
+      :is-trash-view="showDeleted === 'true'"
       @read-mail="handleReadMail"
       @delete-mail="handleDeleteMail"
+      @restore-mail="handleRestoreMail"
     />
   </div>
 </template>
