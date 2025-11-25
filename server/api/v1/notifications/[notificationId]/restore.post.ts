@@ -12,17 +12,17 @@ export default defineEventHandler(async event => {
   const connection = await getOracleConnection();
 
   try {
-    // 使用软删除：设置 is_deleted = 1 而不是直接删除记录
-    const actionSql = `
+    // 恢复通知：设置 is_deleted = 0
+    const restoreSql = `
       UPDATE n_notifications
-      SET is_deleted = 1
+      SET is_deleted = 0
       WHERE notification_id = :notification_id
         AND user_id = :user_id
-        AND (is_deleted = 0 OR is_deleted IS NULL)
+        AND is_deleted = 1
     `;
 
     const result = await connection.execute(
-      actionSql,
+      restoreSql,
       {
         notification_id: notificationId,
         user_id: user.userId
@@ -33,10 +33,10 @@ export default defineEventHandler(async event => {
     if (result.rowsAffected === 0) {
       throw createError({
         statusCode: 404,
-        message: '通知未找到或已被处理',
+        message: '通知未找到或未在垃圾桶中',
         data: {
           success: false,
-          message: '通知未找到或已被处理',
+          message: '通知未找到或未在垃圾桶中',
           code: 404,
           timestamp: new Date().toISOString()
         } as ErrorResponse
@@ -44,7 +44,7 @@ export default defineEventHandler(async event => {
     }
     return {
       success: true,
-      message: '通知已移至垃圾桶',
+      message: '通知已从垃圾桶恢复',
       data: {},
       code: 200,
       timestamp: new Date().toISOString()
@@ -52,7 +52,7 @@ export default defineEventHandler(async event => {
   } catch (err: any) {
     throw createError({
       statusCode: err.statusCode || 500,
-      message: err.message || '通知移至垃圾桶失败',
+      message: err.message || '恢复通知失败',
       data: {
         success: false,
         message: err.message,

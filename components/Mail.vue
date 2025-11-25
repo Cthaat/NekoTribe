@@ -37,9 +37,15 @@ interface MailProps {
   navCollapsedSize: number;
   // 新增：下发给列表的加载更多函数
   loadMore?: () => void;
+  // 是否是垃圾桶视图
+  isTrashView?: boolean;
 }
 
-const emit = defineEmits(['read-mail', 'delete-mail']);
+const emit = defineEmits([
+  'read-mail',
+  'delete-mail',
+  'restore-mail'
+]);
 
 const props = withDefaults(defineProps<MailProps>(), {
   defaultCollapsed: false,
@@ -83,39 +89,37 @@ const selectedMailData = computed(() =>
   props.mails.find(item => item.id === selectedMail.value)
 );
 
-// TODO: 后续功能
-const links: LinkProp[] = [
+// 当前选中的视图：inbox 或 trash
+const currentView = ref<'inbox' | 'trash'>('inbox');
+
+const links = computed<LinkProp[]>(() => [
   {
     title: 'Inbox',
-    // label: '128',
     icon: 'lucide:inbox',
-    variant: 'default'
+    variant:
+      currentView.value === 'inbox' ? 'default' : 'ghost'
+  },
+  {
+    title: 'Trash',
+    icon: 'lucide:trash-2',
+    variant:
+      currentView.value === 'trash' ? 'default' : 'ghost'
   }
-  // {
-  //   title: 'Drafts',
-  //   label: '9',
-  //   icon: 'lucide:file',
-  //   variant: 'ghost'
-  // },
-  // {
-  //   title: 'Sent',
-  //   label: '',
-  //   icon: 'lucide:send',
-  //   variant: 'ghost'
-  // },
-  // {
-  //   title: 'Trash',
-  //   label: '',
-  //   icon: 'lucide:trash',
-  //   variant: 'ghost'
-  // },
-  // {
-  //   title: 'Archive',
-  //   label: '',
-  //   icon: 'lucide:archive',
-  //   variant: 'ghost'
-  // }
-];
+]);
+
+// 切换视图
+function handleNavClick(title: string) {
+  if (title === 'Inbox') {
+    currentView.value = 'inbox';
+  } else if (title === 'Trash') {
+    currentView.value = 'trash';
+  }
+}
+
+// 暴露当前视图给父组件
+defineExpose({
+  currentView
+});
 
 function onCollapse() {
   isCollapsed.value = true;
@@ -153,7 +157,11 @@ function handleReadMail(mailId: string) {
         @expand="onExpand"
         @collapse="onCollapse"
       >
-        <Nav :is-collapsed="isCollapsed" :links="links" />
+        <Nav
+          :is-collapsed="isCollapsed"
+          :links="links"
+          @nav-click="handleNavClick"
+        />
       </ResizablePanel>
       <ResizableHandle id="resize-handle-1" with-handle />
       <ResizablePanel
@@ -163,7 +171,11 @@ function handleReadMail(mailId: string) {
       >
         <Tabs default-value="all">
           <div class="flex items-center px-4 py-2">
-            <h1 class="text-xl font-bold">Inbox</h1>
+            <h1 class="text-xl font-bold">
+              {{
+                currentView === 'inbox' ? 'Inbox' : 'Trash'
+              }}
+            </h1>
             <TabsList class="ml-auto">
               <TabsTrigger
                 value="all"
@@ -221,7 +233,9 @@ function handleReadMail(mailId: string) {
       >
         <MailDisplay
           :mail="selectedMailData"
+          :is-trash-view="isTrashView"
           @delete-mail="emit('delete-mail', $event)"
+          @restore-mail="emit('restore-mail', $event)"
         />
       </ResizablePanel>
     </ResizablePanelGroup>

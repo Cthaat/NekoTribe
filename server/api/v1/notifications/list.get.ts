@@ -12,7 +12,8 @@ export default defineEventHandler(async event => {
     type = 'all',
     page = 1,
     pageSize = 10,
-    unreadOnly = false
+    unreadOnly = false,
+    showDeleted = false
   } = query;
 
   const getOracleConnection =
@@ -32,7 +33,10 @@ export default defineEventHandler(async event => {
             AND (:type = 'all' OR n.type = :type)
             AND (:unread_only = 0 OR n.is_read = 0)
             AND n.user_id IN (SELECT user_id FROM n_users WHERE is_active = 1)
-            AND (n.is_deleted = 0 OR n.is_deleted IS NULL)
+            AND (
+                (:show_deleted = 0 AND (n.is_deleted = 0 OR n.is_deleted IS NULL))
+                OR (:show_deleted = 1 AND n.is_deleted = 1)
+            )
     )
     SELECT 
         notification_id,
@@ -74,6 +78,7 @@ export default defineEventHandler(async event => {
         user_id: user.userId,
         type: type,
         unread_only: unreadOnly === 'true' ? 1 : 0,
+        show_deleted: showDeleted === 'true' ? 1 : 0,
         page: page,
         page_size: pageSize
       }
@@ -135,6 +140,7 @@ export default defineEventHandler(async event => {
         notifications: notifications,
         totalCount: totalCount,
         unreadOnly: unreadOnly,
+        showDeleted: showDeleted,
         hasNext: hasNext,
         hasPrev: hasPrev,
         totalPages: totalPages

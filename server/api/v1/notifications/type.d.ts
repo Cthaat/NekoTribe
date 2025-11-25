@@ -11,6 +11,7 @@ interface NotificationSearchPayload {
   page?: number; // 页码，从1开始
   pageSize?: number; // 每页数量，默认20
   unreadOnly?: string; // 是否只获取未读通知
+  showDeleted?: string; // 是否显示已删除的通知（垃圾桶）
 }
 
 // 通知数据库行类型
