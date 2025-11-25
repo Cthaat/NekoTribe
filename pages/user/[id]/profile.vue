@@ -1,4 +1,4 @@
-<!-- 文件路径: pages/account.vue -->
+<!-- 文件路径: pages/user/[id]/profile.vue -->
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/composables/useApi';
@@ -8,18 +8,20 @@ import { Progress } from '@/components/ui/progress';
 import { useI18n } from 'vue-i18n';
 import { Separator } from '@/components/ui/separator';
 import ProfileForm from '@/components/ProfileForm.vue';
+import { usePreferenceStore } from '~/stores/user'; // 导入 store
+import { onMounted, ref, computed, watch } from 'vue';
+import { Card, CardContent } from '@/components/ui/card';
+import { useRoute } from 'vue-router';
 import TweetList from '@/components/TweetList.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
-import RetweetModal from '@/components/RetweetModal.vue';
 import {
   Pagination,
   PaginationContent,
+  PaginationEllipsis,
   PaginationItem,
   PaginationNext,
   PaginationPrevious
 } from '@/components/ui/pagination';
-import { useRoute } from 'vue-router';
-import { id } from 'zod/v4/locales';
 
 const route = useRoute();
 
@@ -85,14 +87,14 @@ const userAnalytics = ref<UserAnalyticsData>({
 
 const userId = route.params.id;
 
-// 推文相关状态
+// 推文列表相关状态
 const page = ref(1);
-const pageSize = ref(15);
+const pageSize = ref(10);
 const fullTweets = ref<any[]>([]);
 const detailsPending = ref(false);
 const detailsError = ref<unknown>(null);
-const totalTweets = ref(0);
 
+// 获取用户推文列表
 interface TweetListApiResponse {
   data?: {
     tweets?: any[];
@@ -100,11 +102,11 @@ interface TweetListApiResponse {
   };
 }
 
-// 获取用户推文列表
 const {
   data: listApiResponse,
   pending: listPending,
-  error: listError
+  error: listError,
+  refresh: refreshTweetList
 } = useApiFetch<TweetListApiResponse>(
   '/api/v1/tweets/list',
   {
@@ -118,7 +120,7 @@ const {
   }
 );
 
-// 监听推文列表数据变化，获取详情
+// 获取推文详情
 watch(
   listApiResponse,
   async newListApiResponse => {
@@ -137,8 +139,6 @@ watch(
       fullTweets.value = [];
 
       const basicTweets = newListApiResponse.data.tweets;
-      totalTweets.value =
-        newListApiResponse.data.totalCount || 0;
 
       const detailPromises = basicTweets.map(basicTweet => {
         return apiFetch(
@@ -146,20 +146,23 @@ watch(
         );
       });
 
-      const detailResults =
+      const detailResponses =
         await Promise.all(detailPromises);
 
-      fullTweets.value = detailResults.map((res: any) => {
-        const tweet = res.data?.tweet;
-        return {
-          ...tweet,
-          id: tweet.tweetId
-        };
-      });
-    } catch (error) {
-      console.error('Error fetching tweet details:', error);
-      detailsError.value = error;
-      fullTweets.value = [];
+      fullTweets.value = detailResponses.map(
+        (response: any, index: number) => ({
+          ...response.data.tweet,
+          isLikedByUser: basicTweets[index].isLikedByUser,
+          isBookmarkedByUser:
+            basicTweets[index].isBookmarkedByUser
+        })
+      );
+    } catch (err) {
+      console.error('Error fetching tweet details:', err);
+      detailsError.value = err as Error;
+      if (process.client) {
+        toast.error('加载推文详情失败');
+      }
     } finally {
       detailsPending.value = false;
     }
@@ -167,18 +170,21 @@ watch(
   { immediate: true }
 );
 
-const isTweetsLoading = computed(
+const isLoadingTweets = computed(
   () => listPending.value || detailsPending.value
 );
-const hasTweetsError = computed(
-  () => !!listError.value || !!detailsError.value
-);
-const totalCount = computed(
+
+const totalTweetsCount = computed(
   () => listApiResponse.value?.data?.totalCount || 0
 );
 
-// --- Tweet interactions ---
+const totalPages = computed(() =>
+  Math.ceil(totalTweetsCount.value / pageSize.value)
+);
+
+// 推文操作处理
 async function handleDeleteTweet(tweetId: any) {
+  console.log('Deleting tweet:', tweetId);
   const response: any = await apiFetch(
     `/api/v1/tweets/${tweetId}`,
     {
@@ -186,117 +192,95 @@ async function handleDeleteTweet(tweetId: any) {
     }
   );
   if (!response.success) {
-    toast.error(t('userProfile.tweets.deleteError'), {
-      description: response.error || ''
-    });
+    toast.error('删除推文失败');
     return;
   }
-  toast.success(t('userProfile.tweets.deleteSuccess'));
+  toast.success('推文已删除');
   fullTweets.value = fullTweets.value.filter(
     tweet => tweet.tweetId !== tweetId
   );
 }
 
 function handleReplyTweet(tweet: any) {
+  const localePath = useLocalePath();
   const detailPage = localePath(`/tweet/${tweet.tweetId}`);
-  return navigateTo(detailPage, { replace: true });
+  return navigateTo(detailPage);
 }
 
-const isRetweetModalOpen = ref(false);
-const selectedTweetForRetweet = ref(null);
-const isSubmittingRetweet = ref(false);
-
-function handleRetweetTweet(tweet: any) {
-  selectedTweetForRetweet.value = tweet;
-  isRetweetModalOpen.value = true;
+async function handleRetweetTweet(tweet: any) {
+  console.log('Retweeting:', tweet.tweetId);
+  // 转发逻辑
 }
 
-async function handleSubmitRetweet({
-  content,
-  originalTweetId
-}: {
-  content: any;
-  originalTweetId: any;
-}) {
-  isSubmittingRetweet.value = true;
+async function handleLikeTweet(tweet: any, action: string) {
   try {
     const response: any = await apiFetch(
-      '/api/v1/tweets/send-tweets',
+      '/api/v1/interactions/like',
       {
         method: 'POST',
         body: {
-          content: content,
-          replyToTweetId: '',
-          retweetOfTweetId: originalTweetId,
-          quoteTweetId: '',
-          visibility: 'public',
-          hashtags: '',
-          mentions: '',
-          scheduledAt: '',
-          location: ''
+          tweetId: tweet.tweetId,
+          action: action
         }
       }
     );
-
-    if (!response.success) {
-      throw new Error(response.message || t('userProfile.tweets.retweetError'));
-    }
-
-    toast.success(t('userProfile.tweets.retweetSuccess'));
-  } catch (err: any) {
-    console.error('Failed to retweet:', err);
-    toast.error(err.message || t('userProfile.tweets.retweetError'));
-  } finally {
-    isSubmittingRetweet.value = false;
-    isRetweetModalOpen.value = false;
-  }
-}
-
-async function handleLikeTweet(
-  tweet: any,
-  action: 'like' | 'unlike'
-) {
-  const response: any = await apiFetch(
-    '/api/v1/interactions/like',
-    {
-      method: 'POST',
-      body: {
-        tweetId: tweet.tweetId,
-        likeType: action
+    if (response.success) {
+      const index = fullTweets.value.findIndex(
+        t => t.tweetId === tweet.tweetId
+      );
+      if (index !== -1) {
+        fullTweets.value[index].isLikedByUser =
+          action === 'like';
+        fullTweets.value[index].likesCount +=
+          action === 'like' ? 1 : -1;
       }
     }
-  );
-  if (!response.success) {
-    console.error(
-      'Failed to like/unlike tweet:',
-      response.error
-    );
+  } catch (error) {
+    console.error('Error liking tweet:', error);
+    toast.error('操作失败');
   }
 }
 
 async function handleBookmarkTweet(
   tweet: any,
-  action: 'mark' | 'unmark'
+  action: string
 ) {
-  const response: any = await apiFetch(
-    '/api/v1/interactions/bookmark',
-    {
-      method: 'POST',
-      body: {
-        tweetId: tweet.tweetId,
-        bookmarkType: action
+  try {
+    const response: any = await apiFetch(
+      '/api/v1/interactions/bookmark',
+      {
+        method: 'POST',
+        body: {
+          tweetId: tweet.tweetId,
+          action: action
+        }
+      }
+    );
+    if (response.success) {
+      const index = fullTweets.value.findIndex(
+        t => t.tweetId === tweet.tweetId
+      );
+      if (index !== -1) {
+        fullTweets.value[index].isBookmarkedByUser =
+          action === 'bookmark';
       }
     }
-  );
-  if (!response.success) {
-    console.error(
-      'Failed to bookmark/unbookmark tweet:',
-      response.error
-    );
+  } catch (error) {
+    console.error('Error bookmarking tweet:', error);
+    toast.error('操作失败');
   }
 }
 
-// --- User data fetching ---
+function goToPage(newPage: number) {
+  if (newPage >= 1 && newPage <= totalPages.value) {
+    page.value = newPage;
+    // 滚动到顶部
+    if (process.client) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+}
+
 onMounted(async () => {
   try {
     const response = (await apiFetch(
@@ -439,105 +423,6 @@ async function followUser(user: any, active: string) {
     toast.error('Failed to follow user.');
   }
 }
-
-// 推文操作函数
-async function handleDeleteTweet(tweetId: string) {
-  console.log('Deleting tweet:', tweetId);
-  try {
-    const response: any = await apiFetch(
-      `/api/v1/tweets/${tweetId}`,
-      {
-        method: 'DELETE'
-      }
-    );
-    if (response.success) {
-      toast.success('推文已删除');
-      // 刷新推文列表
-      fullTweets.value = fullTweets.value.filter(
-        t => t.tweetId !== tweetId
-      );
-    }
-  } catch (error) {
-    console.error('Error deleting tweet:', error);
-    toast.error('删除推文失败');
-  }
-}
-
-async function handleLikeTweet(
-  tweet: any,
-  action: 'like' | 'unlike'
-) {
-  console.log('Liking tweet:', tweet, action);
-  try {
-    const response: any = await apiFetch(
-      '/api/v1/interactions/like',
-      {
-        method: 'POST',
-        body: {
-          tweetId: tweet.tweetId,
-          likeType: action
-        }
-      }
-    );
-    if (response.success) {
-      // 更新本地状态
-      const tweetIndex = fullTweets.value.findIndex(
-        t => t.tweetId === tweet.tweetId
-      );
-      if (tweetIndex !== -1) {
-        fullTweets.value[tweetIndex].isLikedByUser =
-          action === 'like';
-        fullTweets.value[tweetIndex].likesCount +=
-          action === 'like' ? 1 : -1;
-      }
-    }
-  } catch (error) {
-    console.error('Error liking tweet:', error);
-    toast.error('操作失败');
-  }
-}
-
-async function handleBookmarkTweet(
-  tweet: any,
-  action: 'mark' | 'unmark'
-) {
-  console.log('Bookmarking tweet:', tweet, action);
-  try {
-    const response: any = await apiFetch(
-      '/api/v1/interactions/bookmark',
-      {
-        method: 'POST',
-        body: {
-          tweetId: tweet.tweetId,
-          bookmarkType: action
-        }
-      }
-    );
-    if (response.success) {
-      // 更新本地状态
-      const tweetIndex = fullTweets.value.findIndex(
-        t => t.tweetId === tweet.tweetId
-      );
-      if (tweetIndex !== -1) {
-        fullTweets.value[tweetIndex].isBookmarkedByUser =
-          action === 'mark';
-      }
-    }
-  } catch (error) {
-    console.error('Error bookmarking tweet:', error);
-    toast.error('操作失败');
-  }
-}
-
-function handleReplyTweet(tweet: any) {
-  console.log('Replying to tweet:', tweet);
-  toast.info('回复功能开发中');
-}
-
-function handleRetweetTweet(tweet: any) {
-  console.log('Retweeting tweet:', tweet);
-  toast.info('转发功能开发中');
-}
 </script>
 
 <template>
@@ -549,7 +434,7 @@ function handleRetweetTweet(tweet: any) {
       @follow="followUser"
     />
 
-    <!-- 统计卡片 -->
+    <!-- 用户统计概览 -->
     <Card>
       <CardContent>
         <div class="hidden space-y-6 p-8 pb-16 md:block">
@@ -573,31 +458,18 @@ function handleRetweetTweet(tweet: any) {
         <div class="space-y-4">
           <div class="p-6 pb-4">
             <h2 class="text-2xl font-bold tracking-tight">
-              用户推文
+              推文
             </h2>
             <p class="text-muted-foreground">
-              共 {{ totalTweets }} 条推文
+              共 {{ totalTweetsCount }} 条推文
             </p>
           </div>
 
           <Separator />
 
           <!-- 加载状态 -->
-          <div
-            v-if="listPending || detailsPending"
-            class="space-y-4 p-6"
-          >
+          <div v-if="isLoadingTweets" class="space-y-4 p-4">
             <TweetCardSkeleton v-for="i in 3" :key="i" />
-          </div>
-
-          <!-- 错误状态 -->
-          <div
-            v-else-if="listError || detailsError"
-            class="p-6 text-center"
-          >
-            <p class="text-muted-foreground">
-              加载推文失败
-            </p>
           </div>
 
           <!-- 推文列表 -->
@@ -610,42 +482,41 @@ function handleRetweetTweet(tweet: any) {
               @like-tweet="handleLikeTweet"
               @bookmark-tweet="handleBookmarkTweet"
             />
-
-            <!-- 分页 -->
-            <div
-              v-if="totalPages > 1"
-              class="flex justify-center p-6"
-            >
-              <Pagination
-                v-model:page="page"
-                :items-per-page="pageSize"
-                :total="totalTweets"
-              >
-                <PaginationContent v-slot="{ items }">
-                  <PaginationPrevious />
-                  <template
-                    v-for="(item, index) in items"
-                    :key="index"
-                  >
-                    <PaginationItem
-                      v-if="item.type === 'page'"
-                      :value="item.value"
-                      :is-active="item.value === page"
-                    >
-                      {{ item.value }}
-                    </PaginationItem>
-                  </template>
-                  <PaginationNext />
-                </PaginationContent>
-              </Pagination>
-            </div>
           </div>
 
           <!-- 空状态 -->
-          <div v-else class="p-12 text-center">
-            <p class="text-muted-foreground">
-              该用户还没有发布推文
-            </p>
+          <div
+            v-else
+            class="p-12 text-center text-muted-foreground"
+          >
+            <p class="text-lg">该用户还没有发布任何推文</p>
+          </div>
+
+          <!-- 分页 -->
+          <div v-if="totalPages > 1" class="p-6 pt-4">
+            <Pagination
+              v-model:page="page"
+              :items-per-page="pageSize"
+              :total="totalTweetsCount"
+              class="flex justify-center"
+            >
+              <PaginationContent v-slot="{ items }">
+                <PaginationPrevious />
+                <template
+                  v-for="(item, index) in items"
+                  :key="index"
+                >
+                  <PaginationItem
+                    v-if="item.type === 'page'"
+                    :value="item.value"
+                    :is-active="item.value === page"
+                  >
+                    {{ item.value }}
+                  </PaginationItem>
+                </template>
+                <PaginationNext />
+              </PaginationContent>
+            </Pagination>
           </div>
         </div>
       </CardContent>
