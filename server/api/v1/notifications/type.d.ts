@@ -113,3 +113,97 @@ interface NotificationErrorResponse {
 type NotificationResponse =
   | NotificationSuccessResponse
   | NotificationErrorResponse;
+
+// ========================== send.post ======================================
+
+// 发送通知请求参数类型
+interface SendNotificationPayload {
+  userId: string | number; // 接收通知的用户ID
+  type:
+    | 'like'
+    | 'retweet'
+    | 'comment'
+    | 'follow'
+    | 'mention'
+    | 'system'; // 通知类型
+  title?: string; // 通知标题（可选）
+  message: string; // 通知内容
+  relatedType?: 'tweet' | 'user' | 'comment'; // 相关类型（可选）
+  relatedId?: string | number; // 相关ID（可选）
+  priority?: 'low' | 'normal' | 'high' | 'urgent'; // 优先级（可选，默认normal）
+}
+
+// 发送通知成功响应类型
+interface SendNotificationSuccessResponse {
+  success: true;
+  message: string;
+  data: {
+    notificationId: string | null; // 新创建的通知ID
+    userId: string | number; // 接收者用户ID
+    type: string; // 通知类型
+    message: string; // 通知内容
+  };
+  code: 200;
+  timestamp: string;
+}
+
+// 发送通知失败响应类型
+interface SendNotificationErrorResponse {
+  success: false;
+  message: string;
+  code: number;
+  timestamp: string;
+}
+
+// 发送通知响应联合类型
+type SendNotificationResponse =
+  | SendNotificationSuccessResponse
+  | SendNotificationErrorResponse;
+
+// ========================== batch-send.post ======================================
+
+// 批量发送通知请求参数类型
+interface BatchSendNotificationPayload {
+  userIds: (string | number)[]; // 接收通知的用户ID数组
+  type:
+    | 'like'
+    | 'retweet'
+    | 'comment'
+    | 'follow'
+    | 'mention'
+    | 'system'; // 通知类型
+  title?: string; // 通知标题（可选）
+  message: string; // 通知内容
+  relatedType?: 'tweet' | 'user' | 'comment'; // 相关类型（可选）
+  relatedId?: string | number; // 相关ID（可选）
+  priority?: 'low' | 'normal' | 'high' | 'urgent'; // 优先级（可选，默认normal）
+}
+
+// 批量发送通知成功响应类型
+interface BatchSendNotificationSuccessResponse {
+  success: true;
+  message: string;
+  data: {
+    totalRequested: number; // 请求发送的总数
+    successCount: number; // 成功创建的通知数量
+    failedCount: number; // 失败的数量
+    type: string; // 通知类型
+    message: string; // 通知内容
+    procedureMessage: string; // 存储过程返回的消息
+  };
+  code: 200;
+  timestamp: string;
+}
+
+// 批量发送通知失败响应类型
+interface BatchSendNotificationErrorResponse {
+  success: false;
+  message: string;
+  code: number;
+  timestamp: string;
+}
+
+// 批量发送通知响应联合类型
+type BatchSendNotificationResponse =
+  | BatchSendNotificationSuccessResponse
+  | BatchSendNotificationErrorResponse;
