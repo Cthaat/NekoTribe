@@ -1,6 +1,6 @@
 // composables/useApiFetch.ts
 import { useFetch } from '#app';
-import { getCurrentInstance } from 'vue';
+import { getCurrentInstance, watch } from 'vue';
 
 // T 是你期望的响应数据类型
 export function useApiFetch<T>(
@@ -66,6 +66,89 @@ export function useApiFetch<T>(
 
   options.headers = headers;
 
+  // 添加响应错误拦截器处理token过期
+  const originalOnResponseError = options.onResponseError;
+  options.onResponseError = async (context: any) => {
+    const { response } = context;
+
+    // 先调用用户自定义的错误处理（如果有）
+    if (originalOnResponseError) {
+      await originalOnResponseError(context);
+    }
+
+    // 检测401错误且不是刷新token接口本身
+    if (
+      response.status === 401 &&
+      !path.includes('/auth/refresh')
+    ) {
+      console.log(
+        '[useApiFetch] 检测到401错误，尝试刷新token'
+      );
+
+      try {
+        // 获取store并刷新token
+        const { usePreferenceStore } = await import(
+          '~/stores/user'
+        );
+        const preferenceStore = usePreferenceStore();
+
+        // 调用store的刷新方法
+        await preferenceStore.refreshAccessToken();
+
+        console.log(
+          '[useApiFetch] Token刷新成功，将在下次组件更新时自动重试'
+        );
+      } catch (error) {
+        console.error(
+          '[useApiFetch] Token刷新失败:',
+          error
+        );
+        throw error;
+      }
+    }
+  };
+
   // 4. 调用原始的 useFetch
-  return useFetch<T>(path, options);
+  const result = useFetch<T>(path, options);
+
+  // 5. 在客户端环境下，监听错误并自动重试
+  if (!isServer && result) {
+    const originalError = result.error;
+    const originalRefresh = result.refresh;
+
+    // 监听错误变化
+    watch(originalError, async newError => {
+      if (
+        newError &&
+        (newError as any).statusCode === 401 &&
+        !path.includes('/auth/refresh')
+      ) {
+        console.log(
+          '[useApiFetch] 监听到401错误，token刷新后自动重试'
+        );
+        try {
+          const { usePreferenceStore } = await import(
+            '~/stores/user'
+          );
+          const preferenceStore = usePreferenceStore();
+          await preferenceStore.refreshAccessToken();
+
+          // token刷新成功后，自动重新请求
+          if (originalRefresh) {
+            console.log(
+              '[useApiFetch] 执行refresh重新请求'
+            );
+            await originalRefresh();
+          }
+        } catch (error) {
+          console.error(
+            '[useApiFetch] 自动重试失败:',
+            error
+          );
+        }
+      }
+    });
+  }
+
+  return result;
 }

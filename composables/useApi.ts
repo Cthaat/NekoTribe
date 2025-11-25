@@ -3,6 +3,7 @@
 // 1. 我们不需要从任何地方导入选项类型了！
 //    我们将直接从全局的 $fetch 函数推导出它的类型。
 import { getCurrentInstance } from 'vue';
+import type { FetchError } from 'ofetch';
 
 /**
  * 直接从全局 $fetch 函数的类型定义中提取出其第二个参数（options 对象）的类型。
@@ -27,10 +28,48 @@ export const apiFetch = <T>(
 
   // 4. 创建默认选项，同样使用这个精确的类型
   const defaults: ApiFetchOptions = {
-    baseURL: config.public.apiBase
+    baseURL: config.public.apiBase,
 
-    // 如果需要全局添加 headers 或拦截器，这里是最佳位置
-    // onRequest({ options }) { ... }
+    // 响应拦截器：处理token过期错误
+    async onResponseError({
+      response,
+      options: requestOptions
+    }) {
+      // 检测401错误且不是刷新token接口本身
+      if (
+        response.status === 401 &&
+        !path.includes('/auth/refresh')
+      ) {
+        console.log(
+          '[apiFetch] 检测到401错误，尝试刷新token'
+        );
+
+        try {
+          // 获取store并刷新token
+          const { usePreferenceStore } = await import(
+            '~/stores/user'
+          );
+          const preferenceStore = usePreferenceStore();
+
+          // 调用store的刷新方法
+          await preferenceStore.refreshAccessToken();
+
+          console.log(
+            '[apiFetch] Token刷新成功，重试原始请求'
+          );
+
+          // 重试原始请求
+          return $fetch(path, {
+            ...(requestOptions as any),
+            baseURL: config.public.apiBase
+          } as any);
+        } catch (error) {
+          console.error('[apiFetch] Token刷新失败:', error);
+          // 刷新失败，让错误继续传播
+          throw error;
+        }
+      }
+    }
   };
 
   // 追加来源追踪头，帮助服务端定位发起请求的前端“来源”
