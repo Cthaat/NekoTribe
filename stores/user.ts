@@ -132,6 +132,8 @@ export const usePreferenceStore = defineStore(
 
     // 用于防止重复刷新的Promise缓存
     let refreshPromise: Promise<void> | null = null;
+    // 标记是否正在刷新token
+    const isRefreshingToken = ref(false);
 
     async function refreshAccessToken() {
       // 如果已经有一个刷新请求在进行中，直接返回该Promise
@@ -143,6 +145,7 @@ export const usePreferenceStore = defineStore(
       }
 
       console.log('[PreferenceStore] 开始刷新access token');
+      isRefreshingToken.value = true;
 
       // 创建刷新Promise
       refreshPromise = (async () => {
@@ -198,6 +201,7 @@ export const usePreferenceStore = defineStore(
         } finally {
           // 清除Promise缓存，允许下次刷新
           refreshPromise = null;
+          isRefreshingToken.value = false;
         }
       })();
 
@@ -251,6 +255,7 @@ export const usePreferenceStore = defineStore(
       preferences,
       isDarkModeActive,
       isLoggedIn, // 【新增】
+      isRefreshingToken, // 【新增】暴露刷新状态
       updatePreference,
       setTheme,
       toggleCompactMode,

@@ -13,7 +13,7 @@ export function useApiFetch<T>(
   // 2. 利用 useFetch 的 baseURL 选项，自动拼接 URL
   options.baseURL = config.public.apiBase;
 
-  // 3. 追加来源追踪头，帮助服务端定位发起请求的前端“来源”
+  // 3. 追加来源追踪头，帮助服务端定位发起请求的前端"来源"
   //    - x-client-route: 当前路由
   //    - x-client-component: 组件名（若可获取）
   //    - x-client-source: 通过堆栈粗略解析到的来源（可能是打包后的 chunk）
@@ -89,15 +89,66 @@ export function useApiFetch<T>(
 
   options.headers = headers;
 
+  // 确保客户端请求携带Cookie
+  // 这对于httpOnly Cookie的认证至关重要
+  options.credentials = 'include';
+
+  // 添加请求拦截器 - 在发送请求前检查token
+  const originalOnRequest = options.onRequest;
+  options.onRequest = async (context: any) => {
+    // 调用用户自定义的请求处理（如果有）
+    if (originalOnRequest) {
+      await originalOnRequest(context);
+    }
+
+    // 在客户端且不是刷新token接口时，检查token状态
+    if (!isServer && !path.includes('/auth/refresh')) {
+      try {
+        const { usePreferenceStore } = await import(
+          '~/stores/user'
+        );
+        const preferenceStore = usePreferenceStore();
+
+        // 如果正在刷新token，等待完成
+        if (preferenceStore.isRefreshingToken) {
+          console.log(
+            '[useApiFetch] 等待token刷新完成后再发送请求'
+          );
+          // 等待最多3秒
+          let waitTime = 0;
+          while (
+            preferenceStore.isRefreshingToken &&
+            waitTime < 3000
+          ) {
+            await new Promise(resolve =>
+              setTimeout(resolve, 100)
+            );
+            waitTime += 100;
+          }
+        }
+      } catch (error) {
+        console.error(
+          '[useApiFetch] onRequest检查token失败:',
+          error
+        );
+      }
+    }
+  };
+
   // 添加响应错误拦截器处理token过期
   const originalOnResponseError = options.onResponseError;
-  options.onResponseError = async (context: any) => {
-    const { response } = context;
 
-    // 先调用用户自定义的错误处理（如果有）
-    if (originalOnResponseError) {
-      await originalOnResponseError(context);
+  // 添加onResponse拦截器来处理成功的响应
+  const originalOnResponse = options.onResponse;
+  options.onResponse = async (context: any) => {
+    // 调用用户自定义的响应处理（如果有）
+    if (originalOnResponse) {
+      await originalOnResponse(context);
     }
+  };
+
+  options.onResponseError = async (context: any) => {
+    const { response, options: fetchOptions } = context;
 
     // 检测401错误且不是刷新token接口本身
     if (
@@ -105,72 +156,109 @@ export function useApiFetch<T>(
       !path.includes('/auth/refresh')
     ) {
       console.log(
-        '[useApiFetch] 检测到401错误，尝试刷新token'
+        '[useApiFetch] 检测到401错误，阻止错误传播'
       );
 
-      try {
-        // 获取store并刷新token
-        const { usePreferenceStore } = await import(
-          '~/stores/user'
-        );
-        const preferenceStore = usePreferenceStore();
+      // 标记这是一个401错误，供watch处理
+      context._is401 = true;
 
-        // 调用store的刷新方法
-        await preferenceStore.refreshAccessToken();
+      // 不抛出错误，不调用原始错误处理器
+      // 这样可以阻止错误显示给用户
+      return;
+    }
 
-        console.log(
-          '[useApiFetch] Token刷新成功，将在下次组件更新时自动重试'
-        );
-      } catch (error) {
-        console.error(
-          '[useApiFetch] Token刷新失败:',
-          error
-        );
-        throw error;
-      }
+    // 非401错误，调用用户自定义的错误处理（如果有）
+    if (originalOnResponseError) {
+      await originalOnResponseError(context);
     }
   };
+
+  // 禁用服务端渲染时的请求，只在客户端执行
+  // 这样可以避免SSR期间的认证问题
+  if (options.server === undefined) {
+    options.server = false;
+  }
 
   // 4. 调用原始的 useFetch
   const result = useFetch<T>(path, options);
 
-  // 5. 在客户端环境下，监听错误并自动重试
+  // 5. 在客户端环境下，监听错误并自动处理401
   if (!isServer && result) {
     const originalError = result.error;
     const originalRefresh = result.refresh;
+    const originalStatus = result.status;
 
-    // 监听错误变化
-    watch(originalError, async newError => {
-      if (
-        newError &&
-        (newError as any).statusCode === 401 &&
-        !path.includes('/auth/refresh')
-      ) {
-        console.log(
-          '[useApiFetch] 监听到401错误，token刷新后自动重试'
-        );
-        try {
-          const { usePreferenceStore } = await import(
-            '~/stores/user'
+    // 使用ref跟踪是否正在刷新token，避免重复刷新
+    const isRefreshing = ref(false);
+    let refreshAttempts = 0;
+    const MAX_REFRESH_ATTEMPTS = 2;
+
+    // 监听status变化来检测401错误
+    watch(
+      [originalError, originalStatus],
+      async ([newError, newStatus]) => {
+        // 检测401错误
+        const is401 =
+          (newError &&
+            (newError as any).statusCode === 401) ||
+          (newError && (newError as any).status === 401) ||
+          (newError &&
+            (newError as any).data?.code === 401) ||
+          newStatus === 'error';
+
+        if (
+          is401 &&
+          !path.includes('/auth/refresh') &&
+          !isRefreshing.value &&
+          refreshAttempts < MAX_REFRESH_ATTEMPTS
+        ) {
+          console.log(
+            '[useApiFetch] 检测到401错误，尝试刷新token'
           );
-          const preferenceStore = usePreferenceStore();
-          await preferenceStore.refreshAccessToken();
+          isRefreshing.value = true;
+          refreshAttempts++;
 
-          // token刷新成功后，自动重新请求
-          if (originalRefresh) {
-            console.log(
-              '[useApiFetch] 执行refresh重新请求'
+          try {
+            const { usePreferenceStore } = await import(
+              '~/stores/user'
             );
-            await originalRefresh();
+            const preferenceStore = usePreferenceStore();
+
+            // 刷新token
+            await preferenceStore.refreshAccessToken();
+
+            console.log(
+              '[useApiFetch] Token刷新成功，重新请求数据'
+            );
+
+            // 清除错误状态
+            if (result.error.value) {
+              result.error.value = null;
+            }
+
+            // token刷新成功后，自动重新请求
+            if (originalRefresh) {
+              await originalRefresh();
+            }
+          } catch (error) {
+            console.error(
+              '[useApiFetch] Token刷新失败:',
+              error
+            );
+
+            // 刷新失败后，跳转登录页
+            if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
+              const router = useRouter();
+              const localePath = useLocalePath();
+              await router.push(localePath('/auth/login'));
+            }
+          } finally {
+            isRefreshing.value = false;
           }
-        } catch (error) {
-          console.error(
-            '[useApiFetch] 自动重试失败:',
-            error
-          );
         }
-      }
-    });
+      },
+      { deep: true }
+    );
   }
 
   return result;

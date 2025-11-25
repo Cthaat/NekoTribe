@@ -27,8 +27,12 @@ export const apiFetch = <T>(
   const config = useRuntimeConfig();
 
   // 4. 创建默认选项，同样使用这个精确的类型
+  // 用于防止重复刷新的Promise缓存
+  let refreshingPromise: Promise<void> | null = null;
+
   const defaults: ApiFetchOptions = {
     baseURL: config.public.apiBase,
+    credentials: 'include', // 默认发送Cookie，这是关键！
 
     // 响应拦截器：处理token过期错误
     async onResponseError({
@@ -45,23 +49,44 @@ export const apiFetch = <T>(
         );
 
         try {
-          // 获取store并刷新token
-          const { usePreferenceStore } = await import(
-            '~/stores/user'
-          );
-          const preferenceStore = usePreferenceStore();
+          // 如果已经在刷新，等待刷新完成
+          if (refreshingPromise) {
+            console.log(
+              '[apiFetch] 等待已存在的token刷新完成'
+            );
+            await refreshingPromise;
+          } else {
+            // 创建新的刷新Promise
+            refreshingPromise = (async () => {
+              try {
+                const { usePreferenceStore } = await import(
+                  '~/stores/user'
+                );
+                const preferenceStore =
+                  usePreferenceStore();
+                await preferenceStore.refreshAccessToken();
+                console.log('[apiFetch] Token刷新成功');
 
-          // 调用store的刷新方法
-          await preferenceStore.refreshAccessToken();
+                // 等待一小段时间，确保Cookie已经设置
+                await new Promise(resolve =>
+                  setTimeout(resolve, 100)
+                );
+              } finally {
+                refreshingPromise = null;
+              }
+            })();
+            await refreshingPromise;
+          }
 
-          console.log(
-            '[apiFetch] Token刷新成功，重试原始请求'
-          );
+          console.log('[apiFetch] 重试原始请求');
 
           // 重试原始请求
+          // 注意：$fetch会自动携带最新的Cookie（包括刚刷新的token）
+          // 但我们需要确保credentials设置正确
           return $fetch(path, {
             ...(requestOptions as any),
-            baseURL: config.public.apiBase
+            baseURL: config.public.apiBase,
+            credentials: 'include' // 确保发送Cookie
           } as any);
         } catch (error) {
           console.error('[apiFetch] Token刷新失败:', error);
@@ -148,7 +173,8 @@ export const apiFetch = <T>(
   const mergedOptions: ApiFetchOptions = {
     ...defaults,
     ...options,
-    headers: mergedHeaders
+    headers: mergedHeaders,
+    credentials: 'include' // 确保每次请求都发送Cookie
   };
 
   // 6. 调用 $fetch，现在类型完美匹配，不会再有任何错误
