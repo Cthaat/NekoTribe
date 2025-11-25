@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useRoute } from 'vue-router';
 import TweetList from '@/components/TweetList.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
+import RetweetModal from '@/components/RetweetModal.vue';
 import {
   Pagination,
   PaginationContent,
@@ -227,11 +228,11 @@ async function handleSubmitRetweet({
       }
     );
 
-    toast.success(t('userProfile.tweets.retweetSuccess'));
-
     if (!response.success) {
       throw new Error(response.message || t('userProfile.tweets.retweetError'));
     }
+
+    toast.success(t('userProfile.tweets.retweetSuccess'));
   } catch (err: any) {
     console.error('Failed to retweet:', err);
     toast.error(err.message || t('userProfile.tweets.retweetError'));
