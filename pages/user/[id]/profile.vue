@@ -1,17 +1,27 @@
-<!-- 文件路径: pages/account.vue -->
+<!-- 文件路径: pages/user/[id]/profile.vue -->
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/composables/useApi';
+import { useApiFetch } from '@/composables/useApiFetch';
 import { toast } from 'vue-sonner';
 import { Progress } from '@/components/ui/progress';
 import { useI18n } from 'vue-i18n';
 import { Separator } from '@/components/ui/separator';
 import ProfileForm from '@/components/ProfileForm.vue';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, computed, watch } from 'vue';
 import { Card, CardContent } from '@/components/ui/card';
 import { useRoute } from 'vue-router';
-import { id } from 'zod/v4/locales';
+import TweetList from '@/components/TweetList.vue';
+import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious
+} from '@/components/ui/pagination';
 
 const route = useRoute();
 
@@ -76,6 +86,200 @@ const userAnalytics = ref<UserAnalyticsData>({
 });
 
 const userId = route.params.id;
+
+// 推文列表相关状态
+const page = ref(1);
+const pageSize = ref(10);
+const fullTweets = ref<any[]>([]);
+const detailsPending = ref(false);
+const detailsError = ref<unknown>(null);
+
+// 获取用户推文列表
+interface TweetListApiResponse {
+  data?: {
+    tweets?: any[];
+    totalCount?: number;
+  };
+}
+
+const {
+  data: listApiResponse,
+  pending: listPending,
+  error: listError,
+  refresh: refreshTweetList
+} = useApiFetch<TweetListApiResponse>(
+  '/api/v1/tweets/list',
+  {
+    query: {
+      type: 'user',
+      userId: userId,
+      page: page,
+      pageSize: pageSize
+    },
+    watch: [page]
+  }
+);
+
+// 获取推文详情
+watch(
+  listApiResponse,
+  async newListApiResponse => {
+    if (listError.value) {
+      fullTweets.value = [];
+      return;
+    }
+    if (!newListApiResponse?.data?.tweets) {
+      fullTweets.value = [];
+      return;
+    }
+
+    try {
+      detailsPending.value = true;
+      detailsError.value = null;
+      fullTweets.value = [];
+
+      const basicTweets = newListApiResponse.data.tweets;
+
+      const detailPromises = basicTweets.map(basicTweet => {
+        return apiFetch(
+          `/api/v1/tweets/${basicTweet.tweetId}`
+        );
+      });
+
+      const detailResponses =
+        await Promise.all(detailPromises);
+
+      fullTweets.value = detailResponses.map(
+        (response: any, index: number) => ({
+          ...response.data.tweet,
+          isLikedByUser: basicTweets[index].isLikedByUser,
+          isBookmarkedByUser:
+            basicTweets[index].isBookmarkedByUser
+        })
+      );
+    } catch (err) {
+      console.error('Error fetching tweet details:', err);
+      detailsError.value = err as Error;
+      if (process.client) {
+        toast.error('加载推文详情失败');
+      }
+    } finally {
+      detailsPending.value = false;
+    }
+  },
+  { immediate: true }
+);
+
+const isLoadingTweets = computed(
+  () => listPending.value || detailsPending.value
+);
+
+const totalTweetsCount = computed(
+  () => listApiResponse.value?.data?.totalCount || 0
+);
+
+const totalPages = computed(() =>
+  Math.ceil(totalTweetsCount.value / pageSize.value)
+);
+
+// 推文操作处理
+async function handleDeleteTweet(tweetId: any) {
+  console.log('Deleting tweet:', tweetId);
+  const response: any = await apiFetch(
+    `/api/v1/tweets/${tweetId}`,
+    {
+      method: 'DELETE'
+    }
+  );
+  if (!response.success) {
+    toast.error('删除推文失败');
+    return;
+  }
+  toast.success('推文已删除');
+  fullTweets.value = fullTweets.value.filter(
+    tweet => tweet.tweetId !== tweetId
+  );
+}
+
+function handleReplyTweet(tweet: any) {
+  const localePath = useLocalePath();
+  const detailPage = localePath(`/tweet/${tweet.tweetId}`);
+  return navigateTo(detailPage);
+}
+
+async function handleRetweetTweet(tweet: any) {
+  console.log('Retweeting:', tweet.tweetId);
+  // 转发逻辑
+}
+
+async function handleLikeTweet(tweet: any, action: string) {
+  try {
+    const response: any = await apiFetch(
+      '/api/v1/interactions/like',
+      {
+        method: 'POST',
+        body: {
+          tweetId: tweet.tweetId,
+          action: action
+        }
+      }
+    );
+    if (response.success) {
+      const index = fullTweets.value.findIndex(
+        t => t.tweetId === tweet.tweetId
+      );
+      if (index !== -1) {
+        fullTweets.value[index].isLikedByUser =
+          action === 'like';
+        fullTweets.value[index].likesCount +=
+          action === 'like' ? 1 : -1;
+      }
+    }
+  } catch (error) {
+    console.error('Error liking tweet:', error);
+    toast.error('操作失败');
+  }
+}
+
+async function handleBookmarkTweet(
+  tweet: any,
+  action: string
+) {
+  try {
+    const response: any = await apiFetch(
+      '/api/v1/interactions/bookmark',
+      {
+        method: 'POST',
+        body: {
+          tweetId: tweet.tweetId,
+          action: action
+        }
+      }
+    );
+    if (response.success) {
+      const index = fullTweets.value.findIndex(
+        t => t.tweetId === tweet.tweetId
+      );
+      if (index !== -1) {
+        fullTweets.value[index].isBookmarkedByUser =
+          action === 'bookmark';
+      }
+    }
+  } catch (error) {
+    console.error('Error bookmarking tweet:', error);
+    toast.error('操作失败');
+  }
+}
+
+function goToPage(newPage: number) {
+  if (newPage >= 1 && newPage <= totalPages.value) {
+    page.value = newPage;
+    // 滚动到顶部
+    if (process.client) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+}
 
 onMounted(async () => {
   try {
@@ -229,6 +433,8 @@ async function followUser(user: any, active: string) {
       v-model="activeTab"
       @follow="followUser"
     />
+
+    <!-- 用户统计概览 -->
     <Card>
       <CardContent>
         <div class="hidden space-y-6 p-8 pb-16 md:block">
@@ -242,6 +448,76 @@ async function followUser(user: any, active: string) {
           </div>
           <Separator class="my-6" />
           <OverAllPanel :userAnalytics="userAnalytics" />
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- 用户推文列表 -->
+    <Card>
+      <CardContent class="p-0">
+        <div class="space-y-4">
+          <div class="p-6 pb-4">
+            <h2 class="text-2xl font-bold tracking-tight">
+              推文
+            </h2>
+            <p class="text-muted-foreground">
+              共 {{ totalTweetsCount }} 条推文
+            </p>
+          </div>
+
+          <Separator />
+
+          <!-- 加载状态 -->
+          <div v-if="isLoadingTweets" class="space-y-4 p-4">
+            <TweetCardSkeleton v-for="i in 3" :key="i" />
+          </div>
+
+          <!-- 推文列表 -->
+          <div v-else-if="fullTweets.length > 0">
+            <TweetList
+              :tweets="fullTweets"
+              @delete-tweet="handleDeleteTweet"
+              @reply-tweet="handleReplyTweet"
+              @retweet-tweet="handleRetweetTweet"
+              @like-tweet="handleLikeTweet"
+              @bookmark-tweet="handleBookmarkTweet"
+            />
+          </div>
+
+          <!-- 空状态 -->
+          <div
+            v-else
+            class="p-12 text-center text-muted-foreground"
+          >
+            <p class="text-lg">该用户还没有发布任何推文</p>
+          </div>
+
+          <!-- 分页 -->
+          <div v-if="totalPages > 1" class="p-6 pt-4">
+            <Pagination
+              v-model:page="page"
+              :items-per-page="pageSize"
+              :total="totalTweetsCount"
+              class="flex justify-center"
+            >
+              <PaginationContent v-slot="{ items }">
+                <PaginationPrevious />
+                <template
+                  v-for="(item, index) in items"
+                  :key="index"
+                >
+                  <PaginationItem
+                    v-if="item.type === 'page'"
+                    :value="item.value"
+                    :is-active="item.value === page"
+                  >
+                    {{ item.value }}
+                  </PaginationItem>
+                </template>
+                <PaginationNext />
+              </PaginationContent>
+            </Pagination>
+          </div>
         </div>
       </CardContent>
     </Card>
