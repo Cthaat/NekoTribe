@@ -132,7 +132,7 @@ defineExpose({
 <template>
   <div
     v-if="show && mentionItems.length > 0"
-    class="fixed z-50 w-80 rounded-lg border border-gray-700 bg-gray-900 shadow-lg"
+    class="fixed z-50 w-80 rounded-lg bg-black shadow-lg"
     :style="{
       top: position?.top ? `${position.top}px` : 'auto',
       left: position?.left ? `${position.left}px` : 'auto'
