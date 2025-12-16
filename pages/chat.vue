@@ -11,7 +11,7 @@ import type { ChatMessageType } from '@/components/ChatMessage.vue';
 import type { ChatMember } from '@/components/ChatMemberList.vue';
 
 definePageMeta({
-  layout: 'default'
+  layout: 'chat'
 });
 
 // 模拟群组数据
@@ -560,10 +560,10 @@ const handleToggleMute = () => {
 </script>
 
 <template>
-  <div class="flex h-[calc(100vh-4rem)] -m-4 sm:-m-6">
+  <div class="flex h-full w-full">
     <!-- 频道列表 -->
     <div
-      class="w-60 flex-shrink-0 border-r hidden md:block"
+      class="w-60 flex-shrink-0 border-r hidden md:block bg-muted/20"
     >
       <ChatChannelList
         :categories="channelCategories"
@@ -577,7 +577,7 @@ const handleToggleMute = () => {
     </div>
 
     <!-- 聊天室 -->
-    <div class="flex-1 min-w-0">
+    <div class="flex-1 min-w-0 h-full">
       <ChatRoom
         :channel="activeChannel"
         :messages="messages"

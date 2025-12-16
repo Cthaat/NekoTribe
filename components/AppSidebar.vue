@@ -14,7 +14,8 @@ import {
   Cat,
   Flame,
   Shield,
-  Users
+  Users,
+  MessageSquare
 } from 'lucide-vue-next';
 import NavMain from '@/components/NavMain.vue';
 import NavProjects from '@/components/NavProjects.vue';
@@ -97,9 +98,13 @@ const baseNavData = {
       items: [
         { title: 'Discover', url: '/groups/discover' },
         { title: 'My Groups', url: '/groups/my' },
-        { title: 'Invites', url: '/groups/invites' },
-        { title: 'Chat', url: '/groups/chat' }
+        { title: 'Invites', url: '/groups/invites' }
       ]
+    },
+    {
+      title: 'Chat',
+      url: '/chat',
+      icon: MessageSquare
     },
     {
       title: 'Account',
