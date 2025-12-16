@@ -10,10 +10,6 @@ import type { Group } from '@/components/GroupCard.vue';
 import type { GroupMember } from '@/components/GroupMemberCard.vue';
 import type { GroupPost } from '@/components/GroupPostCard.vue';
 
-definePageMeta({
-  layout: false
-});
-
 // 模拟我的群组数据（已加入的群组）
 const myGroups = ref<Group[]>([
   {

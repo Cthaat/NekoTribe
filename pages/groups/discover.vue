@@ -12,11 +12,6 @@ import type { GroupFiltersData } from '@/components/GroupFilters.vue';
 import type { GroupMember } from '@/components/GroupMemberCard.vue';
 import type { GroupPost } from '@/components/GroupPostCard.vue';
 
-// 定义页面 meta
-definePageMeta({
-  layout: false
-});
-
 // ==================== 测试数据 ====================
 
 // 模拟统计数据

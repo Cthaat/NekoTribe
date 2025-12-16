@@ -25,10 +25,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-definePageMeta({
-  layout: false
-});
-
 // 邀请类型
 interface GroupInvite {
   id: number;
