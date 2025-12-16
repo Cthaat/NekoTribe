@@ -9,11 +9,6 @@ import type { ModerationTweet } from '@/components/ModerationCard.vue';
 import type { ModerationStatsData } from '@/components/ModerationStats.vue';
 import type { ModerationFiltersData } from '@/components/ModerationFilters.vue';
 
-// 定义页面 meta
-definePageMeta({
-  layout: false // 使用父页面布局
-});
-
 // ==================== 测试数据 ====================
 
 // 模拟统计数据

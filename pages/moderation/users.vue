@@ -7,10 +7,6 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
-
-definePageMeta({
-  layout: false
-});
 </script>
 
 <template>
