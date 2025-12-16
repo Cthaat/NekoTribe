@@ -97,7 +97,8 @@ const baseNavData = {
       items: [
         { title: 'Discover', url: '/groups/discover' },
         { title: 'My Groups', url: '/groups/my' },
-        { title: 'Invites', url: '/groups/invites' }
+        { title: 'Invites', url: '/groups/invites' },
+        { title: 'Chat', url: '/groups/chat' }
       ]
     },
     {
