@@ -13,7 +13,8 @@ import {
   Award,
   Cat,
   Flame,
-  Shield
+  Shield,
+  Users
 } from 'lucide-vue-next';
 import NavMain from '@/components/NavMain.vue';
 import NavProjects from '@/components/NavProjects.vue';
@@ -88,6 +89,16 @@ const baseNavData = {
       title: 'Meow',
       url: 'meow',
       icon: Send
+    },
+    {
+      title: 'Groups',
+      url: '/groups/discover',
+      icon: Users,
+      items: [
+        { title: 'Discover', url: '/groups/discover' },
+        { title: 'My Groups', url: '/groups/my' },
+        { title: 'Invites', url: '/groups/invites' }
+      ]
     },
     {
       title: 'Account',
