@@ -12,7 +12,8 @@ import {
   SquareTerminal,
   Award,
   Cat,
-  Flame
+  Flame,
+  Shield
 } from 'lucide-vue-next';
 import NavMain from '@/components/NavMain.vue';
 import NavProjects from '@/components/NavProjects.vue';
@@ -100,6 +101,17 @@ const baseNavData = {
         { title: 'Security', url: 'account-security' },
         { title: 'Active', url: 'account-active' },
         { title: 'Statements', url: 'account-statements' }
+      ]
+    },
+    {
+      title: 'Moderation',
+      url: '/moderation/content',
+      icon: Shield,
+      items: [
+        { title: 'Content', url: '/moderation/content' },
+        { title: 'Users', url: '/moderation/users' },
+        { title: 'Reports', url: '/moderation/reports' },
+        { title: 'Settings', url: '/moderation/settings' }
       ]
     }
   ],
