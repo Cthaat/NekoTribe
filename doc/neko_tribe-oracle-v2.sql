@@ -184,18 +184,29 @@ CREATE TABLE n_users (
     CONSTRAINT uk_users_email UNIQUE (email),
     CONSTRAINT uk_users_username UNIQUE (username)
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_users IS '用户主表';
+COMMENT ON COLUMN n_users.user_id IS '用户主键ID';
+COMMENT ON COLUMN n_users.email IS '邮箱';
+COMMENT ON COLUMN n_users.username IS '用户名';
+COMMENT ON COLUMN n_users.password_hash IS '密码哈希';
+COMMENT ON COLUMN n_users.avatar_url IS '头像地址';
+COMMENT ON COLUMN n_users.avatar_media_id IS '头像媒体ID';
+COMMENT ON COLUMN n_users.display_name IS '显示名称';
+COMMENT ON COLUMN n_users.bio IS '个人简介';
+COMMENT ON COLUMN n_users.location IS '位置';
+COMMENT ON COLUMN n_users.website IS '个人网站';
+COMMENT ON COLUMN n_users.birth_date IS '出生日期';
+COMMENT ON COLUMN n_users.phone IS '手机号';
+COMMENT ON COLUMN n_users.email_verified_at IS '邮箱验证时间';
+COMMENT ON COLUMN n_users.is_verified IS '是否认证';
+COMMENT ON COLUMN n_users.is_active IS '是否启用';
+COMMENT ON COLUMN n_users.status IS '账户状态（active/disabled/suspended/pending）';
+COMMENT ON COLUMN n_users.created_at IS '创建时间';
+COMMENT ON COLUMN n_users.updated_at IS '更新时间';
+COMMENT ON COLUMN n_users.last_login_at IS '最后登录时间';
+COMMENT ON COLUMN n_users.created_by IS '创建人';
+COMMENT ON COLUMN n_users.updated_by IS '更新人';
 
-COMMENT ON TABLE n_users IS 'V2 用户主表，承载用户资料、鉴权、通知、群组归属等所有基础能力';
-COMMENT ON COLUMN n_users.user_id IS '用户主键';
-COMMENT ON COLUMN n_users.email IS '登录邮箱，唯一';
-COMMENT ON COLUMN n_users.username IS '用户名，唯一';
-COMMENT ON COLUMN n_users.password_hash IS '密码哈希，不允许返回给客户端';
-COMMENT ON COLUMN n_users.avatar_url IS '头像 URL，保留给群组和旧逻辑直接读取';
-COMMENT ON COLUMN n_users.avatar_media_id IS '头像关联的媒体资源 ID，V2 推荐使用';
-COMMENT ON COLUMN n_users.email_verified_at IS '邮箱验证通过时间';
-COMMENT ON COLUMN n_users.is_verified IS '是否为认证账号';
-COMMENT ON COLUMN n_users.is_active IS '是否可用，供数据库层快速过滤和群组等模块直接使用';
-COMMENT ON COLUMN n_users.status IS 'V2 账户状态：active / disabled / suspended / pending';
 
 -- 4.2 用户统计表
 -- 说明:
@@ -212,8 +223,16 @@ CREATE TABLE n_user_stats (
     CONSTRAINT fk_user_stats_user FOREIGN KEY (user_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_user_stats IS '用户统计表';
+COMMENT ON COLUMN n_user_stats.user_id IS '用户ID';
+COMMENT ON COLUMN n_user_stats.followers_count IS '粉丝数';
+COMMENT ON COLUMN n_user_stats.following_count IS '关注数';
+COMMENT ON COLUMN n_user_stats.posts_count IS '发帖数';
+COMMENT ON COLUMN n_user_stats.likes_count IS '点赞数';
+COMMENT ON COLUMN n_user_stats.bookmarks_count IS '收藏数';
+COMMENT ON COLUMN n_user_stats.comments_count IS '评论数';
+COMMENT ON COLUMN n_user_stats.updated_at IS '更新时间';
 
-COMMENT ON TABLE n_user_stats IS '用户统计表，集中维护粉丝、帖子、获赞、收藏、评论等聚合数据';
 
 -- 4.3 OTP 事件表
 CREATE TABLE n_auth_otp_events (
@@ -227,8 +246,16 @@ CREATE TABLE n_auth_otp_events (
     created_at              TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT uk_auth_otp_verification_id UNIQUE (verification_id)
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_auth_otp_events IS '验证码事件表';
+COMMENT ON COLUMN n_auth_otp_events.otp_event_id IS '验证码事件ID';
+COMMENT ON COLUMN n_auth_otp_events.account IS '账号（邮箱或用户名）';
+COMMENT ON COLUMN n_auth_otp_events.otp_type IS '验证码用途';
+COMMENT ON COLUMN n_auth_otp_events.verification_code_hash IS '验证码哈希';
+COMMENT ON COLUMN n_auth_otp_events.verification_id IS '验证ID';
+COMMENT ON COLUMN n_auth_otp_events.expires_at IS '过期时间';
+COMMENT ON COLUMN n_auth_otp_events.verified_at IS '验证时间';
+COMMENT ON COLUMN n_auth_otp_events.created_at IS '创建时间';
 
-COMMENT ON TABLE n_auth_otp_events IS 'OTP 事件表，支持注册、改邮箱、找回密码等一次性验证码流程';
 
 -- 4.4 会话表
 -- 说明:
@@ -252,8 +279,22 @@ CREATE TABLE n_auth_sessions (
     CONSTRAINT fk_auth_sessions_user FOREIGN KEY (user_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_auth_sessions IS '认证会话表';
+COMMENT ON COLUMN n_auth_sessions.session_id IS '会话ID';
+COMMENT ON COLUMN n_auth_sessions.user_id IS '用户ID';
+COMMENT ON COLUMN n_auth_sessions.access_jti IS '访问令牌唯一标识（JTI）';
+COMMENT ON COLUMN n_auth_sessions.refresh_token_hash IS '刷新令牌哈希';
+COMMENT ON COLUMN n_auth_sessions.device_info IS '设备信息';
+COMMENT ON COLUMN n_auth_sessions.device_fingerprint IS '设备指纹';
+COMMENT ON COLUMN n_auth_sessions.ip_address IS 'IP地址';
+COMMENT ON COLUMN n_auth_sessions.user_agent IS '用户代理';
+COMMENT ON COLUMN n_auth_sessions.access_token_expires_at IS '访问令牌过期时间';
+COMMENT ON COLUMN n_auth_sessions.refresh_token_expires_at IS '刷新令牌过期时间';
+COMMENT ON COLUMN n_auth_sessions.last_accessed_at IS '最后访问时间';
+COMMENT ON COLUMN n_auth_sessions.last_refresh_at IS '最后刷新时间';
+COMMENT ON COLUMN n_auth_sessions.revoked_at IS '撤销时间';
+COMMENT ON COLUMN n_auth_sessions.created_at IS '创建时间';
 
-COMMENT ON TABLE n_auth_sessions IS 'V2 会话表，仅保存会话标识、refresh token 哈希和设备信息';
 
 -- 4.5 关注关系表
 CREATE TABLE n_user_follows (
@@ -270,8 +311,14 @@ CREATE TABLE n_user_follows (
     CONSTRAINT uk_user_follows UNIQUE (follower_id, following_id),
     CONSTRAINT ck_user_follows_not_self CHECK (follower_id != following_id)
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_user_follows IS '用户关注关系表';
+COMMENT ON COLUMN n_user_follows.follow_id IS '关注关系ID';
+COMMENT ON COLUMN n_user_follows.follower_id IS '关注者用户ID';
+COMMENT ON COLUMN n_user_follows.following_id IS '被关注用户ID';
+COMMENT ON COLUMN n_user_follows.status IS '关注状态（active/cancelled）';
+COMMENT ON COLUMN n_user_follows.created_at IS '创建时间';
+COMMENT ON COLUMN n_user_follows.updated_at IS '更新时间';
 
-COMMENT ON TABLE n_user_follows IS '关注关系表，只承担 follow 语义，不再混装 block / mute';
 
 -- 4.6 屏蔽关系表
 CREATE TABLE n_user_blocks (
@@ -286,8 +333,12 @@ CREATE TABLE n_user_blocks (
     CONSTRAINT uk_user_blocks UNIQUE (user_id, target_user_id),
     CONSTRAINT ck_user_blocks_not_self CHECK (user_id != target_user_id)
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_user_blocks IS '用户屏蔽关系表';
+COMMENT ON COLUMN n_user_blocks.block_id IS '屏蔽关系ID';
+COMMENT ON COLUMN n_user_blocks.user_id IS '用户ID';
+COMMENT ON COLUMN n_user_blocks.target_user_id IS '目标用户ID';
+COMMENT ON COLUMN n_user_blocks.created_at IS '创建时间';
 
-COMMENT ON TABLE n_user_blocks IS '屏蔽关系表，对应 V2 的 /users/me/blocks 资源';
 
 -- 4.7 静音关系表
 CREATE TABLE n_user_mutes (
@@ -303,8 +354,13 @@ CREATE TABLE n_user_mutes (
     CONSTRAINT uk_user_mutes UNIQUE (user_id, target_user_id),
     CONSTRAINT ck_user_mutes_not_self CHECK (user_id != target_user_id)
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_user_mutes IS '用户静音关系表';
+COMMENT ON COLUMN n_user_mutes.mute_id IS '静音关系ID';
+COMMENT ON COLUMN n_user_mutes.user_id IS '用户ID';
+COMMENT ON COLUMN n_user_mutes.target_user_id IS '目标用户ID';
+COMMENT ON COLUMN n_user_mutes.expires_at IS '过期时间';
+COMMENT ON COLUMN n_user_mutes.created_at IS '创建时间';
 
-COMMENT ON TABLE n_user_mutes IS '静音关系表，预留给后续扩展 /users/me/mutes 资源';
 
 -- 4.8 帖子主表
 -- 说明:
@@ -336,8 +392,24 @@ CREATE TABLE n_posts (
     CONSTRAINT fk_posts_quote FOREIGN KEY (quoted_post_id)
         REFERENCES n_posts(post_id)
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_posts IS '帖子主表';
+COMMENT ON COLUMN n_posts.post_id IS '帖子ID';
+COMMENT ON COLUMN n_posts.author_id IS '作者用户ID';
+COMMENT ON COLUMN n_posts.content IS '内容';
+COMMENT ON COLUMN n_posts.post_type IS '帖子类型（post/reply/repost/quote）';
+COMMENT ON COLUMN n_posts.reply_to_post_id IS '回复目标帖子ID';
+COMMENT ON COLUMN n_posts.repost_of_post_id IS '转发来源帖子ID';
+COMMENT ON COLUMN n_posts.quoted_post_id IS '引用帖子ID';
+COMMENT ON COLUMN n_posts.visibility IS '帖子可见范围（public/followers/mentioned/private）';
+COMMENT ON COLUMN n_posts.language IS '语言';
+COMMENT ON COLUMN n_posts.location IS '位置';
+COMMENT ON COLUMN n_posts.is_deleted IS '是否删除';
+COMMENT ON COLUMN n_posts.deleted_at IS '删除时间';
+COMMENT ON COLUMN n_posts.created_at IS '创建时间';
+COMMENT ON COLUMN n_posts.updated_at IS '更新时间';
+COMMENT ON COLUMN n_posts.created_by IS '创建人';
+COMMENT ON COLUMN n_posts.updated_by IS '更新人';
 
-COMMENT ON TABLE n_posts IS '帖子主表，V2 统一承载发帖、回复、转发、引用贴';
 
 -- 4.9 帖子统计表
 CREATE TABLE n_post_stats (
@@ -352,8 +424,16 @@ CREATE TABLE n_post_stats (
     CONSTRAINT fk_post_stats_post FOREIGN KEY (post_id)
         REFERENCES n_posts(post_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_post_stats IS '帖子统计表';
+COMMENT ON COLUMN n_post_stats.post_id IS '帖子ID';
+COMMENT ON COLUMN n_post_stats.likes_count IS '点赞数';
+COMMENT ON COLUMN n_post_stats.comments_count IS '评论数';
+COMMENT ON COLUMN n_post_stats.replies_count IS '回复数';
+COMMENT ON COLUMN n_post_stats.retweets_count IS '转发数';
+COMMENT ON COLUMN n_post_stats.views_count IS '浏览数';
+COMMENT ON COLUMN n_post_stats.engagement_score IS '互动热度分';
+COMMENT ON COLUMN n_post_stats.updated_at IS '更新时间';
 
-COMMENT ON TABLE n_post_stats IS '帖子统计表，集中维护点赞、评论、回复、转发、浏览和热度';
 
 -- 4.10 媒体资源表
 CREATE TABLE n_media_assets (
@@ -375,8 +455,23 @@ CREATE TABLE n_media_assets (
     CONSTRAINT fk_media_assets_owner FOREIGN KEY (owner_user_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_media_assets IS '媒体资源表';
+COMMENT ON COLUMN n_media_assets.media_id IS '媒体ID';
+COMMENT ON COLUMN n_media_assets.owner_user_id IS '归属用户ID';
+COMMENT ON COLUMN n_media_assets.media_type IS '媒体类型';
+COMMENT ON COLUMN n_media_assets.file_name IS '文件名';
+COMMENT ON COLUMN n_media_assets.storage_key IS '存储键';
+COMMENT ON COLUMN n_media_assets.public_url IS '公开访问地址';
+COMMENT ON COLUMN n_media_assets.file_size IS '文件大小（字节）';
+COMMENT ON COLUMN n_media_assets.mime_type IS 'MIME类型';
+COMMENT ON COLUMN n_media_assets.width IS '宽度';
+COMMENT ON COLUMN n_media_assets.height IS '高度';
+COMMENT ON COLUMN n_media_assets.duration IS '时长（秒）';
+COMMENT ON COLUMN n_media_assets.thumbnail_url IS '缩略图地址';
+COMMENT ON COLUMN n_media_assets.alt_text IS '媒体替代文本';
+COMMENT ON COLUMN n_media_assets.status IS '媒体处理状态（uploaded/processing/ready/failed）';
+COMMENT ON COLUMN n_media_assets.created_at IS '创建时间';
 
-COMMENT ON TABLE n_media_assets IS '媒体资源表，V2 先上传媒体，再通过 n_post_media 关联到帖子';
 
 -- 4.11 帖子媒体关联表
 CREATE TABLE n_post_media (
@@ -390,8 +485,12 @@ CREATE TABLE n_post_media (
     CONSTRAINT fk_post_media_media FOREIGN KEY (media_id)
         REFERENCES n_media_assets(media_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_post_media IS '帖子媒体关联表';
+COMMENT ON COLUMN n_post_media.post_id IS '帖子ID';
+COMMENT ON COLUMN n_post_media.media_id IS '媒体ID';
+COMMENT ON COLUMN n_post_media.sort_order IS '排序序号';
+COMMENT ON COLUMN n_post_media.created_at IS '创建时间';
 
-COMMENT ON TABLE n_post_media IS '帖子与媒体的多对多关联表，支持一条帖子挂多个媒体资源';
 
 -- 4.12 帖子点赞表
 CREATE TABLE n_post_likes (
@@ -405,8 +504,12 @@ CREATE TABLE n_post_likes (
         REFERENCES n_users(user_id) ON DELETE CASCADE,
     CONSTRAINT uk_post_likes UNIQUE (post_id, user_id)
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_post_likes IS '帖子点赞表';
+COMMENT ON COLUMN n_post_likes.post_like_id IS '帖子点赞ID';
+COMMENT ON COLUMN n_post_likes.post_id IS '帖子ID';
+COMMENT ON COLUMN n_post_likes.user_id IS '用户ID';
+COMMENT ON COLUMN n_post_likes.created_at IS '创建时间';
 
-COMMENT ON TABLE n_post_likes IS '帖子点赞表，V2 只承担 posts/{id}/likes 资源';
 
 -- 4.13 帖子收藏表
 CREATE TABLE n_post_bookmarks (
@@ -420,8 +523,12 @@ CREATE TABLE n_post_bookmarks (
         REFERENCES n_users(user_id) ON DELETE CASCADE,
     CONSTRAINT uk_post_bookmarks UNIQUE (post_id, user_id)
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_post_bookmarks IS '帖子收藏表';
+COMMENT ON COLUMN n_post_bookmarks.bookmark_id IS '收藏ID';
+COMMENT ON COLUMN n_post_bookmarks.post_id IS '帖子ID';
+COMMENT ON COLUMN n_post_bookmarks.user_id IS '用户ID';
+COMMENT ON COLUMN n_post_bookmarks.created_at IS '创建时间';
 
-COMMENT ON TABLE n_post_bookmarks IS '帖子收藏表，对应 /posts/{id}/bookmarks 和 /users/me/bookmarks';
 
 -- 4.14 评论主表
 CREATE TABLE n_comments (
@@ -442,8 +549,18 @@ CREATE TABLE n_comments (
     CONSTRAINT fk_comments_parent FOREIGN KEY (parent_comment_id)
         REFERENCES n_comments(comment_id)
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_comments IS '评论主表';
+COMMENT ON COLUMN n_comments.comment_id IS '评论ID';
+COMMENT ON COLUMN n_comments.post_id IS '帖子ID';
+COMMENT ON COLUMN n_comments.user_id IS '用户ID';
+COMMENT ON COLUMN n_comments.parent_comment_id IS '父评论ID';
+COMMENT ON COLUMN n_comments.root_comment_id IS '根评论ID';
+COMMENT ON COLUMN n_comments.content IS '内容';
+COMMENT ON COLUMN n_comments.is_deleted IS '是否删除';
+COMMENT ON COLUMN n_comments.deleted_at IS '删除时间';
+COMMENT ON COLUMN n_comments.created_at IS '创建时间';
+COMMENT ON COLUMN n_comments.updated_at IS '更新时间';
 
-COMMENT ON TABLE n_comments IS '评论主表，支持顶级评论和嵌套回复';
 
 -- 4.15 评论统计表
 CREATE TABLE n_comment_stats (
@@ -454,8 +571,12 @@ CREATE TABLE n_comment_stats (
     CONSTRAINT fk_comment_stats_comment FOREIGN KEY (comment_id)
         REFERENCES n_comments(comment_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_comment_stats IS '评论统计表';
+COMMENT ON COLUMN n_comment_stats.comment_id IS '评论ID';
+COMMENT ON COLUMN n_comment_stats.likes_count IS '点赞数';
+COMMENT ON COLUMN n_comment_stats.replies_count IS '回复数';
+COMMENT ON COLUMN n_comment_stats.updated_at IS '更新时间';
 
-COMMENT ON TABLE n_comment_stats IS '评论统计表，维护点赞数和子回复数';
 
 -- 4.16 评论点赞表
 CREATE TABLE n_comment_likes (
@@ -469,8 +590,12 @@ CREATE TABLE n_comment_likes (
         REFERENCES n_users(user_id) ON DELETE CASCADE,
     CONSTRAINT uk_comment_likes UNIQUE (comment_id, user_id)
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_comment_likes IS '评论点赞表';
+COMMENT ON COLUMN n_comment_likes.comment_like_id IS '评论点赞ID';
+COMMENT ON COLUMN n_comment_likes.comment_id IS '评论ID';
+COMMENT ON COLUMN n_comment_likes.user_id IS '用户ID';
+COMMENT ON COLUMN n_comment_likes.created_at IS '创建时间';
 
-COMMENT ON TABLE n_comment_likes IS '评论点赞表，解决 V1 中评论点赞复用 n_likes 的设计问题';
 
 -- 4.17 话题标签表
 CREATE TABLE n_tags (
@@ -484,8 +609,16 @@ CREATE TABLE n_tags (
     updated_at              TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT uk_tags_name_lower UNIQUE (name_lower)
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_tags IS '标签表';
+COMMENT ON COLUMN n_tags.tag_id IS '标签ID';
+COMMENT ON COLUMN n_tags.name IS '名称';
+COMMENT ON COLUMN n_tags.name_lower IS '名称小写';
+COMMENT ON COLUMN n_tags.usage_count IS '使用次数';
+COMMENT ON COLUMN n_tags.trending_score IS '趋势分';
+COMMENT ON COLUMN n_tags.is_trending IS '是否热门';
+COMMENT ON COLUMN n_tags.created_at IS '创建时间';
+COMMENT ON COLUMN n_tags.updated_at IS '更新时间';
 
-COMMENT ON TABLE n_tags IS '话题标签主表，对应 V2 的 /tags 资源';
 
 -- 4.18 帖子标签关联表
 CREATE TABLE n_post_tags (
@@ -498,8 +631,11 @@ CREATE TABLE n_post_tags (
     CONSTRAINT fk_post_tags_tag FOREIGN KEY (tag_id)
         REFERENCES n_tags(tag_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_post_tags IS '帖子标签关联表';
+COMMENT ON COLUMN n_post_tags.post_id IS '帖子ID';
+COMMENT ON COLUMN n_post_tags.tag_id IS '标签ID';
+COMMENT ON COLUMN n_post_tags.created_at IS '创建时间';
 
-COMMENT ON TABLE n_post_tags IS '帖子与标签的多对多关联表';
 
 -- 4.19 帖子提及关联表
 CREATE TABLE n_post_mentions (
@@ -512,8 +648,11 @@ CREATE TABLE n_post_mentions (
     CONSTRAINT fk_post_mentions_user FOREIGN KEY (mentioned_user_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_post_mentions IS '帖子提及关联表';
+COMMENT ON COLUMN n_post_mentions.post_id IS '帖子ID';
+COMMENT ON COLUMN n_post_mentions.mentioned_user_id IS '被提及用户ID';
+COMMENT ON COLUMN n_post_mentions.created_at IS '创建时间';
 
-COMMENT ON TABLE n_post_mentions IS '帖子提及关联表，用于 @ 提及与 mentioned 可见性判断';
 
 -- 4.20 通知主表
 CREATE TABLE n_notifications (
@@ -536,8 +675,22 @@ CREATE TABLE n_notifications (
     CONSTRAINT fk_notifications_actor FOREIGN KEY (actor_id)
         REFERENCES n_users(user_id) ON DELETE SET NULL
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_notifications IS '通知主表';
+COMMENT ON COLUMN n_notifications.notification_id IS '通知ID';
+COMMENT ON COLUMN n_notifications.user_id IS '用户ID';
+COMMENT ON COLUMN n_notifications.actor_id IS '行为发起人用户ID';
+COMMENT ON COLUMN n_notifications.type IS '通知类型';
+COMMENT ON COLUMN n_notifications.title IS '标题';
+COMMENT ON COLUMN n_notifications.message IS '消息内容';
+COMMENT ON COLUMN n_notifications.resource_type IS '资源类型';
+COMMENT ON COLUMN n_notifications.resource_id IS '资源ID';
+COMMENT ON COLUMN n_notifications.priority IS '优先级';
+COMMENT ON COLUMN n_notifications.is_read IS '是否已读';
+COMMENT ON COLUMN n_notifications.read_at IS '已读时间';
+COMMENT ON COLUMN n_notifications.deleted_at IS '删除时间';
+COMMENT ON COLUMN n_notifications.metadata_json IS '扩展元数据（JSON）';
+COMMENT ON COLUMN n_notifications.created_at IS '创建时间';
 
-COMMENT ON TABLE n_notifications IS 'V2 通知主表，支持列表、已读、软删除、资源跳转和富 metadata';
 
 -- 4.21 通知偏好表
 CREATE TABLE n_notification_preferences (
@@ -549,8 +702,12 @@ CREATE TABLE n_notification_preferences (
     CONSTRAINT fk_notification_preferences_user FOREIGN KEY (user_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_notification_preferences IS '通知偏好表';
+COMMENT ON COLUMN n_notification_preferences.user_id IS '用户ID';
+COMMENT ON COLUMN n_notification_preferences.notification_type IS '通知类型';
+COMMENT ON COLUMN n_notification_preferences.is_enabled IS '是否启用';
+COMMENT ON COLUMN n_notification_preferences.updated_at IS '更新时间';
 
-COMMENT ON TABLE n_notification_preferences IS '通知偏好表，支持按通知类型开关推送';
 
 -- 4.22 用户设置表
 CREATE TABLE n_user_settings (
@@ -566,8 +723,17 @@ CREATE TABLE n_user_settings (
     CONSTRAINT fk_user_settings_user FOREIGN KEY (user_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_user_settings IS '用户设置表';
+COMMENT ON COLUMN n_user_settings.user_id IS '用户ID';
+COMMENT ON COLUMN n_user_settings.two_factor_enabled IS '是否开启双因素认证';
+COMMENT ON COLUMN n_user_settings.login_alerts IS '是否开启登录提醒';
+COMMENT ON COLUMN n_user_settings.profile_visibility IS '资料可见性';
+COMMENT ON COLUMN n_user_settings.show_online_status IS '是否显示在线状态';
+COMMENT ON COLUMN n_user_settings.allow_dm_from_strangers IS '是否允许陌生人私信';
+COMMENT ON COLUMN n_user_settings.push_notification_enabled IS '是否开启推送通知';
+COMMENT ON COLUMN n_user_settings.email_notification_enabled IS '是否开启邮件通知';
+COMMENT ON COLUMN n_user_settings.updated_at IS '更新时间';
 
-COMMENT ON TABLE n_user_settings IS '用户设置表，替代 V1 中本地 JSON 文件存储的设置项';
 
 -- 4.23 账户状态表
 CREATE TABLE n_account_statements (
@@ -583,8 +749,17 @@ CREATE TABLE n_account_statements (
     CONSTRAINT fk_account_statements_user FOREIGN KEY (user_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_account_statements IS '账户处置记录表';
+COMMENT ON COLUMN n_account_statements.statement_id IS '处置记录ID';
+COMMENT ON COLUMN n_account_statements.user_id IS '用户ID';
+COMMENT ON COLUMN n_account_statements.statement_type IS '处置类型';
+COMMENT ON COLUMN n_account_statements.title IS '标题';
+COMMENT ON COLUMN n_account_statements.message IS '消息内容';
+COMMENT ON COLUMN n_account_statements.policy_code IS '策略编码';
+COMMENT ON COLUMN n_account_statements.status IS '处理状态（unread/read/resolved/dismissed/appealed）';
+COMMENT ON COLUMN n_account_statements.created_at IS '创建时间';
+COMMENT ON COLUMN n_account_statements.updated_at IS '更新时间';
 
-COMMENT ON TABLE n_account_statements IS '账户状态表，替代 V1 中本地 JSON 存储的 account statements';
 
 -- 4.24 申诉表
 CREATE TABLE n_statement_appeals (
@@ -601,8 +776,16 @@ CREATE TABLE n_statement_appeals (
     CONSTRAINT fk_statement_appeals_user FOREIGN KEY (user_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE
 ) TABLESPACE neko_data;
+COMMENT ON TABLE n_statement_appeals IS '申诉表';
+COMMENT ON COLUMN n_statement_appeals.appeal_id IS '申诉ID';
+COMMENT ON COLUMN n_statement_appeals.statement_id IS '处置记录ID';
+COMMENT ON COLUMN n_statement_appeals.user_id IS '用户ID';
+COMMENT ON COLUMN n_statement_appeals.appeal_message IS '申诉内容';
+COMMENT ON COLUMN n_statement_appeals.appeal_status IS '申诉状态（pending/approved/rejected）';
+COMMENT ON COLUMN n_statement_appeals.admin_response IS '管理员回复';
+COMMENT ON COLUMN n_statement_appeals.created_at IS '创建时间';
+COMMENT ON COLUMN n_statement_appeals.updated_at IS '更新时间';
 
-COMMENT ON TABLE n_statement_appeals IS '账户申诉表，对应 V2 的 appeals 子资源';
 
 -- ==========================================
 -- 5. 群组模块表（沿用 with-group 设计，作为 V2 正式群组模型）
@@ -630,8 +813,24 @@ CREATE TABLE n_groups (
     CONSTRAINT chk_groups_privacy CHECK (privacy IN ('public', 'private', 'secret')),
     CONSTRAINT chk_groups_post_perm CHECK (post_permission IN ('all', 'admin_only', 'moderator_up'))
 ) TABLESPACE neko_data;
-
 COMMENT ON TABLE n_groups IS '群组主表';
+COMMENT ON COLUMN n_groups.group_id IS '群组ID';
+COMMENT ON COLUMN n_groups.name IS '名称';
+COMMENT ON COLUMN n_groups.slug IS '短标识';
+COMMENT ON COLUMN n_groups.description IS '描述';
+COMMENT ON COLUMN n_groups.avatar_url IS '头像地址';
+COMMENT ON COLUMN n_groups.cover_url IS '封面图地址';
+COMMENT ON COLUMN n_groups.owner_id IS '所有者用户ID';
+COMMENT ON COLUMN n_groups.privacy IS '群组可见性（public/private/secret）';
+COMMENT ON COLUMN n_groups.join_approval IS '入群是否需审批';
+COMMENT ON COLUMN n_groups.post_permission IS '群组发帖权限（all/admin_only/moderator_up）';
+COMMENT ON COLUMN n_groups.member_count IS '成员数';
+COMMENT ON COLUMN n_groups.post_count IS '帖子数';
+COMMENT ON COLUMN n_groups.is_active IS '是否启用';
+COMMENT ON COLUMN n_groups.is_deleted IS '是否删除';
+COMMENT ON COLUMN n_groups.created_at IS '创建时间';
+COMMENT ON COLUMN n_groups.updated_at IS '更新时间';
+
 
 CREATE TABLE n_group_members (
     member_id                NUMBER(19)      PRIMARY KEY,
@@ -655,8 +854,19 @@ CREATE TABLE n_group_members (
     CONSTRAINT chk_member_role CHECK (role IN ('owner', 'admin', 'moderator', 'member')),
     CONSTRAINT chk_member_status CHECK (status IN ('pending', 'active', 'muted', 'banned'))
 ) TABLESPACE neko_data;
-
 COMMENT ON TABLE n_group_members IS '群组成员表';
+COMMENT ON COLUMN n_group_members.member_id IS '成员ID';
+COMMENT ON COLUMN n_group_members.group_id IS '群组ID';
+COMMENT ON COLUMN n_group_members.user_id IS '用户ID';
+COMMENT ON COLUMN n_group_members.role IS '成员角色（owner/admin/moderator/member）';
+COMMENT ON COLUMN n_group_members.status IS '成员状态（pending/active/muted/banned）';
+COMMENT ON COLUMN n_group_members.nickname IS '群昵称';
+COMMENT ON COLUMN n_group_members.mute_until IS '禁言截止时间';
+COMMENT ON COLUMN n_group_members.ban_reason IS '封禁原因';
+COMMENT ON COLUMN n_group_members.invited_by IS '邀请来源用户ID';
+COMMENT ON COLUMN n_group_members.joined_at IS '加入时间';
+COMMENT ON COLUMN n_group_members.updated_at IS '更新时间';
+
 
 CREATE TABLE n_group_posts (
     post_id                  NUMBER(19)      PRIMARY KEY,
@@ -681,8 +891,23 @@ CREATE TABLE n_group_posts (
     CONSTRAINT fk_group_posts_deleter FOREIGN KEY (deleted_by)
         REFERENCES n_users(user_id) ON DELETE SET NULL
 ) TABLESPACE neko_data;
-
 COMMENT ON TABLE n_group_posts IS '群组帖子表';
+COMMENT ON COLUMN n_group_posts.post_id IS '帖子ID';
+COMMENT ON COLUMN n_group_posts.group_id IS '群组ID';
+COMMENT ON COLUMN n_group_posts.author_id IS '作者用户ID';
+COMMENT ON COLUMN n_group_posts.content IS '内容';
+COMMENT ON COLUMN n_group_posts.media_urls IS '媒体地址列表';
+COMMENT ON COLUMN n_group_posts.is_pinned IS '是否置顶';
+COMMENT ON COLUMN n_group_posts.is_announcement IS '是否公告';
+COMMENT ON COLUMN n_group_posts.likes_count IS '点赞数';
+COMMENT ON COLUMN n_group_posts.comments_count IS '评论数';
+COMMENT ON COLUMN n_group_posts.views_count IS '浏览数';
+COMMENT ON COLUMN n_group_posts.is_deleted IS '是否删除';
+COMMENT ON COLUMN n_group_posts.deleted_by IS '删除操作人用户ID';
+COMMENT ON COLUMN n_group_posts.delete_reason IS '删除原因';
+COMMENT ON COLUMN n_group_posts.created_at IS '创建时间';
+COMMENT ON COLUMN n_group_posts.updated_at IS '更新时间';
+
 
 CREATE TABLE n_group_comments (
     comment_id               NUMBER(19)      PRIMARY KEY,
@@ -708,8 +933,20 @@ CREATE TABLE n_group_comments (
     CONSTRAINT fk_group_comments_deleter FOREIGN KEY (deleted_by)
         REFERENCES n_users(user_id) ON DELETE SET NULL
 ) TABLESPACE neko_data;
-
 COMMENT ON TABLE n_group_comments IS '群组评论表';
+COMMENT ON COLUMN n_group_comments.comment_id IS '评论ID';
+COMMENT ON COLUMN n_group_comments.post_id IS '帖子ID';
+COMMENT ON COLUMN n_group_comments.author_id IS '作者用户ID';
+COMMENT ON COLUMN n_group_comments.parent_comment_id IS '父评论ID';
+COMMENT ON COLUMN n_group_comments.reply_to_user_id IS '回复目标用户ID';
+COMMENT ON COLUMN n_group_comments.content IS '内容';
+COMMENT ON COLUMN n_group_comments.likes_count IS '点赞数';
+COMMENT ON COLUMN n_group_comments.is_deleted IS '是否删除';
+COMMENT ON COLUMN n_group_comments.deleted_by IS '删除操作人用户ID';
+COMMENT ON COLUMN n_group_comments.delete_reason IS '删除原因';
+COMMENT ON COLUMN n_group_comments.created_at IS '创建时间';
+COMMENT ON COLUMN n_group_comments.updated_at IS '更新时间';
+
 
 CREATE TABLE n_group_invites (
     invite_id                 NUMBER(19)      PRIMARY KEY,
@@ -733,8 +970,20 @@ CREATE TABLE n_group_invites (
     CONSTRAINT chk_invite_status CHECK (status IN ('pending', 'accepted', 'rejected', 'expired')),
     CONSTRAINT chk_invite_type CHECK (invitee_id IS NOT NULL OR invite_code IS NOT NULL)
 ) TABLESPACE neko_data;
-
 COMMENT ON TABLE n_group_invites IS '群组邀请表';
+COMMENT ON COLUMN n_group_invites.invite_id IS '邀请ID';
+COMMENT ON COLUMN n_group_invites.group_id IS '群组ID';
+COMMENT ON COLUMN n_group_invites.inviter_id IS '邀请人用户ID';
+COMMENT ON COLUMN n_group_invites.invitee_id IS '被邀请用户ID';
+COMMENT ON COLUMN n_group_invites.invite_code IS '邀请码';
+COMMENT ON COLUMN n_group_invites.status IS '邀请状态（pending/accepted/rejected/expired）';
+COMMENT ON COLUMN n_group_invites.message IS '消息内容';
+COMMENT ON COLUMN n_group_invites.max_uses IS '最大使用次数';
+COMMENT ON COLUMN n_group_invites.used_count IS '已使用次数';
+COMMENT ON COLUMN n_group_invites.expires_at IS '过期时间';
+COMMENT ON COLUMN n_group_invites.created_at IS '创建时间';
+COMMENT ON COLUMN n_group_invites.responded_at IS '响应时间';
+
 
 CREATE TABLE n_group_audit_logs (
     log_id                    NUMBER(19)      PRIMARY KEY,
@@ -759,8 +1008,19 @@ CREATE TABLE n_group_audit_logs (
     CONSTRAINT fk_audit_logs_target_comment FOREIGN KEY (target_comment_id)
         REFERENCES n_group_comments(comment_id) ON DELETE SET NULL
 ) TABLESPACE neko_data;
-
 COMMENT ON TABLE n_group_audit_logs IS '群组审计日志表';
+COMMENT ON COLUMN n_group_audit_logs.log_id IS '日志ID';
+COMMENT ON COLUMN n_group_audit_logs.group_id IS '群组ID';
+COMMENT ON COLUMN n_group_audit_logs.actor_id IS '行为发起人用户ID';
+COMMENT ON COLUMN n_group_audit_logs.target_user_id IS '目标用户ID';
+COMMENT ON COLUMN n_group_audit_logs.target_post_id IS '目标帖子ID';
+COMMENT ON COLUMN n_group_audit_logs.target_comment_id IS '目标评论ID';
+COMMENT ON COLUMN n_group_audit_logs.action IS '操作动作';
+COMMENT ON COLUMN n_group_audit_logs.details IS '详情';
+COMMENT ON COLUMN n_group_audit_logs.ip_address IS 'IP地址';
+COMMENT ON COLUMN n_group_audit_logs.user_agent IS '用户代理';
+COMMENT ON COLUMN n_group_audit_logs.created_at IS '创建时间';
+
 
 CREATE TABLE n_group_post_likes (
     like_id                   NUMBER(19)      PRIMARY KEY,
@@ -773,8 +1033,12 @@ CREATE TABLE n_group_post_likes (
         REFERENCES n_users(user_id) ON DELETE CASCADE,
     CONSTRAINT uk_group_post_likes UNIQUE (post_id, user_id)
 ) TABLESPACE neko_data;
-
 COMMENT ON TABLE n_group_post_likes IS '群组帖子点赞表';
+COMMENT ON COLUMN n_group_post_likes.like_id IS '点赞ID';
+COMMENT ON COLUMN n_group_post_likes.post_id IS '帖子ID';
+COMMENT ON COLUMN n_group_post_likes.user_id IS '用户ID';
+COMMENT ON COLUMN n_group_post_likes.created_at IS '创建时间';
+
 
 CREATE TABLE n_group_comment_likes (
     like_id                   NUMBER(19)      PRIMARY KEY,
@@ -787,8 +1051,12 @@ CREATE TABLE n_group_comment_likes (
         REFERENCES n_users(user_id) ON DELETE CASCADE,
     CONSTRAINT uk_group_comment_likes UNIQUE (comment_id, user_id)
 ) TABLESPACE neko_data;
-
 COMMENT ON TABLE n_group_comment_likes IS '群组评论点赞表';
+COMMENT ON COLUMN n_group_comment_likes.like_id IS '点赞ID';
+COMMENT ON COLUMN n_group_comment_likes.comment_id IS '评论ID';
+COMMENT ON COLUMN n_group_comment_likes.user_id IS '用户ID';
+COMMENT ON COLUMN n_group_comment_likes.created_at IS '创建时间';
+
 
 -- 用户头像媒体外键，放在媒体表创建后定义，避免循环依赖
 ALTER TABLE n_users
@@ -3995,8 +4263,7 @@ SELECT
     END AS activity_status
 FROM n_users u
 JOIN n_user_stats s ON s.user_id = u.user_id;
-
-COMMENT ON TABLE v_user_profile_public IS 'V2 用户公开资料视图';
+COMMENT ON TABLE v_user_profile_public IS '用户公开资料视图';
 
 -- 10.1.1 当前用户资料视图
 -- 说明:
@@ -4030,8 +4297,7 @@ SELECT
     u.last_login_at
 FROM n_users u
 JOIN n_user_stats s ON s.user_id = u.user_id;
-
-COMMENT ON TABLE v_user_profile_self IS 'V2 当前用户资料视图，包含敏感字段，仅适合 /users/me 使用';
+COMMENT ON TABLE v_user_profile_self IS '当前用户资料视图（含敏感字段）';
 
 -- 10.2 帖子详情视图
 CREATE OR REPLACE VIEW v_post_detail AS
@@ -4069,8 +4335,7 @@ FROM n_posts p
 JOIN n_users u ON u.user_id = p.author_id
 JOIN n_post_stats ps ON ps.post_id = p.post_id
 WHERE p.is_deleted = 0;
-
-COMMENT ON TABLE v_post_detail IS 'V2 帖子详情视图，适合详情和列表查询复用';
+COMMENT ON TABLE v_post_detail IS '帖子详情视图';
 
 -- 10.3 评论列表项视图
 CREATE OR REPLACE VIEW v_post_comment_list_item AS
@@ -4094,8 +4359,7 @@ FROM n_comments c
 JOIN n_users u ON u.user_id = c.user_id
 JOIN n_comment_stats cs ON cs.comment_id = c.comment_id
 WHERE c.is_deleted = 0;
-
-COMMENT ON TABLE v_post_comment_list_item IS 'V2 评论列表项视图';
+COMMENT ON TABLE v_post_comment_list_item IS '帖子评论列表项视图';
 
 -- 10.4 通知列表视图
 CREATE OR REPLACE VIEW v_notification_list_item AS
@@ -4134,8 +4398,7 @@ SELECT
 FROM n_notifications n
 JOIN n_users ru ON ru.user_id = n.user_id
 LEFT JOIN n_users au ON au.user_id = n.actor_id;
-
-COMMENT ON TABLE v_notification_list_item IS 'V2 通知列表视图';
+COMMENT ON TABLE v_notification_list_item IS '通知列表项视图';
 
 -- 10.4.1 通知摘要视图
 CREATE OR REPLACE VIEW v_notification_summary AS
@@ -4147,8 +4410,7 @@ SELECT
     MAX(created_at) AS latest_notification_at
 FROM n_notifications
 GROUP BY user_id;
-
-COMMENT ON TABLE v_notification_summary IS 'V2 通知摘要视图，适合通知角标和概览面板';
+COMMENT ON TABLE v_notification_summary IS '通知摘要视图';
 
 -- 10.5 用户分析视图
 CREATE OR REPLACE VIEW v_user_analytics AS
@@ -4179,8 +4441,7 @@ GROUP BY
     s.likes_count,
     s.bookmarks_count,
     s.comments_count;
-
-COMMENT ON TABLE v_user_analytics IS 'V2 用户分析视图';
+COMMENT ON TABLE v_user_analytics IS '用户分析视图';
 
 -- 10.6 帖子分析视图
 CREATE OR REPLACE VIEW v_post_analytics AS
@@ -4202,8 +4463,7 @@ FROM n_posts p
 JOIN n_users u ON u.user_id = p.author_id
 JOIN n_post_stats ps ON ps.post_id = p.post_id
 WHERE p.is_deleted = 0;
-
-COMMENT ON TABLE v_post_analytics IS 'V2 帖子分析视图';
+COMMENT ON TABLE v_post_analytics IS '帖子分析视图';
 
 -- 10.7 标签分析视图
 CREATE OR REPLACE VIEW v_tag_analytics AS
@@ -4237,8 +4497,7 @@ GROUP BY
     t.is_trending,
     t.created_at,
     t.updated_at;
-
-COMMENT ON TABLE v_tag_analytics IS 'V2 标签分析视图';
+COMMENT ON TABLE v_tag_analytics IS '标签分析视图';
 
 -- 10.8 时间线 / 列表视图
 CREATE OR REPLACE VIEW v_post_feed_item AS
@@ -4275,8 +4534,7 @@ FROM n_posts p
 JOIN n_users u ON u.user_id = p.author_id
 JOIN n_post_stats ps ON ps.post_id = p.post_id
 WHERE p.is_deleted = 0;
-
-COMMENT ON TABLE v_post_feed_item IS 'V2 时间线视图，适合首页、用户页、推荐流复用';
+COMMENT ON TABLE v_post_feed_item IS '帖子时间线列表项视图';
 
 CREATE OR REPLACE VIEW v_trending_tags AS
 SELECT
@@ -4291,8 +4549,7 @@ SELECT
 FROM n_tags
 WHERE is_trending = 1
 ORDER BY trending_score DESC, usage_count DESC, updated_at DESC;
-
-COMMENT ON TABLE v_trending_tags IS 'V2 热门标签视图';
+COMMENT ON TABLE v_trending_tags IS '热门标签视图';
 
 CREATE OR REPLACE VIEW v_trending_posts AS
 SELECT
@@ -4318,8 +4575,7 @@ JOIN n_post_stats ps ON ps.post_id = p.post_id
 WHERE p.is_deleted = 0
   AND p.visibility = 'public'
 ORDER BY ps.engagement_score DESC, p.created_at DESC;
-
-COMMENT ON TABLE v_trending_posts IS 'V2 热门帖子视图';
+COMMENT ON TABLE v_trending_posts IS '热门帖子视图';
 
 -- 10.9 帖子互动明细视图
 CREATE OR REPLACE VIEW v_post_interactions AS
@@ -4345,8 +4601,7 @@ FROM n_posts p
 JOIN n_users u ON u.user_id = p.author_id
 JOIN n_post_stats ps ON ps.post_id = p.post_id
 WHERE p.is_deleted = 0;
-
-COMMENT ON TABLE v_post_interactions IS 'V2 帖子互动明细视图';
+COMMENT ON TABLE v_post_interactions IS '帖子互动明细视图';
 
 -- 10.10 群组详情视图
 CREATE OR REPLACE VIEW v_group_details AS
@@ -4374,7 +4629,6 @@ SELECT
     u.is_verified AS owner_is_verified
 FROM n_groups g
 JOIN n_users u ON g.owner_id = u.user_id;
-
 COMMENT ON TABLE v_group_details IS '群组详情视图';
 
 -- 10.11 群组成员详情视图
@@ -4411,7 +4665,6 @@ FROM n_group_members gm
 JOIN n_users u ON gm.user_id = u.user_id
 JOIN n_groups g ON gm.group_id = g.group_id
 LEFT JOIN n_users inv ON gm.invited_by = inv.user_id;
-
 COMMENT ON TABLE v_group_member_details IS '群组成员详情视图';
 
 -- 10.12 群组帖子详情视图
@@ -4449,7 +4702,6 @@ JOIN n_users u ON gp.author_id = u.user_id
 JOIN n_groups g ON gp.group_id = g.group_id
 LEFT JOIN n_group_members gm ON gp.author_id = gm.user_id AND gp.group_id = gm.group_id
 LEFT JOIN n_users del ON gp.deleted_by = del.user_id;
-
 COMMENT ON TABLE v_group_post_details IS '群组帖子详情视图';
 
 -- 10.13 群组评论详情视图
@@ -4486,7 +4738,6 @@ JOIN n_group_posts gp ON gc.post_id = gp.post_id
 JOIN n_groups g ON gp.group_id = g.group_id
 LEFT JOIN n_users ru ON gc.reply_to_user_id = ru.user_id
 LEFT JOIN n_group_members gm ON gc.author_id = gm.user_id AND gp.group_id = gm.group_id;
-
 COMMENT ON TABLE v_group_comment_details IS '群组评论详情视图';
 
 -- 10.14 群组邀请详情视图
@@ -4525,7 +4776,6 @@ FROM n_group_invites gi
 JOIN n_groups g ON gi.group_id = g.group_id
 JOIN n_users inv ON gi.inviter_id = inv.user_id
 LEFT JOIN n_users invt ON gi.invitee_id = invt.user_id;
-
 COMMENT ON TABLE v_group_invite_details IS '群组邀请详情视图';
 
 -- 10.15 群组审计日志详情视图
@@ -4553,7 +4803,6 @@ FROM n_group_audit_logs gal
 JOIN n_groups g ON gal.group_id = g.group_id
 JOIN n_users act ON gal.actor_id = act.user_id
 LEFT JOIN n_users tu ON gal.target_user_id = tu.user_id;
-
 COMMENT ON TABLE v_group_audit_log_details IS '群组审计日志详情视图';
 
 -- 10.16 用户群组列表视图
@@ -4586,7 +4835,6 @@ JOIN n_users u ON g.owner_id = u.user_id
 WHERE gm.status = 'active'
   AND g.is_deleted = 0
   AND g.is_active = 1;
-
 COMMENT ON TABLE v_user_groups IS '用户群组列表视图';
 
 -- 10.17 热门群组视图
@@ -4612,7 +4860,6 @@ JOIN n_users u ON g.owner_id = u.user_id
 WHERE g.privacy = 'public'
   AND g.is_deleted = 0
   AND g.is_active = 1;
-
 COMMENT ON TABLE v_popular_groups IS '热门群组视图';
 
 -- 10.18 群组时间线视图
@@ -4652,7 +4899,6 @@ LEFT JOIN n_group_members gm ON gp.author_id = gm.user_id AND gp.group_id = gm.g
 WHERE gp.is_deleted = 0
   AND g.is_deleted = 0
   AND g.is_active = 1;
-
 COMMENT ON TABLE v_group_timeline IS '群组时间线视图';
 
 -- ==========================================
@@ -5332,3 +5578,7 @@ SELECT
     'NekoTribe V2 数据库创建完成' AS status,
     '已包含社交主线、通知、设置、账户状态、群组、测试数据、统计信息和物化视图' AS summary
 FROM dual;
+
+
+
+
