@@ -8,7 +8,7 @@
 -- 设计目标:
 --   1. 在尽量保留现有命名风格和群组对象的基础上，为 API V2 提供新的数据库基线。
 --   2. 社交主线从“动作式 + 推文式模型”升级为“资源式 + posts 模型”。
---   3. 群组模块保留现有表、函数、过程和视图的整体思路，只修复明显问题并兼容新的用户主表。
+--   3. 群组模块保留现有表、函数、过程和视图的整体思路，并纳入 V2 正式模型。
 --   4. 去掉 V1 中最影响 V2 开发的模型问题:
 --      - n_follows 混装 follow / block / mute
 --      - n_likes 同时承担帖子点赞与评论点赞
@@ -20,7 +20,7 @@
 --   1. 这是新的 V2 基线脚本，不会覆盖原 V1 SQL 文件。
 --   2. 建议在新的 schema 或新的开发环境中执行。
 --   3. 如果你的数据库里已经存在同名 tablespace / user，请先手动注释掉“环境初始化”部分。
---   4. 本脚本重点是“可直接开始 V2 接口开发”，因此不包含旧版测试数据灌入段。
+--   4. 本脚本目标是“可直接开始 V2 接口开发与联调”，因此包含开发期可选测试数据与物化视图。
 -- ==========================================
 
 ALTER SESSION SET CONTAINER = ORCLPDB1;
@@ -106,7 +106,7 @@ ALTER SESSION SET CURRENT_SCHEMA = NEKO_APP;
 --   文件 settings      -> n_user_settings
 --   文件 statements    -> n_account_statements + n_statement_appeals
 --
--- 保留并兼容:
+-- V2 正式保留:
 --   n_users
 --   n_notifications
 --   n_groups / n_group_* 全套群组对象
@@ -185,7 +185,7 @@ CREATE TABLE n_users (
     CONSTRAINT uk_users_username UNIQUE (username)
 ) TABLESPACE neko_data;
 
-COMMENT ON TABLE n_users IS '用户主表，兼容 V2 用户资料、鉴权、群组归属等所有基础能力';
+COMMENT ON TABLE n_users IS 'V2 用户主表，承载用户资料、鉴权、通知、群组归属等所有基础能力';
 COMMENT ON COLUMN n_users.user_id IS '用户主键';
 COMMENT ON COLUMN n_users.email IS '登录邮箱，唯一';
 COMMENT ON COLUMN n_users.username IS '用户名，唯一';
@@ -194,7 +194,7 @@ COMMENT ON COLUMN n_users.avatar_url IS '头像 URL，保留给群组和旧逻�
 COMMENT ON COLUMN n_users.avatar_media_id IS '头像关联的媒体资源 ID，V2 推荐使用';
 COMMENT ON COLUMN n_users.email_verified_at IS '邮箱验证通过时间';
 COMMENT ON COLUMN n_users.is_verified IS '是否为认证账号';
-COMMENT ON COLUMN n_users.is_active IS '是否可用，保留给兼容逻辑';
+COMMENT ON COLUMN n_users.is_active IS '是否可用，供数据库层快速过滤和群组等模块直接使用';
 COMMENT ON COLUMN n_users.status IS 'V2 账户状态：active / disabled / suspended / pending';
 
 -- 4.2 用户统计表
@@ -537,7 +537,7 @@ CREATE TABLE n_notifications (
         REFERENCES n_users(user_id) ON DELETE SET NULL
 ) TABLESPACE neko_data;
 
-COMMENT ON TABLE n_notifications IS '通知主表，兼容列表、已读、软删除和资源跳转';
+COMMENT ON TABLE n_notifications IS 'V2 通知主表，支持列表、已读、软删除、资源跳转和富 metadata';
 
 -- 4.21 通知偏好表
 CREATE TABLE n_notification_preferences (
@@ -605,7 +605,7 @@ CREATE TABLE n_statement_appeals (
 COMMENT ON TABLE n_statement_appeals IS '账户申诉表，对应 V2 的 appeals 子资源';
 
 -- ==========================================
--- 5. 群组模块表（沿用 with-group 设计，兼容 V2 用户主表）
+-- 5. 群组模块表（沿用 with-group 设计，作为 V2 正式群组模型）
 -- ==========================================
 
 CREATE TABLE n_groups (
@@ -1067,6 +1067,80 @@ EXCEPTION
     WHEN OTHERS THEN
         RETURN 0;
 END fn_get_unread_notification_count;
+/
+
+-- 7.4.1 检查用户通知偏好
+CREATE OR REPLACE FUNCTION fn_check_notification_preference(
+    p_user_id             IN NUMBER,
+    p_notification_type   IN VARCHAR2
+) RETURN NUMBER
+AS
+    v_allowed NUMBER := 1;
+BEGIN
+    IF p_notification_type = 'system' THEN
+        RETURN 1;
+    END IF;
+
+    BEGIN
+        SELECT is_enabled
+        INTO v_allowed
+        FROM n_notification_preferences
+        WHERE user_id = p_user_id
+          AND notification_type = p_notification_type;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            v_allowed := 1;
+    END;
+
+    RETURN NVL(v_allowed, 1);
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN 1;
+END fn_check_notification_preference;
+/
+
+-- 7.4.2 格式化通知消息
+CREATE OR REPLACE FUNCTION fn_format_notification_message(
+    p_type              IN VARCHAR2,
+    p_actor_username    IN VARCHAR2,
+    p_related_content   IN VARCHAR2 DEFAULT NULL
+) RETURN VARCHAR2
+AS
+    v_message VARCHAR2(1000);
+BEGIN
+    CASE p_type
+        WHEN 'like' THEN
+            v_message := p_actor_username || ' 点赞了你的帖子';
+        WHEN 'comment' THEN
+            v_message := p_actor_username || ' 评论了你的帖子';
+        WHEN 'reply' THEN
+            v_message := p_actor_username || ' 回复了你的评论';
+        WHEN 'repost' THEN
+            v_message := p_actor_username || ' 转发了你的帖子';
+        WHEN 'follow' THEN
+            v_message := p_actor_username || ' 关注了你';
+        WHEN 'mention' THEN
+            v_message := p_actor_username || ' 在帖子里提到了你';
+        WHEN 'group_invite' THEN
+            v_message := p_actor_username || ' 邀请你加入群组';
+        WHEN 'system' THEN
+            v_message := '系统通知';
+        ELSE
+            v_message := p_actor_username || ' 触发了一条通知';
+    END CASE;
+
+    IF p_related_content IS NOT NULL AND p_type IN ('like', 'comment', 'reply', 'repost') THEN
+        v_message := v_message || '：' || SUBSTR(p_related_content, 1, 50);
+        IF LENGTH(p_related_content) > 50 THEN
+            v_message := v_message || '...';
+        END IF;
+    END IF;
+
+    RETURN v_message;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN '通知消息';
+END fn_format_notification_message;
 /
 
 -- 7.5 批量标记通知已读
@@ -2360,16 +2434,7 @@ AS
     v_allowed NUMBER := 1;
     v_notification_id NUMBER;
 BEGIN
-    -- system 通知默认允许，其余通知走用户偏好；没配置时视为允许
-    BEGIN
-        SELECT is_enabled INTO v_allowed
-        FROM n_notification_preferences
-        WHERE user_id = p_user_id
-          AND notification_type = p_type;
-    EXCEPTION
-        WHEN NO_DATA_FOUND THEN
-            v_allowed := 1;
-    END;
+    v_allowed := fn_check_notification_preference(p_user_id, p_type);
 
     IF v_allowed = 0 THEN
         p_result := 'SKIPPED: 用户已关闭此类通知';
@@ -2519,7 +2584,472 @@ EXCEPTION
 END sp_refresh_tag_trends;
 /
 
--- 9.4 创建群组
+-- 9.3.1 清理旧通知
+CREATE OR REPLACE PROCEDURE sp_cleanup_old_notifications(
+    p_days_to_keep  IN NUMBER DEFAULT 30,
+    p_result        OUT VARCHAR2
+)
+AS
+    v_deleted_count NUMBER := 0;
+BEGIN
+    DELETE FROM n_notifications
+    WHERE deleted_at IS NOT NULL
+      AND deleted_at < CURRENT_TIMESTAMP - NUMTODSINTERVAL(p_days_to_keep, 'DAY');
+
+    v_deleted_count := SQL%ROWCOUNT;
+
+    DELETE FROM n_notifications
+    WHERE deleted_at IS NULL
+      AND is_read = 1
+      AND created_at < CURRENT_TIMESTAMP - NUMTODSINTERVAL(p_days_to_keep * 3, 'DAY')
+      AND priority = 'low';
+
+    v_deleted_count := v_deleted_count + SQL%ROWCOUNT;
+
+    COMMIT;
+    p_result := 'SUCCESS: 共清理 ' || v_deleted_count || ' 条通知';
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        p_result := 'ERROR: ' || SQLERRM;
+END sp_cleanup_old_notifications;
+/
+
+-- 9.4 创建帖子
+CREATE OR REPLACE PROCEDURE sp_create_post(
+    p_author_id           IN NUMBER,
+    p_content             IN CLOB,
+    p_post_type           IN VARCHAR2 DEFAULT 'post',
+    p_reply_to_post_id    IN NUMBER DEFAULT NULL,
+    p_repost_of_post_id   IN NUMBER DEFAULT NULL,
+    p_quoted_post_id      IN NUMBER DEFAULT NULL,
+    p_visibility          IN VARCHAR2 DEFAULT 'public',
+    p_language            IN VARCHAR2 DEFAULT 'zh',
+    p_location            IN VARCHAR2 DEFAULT NULL,
+    p_post_id             OUT NUMBER,
+    p_result              OUT VARCHAR2
+)
+AS
+    v_parent_exists NUMBER := 0;
+BEGIN
+    IF p_post_type NOT IN ('post', 'reply', 'repost', 'quote') THEN
+        p_result := 'ERROR: 非法的 post_type';
+        RETURN;
+    END IF;
+
+    IF p_post_type = 'reply' AND p_reply_to_post_id IS NULL THEN
+        p_result := 'ERROR: 回复贴必须指定 reply_to_post_id';
+        RETURN;
+    END IF;
+
+    IF p_post_type = 'repost' AND p_repost_of_post_id IS NULL THEN
+        p_result := 'ERROR: 转发贴必须指定 repost_of_post_id';
+        RETURN;
+    END IF;
+
+    IF p_post_type = 'quote' AND p_quoted_post_id IS NULL THEN
+        p_result := 'ERROR: 引用贴必须指定 quoted_post_id';
+        RETURN;
+    END IF;
+
+    IF p_reply_to_post_id IS NOT NULL THEN
+        SELECT COUNT(*) INTO v_parent_exists
+        FROM n_posts
+        WHERE post_id = p_reply_to_post_id
+          AND is_deleted = 0;
+        IF v_parent_exists = 0 THEN
+            p_result := 'ERROR: reply_to_post 不存在';
+            RETURN;
+        END IF;
+    END IF;
+
+    IF p_repost_of_post_id IS NOT NULL THEN
+        SELECT COUNT(*) INTO v_parent_exists
+        FROM n_posts
+        WHERE post_id = p_repost_of_post_id
+          AND is_deleted = 0;
+        IF v_parent_exists = 0 THEN
+            p_result := 'ERROR: repost_of_post 不存在';
+            RETURN;
+        END IF;
+    END IF;
+
+    IF p_quoted_post_id IS NOT NULL THEN
+        SELECT COUNT(*) INTO v_parent_exists
+        FROM n_posts
+        WHERE post_id = p_quoted_post_id
+          AND is_deleted = 0;
+        IF v_parent_exists = 0 THEN
+            p_result := 'ERROR: quoted_post 不存在';
+            RETURN;
+        END IF;
+    END IF;
+
+    INSERT INTO n_posts (
+        author_id,
+        content,
+        post_type,
+        reply_to_post_id,
+        repost_of_post_id,
+        quoted_post_id,
+        visibility,
+        language,
+        location
+    ) VALUES (
+        p_author_id,
+        p_content,
+        p_post_type,
+        p_reply_to_post_id,
+        p_repost_of_post_id,
+        p_quoted_post_id,
+        p_visibility,
+        p_language,
+        p_location
+    ) RETURNING post_id INTO p_post_id;
+
+    p_result := 'SUCCESS: 帖子创建成功，ID=' || p_post_id;
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        p_result := 'ERROR: ' || SQLERRM;
+END sp_create_post;
+/
+
+-- 9.5 删除帖子（软删除）
+CREATE OR REPLACE PROCEDURE sp_delete_post(
+    p_post_id      IN NUMBER,
+    p_actor_id     IN NUMBER,
+    p_result       OUT VARCHAR2
+)
+AS
+    v_author_id NUMBER;
+    v_exists    NUMBER := 0;
+BEGIN
+    SELECT COUNT(*) INTO v_exists
+    FROM n_posts
+    WHERE post_id = p_post_id
+      AND is_deleted = 0;
+
+    IF v_exists = 0 THEN
+        p_result := 'ERROR: 帖子不存在';
+        RETURN;
+    END IF;
+
+    SELECT author_id INTO v_author_id
+    FROM n_posts
+    WHERE post_id = p_post_id;
+
+    IF v_author_id != p_actor_id THEN
+        p_result := 'ERROR: 只能删除自己的帖子';
+        RETURN;
+    END IF;
+
+    UPDATE n_posts
+    SET is_deleted = 1
+    WHERE post_id = p_post_id;
+
+    p_result := 'SUCCESS: 帖子删除成功';
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        p_result := 'ERROR: ' || SQLERRM;
+END sp_delete_post;
+/
+
+-- 9.6 创建评论
+CREATE OR REPLACE PROCEDURE sp_create_comment(
+    p_post_id             IN NUMBER,
+    p_user_id             IN NUMBER,
+    p_content             IN CLOB,
+    p_parent_comment_id   IN NUMBER DEFAULT NULL,
+    p_root_comment_id     IN NUMBER DEFAULT NULL,
+    p_comment_id          OUT NUMBER,
+    p_result              OUT VARCHAR2
+)
+AS
+    v_post_exists      NUMBER := 0;
+    v_parent_exists    NUMBER := 0;
+BEGIN
+    SELECT COUNT(*) INTO v_post_exists
+    FROM n_posts
+    WHERE post_id = p_post_id
+      AND is_deleted = 0;
+
+    IF v_post_exists = 0 THEN
+        p_result := 'ERROR: 帖子不存在';
+        RETURN;
+    END IF;
+
+    IF p_parent_comment_id IS NOT NULL THEN
+        SELECT COUNT(*) INTO v_parent_exists
+        FROM n_comments
+        WHERE comment_id = p_parent_comment_id
+          AND is_deleted = 0;
+
+        IF v_parent_exists = 0 THEN
+            p_result := 'ERROR: 父评论不存在';
+            RETURN;
+        END IF;
+    END IF;
+
+    INSERT INTO n_comments (
+        post_id,
+        user_id,
+        parent_comment_id,
+        root_comment_id,
+        content
+    ) VALUES (
+        p_post_id,
+        p_user_id,
+        p_parent_comment_id,
+        p_root_comment_id,
+        p_content
+    ) RETURNING comment_id INTO p_comment_id;
+
+    p_result := 'SUCCESS: 评论创建成功，ID=' || p_comment_id;
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        p_result := 'ERROR: ' || SQLERRM;
+END sp_create_comment;
+/
+
+-- 9.7 删除评论（软删除）
+CREATE OR REPLACE PROCEDURE sp_delete_comment(
+    p_comment_id    IN NUMBER,
+    p_actor_id      IN NUMBER,
+    p_result        OUT VARCHAR2
+)
+AS
+    v_author_id NUMBER;
+    v_exists NUMBER := 0;
+BEGIN
+    SELECT COUNT(*) INTO v_exists
+    FROM n_comments
+    WHERE comment_id = p_comment_id
+      AND is_deleted = 0;
+
+    IF v_exists = 0 THEN
+        p_result := 'ERROR: 评论不存在';
+        RETURN;
+    END IF;
+
+    SELECT user_id INTO v_author_id
+    FROM n_comments
+    WHERE comment_id = p_comment_id;
+
+    IF v_author_id != p_actor_id THEN
+        p_result := 'ERROR: 只能删除自己的评论';
+        RETURN;
+    END IF;
+
+    UPDATE n_comments
+    SET is_deleted = 1
+    WHERE comment_id = p_comment_id;
+
+    p_result := 'SUCCESS: 评论删除成功';
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        p_result := 'ERROR: ' || SQLERRM;
+END sp_delete_comment;
+/
+
+-- 9.8 关注用户
+CREATE OR REPLACE PROCEDURE sp_follow_user(
+    p_follower_id    IN NUMBER,
+    p_following_id   IN NUMBER,
+    p_result         OUT VARCHAR2
+)
+AS
+    v_blocking_count NUMBER := 0;
+BEGIN
+    IF p_follower_id = p_following_id THEN
+        p_result := 'ERROR: 不能关注自己';
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) INTO v_blocking_count
+    FROM n_user_blocks
+    WHERE (user_id = p_follower_id AND target_user_id = p_following_id)
+       OR (user_id = p_following_id AND target_user_id = p_follower_id);
+
+    IF v_blocking_count > 0 THEN
+        p_result := 'ERROR: 当前关系不允许关注';
+        RETURN;
+    END IF;
+
+    MERGE INTO n_user_follows f
+    USING (SELECT p_follower_id AS follower_id, p_following_id AS following_id FROM dual) src
+    ON (f.follower_id = src.follower_id AND f.following_id = src.following_id)
+    WHEN MATCHED THEN
+        UPDATE SET f.status = 'active', f.updated_at = CURRENT_TIMESTAMP
+    WHEN NOT MATCHED THEN
+        INSERT (follower_id, following_id, status)
+        VALUES (p_follower_id, p_following_id, 'active');
+
+    p_result := 'SUCCESS: 关注成功';
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        p_result := 'ERROR: ' || SQLERRM;
+END sp_follow_user;
+/
+
+-- 9.9 取消关注
+CREATE OR REPLACE PROCEDURE sp_unfollow_user(
+    p_follower_id    IN NUMBER,
+    p_following_id   IN NUMBER,
+    p_result         OUT VARCHAR2
+)
+AS
+BEGIN
+    UPDATE n_user_follows
+    SET status = 'cancelled',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE follower_id = p_follower_id
+      AND following_id = p_following_id
+      AND status = 'active';
+
+    IF SQL%ROWCOUNT = 0 THEN
+        p_result := 'ERROR: 未找到有效关注关系';
+        RETURN;
+    END IF;
+
+    p_result := 'SUCCESS: 取消关注成功';
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        p_result := 'ERROR: ' || SQLERRM;
+END sp_unfollow_user;
+/
+
+-- 9.10 屏蔽用户
+CREATE OR REPLACE PROCEDURE sp_block_user(
+    p_user_id        IN NUMBER,
+    p_target_user_id IN NUMBER,
+    p_result         OUT VARCHAR2
+)
+AS
+BEGIN
+    IF p_user_id = p_target_user_id THEN
+        p_result := 'ERROR: 不能屏蔽自己';
+        RETURN;
+    END IF;
+
+    MERGE INTO n_user_blocks b
+    USING (SELECT p_user_id AS user_id, p_target_user_id AS target_user_id FROM dual) src
+    ON (b.user_id = src.user_id AND b.target_user_id = src.target_user_id)
+    WHEN NOT MATCHED THEN
+        INSERT (user_id, target_user_id) VALUES (p_user_id, p_target_user_id);
+
+    -- 屏蔽后主动取消双方 follow 关系
+    UPDATE n_user_follows
+    SET status = 'cancelled',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE (follower_id = p_user_id AND following_id = p_target_user_id)
+       OR (follower_id = p_target_user_id AND following_id = p_user_id);
+
+    p_result := 'SUCCESS: 屏蔽成功';
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        p_result := 'ERROR: ' || SQLERRM;
+END sp_block_user;
+/
+
+-- 9.11 取消屏蔽
+CREATE OR REPLACE PROCEDURE sp_unblock_user(
+    p_user_id        IN NUMBER,
+    p_target_user_id IN NUMBER,
+    p_result         OUT VARCHAR2
+)
+AS
+BEGIN
+    DELETE FROM n_user_blocks
+    WHERE user_id = p_user_id
+      AND target_user_id = p_target_user_id;
+
+    IF SQL%ROWCOUNT = 0 THEN
+        p_result := 'ERROR: 未找到屏蔽关系';
+        RETURN;
+    END IF;
+
+    p_result := 'SUCCESS: 取消屏蔽成功';
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        p_result := 'ERROR: ' || SQLERRM;
+END sp_unblock_user;
+/
+
+-- 9.12 静音用户
+CREATE OR REPLACE PROCEDURE sp_mute_user(
+    p_user_id        IN NUMBER,
+    p_target_user_id IN NUMBER,
+    p_expires_at     IN TIMESTAMP DEFAULT NULL,
+    p_result         OUT VARCHAR2
+)
+AS
+BEGIN
+    IF p_user_id = p_target_user_id THEN
+        p_result := 'ERROR: 不能静音自己';
+        RETURN;
+    END IF;
+
+    MERGE INTO n_user_mutes m
+    USING (SELECT p_user_id AS user_id, p_target_user_id AS target_user_id, p_expires_at AS expires_at FROM dual) src
+    ON (m.user_id = src.user_id AND m.target_user_id = src.target_user_id)
+    WHEN MATCHED THEN
+        UPDATE SET m.expires_at = src.expires_at
+    WHEN NOT MATCHED THEN
+        INSERT (user_id, target_user_id, expires_at)
+        VALUES (p_user_id, p_target_user_id, p_expires_at);
+
+    p_result := 'SUCCESS: 静音成功';
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        p_result := 'ERROR: ' || SQLERRM;
+END sp_mute_user;
+/
+
+-- 9.13 取消静音
+CREATE OR REPLACE PROCEDURE sp_unmute_user(
+    p_user_id        IN NUMBER,
+    p_target_user_id IN NUMBER,
+    p_result         OUT VARCHAR2
+)
+AS
+BEGIN
+    DELETE FROM n_user_mutes
+    WHERE user_id = p_user_id
+      AND target_user_id = p_target_user_id;
+
+    IF SQL%ROWCOUNT = 0 THEN
+        p_result := 'ERROR: 未找到静音关系';
+        RETURN;
+    END IF;
+
+    p_result := 'SUCCESS: 取消静音成功';
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        p_result := 'ERROR: ' || SQLERRM;
+END sp_unmute_user;
+/
+
+-- 9.14 创建群组
 -- 修复点:
 --   原版过程把 member_count 直接写成 1，再插入 owner 成员，容易和触发器叠加。
 --   V2 中统一由成员计数触发器维护 member_count。
@@ -3503,33 +4033,6 @@ JOIN n_user_stats s ON s.user_id = u.user_id;
 
 COMMENT ON TABLE v_user_profile_self IS 'V2 当前用户资料视图，包含敏感字段，仅适合 /users/me 使用';
 
--- 兼容迁移期的 profile 视图名称
-CREATE OR REPLACE VIEW v_user_profile AS
-SELECT
-    user_id,
-    username,
-    display_name,
-    email,
-    avatar_url,
-    bio,
-    location,
-    website,
-    is_verified,
-    followers_count,
-    following_count,
-    posts_count AS tweets_count,
-    likes_count,
-    created_at,
-    last_login_at,
-    CASE
-        WHEN last_login_at > SYSDATE - 7 THEN 'active'
-        WHEN last_login_at > SYSDATE - 30 THEN 'normal'
-        ELSE 'inactive'
-    END AS activity_status
-FROM v_user_profile_self;
-
-COMMENT ON TABLE v_user_profile IS '兼容迁移期的用户资料视图，保留旧名称但内部基于 V2 结构';
-
 -- 10.2 帖子详情视图
 CREATE OR REPLACE VIEW v_post_detail AS
 SELECT
@@ -3634,33 +4137,18 @@ LEFT JOIN n_users au ON au.user_id = n.actor_id;
 
 COMMENT ON TABLE v_notification_list_item IS 'V2 通知列表视图';
 
--- 兼容迁移期保留旧名称
-CREATE OR REPLACE VIEW v_notifications_detail AS
+-- 10.4.1 通知摘要视图
+CREATE OR REPLACE VIEW v_notification_summary AS
 SELECT
-    notification_id,
     user_id,
-    type,
-    title,
-    message,
-    resource_type AS related_type,
-    resource_id AS related_id,
-    actor_id,
-    is_read,
-    priority,
-    created_at,
-    read_at,
-    recipient_username,
-    recipient_display_name,
-    recipient_avatar_url,
-    actor_username,
-    actor_display_name,
-    actor_avatar_url,
-    actor_is_verified,
-    read_status_desc,
-    priority_desc
-FROM v_notification_list_item;
+    COUNT(*) AS total_notifications,
+    SUM(CASE WHEN is_read = 0 AND deleted_at IS NULL THEN 1 ELSE 0 END) AS unread_count,
+    SUM(CASE WHEN priority IN ('high', 'urgent') AND deleted_at IS NULL THEN 1 ELSE 0 END) AS high_priority_count,
+    MAX(created_at) AS latest_notification_at
+FROM n_notifications
+GROUP BY user_id;
 
-COMMENT ON TABLE v_notifications_detail IS '兼容迁移期保留的通知详情视图';
+COMMENT ON TABLE v_notification_summary IS 'V2 通知摘要视图，适合通知角标和概览面板';
 
 -- 10.5 用户分析视图
 CREATE OR REPLACE VIEW v_user_analytics AS
@@ -3752,7 +4240,115 @@ GROUP BY
 
 COMMENT ON TABLE v_tag_analytics IS 'V2 标签分析视图';
 
--- 10.8 群组详情视图
+-- 10.8 时间线 / 列表视图
+CREATE OR REPLACE VIEW v_post_feed_item AS
+SELECT
+    p.post_id,
+    p.author_id,
+    p.content,
+    p.post_type,
+    p.reply_to_post_id,
+    p.repost_of_post_id,
+    p.quoted_post_id,
+    p.visibility,
+    p.language,
+    p.location,
+    p.created_at,
+    p.updated_at,
+    u.username,
+    u.display_name,
+    u.avatar_url,
+    u.is_verified,
+    ps.likes_count,
+    ps.comments_count,
+    ps.replies_count,
+    ps.retweets_count,
+    ps.views_count,
+    ps.engagement_score,
+    (
+        SELECT LISTAGG(ma.public_url, ',') WITHIN GROUP (ORDER BY pm.sort_order)
+        FROM n_post_media pm
+        JOIN n_media_assets ma ON ma.media_id = pm.media_id
+        WHERE pm.post_id = p.post_id
+    ) AS media_urls
+FROM n_posts p
+JOIN n_users u ON u.user_id = p.author_id
+JOIN n_post_stats ps ON ps.post_id = p.post_id
+WHERE p.is_deleted = 0;
+
+COMMENT ON TABLE v_post_feed_item IS 'V2 时间线视图，适合首页、用户页、推荐流复用';
+
+CREATE OR REPLACE VIEW v_trending_tags AS
+SELECT
+    tag_id,
+    name,
+    name_lower,
+    usage_count,
+    trending_score,
+    is_trending,
+    created_at,
+    updated_at
+FROM n_tags
+WHERE is_trending = 1
+ORDER BY trending_score DESC, usage_count DESC, updated_at DESC;
+
+COMMENT ON TABLE v_trending_tags IS 'V2 热门标签视图';
+
+CREATE OR REPLACE VIEW v_trending_posts AS
+SELECT
+    p.post_id,
+    p.author_id,
+    u.username,
+    u.display_name,
+    u.avatar_url,
+    u.is_verified,
+    p.content,
+    p.post_type,
+    p.visibility,
+    p.created_at,
+    ps.likes_count,
+    ps.comments_count,
+    ps.replies_count,
+    ps.retweets_count,
+    ps.views_count,
+    ps.engagement_score
+FROM n_posts p
+JOIN n_users u ON u.user_id = p.author_id
+JOIN n_post_stats ps ON ps.post_id = p.post_id
+WHERE p.is_deleted = 0
+  AND p.visibility = 'public'
+ORDER BY ps.engagement_score DESC, p.created_at DESC;
+
+COMMENT ON TABLE v_trending_posts IS 'V2 热门帖子视图';
+
+-- 10.9 帖子互动明细视图
+CREATE OR REPLACE VIEW v_post_interactions AS
+SELECT
+    p.post_id,
+    p.author_id,
+    u.username AS author_username,
+    u.display_name AS author_display_name,
+    p.created_at,
+    ps.likes_count,
+    ps.comments_count,
+    ps.replies_count,
+    ps.retweets_count,
+    ps.views_count,
+    ps.engagement_score,
+    (
+        SELECT LISTAGG(lu.username, ', ') WITHIN GROUP (ORDER BY pl.created_at DESC)
+        FROM n_post_likes pl
+        JOIN n_users lu ON lu.user_id = pl.user_id
+        WHERE pl.post_id = p.post_id
+    ) AS liked_by_users
+FROM n_posts p
+JOIN n_users u ON u.user_id = p.author_id
+JOIN n_post_stats ps ON ps.post_id = p.post_id
+WHERE p.is_deleted = 0;
+
+COMMENT ON TABLE v_post_interactions IS 'V2 帖子互动明细视图';
+
+-- 10.10 群组详情视图
 CREATE OR REPLACE VIEW v_group_details AS
 SELECT
     g.group_id,
@@ -3781,7 +4377,7 @@ JOIN n_users u ON g.owner_id = u.user_id;
 
 COMMENT ON TABLE v_group_details IS '群组详情视图';
 
--- 10.9 群组成员详情视图
+-- 10.11 群组成员详情视图
 CREATE OR REPLACE VIEW v_group_member_details AS
 SELECT
     gm.member_id,
@@ -3818,7 +4414,7 @@ LEFT JOIN n_users inv ON gm.invited_by = inv.user_id;
 
 COMMENT ON TABLE v_group_member_details IS '群组成员详情视图';
 
--- 10.10 群组帖子详情视图
+-- 10.12 群组帖子详情视图
 CREATE OR REPLACE VIEW v_group_post_details AS
 SELECT
     gp.post_id,
@@ -3856,7 +4452,7 @@ LEFT JOIN n_users del ON gp.deleted_by = del.user_id;
 
 COMMENT ON TABLE v_group_post_details IS '群组帖子详情视图';
 
--- 10.11 群组评论详情视图
+-- 10.13 群组评论详情视图
 CREATE OR REPLACE VIEW v_group_comment_details AS
 SELECT
     gc.comment_id,
@@ -3893,7 +4489,7 @@ LEFT JOIN n_group_members gm ON gc.author_id = gm.user_id AND gp.group_id = gm.g
 
 COMMENT ON TABLE v_group_comment_details IS '群组评论详情视图';
 
--- 10.12 群组邀请详情视图
+-- 10.14 群组邀请详情视图
 CREATE OR REPLACE VIEW v_group_invite_details AS
 SELECT
     gi.invite_id,
@@ -3932,7 +4528,7 @@ LEFT JOIN n_users invt ON gi.invitee_id = invt.user_id;
 
 COMMENT ON TABLE v_group_invite_details IS '群组邀请详情视图';
 
--- 10.13 群组审计日志详情视图
+-- 10.15 群组审计日志详情视图
 CREATE OR REPLACE VIEW v_group_audit_log_details AS
 SELECT
     gal.log_id,
@@ -3960,7 +4556,7 @@ LEFT JOIN n_users tu ON gal.target_user_id = tu.user_id;
 
 COMMENT ON TABLE v_group_audit_log_details IS '群组审计日志详情视图';
 
--- 10.14 用户群组列表视图
+-- 10.16 用户群组列表视图
 CREATE OR REPLACE VIEW v_user_groups AS
 SELECT
     gm.user_id,
@@ -3993,7 +4589,7 @@ WHERE gm.status = 'active'
 
 COMMENT ON TABLE v_user_groups IS '用户群组列表视图';
 
--- 10.15 热门群组视图
+-- 10.17 热门群组视图
 CREATE OR REPLACE VIEW v_popular_groups AS
 SELECT
     g.group_id,
@@ -4019,7 +4615,7 @@ WHERE g.privacy = 'public'
 
 COMMENT ON TABLE v_popular_groups IS '热门群组视图';
 
--- 10.16 群组时间线视图
+-- 10.18 群组时间线视图
 CREATE OR REPLACE VIEW v_group_timeline AS
 SELECT
     gp.post_id,
@@ -4080,14 +4676,17 @@ GRANT SELECT ON n_group_comments TO neko_readonly;
 
 GRANT SELECT ON v_user_profile_public TO neko_readonly;
 GRANT SELECT ON v_user_profile_self TO neko_readonly;
-GRANT SELECT ON v_user_profile TO neko_readonly;
 GRANT SELECT ON v_post_detail TO neko_readonly;
 GRANT SELECT ON v_post_comment_list_item TO neko_readonly;
 GRANT SELECT ON v_notification_list_item TO neko_readonly;
-GRANT SELECT ON v_notifications_detail TO neko_readonly;
+GRANT SELECT ON v_notification_summary TO neko_readonly;
 GRANT SELECT ON v_user_analytics TO neko_readonly;
 GRANT SELECT ON v_post_analytics TO neko_readonly;
 GRANT SELECT ON v_tag_analytics TO neko_readonly;
+GRANT SELECT ON v_post_feed_item TO neko_readonly;
+GRANT SELECT ON v_trending_tags TO neko_readonly;
+GRANT SELECT ON v_trending_posts TO neko_readonly;
+GRANT SELECT ON v_post_interactions TO neko_readonly;
 GRANT SELECT ON v_group_details TO neko_readonly;
 GRANT SELECT ON v_group_member_details TO neko_readonly;
 GRANT SELECT ON v_group_post_details TO neko_readonly;
@@ -4104,22 +4703,632 @@ GRANT SELECT ON v_group_timeline TO neko_readonly;
 --
 -- 1. 如果你现在就要开始做 V2 API，优先用下面这些对象：
 --    - 用户资料: v_user_profile_public
+--    - 当前用户资料: v_user_profile_self
 --    - 帖子详情: v_post_detail
+--    - 时间线列表: v_post_feed_item
 --    - 评论列表: v_post_comment_list_item
 --    - 通知列表: v_notification_list_item
+--    - 通知摘要: v_notification_summary
 --    - 用户分析: v_user_analytics
 --    - 帖子分析: v_post_analytics
 --    - 标签分析: v_tag_analytics
+--    - 热门标签: v_trending_tags
+--    - 热门帖子: v_trending_posts
 --
--- 2. 如果你还要兼容一段时间的旧逻辑，可以先使用兼容对象：
---    - v_user_profile
---    - v_notifications_detail
+-- 2. 本脚本只提供 V2 正式对象，请直接按 V2 DTO 开发
 --
 -- 3. 标签趋势数据建议定时刷新:
 --    BEGIN
---      sp_refresh_tag_trends(:result);
+--      DECLARE v_result VARCHAR2(500);
+--      BEGIN
+--          sp_refresh_tag_trends(v_result);
+--      END;
 --    END;
 --    /
 --
 -- 4. 群组模块原则上可以直接沿用当前 API 的过程式写法；
 --    社交主线 V2 建议优先使用 Repository + SQL，不再新增“万能 action 存储过程”。
+
+-- ==========================================
+-- 13. 开发期测试数据（可按需执行）
+-- ==========================================
+-- 说明:
+--   1. 这部分数据用于本地或测试环境联调，不建议直接用于生产环境。
+--   2. 如果你想创建一个完全“空库”的 V2 环境，可以从这里往下手动跳过。
+--   3. 这里尽量使用固定 username / tag name 来做清理和重建，方便重复执行。
+
+DELETE FROM n_group_comment_likes
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_group_post_likes
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_group_comments
+WHERE author_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_group_posts
+WHERE author_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_group_invites
+WHERE inviter_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   OR invitee_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_group_members
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_groups
+WHERE slug IN ('v2-core-team', 'v2-design-lab');
+
+DELETE FROM n_statement_appeals
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_account_statements
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_notifications
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   OR actor_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_post_mentions
+WHERE mentioned_user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_post_tags
+WHERE post_id IN (
+    SELECT post_id FROM n_posts
+    WHERE author_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+);
+
+DELETE FROM n_post_media
+WHERE post_id IN (
+    SELECT post_id FROM n_posts
+    WHERE author_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+);
+
+DELETE FROM n_comment_likes
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_comments
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_post_bookmarks
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_post_likes
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_posts
+WHERE author_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_media_assets
+WHERE owner_user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_user_mutes
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   OR target_user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_user_blocks
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   OR target_user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_user_follows
+WHERE follower_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   OR following_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_auth_sessions
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_auth_otp_events
+WHERE account IN ('v2_admin@example.com', 'v2_dev@example.com', 'v2_reader@example.com', 'v2_designer@example.com', 'v2_pm@example.com');
+
+DELETE FROM n_tags
+WHERE name IN ('v2', 'oracle', 'nuxt', 'design', 'product', 'backend', 'group', 'api');
+
+DELETE FROM n_users
+WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm');
+
+COMMIT;
+
+-- 13.1 用户
+INSERT INTO n_users (email, username, password_hash, display_name, bio, location, website, phone, is_verified, status)
+VALUES ('v2_admin@example.com', 'v2_admin', '$2b$10$placeholder_admin_hash', 'V2 管理员', '负责 V2 开发环境管理和联调', '上海', 'https://example.com/admin', '13800000001', 1, 'active');
+
+INSERT INTO n_users (email, username, password_hash, display_name, bio, location, website, phone, is_verified, status)
+VALUES ('v2_dev@example.com', 'v2_dev', '$2b$10$placeholder_dev_hash', 'V2 后端开发', '关注 Oracle、API 设计、可维护性', '杭州', 'https://example.com/dev', '13800000002', 1, 'active');
+
+INSERT INTO n_users (email, username, password_hash, display_name, bio, location, is_verified, status)
+VALUES ('v2_reader@example.com', 'v2_reader', '$2b$10$placeholder_reader_hash', 'V2 普通用户', '主要用于看帖、点赞、收藏和评论', '深圳', 0, 'active');
+
+INSERT INTO n_users (email, username, password_hash, display_name, bio, location, is_verified, status)
+VALUES ('v2_designer@example.com', 'v2_designer', '$2b$10$placeholder_designer_hash', 'V2 设计师', '关注设计系统、体验和群组运营', '广州', 1, 'active');
+
+INSERT INTO n_users (email, username, password_hash, display_name, bio, location, is_verified, status)
+VALUES ('v2_pm@example.com', 'v2_pm', '$2b$10$placeholder_pm_hash', 'V2 产品经理', '用于验证推荐、通知和统计接口', '北京', 1, 'active');
+
+-- 13.2 标签
+INSERT INTO n_tags (name, name_lower, usage_count, trending_score, is_trending) VALUES ('v2', 'v2', 0, 0, 0);
+INSERT INTO n_tags (name, name_lower, usage_count, trending_score, is_trending) VALUES ('oracle', 'oracle', 0, 0, 0);
+INSERT INTO n_tags (name, name_lower, usage_count, trending_score, is_trending) VALUES ('nuxt', 'nuxt', 0, 0, 0);
+INSERT INTO n_tags (name, name_lower, usage_count, trending_score, is_trending) VALUES ('design', 'design', 0, 0, 0);
+INSERT INTO n_tags (name, name_lower, usage_count, trending_score, is_trending) VALUES ('product', 'product', 0, 0, 0);
+INSERT INTO n_tags (name, name_lower, usage_count, trending_score, is_trending) VALUES ('backend', 'backend', 0, 0, 0);
+INSERT INTO n_tags (name, name_lower, usage_count, trending_score, is_trending) VALUES ('group', 'group', 0, 0, 0);
+INSERT INTO n_tags (name, name_lower, usage_count, trending_score, is_trending) VALUES ('api', 'api', 0, 0, 0);
+
+-- 13.3 关系
+DECLARE
+    v_result VARCHAR2(500);
+BEGIN
+    sp_follow_user(
+        (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+        v_result
+    );
+
+    sp_follow_user(
+        (SELECT user_id FROM n_users WHERE username = 'v2_reader'),
+        (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        v_result
+    );
+
+    sp_follow_user(
+        (SELECT user_id FROM n_users WHERE username = 'v2_designer'),
+        (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        v_result
+    );
+
+    sp_follow_user(
+        (SELECT user_id FROM n_users WHERE username = 'v2_pm'),
+        (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+        v_result
+    );
+END;
+/
+
+-- 13.4 会话
+INSERT INTO n_auth_sessions (
+    session_id,
+    user_id,
+    access_jti,
+    refresh_token_hash,
+    device_info,
+    device_fingerprint,
+    ip_address,
+    user_agent,
+    access_token_expires_at,
+    refresh_token_expires_at
+) VALUES (
+    'sess_v2_admin',
+    (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+    'jti_v2_admin',
+    'hash_refresh_admin',
+    'Windows 11 / Chrome',
+    'fingerprint_admin',
+    '192.168.0.10',
+    'Mozilla/5.0 Admin',
+    CURRENT_TIMESTAMP + INTERVAL '30' MINUTE,
+    CURRENT_TIMESTAMP + INTERVAL '7' DAY
+);
+
+INSERT INTO n_auth_sessions (
+    session_id,
+    user_id,
+    access_jti,
+    refresh_token_hash,
+    device_info,
+    device_fingerprint,
+    ip_address,
+    user_agent,
+    access_token_expires_at,
+    refresh_token_expires_at
+) VALUES (
+    'sess_v2_dev',
+    (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+    'jti_v2_dev',
+    'hash_refresh_dev',
+    'macOS / Safari',
+    'fingerprint_dev',
+    '192.168.0.11',
+    'Mozilla/5.0 Dev',
+    CURRENT_TIMESTAMP + INTERVAL '30' MINUTE,
+    CURRENT_TIMESTAMP + INTERVAL '7' DAY
+);
+
+-- 13.5 媒体
+INSERT INTO n_media_assets (
+    owner_user_id, media_type, file_name, storage_key, public_url, file_size, mime_type, width, height, alt_text, status
+) VALUES (
+    (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+    'image', 'v2-banner.jpg', 'media/v2-banner.jpg', '/upload/media/v2-banner.jpg',
+    256000, 'image/jpeg', 1200, 630, 'V2 欢迎横幅', 'ready'
+);
+
+INSERT INTO n_media_assets (
+    owner_user_id, media_type, file_name, storage_key, public_url, file_size, mime_type, width, height, alt_text, status
+) VALUES (
+    (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+    'image', 'oracle-erd.png', 'media/oracle-erd.png', '/upload/media/oracle-erd.png',
+    512000, 'image/png', 1280, 720, 'Oracle ER 图', 'ready'
+);
+
+UPDATE n_users
+SET avatar_media_id = (SELECT media_id FROM n_media_assets WHERE storage_key = 'media/v2-banner.jpg'),
+    avatar_url = '/upload/media/v2-banner.jpg'
+WHERE username = 'v2_admin';
+
+-- 13.6 帖子
+DECLARE
+    v_post_id NUMBER;
+    v_result VARCHAR2(500);
+BEGIN
+    sp_create_post(
+        p_author_id         => (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+        p_content           => '欢迎来到 NekoTribe V2 开发环境，这条帖子用于验证 posts 详情、时间线、通知和统计。',
+        p_post_type         => 'post',
+        p_visibility        => 'public',
+        p_language          => 'zh',
+        p_post_id           => v_post_id,
+        p_result            => v_result
+    );
+
+    INSERT INTO n_post_media (post_id, media_id, sort_order)
+    VALUES (
+        v_post_id,
+        (SELECT media_id FROM n_media_assets WHERE storage_key = 'media/v2-banner.jpg'),
+        1
+    );
+
+    INSERT INTO n_post_tags (post_id, tag_id)
+    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'v2'));
+
+    INSERT INTO n_post_tags (post_id, tag_id)
+    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'api'));
+END;
+/
+
+DECLARE
+    v_post_id NUMBER;
+    v_result VARCHAR2(500);
+BEGIN
+    sp_create_post(
+        p_author_id         => (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        p_content           => '今天把 Oracle V2 基线库重构完成了，posts / comments / tags / notifications 都已经能直接开始开发。',
+        p_post_type         => 'post',
+        p_visibility        => 'public',
+        p_language          => 'zh',
+        p_post_id           => v_post_id,
+        p_result            => v_result
+    );
+
+    INSERT INTO n_post_media (post_id, media_id, sort_order)
+    VALUES (
+        v_post_id,
+        (SELECT media_id FROM n_media_assets WHERE storage_key = 'media/oracle-erd.png'),
+        1
+    );
+
+    INSERT INTO n_post_tags (post_id, tag_id)
+    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'oracle'));
+
+    INSERT INTO n_post_tags (post_id, tag_id)
+    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'backend'));
+
+    INSERT INTO n_post_tags (post_id, tag_id)
+    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'api'));
+END;
+/
+
+DECLARE
+    v_post_id NUMBER;
+    v_result VARCHAR2(500);
+BEGIN
+    sp_create_post(
+        p_author_id         => (SELECT user_id FROM n_users WHERE username = 'v2_designer'),
+        p_content           => 'V2 需要的不只是接口改名，还要一起整理响应结构和设计系统，这样前后端才能真正稳下来。',
+        p_post_type         => 'post',
+        p_visibility        => 'public',
+        p_language          => 'zh',
+        p_post_id           => v_post_id,
+        p_result            => v_result
+    );
+
+    INSERT INTO n_post_tags (post_id, tag_id)
+    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'design'));
+END;
+/
+
+-- 13.7 评论
+DECLARE
+    v_comment_id NUMBER;
+    v_result VARCHAR2(500);
+BEGIN
+    sp_create_comment(
+        p_post_id           => (SELECT MIN(post_id) FROM n_posts WHERE author_id = (SELECT user_id FROM n_users WHERE username = 'v2_admin')),
+        p_user_id           => (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        p_content           => '这条欢迎帖刚好可以拿来测试评论流和通知。',
+        p_comment_id        => v_comment_id,
+        p_result            => v_result
+    );
+END;
+/
+
+DECLARE
+    v_comment_id NUMBER;
+    v_result VARCHAR2(500);
+BEGIN
+    sp_create_comment(
+        p_post_id           => (SELECT MIN(post_id) FROM n_posts WHERE author_id = (SELECT user_id FROM n_users WHERE username = 'v2_dev')),
+        p_user_id           => (SELECT user_id FROM n_users WHERE username = 'v2_reader'),
+        p_content           => '请问这套 V2 SQL 也会覆盖群组接口吗？',
+        p_comment_id        => v_comment_id,
+        p_result            => v_result
+    );
+END;
+/
+
+-- 13.8 点赞 / 收藏 / 提及
+INSERT INTO n_post_likes (post_id, user_id)
+VALUES (
+    (SELECT MIN(post_id) FROM n_posts WHERE author_id = (SELECT user_id FROM n_users WHERE username = 'v2_admin')),
+    (SELECT user_id FROM n_users WHERE username = 'v2_dev')
+);
+
+INSERT INTO n_post_likes (post_id, user_id)
+VALUES (
+    (SELECT MIN(post_id) FROM n_posts WHERE author_id = (SELECT user_id FROM n_users WHERE username = 'v2_dev')),
+    (SELECT user_id FROM n_users WHERE username = 'v2_reader')
+);
+
+INSERT INTO n_post_bookmarks (post_id, user_id)
+VALUES (
+    (SELECT MIN(post_id) FROM n_posts WHERE author_id = (SELECT user_id FROM n_users WHERE username = 'v2_dev')),
+    (SELECT user_id FROM n_users WHERE username = 'v2_pm')
+);
+
+INSERT INTO n_post_mentions (post_id, mentioned_user_id)
+VALUES (
+    (SELECT MIN(post_id) FROM n_posts WHERE author_id = (SELECT user_id FROM n_users WHERE username = 'v2_admin')),
+    (SELECT user_id FROM n_users WHERE username = 'v2_pm')
+);
+
+-- 13.9 通知
+DECLARE
+    v_result VARCHAR2(500);
+BEGIN
+    sp_create_notification(
+        p_user_id        => (SELECT user_id FROM n_users WHERE username = 'v2_pm'),
+        p_type           => 'mention',
+        p_title          => '你被提及了',
+        p_message        => '管理员在欢迎帖里提到了你。',
+        p_resource_type  => 'post',
+        p_resource_id    => (SELECT MIN(post_id) FROM n_posts WHERE author_id = (SELECT user_id FROM n_users WHERE username = 'v2_admin')),
+        p_actor_id       => (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+        p_priority       => 'normal',
+        p_result         => v_result
+    );
+
+    sp_create_notification(
+        p_user_id        => (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        p_type           => 'system',
+        p_title          => 'V2 开发提示',
+        p_message        => '请优先使用 v_post_detail、v_post_feed_item、v_notification_list_item 等视图进行联调。',
+        p_resource_type  => 'system',
+        p_priority       => 'high',
+        p_result         => v_result
+    );
+END;
+/
+
+-- 13.10 账户状态
+INSERT INTO n_account_statements (user_id, statement_type, title, message, policy_code, status)
+VALUES (
+    (SELECT user_id FROM n_users WHERE username = 'v2_reader'),
+    'warning',
+    '开发环境示例提醒',
+    '这是一条开发环境中的账户状态示例，可用于联调 account-statements 列表与详情。',
+    'DEV-001',
+    'unread'
+);
+
+INSERT INTO n_statement_appeals (statement_id, user_id, appeal_message, appeal_status)
+VALUES (
+    (SELECT statement_id FROM n_account_statements WHERE user_id = (SELECT user_id FROM n_users WHERE username = 'v2_reader') AND ROWNUM = 1),
+    (SELECT user_id FROM n_users WHERE username = 'v2_reader'),
+    '这是开发环境中的申诉示例，主要用于联调 appeals 子资源。',
+    'pending'
+);
+
+-- 13.11 群组
+DECLARE
+    v_group_id NUMBER;
+    v_result VARCHAR2(500);
+BEGIN
+    sp_create_group(
+        p_owner_id        => (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+        p_name            => 'V2 Core Team',
+        p_description     => '用于联调群组详情、成员、帖子、邀请和时间线。',
+        p_privacy         => 'public',
+        p_post_permission => 'all',
+        p_group_id        => v_group_id,
+        p_result          => v_result
+    );
+
+    UPDATE n_groups
+    SET slug = 'v2-core-team'
+    WHERE group_id = v_group_id;
+END;
+/
+
+DECLARE
+    v_group_id NUMBER;
+    v_result VARCHAR2(500);
+BEGIN
+    sp_create_group(
+        p_owner_id        => (SELECT user_id FROM n_users WHERE username = 'v2_designer'),
+        p_name            => 'V2 Design Lab',
+        p_description     => '用于联调私密群组、邀请和审核流。',
+        p_privacy         => 'private',
+        p_join_approval   => 1,
+        p_post_permission => 'moderator_up',
+        p_group_id        => v_group_id,
+        p_result          => v_result
+    );
+
+    UPDATE n_groups
+    SET slug = 'v2-design-lab'
+    WHERE group_id = v_group_id;
+END;
+/
+
+DECLARE
+    v_member_id NUMBER;
+    v_result VARCHAR2(500);
+BEGIN
+    sp_join_group(
+        p_user_id     => (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        p_group_id    => (SELECT group_id FROM n_groups WHERE slug = 'v2-core-team'),
+        p_member_id   => v_member_id,
+        p_result      => v_result
+    );
+
+    sp_join_group(
+        p_user_id     => (SELECT user_id FROM n_users WHERE username = 'v2_pm'),
+        p_group_id    => (SELECT group_id FROM n_groups WHERE slug = 'v2-core-team'),
+        p_member_id   => v_member_id,
+        p_result      => v_result
+    );
+END;
+/
+
+DECLARE
+    v_post_id NUMBER;
+    v_result VARCHAR2(500);
+BEGIN
+    sp_create_group_post(
+        p_author_id  => (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+        p_group_id   => (SELECT group_id FROM n_groups WHERE slug = 'v2-core-team'),
+        p_content    => '欢迎进入 V2 Core Team 群组，这条帖子用于测试群组时间线。',
+        p_post_id    => v_post_id,
+        p_result     => v_result
+    );
+END;
+/
+
+DECLARE
+    v_comment_id NUMBER;
+    v_result VARCHAR2(500);
+BEGIN
+    sp_create_group_comment(
+        p_author_id   => (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        p_post_id     => (SELECT MIN(post_id) FROM n_group_posts WHERE group_id = (SELECT group_id FROM n_groups WHERE slug = 'v2-core-team')),
+        p_content     => '群组评论流也可以直接开始联调了。',
+        p_comment_id  => v_comment_id,
+        p_result      => v_result
+    );
+END;
+/
+
+DECLARE
+    v_result VARCHAR2(500);
+BEGIN
+    sp_refresh_tag_trends(v_result);
+END;
+/
+
+COMMIT;
+
+-- ==========================================
+-- 14. 数据库统计信息收集
+-- ==========================================
+BEGIN
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_USERS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_USER_STATS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_AUTH_SESSIONS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_USER_FOLLOWS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_USER_BLOCKS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_USER_MUTES');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POSTS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POST_STATS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POST_LIKES');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POST_BOOKMARKS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_COMMENTS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_COMMENT_LIKES');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_MEDIA_ASSETS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_TAGS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POST_TAGS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_NOTIFICATIONS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUPS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_MEMBERS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_POSTS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_COMMENTS');
+END;
+/
+
+-- ==========================================
+-- 15. 物化视图
+-- ==========================================
+-- 说明:
+--   这些物化视图用于加速 V2 的分析与趋势类接口。
+--   如果你暂时不需要，可单独注释掉。
+
+CREATE MATERIALIZED VIEW mv_user_activity_daily
+REFRESH COMPLETE ON DEMAND
+AS
+SELECT
+    TRUNC(p.created_at) AS activity_date,
+    p.author_id AS user_id,
+    COUNT(*) AS daily_posts,
+    SUM(ps.likes_count) AS daily_likes_received,
+    SUM(ps.comments_count) AS daily_comments_received,
+    AVG(ps.engagement_score) AS avg_engagement_score
+FROM n_posts p
+JOIN n_post_stats ps ON ps.post_id = p.post_id
+WHERE p.is_deleted = 0
+GROUP BY TRUNC(p.created_at), p.author_id;
+
+CREATE MATERIALIZED VIEW mv_tag_trends_hourly
+REFRESH COMPLETE ON DEMAND
+AS
+SELECT
+    TRUNC(CAST(p.created_at AS DATE), 'HH24') AS trend_hour,
+    t.tag_id,
+    t.name,
+    COUNT(*) AS hourly_usage,
+    COUNT(DISTINCT p.author_id) AS unique_users,
+    AVG(ps.engagement_score) AS avg_engagement_score
+FROM n_posts p
+JOIN n_post_tags pt ON pt.post_id = p.post_id
+JOIN n_tags t ON t.tag_id = pt.tag_id
+JOIN n_post_stats ps ON ps.post_id = p.post_id
+WHERE p.is_deleted = 0
+GROUP BY TRUNC(CAST(p.created_at AS DATE), 'HH24'), t.tag_id, t.name;
+
+CREATE MATERIALIZED VIEW mv_post_engagement_daily
+REFRESH COMPLETE ON DEMAND
+AS
+SELECT
+    TRUNC(p.created_at) AS stat_date,
+    p.post_id,
+    p.author_id,
+    p.post_type,
+    p.visibility,
+    ps.likes_count,
+    ps.comments_count,
+    ps.replies_count,
+    ps.retweets_count,
+    ps.views_count,
+    ps.engagement_score
+FROM n_posts p
+JOIN n_post_stats ps ON ps.post_id = p.post_id
+WHERE p.is_deleted = 0;
+
+GRANT SELECT ON mv_user_activity_daily TO neko_readonly;
+GRANT SELECT ON mv_tag_trends_hourly TO neko_readonly;
+GRANT SELECT ON mv_post_engagement_daily TO neko_readonly;
+
+-- ==========================================
+-- 16. 建库完成提示
+-- ==========================================
+SELECT
+    'NekoTribe V2 数据库创建完成' AS status,
+    '已包含社交主线、通知、设置、账户状态、群组、测试数据、统计信息和物化视图' AS summary
+FROM dual;
