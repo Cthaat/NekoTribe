@@ -13,7 +13,7 @@
 --      - n_follows 混装 follow / block / mute
 --      - n_likes 同时承担帖子点赞与评论点赞
 --      - n_media 既做资源库又直接绑定帖子
---      - n_user_sessions 直接保存原始 token CLOB
+--      - n_user_sessions 直接保存原始 token CLOBs
 --      - tweets / hashtags 命名不适合 V2 的 posts / tags 资源设计
 --
 -- 重要说明:
@@ -21,6 +21,12 @@
 --   2. 建议在新的 schema 或新的开发环境中执行。
 --   3. 如果你的数据库里已经存在同名 tablespace / user，请先手动注释掉“环境初始化”部分。
 --   4. 本脚本目标是“可直接开始 V2 接口开发与联调”，因此包含开发期可选测试数据与物化视图。
+--
+-- 执行约定:
+--   1. 推荐使用 SQL*Plus / SQLcl 执行；执行前可设置 SET DEFINE OFF、SET SERVEROUTPUT ON。
+--   2. ALTER SESSION SET CONTAINER 和“环境初始化”部分依赖具体 Oracle 部署，可按目标环境注释。
+--   3. 生产环境必须替换示例密码、datafile 路径和 tablespace 规划，不要直接复用文档默认值。
+--   4. 应用层只使用哈希后的 token / 验证码；数据库脚本不保存任何 token 或验证码原文。
 -- ==========================================
 
 ALTER SESSION SET CONTAINER = ORCLPDB1;
@@ -239,8 +245,9 @@ CREATE TABLE n_auth_otp_events (
     otp_event_id            NUMBER(15)      PRIMARY KEY,
     account                 VARCHAR2(100)   NOT NULL,
     otp_type                VARCHAR2(30)    NOT NULL CHECK (otp_type IN ('register', 'password_reset', 'change_email')),
+    send_channel            VARCHAR2(20)    DEFAULT 'email' NOT NULL CHECK (send_channel IN ('email', 'sms')),
     verification_code_hash  VARCHAR2(255)   NOT NULL,
-    verification_id         VARCHAR2(64)    DEFAULT RAWTOHEX(SYS_GUID()) NOT NULL,
+    verification_id         VARCHAR2(128)   DEFAULT RAWTOHEX(SYS_GUID()) NOT NULL,
     expires_at              TIMESTAMP       NOT NULL,
     verified_at             TIMESTAMP,
     created_at              TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -250,6 +257,7 @@ COMMENT ON TABLE n_auth_otp_events IS '验证码事件表';
 COMMENT ON COLUMN n_auth_otp_events.otp_event_id IS '验证码事件ID';
 COMMENT ON COLUMN n_auth_otp_events.account IS '账号（邮箱或用户名）';
 COMMENT ON COLUMN n_auth_otp_events.otp_type IS '验证码用途';
+COMMENT ON COLUMN n_auth_otp_events.send_channel IS '发送渠道（email/sms）';
 COMMENT ON COLUMN n_auth_otp_events.verification_code_hash IS '验证码哈希';
 COMMENT ON COLUMN n_auth_otp_events.verification_id IS '验证ID';
 COMMENT ON COLUMN n_auth_otp_events.expires_at IS '过期时间';
@@ -262,9 +270,9 @@ COMMENT ON COLUMN n_auth_otp_events.created_at IS '创建时间';
 --   不再直接保存 access_token / refresh_token 原文。
 --   session_id 与 access_jti 都允许由应用生成；数据库也提供默认兜底。
 CREATE TABLE n_auth_sessions (
-    session_id                VARCHAR2(64)   PRIMARY KEY,
+    session_id                VARCHAR2(128)  PRIMARY KEY,
     user_id                   NUMBER(10)     NOT NULL,
-    access_jti                VARCHAR2(64)   NOT NULL,
+    access_jti                VARCHAR2(128)  NOT NULL,
     refresh_token_hash        VARCHAR2(255)  NOT NULL,
     device_info               VARCHAR2(500),
     device_fingerprint        VARCHAR2(255),
@@ -277,7 +285,10 @@ CREATE TABLE n_auth_sessions (
     revoked_at                TIMESTAMP,
     created_at                TIMESTAMP      DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT fk_auth_sessions_user FOREIGN KEY (user_id)
-        REFERENCES n_users(user_id) ON DELETE CASCADE
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT uk_auth_sessions_access_jti UNIQUE (access_jti),
+    CONSTRAINT uk_auth_sessions_refresh_hash UNIQUE (refresh_token_hash),
+    CONSTRAINT ck_auth_sessions_expiry CHECK (refresh_token_expires_at > access_token_expires_at)
 ) TABLESPACE neko_data;
 COMMENT ON TABLE n_auth_sessions IS '认证会话表';
 COMMENT ON COLUMN n_auth_sessions.session_id IS '会话ID';
@@ -390,7 +401,13 @@ CREATE TABLE n_posts (
     CONSTRAINT fk_posts_repost FOREIGN KEY (repost_of_post_id)
         REFERENCES n_posts(post_id),
     CONSTRAINT fk_posts_quote FOREIGN KEY (quoted_post_id)
-        REFERENCES n_posts(post_id)
+        REFERENCES n_posts(post_id),
+    CONSTRAINT ck_posts_type_refs CHECK (
+        (post_type = 'post' AND reply_to_post_id IS NULL AND repost_of_post_id IS NULL AND quoted_post_id IS NULL)
+        OR (post_type = 'reply' AND reply_to_post_id IS NOT NULL AND repost_of_post_id IS NULL AND quoted_post_id IS NULL)
+        OR (post_type = 'repost' AND reply_to_post_id IS NULL AND repost_of_post_id IS NOT NULL AND quoted_post_id IS NULL)
+        OR (post_type = 'quote' AND reply_to_post_id IS NULL AND repost_of_post_id IS NULL AND quoted_post_id IS NOT NULL)
+    )
 ) TABLESPACE neko_data;
 COMMENT ON TABLE n_posts IS '帖子主表';
 COMMENT ON COLUMN n_posts.post_id IS '帖子ID';
@@ -452,8 +469,16 @@ CREATE TABLE n_media_assets (
     alt_text               VARCHAR2(500),
     status                 VARCHAR2(20)    DEFAULT 'ready' NOT NULL CHECK (status IN ('uploaded', 'processing', 'ready', 'failed')),
     created_at             TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at             TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT fk_media_assets_owner FOREIGN KEY (owner_user_id)
-        REFERENCES n_users(user_id) ON DELETE CASCADE
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT uk_media_assets_storage_key UNIQUE (storage_key),
+    CONSTRAINT ck_media_assets_file_size CHECK (file_size >= 0),
+    CONSTRAINT ck_media_assets_dimensions CHECK (
+        (width IS NULL OR width > 0)
+        AND (height IS NULL OR height > 0)
+    ),
+    CONSTRAINT ck_media_assets_duration CHECK (duration IS NULL OR duration >= 0)
 ) TABLESPACE neko_data;
 COMMENT ON TABLE n_media_assets IS '媒体资源表';
 COMMENT ON COLUMN n_media_assets.media_id IS '媒体ID';
@@ -471,6 +496,7 @@ COMMENT ON COLUMN n_media_assets.thumbnail_url IS '缩略图地址';
 COMMENT ON COLUMN n_media_assets.alt_text IS '媒体替代文本';
 COMMENT ON COLUMN n_media_assets.status IS '媒体处理状态（uploaded/processing/ready/failed）';
 COMMENT ON COLUMN n_media_assets.created_at IS '创建时间';
+COMMENT ON COLUMN n_media_assets.updated_at IS '更新时间';
 
 
 -- 4.11 帖子媒体关联表
@@ -483,7 +509,9 @@ CREATE TABLE n_post_media (
     CONSTRAINT fk_post_media_post FOREIGN KEY (post_id)
         REFERENCES n_posts(post_id) ON DELETE CASCADE,
     CONSTRAINT fk_post_media_media FOREIGN KEY (media_id)
-        REFERENCES n_media_assets(media_id) ON DELETE CASCADE
+        REFERENCES n_media_assets(media_id) ON DELETE CASCADE,
+    CONSTRAINT uk_post_media_order UNIQUE (post_id, sort_order),
+    CONSTRAINT ck_post_media_sort_order CHECK (sort_order > 0)
 ) TABLESPACE neko_data;
 COMMENT ON TABLE n_post_media IS '帖子媒体关联表';
 COMMENT ON COLUMN n_post_media.post_id IS '帖子ID';
@@ -547,6 +575,8 @@ CREATE TABLE n_comments (
     CONSTRAINT fk_comments_user FOREIGN KEY (user_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE,
     CONSTRAINT fk_comments_parent FOREIGN KEY (parent_comment_id)
+        REFERENCES n_comments(comment_id),
+    CONSTRAINT fk_comments_root FOREIGN KEY (root_comment_id)
         REFERENCES n_comments(comment_id)
 ) TABLESPACE neko_data;
 COMMENT ON TABLE n_comments IS '评论主表';
@@ -663,7 +693,7 @@ CREATE TABLE n_notifications (
     title                   VARCHAR2(200),
     message                 VARCHAR2(1000),
     resource_type           VARCHAR2(30),
-    resource_id             NUMBER(15),
+    resource_id             NUMBER(19),
     priority                VARCHAR2(10)    DEFAULT 'normal' NOT NULL CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
     is_read                 NUMBER(1)       DEFAULT 0 NOT NULL CHECK (is_read IN (0, 1)),
     read_at                 TIMESTAMP,
@@ -794,7 +824,7 @@ COMMENT ON COLUMN n_statement_appeals.updated_at IS '更新时间';
 CREATE TABLE n_groups (
     group_id                 NUMBER(19)      PRIMARY KEY,
     name                     VARCHAR2(100)   NOT NULL,
-    slug                     VARCHAR2(100)   UNIQUE NOT NULL,
+    slug                     VARCHAR2(100)   NOT NULL,
     description              VARCHAR2(500),
     avatar_url               VARCHAR2(500),
     cover_url                VARCHAR2(500),
@@ -810,8 +840,13 @@ CREATE TABLE n_groups (
     updated_at               TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
     CONSTRAINT fk_groups_owner FOREIGN KEY (owner_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT uk_groups_slug UNIQUE (slug),
     CONSTRAINT chk_groups_privacy CHECK (privacy IN ('public', 'private', 'secret')),
-    CONSTRAINT chk_groups_post_perm CHECK (post_permission IN ('all', 'admin_only', 'moderator_up'))
+    CONSTRAINT chk_groups_join_approval CHECK (join_approval IN (0, 1)),
+    CONSTRAINT chk_groups_post_perm CHECK (post_permission IN ('all', 'admin_only', 'moderator_up')),
+    CONSTRAINT chk_groups_is_active CHECK (is_active IN (0, 1)),
+    CONSTRAINT chk_groups_is_deleted CHECK (is_deleted IN (0, 1)),
+    CONSTRAINT chk_groups_counts CHECK (member_count >= 0 AND post_count >= 0)
 ) TABLESPACE neko_data;
 COMMENT ON TABLE n_groups IS '群组主表';
 COMMENT ON COLUMN n_groups.group_id IS '群组ID';
@@ -889,7 +924,9 @@ CREATE TABLE n_group_posts (
     CONSTRAINT fk_group_posts_author FOREIGN KEY (author_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE,
     CONSTRAINT fk_group_posts_deleter FOREIGN KEY (deleted_by)
-        REFERENCES n_users(user_id) ON DELETE SET NULL
+        REFERENCES n_users(user_id) ON DELETE SET NULL,
+    CONSTRAINT chk_group_posts_flags CHECK (is_pinned IN (0, 1) AND is_announcement IN (0, 1) AND is_deleted IN (0, 1)),
+    CONSTRAINT chk_group_posts_counts CHECK (likes_count >= 0 AND comments_count >= 0 AND views_count >= 0)
 ) TABLESPACE neko_data;
 COMMENT ON TABLE n_group_posts IS '群组帖子表';
 COMMENT ON COLUMN n_group_posts.post_id IS '帖子ID';
@@ -931,7 +968,9 @@ CREATE TABLE n_group_comments (
     CONSTRAINT fk_group_comments_reply_to FOREIGN KEY (reply_to_user_id)
         REFERENCES n_users(user_id) ON DELETE SET NULL,
     CONSTRAINT fk_group_comments_deleter FOREIGN KEY (deleted_by)
-        REFERENCES n_users(user_id) ON DELETE SET NULL
+        REFERENCES n_users(user_id) ON DELETE SET NULL,
+    CONSTRAINT chk_group_comments_flags CHECK (is_deleted IN (0, 1)),
+    CONSTRAINT chk_group_comments_counts CHECK (likes_count >= 0)
 ) TABLESPACE neko_data;
 COMMENT ON TABLE n_group_comments IS '群组评论表';
 COMMENT ON COLUMN n_group_comments.comment_id IS '评论ID';
@@ -957,7 +996,7 @@ CREATE TABLE n_group_invites (
     status                    VARCHAR2(20)    DEFAULT 'pending' NOT NULL,
     message                   VARCHAR2(200),
     max_uses                  NUMBER(5)       DEFAULT 1,
-    used_count                NUMBER(5)       DEFAULT 0,
+    used_count                NUMBER(5)       DEFAULT 0 NOT NULL,
     expires_at                TIMESTAMP,
     created_at                TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
     responded_at              TIMESTAMP,
@@ -967,8 +1006,14 @@ CREATE TABLE n_group_invites (
         REFERENCES n_users(user_id) ON DELETE CASCADE,
     CONSTRAINT fk_group_invites_invitee FOREIGN KEY (invitee_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT uk_group_invites_code UNIQUE (invite_code),
     CONSTRAINT chk_invite_status CHECK (status IN ('pending', 'accepted', 'rejected', 'expired')),
-    CONSTRAINT chk_invite_type CHECK (invitee_id IS NOT NULL OR invite_code IS NOT NULL)
+    CONSTRAINT chk_invite_type CHECK (invitee_id IS NOT NULL OR invite_code IS NOT NULL),
+    CONSTRAINT chk_invite_counts CHECK (
+        used_count >= 0
+        AND (max_uses IS NULL OR max_uses > 0)
+        AND (max_uses IS NULL OR used_count <= max_uses)
+    )
 ) TABLESPACE neko_data;
 COMMENT ON TABLE n_group_invites IS '群组邀请表';
 COMMENT ON COLUMN n_group_invites.invite_id IS '邀请ID';
@@ -1081,7 +1126,9 @@ CREATE INDEX idx_auth_otp_account_type ON n_auth_otp_events(account, otp_type, e
 CREATE INDEX idx_user_follows_follower ON n_user_follows(follower_id, status, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_user_follows_following ON n_user_follows(following_id, status, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_user_blocks_user ON n_user_blocks(user_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_user_blocks_target ON n_user_blocks(target_user_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_user_mutes_user ON n_user_mutes(user_id, expires_at) TABLESPACE neko_index;
+CREATE INDEX idx_user_mutes_target ON n_user_mutes(target_user_id, expires_at) TABLESPACE neko_index;
 
 -- 帖子与互动
 CREATE INDEX idx_posts_author_created ON n_posts(author_id, is_deleted, created_at DESC) TABLESPACE neko_index;
@@ -1093,11 +1140,15 @@ CREATE INDEX idx_post_likes_post ON n_post_likes(post_id, created_at DESC) TABLE
 CREATE INDEX idx_post_likes_user ON n_post_likes(user_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_post_bookmarks_user ON n_post_bookmarks(user_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_comments_post ON n_comments(post_id, is_deleted, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_comments_user ON n_comments(user_id, is_deleted, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_comments_parent ON n_comments(parent_comment_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_comments_root ON n_comments(root_comment_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_comment_likes_comment ON n_comment_likes(comment_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_comment_likes_user ON n_comment_likes(user_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_media_assets_owner ON n_media_assets(owner_user_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_media_assets_status ON n_media_assets(status, media_type) TABLESPACE neko_index;
 CREATE INDEX idx_post_media_post ON n_post_media(post_id, sort_order) TABLESPACE neko_index;
+CREATE INDEX idx_post_media_media ON n_post_media(media_id) TABLESPACE neko_index;
 
 -- 标签
 CREATE INDEX idx_tags_trending ON n_tags(is_trending, trending_score DESC) TABLESPACE neko_index;
@@ -1111,6 +1162,7 @@ CREATE INDEX idx_notifications_user_read_created ON n_notifications(user_id, is_
 CREATE INDEX idx_notifications_actor ON n_notifications(actor_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_account_statements_user_status ON n_account_statements(user_id, status, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_statement_appeals_statement ON n_statement_appeals(statement_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_statement_appeals_user ON n_statement_appeals(user_id, appeal_status, created_at DESC) TABLESPACE neko_index;
 
 -- 群组索引（保留高频访问路径）
 CREATE INDEX idx_groups_owner_id ON n_groups(owner_id) TABLESPACE neko_index;
@@ -1123,24 +1175,33 @@ CREATE INDEX idx_group_members_user_id ON n_group_members(user_id) TABLESPACE ne
 CREATE INDEX idx_group_members_group_id ON n_group_members(group_id) TABLESPACE neko_index;
 CREATE INDEX idx_group_members_group_status ON n_group_members(group_id, status) TABLESPACE neko_index;
 CREATE INDEX idx_group_members_user_role ON n_group_members(user_id, role) TABLESPACE neko_index;
+CREATE INDEX idx_group_members_invited_by ON n_group_members(invited_by) TABLESPACE neko_index;
 
 CREATE INDEX idx_group_posts_group_time ON n_group_posts(group_id, is_deleted, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_group_posts_group_pinned ON n_group_posts(group_id, is_pinned DESC, is_announcement DESC, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_group_posts_author_id ON n_group_posts(author_id) TABLESPACE neko_index;
+CREATE INDEX idx_group_posts_deleted_by ON n_group_posts(deleted_by) TABLESPACE neko_index;
 
 CREATE INDEX idx_group_comments_post_id ON n_group_comments(post_id, is_deleted, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_group_comments_parent_id ON n_group_comments(parent_comment_id) TABLESPACE neko_index;
+CREATE INDEX idx_group_comments_author_id ON n_group_comments(author_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_group_comments_reply_to ON n_group_comments(reply_to_user_id) TABLESPACE neko_index;
+CREATE INDEX idx_group_comments_deleted_by ON n_group_comments(deleted_by) TABLESPACE neko_index;
 
 CREATE INDEX idx_group_invites_group_id ON n_group_invites(group_id, status) TABLESPACE neko_index;
+CREATE INDEX idx_group_invites_inviter_id ON n_group_invites(inviter_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_group_invites_invitee_id ON n_group_invites(invitee_id, status) TABLESPACE neko_index;
-CREATE INDEX idx_group_invites_code ON n_group_invites(invite_code) TABLESPACE neko_index;
 
 CREATE INDEX idx_group_audit_logs_group_time ON n_group_audit_logs(group_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_group_audit_logs_actor_id ON n_group_audit_logs(actor_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_group_audit_logs_target_user ON n_group_audit_logs(target_user_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_group_audit_logs_target_post ON n_group_audit_logs(target_post_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_group_audit_logs_target_comment ON n_group_audit_logs(target_comment_id, created_at DESC) TABLESPACE neko_index;
 
 CREATE INDEX idx_group_post_likes_post_id ON n_group_post_likes(post_id) TABLESPACE neko_index;
+CREATE INDEX idx_group_post_likes_user_id ON n_group_post_likes(user_id) TABLESPACE neko_index;
 CREATE INDEX idx_group_comment_likes_comment_id ON n_group_comment_likes(comment_id) TABLESPACE neko_index;
+CREATE INDEX idx_group_comment_likes_user_id ON n_group_comment_likes(user_id) TABLESPACE neko_index;
 
 -- ==========================================
 -- 7. 函数
@@ -1224,7 +1285,7 @@ CREATE OR REPLACE FUNCTION fn_calculate_post_engagement_safe(
     p_replies_count     IN NUMBER DEFAULT 0,
     p_retweets_count    IN NUMBER DEFAULT 0,
     p_views_count       IN NUMBER DEFAULT 0,
-    p_created_at        IN DATE
+    p_created_at        IN TIMESTAMP
 ) RETURN NUMBER
 AS
     v_likes        NUMBER := NVL(p_likes_count, 0);
@@ -1240,7 +1301,10 @@ BEGIN
         RETURN 0;
     END IF;
 
-    v_age_hours := GREATEST(ROUND((SYSDATE - p_created_at) * 24, 2), 0);
+    v_age_hours := GREATEST(
+        ROUND((CAST(CURRENT_TIMESTAMP AS DATE) - CAST(p_created_at AS DATE)) * 24, 2),
+        0
+    );
 
     IF v_views > 0 THEN
         v_log_views := ROUND(LN(v_views + 1) / LN(10), 4);
@@ -1751,9 +1815,22 @@ END fn_get_privacy_desc;
 CREATE OR REPLACE FUNCTION fn_generate_invite_code
 RETURN VARCHAR2
 AS
-    v_code VARCHAR2(32);
+    v_code   VARCHAR2(32);
+    v_exists NUMBER := 0;
 BEGIN
-    SELECT DBMS_RANDOM.STRING('X', 32) INTO v_code FROM DUAL;
+    FOR i IN 1..10 LOOP
+        SELECT DBMS_RANDOM.STRING('X', 32) INTO v_code FROM DUAL;
+
+        SELECT COUNT(*) INTO v_exists
+        FROM n_group_invites
+        WHERE invite_code = v_code;
+
+        IF v_exists = 0 THEN
+            RETURN v_code;
+        END IF;
+    END LOOP;
+
+    v_code := RAWTOHEX(SYS_GUID());
     RETURN v_code;
 END fn_generate_invite_code;
 /
@@ -2372,9 +2449,32 @@ BEGIN
 END;
 /
 
--- 8.7.1 通用 updated_at 触发器
-CREATE OR REPLACE TRIGGER trg_tags_updated_at
-BEFORE UPDATE ON n_tags
+-- 8.7.1 通用规范化与 updated_at 触发器
+CREATE OR REPLACE TRIGGER trg_tags_normalize
+BEFORE INSERT OR UPDATE ON n_tags
+FOR EACH ROW
+BEGIN
+    :NEW.name := TRIM(:NEW.name);
+    :NEW.name_lower := LOWER(TRIM(:NEW.name));
+
+    IF INSERTING AND :NEW.created_at IS NULL THEN
+        :NEW.created_at := CURRENT_TIMESTAMP;
+    END IF;
+
+    :NEW.updated_at := CURRENT_TIMESTAMP;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_media_assets_updated_at
+BEFORE UPDATE ON n_media_assets
+FOR EACH ROW
+BEGIN
+    :NEW.updated_at := CURRENT_TIMESTAMP;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_notification_preferences_updated_at
+BEFORE UPDATE ON n_notification_preferences
 FOR EACH ROW
 BEGIN
     :NEW.updated_at := CURRENT_TIMESTAMP;
@@ -2920,6 +3020,35 @@ BEGIN
         RETURN;
     END IF;
 
+    IF p_post_type = 'post'
+       AND (p_reply_to_post_id IS NOT NULL OR p_repost_of_post_id IS NOT NULL OR p_quoted_post_id IS NOT NULL) THEN
+        p_result := 'ERROR: 普通帖子不能指定 reply/repost/quote 引用';
+        RETURN;
+    END IF;
+
+    IF p_post_type = 'reply'
+       AND (p_repost_of_post_id IS NOT NULL OR p_quoted_post_id IS NOT NULL) THEN
+        p_result := 'ERROR: 回复贴只能指定 reply_to_post_id';
+        RETURN;
+    END IF;
+
+    IF p_post_type = 'repost'
+       AND (p_reply_to_post_id IS NOT NULL OR p_quoted_post_id IS NOT NULL) THEN
+        p_result := 'ERROR: 转发贴只能指定 repost_of_post_id';
+        RETURN;
+    END IF;
+
+    IF p_post_type = 'quote'
+       AND (p_reply_to_post_id IS NOT NULL OR p_repost_of_post_id IS NOT NULL) THEN
+        p_result := 'ERROR: 引用贴只能指定 quoted_post_id';
+        RETURN;
+    END IF;
+
+    IF p_visibility NOT IN ('public', 'followers', 'mentioned', 'private') THEN
+        p_result := 'ERROR: 非法的 visibility';
+        RETURN;
+    END IF;
+
     IF p_reply_to_post_id IS NOT NULL THEN
         SELECT COUNT(*) INTO v_parent_exists
         FROM n_posts
@@ -3037,8 +3166,9 @@ CREATE OR REPLACE PROCEDURE sp_create_comment(
     p_result              OUT VARCHAR2
 )
 AS
-    v_post_exists      NUMBER := 0;
-    v_parent_exists    NUMBER := 0;
+    v_post_exists                NUMBER := 0;
+    v_parent_exists              NUMBER := 0;
+    v_effective_root_comment_id  NUMBER := NULL;
 BEGIN
     SELECT COUNT(*) INTO v_post_exists
     FROM n_posts
@@ -3054,12 +3184,39 @@ BEGIN
         SELECT COUNT(*) INTO v_parent_exists
         FROM n_comments
         WHERE comment_id = p_parent_comment_id
+          AND post_id = p_post_id
           AND is_deleted = 0;
 
         IF v_parent_exists = 0 THEN
-            p_result := 'ERROR: 父评论不存在';
+            p_result := 'ERROR: 父评论不存在或不属于当前帖子';
             RETURN;
         END IF;
+
+        SELECT NVL(root_comment_id, comment_id)
+        INTO v_effective_root_comment_id
+        FROM n_comments
+        WHERE comment_id = p_parent_comment_id;
+    END IF;
+
+    IF p_root_comment_id IS NOT NULL THEN
+        SELECT COUNT(*) INTO v_parent_exists
+        FROM n_comments
+        WHERE comment_id = p_root_comment_id
+          AND post_id = p_post_id
+          AND is_deleted = 0;
+
+        IF v_parent_exists = 0 THEN
+            p_result := 'ERROR: 根评论不存在或不属于当前帖子';
+            RETURN;
+        END IF;
+
+        IF v_effective_root_comment_id IS NOT NULL
+           AND v_effective_root_comment_id != p_root_comment_id THEN
+            p_result := 'ERROR: 根评论与父评论不一致';
+            RETURN;
+        END IF;
+
+        v_effective_root_comment_id := p_root_comment_id;
     END IF;
 
     INSERT INTO n_comments (
@@ -3072,9 +3229,15 @@ BEGIN
         p_post_id,
         p_user_id,
         p_parent_comment_id,
-        p_root_comment_id,
+        v_effective_root_comment_id,
         p_content
     ) RETURNING comment_id INTO p_comment_id;
+
+    IF p_parent_comment_id IS NULL AND v_effective_root_comment_id IS NULL THEN
+        UPDATE n_comments
+        SET root_comment_id = p_comment_id
+        WHERE comment_id = p_comment_id;
+    END IF;
 
     p_result := 'SUCCESS: 评论创建成功，ID=' || p_comment_id;
     COMMIT;
@@ -4255,14 +4418,15 @@ SELECT
     s.comments_count,
     u.created_at,
     u.updated_at,
-    u.last_login_at,
     CASE
-        WHEN u.last_login_at > SYSDATE - 7 THEN 'active'
-        WHEN u.last_login_at > SYSDATE - 30 THEN 'normal'
+        WHEN NVL(us.show_online_status, 1) = 0 THEN 'hidden'
+        WHEN u.last_login_at > CAST(CURRENT_TIMESTAMP AS TIMESTAMP) - INTERVAL '7' DAY THEN 'active'
+        WHEN u.last_login_at > CAST(CURRENT_TIMESTAMP AS TIMESTAMP) - INTERVAL '30' DAY THEN 'normal'
         ELSE 'inactive'
     END AS activity_status
 FROM n_users u
-JOIN n_user_stats s ON s.user_id = u.user_id;
+JOIN n_user_stats s ON s.user_id = u.user_id
+LEFT JOIN n_user_settings us ON us.user_id = u.user_id;
 COMMENT ON TABLE v_user_profile_public IS '用户公开资料视图';
 
 -- 10.1.1 当前用户资料视图
@@ -4907,9 +5071,11 @@ COMMENT ON TABLE v_group_timeline IS '群组时间线视图';
 
 GRANT SELECT ON n_users TO neko_readonly;
 GRANT SELECT ON n_user_stats TO neko_readonly;
-GRANT SELECT ON n_auth_sessions TO neko_readonly;
 GRANT SELECT ON n_posts TO neko_readonly;
 GRANT SELECT ON n_post_stats TO neko_readonly;
+GRANT SELECT ON n_post_media TO neko_readonly;
+GRANT SELECT ON n_post_tags TO neko_readonly;
+GRANT SELECT ON n_post_mentions TO neko_readonly;
 GRANT SELECT ON n_comments TO neko_readonly;
 GRANT SELECT ON n_comment_stats TO neko_readonly;
 GRANT SELECT ON n_media_assets TO neko_readonly;
@@ -4919,9 +5085,15 @@ GRANT SELECT ON n_groups TO neko_readonly;
 GRANT SELECT ON n_group_members TO neko_readonly;
 GRANT SELECT ON n_group_posts TO neko_readonly;
 GRANT SELECT ON n_group_comments TO neko_readonly;
+GRANT SELECT ON n_group_invites TO neko_readonly;
+GRANT SELECT ON n_group_audit_logs TO neko_readonly;
+GRANT SELECT ON n_group_post_likes TO neko_readonly;
+GRANT SELECT ON n_group_comment_likes TO neko_readonly;
 
+-- 安全边界:
+--   neko_readonly 不直接授权 n_auth_sessions / n_auth_otp_events 等认证秘密表。
+--   v_user_profile_self 含 email / phone / birth_date 等敏感字段，仅建议应用用户按当前登录人查询。
 GRANT SELECT ON v_user_profile_public TO neko_readonly;
-GRANT SELECT ON v_user_profile_self TO neko_readonly;
 GRANT SELECT ON v_post_detail TO neko_readonly;
 GRANT SELECT ON v_post_comment_list_item TO neko_readonly;
 GRANT SELECT ON v_notification_list_item TO neko_readonly;
@@ -5488,24 +5660,36 @@ COMMIT;
 BEGIN
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_USERS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_USER_STATS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_AUTH_OTP_EVENTS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_AUTH_SESSIONS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_USER_FOLLOWS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_USER_BLOCKS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_USER_MUTES');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POSTS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POST_STATS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POST_MEDIA');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POST_LIKES');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POST_BOOKMARKS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_COMMENTS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_COMMENT_STATS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_COMMENT_LIKES');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_MEDIA_ASSETS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_TAGS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POST_TAGS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_POST_MENTIONS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_NOTIFICATIONS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_NOTIFICATION_PREFERENCES');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_USER_SETTINGS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_ACCOUNT_STATEMENTS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_STATEMENT_APPEALS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUPS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_MEMBERS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_POSTS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_COMMENTS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_INVITES');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_AUDIT_LOGS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_POST_LIKES');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_COMMENT_LIKES');
 END;
 /
 
@@ -5578,7 +5762,6 @@ SELECT
     'NekoTribe V2 数据库创建完成' AS status,
     '已包含社交主线、通知、设置、账户状态、群组、测试数据、统计信息和物化视图' AS summary
 FROM dual;
-
 
 
 

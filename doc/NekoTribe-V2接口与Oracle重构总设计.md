@@ -714,7 +714,7 @@ V2 建议：
 
 ## 8.3 推荐 DDL 草案
 
-以下 DDL 是 V2 推荐结构草案，便于后续分文件落地。
+以下 DDL 是 V2 推荐结构草案，便于后续分文件落地。完整可执行基线以 `doc/neko_tribe-oracle-v2.sql` 为准；草案只保留关键字段和约束，避免文档过长。
 
 ### 8.3.1 用户基础表
 
@@ -724,6 +724,7 @@ CREATE TABLE n_users (
     email VARCHAR2(100) NOT NULL,
     username VARCHAR2(50) NOT NULL,
     password_hash VARCHAR2(255) NOT NULL,
+    avatar_url VARCHAR2(500) DEFAULT '/default-avatar.png',
     display_name VARCHAR2(100),
     bio VARCHAR2(500),
     location VARCHAR2(100),
@@ -733,6 +734,7 @@ CREATE TABLE n_users (
     avatar_media_id NUMBER(15),
     email_verified_at TIMESTAMP,
     is_verified NUMBER(1) DEFAULT 0 CHECK (is_verified IN (0, 1)),
+    is_active NUMBER(1) DEFAULT 1 CHECK (is_active IN (0, 1)),
     status VARCHAR2(20) DEFAULT 'active' CHECK (status IN ('active', 'disabled', 'suspended', 'pending')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -767,9 +769,9 @@ CREATE TABLE n_auth_otp_events (
     otp_event_id NUMBER(15) PRIMARY KEY,
     account VARCHAR2(100) NOT NULL,
     otp_type VARCHAR2(30) NOT NULL CHECK (otp_type IN ('register', 'password_reset', 'change_email')),
+    send_channel VARCHAR2(20) DEFAULT 'email' NOT NULL CHECK (send_channel IN ('email', 'sms')),
     verification_code_hash VARCHAR2(255) NOT NULL,
-    send_channel VARCHAR2(20) DEFAULT 'email',
-    verification_id VARCHAR2(128),
+    verification_id VARCHAR2(128) DEFAULT RAWTOHEX(SYS_GUID()) NOT NULL,
     expires_at TIMESTAMP NOT NULL,
     verified_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -794,7 +796,10 @@ CREATE TABLE n_auth_sessions (
     last_refresh_at TIMESTAMP,
     revoked_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_auth_sessions_user FOREIGN KEY (user_id) REFERENCES n_users(user_id)
+    CONSTRAINT fk_auth_sessions_user FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT uk_auth_sessions_access_jti UNIQUE (access_jti),
+    CONSTRAINT uk_auth_sessions_refresh_hash UNIQUE (refresh_token_hash),
+    CONSTRAINT ck_auth_sessions_expiry CHECK (refresh_token_expires_at > access_token_expires_at)
 );
 ```
 
@@ -861,6 +866,7 @@ CREATE TABLE n_post_stats (
     post_id NUMBER(15) PRIMARY KEY,
     likes_count NUMBER(10) DEFAULT 0,
     comments_count NUMBER(10) DEFAULT 0,
+    replies_count NUMBER(10) DEFAULT 0,
     retweets_count NUMBER(10) DEFAULT 0,
     views_count NUMBER(15) DEFAULT 0,
     engagement_score NUMBER(10, 2) DEFAULT 0,
@@ -888,7 +894,10 @@ CREATE TABLE n_media_assets (
     alt_text VARCHAR2(500),
     status VARCHAR2(20) DEFAULT 'ready' CHECK (status IN ('uploaded', 'processing', 'ready', 'failed')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_media_assets_owner FOREIGN KEY (owner_user_id) REFERENCES n_users(user_id)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_media_assets_owner FOREIGN KEY (owner_user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT uk_media_assets_storage_key UNIQUE (storage_key),
+    CONSTRAINT ck_media_assets_file_size CHECK (file_size >= 0)
 );
 ```
 
@@ -901,8 +910,10 @@ CREATE TABLE n_post_media (
     sort_order NUMBER(5) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (post_id, media_id),
-    CONSTRAINT fk_post_media_post FOREIGN KEY (post_id) REFERENCES n_posts(post_id),
-    CONSTRAINT fk_post_media_media FOREIGN KEY (media_id) REFERENCES n_media_assets(media_id)
+    CONSTRAINT fk_post_media_post FOREIGN KEY (post_id) REFERENCES n_posts(post_id) ON DELETE CASCADE,
+    CONSTRAINT fk_post_media_media FOREIGN KEY (media_id) REFERENCES n_media_assets(media_id) ON DELETE CASCADE,
+    CONSTRAINT uk_post_media_order UNIQUE (post_id, sort_order),
+    CONSTRAINT ck_post_media_sort_order CHECK (sort_order > 0)
 );
 ```
 
@@ -1028,17 +1039,19 @@ CREATE TABLE n_notifications (
     notification_id NUMBER(15) PRIMARY KEY,
     user_id NUMBER(10) NOT NULL,
     actor_id NUMBER(10),
-    action_type VARCHAR2(30) NOT NULL,
-    resource_type VARCHAR2(30),
-    resource_id NUMBER(15),
+    type VARCHAR2(30) NOT NULL,
     title VARCHAR2(200),
     message VARCHAR2(1000),
+    resource_type VARCHAR2(30),
+    resource_id NUMBER(19),
     priority VARCHAR2(10) DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+    is_read NUMBER(1) DEFAULT 0 CHECK (is_read IN (0, 1)),
     read_at TIMESTAMP,
     deleted_at TIMESTAMP,
     metadata_json CLOB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES n_users(user_id)
+    CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_notifications_actor FOREIGN KEY (actor_id) REFERENCES n_users(user_id) ON DELETE SET NULL
 );
 ```
 
@@ -1125,6 +1138,32 @@ CREATE TABLE n_statement_appeals (
 - `n_comment_likes(comment_id, created_at desc)`
 - `n_tags(name_lower)`
 - `n_notifications(user_id, deleted_at, read_at, created_at desc)`
+
+V2 基线索引补充原则：
+
+- 所有高频外键列必须有可用前导索引，避免删除父表或联表查询时出现锁等待和全表扫描。
+- 所有唯一业务键必须显式命名约束，例如 `uk_auth_sessions_access_jti`、`uk_media_assets_storage_key`、`uk_groups_slug`、`uk_group_invites_code`。
+- 只读列表优先使用组合索引覆盖过滤和排序，例如 `(user_id, is_read, created_at desc)`、`(group_id, is_deleted, created_at desc)`。
+- 低选择性的布尔列不要单独建索引，要和业务过滤列、时间列组合使用。
+
+## 8.5 权限、安全与统计信息基线
+
+V2 数据库脚本必须把“可查”和“可安全对外查”分开：
+
+- `neko_readonly` 不直接授权 `n_auth_sessions`、`n_auth_otp_events`，避免泄露 `refresh_token_hash`、验证码哈希、设备指纹等敏感信息。
+- `v_user_profile_self` 包含 `email`、`phone`、`birth_date` 等敏感字段，只建议应用用户按当前登录人查询，不给通用只读账号授权。
+- 对外公开用户资料优先使用 `v_user_profile_public`，该视图不暴露 `last_login_at`，只返回按用户隐私设置计算后的 `activity_status`。
+- 建库或回填后必须对所有 V2 表执行 `DBMS_STATS.GATHER_TABLE_STATS`，不能只收集核心表。
+- 物化视图只用于分析和趋势接口，默认 `REFRESH COMPLETE ON DEMAND`，生产环境再按数据量决定是否拆分刷新任务。
+
+## 8.6 当前 SQL 基线对象范围
+
+`doc/neko_tribe-oracle-v2.sql` 当前覆盖：
+
+- 核心表：用户、认证、关系、帖子、评论、媒体、标签、通知、设置、账户处置、群组全套对象。
+- 读模型：公开资料、帖子详情、评论列表、通知列表、分析视图、群组详情、群组时间线。
+- 稳定性对象：序列、主键触发器、统计触发器、更新时间触发器、只读授权、统计信息收集、开发期测试数据。
+- 扩展边界：媒体独立资源表、帖子媒体排序、通知 `resource_id NUMBER(19)`、会话 `session_id/access_jti VARCHAR2(128)`、群组邀请码唯一约束。
 
 ## 9. 查询、视图与物化视图设计
 
@@ -1439,11 +1478,14 @@ server/sql/oracle/
 ## 13. 风险与注意事项
 
 - `n_user_sessions` 改造为 `n_auth_sessions` 时需要迁移 Cookie 刷新逻辑。
+- `n_auth_sessions` 只保存哈希和 JTI，不能把 access token 或 refresh token 原文写回数据库。
 - 评论点赞拆表后，所有现有关于 `n_likes` 的触发器都要重写。
 - `v_comprehensive_timeline` 不应继续作为所有列表的统一入口。
 - 媒体表拆分后，删除媒体的物理文件逻辑也要跟着调整。
 - 统计表拆分后，原有触发器里直接写 `n_tweets.likes_count` 的逻辑要迁移到 `n_post_stats`。
 - 群组 SQL 依赖 `n_users`，所以用户主表改造时要保持主键兼容。
+- `neko_readonly` 只能读公开或低敏对象，认证会话、验证码、当前用户私密资料视图都不能直接授权。
+- DDL 草案与最终脚本出现差异时，以 `doc/neko_tribe-oracle-v2.sql` 为准，并回写本文档的差异说明。
 
 ## 14. 本文档结论
 
