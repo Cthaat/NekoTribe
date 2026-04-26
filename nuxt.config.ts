@@ -129,7 +129,7 @@ export default defineNuxtConfig({
     public: {
       wsUrl:
         process.env.NUXT_PUBLIC_WS_URL ||
-        'ws://localhost:3001',
+        'ws://localhost:3000/_ws',
       apiBase: process.env.NUXT_PUBLIC_API_BASE || ''
     }
   }
