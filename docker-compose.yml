@@ -10,7 +10,7 @@ services:
     env_file:
       - ${ENV_FILE:-./.env}
     volumes:
-      - ./storage:/app/storage
+      - ${STORAGE_ROOT_DIR:-./storage}:${DOCKER_STORAGE_PATH:-/app/storage}
     environment:
       NODE_ENV: ${DOCKER_NODE_ENV:-production}
       NUXT_NODE_ENV: ${DOCKER_NODE_ENV:-production}
@@ -42,7 +42,8 @@ services:
       NUXT_SMTP_USER: ${SMTP_USER}
       NUXT_SMTP_PASS: ${SMTP_PASS}
       STORAGE_TYPE: ${STORAGE_TYPE:-local}
-      STORAGE_PATH: ${STORAGE_PATH:-./storage}
+      STORAGE_PATH: ${DOCKER_STORAGE_PATH:-/app/storage}
+      LEGACY_UPLOAD_PATH: ${DOCKER_LEGACY_UPLOAD_PATH:-/app/storage/legacy-upload}
       STORAGE_PUBLIC_BASE: ${STORAGE_PUBLIC_BASE:-/uploads}
       STORAGE_CDN_BASE_URL: ${STORAGE_CDN_BASE_URL:-}
       BASE_URL: ${BASE_URL:-}
@@ -100,7 +101,7 @@ services:
       - '${NGINX_PORT:-30002}:80'
     volumes:
       - ./nginx/nginx.compose.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./upload:/usr/share/nginx/upload:ro
+      - ${STORAGE_ROOT_DIR:-./storage}:/usr/share/nginx/storage:ro
     networks:
       - neko-network
     depends_on:

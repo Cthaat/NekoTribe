@@ -1,6 +1,8 @@
 import path from 'node:path';
 import type { StorageConfig, StorageType } from './types';
 
+const DEFAULT_STORAGE_ROOT = './storage';
+
 function envValue(key: string): string | undefined {
   const value = process.env[key];
   if (typeof value !== 'string') {
@@ -47,16 +49,20 @@ export function getStorageConfig(): StorageConfig {
   const typeValue = envValue('STORAGE_TYPE');
   const type: StorageType =
     typeValue === 's3' ? 's3' : 'local';
+  const storageRootInput =
+    envValue('STORAGE_PATH') ||
+    envValue('STORAGE_ROOT_DIR');
+  const rootPath = resolvePathOrDefault(
+    storageRootInput,
+    DEFAULT_STORAGE_ROOT
+  );
 
   return {
     type,
-    rootPath: resolvePathOrDefault(
-      envValue('STORAGE_PATH'),
-      './storage'
-    ),
+    rootPath,
     legacyUploadPath: resolvePathOrDefault(
       envValue('LEGACY_UPLOAD_PATH'),
-      './upload'
+      path.join(rootPath, 'legacy-upload')
     ),
     publicBasePath: normalizePublicBasePath(
       envValue('STORAGE_PUBLIC_BASE') || '/uploads'

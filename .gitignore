@@ -48,6 +48,14 @@ logs
 
 public/avatars/*
 public/media/*
+storage/*
+!storage/.gitkeep
+!storage/temp/
+storage/temp/*
+!storage/temp/.gitkeep
+!storage/legacy-upload/
+storage/legacy-upload/*
+!storage/legacy-upload/.gitkeep
 upload
 
 temp/*

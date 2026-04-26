@@ -25,11 +25,18 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
+ENV STORAGE_PATH=/app/storage
+ENV LEGACY_UPLOAD_PATH=/app/storage/legacy-upload
 
-RUN apk add --no-cache ffmpeg libc6-compat
+RUN apk add --no-cache ffmpeg libc6-compat \
+  && mkdir -p /app/storage/temp /app/storage/legacy-upload
+
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 COPY --from=build /app/.output ./
 
 EXPOSE 3000
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "./server/index.mjs"]

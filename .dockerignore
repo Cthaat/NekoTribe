@@ -26,5 +26,6 @@ npm-debug.log*
 .data
 data/oracle-data
 data/oracle19c-data
+storage
 upload
 temp
