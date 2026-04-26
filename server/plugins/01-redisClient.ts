@@ -1,8 +1,6 @@
-import {
-  defineNitroPlugin,
-  useRuntimeConfig
-} from '#imports';
+import { defineNitroPlugin } from '#imports';
 import Redis from 'ioredis';
+import { resolveRedisOptions } from '../utils/redis-config';
 
 // 1. 在插件的顶层作用域定义一个变量，它将作为我们的单例（Singleton）容器。
 //    初始值为 null，表示还没有创建实例。
@@ -18,14 +16,9 @@ function getRedisInstance() {
     // 如果不存在，才执行创建逻辑。
     console.log('Redis 实例不存在，正在创建新的连接...');
 
-    const runtimeConfig = useRuntimeConfig();
-
     // 3. 创建新的 Redis 实例。
     redisInstance = new Redis({
-      host: runtimeConfig.redisHost,
-      port: Number(runtimeConfig.redisPort),
-      password: runtimeConfig.redisPassword,
-      db: Number(runtimeConfig.redisDb),
+      ...resolveRedisOptions(),
       // --- 这是至关重要的选项！ ---
       // lazyConnect: true 告诉 ioredis 不要立即连接，
       // 而是在第一条命令被发送时才建立连接。
