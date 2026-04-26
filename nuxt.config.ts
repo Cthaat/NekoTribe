@@ -1,9 +1,15 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineNuxtConfig({
-  compatibilityDate: '2025-05-15',
+  compatibilityDate: '2026-04-26',
   devtools: { enabled: true },
+
+  alias: {
+    '~/server': fileURLToPath(new URL('./server', import.meta.url)),
+    '@/server': fileURLToPath(new URL('./server', import.meta.url))
+  },
 
   modules: [
     '@nuxt/content',
@@ -15,8 +21,7 @@ export default defineNuxtConfig({
     'shadcn-nuxt',
     '@nuxtjs/color-mode',
     '@nuxtjs/i18n',
-    '@pinia/nuxt',
-    'vue-sonner/nuxt'
+    '@pinia/nuxt'
   ],
 
   css: ['~/assets/css/tailwind.css'],
@@ -38,7 +43,11 @@ export default defineNuxtConfig({
      * Directory that the component lives in.
      * @default "./components/ui"
      */
-    componentDir: './components/ui'
+    componentDir: './app/components/ui'
+  },
+
+  typescript: {
+    strict: true
   },
 
   i18n: {

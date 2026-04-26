@@ -456,7 +456,7 @@ const onSubmit = handleSubmit(async values => {
     </div>
     <div class="hidden bg-muted lg:block">
       <img
-        src="~/public/placeholder.svg"
+        src="/placeholder.svg"
         alt="Image"
         width="1920"
         height="1080"
