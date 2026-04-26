@@ -92,7 +92,9 @@ const AUTH_POLICIES: AuthVersionPolicy[] = [
   }
 ];
 
-function getAuthPolicy(pathname: string): AuthVersionPolicy | null {
+function getAuthPolicy(
+  pathname: string
+): AuthVersionPolicy | null {
   return (
     AUTH_POLICIES.find(policy =>
       pathname.startsWith(policy.prefix)
@@ -109,7 +111,9 @@ function isPublicRoute(
   );
 }
 
-function extractToken(event: Parameters<typeof getCookie>[0]): string | null {
+function extractToken(
+  event: Parameters<typeof getCookie>[0]
+): string | null {
   const cookieToken = getCookie(event, 'access_token');
   if (cookieToken) return cookieToken;
 
@@ -118,14 +122,17 @@ function extractToken(event: Parameters<typeof getCookie>[0]): string | null {
     getHeader(event, 'Authorization');
   if (!authHeader) return null;
 
-  const token = String(authHeader).replace(/^Bearer\s+/i, '').trim();
+  const token = String(authHeader)
+    .replace(/^Bearer\s+/i, '')
+    .trim();
   return token || null;
 }
 
 function normalizeAuthPayload(
   decoded: string | JwtPayload
 ): CommonAuthPayload | null {
-  if (typeof decoded !== 'object' || decoded === null) return null;
+  if (typeof decoded !== 'object' || decoded === null)
+    return null;
   const userId =
     typeof decoded.userId === 'number'
       ? decoded.userId
@@ -142,17 +149,29 @@ function normalizeAuthPayload(
       typeof decoded.sessionId === 'string'
         ? decoded.sessionId
         : undefined,
-    jti: typeof decoded.jti === 'string' ? decoded.jti : undefined,
+    jti:
+      typeof decoded.jti === 'string'
+        ? decoded.jti
+        : undefined,
     type:
       typeof decoded.type === 'string'
         ? decoded.type
         : undefined,
-    iat: typeof decoded.iat === 'number' ? decoded.iat : undefined,
-    exp: typeof decoded.exp === 'number' ? decoded.exp : undefined
+    iat:
+      typeof decoded.iat === 'number'
+        ? decoded.iat
+        : undefined,
+    exp:
+      typeof decoded.exp === 'number'
+        ? decoded.exp
+        : undefined
   };
 }
 
-function authError(policy: AuthVersionPolicy, message: string) {
+function authError(
+  policy: AuthVersionPolicy,
+  message: string
+) {
   return createError({
     statusCode: 401,
     statusMessage: message,
@@ -189,9 +208,11 @@ export default defineEventHandler(async event => {
       String(runtimeConfig.accessSecret)
     );
     const payload = normalizeAuthPayload(decoded);
-    if (!payload) throw authError(policy, 'Token无效或已过期');
+    if (!payload)
+      throw authError(policy, 'Token无效或已过期');
 
-    const context = event.context as unknown as AuthEventContext;
+    const context =
+      event.context as unknown as AuthEventContext;
     context.auth = payload;
     connection = await context.getOracleConnection();
     await policy.updateSession(connection, payload, token);
