@@ -20,7 +20,10 @@ import {
   v2Rows,
   v2String
 } from '~/server/utils/v2';
-import { v2GetPublicUser, v2MapNotification } from '~/server/models/v2';
+import {
+  v2GetPublicUser,
+  v2MapNotification
+} from '~/server/models/v2';
 
 export async function v2ListNotifications(
   event: H3Event,
@@ -145,7 +148,10 @@ export async function v2BatchSetNotificationReadStatus(
     is_read: v2Boolean(body.is_read)
   };
   const isRead = payload.is_read ? 1 : 0;
-  if (!payload.notification_ids || payload.notification_ids.length === 0) {
+  if (
+    !payload.notification_ids ||
+    payload.notification_ids.length === 0
+  ) {
     const updated = await v2Execute(
       connection,
       `
