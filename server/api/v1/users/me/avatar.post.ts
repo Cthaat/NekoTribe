@@ -1,195 +1,224 @@
+import type { File, Files } from 'formidable';
 import formidable from 'formidable';
-import fs from 'fs';
-import path from 'path';
-import { checkAvatarFile } from '~/server/utils/users/upload-avatar-check';
+import {
+  deleteStorageReference,
+  ensureStorageTempDir,
+  STORAGE_AVATAR_MAX_SIZE,
+  storeAvatarFile
+} from '~/server/storage';
+import {
+  v2NextId,
+  v2Number,
+  v2One,
+  v2StringOrNull
+} from '~/server/utils/v2';
 
-// 处理用户头像上传的接口
+function firstAvatarFile(files: Files<string>): File | null {
+  return files.avatar?.[0] ?? files.file?.[0] ?? null;
+}
+
+function uploadError(
+  statusCode: number,
+  message: string,
+  code = statusCode
+) {
+  return createError({
+    statusCode,
+    statusMessage: 'Bad Request',
+    data: {
+      success: false,
+      message,
+      code,
+      timestamp: new Date().toISOString()
+    } as ErrorResponse
+  });
+}
+
 export default defineEventHandler(async event => {
-  // 获取当前登录用户信息
   const user: Auth = event.context.auth as Auth;
-
-  // 获取 Oracle 数据库连接
   const getOracleConnection =
     event.context.getOracleConnection;
   const connection = await getOracleConnection();
-
-  // 创建 formidable 实例，配置上传参数
+  const currentAvatar = await v2One(
+    connection,
+    `
+    SELECT
+      avatar_url,
+      avatar_media_id,
+      (
+        SELECT storage_key
+        FROM n_media_assets
+        WHERE media_id = u.avatar_media_id
+      ) AS avatar_storage_key
+    FROM n_users u
+    WHERE user_id = :user_id
+    `,
+    { user_id: user.userId }
+  );
+  const tempDir = await ensureStorageTempDir();
   const form = formidable({
-    multiples: false, // 只允许单文件上传
-    uploadDir: `./upload/avatars/${user.userId}`, // 上传目录
-    keepExtensions: true // 保留原始扩展名
+    multiples: false,
+    uploadDir: tempDir,
+    keepExtensions: true,
+    maxFileSize: STORAGE_AVATAR_MAX_SIZE
   });
 
-  // 确保上传目录存在
-  await fs.promises.mkdir(
-    `./upload/avatars/${user.userId}`,
-    {
-      recursive: true
-    }
-  );
+  return await new Promise((resolve, reject) => {
+    form.parse(
+      event.node.req,
+      async (error: Error | null, _fields, files) => {
+        let storedAvatar:
+          | Awaited<ReturnType<typeof storeAvatarFile>>
+          | null = null;
 
-  // 返回 Promise 处理异步上传
-  return new Promise((resolve, reject) => {
-    form.parse(event.req, async (err, fields, files) => {
-      // 解析出错
-      if (err) {
-        return reject(
-          createError({
-            statusCode: 401,
-            statusMessage: 'Bad Request',
-            data: {
-              success: false,
-              message: '上传文件解析失败',
-              code: 401,
-              timestamp: new Date().toISOString()
-            } as ErrorResponse
-          })
-        );
-      }
+        try {
+          if (error) {
+            reject(uploadError(400, '上传文件解析失败'));
+            return;
+          }
 
-      // 检查文件数量
-      const avatarFiles = files.avatar;
-      if (!avatarFiles || avatarFiles.length === 0) {
-        return reject(
-          createError({
-            statusCode: 400,
-            statusMessage: 'Bad Request',
-            data: {
-              success: false,
-              message: '上传文件为空',
-              code: 400,
-              timestamp: new Date().toISOString()
-            } as ErrorResponse
-          })
-        );
-      }
-      if (avatarFiles.length > 1) {
-        // 超过一个文件，删除所有临时文件
-        for (const f of avatarFiles) {
-          if (f.filepath)
-            await fs.promises.unlink(f.filepath);
-        }
-        return reject(
-          createError({
-            statusCode: 400,
-            statusMessage: 'Bad Request',
-            data: {
-              success: false,
-              message: '只能上传一个头像文件',
-              code: 400,
-              timestamp: new Date().toISOString()
-            } as ErrorResponse
-          })
-        );
-      }
+          const file = firstAvatarFile(files);
+          if (!file) {
+            reject(uploadError(400, '上传文件为空'));
+            return;
+          }
 
-      const file = avatarFiles[0];
-
-      // 在这里调用工具函数进行校验
-      const check: { valid: boolean; message?: string } =
-        await checkAvatarFile(file);
-      if (!check.valid) {
-        // 不合规，删除临时文件
-        if (file.filepath)
-          await fs.promises.unlink(file.filepath);
-        return reject(
-          createError({
-            statusCode: 402,
-            statusMessage: 'Bad Request',
-            data: {
-              success: false,
-              message:
-                '上传文件不符合要求: ' + check.message,
-              code: 402,
-              timestamp: new Date().toISOString()
-            } as ErrorResponse
-          })
-        );
-      }
-
-      // 获取原始扩展名
-      const ext = path.extname(
-        file.originalFilename || file.filepath
-      );
-      // 生成唯一文件名
-      const uniqueName = `${user.userId}_${Date.now()}_${Math.floor(Math.random() * 10000)}${ext}`;
-      // 新文件完整路径
-      const newFilePath = path.join(
-        `./upload/avatars/${user.userId}`,
-        uniqueName
-      );
-
-      try {
-        // 重命名文件，防止重复
-        await fs.promises.rename(
-          file.filepath,
-          newFilePath
-        );
-      } catch (e) {
-        return reject(
-          createError({
-            statusCode: 400,
-            statusMessage: 'Bad Request',
-            data: {
-              success: false,
-              message: '头像文件重命名失败',
-              code: 400,
-              timestamp: new Date().toISOString()
-            } as ErrorResponse
-          })
-        );
-      }
-
-      // 构建头像访问 URL（由 nitro.publicAssets 暴露的静态路径），与磁盘路径分离
-      const avatarUrl = `/upload/avatars/${user.userId}/${uniqueName}`;
-
-      try {
-        const updateSql = `
-          UPDATE n_users
-          SET avatar_url = :avatarUrl
-          WHERE user_id = :userId
-        `;
-        const updateResult = await connection.execute(
-          updateSql,
-          {
-            avatarUrl: avatarUrl,
-            userId: user.userId
-          },
-          { autoCommit: true }
-        );
-        if (
-          !updateResult.rowsAffected ||
-          updateResult.rowsAffected === 0
-        ) {
-          // 更新失败，删除新文件（使用文件系统路径）
-          await fs.promises.unlink(newFilePath);
-          return reject(
-            createError({
-              statusCode: 400,
-              statusMessage: 'Bad Request',
-              data: {
-                success: false,
-                message: '头像文件重命名失败',
-                code: 400,
-                timestamp: new Date().toISOString()
-              } as ErrorResponse
-            })
+          storedAvatar = await storeAvatarFile(
+            user.userId,
+            file
           );
+          const mediaId = await v2NextId(
+            connection,
+            'seq_media_id'
+          );
+
+          await connection.execute(
+            `
+            INSERT INTO n_media_assets (
+              media_id,
+              owner_user_id,
+              media_type,
+              file_name,
+              storage_key,
+              public_url,
+              file_size,
+              mime_type,
+              status
+            ) VALUES (
+              :media_id,
+              :owner_user_id,
+              'image',
+              :file_name,
+              :storage_key,
+              :public_url,
+              :file_size,
+              :mime_type,
+              'ready'
+            )
+            `,
+            {
+              media_id: mediaId,
+              owner_user_id: user.userId,
+              file_name: storedAvatar.originalName,
+              storage_key: storedAvatar.key,
+              public_url: storedAvatar.url,
+              file_size: storedAvatar.size,
+              mime_type: storedAvatar.contentType
+            },
+            { autoCommit: false }
+          );
+
+          const updateResult = await connection.execute(
+            `
+            UPDATE n_users
+            SET avatar_url = :avatar_url,
+                avatar_media_id = :avatar_media_id
+            WHERE user_id = :user_id
+            `,
+            {
+              avatar_url: storedAvatar.url,
+              avatar_media_id: mediaId,
+              user_id: user.userId
+            },
+            { autoCommit: false }
+          );
+
+          if (
+            !updateResult.rowsAffected ||
+            updateResult.rowsAffected === 0
+          ) {
+            throw new Error('头像信息更新失败');
+          }
+
+          const previousAvatarMediaId = v2Number(
+            currentAvatar?.AVATAR_MEDIA_ID,
+            0
+          );
+          if (previousAvatarMediaId > 0) {
+            await connection.execute(
+              `
+              DELETE FROM n_media_assets
+              WHERE media_id = :media_id
+                AND owner_user_id = :user_id
+              `,
+              {
+                media_id: previousAvatarMediaId,
+                user_id: user.userId
+              },
+              { autoCommit: false }
+            );
+          }
+
+          await connection.commit();
+
+          try {
+            await deleteStorageReference({
+              storageKey: v2StringOrNull(
+                currentAvatar?.AVATAR_STORAGE_KEY
+              ),
+              publicUrl: v2StringOrNull(
+                currentAvatar?.AVATAR_URL
+              )
+            });
+          } catch (cleanupError) {
+            console.error(
+              '清理旧头像文件失败:',
+              cleanupError
+            );
+          }
+
+          resolve({
+            code: 200,
+            success: true,
+            message: '头像上传成功',
+            data: {
+              url: storedAvatar.url
+            },
+            timestamp: new Date().toISOString()
+          } as SuccessUploadAvatarResponse);
+        } catch (caught) {
+          await connection.rollback().catch(() => undefined);
+
+          if (storedAvatar) {
+            await deleteStorageReference({
+              storageKey: storedAvatar.key
+            }).catch(cleanupError => {
+              console.error(
+                '清理失败头像文件时出错:',
+                cleanupError
+              );
+            });
+          }
+
+          const message =
+            caught instanceof Error
+              ? caught.message
+              : '头像上传失败';
+          reject(uploadError(400, message));
+        } finally {
+          await connection.close();
         }
-        // 返回成功响应
-        resolve({
-          code: 200,
-          success: true,
-          message: '头像上传成功',
-          data: {
-            url: avatarUrl
-          },
-          timestamp: new Date().toISOString()
-        } as SuccessUploadAvatarResponse);
-      } finally {
-        // 关闭数据库连接
-        await connection.close();
       }
-    });
+    );
   });
 });

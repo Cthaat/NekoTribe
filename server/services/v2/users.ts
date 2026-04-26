@@ -1,10 +1,13 @@
 import type { H3Event } from 'h3';
 import type { File, Files } from 'formidable';
 import formidable from 'formidable';
-import { fileTypeFromFile } from 'file-type';
-import fs from 'fs';
-import path from 'path';
 import type oracledb from 'oracledb';
+import {
+  deleteStorageReference,
+  ensureStorageTempDir,
+  STORAGE_AVATAR_MAX_SIZE,
+  storeAvatarFile
+} from '~/server/storage';
 import {
   v2Auth,
   v2BadRequest,
@@ -39,36 +42,8 @@ import {
   v2RequireSelfUser
 } from '~/server/models/v2';
 
-const V2_AVATAR_MIME = ['image/jpeg', 'image/png', 'image/gif'];
-const V2_AVATAR_EXTS = ['.jpg', '.jpeg', '.png', '.gif'];
-const V2_AVATAR_MAX_SIZE = 2 * 1024 * 1024;
-
-interface V2AvatarCheck {
-  valid: boolean;
-  message?: string;
-  mime_type?: string;
-}
-
 function v2FirstAvatarFile(files: Files<string>): File | null {
   return files.file?.[0] ?? files.avatar?.[0] ?? null;
-}
-
-async function v2CheckAvatar(file: File): Promise<V2AvatarCheck> {
-  const typeInfo = await fileTypeFromFile(file.filepath);
-  const mime = typeInfo?.mime || '';
-  const ext = path
-    .extname(file.originalFilename || '')
-    .toLowerCase();
-  if (!V2_AVATAR_MIME.includes(mime)) {
-    return { valid: false, message: '头像仅支持 jpg/png/gif' };
-  }
-  if (!V2_AVATAR_EXTS.includes(ext)) {
-    return { valid: false, message: '头像扩展名不被支持' };
-  }
-  if (file.size > V2_AVATAR_MAX_SIZE) {
-    return { valid: false, message: '头像不能超过2MB' };
-  }
-  return { valid: true, mime_type: mime };
 }
 
 export async function v2GetMe(
@@ -131,13 +106,28 @@ export async function v2UpdateAvatar(
   connection: oracledb.Connection
 ): Promise<V2Response<V2AvatarData>> {
   const auth = v2Auth(event);
-  const tempDir = path.join(process.cwd(), 'temp');
-  await fs.promises.mkdir(tempDir, { recursive: true });
+  const currentAvatar = await v2One(
+    connection,
+    `
+    SELECT
+      avatar_url,
+      avatar_media_id,
+      (
+        SELECT storage_key
+        FROM n_media_assets
+        WHERE media_id = u.avatar_media_id
+      ) AS avatar_storage_key
+    FROM n_users u
+    WHERE user_id = :user_id
+    `,
+    { user_id: auth.userId }
+  );
+  const tempDir = await ensureStorageTempDir();
   const form = formidable({
     multiples: false,
     uploadDir: tempDir,
     keepExtensions: true,
-    maxFileSize: V2_AVATAR_MAX_SIZE
+    maxFileSize: STORAGE_AVATAR_MAX_SIZE
   });
 
   try {
@@ -146,6 +136,9 @@ export async function v2UpdateAvatar(
         form.parse(
           event.node.req,
           async (error: Error | null, _fields, files) => {
+            let storedAvatar:
+              | Awaited<ReturnType<typeof storeAvatarFile>>
+              | null = null;
             try {
               if (error) {
                 reject(error);
@@ -156,91 +149,133 @@ export async function v2UpdateAvatar(
                 reject(new Error('上传文件为空'));
                 return;
               }
-              const check = await v2CheckAvatar(file);
-              if (!check.valid) {
-                await fs.promises.rm(file.filepath, { force: true });
-                reject(
-                  new Error(check.message || '头像文件不符合要求')
+
+              storedAvatar = await storeAvatarFile(
+                auth.userId,
+                file
+              );
+              const mediaId = await v2NextId(
+                connection,
+                'seq_media_id'
+              );
+
+              await v2Execute(
+                connection,
+                `
+                INSERT INTO n_media_assets (
+                  media_id,
+                  owner_user_id,
+                  media_type,
+                  file_name,
+                  storage_key,
+                  public_url,
+                  file_size,
+                  mime_type,
+                  status
+                ) VALUES (
+                  :media_id,
+                  :owner_user_id,
+                  'image',
+                  :file_name,
+                  :storage_key,
+                  :public_url,
+                  :file_size,
+                  :mime_type,
+                  'ready'
+                )
+                `,
+                {
+                  media_id: mediaId,
+                  owner_user_id: auth.userId,
+                  file_name: storedAvatar.originalName,
+                  storage_key: storedAvatar.key,
+                  public_url: storedAvatar.url,
+                  file_size: storedAvatar.size,
+                  mime_type: storedAvatar.contentType
+                },
+                false
+              );
+              await v2Execute(
+                connection,
+                `
+                UPDATE n_users
+                SET avatar_url = :avatar_url,
+                    avatar_media_id = :avatar_media_id
+                WHERE user_id = :user_id
+                `,
+                {
+                  avatar_url: storedAvatar.url,
+                  avatar_media_id: mediaId,
+                  user_id: auth.userId
+                },
+                false
+              );
+
+              const previousAvatarMediaId = v2Number(
+                currentAvatar?.AVATAR_MEDIA_ID,
+                0
+              );
+              if (previousAvatarMediaId > 0) {
+                await v2Execute(
+                  connection,
+                  `
+                  DELETE FROM n_media_assets
+                  WHERE media_id = :media_id
+                    AND owner_user_id = :user_id
+                  `,
+                  {
+                    media_id: previousAvatarMediaId,
+                    user_id: auth.userId
+                  },
+                  false
                 );
-                return;
               }
 
-            const mediaId = await v2NextId(
-              connection,
-              'seq_media_id'
-            );
-            const ext = path.extname(
-              file.originalFilename || file.filepath
-            );
-            const fileName = `${mediaId}${ext}`;
-            const uploadDir = path.join(
-              process.cwd(),
-              'upload',
-              'avatars',
-              String(auth.userId)
-            );
-            await fs.promises.mkdir(uploadDir, { recursive: true });
-            const filePath = path.join(uploadDir, fileName);
-            await fs.promises.rename(file.filepath, filePath);
-            const avatarUrl = `/upload/avatars/${auth.userId}/${fileName}`;
+              await connection.commit();
 
-            await v2Execute(
-              connection,
-              `
-              INSERT INTO n_media_assets (
-                media_id,
-                owner_user_id,
-                media_type,
-                file_name,
-                storage_key,
-                public_url,
-                file_size,
-                mime_type,
-                status
-              ) VALUES (
-                :media_id,
-                :owner_user_id,
-                'image',
-                :file_name,
-                :storage_key,
-                :public_url,
-                :file_size,
-                :mime_type,
-                'ready'
-              )
-              `,
-              {
-                media_id: mediaId,
-                owner_user_id: auth.userId,
-                file_name: file.originalFilename || fileName,
-                storage_key: filePath,
-                public_url: avatarUrl,
-                file_size: file.size,
-                mime_type: check.mime_type || 'image/png'
+              try {
+                await deleteStorageReference({
+                  storageKey:
+                    currentAvatar?.AVATAR_STORAGE_KEY === null
+                      ? null
+                      : v2StringOrNull(
+                          currentAvatar?.AVATAR_STORAGE_KEY
+                        ),
+                  publicUrl: v2StringOrNull(
+                    currentAvatar?.AVATAR_URL
+                  )
+                });
+              } catch (cleanupError) {
+                console.error(
+                  '清理旧头像文件失败:',
+                  cleanupError
+                );
               }
-            );
-            await v2Execute(
-              connection,
-              `
-              UPDATE n_users
-              SET avatar_url = :avatar_url,
-                  avatar_media_id = :avatar_media_id
-              WHERE user_id = :user_id
-              `,
-              {
-                avatar_url: avatarUrl,
-                avatar_media_id: mediaId,
-                user_id: auth.userId
-              }
-            );
 
               resolve(
                 v2Ok({
-                  avatar_url: avatarUrl,
+                  avatar_url: storedAvatar.url,
                   avatar_media_id: mediaId
                 })
               );
             } catch (caught) {
+              if (storedAvatar) {
+                await connection.rollback().catch(
+                  () => undefined
+                );
+                await deleteStorageReference({
+                  storageKey: storedAvatar.key
+                }).catch(cleanupError => {
+                  console.error(
+                    '清理新头像文件失败:',
+                    cleanupError
+                  );
+                });
+              } else {
+                await connection.rollback().catch(
+                  () => undefined
+                );
+              }
               reject(caught);
             }
           }

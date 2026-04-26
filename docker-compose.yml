@@ -9,6 +9,8 @@ services:
       - '${APP_PORT:-30001}:3000'
     env_file:
       - ${ENV_FILE:-./.env}
+    volumes:
+      - ./storage:/app/storage
     environment:
       NODE_ENV: ${DOCKER_NODE_ENV:-production}
       NUXT_NODE_ENV: ${DOCKER_NODE_ENV:-production}
@@ -39,6 +41,11 @@ services:
       NUXT_SMTP_PORT: ${SMTP_PORT}
       NUXT_SMTP_USER: ${SMTP_USER}
       NUXT_SMTP_PASS: ${SMTP_PASS}
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      STORAGE_PATH: ${STORAGE_PATH:-./storage}
+      STORAGE_PUBLIC_BASE: ${STORAGE_PUBLIC_BASE:-/uploads}
+      STORAGE_CDN_BASE_URL: ${STORAGE_CDN_BASE_URL:-}
+      BASE_URL: ${BASE_URL:-}
       NUXT_PUBLIC_WS_URL: ${DOCKER_PUBLIC_WS_URL:-ws://localhost:30001/_ws}
     networks:
       - neko-network
