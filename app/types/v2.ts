@@ -408,6 +408,7 @@ export interface V2PageQuery {
 export interface V2UserSearchQuery extends V2PageQuery {
   q?: string;
   verified?: boolean;
+  sort?: 'popular' | 'newest' | 'oldest' | 'followers';
 }
 
 export interface V2PostListQuery extends V2PageQuery {
@@ -416,7 +417,8 @@ export interface V2PostListQuery extends V2PageQuery {
   q?: string;
 }
 
-export interface V2NotificationListQuery extends V2PageQuery {
+export interface V2NotificationListQuery
+  extends V2PageQuery {
   type?: V2NotificationTypeFilter;
   unread_only?: boolean;
   show_deleted?: boolean;
@@ -454,8 +456,10 @@ export interface V2CurrentUserSummary {
 }
 
 export type V2CreateOtpRequest = V2AuthOtpPayload;
-export type V2CreateOtpResponse = V2ApiResponse<V2AuthOtpData>;
-export type V2VerifyOtpRequest = V2AuthOtpVerificationPayload;
+export type V2CreateOtpResponse =
+  V2ApiResponse<V2AuthOtpData>;
+export type V2VerifyOtpRequest =
+  V2AuthOtpVerificationPayload;
 export type V2VerifyOtpResponse =
   V2ApiResponse<V2AuthOtpVerificationData>;
 export type V2RegisterRequest = V2RegistrationPayload;
@@ -470,8 +474,9 @@ export type V2LogoutCurrentResponse = V2ApiResponse<null>;
 export type V2PasswordResetRequest = V2PasswordResetPayload;
 export type V2PasswordResetResponse = V2ApiResponse<null>;
 export type V2ListSessionsRequest = V2SessionListQuery;
-export type V2ListSessionsResponse =
-  V2ApiResponse<V2SessionItem[]>;
+export type V2ListSessionsResponse = V2ApiResponse<
+  V2SessionItem[]
+>;
 export type V2RevokeSessionResponse = V2ApiResponse<null>;
 export type V2RevokeOtherSessionsResponse = V2ApiResponse<{
   revoked_count: number;
@@ -483,11 +488,14 @@ export type V2PatchMeResponse = V2ApiResponse<V2SelfUser>;
 export type V2ChangeEmailRequest = V2ChangeEmailPayload;
 export type V2ChangeEmailResponse =
   V2ApiResponse<V2ChangeEmailData>;
-export type V2UpdateAvatarResponse = V2ApiResponse<V2AvatarData>;
+export type V2UpdateAvatarResponse =
+  V2ApiResponse<V2AvatarData>;
 export type V2SearchUsersRequest = V2UserSearchQuery;
-export type V2SearchUsersResponse =
-  V2ApiResponse<V2PublicUser[]>;
-export type V2GetUserByIdResponse = V2ApiResponse<V2PublicUser>;
+export type V2SearchUsersResponse = V2ApiResponse<
+  V2PublicUser[]
+>;
+export type V2GetUserByIdResponse =
+  V2ApiResponse<V2PublicUser>;
 export type V2GetUserAnalyticsResponse =
   V2ApiResponse<V2UserAnalytics>;
 export type V2FollowUserResponse =
@@ -496,13 +504,15 @@ export type V2UnfollowUserResponse =
   V2ApiResponse<V2FollowUserData>;
 export type V2GetSettingsResponse =
   V2ApiResponse<V2UserSettings>;
-export type V2PatchSettingsRequest = V2UpdateSettingsPayload;
+export type V2PatchSettingsRequest =
+  V2UpdateSettingsPayload;
 export type V2PatchSettingsResponse =
   V2ApiResponse<V2UserSettings>;
 export type V2ListAccountStatementsRequest =
   V2StatementListQuery;
-export type V2ListAccountStatementsResponse =
-  V2ApiResponse<V2AccountStatement[]>;
+export type V2ListAccountStatementsResponse = V2ApiResponse<
+  V2AccountStatement[]
+>;
 export type V2PatchAccountStatementRequest =
   V2UpdateStatementPayload;
 export type V2PatchAccountStatementResponse =
@@ -527,8 +537,9 @@ export type V2BookmarkPostResponse =
 export type V2ListCommentsRequest = V2PageQuery & {
   sort?: V2PostSort;
 };
-export type V2ListCommentsResponse =
-  V2ApiResponse<V2Comment[]>;
+export type V2ListCommentsResponse = V2ApiResponse<
+  V2Comment[]
+>;
 export type V2CreateCommentRequest = V2CreateCommentPayload;
 export type V2CreateCommentResponse =
   V2ApiResponse<V2Comment>;
@@ -540,8 +551,9 @@ export type V2UploadMediaResponse =
 
 export type V2ListNotificationsRequest =
   V2NotificationListQuery;
-export type V2ListNotificationsResponse =
-  V2ApiResponse<V2Notification[]>;
+export type V2ListNotificationsResponse = V2ApiResponse<
+  V2Notification[]
+>;
 export type V2SetNotificationReadStatusRequest =
   V2NotificationReadPayload;
 export type V2SetNotificationReadStatusResponse =

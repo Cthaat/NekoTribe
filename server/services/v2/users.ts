@@ -694,6 +694,19 @@ async function v2PublicUserPage(
   );
 }
 
+function v2UserSortOrder(sort: string): string {
+  if (sort === 'newest') {
+    return 'created_at DESC';
+  }
+  if (sort === 'oldest') {
+    return 'created_at ASC';
+  }
+  if (sort === 'followers') {
+    return 'followers_count DESC, created_at DESC';
+  }
+  return 'followers_count DESC, created_at DESC';
+}
+
 export async function v2SearchUsers(
   event: H3Event,
   connection: oracledb.Connection
@@ -702,21 +715,27 @@ export async function v2SearchUsers(
   const page = v2Page(event);
   const q = v2QueryString(event, 'q').trim();
   const verified = v2QueryString(event, 'verified');
+  const sort = v2QueryString(event, 'sort', 'popular');
   const binds: Record<string, string | number | null> = {
     viewer_id: auth.userId,
-    q: `%${q.toLowerCase()}%`,
-    verified: verified === 'true' ? 1 : null
+    q_empty: q.length === 0 ? '%%' : `%${q.toLowerCase()}%`,
+    q_username: `%${q.toLowerCase()}%`,
+    q_display_name: `%${q.toLowerCase()}%`,
+    q_bio: `%${q.toLowerCase()}%`,
+    verified_filter: verified === 'true' ? 1 : null,
+    verified_value: verified === 'true' ? 1 : null
   };
   const where = `
     WHERE is_active = 1
       AND (
-        :q = '%%'
-        OR LOWER(username) LIKE :q
-        OR LOWER(display_name) LIKE :q
-        OR LOWER(bio) LIKE :q
+        :q_empty = '%%'
+        OR LOWER(username) LIKE :q_username
+        OR LOWER(display_name) LIKE :q_display_name
+        OR LOWER(bio) LIKE :q_bio
       )
-      AND (:verified IS NULL OR is_verified = :verified)
+      AND (:verified_filter IS NULL OR is_verified = :verified_value)
   `;
+  const orderBy = v2UserSortOrder(sort);
   return await v2PublicUserPage(
     connection,
     auth.userId,
@@ -738,7 +757,7 @@ export async function v2SearchUsers(
         likes_count,
         fn_get_user_relationship(:viewer_id, user_id) AS relation,
         ROW_NUMBER() OVER (
-          ORDER BY followers_count DESC, created_at DESC
+          ORDER BY ${orderBy}
         ) AS rn
       FROM v_user_profile_public
       ${where}

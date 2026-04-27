@@ -24,21 +24,24 @@ import type {
 } from '@/types/v2';
 
 export async function v2GetMe(): Promise<V2SelfUser> {
-  return await v2RequestData<V2SelfUser>('/api/v2/users/me', {
-    method: 'GET'
-  });
+  return await v2RequestData<V2SelfUser>(
+    '/api/v2/users/me',
+    {
+      method: 'GET'
+    }
+  );
 }
 
 export async function v2PatchMe(
   payload: V2UpdateUserPayload
 ): Promise<V2SelfUser> {
-  return await v2RequestData<V2SelfUser, V2UpdateUserPayload>(
-    '/api/v2/users/me',
-    {
-      method: 'PATCH',
-      body: payload
-    }
-  );
+  return await v2RequestData<
+    V2SelfUser,
+    V2UpdateUserPayload
+  >('/api/v2/users/me', {
+    method: 'PATCH',
+    body: payload
+  });
 }
 
 export async function v2ChangeEmail(
@@ -86,12 +89,14 @@ export async function v2PatchSettings(
   });
 }
 
-export async function v2ListAccountStatements(query: {
-  page?: number;
-  page_size?: number;
-  status?: string;
-  type?: string;
-} = {}): Promise<V2PagedResult<V2AccountStatement>> {
+export async function v2ListAccountStatements(
+  query: {
+    page?: number;
+    page_size?: number;
+    status?: string;
+    type?: string;
+  } = {}
+): Promise<V2PagedResult<V2AccountStatement>> {
   const response = await v2Request<
     V2AccountStatement[],
     undefined,
@@ -123,10 +128,13 @@ export async function v2CreateStatementAppeal(
   return await v2RequestData<
     V2StatementAppealData,
     V2StatementAppealPayload
-  >(`/api/v2/users/me/account-statements/${statementId}/appeals`, {
-    method: 'POST',
-    body: payload
-  });
+  >(
+    `/api/v2/users/me/account-statements/${statementId}/appeals`,
+    {
+      method: 'POST',
+      body: payload
+    }
+  );
 }
 
 export async function v2SearchUsers(
@@ -138,6 +146,7 @@ export async function v2SearchUsers(
     {
       q?: string;
       verified?: 'true' | 'false';
+      sort?: 'popular' | 'newest' | 'oldest' | 'followers';
       page?: number;
       page_size?: number;
     }
@@ -151,6 +160,7 @@ export async function v2SearchUsers(
           : query.verified
             ? 'true'
             : 'false',
+      sort: query.sort,
       page: query.page,
       page_size: query.page_size
     }
@@ -201,4 +211,3 @@ export async function v2UnfollowUser(
     }
   );
 }
-
