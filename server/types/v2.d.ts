@@ -1,6 +1,9 @@
 type V2Nullable<T> = T | null;
 type V2Primitive = string | number | boolean | null;
-type V2Json = V2Primitive | V2Json[] | { [key: string]: V2Json };
+type V2Json =
+  | V2Primitive
+  | V2Json[]
+  | { [key: string]: V2Json };
 
 interface V2Meta {
   page?: number;
@@ -270,7 +273,11 @@ interface V2Post {
 
 interface V2CreatePostPayload {
   content?: string;
-  visibility?: 'public' | 'followers' | 'mentioned' | 'private';
+  visibility?:
+    | 'public'
+    | 'followers'
+    | 'mentioned'
+    | 'private';
   media_ids?: number[];
   tag_names?: string[];
   mention_user_ids?: number[];
@@ -282,7 +289,11 @@ interface V2CreatePostPayload {
 
 interface V2RetweetPayload {
   content?: string;
-  visibility?: 'public' | 'followers' | 'mentioned' | 'private';
+  visibility?:
+    | 'public'
+    | 'followers'
+    | 'mentioned'
+    | 'private';
 }
 
 interface V2LikePostData {
