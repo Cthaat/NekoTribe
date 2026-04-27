@@ -62,6 +62,10 @@ function v2PostPermission(value: string): string {
   v2BadRequest('post_permission 参数错误');
 }
 
+function v2NormalizeInviteCode(code: string): string {
+  return code.trim().toUpperCase();
+}
+
 async function v2GroupPermission(
   connection: oracledb.Connection,
   userId: number,
@@ -82,6 +86,9 @@ async function v2ValidGroupInvite(
   groupId: number,
   inviteCode: string
 ): Promise<V2DbRecord | null> {
+  const code = v2NormalizeInviteCode(inviteCode);
+  if (!code) return null;
+
   return await v2One(
     connection,
     `
@@ -97,10 +104,39 @@ async function v2ValidGroupInvite(
     `,
     {
       group_id: groupId,
-      invite_code: inviteCode,
+      invite_code: code,
       user_id: userId
     }
   );
+}
+
+async function v2GroupIdByInviteCode(
+  connection: oracledb.Connection,
+  userId: number,
+  inviteCode: string
+): Promise<number> {
+  const code = v2NormalizeInviteCode(inviteCode);
+  if (!code) v2BadRequest('code 参数错误');
+
+  const row = await v2One(
+    connection,
+    `
+    SELECT group_id
+    FROM n_group_invites
+    WHERE invite_code = :invite_code
+      AND status = 'pending'
+      AND (invitee_id IS NULL OR invitee_id = :user_id)
+      AND (max_uses IS NULL OR used_count < max_uses)
+      AND (expires_at IS NULL OR expires_at >= SYSTIMESTAMP)
+    FETCH FIRST 1 ROWS ONLY
+    `,
+    {
+      invite_code: code,
+      user_id: userId
+    }
+  );
+  if (!row) v2Unprocessable('邀请码无效或已过期');
+  return v2Number(row.GROUP_ID);
 }
 
 export async function v2ListGroups(
@@ -436,23 +472,59 @@ export async function v2DeleteGroup(
   return v2Null('group deleted');
 }
 
+type V2JoinGroupData = {
+  member_id: number;
+  group_id: number;
+  user_id: number;
+  role: string;
+  status: string;
+};
+
 export async function v2JoinGroup(
   event: H3Event,
   connection: oracledb.Connection,
   groupId: number
-): Promise<
-  V2Response<{
-    member_id: number;
-    group_id: number;
-    user_id: number;
-    role: string;
-    status: string;
-  }>
-> {
-  const auth = v2Auth(event);
+): Promise<V2Response<V2JoinGroupData>> {
   const body = await v2Body(event);
   const inviteCode =
-    v2StringOrNull(body.invite_code)?.trim() || null;
+    v2NormalizeInviteCode(
+      v2StringOrNull(body.invite_code) || ''
+    ) || null;
+  return await v2JoinGroupWithInviteCode(
+    event,
+    connection,
+    groupId,
+    inviteCode
+  );
+}
+
+export async function v2JoinGroupByInviteCode(
+  event: H3Event,
+  connection: oracledb.Connection,
+  code: string
+): Promise<V2Response<V2JoinGroupData>> {
+  const auth = v2Auth(event);
+  const inviteCode = v2NormalizeInviteCode(code);
+  const groupId = await v2GroupIdByInviteCode(
+    connection,
+    auth.userId,
+    inviteCode
+  );
+  return await v2JoinGroupWithInviteCode(
+    event,
+    connection,
+    groupId,
+    inviteCode
+  );
+}
+
+async function v2JoinGroupWithInviteCode(
+  event: H3Event,
+  connection: oracledb.Connection,
+  groupId: number,
+  inviteCode: string | null
+): Promise<V2Response<V2JoinGroupData>> {
+  const auth = v2Auth(event);
   const exists = await v2Count(
     connection,
     `
@@ -484,6 +556,7 @@ export async function v2JoinGroup(
     v2Number(group.JOIN_APPROVAL) === 1;
   let status = requiresApproval ? 'pending' : 'active';
   let invitedBy: number | null = null;
+  let inviteId: number | null = null;
 
   if (inviteCode) {
     const invite = await v2ValidGroupInvite(
@@ -495,15 +568,7 @@ export async function v2JoinGroup(
     if (!invite) v2Unprocessable('邀请码无效或已过期');
     status = 'active';
     invitedBy = v2Number(invite.INVITER_ID);
-    await v2Execute(
-      connection,
-      `
-      UPDATE n_group_invites
-      SET used_count = used_count + 1
-      WHERE invite_id = :invite_id
-      `,
-      { invite_id: v2Number(invite.INVITE_ID) }
-    );
+    inviteId = v2Number(invite.INVITE_ID);
   } else if (privacy === 'secret') {
     v2Unprocessable('该群组仅限邀请加入');
   }
@@ -512,33 +577,75 @@ export async function v2JoinGroup(
     connection,
     'seq_group_member_id'
   );
-  await v2Execute(
-    connection,
-    `
-    INSERT INTO n_group_members (
-      member_id,
-      group_id,
-      user_id,
-      role,
-      status,
-      invited_by
-    ) VALUES (
-      :member_id,
-      :group_id,
-      :user_id,
-      'member',
-      :status,
-      :invited_by
-    )
-    `,
-    {
-      member_id: memberId,
-      group_id: groupId,
-      user_id: auth.userId,
-      status,
-      invited_by: invitedBy
+  const insertMemberSql = `
+  INSERT INTO n_group_members (
+    member_id,
+    group_id,
+    user_id,
+    role,
+    status,
+    invited_by
+  ) VALUES (
+    :member_id,
+    :group_id,
+    :user_id,
+    'member',
+    :status,
+    :invited_by
+  )
+  `;
+  const insertMemberBinds = {
+    member_id: memberId,
+    group_id: groupId,
+    user_id: auth.userId,
+    status,
+    invited_by: invitedBy
+  };
+
+  if (inviteId) {
+    try {
+      const updated = await v2Execute(
+        connection,
+        `
+        UPDATE n_group_invites
+        SET used_count = used_count + 1,
+            status = CASE
+              WHEN max_uses IS NOT NULL AND used_count + 1 >= max_uses THEN 'accepted'
+              ELSE status
+            END,
+            responded_at = CASE
+              WHEN max_uses IS NOT NULL AND used_count + 1 >= max_uses THEN SYSTIMESTAMP
+              ELSE responded_at
+            END
+        WHERE invite_id = :invite_id
+          AND status = 'pending'
+          AND (max_uses IS NULL OR used_count < max_uses)
+          AND (expires_at IS NULL OR expires_at >= SYSTIMESTAMP)
+        `,
+        { invite_id: inviteId },
+        false
+      );
+      if (updated === 0)
+        v2Unprocessable('邀请码无效或已过期');
+      await v2Execute(
+        connection,
+        insertMemberSql,
+        insertMemberBinds,
+        false
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
     }
-  );
+  } else {
+    await v2Execute(
+      connection,
+      insertMemberSql,
+      insertMemberBinds
+    );
+  }
+
   return v2Ok(
     {
       member_id: memberId,
@@ -1630,6 +1737,17 @@ export async function v2GroupInvites(
 ): Promise<V2Response<V2GroupInvite[]>> {
   const auth = v2Auth(event);
   const page = v2Page(event);
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'moderator'
+    ))
+  ) {
+    v2Unprocessable('无权查看群组邀请');
+  }
+
   const total = await v2Count(
     connection,
     `
@@ -1674,18 +1792,29 @@ export async function v2InviteCodeInfo(
   code: string
 ): Promise<V2Response<V2InviteCodeData>> {
   const auth = v2Auth(event);
+  const inviteCode = v2NormalizeInviteCode(code);
+  if (!inviteCode) v2BadRequest('code 参数错误');
+
   const row = await v2One(
     connection,
     `
     SELECT *
     FROM v_group_invite_details
     WHERE invite_code = :invite_code
+      AND (invitee_id IS NULL OR invitee_id = :user_id)
     `,
-    { invite_code: code }
+    {
+      invite_code: inviteCode,
+      user_id: auth.userId
+    }
   );
   if (!row) v2NotFound('邀请码不存在');
+  if (!v2Boolean(row.IS_VALID)) {
+    v2Unprocessable('邀请码无效或已过期');
+  }
+
   return v2Ok({
-    is_valid: v2Boolean(row.IS_VALID),
+    is_valid: true,
     group: await v2RequireGroup(
       connection,
       auth.userId,
@@ -1713,54 +1842,153 @@ export async function v2RespondInvite(
   const invite = await v2One(
     connection,
     `
-    SELECT group_id, invitee_id
-    FROM n_group_invites
-    WHERE invite_id = :invite_id
-      AND status = 'pending'
+    SELECT
+      i.invite_id,
+      i.group_id,
+      i.inviter_id,
+      i.invitee_id,
+      i.status,
+      i.max_uses,
+      i.used_count,
+      i.expires_at,
+      CASE
+        WHEN i.status != 'pending' THEN 0
+        WHEN i.max_uses IS NOT NULL AND i.used_count >= i.max_uses THEN 0
+        WHEN i.expires_at IS NOT NULL AND i.expires_at < SYSTIMESTAMP THEN 0
+        WHEN g.is_deleted = 1 OR g.is_active = 0 THEN 0
+        ELSE 1
+      END AS is_valid
+    FROM n_group_invites i
+    JOIN n_groups g ON i.group_id = g.group_id
+    WHERE i.invite_id = :invite_id
     `,
     { invite_id: inviteId }
   );
   if (!invite) v2NotFound('邀请不存在');
+
+  if (!v2Boolean(invite.IS_VALID)) {
+    v2Unprocessable('邀请无效或已过期');
+  }
+
   const inviteeId = v2Number(invite.INVITEE_ID);
+  if (!inviteeId) {
+    v2Unprocessable('公开邀请码请通过邀请码加入群组');
+  }
   if (inviteeId && inviteeId !== auth.userId) {
     v2Unprocessable('无权响应该邀请');
   }
-  const status = payload.accept ? 'accepted' : 'rejected';
-  await v2Execute(
-    connection,
-    `
-    UPDATE n_group_invites
-    SET status = :status,
-        responded_at = SYSTIMESTAMP
-    WHERE invite_id = :invite_id
-    `,
-    { status, invite_id: inviteId }
-  );
+
+  const groupId = v2Number(invite.GROUP_ID);
   if (payload.accept) {
+    const exists = await v2Count(
+      connection,
+      `
+      SELECT COUNT(*) AS total
+      FROM n_group_members
+      WHERE group_id = :group_id
+        AND user_id = :user_id
+      `,
+      { group_id: groupId, user_id: auth.userId }
+    );
+    if (exists > 0) v2Unprocessable('您已经是群组成员');
+  }
+
+  const status = payload.accept ? 'accepted' : 'rejected';
+
+  if (!payload.accept) {
     await v2Execute(
       connection,
       `
-      INSERT INTO n_group_members (group_id, user_id, role, status)
-      SELECT :group_id, :user_id, 'member', 'active'
-      FROM dual
-      WHERE NOT EXISTS (
-        SELECT 1 FROM n_group_members
-        WHERE group_id = :group_id AND user_id = :user_id
+      UPDATE n_group_invites
+      SET status = 'rejected',
+          responded_at = SYSTIMESTAMP
+      WHERE invite_id = :invite_id
+        AND status = 'pending'
+      `,
+      { invite_id: inviteId }
+    );
+
+    return v2Ok(
+      {
+        invite_id: inviteId,
+        status,
+        group_id: groupId
+      },
+      'invite rejected'
+    );
+  }
+
+  try {
+    const updated = await v2Execute(
+      connection,
+      `
+      UPDATE n_group_invites
+      SET used_count = used_count + 1,
+          status = CASE
+            WHEN invitee_id IS NOT NULL THEN 'accepted'
+            WHEN max_uses IS NOT NULL AND used_count + 1 >= max_uses THEN 'accepted'
+            ELSE status
+          END,
+          responded_at = CASE
+            WHEN invitee_id IS NOT NULL
+              OR (max_uses IS NOT NULL AND used_count + 1 >= max_uses)
+            THEN SYSTIMESTAMP
+            ELSE responded_at
+          END
+      WHERE invite_id = :invite_id
+        AND status = 'pending'
+        AND (max_uses IS NULL OR used_count < max_uses)
+        AND (expires_at IS NULL OR expires_at >= SYSTIMESTAMP)
+      `,
+      { invite_id: inviteId },
+      false
+    );
+    if (updated === 0) v2Unprocessable('邀请无效或已过期');
+
+    const memberId = await v2NextId(
+      connection,
+      'seq_group_member_id'
+    );
+    await v2Execute(
+      connection,
+      `
+      INSERT INTO n_group_members (
+        member_id,
+        group_id,
+        user_id,
+        role,
+        status,
+        invited_by
+      ) VALUES (
+        :member_id,
+        :group_id,
+        :user_id,
+        'member',
+        'active',
+        :invited_by
       )
       `,
       {
-        group_id: v2Number(invite.GROUP_ID),
-        user_id: auth.userId
-      }
+        member_id: memberId,
+        group_id: groupId,
+        user_id: auth.userId,
+        invited_by: v2Number(invite.INVITER_ID)
+      },
+      false
     );
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
   }
+
   return v2Ok(
     {
       invite_id: inviteId,
       status,
-      group_id: v2Number(invite.GROUP_ID)
+      group_id: groupId
     },
-    payload.accept ? 'invite accepted' : 'invite rejected'
+    'invite accepted'
   );
 }
 
