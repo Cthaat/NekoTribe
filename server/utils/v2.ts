@@ -39,11 +39,14 @@ export function v2Ok<T>(
   };
 }
 
-export function defineV2Handler<T>(handler: V2RouteHandler<T>) {
-  return defineEventHandler((event): Promise<V2Response<T>> =>
-    v2WithConnection(event, connection =>
-      handler(event, connection)
-    )
+export function defineV2Handler<T>(
+  handler: V2RouteHandler<T>
+) {
+  return defineEventHandler(
+    (event): Promise<V2Response<T>> =>
+      v2WithConnection(event, connection =>
+        handler(event, connection)
+      )
   );
 }
 
@@ -77,11 +80,15 @@ export function v2Throw(
   });
 }
 
-export function v2BadRequest(message = '请求参数错误'): never {
+export function v2BadRequest(
+  message = '请求参数错误'
+): never {
   return v2Throw(400, message, 40001);
 }
 
-export function v2Unauthorized(message = '未认证或 token 无效'): never {
+export function v2Unauthorized(
+  message = '未认证或 token 无效'
+): never {
   return v2Throw(401, message, 40101);
 }
 
@@ -97,16 +104,21 @@ export function v2Conflict(message = '资源冲突'): never {
   return v2Throw(409, message, 40901);
 }
 
-export function v2Unprocessable(message = '业务规则不允许'): never {
+export function v2Unprocessable(
+  message = '业务规则不允许'
+): never {
   return v2Throw(422, message, 42201);
 }
 
-export function v2ServerError(message = '服务器内部错误'): never {
+export function v2ServerError(
+  message = '服务器内部错误'
+): never {
   return v2Throw(500, message, 50001);
 }
 
 export function v2Auth(event: H3Event): V2AuthPayload {
-  const context = event.context as unknown as V2EventContext;
+  const context =
+    event.context as unknown as V2EventContext;
   if (!context.auth?.userId) {
     v2Unauthorized();
   }
@@ -116,14 +128,16 @@ export function v2Auth(event: H3Event): V2AuthPayload {
 export function v2OptionalAuth(
   event: H3Event
 ): V2AuthPayload | null {
-  const context = event.context as unknown as V2EventContext;
+  const context =
+    event.context as unknown as V2EventContext;
   return context.auth ?? null;
 }
 
 export async function v2Connection(
   event: H3Event
 ): Promise<oracledb.Connection> {
-  const context = event.context as unknown as V2EventContext;
+  const context =
+    event.context as unknown as V2EventContext;
   return await context.getOracleConnection();
 }
 
@@ -198,7 +212,9 @@ export async function v2Count(
   return row ? v2Number(row.TOTAL) : 0;
 }
 
-export function v2Record(value: unknown): Record<string, unknown> {
+export function v2Record(
+  value: unknown
+): Record<string, unknown> {
   if (
     value &&
     typeof value === 'object' &&
@@ -220,7 +236,10 @@ export function v2String(
   fallback = ''
 ): string {
   if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') {
+  if (
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
     return String(value);
   }
   return fallback;
@@ -247,7 +266,8 @@ export function v2OptionalString(
   key: string
 ): string | undefined {
   const value = body[key];
-  if (value === undefined || value === null) return undefined;
+  if (value === undefined || value === null)
+    return undefined;
   return v2String(value);
 }
 
@@ -269,7 +289,11 @@ export function v2Number(
 export function v2NullableNumber(
   value: unknown
 ): number | null {
-  if (value === null || value === undefined || value === '') {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
     return null;
   }
   const parsed = v2Number(value, Number.NaN);
@@ -281,7 +305,8 @@ export function v2RequiredNumber(
   name = 'id'
 ): number {
   const parsed = v2NullableNumber(value);
-  if (!parsed || parsed <= 0) v2BadRequest(`${name} 参数错误`);
+  if (!parsed || parsed <= 0)
+    v2BadRequest(`${name} 参数错误`);
   return parsed;
 }
 
@@ -305,7 +330,9 @@ export function v2Boolean(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value === 1;
   if (typeof value === 'string') {
-    return ['1', 'true', 'yes'].includes(value.toLowerCase());
+    return ['1', 'true', 'yes'].includes(
+      value.toLowerCase()
+    );
   }
   return false;
 }
@@ -314,16 +341,24 @@ export function v2BoolNumber(value: unknown): number {
   return v2Boolean(value) ? 1 : 0;
 }
 
-export function v2DateString(value: unknown): string | null {
+export function v2DateString(
+  value: unknown
+): string | null {
   if (value instanceof Date) return value.toISOString();
   const text = v2String(value);
   if (!text) return null;
   const date = new Date(text);
-  return Number.isNaN(date.getTime()) ? text : date.toISOString();
+  return Number.isNaN(date.getTime())
+    ? text
+    : date.toISOString();
 }
 
 export function v2JsonValue(value: unknown): V2Json | null {
-  if (value === null || value === undefined || value === '') {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
     return null;
   }
   if (

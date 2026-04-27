@@ -78,7 +78,7 @@ services:
         'if [ -n "$${REDIS_PASSWORD}" ]; then redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}"; else redis-server --appendonly yes; fi'
       ]
     ports:
-      - '127.0.0.1:${REDIS_PORT:-6379}:6379'
+      - '${REDIS_PORT:-6379}:6379'
     volumes:
       - redis-data:/data
     networks:
