@@ -42,7 +42,9 @@ import {
   v2RequireSelfUser
 } from '~/server/models/v2';
 
-function v2FirstAvatarFile(files: Files<string>): File | null {
+function v2FirstAvatarFile(
+  files: Files<string>
+): File | null {
   return files.file?.[0] ?? files.avatar?.[0] ?? null;
 }
 
@@ -51,7 +53,10 @@ export async function v2GetMe(
   connection: oracledb.Connection
 ): Promise<V2Response<V2SelfUser>> {
   return v2Ok(
-    await v2RequireSelfUser(connection, v2Auth(event).userId)
+    await v2RequireSelfUser(
+      connection,
+      v2Auth(event).userId
+    )
   );
 }
 
@@ -98,7 +103,9 @@ export async function v2PatchMe(
     );
   }
 
-  return v2Ok(await v2RequireSelfUser(connection, auth.userId));
+  return v2Ok(
+    await v2RequireSelfUser(connection, auth.userId)
+  );
 }
 
 export async function v2UpdateAvatar(
@@ -136,9 +143,9 @@ export async function v2UpdateAvatar(
         form.parse(
           event.node.req,
           async (error: Error | null, _fields, files) => {
-            let storedAvatar:
-              | Awaited<ReturnType<typeof storeAvatarFile>>
-              | null = null;
+            let storedAvatar: Awaited<
+              ReturnType<typeof storeAvatarFile>
+            > | null = null;
             try {
               if (error) {
                 reject(error);
@@ -236,7 +243,8 @@ export async function v2UpdateAvatar(
               try {
                 await deleteStorageReference({
                   storageKey:
-                    currentAvatar?.AVATAR_STORAGE_KEY === null
+                    currentAvatar?.AVATAR_STORAGE_KEY ===
+                    null
                       ? null
                       : v2StringOrNull(
                           currentAvatar?.AVATAR_STORAGE_KEY
@@ -260,9 +268,9 @@ export async function v2UpdateAvatar(
               );
             } catch (caught) {
               if (storedAvatar) {
-                await connection.rollback().catch(
-                  () => undefined
-                );
+                await connection
+                  .rollback()
+                  .catch(() => undefined);
                 await deleteStorageReference({
                   storageKey: storedAvatar.key
                 }).catch(cleanupError => {
@@ -272,9 +280,9 @@ export async function v2UpdateAvatar(
                   );
                 });
               } else {
-                await connection.rollback().catch(
-                  () => undefined
-                );
+                await connection
+                  .rollback()
+                  .catch(() => undefined);
               }
               reject(caught);
             }
@@ -284,7 +292,9 @@ export async function v2UpdateAvatar(
     );
   } catch (error) {
     v2BadRequest(
-      error instanceof Error ? error.message : '头像上传失败'
+      error instanceof Error
+        ? error.message
+        : '头像上传失败'
     );
   }
 }
@@ -297,7 +307,10 @@ export async function v2ChangeEmail(
   const body = await v2Body(event);
   const payload: V2ChangeEmailPayload = {
     new_email: v2RequiredString(body, 'new_email'),
-    verification_id: v2RequiredString(body, 'verification_id'),
+    verification_id: v2RequiredString(
+      body,
+      'verification_id'
+    ),
     code: v2RequiredString(body, 'code')
   };
 
@@ -349,7 +362,9 @@ export async function v2ChangeEmail(
   });
 }
 
-function v2MapSettings(row: Record<string, unknown>): V2UserSettings {
+function v2MapSettings(
+  row: Record<string, unknown>
+): V2UserSettings {
   return {
     user_id: v2Number(row.USER_ID),
     two_factor_enabled: v2Boolean(row.TWO_FACTOR_ENABLED),
@@ -432,7 +447,9 @@ export async function v2PatchSettings(
     if (!['public', 'private'].includes(visibility)) {
       v2BadRequest('profile_visibility 参数错误');
     }
-    clauses.push('profile_visibility = :profile_visibility');
+    clauses.push(
+      'profile_visibility = :profile_visibility'
+    );
     binds.profile_visibility = visibility;
   }
 
@@ -451,7 +468,9 @@ export async function v2PatchSettings(
   return await v2GetSettings(event, connection);
 }
 
-function v2MapStatement(row: Record<string, unknown>): V2AccountStatement {
+function v2MapStatement(
+  row: Record<string, unknown>
+): V2AccountStatement {
   return {
     statement_id: v2Number(row.STATEMENT_ID),
     type: v2String(row.STATEMENT_TYPE),
@@ -540,13 +559,15 @@ export async function v2PatchAccountStatement(
       'action'
     ) as V2UpdateStatementPayload['action']
   };
-  const statusMap: Record<V2UpdateStatementPayload['action'], string> =
-    {
-      mark_read: 'read',
-      mark_unread: 'unread',
-      dismiss: 'dismissed',
-      resolve: 'resolved'
-    };
+  const statusMap: Record<
+    V2UpdateStatementPayload['action'],
+    string
+  > = {
+    mark_read: 'read',
+    mark_unread: 'unread',
+    dismiss: 'dismissed',
+    resolve: 'resolved'
+  };
   const status = statusMap[payload.action];
   if (!status) v2BadRequest('action 参数错误');
 
@@ -739,7 +760,10 @@ export async function v2RecommendedUsers(
   connection: oracledb.Connection
 ): Promise<V2Response<V2PublicUser[]>> {
   const auth = v2Auth(event);
-  const limit = Math.min(v2QueryNumber(event, 'limit', 10), 50);
+  const limit = Math.min(
+    v2QueryNumber(event, 'limit', 10),
+    50
+  );
   const rows = await v2Rows(
     connection,
     `
@@ -766,7 +790,9 @@ export async function v2RecommendedUsers(
     `,
     { viewer_id: auth.userId, limit }
   );
-  return v2Ok(rows.map(v2MapPublicUser), 'success', { limit });
+  return v2Ok(rows.map(v2MapPublicUser), 'success', {
+    limit
+  });
 }
 
 export async function v2GetUserById(
@@ -776,7 +802,11 @@ export async function v2GetUserById(
 ): Promise<V2Response<V2PublicUser>> {
   const auth = v2Auth(event);
   return v2Ok(
-    await v2RequirePublicUser(connection, auth.userId, userId)
+    await v2RequirePublicUser(
+      connection,
+      auth.userId,
+      userId
+    )
   );
 }
 
@@ -853,8 +883,13 @@ export async function v2FollowUser(
   }>
 > {
   const auth = v2Auth(event);
-  if (auth.userId === targetUserId) v2Unprocessable('不能关注自己');
-  await v2RequirePublicUser(connection, auth.userId, targetUserId);
+  if (auth.userId === targetUserId)
+    v2Unprocessable('不能关注自己');
+  await v2RequirePublicUser(
+    connection,
+    auth.userId,
+    targetUserId
+  );
   await v2Execute(
     connection,
     `
@@ -943,11 +978,19 @@ export async function v2BlockUser(
   connection: oracledb.Connection,
   targetUserId: number
 ): Promise<
-  V2Response<{ target_user_id: number; relationship: string }>
+  V2Response<{
+    target_user_id: number;
+    relationship: string;
+  }>
 > {
   const auth = v2Auth(event);
-  if (auth.userId === targetUserId) v2Unprocessable('不能屏蔽自己');
-  await v2RequirePublicUser(connection, auth.userId, targetUserId);
+  if (auth.userId === targetUserId)
+    v2Unprocessable('不能屏蔽自己');
+  await v2RequirePublicUser(
+    connection,
+    auth.userId,
+    targetUserId
+  );
   await v2Execute(
     connection,
     `
@@ -989,7 +1032,10 @@ export async function v2UnblockUser(
   connection: oracledb.Connection,
   targetUserId: number
 ): Promise<
-  V2Response<{ target_user_id: number; relationship: string }>
+  V2Response<{
+    target_user_id: number;
+    relationship: string;
+  }>
 > {
   const auth = v2Auth(event);
   await v2Execute(
@@ -1021,9 +1067,16 @@ export async function v2MuteUser(
   const auth = v2Auth(event);
   const body = await v2Body(event);
   const expiresAt = v2StringOrNull(body.expires_at);
-  const expiresDate = expiresAt ? new Date(expiresAt) : null;
-  if (auth.userId === targetUserId) v2Unprocessable('不能静音自己');
-  await v2RequirePublicUser(connection, auth.userId, targetUserId);
+  const expiresDate = expiresAt
+    ? new Date(expiresAt)
+    : null;
+  if (auth.userId === targetUserId)
+    v2Unprocessable('不能静音自己');
+  await v2RequirePublicUser(
+    connection,
+    auth.userId,
+    targetUserId
+  );
   await v2Execute(
     connection,
     `
@@ -1065,7 +1118,10 @@ export async function v2UnmuteUser(
   connection: oracledb.Connection,
   targetUserId: number
 ): Promise<
-  V2Response<{ target_user_id: number; relationship: string }>
+  V2Response<{
+    target_user_id: number;
+    relationship: string;
+  }>
 > {
   const auth = v2Auth(event);
   await v2Execute(
@@ -1093,7 +1149,11 @@ export async function v2RelationshipList(
     | 'blocks'
     | 'mutes',
   targetUserId?: number
-): Promise<V2Response<(V2PublicUser & { expires_at?: string | null })[]>> {
+): Promise<
+  V2Response<
+    (V2PublicUser & { expires_at?: string | null })[]
+  >
+> {
   const auth = v2Auth(event);
   const page = v2Page(event);
   const target = targetUserId ?? auth.userId;
