@@ -15,13 +15,9 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import type { GroupFiltersData } from '@/types/groups';
 
-export interface GroupFiltersData {
-  search: string;
-  privacy: string;
-  category: string;
-  sortBy: string;
-}
+export type { GroupFiltersData } from '@/types/groups';
 
 const props = withDefaults(
   defineProps<{

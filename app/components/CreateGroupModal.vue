@@ -36,15 +36,9 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { toast } from 'vue-sonner';
+import type { CreateGroupData } from '@/types/groups';
 
-export interface CreateGroupData {
-  name: string;
-  description: string;
-  avatar: string;
-  coverImage: string;
-  privacy: 'public' | 'private' | 'secret';
-  category: string;
-}
+export type { CreateGroupData } from '@/types/groups';
 
 const props = defineProps<{
   open: boolean;
@@ -138,7 +132,6 @@ const handleSubmit = () => {
 
   emit('create', { ...formData.value });
   emit('update:open', false);
-  toast.success('群组创建成功！');
 };
 
 const closeDialog = () => {

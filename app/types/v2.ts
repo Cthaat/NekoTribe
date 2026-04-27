@@ -47,6 +47,23 @@ export type V2NotificationTypeFilter =
   | 'follow'
   | 'mention'
   | 'system';
+export type V2GroupPrivacy =
+  | 'public'
+  | 'private'
+  | 'secret';
+export type V2GroupPostPermission =
+  | 'all'
+  | 'admin_only'
+  | 'moderator_up';
+export type V2GroupRole =
+  | 'owner'
+  | 'admin'
+  | 'moderator'
+  | 'member';
+export type V2GroupPostListType =
+  | 'all'
+  | 'pinned'
+  | 'announcement';
 
 export interface V2Relationship {
   is_self: boolean;
@@ -400,6 +417,158 @@ export interface V2NotificationBatchReadData {
   updated_count: number;
 }
 
+export interface V2GroupMembership {
+  is_member: boolean;
+  role: V2GroupRole | null;
+  status: string | null;
+  joined_at: string | null;
+}
+
+export interface V2Group {
+  group_id: number;
+  name: string;
+  slug: string;
+  description: string;
+  avatar_url: string | null;
+  cover_url: string | null;
+  owner: V2PublicUser;
+  privacy: V2GroupPrivacy;
+  privacy_desc: string;
+  join_approval: boolean;
+  post_permission: V2GroupPostPermission;
+  member_count: number;
+  post_count: number;
+  is_active: number;
+  membership: V2GroupMembership;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface V2CreateGroupPayload {
+  name: string;
+  description?: string;
+  avatar_url?: string | null;
+  cover_url?: string | null;
+  privacy?: V2GroupPrivacy;
+  join_approval?: boolean;
+  post_permission?: V2GroupPostPermission;
+}
+
+export interface V2UpdateGroupPayload {
+  name?: string;
+  description?: string;
+  avatar_url?: string | null;
+  cover_url?: string | null;
+  privacy?: V2GroupPrivacy;
+  join_approval?: boolean;
+  post_permission?: V2GroupPostPermission;
+}
+
+export interface V2JoinGroupPayload {
+  invite_code?: string;
+}
+
+export interface V2JoinGroupData {
+  member_id: number;
+  group_id: number;
+  user_id: number;
+  role: V2GroupRole;
+  status: string;
+}
+
+export interface V2GroupMember {
+  member_id: number;
+  user: V2PublicUser;
+  role: V2GroupRole;
+  role_desc: string;
+  status: string;
+  nickname: string | null;
+  joined_at: string;
+}
+
+export interface V2GroupPost {
+  post_id: number;
+  group_id: number;
+  author: V2PublicUser;
+  content: string;
+  media_urls: string[];
+  is_pinned: boolean;
+  is_announcement: boolean;
+  likes_count: number;
+  comments_count: number;
+  views_count: number;
+  is_liked_by_me: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface V2CreateGroupPostPayload {
+  content: string;
+  media_urls?: string[];
+}
+
+export interface V2GroupComment {
+  comment_id: number;
+  post_id: number;
+  author: V2PublicUser;
+  parent_comment_id: number | null;
+  reply_to_user: V2PublicUser | null;
+  content: string;
+  likes_count: number;
+  is_liked_by_me: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface V2CreateGroupCommentPayload {
+  content: string;
+  parent_comment_id?: number | null;
+  reply_to_user_id?: number | null;
+}
+
+export interface V2CreateGroupInvitePayload {
+  invitee_id?: number | null;
+  max_uses?: number;
+  expire_hours?: number;
+  message?: string;
+}
+
+export interface V2GroupInvite {
+  invite_id: number;
+  invite_code: string | null;
+  status: string;
+  max_uses: number | null;
+  used_count: number;
+  expires_at: string | null;
+  inviter: V2PublicUser;
+  invitee: V2PublicUser | null;
+  is_valid: boolean;
+}
+
+export interface V2CreateGroupInviteData {
+  invite_id: number;
+  invite_code: string | null;
+  invite_url: string | null;
+  expires_at: string | null;
+}
+
+export interface V2InviteCodeData {
+  is_valid: boolean;
+  group: V2Group;
+  inviter: V2PublicUser;
+  message: string | null;
+}
+
+export interface V2InviteResponsePayload {
+  accept: boolean;
+}
+
+export interface V2InviteResponseData {
+  invite_id: number;
+  status: string;
+  group_id: number;
+}
+
 export interface V2PageQuery {
   page?: number;
   page_size?: number;
@@ -430,6 +599,26 @@ export interface V2StatementListQuery extends V2PageQuery {
 }
 
 export interface V2SessionListQuery extends V2PageQuery {}
+
+export interface V2GroupListQuery extends V2PageQuery {
+  q?: string;
+  privacy?: V2GroupPrivacy;
+}
+
+export interface V2PopularGroupsQuery {
+  limit?: number;
+}
+
+export interface V2GroupMemberListQuery
+  extends V2PageQuery {}
+
+export interface V2GroupPostListQuery extends V2PageQuery {
+  type?: V2GroupPostListType;
+}
+
+export interface V2GroupInviteListQuery extends V2PageQuery {
+  status?: string;
+}
 
 export interface V2FollowUserData {
   target_user_id: number;
@@ -568,3 +757,51 @@ export type V2RestoreNotificationResponse = V2ApiResponse<{
   notification_id: number;
   deleted_at: null;
 }>;
+export type V2ListGroupsRequest = V2GroupListQuery;
+export type V2ListGroupsResponse = V2ApiResponse<
+  V2Group[]
+>;
+export type V2PopularGroupsRequest = V2PopularGroupsQuery;
+export type V2PopularGroupsResponse = V2ApiResponse<
+  (V2Group & { activity_score: number })[]
+>;
+export type V2ListMyGroupsRequest = V2PageQuery;
+export type V2ListMyGroupsResponse = V2ApiResponse<
+  V2Group[]
+>;
+export type V2CreateGroupRequest = V2CreateGroupPayload;
+export type V2CreateGroupResponse = V2ApiResponse<V2Group>;
+export type V2GetGroupResponse = V2ApiResponse<V2Group>;
+export type V2PatchGroupRequest = V2UpdateGroupPayload;
+export type V2PatchGroupResponse = V2ApiResponse<V2Group>;
+export type V2JoinGroupRequest = V2JoinGroupPayload;
+export type V2JoinGroupResponse =
+  V2ApiResponse<V2JoinGroupData>;
+export type V2LeaveGroupResponse = V2ApiResponse<null>;
+export type V2ListGroupMembersRequest =
+  V2GroupMemberListQuery;
+export type V2ListGroupMembersResponse = V2ApiResponse<
+  V2GroupMember[]
+>;
+export type V2ListGroupPostsRequest =
+  V2GroupPostListQuery;
+export type V2ListGroupPostsResponse = V2ApiResponse<
+  V2GroupPost[]
+>;
+export type V2CreateGroupPostRequest =
+  V2CreateGroupPostPayload;
+export type V2CreateGroupPostResponse =
+  V2ApiResponse<V2GroupPost>;
+export type V2CreateGroupInviteRequest =
+  V2CreateGroupInvitePayload;
+export type V2CreateGroupInviteResponse =
+  V2ApiResponse<V2CreateGroupInviteData>;
+export type V2ListGroupInvitesRequest =
+  V2GroupInviteListQuery;
+export type V2ListGroupInvitesResponse = V2ApiResponse<
+  V2GroupInvite[]
+>;
+export type V2RespondGroupInviteRequest =
+  V2InviteResponsePayload;
+export type V2RespondGroupInviteResponse =
+  V2ApiResponse<V2InviteResponseData>;

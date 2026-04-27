@@ -26,20 +26,9 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'vue-sonner';
+import type { GroupMember } from '@/types/groups';
 
-// 成员类型定义
-export interface GroupMember {
-  id: number;
-  userId: number;
-  username: string;
-  nickname: string;
-  avatar: string;
-  role: 'owner' | 'admin' | 'member';
-  joinedAt: string;
-  isMuted?: boolean;
-  mutedUntil?: string;
-  lastActiveAt?: string;
-}
+export type { GroupMember } from '@/types/groups';
 
 const props = defineProps<{
   member: GroupMember;
@@ -62,6 +51,7 @@ const roleIcon = computed(() => {
     case 'owner':
       return Crown;
     case 'admin':
+    case 'moderator':
       return Shield;
     default:
       return User;
@@ -74,6 +64,7 @@ const roleText = computed(() => {
     case 'owner':
       return '群主';
     case 'admin':
+    case 'moderator':
       return '管理员';
     default:
       return '成员';
@@ -86,6 +77,7 @@ const roleBadgeVariant = computed(() => {
     case 'owner':
       return 'default';
     case 'admin':
+    case 'moderator':
       return 'secondary';
     default:
       return 'outline';

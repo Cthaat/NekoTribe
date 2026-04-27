@@ -31,31 +31,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { toast } from 'vue-sonner';
+import type { Group } from '@/types/groups';
 
-// 群组类型定义
-export interface Group {
-  id: number;
-  name: string;
-  description: string;
-  avatar: string;
-  coverImage?: string;
-  privacy: 'public' | 'private' | 'secret';
-  memberCount: number;
-  postCount: number;
-  createdAt: string;
-  owner: {
-    id: number;
-    username: string;
-    nickname: string;
-    avatar: string;
-  };
-  isMember?: boolean;
-  isOwner?: boolean;
-  isAdmin?: boolean;
-  category?: string;
-  tags?: string[];
-}
+export type { Group } from '@/types/groups';
 
 const props = defineProps<{
   group: Group;
@@ -110,14 +88,8 @@ const formatMemberCount = (count: number) => {
 const handleJoinLeave = () => {
   if (props.group.isMember) {
     emit('leave', props.group.id);
-    toast.success('已离开群组');
   } else {
     emit('join', props.group.id);
-    toast.success(
-      props.group.privacy === 'public'
-        ? '已加入群组'
-        : '已发送加入申请'
-    );
   }
 };
 

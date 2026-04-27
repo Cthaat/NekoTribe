@@ -14,15 +14,9 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
+import type { GroupStatsData } from '@/types/groups';
 
-export interface GroupStatsData {
-  totalGroups: number;
-  myGroups: number;
-  pendingInvites: number;
-  todayPosts: number;
-  activeMembers: number;
-  newMembers: number;
-}
+export type { GroupStatsData } from '@/types/groups';
 
 const props = withDefaults(
   defineProps<{

@@ -30,29 +30,9 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'vue-sonner';
+import type { GroupPost } from '@/types/groups';
 
-// 群组帖子类型定义
-export interface GroupPost {
-  id: number;
-  content: string;
-  author: {
-    id: number;
-    username: string;
-    nickname: string;
-    avatar: string;
-    role: 'owner' | 'admin' | 'member';
-  };
-  media?: {
-    type: 'image' | 'video';
-    url: string;
-    thumbnail?: string;
-  }[];
-  isPinned?: boolean;
-  likeCount: number;
-  commentCount: number;
-  isLiked?: boolean;
-  createdAt: string;
-}
+export type { GroupPost } from '@/types/groups';
 
 const props = defineProps<{
   post: GroupPost;
@@ -103,6 +83,7 @@ const getRoleBadge = (role: string) => {
     case 'owner':
       return { text: '群主', variant: 'default' as const };
     case 'admin':
+    case 'moderator':
       return {
         text: '管理',
         variant: 'secondary' as const

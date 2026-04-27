@@ -1,19 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import {
-  Mail,
   Clock,
   CheckCircle,
   XCircle,
   Users,
-  User,
   RefreshCw,
   Inbox
 } from 'lucide-vue-next';
 import {
   Card,
-  CardContent,
   CardFooter,
   CardHeader
 } from '@/components/ui/card';
@@ -24,100 +21,16 @@ import {
 } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  listMyGroupInvites,
+  respondGroupInvite
+} from '@/services/groups';
+import type { GroupInviteView } from '@/types/groups';
 
-// 邀请类型
-interface GroupInvite {
-  id: number;
-  group: {
-    id: number;
-    name: string;
-    avatar: string;
-    memberCount: number;
-    description: string;
-  };
-  inviter: {
-    id: number;
-    username: string;
-    nickname: string;
-    avatar: string;
-  };
-  message?: string;
-  createdAt: string;
-  expiresAt?: string;
-}
-
-// 模拟邀请数据
-const invites = ref<GroupInvite[]>([
-  {
-    id: 1,
-    group: {
-      id: 10,
-      name: 'TypeScript 高级进阶',
-      avatar:
-        'https://api.dicebear.com/7.x/identicon/svg?seed=typescript',
-      memberCount: 456,
-      description:
-        '深入学习 TypeScript 高级特性，类型体操训练营'
-    },
-    inviter: {
-      id: 1,
-      username: 'tsmaster',
-      nickname: 'TS大师',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=tsmaster'
-    },
-    message:
-      '看到你对 TypeScript 很感兴趣，邀请你加入我们的学习群！',
-    createdAt: '2024-12-15T10:00:00Z',
-    expiresAt: '2024-12-22T10:00:00Z'
-  },
-  {
-    id: 2,
-    group: {
-      id: 11,
-      name: '设计师交流群',
-      avatar:
-        'https://api.dicebear.com/7.x/identicon/svg?seed=design',
-      memberCount: 789,
-      description:
-        'UI/UX 设计师交流平台，分享设计灵感和资源'
-    },
-    inviter: {
-      id: 2,
-      username: 'designer',
-      nickname: '设计小姐姐',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=designer'
-    },
-    createdAt: '2024-12-14T15:00:00Z'
-  },
-  {
-    id: 3,
-    group: {
-      id: 12,
-      name: '创业者联盟',
-      avatar:
-        'https://api.dicebear.com/7.x/identicon/svg?seed=startup',
-      memberCount: 234,
-      description: '连接创业者，分享创业经验和资源'
-    },
-    inviter: {
-      id: 3,
-      username: 'founder',
-      nickname: '连续创业者',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=founder'
-    },
-    message: '我们正在招募有创业想法的朋友，期待你的加入！',
-    createdAt: '2024-12-13T09:00:00Z',
-    expiresAt: '2024-12-20T09:00:00Z'
-  }
-]);
-
+const invites = ref<GroupInviteView[]>([]);
 const isRefreshing = ref(false);
 
-// 格式化时间
-const formatTime = (dateStr: string) => {
+function formatTime(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
@@ -125,17 +38,13 @@ const formatTime = (dateStr: string) => {
 
   if (hours < 1) {
     const minutes = Math.floor(diff / (1000 * 60));
-    return `${minutes}分钟前`;
-  } else if (hours < 24) {
-    return `${hours}小时前`;
-  } else {
-    const days = Math.floor(hours / 24);
-    return `${days}天前`;
+    return `${Math.max(minutes, 0)}分钟前`;
   }
-};
+  if (hours < 24) return `${hours}小时前`;
+  return `${Math.floor(hours / 24)}天前`;
+}
 
-// 计算剩余时间
-const getRemainingTime = (expiresAt: string) => {
+function getRemainingTime(expiresAt: string): string {
   const expires = new Date(expiresAt);
   const now = new Date();
   const diff = expires.getTime() - now.getTime();
@@ -144,40 +53,67 @@ const getRemainingTime = (expiresAt: string) => {
 
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor(
-    (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+    (diff % (1000 * 60 * 60 * 24)) /
+      (1000 * 60 * 60)
   );
 
   if (days > 0) return `${days}天${hours}小时后过期`;
   return `${hours}小时后过期`;
-};
+}
 
-// 接受邀请
-const handleAccept = (id: number) => {
-  const index = invites.value.findIndex(i => i.id === id);
-  if (index !== -1) {
-    const invite = invites.value[index];
-    invites.value.splice(index, 1);
-    toast.success(`已加入 ${invite.group.name}`);
-  }
-};
-
-// 拒绝邀请
-const handleReject = (id: number) => {
-  const index = invites.value.findIndex(i => i.id === id);
-  if (index !== -1) {
-    invites.value.splice(index, 1);
-    toast.info('已拒绝邀请');
-  }
-};
-
-// 刷新
-const handleRefresh = () => {
+async function refreshInvites(): Promise<void> {
   isRefreshing.value = true;
-  setTimeout(() => {
+  try {
+    invites.value = await listMyGroupInvites();
+  } catch (error) {
+    invites.value = [];
+    toast.error('加载邀请失败', {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
     isRefreshing.value = false;
-    toast.success('已刷新');
-  }, 1000);
-};
+  }
+}
+
+async function handleAccept(id: number): Promise<void> {
+  try {
+    await respondGroupInvite(id, true);
+    invites.value = invites.value.filter(
+      invite => invite.id !== id
+    );
+    toast.success('已接受邀请');
+  } catch (error) {
+    toast.error('接受邀请失败', {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  }
+}
+
+async function handleReject(id: number): Promise<void> {
+  try {
+    await respondGroupInvite(id, false);
+    invites.value = invites.value.filter(
+      invite => invite.id !== id
+    );
+    toast.info('已拒绝邀请');
+  } catch (error) {
+    toast.error('拒绝邀请失败', {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  }
+}
+
+async function handleRefresh(): Promise<void> {
+  await refreshInvites();
+  toast.success('已刷新');
+}
+
+onMounted(() => {
+  void refreshInvites();
+});
 </script>
 
 <template>

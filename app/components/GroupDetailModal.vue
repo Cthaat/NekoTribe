@@ -42,9 +42,11 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'vue-sonner';
 import GroupMemberCard from './GroupMemberCard.vue';
 import GroupPostCard from './GroupPostCard.vue';
-import type { Group } from './GroupCard.vue';
-import type { GroupMember } from './GroupMemberCard.vue';
-import type { GroupPost } from './GroupPostCard.vue';
+import type {
+  Group,
+  GroupMember,
+  GroupPost
+} from '@/types/groups';
 
 const props = defineProps<{
   open: boolean;
@@ -120,14 +122,8 @@ const handleJoinLeave = () => {
   if (!props.group) return;
   if (props.group.isMember) {
     emit('leave', props.group.id);
-    toast.success('已离开群组');
   } else {
     emit('join', props.group.id);
-    toast.success(
-      props.group.privacy === 'public'
-        ? '已加入群组'
-        : '已发送加入申请'
-    );
   }
 };
 
@@ -143,7 +139,6 @@ const toggleNotifications = () => {
 const handleInvite = () => {
   if (props.group) {
     emit('invite', props.group.id);
-    toast.success('邀请链接已复制');
   }
 };
 

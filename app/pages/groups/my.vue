@@ -1,231 +1,126 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import { Inbox, Plus } from 'lucide-vue-next';
-import { Button } from '@/components/ui/button';
 import GroupList from '@/components/GroupList.vue';
 import GroupDetailModal from '@/components/GroupDetailModal.vue';
 import CreateGroupModal from '@/components/CreateGroupModal.vue';
-import type { CreateGroupData } from '@/components/CreateGroupModal.vue';
-import type { Group } from '@/components/GroupCard.vue';
-import type { GroupMember } from '@/components/GroupMemberCard.vue';
-import type { GroupPost } from '@/components/GroupPostCard.vue';
+import type {
+  CreateGroupData,
+  Group,
+  GroupFiltersData
+} from '@/types/groups';
 
-// 模拟我的群组数据（已加入的群组）
-const myGroups = ref<Group[]>([
-  {
-    id: 1,
-    name: 'Vue.js 开发者社区',
-    description:
-      '一个专注于 Vue.js 技术分享和讨论的社区，欢迎所有 Vue 爱好者加入！',
-    avatar:
-      'https://api.dicebear.com/7.x/identicon/svg?seed=vue',
-    coverImage: 'https://picsum.photos/800/200?random=1',
-    privacy: 'public',
-    memberCount: 2580,
-    postCount: 456,
-    createdAt: '2024-01-15T08:00:00Z',
-    owner: {
-      id: 1,
-      username: 'vuefan',
-      nickname: 'Vue爱好者',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=vuefan'
-    },
-    isMember: true,
-    isOwner: false,
-    isAdmin: false,
-    category: '科技',
-    tags: ['Vue', '前端', 'JavaScript']
-  },
-  {
-    id: 3,
-    name: '摄影爱好者俱乐部',
-    description:
-      '分享摄影作品、交流拍摄技巧，不定期组织线下采风活动。',
-    avatar:
-      'https://api.dicebear.com/7.x/identicon/svg?seed=photo',
-    coverImage: 'https://picsum.photos/800/200?random=3',
-    privacy: 'private',
-    memberCount: 567,
-    postCount: 1234,
-    createdAt: '2024-03-10T14:00:00Z',
-    owner: {
-      id: 999,
-      username: 'currentuser',
-      nickname: '当前用户',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=currentuser'
-    },
-    isMember: true,
-    isOwner: true,
-    isAdmin: true,
-    category: '艺术',
-    tags: ['摄影', '风光', '人像']
-  },
-  {
-    id: 5,
-    name: '健身打卡小组',
-    description: '每日健身打卡，互相监督，一起变得更强！',
-    avatar:
-      'https://api.dicebear.com/7.x/identicon/svg?seed=fitness',
-    coverImage: 'https://picsum.photos/800/200?random=5',
-    privacy: 'public',
-    memberCount: 2100,
-    postCount: 3456,
-    createdAt: '2024-05-01T06:00:00Z',
-    owner: {
-      id: 5,
-      username: 'fitnessguru',
-      nickname: '健身达人',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=fitnessguru'
-    },
-    isMember: true,
-    isOwner: false,
-    isAdmin: true,
-    category: '生活',
-    tags: ['健身', '运动', '打卡']
-  }
-]);
+const filters = ref<GroupFiltersData>({
+  search: '',
+  privacy: 'all',
+  category: 'all',
+  sortBy: 'newest'
+});
 
-// 模拟成员数据
-const mockMembers: GroupMember[] = [
-  {
-    id: 1,
-    userId: 999,
-    username: 'currentuser',
-    nickname: '当前用户',
-    avatar:
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=currentuser',
-    role: 'owner',
-    joinedAt: '2024-03-10T14:00:00Z'
-  },
-  {
-    id: 2,
-    userId: 2,
-    username: 'member1',
-    nickname: '成员一',
-    avatar:
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=member1',
-    role: 'admin',
-    joinedAt: '2024-03-15T10:00:00Z'
-  },
-  {
-    id: 3,
-    userId: 3,
-    username: 'member2',
-    nickname: '成员二',
-    avatar:
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=member2',
-    role: 'member',
-    joinedAt: '2024-04-01T14:00:00Z'
-  }
-];
+const groupList = useGroupList({
+  mode: 'mine',
+  filters
+});
+const groupDetail = useGroupDetail();
 
-// 模拟帖子数据
-const mockPosts: GroupPost[] = [
-  {
-    id: 1,
-    content:
-      '今天的摄影作品分享！在日落时分拍摄的城市天际线。',
-    author: {
-      id: 999,
-      username: 'currentuser',
-      nickname: '当前用户',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=currentuser',
-      role: 'owner'
-    },
-    media: [
-      {
-        type: 'image',
-        url: 'https://picsum.photos/800/600?random=20'
-      }
-    ],
-    isPinned: true,
-    likeCount: 89,
-    commentCount: 23,
-    isLiked: false,
-    createdAt: '2024-12-15T18:00:00Z'
-  }
-];
-
-// 状态
-const loading = ref(false);
-const detailModalOpen = ref(false);
+const groups = groupList.groups;
+const loading = groupList.loading;
+const detailModalOpen = groupDetail.open;
 const createModalOpen = ref(false);
-const selectedGroup = ref<Group | null>(null);
+const selectedGroup = groupDetail.selectedGroup;
+const members = groupDetail.members;
+const posts = groupDetail.posts;
 
-// 事件处理
-const handleLeave = (id: number) => {
-  const index = myGroups.value.findIndex(g => g.id === id);
-  if (index !== -1) {
-    myGroups.value.splice(index, 1);
+function syncSelectedGroup(groupId: number): void {
+  if (selectedGroup.value?.id !== groupId) return;
+  const updated = groups.value.find(
+    group => group.id === groupId
+  );
+  if (updated) selectedGroup.value = updated;
+}
+
+onMounted(() => {
+  void groupList.refresh();
+});
+
+watch(detailModalOpen, isOpen => {
+  if (!isOpen) groupDetail.close();
+});
+
+async function handleLeave(id: number): Promise<void> {
+  try {
+    await groupList.leave(id);
+    syncSelectedGroup(id);
     toast.success('已离开群组');
+  } catch (error) {
+    toast.error('离开群组失败', {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
   }
-};
+}
 
-const handleViewDetail = (group: Group) => {
-  selectedGroup.value = group;
-  detailModalOpen.value = true;
-};
+async function handleViewDetail(group: Group): Promise<void> {
+  await groupDetail.openGroup(group);
+}
 
-const handleSettings = (id: number) => {
+function handleSettings(_id: number): void {
   toast.info('群组设置功能开发中...');
-};
+}
 
-const handleRefresh = () => {
-  loading.value = true;
-  setTimeout(() => {
-    loading.value = false;
-    toast.success('列表已刷新');
-  }, 1000);
-};
+async function handleRefresh(): Promise<void> {
+  await groupList.refresh();
+  toast.success(
+    groupList.error.value ? '刷新失败' : '列表已刷新'
+  );
+}
 
-const handleLoadMore = () => {
-  toast.info('没有更多群组了');
-};
+async function handleLoadMore(): Promise<void> {
+  if (!groupList.hasNext.value) {
+    toast.info('没有更多群组了');
+    return;
+  }
+  await groupList.loadMore();
+}
 
-const handleCreate = () => {
+function handleCreate(): void {
   createModalOpen.value = true;
-};
+}
 
-const handleCreateSubmit = (data: CreateGroupData) => {
-  const newGroup: Group = {
-    id: myGroups.value.length + 100,
-    name: data.name,
-    description: data.description,
-    avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${data.name}`,
-    privacy: data.privacy,
-    memberCount: 1,
-    postCount: 0,
-    createdAt: new Date().toISOString(),
-    owner: {
-      id: 999,
-      username: 'currentuser',
-      nickname: '当前用户',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=currentuser'
-    },
-    isMember: true,
-    isOwner: true,
-    isAdmin: true,
-    category: data.category
-  };
-  myGroups.value.unshift(newGroup);
-};
+async function handleCreateSubmit(
+  data: CreateGroupData
+): Promise<void> {
+  try {
+    await groupList.create(data);
+    toast.success('群组创建成功！');
+  } catch (error) {
+    toast.error('群组创建失败', {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  }
+}
 
-const handleInvite = (id: number) => {
-  toast.success('邀请链接已复制到剪贴板');
-};
+async function handleInvite(id: number): Promise<void> {
+  try {
+    const inviteUrl = await groupDetail.createInvite(id);
+    toast.success(
+      inviteUrl ? '邀请链接已复制' : '邀请已创建'
+    );
+  } catch (error) {
+    toast.error('创建邀请失败', {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  }
+}
 </script>
 
 <template>
   <div class="space-y-6">
     <!-- 群组列表 -->
     <GroupList
-      :groups="myGroups"
+      :groups="groups"
       :loading="loading"
       :show-create-button="true"
       @leave="handleLeave"
@@ -240,8 +135,8 @@ const handleInvite = (id: number) => {
     <GroupDetailModal
       v-model:open="detailModalOpen"
       :group="selectedGroup"
-      :members="mockMembers"
-      :posts="mockPosts"
+      :members="members"
+      :posts="posts"
       @leave="handleLeave"
       @settings="handleSettings"
       @invite="handleInvite"
