@@ -96,7 +96,9 @@ async function v2ReadCreatePostPayload(
     repost_of_post_id: v2RequiredOptionalNumber(
       body.repost_of_post_id
     ),
-    quoted_post_id: v2RequiredOptionalNumber(body.quoted_post_id),
+    quoted_post_id: v2RequiredOptionalNumber(
+      body.quoted_post_id
+    ),
     location: v2String(body.location)
   };
 }
@@ -219,7 +221,11 @@ export async function v2CreatePost(
     ...(await v2ReadCreatePostPayload(event)),
     ...override
   };
-  return await v2CreatePostFromPayload(event, connection, payload);
+  return await v2CreatePostFromPayload(
+    event,
+    connection,
+    payload
+  );
 }
 
 async function v2CreatePostFromPayload(
@@ -296,8 +302,14 @@ async function v2CreatePostFromPayload(
   );
 
   return v2Ok(
-    await v2RequirePostById(connection, auth.userId, postId),
-    postType === 'repost' ? 'retweet created' : 'post created'
+    await v2RequirePostById(
+      connection,
+      auth.userId,
+      postId
+    ),
+    postType === 'repost'
+      ? 'retweet created'
+      : 'post created'
   );
 }
 
@@ -337,7 +349,9 @@ async function v2AttachPostTags(
 ): Promise<void> {
   const uniqueTags = [
     ...new Set(
-      tagNames.map(tag => tag.replace(/^#/, '').trim()).filter(Boolean)
+      tagNames
+        .map(tag => tag.replace(/^#/, '').trim())
+        .filter(Boolean)
     )
   ].slice(0, 20);
   for (const tag of uniqueTags) {
@@ -439,7 +453,8 @@ export async function v2DeletePost(
     `,
     { post_id: postId }
   );
-  if (!row || v2Boolean(row.IS_DELETED)) v2NotFound('帖子不存在');
+  if (!row || v2Boolean(row.IS_DELETED))
+    v2NotFound('帖子不存在');
   if (v2Number(row.AUTHOR_ID) !== auth.userId) {
     v2Unprocessable('只能删除自己的帖子');
   }
@@ -669,7 +684,9 @@ export async function v2ListComments(
     }
   );
   const comments = await Promise.all(
-    rows.map(row => v2MapComment(connection, auth.userId, row))
+    rows.map(row =>
+      v2MapComment(connection, auth.userId, row)
+    )
   );
   return v2Ok(
     comments,
@@ -691,7 +708,10 @@ export async function v2CreateComment(
       body.parent_comment_id
     )
   };
-  const commentId = await v2NextId(connection, 'seq_comment_id');
+  const commentId = await v2NextId(
+    connection,
+    'seq_comment_id'
+  );
   let rootCommentId: number | null = null;
   if (payload.parent_comment_id) {
     const parent = await v2One(
@@ -783,7 +803,8 @@ export async function v2DeleteComment(
     `,
     { comment_id: commentId }
   );
-  if (!row || v2Boolean(row.IS_DELETED)) v2NotFound('评论不存在');
+  if (!row || v2Boolean(row.IS_DELETED))
+    v2NotFound('评论不存在');
   if (v2Number(row.USER_ID) !== auth.userId) {
     v2Unprocessable('只能删除自己的评论');
   }
@@ -875,7 +896,8 @@ export async function v2PostAnalytics(
     replies_count: v2Number(row.REPLIES_COUNT),
     retweets_count: v2Number(row.RETWEETS_COUNT),
     engagement_score: v2Number(row.ENGAGEMENT_SCORE),
-    like_rate: views > 0 ? Number((likes / views).toFixed(4)) : 0
+    like_rate:
+      views > 0 ? Number((likes / views).toFixed(4)) : 0
   });
 }
 
@@ -975,6 +997,8 @@ export async function v2RecommendationFeedback(
   return v2Ok({ accepted: true });
 }
 
-export function v2NullablePostIdFromPath(value: string): number {
+export function v2NullablePostIdFromPath(
+  value: string
+): number {
   return v2RequiredNumber(value, 'post_id');
 }
