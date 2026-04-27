@@ -14,6 +14,7 @@ import type {
   V2PasswordResetPayload,
   V2RegistrationPayload,
   V2SessionItem,
+  V2SelfUser,
   V2TokenData
 } from '@/types/v2';
 
@@ -43,10 +44,10 @@ export async function v2VerifyOtp(
 
 export async function v2Register(
   payload: V2RegistrationPayload
-) {
+): Promise<{ user: V2SelfUser }> {
   return await v2RequestData<
     {
-      user: import('./types').V2SelfUser;
+      user: V2SelfUser;
     },
     V2RegistrationPayload
   >('/api/v2/auth/registration', {

@@ -13,7 +13,7 @@ export function useNotificationMailbox(
 ) {
   const page = ref(1);
   const pageSize = ref(filters.pageSize ?? 10);
-  const notifications = ref<V2Notification[]>([]);
+  const notifications = shallowRef<V2Notification[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
   const hasNext = ref(false);

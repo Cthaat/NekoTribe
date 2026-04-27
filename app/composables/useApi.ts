@@ -1,9 +1,13 @@
 import { getCurrentInstance } from 'vue';
 import type { FetchError } from 'ofetch';
 
-type ApiFetchOptions = NonNullable<
+export type ApiFetchOptions = NonNullable<
   Parameters<typeof $fetch>[1]
 >;
+export type ApiFetchBody =
+  ApiFetchOptions extends { body?: infer TBody }
+    ? TBody | undefined
+    : never;
 type ApiFetchHeaders =
   ApiFetchOptions extends { headers?: infer THeaders }
     ? THeaders

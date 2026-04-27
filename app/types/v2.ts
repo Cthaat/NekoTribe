@@ -1,3 +1,10 @@
+export type V2Nullable<T> = T | null;
+export type V2Primitive = string | number | boolean | null;
+export type V2Json =
+  | V2Primitive
+  | V2Json[]
+  | { [key: string]: V2Json };
+
 export interface V2ApiMeta {
   page?: number;
   page_size?: number;

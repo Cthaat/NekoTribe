@@ -1,22 +1,9 @@
 import { useFetch } from '#app';
 import { getCurrentInstance, watch } from 'vue';
 
-type UseApiFetchOptions = NonNullable<
-  Parameters<typeof useFetch>[1]
+type UseApiFetchOptions<T> = NonNullable<
+  Parameters<typeof useFetch<T>>[1]
 >;
-type UseApiFetchHeaders =
-  UseApiFetchOptions extends { headers?: infer THeaders }
-    ? THeaders
-    : HeadersInit;
-type OnRequestContext = Parameters<
-  NonNullable<UseApiFetchOptions['onRequest']>
->[0];
-type OnResponseContext = Parameters<
-  NonNullable<UseApiFetchOptions['onResponse']>
->[0];
-type OnResponseErrorContext = Parameters<
-  NonNullable<UseApiFetchOptions['onResponseError']>
->[0] & { _is401?: boolean };
 
 interface ComponentDescriptor {
   name?: string;
@@ -28,6 +15,10 @@ interface StatusCarrier {
   status?: number;
   data?: { code?: number };
 }
+
+type AsyncHook<TContext> = (
+  context: TContext
+) => void | Promise<void>;
 
 function getComponentName(): string | undefined {
   const inst = getCurrentInstance();
@@ -54,26 +45,34 @@ function buildStackSource(): string {
   }
 }
 
-function headersToRecord(
-  headers: UseApiFetchHeaders | undefined
-): Record<string, string> {
+function headersToRecord(headers: unknown): Record<string, string> {
   if (!headers) {
     return {};
   }
+
   if (headers instanceof Headers) {
     return Object.fromEntries(headers.entries());
   }
+
   if (Array.isArray(headers)) {
     return Object.fromEntries(
-      headers.map(([key, value]) => [key, String(value)])
+      headers.map(entry => [
+        String(entry[0]),
+        String(entry[1])
+      ])
     );
   }
-  return Object.fromEntries(
-    Object.entries(headers).map(([key, value]) => [
-      key,
-      String(value)
-    ])
-  );
+
+  if (typeof headers === 'object') {
+    return Object.fromEntries(
+      Object.entries(headers).map(([key, value]) => [
+        key,
+        String(value)
+      ])
+    );
+  }
+
+  return {};
 }
 
 function toSafeHeaderValue(value: string): string {
@@ -94,13 +93,47 @@ function isRefreshPath(path: string): boolean {
   );
 }
 
+function getResponseStatus(context: unknown): number | undefined {
+  if (!context || typeof context !== 'object') {
+    return undefined;
+  }
+
+  if (!('response' in context)) {
+    return undefined;
+  }
+
+  const response = (
+    context as { response?: { status?: number } }
+  ).response;
+  return response?.status;
+}
+
+async function runHook<TContext>(
+  hook: unknown,
+  context: TContext
+): Promise<void> {
+  if (typeof hook === 'function') {
+    await (hook as AsyncHook<TContext>)(context);
+    return;
+  }
+
+  if (Array.isArray(hook)) {
+    for (const item of hook) {
+      if (typeof item === 'function') {
+        await (item as AsyncHook<TContext>)(context);
+      }
+    }
+  }
+}
+
 export function useApiFetch<T>(
   path: string,
-  options: UseApiFetchOptions = {} as UseApiFetchOptions
+  options: UseApiFetchOptions<T> = {} as UseApiFetchOptions<T>
 ) {
   const resolvedOptions = {
     ...options
-  } as UseApiFetchOptions;
+  } as UseApiFetchOptions<T>;
+
   const config = useRuntimeConfig();
   resolvedOptions.baseURL = config.public.apiBase;
 
@@ -146,12 +179,8 @@ export function useApiFetch<T>(
   resolvedOptions.credentials = 'include';
 
   const originalOnRequest = resolvedOptions.onRequest;
-  resolvedOptions.onRequest = async (
-    context: OnRequestContext
-  ) => {
-    if (originalOnRequest) {
-      await originalOnRequest(context);
-    }
+  resolvedOptions.onRequest = async context => {
+    await runHook(originalOnRequest, context);
 
     if (!isServer && !isRefreshPath(path)) {
       try {
@@ -181,37 +210,28 @@ export function useApiFetch<T>(
   };
 
   const originalOnResponse = resolvedOptions.onResponse;
-  resolvedOptions.onResponse = async (
-    context: OnResponseContext
-  ) => {
-    if (originalOnResponse) {
-      await originalOnResponse(context);
-    }
+  resolvedOptions.onResponse = async context => {
+    await runHook(originalOnResponse, context);
   };
 
   const originalOnResponseError =
     resolvedOptions.onResponseError;
-  resolvedOptions.onResponseError = async (
-    context: OnResponseErrorContext
-  ) => {
-    if (
-      context.response.status === 401 &&
-      !isRefreshPath(path)
-    ) {
-      context._is401 = true;
+  resolvedOptions.onResponseError = async context => {
+    if (getResponseStatus(context) === 401 && !isRefreshPath(path)) {
       return;
     }
 
-    if (originalOnResponseError) {
-      await originalOnResponseError(context);
-    }
+    await runHook(originalOnResponseError, context);
   };
 
   if (resolvedOptions.server === undefined) {
     resolvedOptions.server = false;
   }
 
-  const result = useFetch<T>(path, resolvedOptions);
+  const result = useFetch<T>(
+    path,
+    resolvedOptions as Parameters<typeof useFetch<T>>[1]
+  );
 
   if (!isServer) {
     const isRefreshing = ref(false);
@@ -236,7 +256,7 @@ export function useApiFetch<T>(
           !isRefreshing.value &&
           refreshAttempts < maxRefreshAttempts
         ) {
-          result.error.value = null;
+          result.error.value = undefined;
           isRefreshing.value = true;
           refreshAttempts += 1;
 

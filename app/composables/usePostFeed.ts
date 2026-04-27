@@ -13,7 +13,7 @@ export function usePostFeed(
 ) {
   const page = ref(1);
   const pageSize = ref(options.pageSize ?? 15);
-  const posts = ref<V2Post[]>([]);
+  const posts = shallowRef<V2Post[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
   const total = ref(0);
@@ -60,7 +60,9 @@ export function usePostFeed(
       post => post.post_id === postId
     );
     if (index === -1) return;
-    posts.value[index] = updater(posts.value[index]);
+    const currentPost = posts.value[index];
+    if (!currentPost) return;
+    posts.value[index] = updater(currentPost);
   }
 
   return {

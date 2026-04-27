@@ -1,4 +1,7 @@
-import { apiFetch } from '@/composables/useApi';
+import {
+  apiFetch,
+  type ApiFetchBody
+} from '@/composables/useApi';
 import type {
   V2ApiResponse,
   V2ApiMeta,
@@ -12,9 +15,10 @@ export type V2QueryValue =
   | ReadonlyArray<V2Primitive>;
 
 export type V2QueryParams = Record<string, V2QueryValue>;
+export type V2RequestBody = ApiFetchBody;
 
 export interface V2RequestOptions<
-  TBody = undefined,
+  TBody extends V2RequestBody = undefined,
   TQuery extends V2QueryParams = Record<never, never>
 > {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -25,7 +29,7 @@ export interface V2RequestOptions<
 
 export async function v2Request<
   TData,
-  TBody = undefined,
+  TBody extends V2RequestBody = undefined,
   TQuery extends V2QueryParams = Record<never, never>
 >(
   path: string,
@@ -41,7 +45,7 @@ export async function v2Request<
 
 export async function v2RequestData<
   TData,
-  TBody = undefined,
+  TBody extends V2RequestBody = undefined,
   TQuery extends V2QueryParams = Record<never, never>
 >(
   path: string,
