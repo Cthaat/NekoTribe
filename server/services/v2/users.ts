@@ -681,7 +681,13 @@ async function v2PublicUserPage(
   binds: Record<string, string | number | null>,
   page: ReturnType<typeof v2Page>
 ): Promise<V2Response<V2PublicUser[]>> {
-  const total = await v2Count(connection, countSql, binds);
+  const countBinds = { ...binds };
+  delete countBinds.viewer_id;
+  const total = await v2Count(
+    connection,
+    countSql,
+    countBinds
+  );
   const rows = await v2Rows(connection, sql, {
     ...binds,
     start_row: page.start,
