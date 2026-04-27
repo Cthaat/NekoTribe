@@ -36,10 +36,13 @@ export async function v2ListNotifications(
   const unreadOnly =
     v2QueryString(event, 'unread_only', 'false') === 'true';
   const showDeleted =
-    v2QueryString(event, 'show_deleted', 'false') === 'true';
+    v2QueryString(event, 'show_deleted', 'false') ===
+    'true';
   const filters = [
     'user_id = :user_id',
-    showDeleted ? 'deleted_at IS NOT NULL' : 'deleted_at IS NULL'
+    showDeleted
+      ? 'deleted_at IS NOT NULL'
+      : 'deleted_at IS NULL'
   ];
   const binds: Record<string, string | number> = {
     user_id: auth.userId
