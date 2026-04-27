@@ -185,7 +185,9 @@ async function handleSubmit() {
     new Set(
       Array.from(
         tweetContent.value.matchAll(/#([\p{L}\p{N}_]+)/gu)
-      ).map(match => match[1])
+      )
+        .map(match => match[1])
+        .filter((tag): tag is string => !!tag)
     )
   );
 

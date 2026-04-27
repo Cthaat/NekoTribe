@@ -1182,6 +1182,10 @@ export async function v2RelationshipList(
   const auth = v2Auth(event);
   const page = v2Page(event);
   const target = targetUserId ?? auth.userId;
+  const selectBinds = {
+    viewer_id: auth.userId,
+    target_user_id: target
+  };
   let source = '';
   if (kind === 'followers') {
     source = `
@@ -1221,18 +1225,31 @@ export async function v2RelationshipList(
     `;
   }
 
-  const binds = {
-    viewer_id: auth.userId,
-    target_user_id: target
-  };
+  const extractBindNames = (sql: string): string[] =>
+    Array.from(
+      new Set(
+        Array.from(sql.matchAll(/:([A-Za-z0-9_]+)/g))
+          .map(match => match[1])
+          .filter((name): name is string => !!name)
+      )
+    );
+  const pickBinds = (sql: string) =>
+    Object.fromEntries(
+      extractBindNames(sql)
+        .filter(
+          (name): name is keyof typeof selectBinds =>
+            name === 'viewer_id' ||
+            name === 'target_user_id'
+        )
+        .map(name => [name, selectBinds[name]])
+    );
+  const countSql = `SELECT COUNT(*) AS total FROM (${source})`;
   const total = await v2Count(
     connection,
-    `SELECT COUNT(*) AS total FROM (${source})`,
-    binds
+    countSql,
+    pickBinds(countSql)
   );
-  const rows = await v2Rows(
-    connection,
-    `
+  const listSql = `
     SELECT *
     FROM (
       SELECT
@@ -1255,13 +1272,12 @@ export async function v2RelationshipList(
       JOIN v_user_profile_public u ON u.user_id = rel.user_id
     )
     WHERE rn BETWEEN :start_row AND :end_row
-    `,
-    {
-      ...binds,
-      start_row: page.start,
-      end_row: page.end
-    }
-  );
+    `;
+  const rows = await v2Rows(connection, listSql, {
+    ...pickBinds(listSql),
+    start_row: page.start,
+    end_row: page.end
+  });
 
   return v2Ok(
     rows.map(row => ({
