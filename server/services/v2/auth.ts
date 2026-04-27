@@ -46,7 +46,9 @@ interface V2MailOptions {
   html: string;
 }
 
-async function v2SendMail(options: V2MailOptions): Promise<void> {
+async function v2SendMail(
+  options: V2MailOptions
+): Promise<void> {
   const runtimeConfig = useRuntimeConfig();
   const transporter = nodemailer.createTransport({
     host: runtimeConfig.smtpHost,
@@ -120,12 +122,15 @@ function v2ClearAuthCookies(event: H3Event): void {
   deleteCookie(event, 'refresh_token', { path: '/' });
 }
 
-function v2IsAuthPayload(value: unknown): value is V2AuthPayload {
+function v2IsAuthPayload(
+  value: unknown
+): value is V2AuthPayload {
   if (!value || typeof value !== 'object') return false;
   const payload = value as Record<string, unknown>;
   return (
     typeof payload.userId === 'number' &&
-    (payload.type === 'access' || payload.type === 'refresh')
+    (payload.type === 'access' ||
+      payload.type === 'refresh')
   );
 }
 
@@ -206,7 +211,9 @@ function v2VerifyRefreshToken(
   }
 }
 
-function v2OtpType(value: string): V2AuthOtpPayload['type'] {
+function v2OtpType(
+  value: string
+): V2AuthOtpPayload['type'] {
   if (
     value === 'register' ||
     value === 'password_reset' ||
@@ -354,7 +361,10 @@ export async function v2VerifyOtpCode(
     `,
     { verification_id: verificationId }
   );
-  return v2DateString(verified?.VERIFIED_AT) || new Date().toISOString();
+  return (
+    v2DateString(verified?.VERIFIED_AT) ||
+    new Date().toISOString()
+  );
 }
 
 async function v2EnsureVerifiedOtp(
@@ -419,17 +429,24 @@ export async function v2Register(
     email: v2RequiredString(body, 'email'),
     username: v2RequiredString(body, 'username'),
     password: v2RequiredString(body, 'password'),
-    confirm_password: v2RequiredString(body, 'confirm_password'),
+    confirm_password: v2RequiredString(
+      body,
+      'confirm_password'
+    ),
     display_name: v2RequiredString(body, 'display_name'),
     bio: v2String(body.bio),
     location: v2String(body.location),
     phone: v2String(body.phone),
     birth_date: v2String(body.birth_date),
-    verification_id: v2RequiredString(body, 'verification_id'),
+    verification_id: v2RequiredString(
+      body,
+      'verification_id'
+    ),
     agree_to_terms: body.agree_to_terms === true
   };
 
-  if (!payload.agree_to_terms) v2BadRequest('必须同意服务条款');
+  if (!payload.agree_to_terms)
+    v2BadRequest('必须同意服务条款');
   if (payload.password !== payload.confirm_password) {
     v2BadRequest('两次输入的密码不一致');
   }
@@ -494,7 +511,10 @@ export async function v2Register(
       user_id: userId,
       email: payload.email,
       username: payload.username,
-      password_hash: await bcrypt.hash(payload.password, 10),
+      password_hash: await bcrypt.hash(
+        payload.password,
+        10
+      ),
       display_name: payload.display_name,
       bio: payload.bio || null,
       location: payload.location || null,
@@ -561,7 +581,10 @@ export async function v2Login(
     userName: username,
     sessionId
   };
-  const accessToken = v2SignAccessToken(tokenPayload, accessJti);
+  const accessToken = v2SignAccessToken(
+    tokenPayload,
+    accessJti
+  );
   const refreshToken = v2SignRefreshToken(tokenPayload);
   const deviceInfo = v2String(
     getHeader(event, 'x-device-info'),
@@ -630,8 +653,10 @@ export async function v2Login(
       user: await v2RequireSelfUser(connection, userId),
       tokens: {
         session_id: sessionId,
-        access_token_expires_at: accessExpiresAt.toISOString(),
-        refresh_token_expires_at: refreshExpiresAt.toISOString()
+        access_token_expires_at:
+          accessExpiresAt.toISOString(),
+        refresh_token_expires_at:
+          refreshExpiresAt.toISOString()
       }
     },
     'login success'
@@ -722,7 +747,10 @@ export async function v2LogoutCurrent(
     try {
       return v2Auth(event);
     } catch {
-      const refreshToken = getCookie(event, 'refresh_token');
+      const refreshToken = getCookie(
+        event,
+        'refresh_token'
+      );
       return refreshToken
         ? v2VerifyRefreshToken(refreshToken)
         : null;
@@ -751,7 +779,10 @@ export async function v2PasswordReset(
   const body = await v2Body(event);
   const payload: V2PasswordResetPayload = {
     email: v2RequiredString(body, 'email'),
-    verification_id: v2RequiredString(body, 'verification_id'),
+    verification_id: v2RequiredString(
+      body,
+      'verification_id'
+    ),
     code: v2RequiredString(body, 'code'),
     new_password: v2RequiredString(body, 'new_password')
   };
@@ -770,7 +801,10 @@ export async function v2PasswordReset(
     WHERE email = :email
     `,
     {
-      password_hash: await bcrypt.hash(payload.new_password, 10),
+      password_hash: await bcrypt.hash(
+        payload.new_password,
+        10
+      ),
       email: payload.email
     }
   );
@@ -832,7 +866,8 @@ export async function v2ListSessions(
       last_accessed_at:
         v2DateString(row.LAST_ACCESSED_AT) || '',
       created_at: v2DateString(row.CREATED_AT) || '',
-      is_current: v2String(row.SESSION_ID) === auth.sessionId
+      is_current:
+        v2String(row.SESSION_ID) === auth.sessionId
     })),
     'success',
     {
@@ -862,7 +897,8 @@ export async function v2RevokeSession(
     { session_id: sessionId, user_id: auth.userId }
   );
   if (updated === 0) v2NotFound('会话不存在');
-  if (sessionId === auth.sessionId) v2ClearAuthCookies(event);
+  if (sessionId === auth.sessionId)
+    v2ClearAuthCookies(event);
   return v2Null('session revoked');
 }
 
@@ -885,15 +921,22 @@ export async function v2RevokeOtherSessions(
       session_id: auth.sessionId || ''
     }
   );
-  return v2Ok({ revoked_count: count }, 'other sessions revoked');
+  return v2Ok(
+    { revoked_count: count },
+    'other sessions revoked'
+  );
 }
 
-export function v2CurrentRefreshToken(event: H3Event): string | null {
+export function v2CurrentRefreshToken(
+  event: H3Event
+): string | null {
   return getCookie(event, 'refresh_token') ?? null;
 }
 
 export function v2SessionIdFromRefresh(
   refreshToken: string
 ): string | null {
-  return v2VerifyRefreshToken(refreshToken)?.sessionId ?? null;
+  return (
+    v2VerifyRefreshToken(refreshToken)?.sessionId ?? null
+  );
 }
