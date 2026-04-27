@@ -25,7 +25,10 @@ import {
   type V2DbRecord
 } from '~/server/utils/v2';
 
-function v2FirstField(fields: Fields<string>, key: string): string {
+function v2FirstField(
+  fields: Fields<string>,
+  key: string
+): string {
   return fields[key]?.[0] ?? '';
 }
 
@@ -54,38 +57,39 @@ async function v2UploadMultipartMedia(
     maxFileSize: STORAGE_MEDIA_MAX_SIZE
   });
 
-  return await new Promise<V2MediaAsset>((resolve, reject) => {
-    form.parse(
-      event.node.req,
-      async (error: Error | null, fields, files) => {
-        let storedMedia:
-          | Awaited<ReturnType<typeof storePostMediaFile>>
-          | null = null;
+  return await new Promise<V2MediaAsset>(
+    (resolve, reject) => {
+      form.parse(
+        event.node.req,
+        async (error: Error | null, fields, files) => {
+          let storedMedia: Awaited<
+            ReturnType<typeof storePostMediaFile>
+          > | null = null;
 
-        try {
-          if (error) {
-            reject(error);
-            return;
-          }
+          try {
+            if (error) {
+              reject(error);
+              return;
+            }
 
-          const file = v2FirstFile(files);
-          if (!file) {
-            reject(new Error('上传文件为空'));
-            return;
-          }
+            const file = v2FirstFile(files);
+            if (!file) {
+              reject(new Error('上传文件为空'));
+              return;
+            }
 
-          storedMedia = await storePostMediaFile(
-            auth.userId,
-            file
-          );
-          const mediaId = await v2NextId(
-            connection,
-            'seq_media_id'
-          );
+            storedMedia = await storePostMediaFile(
+              auth.userId,
+              file
+            );
+            const mediaId = await v2NextId(
+              connection,
+              'seq_media_id'
+            );
 
-          await v2Execute(
-            connection,
-            `
+            await v2Execute(
+              connection,
+              `
             INSERT INTO n_media_assets (
               media_id,
               owner_user_id,
@@ -118,59 +122,63 @@ async function v2UploadMultipartMedia(
               'ready'
             )
             `,
-            {
-              media_id: mediaId,
-              owner_user_id: auth.userId,
-              media_type: storedMedia.mediaType,
-              file_name: storedMedia.originalName,
-              storage_key: storedMedia.key,
-              public_url: storedMedia.url,
-              file_size: storedMedia.size,
-              mime_type: storedMedia.contentType,
-              width: storedMedia.metadata.width,
-              height: storedMedia.metadata.height,
-              duration: storedMedia.metadata.duration,
-              thumbnail_url: storedMedia.thumbnailUrl,
-              alt_text: v2FirstField(fields, 'alt_text') || null
-            },
-            false
-          );
+              {
+                media_id: mediaId,
+                owner_user_id: auth.userId,
+                media_type: storedMedia.mediaType,
+                file_name: storedMedia.originalName,
+                storage_key: storedMedia.key,
+                public_url: storedMedia.url,
+                file_size: storedMedia.size,
+                mime_type: storedMedia.contentType,
+                width: storedMedia.metadata.width,
+                height: storedMedia.metadata.height,
+                duration: storedMedia.metadata.duration,
+                thumbnail_url: storedMedia.thumbnailUrl,
+                alt_text:
+                  v2FirstField(fields, 'alt_text') || null
+              },
+              false
+            );
 
-          const row = await v2One(
-            connection,
-            `
+            const row = await v2One(
+              connection,
+              `
             SELECT *
             FROM n_media_assets
             WHERE media_id = :media_id
             `,
-            { media_id: mediaId }
-          );
+              { media_id: mediaId }
+            );
 
-          if (!row) {
-            reject(new Error('媒体记录创建失败'));
-            return;
+            if (!row) {
+              reject(new Error('媒体记录创建失败'));
+              return;
+            }
+
+            await connection.commit();
+            resolve(v2MapMedia(row));
+          } catch (caught) {
+            await connection
+              .rollback()
+              .catch(() => undefined);
+            if (storedMedia) {
+              await deleteStorageReference({
+                storageKey: storedMedia.key
+              }).catch(cleanupError => {
+                console.error(
+                  '清理上传失败的媒体文件时出错:',
+                  cleanupError
+                );
+              });
+            }
+
+            reject(caught);
           }
-
-          await connection.commit();
-          resolve(v2MapMedia(row));
-        } catch (caught) {
-          await connection.rollback().catch(() => undefined);
-          if (storedMedia) {
-            await deleteStorageReference({
-              storageKey: storedMedia.key
-            }).catch(cleanupError => {
-              console.error(
-                '清理上传失败的媒体文件时出错:',
-                cleanupError
-              );
-            });
-          }
-
-          reject(caught);
         }
-      }
-    );
-  });
+      );
+    }
+  );
 }
 
 async function v2CreateJsonMedia(
@@ -179,7 +187,10 @@ async function v2CreateJsonMedia(
 ): Promise<V2MediaAsset> {
   const auth = v2Auth(event);
   const body = await v2Body(event);
-  const mediaId = await v2NextId(connection, 'seq_media_id');
+  const mediaId = await v2NextId(
+    connection,
+    'seq_media_id'
+  );
 
   await v2Execute(
     connection,
@@ -231,11 +242,18 @@ async function v2CreateJsonMedia(
         body.mime_type,
         'application/octet-stream'
       ),
-      width: body.width === undefined ? null : v2Number(body.width),
+      width:
+        body.width === undefined
+          ? null
+          : v2Number(body.width),
       height:
-        body.height === undefined ? null : v2Number(body.height),
+        body.height === undefined
+          ? null
+          : v2Number(body.height),
       duration:
-        body.duration === undefined ? null : v2Number(body.duration),
+        body.duration === undefined
+          ? null
+          : v2Number(body.duration),
       thumbnail_url: v2StringOrNull(body.thumbnail_url),
       alt_text: v2StringOrNull(body.alt_text),
       status: v2String(body.status, 'ready')
@@ -263,7 +281,9 @@ export async function v2UploadMedia(
     return v2Ok(media, 'media uploaded');
   } catch (error) {
     v2BadRequest(
-      error instanceof Error ? error.message : '媒体上传失败'
+      error instanceof Error
+        ? error.message
+        : '媒体上传失败'
     );
   }
 }
