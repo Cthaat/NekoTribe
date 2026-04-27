@@ -9,6 +9,6 @@ export default defineV2Handler((event, connection) =>
     event,
     connection,
     v2RouterNumber(event, 'id'),
-    v2RouterNumber(event, 'member_id')
+    v2RouterNumber(event, 'user_id')
   )
 );
