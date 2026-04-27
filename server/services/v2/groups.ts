@@ -83,7 +83,9 @@ export async function v2ListGroups(
   const auth = v2Auth(event);
   const page = v2Page(event);
   const q = v2QueryString(event, 'q').trim().toLowerCase();
-  const privacy = v2StringOrNull(v2QueryString(event, 'privacy'));
+  const privacy = v2StringOrNull(
+    v2QueryString(event, 'privacy')
+  );
   const binds: Record<string, string | number | null> = {
     viewer_id: auth.userId,
     q: q ? `%${q}%` : null,
@@ -121,7 +123,9 @@ export async function v2ListGroups(
     }
   );
   const groups = await Promise.all(
-    rows.map(row => v2MapGroup(connection, auth.userId, row))
+    rows.map(row =>
+      v2MapGroup(connection, auth.userId, row)
+    )
   );
   return v2Ok(
     groups,
@@ -133,9 +137,14 @@ export async function v2ListGroups(
 export async function v2PopularGroups(
   event: H3Event,
   connection: oracledb.Connection
-): Promise<V2Response<(V2Group & { activity_score: number })[]>> {
+): Promise<
+  V2Response<(V2Group & { activity_score: number })[]>
+> {
   const auth = v2Auth(event);
-  const limit = Math.min(v2QueryNumber(event, 'limit', 10), 50);
+  const limit = Math.min(
+    v2QueryNumber(event, 'limit', 10),
+    50
+  );
   const rows = await v2Rows(
     connection,
     `
@@ -189,7 +198,9 @@ export async function v2MyGroups(
     }
   );
   const groups = await Promise.all(
-    rows.map(row => v2MapGroup(connection, auth.userId, row))
+    rows.map(row =>
+      v2MapGroup(connection, auth.userId, row)
+    )
   );
   return v2Ok(
     groups,
@@ -209,13 +220,18 @@ export async function v2CreateGroup(
     description: v2String(body.description),
     avatar_url: v2StringOrNull(body.avatar_url),
     cover_url: v2StringOrNull(body.cover_url),
-    privacy: v2Privacy(v2String(body.privacy, 'public')) as V2CreateGroupPayload['privacy'],
+    privacy: v2Privacy(
+      v2String(body.privacy, 'public')
+    ) as V2CreateGroupPayload['privacy'],
     join_approval: v2Boolean(body.join_approval),
     post_permission: v2PostPermission(
       v2String(body.post_permission, 'all')
     ) as V2CreateGroupPayload['post_permission']
   };
-  const groupId = await v2NextId(connection, 'seq_group_id');
+  const groupId = await v2NextId(
+    connection,
+    'seq_group_id'
+  );
   await v2Execute(
     connection,
     `
@@ -276,7 +292,11 @@ export async function v2GetGroupById(
   groupId: number
 ): Promise<V2Response<V2Group>> {
   return v2Ok(
-    await v2RequireGroup(connection, v2Auth(event).userId, groupId)
+    await v2RequireGroup(
+      connection,
+      v2Auth(event).userId,
+      groupId
+    )
   );
 }
 
@@ -297,7 +317,9 @@ export async function v2GetGroupBySlug(
     { slug }
   );
   if (!row) v2NotFound('群组不存在');
-  return v2Ok(await v2MapGroup(connection, auth.userId, row));
+  return v2Ok(
+    await v2MapGroup(connection, auth.userId, row)
+  );
 }
 
 export async function v2PatchGroup(
@@ -306,7 +328,14 @@ export async function v2PatchGroup(
   groupId: number
 ): Promise<V2Response<V2Group>> {
   const auth = v2Auth(event);
-  if (!(await v2GroupPermission(connection, auth.userId, groupId, 'admin'))) {
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'admin'
+    ))
+  ) {
     v2Unprocessable('无权修改群组');
   }
   const body = await v2Body(event);
@@ -314,7 +343,12 @@ export async function v2PatchGroup(
   const binds: Record<string, string | number | null> = {
     group_id: groupId
   };
-  for (const key of ['name', 'description', 'avatar_url', 'cover_url']) {
+  for (const key of [
+    'name',
+    'description',
+    'avatar_url',
+    'cover_url'
+  ]) {
     if (Object.hasOwn(body, key)) {
       clauses.push(`${key} = :${key}`);
       binds[key] = v2StringOrNull(body[key]);
@@ -370,7 +404,8 @@ export async function v2DeleteGroup(
     `,
     { group_id: groupId, owner_id: auth.userId }
   );
-  if (updated === 0) v2Unprocessable('只有群主可以解散群组');
+  if (updated === 0)
+    v2Unprocessable('只有群主可以解散群组');
   return v2Null('group deleted');
 }
 
@@ -559,7 +594,14 @@ export async function v2ApproveMember(
   memberId: number
 ): Promise<V2Response<V2GroupMemberStatusData>> {
   const auth = v2Auth(event);
-  if (!(await v2GroupPermission(connection, auth.userId, groupId, 'moderator'))) {
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'moderator'
+    ))
+  ) {
     v2Unprocessable('无权审批成员');
   }
   const body = await v2Body(event);
@@ -602,7 +644,14 @@ export async function v2RemoveMember(
   userId: number
 ): Promise<V2Response<null>> {
   const auth = v2Auth(event);
-  if (!(await v2GroupPermission(connection, auth.userId, groupId, 'moderator'))) {
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'moderator'
+    ))
+  ) {
     v2Unprocessable('无权移除成员');
   }
   await v2Execute(
@@ -630,7 +679,14 @@ export async function v2ChangeMemberRole(
   if (!['admin', 'moderator', 'member'].includes(role)) {
     v2BadRequest('role 参数错误');
   }
-  if (!(await v2GroupPermission(connection, auth.userId, groupId, 'admin'))) {
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'admin'
+    ))
+  ) {
     v2Unprocessable('无权修改角色');
   }
   await v2Execute(
@@ -655,8 +711,18 @@ export async function v2MuteMember(
 ): Promise<V2Response<V2GroupMemberStatusData>> {
   const auth = v2Auth(event);
   const body = await v2Body(event);
-  const hours = Math.max(v2Number(body.duration_hours, 24), 1);
-  if (!(await v2GroupPermission(connection, auth.userId, groupId, 'moderator'))) {
+  const hours = Math.max(
+    v2Number(body.duration_hours, 24),
+    1
+  );
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'moderator'
+    ))
+  ) {
     v2Unprocessable('无权禁言成员');
   }
   await v2Execute(
@@ -703,7 +769,14 @@ export async function v2UnmuteMember(
   userId: number
 ): Promise<V2Response<V2GroupMemberStatusData>> {
   const auth = v2Auth(event);
-  if (!(await v2GroupPermission(connection, auth.userId, groupId, 'moderator'))) {
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'moderator'
+    ))
+  ) {
     v2Unprocessable('无权解除禁言');
   }
   await v2Execute(
@@ -728,7 +801,9 @@ export async function v2TransferOwnership(
   event: H3Event,
   connection: oracledb.Connection,
   groupId: number
-): Promise<V2Response<{ group_id: number; owner_id: number }>> {
+): Promise<
+  V2Response<{ group_id: number; owner_id: number }>
+> {
   const auth = v2Auth(event);
   const body = await v2Body(event);
   const newOwnerId = v2RequiredNumber(
@@ -851,7 +926,9 @@ export async function v2GroupPosts(
     }
   );
   const posts = await Promise.all(
-    rows.map(row => v2MapGroupPost(connection, auth.userId, row))
+    rows.map(row =>
+      v2MapGroupPost(connection, auth.userId, row)
+    )
   );
   return v2Ok(
     posts,
@@ -868,14 +945,20 @@ export async function v2CreateGroupPost(
   const auth = v2Auth(event);
   const body = await v2Body(event);
   const content = v2RequiredString(body, 'content');
-  const mediaUrls = v2StringArray(body.media_urls).join(',');
+  const mediaUrls = v2StringArray(body.media_urls).join(
+    ','
+  );
   const allowed = await v2One(
     connection,
     'SELECT fn_can_post_in_group(:user_id, :group_id) AS allowed FROM dual',
     { user_id: auth.userId, group_id: groupId }
   );
-  if (!v2Boolean(allowed?.ALLOWED)) v2Unprocessable('无权发帖');
-  const postId = await v2NextId(connection, 'seq_group_post_id');
+  if (!v2Boolean(allowed?.ALLOWED))
+    v2Unprocessable('无权发帖');
+  const postId = await v2NextId(
+    connection,
+    'seq_group_post_id'
+  );
   await v2Execute(
     connection,
     `
@@ -902,7 +985,12 @@ export async function v2CreateGroupPost(
     }
   );
   return v2Ok(
-    await v2RequireGroupPost(connection, auth.userId, groupId, postId),
+    await v2RequireGroupPost(
+      connection,
+      auth.userId,
+      groupId,
+      postId
+    ),
     'group post created'
   );
 }
@@ -927,7 +1015,11 @@ export async function v2RequireGroupPost(
       AND v.post_id = :post_id
       AND v.is_deleted = 0
     `,
-    { viewer_id: viewerId, group_id: groupId, post_id: postId }
+    {
+      viewer_id: viewerId,
+      group_id: groupId,
+      post_id: postId
+    }
   );
   if (!row) v2NotFound('群组帖子不存在');
   return await v2MapGroupPost(connection, viewerId, row);
@@ -970,7 +1062,12 @@ export async function v2DeleteGroupPost(
   if (!post) v2NotFound('群组帖子不存在');
   if (
     v2Number(post.AUTHOR_ID) !== auth.userId &&
-    !(await v2GroupPermission(connection, auth.userId, groupId, 'moderator'))
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'moderator'
+    ))
   ) {
     v2Unprocessable('无权删除帖子');
   }
@@ -1003,9 +1100,18 @@ export async function v2SetGroupPostPin(
   connection: oracledb.Connection,
   groupId: number,
   postId: number
-): Promise<V2Response<{ post_id: number; is_pinned: boolean }>> {
+): Promise<
+  V2Response<{ post_id: number; is_pinned: boolean }>
+> {
   const auth = v2Auth(event);
-  if (!(await v2GroupPermission(connection, auth.userId, groupId, 'moderator'))) {
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'moderator'
+    ))
+  ) {
     v2Unprocessable('无权置顶帖子');
   }
   const body = await v2Body(event);
@@ -1103,7 +1209,11 @@ async function v2MapGroupComment(
         ? null
         : v2Number(row.PARENT_COMMENT_ID),
     reply_to_user: replyToId
-      ? await v2RequirePublicUser(connection, viewerId, replyToId)
+      ? await v2RequirePublicUser(
+          connection,
+          viewerId,
+          replyToId
+        )
       : null,
     content: v2String(row.CONTENT),
     likes_count: v2Number(row.LIKES_COUNT),
@@ -1156,7 +1266,9 @@ export async function v2GroupComments(
     }
   );
   const comments = await Promise.all(
-    rows.map(row => v2MapGroupComment(connection, auth.userId, row))
+    rows.map(row =>
+      v2MapGroupComment(connection, auth.userId, row)
+    )
   );
   return v2Ok(
     comments,
@@ -1175,13 +1287,21 @@ export async function v2CreateGroupComment(
   const payload: V2CreateGroupCommentPayload = {
     content: v2RequiredString(body, 'content'),
     parent_comment_id:
-      body.parent_comment_id === undefined || body.parent_comment_id === null
+      body.parent_comment_id === undefined ||
+      body.parent_comment_id === null
         ? null
-        : v2RequiredNumber(body.parent_comment_id, 'parent_comment_id'),
+        : v2RequiredNumber(
+            body.parent_comment_id,
+            'parent_comment_id'
+          ),
     reply_to_user_id:
-      body.reply_to_user_id === undefined || body.reply_to_user_id === null
+      body.reply_to_user_id === undefined ||
+      body.reply_to_user_id === null
         ? null
-        : v2RequiredNumber(body.reply_to_user_id, 'reply_to_user_id')
+        : v2RequiredNumber(
+            body.reply_to_user_id,
+            'reply_to_user_id'
+          )
   };
   const commentId = await v2NextId(
     connection,
@@ -1327,7 +1447,10 @@ export async function v2LikeGroupComment(
 }
 
 function v2InviteCode(): string {
-  return Math.random().toString(36).slice(2, 10).toUpperCase();
+  return Math.random()
+    .toString(36)
+    .slice(2, 10)
+    .toUpperCase();
 }
 
 export async function v2CreateGroupInvite(
@@ -1339,14 +1462,22 @@ export async function v2CreateGroupInvite(
   const body = await v2Body(event);
   const payload: V2CreateGroupInvitePayload = {
     invitee_id:
-      body.invitee_id === undefined || body.invitee_id === null
+      body.invitee_id === undefined ||
+      body.invitee_id === null
         ? null
         : v2RequiredNumber(body.invitee_id, 'invitee_id'),
     max_uses: v2Number(body.max_uses, 1),
     expire_hours: v2Number(body.expire_hours, 168),
     message: v2String(body.message)
   };
-  if (!(await v2GroupPermission(connection, auth.userId, groupId, 'member'))) {
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'member'
+    ))
+  ) {
     v2Unprocessable('无权创建邀请');
   }
   const inviteId = await v2NextId(
@@ -1428,7 +1559,11 @@ async function v2MapInvite(
       v2Number(row.INVITER_ID)
     ),
     invitee: inviteeId
-      ? await v2RequirePublicUser(connection, viewerId, inviteeId)
+      ? await v2RequirePublicUser(
+          connection,
+          viewerId,
+          inviteeId
+        )
       : null,
     is_valid: v2Boolean(row.IS_VALID)
   };
@@ -1468,7 +1603,9 @@ export async function v2GroupInvites(
     }
   );
   const invites = await Promise.all(
-    rows.map(row => v2MapInvite(connection, auth.userId, row))
+    rows.map(row =>
+      v2MapInvite(connection, auth.userId, row)
+    )
   );
   return v2Ok(
     invites,
@@ -1580,7 +1717,14 @@ export async function v2AuditLogs(
 ): Promise<V2Response<V2GroupAuditLog[]>> {
   const auth = v2Auth(event);
   const page = v2Page(event);
-  if (!(await v2GroupPermission(connection, auth.userId, groupId, 'moderator'))) {
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'moderator'
+    ))
+  ) {
     v2Unprocessable('无权查看审计日志');
   }
   const total = await v2Count(
