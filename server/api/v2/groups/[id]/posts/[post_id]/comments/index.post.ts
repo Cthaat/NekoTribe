@@ -1,6 +1,13 @@
 import { v2CreateGroupComment } from '~/server/services/v2/groups';
-import { defineV2Handler, v2RouterNumber } from '~/server/utils/v2';
+import {
+  defineV2Handler,
+  v2RouterNumber
+} from '~/server/utils/v2';
 
 export default defineV2Handler((event, connection) =>
-  v2CreateGroupComment(event, connection, v2RouterNumber(event, 'post_id'))
+  v2CreateGroupComment(
+    event,
+    connection,
+    v2RouterNumber(event, 'post_id')
+  )
 );
