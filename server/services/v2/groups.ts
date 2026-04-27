@@ -76,6 +76,33 @@ async function v2GroupPermission(
   return v2Boolean(row?.ALLOWED);
 }
 
+async function v2ValidGroupInvite(
+  connection: oracledb.Connection,
+  userId: number,
+  groupId: number,
+  inviteCode: string
+): Promise<V2DbRecord | null> {
+  return await v2One(
+    connection,
+    `
+    SELECT invite_id, inviter_id
+    FROM n_group_invites
+    WHERE group_id = :group_id
+      AND invite_code = :invite_code
+      AND status = 'pending'
+      AND (invitee_id IS NULL OR invitee_id = :user_id)
+      AND (max_uses IS NULL OR used_count < max_uses)
+      AND (expires_at IS NULL OR expires_at >= SYSTIMESTAMP)
+    FETCH FIRST 1 ROWS ONLY
+    `,
+    {
+      group_id: groupId,
+      invite_code: inviteCode,
+      user_id: userId
+    }
+  );
+}
+
 export async function v2ListGroups(
   event: H3Event,
   connection: oracledb.Connection
@@ -424,7 +451,8 @@ export async function v2JoinGroup(
 > {
   const auth = v2Auth(event);
   const body = await v2Body(event);
-  const inviteCode = v2StringOrNull(body.invite_code);
+  const inviteCode =
+    v2StringOrNull(body.invite_code)?.trim() || null;
   const exists = await v2Count(
     connection,
     `
@@ -449,13 +477,36 @@ export async function v2JoinGroup(
     { group_id: groupId }
   );
   if (!group) v2NotFound('群组不存在');
-  const status =
-    v2String(group.PRIVACY) === 'public' &&
-    v2Number(group.JOIN_APPROVAL) === 0
-      ? 'active'
-      : inviteCode
-        ? 'active'
-        : 'pending';
+
+  const privacy = v2String(group.PRIVACY);
+  const requiresApproval =
+    privacy !== 'public' ||
+    v2Number(group.JOIN_APPROVAL) === 1;
+  let status = requiresApproval ? 'pending' : 'active';
+  let invitedBy: number | null = null;
+
+  if (inviteCode) {
+    const invite = await v2ValidGroupInvite(
+      connection,
+      auth.userId,
+      groupId,
+      inviteCode
+    );
+    if (!invite) v2Unprocessable('邀请码无效或已过期');
+    status = 'active';
+    invitedBy = v2Number(invite.INVITER_ID);
+    await v2Execute(
+      connection,
+      `
+      UPDATE n_group_invites
+      SET used_count = used_count + 1
+      WHERE invite_id = :invite_id
+      `,
+      { invite_id: v2Number(invite.INVITE_ID) }
+    );
+  } else if (privacy === 'secret') {
+    v2Unprocessable('该群组仅限邀请加入');
+  }
 
   const memberId = await v2NextId(
     connection,
@@ -469,20 +520,23 @@ export async function v2JoinGroup(
       group_id,
       user_id,
       role,
-      status
+      status,
+      invited_by
     ) VALUES (
       :member_id,
       :group_id,
       :user_id,
       'member',
-      :status
+      :status,
+      :invited_by
     )
     `,
     {
       member_id: memberId,
       group_id: groupId,
       user_id: auth.userId,
-      status
+      status,
+      invited_by: invitedBy
     }
   );
   return v2Ok(
