@@ -1,5 +1,6 @@
-<script setup>
+<script setup lang="ts">
 import TweetCard from '@/components/TweetCard.vue';
+import type { V2Post } from '@/types/v2';
 import {
   Pagination,
   PaginationContent,
@@ -10,12 +11,9 @@ import {
 } from '@/components/ui/pagination';
 
 // 接收父组件传来的数据
-const props = defineProps({
-  tweets: {
-    type: Array,
-    required: true
-  }
-});
+const props = defineProps<{
+  tweets: V2Post[];
+}>();
 
 const emit = defineEmits([
   'delete-tweet',
@@ -25,45 +23,51 @@ const emit = defineEmits([
   'bookmark-tweet'
 ]);
 
-function handleDeleteTweet(tweetId) {
+function handleDeleteTweet(tweetId: number) {
   emit('delete-tweet', tweetId);
 }
 
-function handleReplyTweet(tweet) {
+function handleReplyTweet(tweet: V2Post) {
   emit('reply-tweet', tweet);
 }
 
-function handleRetweetTweet(tweet) {
+function handleRetweetTweet(tweet: V2Post) {
   emit('retweet-tweet', tweet);
 }
 
-function handleLikeTweet(tweet, action) {
+function handleLikeTweet(
+  tweet: V2Post,
+  action: 'like' | 'unlike'
+) {
   emit('like-tweet', tweet, action);
 }
 
-function handleBookmarkTweet(tweet, action) {
-  console.log('Bookmark tweet:', tweet.tweetId, action);
+function handleBookmarkTweet(
+  tweet: V2Post,
+  action: 'mark' | 'unmark'
+) {
   emit('bookmark-tweet', tweet, action);
 }
-
-console.log(
-  'TweetList component initialized with tweets:',
-  props.tweets
-);
 </script>
 
 <template>
   <div class="bg-background">
-    <div v-for="tweet in props.tweets" :key="tweet.id">
+    <div
+      v-for="tweet in props.tweets"
+      :key="tweet.post_id"
+    >
       <TweetCard
         @delete-tweet="handleDeleteTweet"
         @reply-tweet="handleReplyTweet"
         @retweet-tweet="handleRetweetTweet"
         @like-tweet="handleLikeTweet"
         @bookmark-tweet="handleBookmarkTweet"
-        :key="tweet.id"
+        :key="tweet.post_id"
         :tweet="tweet"
       />
     </div>
   </div>
 </template>
+
+
+

@@ -53,7 +53,6 @@ const mockComments = ref([
   }
 ]);
 
-console.log('模拟评论数据:', mockComments.value);
 const postId = ref('my-awesome-post-123');
 </script>
 

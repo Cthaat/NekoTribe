@@ -2,9 +2,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
-import { apiFetch } from '@/composables/useApi';
+import {
+  v2GetMe,
+  v2GetUserAnalytics
+} from '@/services';
 import { toast } from 'vue-sonner';
-import { Progress } from '@/components/ui/progress';
 import { useI18n } from 'vue-i18n';
 
 const preferenceStore = usePreferenceStore();
@@ -14,8 +16,21 @@ const { t } = useI18n();
 
 const localePath = useLocalePath();
 
-// 假设这是从 API 获取的用户数据
-const user = ref<any>({
+interface AccountHeaderUser {
+  name: string;
+  title: string;
+  location: string;
+  email: string;
+  avatar: string;
+  stats: {
+    followersCount: number;
+    followingCount: number;
+    likesCount: number;
+  };
+  point: number;
+}
+
+const user = ref<AccountHeaderUser>({
   name: '',
   title: '',
   location: '',
@@ -71,60 +86,25 @@ const activeTab = ref('Overview');
 
 onMounted(async () => {
   try {
-    const response = (await apiFetch('/api/v1/users/me', {
-      method: 'GET'
-    })) as { data?: { userData?: { userInfo?: any } } };
-
-    user.value.name =
-      response.data?.userData?.userInfo?.username || '';
-    user.value.title =
-      response.data?.userData?.userInfo?.displayName || '';
-    user.value.location =
-      response.data?.userData?.userInfo?.location || '';
-    user.value.email =
-      response.data?.userData?.userInfo?.email || '';
-    user.value.avatar =
-      response.data?.userData?.userInfo?.avatarUrl || '';
-
-    console.log('Fetched user info:', user);
+    const me = await v2GetMe();
+    user.value.name = me.username;
+    user.value.title = me.display_name;
+    user.value.location = me.location;
+    user.value.email = me.email;
+    user.value.avatar = me.avatar_url;
+    user.value.stats.followersCount = me.followers_count;
+    user.value.stats.followingCount = me.following_count;
+    user.value.stats.likesCount = me.likes_count;
   } catch (error) {
     console.error('Error fetching user info:', error);
     toast.error('Failed to fetch user info.');
   }
 
   try {
-    const response = (await apiFetch(
-      `/api/v1/users/${preferenceStore.preferences.user.userId}/stats`,
-      {
-        method: 'GET'
-      }
-    )) as { data?: { userData?: { userInfo?: any } } };
-
-    user.value.stats.followersCount =
-      response.data?.userData?.userInfo?.followersCount ||
-      0;
-    user.value.stats.followingCount =
-      response.data?.userData?.userInfo?.followingCount ||
-      0;
-    user.value.stats.likesCount =
-      response.data?.userData?.userInfo?.likesCount || 0;
-
-    console.log('Fetched user info analytics:', user);
-  } catch (error) {
-    console.error('Error fetching user info:', error);
-    toast.error('Failed to fetch user info.');
-  }
-
-  try {
-    const response = (await apiFetch(
-      `/api/v1/analytics/users/${preferenceStore.preferences.user.userId}/stats`,
-      {
-        method: 'GET'
-      }
-    )) as { data?: { user?: any } };
-
-    user.value.point =
-      response.data?.user.engagementScore || 0;
+    const analytics = await v2GetUserAnalytics(
+      preferenceStore.preferences.user.user_id
+    );
+    user.value.point = analytics.engagement_score;
   } catch (error) {
     console.error('Error fetching user analytics:', error);
     toast.error('Failed to fetch user analytics.');
@@ -162,3 +142,4 @@ onMounted(async () => {
     </div>
   </div>
 </template>
+

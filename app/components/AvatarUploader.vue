@@ -7,7 +7,7 @@ import {
   AvatarImage
 } from '@/components/ui/avatar';
 import { Loader2 } from 'lucide-vue-next';
-import { apiFetch } from '@/composables/useApi';
+import { v2UpdateAvatar } from '@/services';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
 
 // --- Props & Emits ---
@@ -18,11 +18,6 @@ const props = defineProps({
       avatar: string;
     }>,
     required: true
-  },
-  // 上传的目标 API 端点
-  uploadUrl: {
-    type: String,
-    default: '/api/v1/users/avatar-upload' // 提供一个默认值
   }
 });
 
@@ -79,25 +74,15 @@ const uploadAvatar = async (file: File) => {
   formData.append('avatar', file); // 'avatar' 这个键名需要和后端约定好
 
   try {
-    // 发起 API 请求
-    const response = (await apiFetch(
-      '/api/v1/users/me/avatar',
-      {
-        method: 'POST',
-        body: formData
-        // 注意：使用 FormData 时，通常不需要手动设置 'Content-Type' 头
-        // 浏览器会自动设置为 'multipart/form-data' 并包含正确的 boundary
-      }
-    )) as { data?: { url: string } };
-
-    if (response.data?.url) {
+    const response = await v2UpdateAvatar(formData);
+    if (response.avatar_url) {
       // 上传成功，通知父组件更新头像
-      emit('update:avatar', response.data.url);
+      emit('update:avatar', response.avatar_url);
       const preferenceStore = usePreferenceStore();
       // 更新 store 中的用户头像
       preferenceStore.updatePreference('user', {
         ...preferenceStore.preferences.user,
-        avatarUrl: response.data.url
+        avatar_url: response.avatar_url
       });
       // 刷新页面
       window.location.reload();
@@ -164,3 +149,4 @@ const uploadAvatar = async (file: File) => {
     />
   </div>
 </template>
+

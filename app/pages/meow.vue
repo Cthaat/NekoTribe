@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { useApiFetch } from '@/composables/useApiFetch';
+import type { V2CreatePostPayload } from '@/types/v2';
+import {
+  v2CreatePost,
+  v2UploadMedia
+} from '@/services';
 import { toast } from 'vue-sonner';
 // 1. 导入 Separator 和 Button (如果它们还没被自动导入)
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { apiFetch } from '@/composables/useApi';
 import {
   Dialog,
   DialogContent,
@@ -55,7 +58,6 @@ function handleSelectReply(tweet: PreviewTweet) {
 watch(isQuoteDialogOpen, async isOpen => {
   // 我们只在 Dialog 打开时执行操作，并且仅当列表为空时才获取 (避免重复获取)
   if (isOpen && selectableTweets.value.length === 0) {
-    console.log('引用 Dialog 已打开，开始获取推文列表...');
     isDialogLoading.value = true;
     dialogError.value = null;
 
@@ -111,7 +113,6 @@ watch(isQuoteDialogOpen, async isOpen => {
 watch(isReplyDialogOpen, async isOpen => {
   // 我们只在 Dialog 打开时执行操作，并且仅当列表为空时才获取 (避免重复获取)
   if (isOpen && selectableTweets.value.length === 0) {
-    console.log('回复 Dialog 已打开，开始获取推文列表...');
     isDialogLoading.value = true;
     dialogError.value = null;
 
@@ -168,58 +169,39 @@ const isSubmitting = ref(false); // 控制提交状态
 const submissionError = ref<string | null>(null); // 存储提交错误信息
 // 3. 【核心修改】创建 handleTweetSubmit 方法来处理子组件上报的数据
 async function handleTweetSubmit(
-  submitForm: any,
-  formData: any
+  submitForm: V2CreatePostPayload,
+  formData: FormData
 ) {
-  console.log(
-    '父组件已收到 FormData，准备提交。其内容如下：'
-  );
 
   // 【核心修复】使用 for...of 循环来打印 FormData 的内容
   for (const [key, value] of formData.entries()) {
-    console.log(`${key}:`, value);
   }
-
-  console.log('推文内容:', submitForm);
 
   isSubmitting.value = true;
   submissionError.value = null;
 
   try {
-    // 在这里执行真正的 API 调用
-    const response: any = await apiFetch(
-      '/api/v1/tweets/send-tweets',
-      {
-        method: 'POST',
-        body: submitForm.value
+    const mediaIds: number[] = [];
+    const fileEntries = formData.getAll('file');
+    const altText = String(formData.get('altText') || '');
+
+    for (const entry of fileEntries) {
+      if (!(entry instanceof File)) {
+        continue;
       }
-    );
-
-    if (!response.success) {
-      throw new Error(`提交失败: ${response.statusText}`);
-    }
-
-    // 检查 FormData 中是否有文件
-    let hasFiles = false;
-    for (const [key, value] of formData.entries()) {
-      if (key === 'file' && value instanceof File) {
-        hasFiles = true;
-        break;
+      const mediaFormData = new FormData();
+      mediaFormData.append('file', entry);
+      if (altText) {
+        mediaFormData.append('alt_text', altText);
       }
+      const media = await v2UploadMedia(mediaFormData);
+      mediaIds.push(media.media_id);
     }
 
-    // 只在有文件时才调用上传接口
-    if (hasFiles) {
-      formData.append('tweetId', response.data.tweetId);
-
-      const responseFiles: any = await apiFetch(
-        '/api/v1/tweets/media/upload',
-        {
-          method: 'POST',
-          body: formData
-        }
-      );
-    }
+    await v2CreatePost({
+      ...submitForm,
+      media_ids: mediaIds
+    });
 
     toast.success('推文发布成功！');
 
@@ -228,10 +210,12 @@ async function handleTweetSubmit(
 
     // 可以在这里执行成功后的操作，比如清空编辑器或跳转页面
     // (清空编辑器的逻辑最好还是放在 TweetComposer 内部，父组件可以调用一个子组件的方法来实现)
-  } catch (err: any) {
+  } catch (err) {
     console.error('推文提交失败:', err);
     submissionError.value =
-      err.data?.message || '发生未知错误，请稍后再试。';
+      err instanceof Error
+        ? err.message
+        : '发生未知错误，请稍后再试。';
     toast.error(`发布失败: ${submissionError.value}`);
   } finally {
     isSubmitting.value = false;
@@ -440,3 +424,6 @@ async function handleTweetSubmit(
     />
   </div>
 </template>
+
+
+

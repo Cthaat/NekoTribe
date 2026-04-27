@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { apiFetch } from '@/composables/useApi';
+import { v2SearchUsers } from '@/services';
 import {
   Avatar,
   AvatarFallback,
@@ -41,31 +41,20 @@ async function searchMentions(query: string) {
 
   isLoading.value = true;
   try {
-    // 搜索用户
-    const userRes = await apiFetch<any>(
-      '/api/v1/users/search',
-      {
-        query: { q: query, pageSize: 5 }
-      }
-    );
+    const userResult = await v2SearchUsers({
+      q: query,
+      page: 1,
+      page_size: 5
+    });
 
-    const users: MentionItem[] = (
-      userRes?.data?.users || []
-    ).map((u: any) => ({
+    const users: MentionItem[] = userResult.items.map(u => ({
       type: 'user' as const,
       id: u.username,
-      userId: u.userId,
-      displayName: u.displayName || u.username,
+      userId: String(u.user_id),
+      displayName: u.display_name || u.username,
       subtitle: `@${u.username}`,
-      avatarUrl: u.avatarUrl
+      avatarUrl: u.avatar_url
     }));
-
-    // TODO: 搜索推文（如果需要）
-    // const tweetRes = await apiFetch<any>('/api/v1/tweets/search', {
-    //   method: 'POST',
-    //   body: { query, limit: 3 }
-    // });
-
     mentionItems.value = [...users];
     selectedIndex.value = 0;
   } catch (error) {
@@ -198,3 +187,4 @@ defineExpose({
     </div>
   </div>
 </template>
+

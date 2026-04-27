@@ -1,3 +1,8 @@
+import type {
+  V2SelfUser,
+  V2TokenData
+} from '@/types/v2';
+
 // 用户偏好设置类型定义（TypeScript）
 
 export type ThemeMode = 'dark' | 'light' | 'system';
@@ -16,31 +21,6 @@ export type HomeTab =
   | 'trending'
   | 'notifications'
   | string;
-
-interface userInfo {
-  userId: number;
-  email: string;
-  username: string;
-  passwordHash: string;
-  avatarUrl: string;
-  displayName: string;
-  bio: string;
-  location: string;
-  website: string;
-  birthDate: string;
-  phone: string;
-  isVerified: number;
-  isActive: number;
-  followersCount: number;
-  followingCount: number;
-  tweetsCount: number;
-  likesCount: number;
-  createdAt: string;
-  updatedAt: string;
-  lastLoginAt: string;
-  createdBy: string;
-  updatedBy: string;
-}
 
 export interface UserPreference {
   // 1. 主题相关
@@ -78,10 +58,10 @@ export interface UserPreference {
   blocked_users?: number[]; // 屏蔽用户ID列表（可选）
 
   // 7. 用户登录相关
-  access_token: string; // 用户访问令牌
-  refresh_token: string; // 用户刷新令牌
-  user: userInfo; // 用户信息对象
+  user: V2SelfUser; // 当前用户
+  auth_session: V2TokenData | null; // 当前会话信息
 
   // 更新时间戳等辅助字段
   updated_at?: string; // ISO 时间字符串（可选）
 }
+

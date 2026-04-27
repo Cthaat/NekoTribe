@@ -1,0 +1,20 @@
+export {
+  v2BookmarkPost,
+  v2CreateComment,
+  v2CreatePost,
+  v2CreateRetweet,
+  v2DeleteComment,
+  v2DeletePost,
+  v2GetPost,
+  v2LikeComment,
+  v2LikePost,
+  v2ListComments,
+  v2ListMyBookmarkedPosts,
+  v2ListPosts,
+  v2ListTrendingPosts,
+  v2ListUserPosts,
+  v2UnlikeComment,
+  v2UnlikePost,
+  v2UnbookmarkPost,
+  v2UploadMedia
+} from '@/api/v2/posts';

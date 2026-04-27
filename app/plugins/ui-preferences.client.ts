@@ -16,7 +16,14 @@ export default defineNuxtPlugin(() => {
   const pref = usePreferenceStore();
   // 不能在插件里直接调用 useI18n（需处于组件 setup 上下文），
   // 这里通过 NuxtApp 注入的 $i18n 进行交互，兼容 @nuxtjs/i18n 或手动安装的 vue-i18n。
-  const { $i18n } = useNuxtApp() as any;
+  const nuxtApp = useNuxtApp();
+  const $i18n = nuxtApp.$i18n as
+    | {
+        setLocale?: (locale: string) => void;
+        locale?: string | { value: string };
+        global?: { locale?: { value: string } };
+      }
+    | undefined;
 
   // html 根节点，用于挂载 class 与 data- 属性
   const html = document.documentElement;

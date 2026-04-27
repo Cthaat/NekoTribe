@@ -10,9 +10,10 @@ import {
   watch,
   nextTick
 } from 'vue';
+import type { MailItem } from './mail/types';
 
 interface MailListProps {
-  items: any[];
+  items: MailItem[];
   // 可选：当靠近底部时调用的加载更多函数
   loadMore?: () => void;
 }
@@ -25,7 +26,7 @@ const selectedMail = defineModel<string>('selectedMail', {
 });
 
 // 本地副本：避免直接修改 props.items
-const localItems = ref<any[]>([]);
+const localItems = ref<MailItem[]>([]);
 watch(
   () => props.items,
   items => {

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import GroupList from '@/components/GroupList.vue';
 import GroupDetailModal from '@/components/GroupDetailModal.vue';
 import CreateGroupModal from '@/components/CreateGroupModal.vue';
+import type { CreateGroupData } from '@/components/CreateGroupModal.vue';
 import type { Group } from '@/components/GroupCard.vue';
 import type { GroupMember } from '@/components/GroupMemberCard.vue';
 import type { GroupPost } from '@/components/GroupPostCard.vue';
@@ -190,7 +191,7 @@ const handleCreate = () => {
   createModalOpen.value = true;
 };
 
-const handleCreateSubmit = (data: any) => {
+const handleCreateSubmit = (data: CreateGroupData) => {
   const newGroup: Group = {
     id: myGroups.value.length + 100,
     name: data.name,

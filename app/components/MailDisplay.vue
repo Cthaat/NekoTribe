@@ -43,9 +43,10 @@ import {
   TooltipContent,
   TooltipTrigger
 } from '@/components/ui/tooltip';
+import type { MailItem } from './mail/types';
 
 interface MailDisplayProps {
-  mail: any;
+  mail?: MailItem;
   isTrashView?: boolean;
 }
 
@@ -344,7 +345,6 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
                 size="sm"
                 class="ml-auto"
                 :disabled="!mail"
-                @click="() => console.log(mail)"
               >
                 Send
               </Button>

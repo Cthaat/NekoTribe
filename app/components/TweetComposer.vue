@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue';
+import type { V2CreatePostPayload } from '@/types/v2';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -37,16 +38,15 @@ const props = defineProps<{
 }>();
 
 // --- 提交信息 ---
-const submitForm = ref({
-  content: '', // 推文内容
-  replyToTweetId: '', // 回复的推文 ID
-  retweetOfTweetId: '', // 转发的推文 ID
-  quoteTweetId: '', // 引用的推文 ID
-  visibility: '', // 可见性（公开、私密等）
-  hashtags: '', // 话题标签
-  mentions: '', // 提及的用户
-  scheduledAt: '', // 定时发布时间
-  location: '' // 位置
+const submitForm = ref<V2CreatePostPayload>({
+  content: '',
+  reply_to_post_id: null,
+  repost_of_post_id: null,
+  quoted_post_id: null,
+  visibility: 'public',
+  tag_names: [],
+  mention_user_ids: [],
+  location: ''
 });
 
 // --- 传递信息 ---
@@ -153,19 +153,18 @@ function removeMedia(index: number) {
 
 async function handleSubmit() {
   if (isTweetDisabled.value) return;
-
-  console.log('提交的推文内容:', tweetContent.value);
-  submitForm.value.visibility = 'public'; // 默认可见性为公开
+  submitForm.value.visibility = 'public';
+  submitForm.value.reply_to_post_id = null;
+  submitForm.value.quoted_post_id = null;
+  submitForm.value.repost_of_post_id = null;
 
   if (props.replyTo) {
-    submitForm.value.replyToTweetId = String(
+    submitForm.value.reply_to_post_id =
       props.replyTo.tweetId
-    );
   }
   if (props.quoteTo) {
-    submitForm.value.quoteTweetId = String(
+    submitForm.value.quoted_post_id =
       props.quoteTo.tweetId
-    );
   }
 
   // 创建 FormData 对象
@@ -178,24 +177,19 @@ async function handleSubmit() {
   formData.append('altText', '111');
   formData.append('description', '111123');
 
-  // 将提及的用户保存到表单
-  submitForm.value.mentions = mentions.value.join(',');
+  submitForm.value.content = tweetContent.value;
+  submitForm.value.mention_user_ids = mentions.value
+    .map(username => Number(mentionUserIds.value[username]))
+    .filter(userId => Number.isFinite(userId) && userId > 0);
+  submitForm.value.tag_names = Array.from(
+    new Set(
+      Array.from(
+        tweetContent.value.matchAll(/#([\p{L}\p{N}_]+)/gu)
+      ).map(match => match[1])
+    )
+  );
 
-  // 在内容中将 @username 替换为包含 userId 的格式: @[userId:username]
-  let processedContent = tweetContent.value;
-  mentions.value.forEach(username => {
-    const userId = mentionUserIds.value[username];
-    if (userId) {
-      const regex = new RegExp(`@${username}\\b`, 'g');
-      processedContent = processedContent.replace(
-        regex,
-        `@[${userId}:${username}]`
-      );
-    }
-  });
-  submitForm.value.content = processedContent;
-
-  emit('submit', submitForm, formData);
+  emit('submit', { ...submitForm.value }, formData);
 }
 
 // 处理文本输入，检测 @ 符号
@@ -499,3 +493,6 @@ function handleKeyDown(event: KeyboardEvent) {
     />
   </div>
 </template>
+
+
+

@@ -6,10 +6,13 @@
 import { ref, onMounted, computed } from 'vue';
 // 引入 i18n
 import { useI18n } from 'vue-i18n';
-// 引入用户偏好（获取 access_token）
-import { usePreferenceStore } from '@/stores/user';
-// 引入封装的 API
-import { apiFetch } from '@/composables/useApi';
+import {
+  v2CreateStatementAppeal,
+  v2ListAccountStatements,
+  v2PatchAccountStatement,
+  type V2AccountStatement,
+  type V2AccountStatementAction
+} from '@/services';
 // UI 组件：分隔线、卡片、按钮、徽章
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
@@ -43,7 +46,6 @@ interface StatementAppeal {
 // 账户状态项
 interface AccountStatement {
   id: string;
-  userId: number;
   type: StatementType;
   title: string;
   message: string;
@@ -55,8 +57,6 @@ interface AccountStatement {
 
 // i18n 工具
 const { t } = useI18n();
-// 偏好仓库
-const pref = usePreferenceStore();
 
 // 列表与分页状态
 const loading = ref(false);
@@ -72,35 +72,39 @@ const totalPages = computed(() =>
   Math.max(1, Math.ceil(total.value / pageSize.value))
 );
 
+function toStatementView(
+  statement: V2AccountStatement
+): AccountStatement {
+  return {
+    id: String(statement.statement_id),
+    type: statement.type as StatementType,
+    title: statement.title,
+    message: statement.message,
+    policy: statement.policy_code || undefined,
+    createdAt: statement.created_at,
+    status: statement.status as StatementStatus
+  };
+}
+
 // 拉取列表
 async function load() {
   loading.value = true;
   try {
-    // 请求参数包含分页与筛选项
-    const res = await apiFetch<{
-      success: boolean;
-      data: {
-        items: AccountStatement[];
-        total: number;
-        page: number;
-        pageSize: number;
-      };
-    }>('/api/v1/account/statements', {
-      method: 'GET',
-      params: {
-        page: page.value,
-        pageSize: pageSize.value,
-        status: statusFilter.value,
-        type: typeFilter.value
-      },
-      headers: {
-        Authorization: `Bearer ${pref.preferences.access_token}`
-      }
+    const result = await v2ListAccountStatements({
+      page: page.value,
+      page_size: pageSize.value,
+      status:
+        statusFilter.value === 'all'
+          ? undefined
+          : statusFilter.value,
+      type:
+        typeFilter.value === 'all'
+          ? undefined
+          : typeFilter.value
     });
-    // 写入列表与总数
-    items.value = res.data.items;
-    total.value = res.data.total;
-  } catch (e: any) {
+    items.value = result.items.map(toStatementView);
+    total.value = result.meta?.total || result.items.length;
+  } catch {
     // 网络错误提示
     toast.error(
       t('common.networkError') || 'Network error'
@@ -120,12 +124,8 @@ async function actMark(
     | 'dismiss'
 ) {
   try {
-    await apiFetch('/api/v1/account/statements/' + id, {
-      method: 'PUT',
-      body: { action },
-      headers: {
-        Authorization: `Bearer ${pref.preferences.access_token}`
-      }
+    await v2PatchAccountStatement(Number(id), {
+      action
     });
     toast.success(t('account.statements.actionSuccess'));
     await load();
@@ -149,16 +149,9 @@ async function submitAppeal(id: string) {
     return;
   }
   try {
-    await apiFetch(
-      '/api/v1/account/statements/' + id + '/appeal',
-      {
-        method: 'POST',
-        body: { message: appealMsg.value.trim() },
-        headers: {
-          Authorization: `Bearer ${pref.preferences.access_token}`
-        }
-      }
-    );
+    await v2CreateStatementAppeal(Number(id), {
+      appeal_message: appealMsg.value.trim()
+    });
     // 成功后重置输入并刷新
     toast.success(t('account.statements.appealSubmitted'));
     showAppeal.value = null;
@@ -474,3 +467,4 @@ onMounted(load);
     </CardContent>
   </Card>
 </template>
+

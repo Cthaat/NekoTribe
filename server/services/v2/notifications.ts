@@ -16,6 +16,7 @@ import {
   v2One,
   v2Page,
   v2PageMeta,
+  v2QueryString,
   v2RequiredNumber,
   v2Rows,
   v2String
@@ -31,15 +32,34 @@ export async function v2ListNotifications(
 ): Promise<V2Response<V2Notification[]>> {
   const auth = v2Auth(event);
   const page = v2Page(event);
+  const type = v2QueryString(event, 'type', 'all');
+  const unreadOnly =
+    v2QueryString(event, 'unread_only', 'false') === 'true';
+  const showDeleted =
+    v2QueryString(event, 'show_deleted', 'false') === 'true';
+  const filters = [
+    'user_id = :user_id',
+    showDeleted ? 'deleted_at IS NOT NULL' : 'deleted_at IS NULL'
+  ];
+  const binds: Record<string, string | number> = {
+    user_id: auth.userId
+  };
+  if (type && type !== 'all') {
+    filters.push('type = :type');
+    binds.type = type;
+  }
+  if (unreadOnly) {
+    filters.push('is_read = 0');
+  }
+  const whereClause = filters.join('\n      AND ');
   const total = await v2Count(
     connection,
     `
     SELECT COUNT(*) AS total
     FROM n_notifications
-    WHERE user_id = :user_id
-      AND deleted_at IS NULL
+    WHERE ${whereClause}
     `,
-    { user_id: auth.userId }
+    binds
   );
   const rows = await v2Rows(
     connection,
@@ -62,13 +82,12 @@ export async function v2ListNotifications(
         created_at,
         ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
       FROM n_notifications
-      WHERE user_id = :user_id
-        AND deleted_at IS NULL
+      WHERE ${whereClause}
     )
     WHERE rn BETWEEN :start_row AND :end_row
     `,
     {
-      user_id: auth.userId,
+      ...binds,
       start_row: page.start,
       end_row: page.end
     }

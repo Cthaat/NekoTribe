@@ -16,10 +16,10 @@
         </h2>
         <div class="space-y-2 text-sm">
           <div>
-            <strong>Access Token (前20字符):</strong>
+            <strong>当前会话 ID:</strong>
             {{
-              accessToken
-                ? accessToken.substring(0, 20) + '...'
+              sessionId
+                ? sessionId.substring(0, 20) + '...'
                 : '无'
             }}
           </div>
@@ -154,8 +154,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { usePreferenceStore } from '~/stores/user';
-import { apiFetch } from '@/composables/useApi';
-import { jwtDecode } from 'jwt-decode';
+import { v2ListNotifications } from '@/services';
 
 const preferenceStore = usePreferenceStore();
 
@@ -167,8 +166,8 @@ const logs = ref<Array<{ time: string; message: string }>>(
 const timeLeft = ref(0);
 let timer: NodeJS.Timeout | null = null;
 
-const accessToken = computed(
-  () => preferenceStore.preferences.access_token
+const sessionId = computed(
+  () => preferenceStore.preferences.auth_session?.session_id || ''
 );
 const isLoggedIn = computed(
   () => preferenceStore.isLoggedIn
@@ -181,24 +180,24 @@ const addLog = (message: string) => {
     hour12: false
   });
   logs.value.push({ time, message });
-  console.log(`[TokenTest ${time}] ${message}`);
 };
 
 // 计算 Token 剩余时间
 const updateTimeLeft = () => {
-  if (!accessToken.value) {
+  const accessTokenExpiresAt =
+    preferenceStore.preferences.auth_session
+      ?.access_token_expires_at;
+  if (!accessTokenExpiresAt) {
     timeLeft.value = 0;
     return;
   }
 
   try {
-    const decoded = jwtDecode<{ exp: number }>(
-      accessToken.value
-    );
-    const nowInSeconds = Date.now() / 1000;
+    const expiresAt = new Date(accessTokenExpiresAt).getTime();
+    const nowInMilliseconds = Date.now();
     timeLeft.value = Math.max(
       0,
-      decoded.exp - nowInSeconds
+      (expiresAt - nowInMilliseconds) / 1000
     );
   } catch (error) {
     timeLeft.value = 0;
@@ -212,18 +211,17 @@ const testApiCall = async () => {
   addLog('🚀 发起 API 请求...');
 
   try {
-    const response = await apiFetch(
-      '/api/v1/notifications',
-      {
-        method: 'GET'
-      }
-    );
+    const response = await v2ListNotifications({
+      page: 1,
+      page_size: 1
+    });
 
     addLog('✅ API 请求成功');
-    console.log('API 响应:', response);
-  } catch (error: any) {
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : '未知错误';
     addLog(
-      `❌ API 请求失败: ${error.message || '未知错误'}`
+      `❌ API 请求失败: ${message}`
     );
     console.error('API 错误:', error);
   } finally {
@@ -241,9 +239,11 @@ const manualRefresh = async () => {
     await preferenceStore.refreshAccessToken();
     addLog('✅ Token 刷新成功');
     updateTimeLeft();
-  } catch (error: any) {
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : '未知错误';
     addLog(
-      `❌ Token 刷新失败: ${error.message || '未知错误'}`
+      `❌ Token 刷新失败: ${message}`
     );
     console.error('刷新错误:', error);
   } finally {
@@ -253,27 +253,16 @@ const manualRefresh = async () => {
 
 // 篡改 Token
 const invalidateToken = () => {
-  if (!accessToken.value) {
-    addLog('⚠️ 当前没有 Token');
+  if (!sessionId.value) {
+    addLog('⚠️ 当前没有会话');
     return;
   }
-
-  const invalidToken =
-    accessToken.value.substring(
-      0,
-      accessToken.value.length - 5
-    ) + 'xxxxx';
-  preferenceStore.updatePreference(
-    'access_token',
-    invalidToken
-  );
-  addLog('⚠️ Token 已被篡改（模拟过期）');
-  updateTimeLeft();
+  addLog('⚠️ HttpOnly Cookie 模式下无法在客户端直接篡改 Token');
 };
 
 // 清除所有 Token
 const clearAllTokens = () => {
-  preferenceStore.clearAuthTokens();
+  preferenceStore.clearAuthState();
   addLog('🗑️ 所有 Token 已清除');
   updateTimeLeft();
 };
@@ -289,3 +278,5 @@ onUnmounted(() => {
   if (timer) clearInterval(timer);
 });
 </script>
+
+

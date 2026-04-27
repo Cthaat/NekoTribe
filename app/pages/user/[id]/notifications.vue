@@ -2,207 +2,62 @@
 import Mail from '@/components/Mail.vue';
 import { ref, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { useApiFetch } from '@/composables/useApiFetch';
 import { toast } from 'vue-sonner';
-import { apiFetch } from '@/composables/useApi';
+import {
+  v2DeleteNotification,
+  v2RestoreNotification,
+  v2SetNotificationReadStatus
+} from '@/services/notifications';
+import { useNotificationMailbox } from '@/composables/useNotificationMailbox';
 
-// 基础分页与筛选参数
 const route = useRoute();
-const page = ref(1);
-const pageSize = ref(10);
 const type = ref<string>(
   (route.query.type as string) || 'all'
 );
-// 后端读取的是字符串 'true'/'false'，这里保持一致
-const unreadOnly = ref<string>(
+const unreadOnly = ref(
   (route.query.unreadOnly as string) === 'true'
-    ? 'true'
-    : 'false'
 );
-// 是否显示已删除的通知（垃圾桶）
-const showDeleted = ref<string>('false');
+const showDeleted = ref(false);
 
-// 通知项与响应类型（提取最常用字段，便于页面展示）
-type NotificationItem = {
-  notificationId: string;
-  userId?: string;
-  type: string;
-  title: string;
-  message: string;
-  relatedType?: string;
-  relatedId?: string;
-  actorId?: string;
-  isRead: number;
-  priority?: string;
-  createdAt: string;
-  readAt?: string;
-  actorUsername?: string;
-  actorDisplayName?: string;
-  actorAvatarUrl?: string;
-};
+const mailbox = useNotificationMailbox({
+  type,
+  unreadOnly,
+  showDeleted,
+  pageSize: 10
+});
 
-interface NotificationListApiResponse {
-  success?: boolean;
-  message?: string;
-  code?: number;
-  data?: {
-    type?:
-      | 'all'
-      | 'like'
-      | 'retweet'
-      | 'comment'
-      | 'follow'
-      | 'mention'
-      | 'system';
-    page?: number;
-    pageSize?: number;
-    notifications?: NotificationItem[];
-    totalCount?: number;
-    unreadOnly?: boolean | string;
-    showDeleted?: boolean | string;
-    hasNext?: boolean;
-    hasPrev?: boolean;
-    totalPages?: number;
-  };
-}
-
-// 列表数据容器
-const notifications = ref<NotificationItem[]>([]);
-// 已加载去重集合（按 notificationId）
-const seenIds = ref<Set<string>>(new Set());
-
-// 生成查询键用于判断筛选是否变化
-const makeQueryKey = () =>
-  `${route.params.id || ''}|${type.value}|${unreadOnly.value}|${showDeleted.value}`;
-const lastQueryKey = ref<string>(makeQueryKey());
-
-// 调用封装的 useApiFetch 获取通知列表
-const {
-  data: listApiResponse,
-  pending: listPending,
-  error: listError,
-  refresh: refreshList
-} = useApiFetch<NotificationListApiResponse>(
-  '/api/v1/notifications/list',
-  {
-    query: {
-      type,
-      page,
-      pageSize,
-      unreadOnly,
-      showDeleted
-    },
-    // 跟随分页/筛选和路由变化自动刷新
-    watch: [
-      page,
-      pageSize,
-      type,
-      unreadOnly,
-      showDeleted,
-      () => route.params.id
-    ]
-  }
-);
-
-// 同步响应到本地状态，保证 .value 使用正确
-watch(
-  listApiResponse,
-  newVal => {
-    if (listError.value) {
-      notifications.value = [];
-      seenIds.value = new Set();
-      return;
-    }
-    if (!newVal?.data?.notifications) {
-      // 没有新数据时不清空，保持已加载数据
-      return;
-    }
-    try {
-      const currentKey = makeQueryKey();
-      const isFilterChanged =
-        currentKey !== lastQueryKey.value;
-      const isFirstPage = (newVal.data.page || 1) === 1;
-
-      // 当筛选变更或是第一页时，重置列表与去重集合
-      if (isFilterChanged || isFirstPage) {
-        notifications.value = [];
-        seenIds.value = new Set();
-        lastQueryKey.value = currentKey;
-      }
-
-      // 追加新页数据（带去重）
-      for (const item of newVal.data.notifications) {
-        if (!seenIds.value.has(item.notificationId)) {
-          seenIds.value.add(item.notificationId);
-          notifications.value.push(item);
-        }
-      }
-      console.log(notifications);
-    } catch (err: any) {
-      console.error('加载通知列表失败:', err);
-      if (process.client) {
-        toast.error('加载通知失败，部分内容可能无法显示。');
-      }
-    }
-  },
-  { immediate: true }
-);
-
-// 加载与错误状态
-const isLoading = computed(() => listPending.value);
-const hasError = computed(() => !!listError.value);
-
-// 统计信息
-const totalCount = computed(
-  () => listApiResponse.value?.data?.totalCount || 0
-);
-
-// 分页元数据与“是否还有下一页”
-const hasNext = computed(
-  () => !!listApiResponse.value?.data?.hasNext
-);
-
-// 加载下一页（供“加载更多/无限滚动”调用）
-function loadNextPage() {
-  if (isLoading.value) return;
-  if (!hasNext.value) return;
-  page.value = (page.value || 1) + 1;
-}
-
-// 当筛选项变化时，重置页码并主动刷新
-watch(
-  [type, unreadOnly, showDeleted, () => route.params.id],
-  () => {
-    page.value = 1;
-    // 重置由 listApiResponse watcher 处理
-    refreshList();
-  }
-);
-
-// 获取 Mail 组件的引用，监听其 currentView 变化
 const mailRef = ref<InstanceType<typeof Mail>>();
 watch(
   () => mailRef.value?.currentView,
   newView => {
-    if (newView === 'trash') {
-      showDeleted.value = 'true';
-    } else {
-      showDeleted.value = 'false';
-    }
+    showDeleted.value = newView === 'trash';
+    mailbox.resetAndRefresh();
   }
 );
 
+watch([type, unreadOnly], () => {
+  mailbox.resetAndRefresh();
+});
+
+watch(
+  mailbox.page,
+  () => {
+    mailbox.refresh();
+  },
+  { immediate: true }
+);
+
 async function handleReadMail(mailId: string) {
-  // 标记邮件为已读
-  const mail = notifications.value.find(
-    item => item.notificationId === mailId
+  const notificationId = Number(mailId);
+  const mail = mailbox.notifications.value.find(
+    item => item.notification_id === notificationId
   );
   if (mail) {
-    mail.isRead = 1;
+    mail.is_read = 1;
   }
   try {
-    await apiFetch(`/api/v1/notifications/${mailId}`, {
-      method: 'PUT'
+    await v2SetNotificationReadStatus(notificationId, {
+      is_read: true
     });
   } catch (error) {
     console.error('标记邮件为已读失败:', error);
@@ -210,18 +65,13 @@ async function handleReadMail(mailId: string) {
 }
 
 async function handleDeleteMail(mailId: string) {
-  // 将邮件移至垃圾桶（软删除）
+  const notificationId = Number(mailId);
   try {
-    await apiFetch(`/api/v1/notifications/${mailId}`, {
-      method: 'DELETE'
-    });
-    // API调用成功后再从列表中移除
-    const mailIndex = notifications.value.findIndex(
-      item => item.notificationId === mailId
-    );
-    if (mailIndex !== -1) {
-      notifications.value.splice(mailIndex, 1);
-    }
+    await v2DeleteNotification(notificationId);
+    mailbox.notifications.value =
+      mailbox.notifications.value.filter(
+        item => item.notification_id !== notificationId
+      );
     toast.success('邮件已移至垃圾桶');
   } catch (error) {
     console.error('移至垃圾桶失败:', error);
@@ -230,55 +80,56 @@ async function handleDeleteMail(mailId: string) {
 }
 
 async function handleRestoreMail(mailId: string) {
-  // 从垃圾桶恢复邮件
+  const notificationId = Number(mailId);
   try {
-    await apiFetch(
-      `/api/v1/notifications/${mailId}/restore`,
-      {
-        method: 'POST'
-      }
-    );
-    // API调用成功后从列表中移除（因为已不在垃圾桶）
-    const mailIndex = notifications.value.findIndex(
-      item => item.notificationId === mailId
-    );
-    if (mailIndex !== -1) {
-      notifications.value.splice(mailIndex, 1);
-    }
+    await v2RestoreNotification(notificationId);
+    mailbox.notifications.value =
+      mailbox.notifications.value.filter(
+        item => item.notification_id !== notificationId
+      );
     toast.success('邮件已恢复');
   } catch (error) {
     console.error('恢复邮件失败:', error);
     toast.error('恢复邮件失败');
   }
 }
+
+const mails = computed(() =>
+  mailbox.notifications.value.map(notification => ({
+    id: String(notification.notification_id),
+    avatar: notification.actor?.avatar_url || '',
+    name:
+      notification.actor?.display_name ||
+      notification.actor?.username ||
+      'System',
+    email: notification.actor?.username || 'system',
+    subject: notification.title || notification.type,
+    text: notification.message,
+    date: notification.created_at,
+    read: notification.is_read === 1,
+    labels: [notification.type]
+  }))
+);
 </script>
 
 <template>
   <div class="hidden flex-col md:flex">
     <Mail
       ref="mailRef"
-      :mails="
-        notifications.map(n => ({
-          id: String(n.notificationId),
-          avatar: n.actorAvatarUrl || '',
-          name:
-            n.actorDisplayName ||
-            n.actorUsername ||
-            'System',
-          email: n.actorUsername || 'system',
-          subject: n.title || n.type,
-          text: n.message,
-          date: n.createdAt,
-          read: !!n.isRead,
-          labels: [n.type]
-        }))
-      "
+      :mails="mails"
       :nav-collapsed-size="4"
-      :load-more="loadNextPage"
-      :is-trash-view="showDeleted === 'true'"
+      :load-more="mailbox.loadNextPage"
+      :is-trash-view="showDeleted"
       @read-mail="handleReadMail"
       @delete-mail="handleDeleteMail"
       @restore-mail="handleRestoreMail"
     />
+
+    <div
+      v-if="mailbox.error && mailbox.notifications.length === 0"
+      class="px-6 py-4 text-sm text-destructive"
+    >
+      {{ mailbox.error }}
+    </div>
   </div>
 </template>

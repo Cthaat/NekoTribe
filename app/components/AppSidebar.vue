@@ -39,22 +39,20 @@ const props = withDefaults(defineProps<SidebarProps>(), {
 
 const localePath = useLocalePath();
 
-console.log('Locale path:', localePath('account-overview'));
-
 const preferenceStore = usePreferenceStore();
 
-const userId = preferenceStore.preferences.user.userId;
+const userId = preferenceStore.preferences.user.user_id;
 
 const baseNavData = {
   user: {
     name:
-      preferenceStore.preferences.user.displayName ||
+      preferenceStore.preferences.user.display_name ||
       'shadcn',
     email:
       preferenceStore.preferences.user.email ||
       'm@example.com',
     avatar:
-      preferenceStore.preferences.user.avatarUrl ||
+      preferenceStore.preferences.user.avatar_url ||
       '/avatars/shadcn.jpg'
   },
   navMain: [
@@ -143,10 +141,14 @@ const baseNavData = {
   ]
 };
 
+interface LocalizedMenuItem {
+  url: string;
+}
+
 // 3. ✨ 创建一个 computed 属性，它会动态地生成包含本地化 URL 的完整导航数据
 const localizedNav = computed(() => {
   // 一个可复用的辅助函数，用于处理单个菜单项
-  const processMenuItem = (item: any) => {
+  const processMenuItem = (item: LocalizedMenuItem) => {
     // 如果 url 是 '#' 或外部链接，则不处理，直接返回
     if (
       item.url.startsWith('#') ||
@@ -184,8 +186,6 @@ const localizedNav = computed(() => {
     }))
   };
 });
-
-console.log('Localized nav data:', localizedNav.value);
 </script>
 
 <template>
@@ -231,3 +231,4 @@ console.log('Localized nav data:', localizedNav.value);
     </SidebarFooter>
   </Sidebar>
 </template>
+

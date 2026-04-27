@@ -6,6 +6,7 @@ import GroupFilters from '@/components/GroupFilters.vue';
 import GroupList from '@/components/GroupList.vue';
 import GroupDetailModal from '@/components/GroupDetailModal.vue';
 import CreateGroupModal from '@/components/CreateGroupModal.vue';
+import type { CreateGroupData } from '@/components/CreateGroupModal.vue';
 import type { Group } from '@/components/GroupCard.vue';
 import type { GroupStatsData } from '@/components/GroupStats.vue';
 import type { GroupFiltersData } from '@/components/GroupFilters.vue';
@@ -421,7 +422,7 @@ const handleCreate = () => {
 };
 
 // 创建群组提交
-const handleCreateSubmit = (data: any) => {
+const handleCreateSubmit = (data: CreateGroupData) => {
   const newGroup: Group = {
     id: groups.value.length + 1,
     name: data.name,

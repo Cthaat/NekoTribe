@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import type { PropType } from 'vue';
+import type { V2Comment } from '@/types/v2';
 import { toast } from 'vue-sonner';
 import { MessageSquare } from 'lucide-vue-next';
 import CommentCard from './CommentCard.vue';
@@ -9,7 +11,7 @@ import { Button } from '@/components/ui/button';
 const props = defineProps({
   // 从 API 获取的原始、扁平的评论列表
   comments: {
-    type: Array,
+    type: Array as PropType<V2Comment[]>,
     required: true
   },
   // 这些评论所属的文章/帖子的 ID
@@ -34,25 +36,27 @@ const isCommentInputFocused = ref(false);
  * 这是一个非常关键的辅助函数。
  * @param list 扁平的评论数组
  */
-function flatToTree(list: any[]) {
-  const map: Record<string, any> = {}; // 用于快速查找 O(1)
-  const roots: any[] = []; // 存储所有顶级评论
+type NestedComment = V2Comment & { children: NestedComment[] };
+
+function flatToTree(list: V2Comment[]): NestedComment[] {
+  const map: Record<number, NestedComment> = {};
+  const roots: NestedComment[] = [];
 
   // 第一次遍历：将所有节点放入 map 中，并初始化 children 数组
   for (const item of list) {
-    map[item.commentId] = { ...item, children: [] };
+    map[item.comment_id] = { ...item, children: [] };
   }
 
   // 第二次遍历：将每个节点连接到其父节点上
   for (const item of list) {
-    if (item.parentCommentId) {
+    if (item.parent_comment_id) {
       // 如果是回复，找到它的父节点，并把自己加到父节点的 children 中
-      map[item.parentCommentId]?.children.push(
-        map[item.commentId]
+      map[item.parent_comment_id]?.children.push(
+        map[item.comment_id]
       );
     } else {
       // 如果是顶级评论，直接放入 roots 数组
-      roots.push(map[item.commentId]);
+      roots.push(map[item.comment_id]);
     }
   }
   return roots;
@@ -72,9 +76,6 @@ async function handleLikeComment({
   commentId: string | number;
   action: 'likeComment' | 'unlikeComment';
 }) {
-  console.log(`正在点赞评论，ID: ${commentId} ${action}`);
-  // TODO: 在这里实现您的点赞 API 调用
-  // await apiFetch(`/api/v1/comments/${id}/like`, { method: 'POST' });
   toast.success(
     `评论 ${commentId} 已成功 ${action === 'likeComment' ? '点赞' : '取消点赞'}`
   );
@@ -90,9 +91,6 @@ async function handleSubmitReply({
 }) {
   isSubmitting.value = true;
   try {
-    console.log(
-      `正在回复评论 ${parentCommentId}，内容: "${content}"`
-    );
     toast.success('回复已成功发布！');
     emit('submit-reply', parentCommentId, content);
   } catch (err) {
@@ -107,9 +105,6 @@ async function handleSubmitTweetReply() {
 
   isSubmitting.value = true;
   try {
-    console.log(
-      `正在提交新评论到帖子 ${props.postId}，内容: "${newCommentContent.value}"`
-    );
     toast.success('评论已成功发布！');
     emit('send-reply', newCommentContent.value);
     newCommentContent.value = ''; // 清空输入框
@@ -191,7 +186,7 @@ async function handleSubmitTweetReply() {
     <div v-if="nestedComments.length > 0" class="space-y-3">
       <CommentCard
         v-for="comment in nestedComments"
-        :key="comment.commentId"
+        :key="comment.comment_id"
         :comment="comment"
         :level="0"
         @like-comment="handleLikeComment"
@@ -215,3 +210,6 @@ async function handleSubmitTweetReply() {
     </div>
   </div>
 </template>
+
+
+

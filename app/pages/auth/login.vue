@@ -6,15 +6,12 @@ definePageMeta({
 
 import { Button } from '@/components/ui/button';
 import { useI18n } from 'vue-i18n';
-import { h } from 'vue';
 import * as z from 'zod';
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm } from 'vee-validate';
 import { toast } from 'vue-sonner';
-import { useApiFetch } from '@/composables/useApiFetch'; // 导入自定义的 useApiFetch 组合式 API
-import { apiFetch } from '@/composables/useApi';
-import { useRouter } from 'vue-router';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
+import { v2Login } from '@/services';
 // 从你的 UI 库中导入这些基础表单组件
 import {
   FormControl,
@@ -46,68 +43,51 @@ useHead({
   ]
 });
 
-// 更新 schema 以匹配UI提示，并添加account验证
-const schema = z.object({
+const loginFormSchema = z.object({
   account: z
     .string()
+    .trim()
     .min(1, { message: t('auth.login.accountRequired') }),
   password: z
     .string()
     .min(1, { message: t('auth.login.passwordRequired') })
     .min(6, { message: t('auth.login.passwordTooShort') })
 });
+type LoginFormValues = z.infer<typeof loginFormSchema>;
 
-const form = useForm({
-  validationSchema: toTypedSchema(schema),
+const form = useForm<LoginFormValues>({
+  validationSchema: toTypedSchema(loginFormSchema),
   initialValues: {
-    account: '', // 将 email 的初始值设为空字符串
-    password: '' // 将 password 的初始值设为空字符串
+    account: '',
+    password: ''
   }
 });
 
 const isLoading = ref(false);
 
-const router = useRouter();
-
-async function onValidSubmit(values: Record<string, any>) {
+async function onValidSubmit(
+  values: LoginFormValues
+): Promise<void> {
   isLoading.value = true;
 
   try {
-    // 1. 调用 API，等待它完成
-    const response: any = await apiFetch(
-      '/api/v1/auth/login',
-      {
-        method: 'POST',
-        body: values
-      }
-    );
-    // 登录成功后，调用新的 action
-    preferenceStore.setAuthTokens(
-      response.data.token,
-      response.data.refreshToken
-    );
-
-    preferenceStore.updatePreference(
-      'user',
-      response.data.user.userInfo
-    );
-    // 2. 成功后，唯一要做的就是导航！
-    //    使用 await 确保导航被正确触发。
-    //    让中间件和目标页面去担心登录状态。
-    console.log(t('auth.login.successLogin'), response);
+    const response = await v2Login(values);
+    preferenceStore.setCurrentUser(response.user);
+    preferenceStore.setCurrentSession(response.tokens);
     toast(t('auth.login.successLogin'), {
       description:
         t('auth.login.welcomeBack') +
-        ` ${response.data.user.userInfo.displayName || '用户'}`
+        ` ${response.user.display_name || '用户'}`
     });
-    // 使用 $switchLocalePath 来切换到当前用户的语言
     await navigateTo(localePath('/'));
-  } catch (error: any) {
-    // 错误处理逻辑保持不变
-    console.error(t('auth.login.loginFailed'), error.data);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : t('auth.login.unknownError');
+    console.error(t('auth.login.loginFailed'), error);
     toast.error(t('auth.login.loginFailed'), {
-      description:
-        error.data?.message || t('auth.login.unknownError')
+      description: message
     });
   } finally {
     isLoading.value = false;
@@ -216,3 +196,5 @@ const onSubmit = form.handleSubmit(onValidSubmit);
     </div>
   </div>
 </template>
+
+

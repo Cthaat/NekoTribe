@@ -43,7 +43,11 @@ const verifiedEmails = ref([
   'm@google.com',
   'm@support.com'
 ]);
-import { apiFetch } from '@/composables/useApi';
+import {
+  v2ChangeEmail,
+  v2CreateOtp,
+  v2LogoutCurrent
+} from '@/services';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
 
 const preferenceStore = usePreferenceStore();
@@ -53,6 +57,7 @@ const { t } = useI18n();
 const localePath = useLocalePath();
 
 const value = ref<string[]>([]);
+const verificationId = ref('');
 
 // --- 新增：为验证码按钮添加状态 ---
 const isCaptchaSending = ref(false);
@@ -67,17 +72,12 @@ async function sendCaptcha() {
   countdown.value = 60; // 重置倒计时
 
   try {
-    // 1. 调用 API，等待它完成
-    const response: any = await apiFetch(
-      '/api/v1/auth/get-verification',
-      {
-        method: 'POST',
-        body: {
-          account: email
-        }
-      }
-    );
-    console.log(response);
+    const response = await v2CreateOtp({
+      account: email,
+      type: 'change_email',
+      channel: 'email'
+    });
+    verificationId.value = response.verification_id;
 
     toast.success(
       t('account.security.securityPage.email.captchaSent'),
@@ -103,62 +103,69 @@ async function sendCaptcha() {
         }
       }
     }, 1000); // 每秒执行一次
-  } catch (error: any) {
-    // 错误处理逻辑保持不变
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : t(
+            'account.security.securityPage.email.unknownError'
+          );
     console.error(
       t(
         'account.security.securityPage.email.captchaSendError'
       ),
-      error.data
+      error
     );
     toast.error(
       t(
         'account.security.securityPage.email.captchaSendError'
       ),
       {
-        description:
-          error.data?.message ||
-          t(
-            'account.security.securityPage.email.unknownError'
-          )
+        description: message
       }
     );
   }
 }
 
-const profileFormSchema = toTypedSchema(
-  z.object({
-    email: z
-      .string()
-      .email(
-        t(
-          'account.security.securityPage.email.emailInvalid'
-        )
-      ),
-    captcha: z.string().optional()
-  })
-);
+const emailChangeFormSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .email(
+      t(
+        'account.security.securityPage.email.emailInvalid'
+      )
+    ),
+  captcha: z.string()
+});
+type EmailChangeFormValues = z.infer<
+  typeof emailChangeFormSchema
+>;
 
-const { handleSubmit, resetForm } = useForm({
-  validationSchema: profileFormSchema,
+const { handleSubmit, resetForm } =
+  useForm<EmailChangeFormValues>({
+    validationSchema: toTypedSchema(emailChangeFormSchema),
   initialValues: {
     email: '',
     captcha: ''
   }
-});
+  });
 
-const onSubmit = handleSubmit(async values => {
+const onSubmit = handleSubmit(
+  async (values: EmailChangeFormValues): Promise<void> => {
   try {
-    const response = await apiFetch(
-      '/api/v1/users/me/email',
-      {
-        method: 'PUT',
-        body: {
-          newEmail: values.email,
-          resettoken: value.value.join('')
-        }
-      }
-    );
+    if (!verificationId.value) {
+      throw new Error(
+        t(
+          'account.security.securityPage.email.captchaSendError'
+        )
+      );
+    }
+    await v2ChangeEmail({
+      new_email: values.email,
+      verification_id: verificationId.value,
+      code: value.value.join('')
+    });
     toast.success(
       t(
         'account.security.securityPage.email.emailChangeSuccess'
@@ -169,33 +176,31 @@ const onSubmit = handleSubmit(async values => {
         )
       }
     );
-  } catch (error: any) {
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : t(
+            'account.security.securityPage.email.unknownError'
+          );
     console.error(
       t(
         'account.security.securityPage.email.emailChangeError'
       ),
-      error.data
+      error
     );
     toast.error(
-      t('account.security.securityPage.email.unknownError'),
+      t(
+        'account.security.securityPage.email.emailChangeError'
+      ),
       {
-        description:
-          error.data?.message ||
-          t(
-            'account.security.securityPage.email.unknownError'
-          )
+        description: message
       }
     );
   } finally {
     try {
       preferenceStore.resetToDefaults(); // 重置用户偏好设置
-      await apiFetch('/api/v1/auth/logout', {
-        method: 'GET'
-      });
-      console.log(
-        'User logged out successfully',
-        localePath('auth-login')
-      );
+      await v2LogoutCurrent();
       // 等待两秒
       setTimeout(() => {
         navigateTo(localePath('auth-login'));
@@ -206,7 +211,8 @@ const onSubmit = handleSubmit(async values => {
       );
     }
   }
-});
+  }
+);
 </script>
 
 <template>
@@ -319,3 +325,5 @@ const onSubmit = handleSubmit(async values => {
     </div>
   </form>
 </template>
+
+

@@ -23,6 +23,7 @@ import MailList from '@/components/MailList.vue';
 import Nav, {
   type LinkProp
 } from '@/components/MailNav.vue';
+import type { MailItem } from './mail/types';
 
 interface MailProps {
   // 改为可选，以便页面不再强制传入
@@ -31,7 +32,7 @@ interface MailProps {
     email: string;
     icon: string;
   }[];
-  mails: any[];
+  mails: MailItem[];
   defaultLayout?: number[];
   defaultCollapsed?: boolean;
   navCollapsedSize: number;
@@ -62,7 +63,7 @@ const searchValue = ref('');
 const debouncedSearch = refDebounced(searchValue, 250);
 
 const filteredMailList = computed(() => {
-  let output: any[] = [];
+  let output: MailItem[] = [];
   const searchValue = debouncedSearch.value?.trim();
   if (!searchValue) {
     output = props.mails;

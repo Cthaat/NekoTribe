@@ -29,7 +29,7 @@ import {
   useSidebar
 } from '@/components/ui/sidebar';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
-import { apiFetch } from '@/composables/useApi';
+import { v2LogoutCurrent } from '@/services';
 import { toast } from 'vue-sonner';
 
 const localePath = useLocalePath();
@@ -52,14 +52,8 @@ async function handleLogout() {
   isLoading.value = true;
   try {
     preferenceStore.resetToDefaults(); // 重置用户偏好设置
-    await apiFetch('/api/v1/auth/logout', {
-      method: 'GET'
-    });
+    await v2LogoutCurrent();
     toast('退出登录成功，正在跳转到登录页面...');
-    console.log(
-      'User logged out successfully',
-      localePath('/auth/login')
-    );
     navigateTo(localePath('/auth/login'));
   } catch (error) {
     toast.error('退出登录失败，请重试。');
@@ -158,7 +152,7 @@ const { isMobile } = useSidebar();
                 () =>
                   navigateTo(
                     localePath(
-                      `/user/${preferenceStore.preferences.user.userId}/notifications`
+                      `/user/${preferenceStore.preferences.user.user_id}/notifications`
                     )
                   )
               "
@@ -180,3 +174,5 @@ const { isMobile } = useSidebar();
     </SidebarMenuItem>
   </SidebarMenu>
 </template>
+
+

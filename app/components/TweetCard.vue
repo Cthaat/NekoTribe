@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { toast } from 'vue-sonner';
-import { apiFetch } from '@/composables/useApi';
+import {
+  v2GetPost,
+  type V2Post
+} from '@/services';
 import {
   Card,
   CardContent,
@@ -29,11 +32,9 @@ import {
   MoreHorizontal,
   Trash2,
   BadgeCheck,
-  Bookmark,
   BookmarkCheck,
   BookmarkPlus,
-  PlayCircle,
-  HeartPlus
+  PlayCircle
 } from 'lucide-vue-next';
 import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
 import TweetContent from '@/components/TweetContent.vue';
@@ -53,47 +54,35 @@ const emit = defineEmits([
 
 // 假设这是从你的状态管理或认证 context 中获取的当前登录用户ID
 const currentUserId =
-  preferenceStore.preferences.user.userId;
+  preferenceStore.preferences.user.user_id;
 
-const props = defineProps({
-  tweet: {
-    type: Object,
-    required: true
-  }
-});
+const props = defineProps<{
+  tweet: V2Post;
+}>();
 
 // 计算属性，判断这条推文是否属于当前登录用户
 const isOwnTweet = computed(
-  () => props.tweet.authorId === currentUserId
+  () => props.tweet.author.user_id === currentUserId
 );
 
 const mediaItems = computed(() => {
-  const files = props.tweet.mediaFiles?.split(',') || [];
-  const thumbnails =
-    props.tweet.mediaThumbnails?.split(',') || [];
-
-  // 如果没有文件，返回空数组
-  if (files.length === 0) {
-    return [];
-  }
-
-  return files.map((fileUrl: string, index: number) => {
-    // 根据文件扩展名判断媒体类型
-    const isVideo = fileUrl.toLowerCase().endsWith('.mp4');
-
+  return props.tweet.media.map(media => {
+    const isVideo =
+      media.media_type === 'video' ||
+      media.mime_type.startsWith('video/');
     return {
       type: isVideo ? 'video' : 'image',
-      originalUrl: fileUrl,
-      // 如果有对应的缩略图，就使用它；否则，对于图片，可以直接用原始 URL 作为缩略图
+      originalUrl: media.public_url,
       thumbnailUrl:
-        thumbnails[index] || (isVideo ? '' : fileUrl)
+        media.thumbnail_url ||
+        (isVideo ? media.public_url : media.public_url)
     };
   });
 });
 
 // 格式化时间戳
 const formattedDate = computed(() => {
-  return new Date(props.tweet.createdAt).toLocaleString(
+  return new Date(props.tweet.created_at).toLocaleString(
     'zh-CN',
     {
       hour: '2-digit',
@@ -106,44 +95,41 @@ const formattedDate = computed(() => {
 });
 
 const localLiked = ref(
-  props.tweet.isLikedByUser === 1 || false
+  props.tweet.viewer_state.is_liked
 );
 
-const likeCount = ref(props.tweet.likesCount);
+const likeCount = ref(props.tweet.stats.likes_count);
 
 watch(
-  () => props.tweet.isLikedByUser,
+  () => props.tweet.viewer_state.is_liked,
   newValue => {
-    localLiked.value = newValue === 1 || false;
+    localLiked.value = newValue;
   }
 );
 
 const localIsBookmarked = ref(
-  props.tweet.isBookmarkedByUser === 1 || false
+  props.tweet.viewer_state.is_bookmarked
 );
 
 // 【修改二：添加 watch 来同步 prop 和本地 ref】
 // 当父组件的数据更新后，prop 会变化。我们需要监听这个变化，
 watch(
-  () => props.tweet.isBookmarkedByUser,
+  () => props.tweet.viewer_state.is_bookmarked,
   newValue => {
-    localIsBookmarked.value = newValue === 1 || false;
+    localIsBookmarked.value = newValue;
   }
 );
 
 // 处理交互事件的函数（此处为示例）
 function handleReply() {
-  console.log('Common to tweet:', props.tweet.tweetId);
   emit('reply-tweet', props.tweet);
 }
 
 function handleRetweet() {
-  console.log('Retweet tweet:', props.tweet.tweetId);
   emit('retweet-tweet', props.tweet);
 }
 
 function handleLike() {
-  console.log('Like tweet:', props.tweet.tweetId);
   localLiked.value = !localLiked.value; // 切换喜欢状态
   likeCount.value += localLiked.value ? 1 : -1; // 更新喜欢计数
   if (localLiked.value) {
@@ -158,19 +144,13 @@ function handleLike() {
 
 function handleDelete() {
   if (isOwnTweet.value) {
-    alert(`确定要删除推文 ${props.tweet.tweetId} 吗？`);
+    alert(`确定要删除推文 ${props.tweet.post_id} 吗？`);
     // 在这里调用你的API来删除推文
-    console.log('Deleting tweet:', props.tweet.tweetId);
-    emit('delete-tweet', props.tweet.tweetId);
+    emit('delete-tweet', props.tweet.post_id);
   }
 }
 
 function handleBookmark() {
-  console.log(
-    'Bookmark tweet:',
-    props.tweet.tweetId,
-    localIsBookmarked.value ? 'mark' : 'unmark'
-  );
   localIsBookmarked.value = !localIsBookmarked.value;
   toast.success(
     localIsBookmarked.value
@@ -184,13 +164,6 @@ function handleBookmark() {
   );
 }
 
-console.log(
-  'TweetCard component initialized with tweet:',
-  props.tweet,
-  'Is own tweet:',
-  isOwnTweet.value
-);
-
 const isLightboxOpen = ref(false);
 const lightboxStartIndex = ref(0);
 
@@ -201,7 +174,6 @@ function openLightbox(index: number) {
 }
 
 function toTweetDetail(tweetId: string) {
-  console.log('Navigating to tweet detail:', tweetId);
   // 在这里实现导航到推文详情的逻辑
   // 例如使用 Vue Router 的 push 方法
   const detailPath = localePath(`/tweet/${tweetId}`);
@@ -210,24 +182,24 @@ function toTweetDetail(tweetId: string) {
 }
 
 // ------- 转推：原文信息懒加载（作者与摘要） -------
-const originalTweet = ref<any | null>(null);
+const originalTweet = ref<V2Post | null>(null);
 const originalLoading = ref(false);
 const originalError = ref<string | null>(null);
 
 async function fetchOriginalTweet() {
   if (
-    props.tweet?.isRetweet === 1 &&
-    props.tweet?.retweetOfTweetId
+    props.tweet.post_type === 'repost' &&
+    props.tweet.repost_of_post_id
   ) {
     originalLoading.value = true;
     originalError.value = null;
     try {
-      const res: any = await apiFetch(
-        `/api/v1/tweets/${props.tweet.retweetOfTweetId}`
+      originalTweet.value = await v2GetPost(
+        props.tweet.repost_of_post_id
       );
-      originalTweet.value = res?.data?.tweet || null;
-    } catch (e: any) {
-      originalError.value = e?.message || '加载原文失败';
+    } catch (e) {
+      originalError.value =
+        e instanceof Error ? e.message : '加载原文失败';
       originalTweet.value = null;
     } finally {
       originalLoading.value = false;
@@ -241,16 +213,16 @@ async function fetchOriginalTweet() {
 
 watch(
   () => [
-    props.tweet?.isRetweet,
-    props.tweet?.retweetOfTweetId
+    props.tweet.post_type,
+    props.tweet.repost_of_post_id
   ],
   () => fetchOriginalTweet(),
   { immediate: true }
 );
 
 const originalAuthorHandle = computed(() => {
-  return originalTweet.value?.username
-    ? `@${originalTweet.value.username}`
+  return originalTweet.value?.author.username
+    ? `@${originalTweet.value.author.username}`
     : '';
 });
 
@@ -266,7 +238,7 @@ const originalExcerpt = computed(() => {
 
 <template>
   <Card
-    @click.stop="toTweetDetail(tweet.tweetId)"
+    @click.stop="toTweetDetail(String(tweet.post_id))"
     class="border-none max-w-2xl mx-auto my-4 rounded-xl shadow-sm cursor-pointer transition-colors duration-200 ease-in-out hover:shadow-md hover:bg-gray-50 dark:hover:bg-neutral-900"
   >
     <CardHeader class="flex flex-row items-start p-4">
@@ -275,29 +247,29 @@ const originalExcerpt = computed(() => {
         @click.stop="
           () =>
             navigateTo(
-              localePath(`/user/${tweet.authorId}/profile`)
+              localePath(`/user/${tweet.author.user_id}/profile`)
             )
         "
       >
         <AvatarImage
-          :src="tweet.avatarUrl"
-          :alt="tweet.username"
+          :src="tweet.author.avatar_url"
+          :alt="tweet.author.username"
         />
         <AvatarFallback>{{
-          tweet.username.substring(0, 2).toUpperCase()
+          tweet.author.username.substring(0, 2).toUpperCase()
         }}</AvatarFallback>
       </Avatar>
       <div class="flex-1">
         <div class="flex items-center gap-2">
           <h3 class="font-bold text-base">
-            {{ tweet.displayName }}
+            {{ tweet.author.display_name }}
           </h3>
           <BadgeCheck
-            v-if="tweet.isVerified"
+            v-if="tweet.author.is_verified"
             class="h-5 w-5 text-blue-500"
           />
           <span class="text-sm text-muted-foreground"
-            >@{{ tweet.username }}</span
+            >@{{ tweet.author.username }}</span
           >
         </div>
         <p class="text-xs text-muted-foreground">
@@ -349,7 +321,7 @@ const originalExcerpt = computed(() => {
     <CardContent class="px-4 pb-2">
       <!-- 若为转发推文，展示“转推自 @xxx”与原文摘要预览 -->
       <div
-        v-if="tweet.isRetweet === 1"
+        v-if="tweet.post_type === 'repost'"
         class="mb-2 -mt-1 space-y-2"
       >
         <div class="flex items-center gap-2 text-xs">
@@ -363,7 +335,7 @@ const originalExcerpt = computed(() => {
             <NuxtLink
               :to="
                 localePath(
-                  `/user/${originalTweet.authorId}/profile`
+                  `/user/${originalTweet.author.user_id}/profile`
                 )
               "
               @click.stop
@@ -375,7 +347,7 @@ const originalExcerpt = computed(() => {
             <NuxtLink
               :to="
                 localePath(
-                  `/tweet/${originalTweet.tweetId}`
+                  `/tweet/${originalTweet.post_id}`
                 )
               "
               @click.stop
@@ -392,7 +364,7 @@ const originalExcerpt = computed(() => {
             <NuxtLink
               :to="
                 localePath(
-                  `/tweet/${tweet.retweetOfTweetId}`
+                  `/tweet/${tweet.repost_of_post_id}`
                 )
               "
               @click.stop
@@ -406,24 +378,24 @@ const originalExcerpt = computed(() => {
         <div
           v-if="originalTweet && !originalLoading"
           class="rounded-lg border p-3 bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
-          @click.stop="toTweetDetail(originalTweet.tweetId)"
+          @click.stop="toTweetDetail(String(originalTweet.post_id))"
         >
           <div class="flex items-center gap-2 mb-1 text-sm">
             <Avatar class="h-6 w-6">
               <AvatarImage
-                :src="originalTweet.avatarUrl"
-                :alt="originalTweet.username"
+                :src="originalTweet.author.avatar_url"
+                :alt="originalTweet.author.username"
               />
               <AvatarFallback>
                 {{
-                  (originalTweet.username || '')
+                  (originalTweet.author.username || '')
                     .substring(0, 2)
                     .toUpperCase()
                 }}
               </AvatarFallback>
             </Avatar>
             <span class="font-medium">
-              {{ originalTweet.displayName || '未知' }}
+              {{ originalTweet.author.display_name || '未知' }}
             </span>
             <span class="text-muted-foreground">
               {{ originalAuthorHandle || '@未知用户' }}
@@ -441,7 +413,7 @@ const originalExcerpt = computed(() => {
           原文不可用或已删除，
           <NuxtLink
             :to="
-              localePath(`/tweet/${tweet.retweetOfTweetId}`)
+              localePath(`/tweet/${tweet.repost_of_post_id}`)
             "
             @click.stop
             class="text-blue-600 hover:underline"
@@ -513,7 +485,7 @@ const originalExcerpt = computed(() => {
         @click.stop="handleRetweet"
       >
         <Repeat class="h-5 w-5" />
-        <span>{{ tweet.retweetsCount }}</span>
+        <span>{{ tweet.stats.retweets_count }}</span>
       </Button>
 
       <Button
@@ -523,7 +495,7 @@ const originalExcerpt = computed(() => {
         @click.stop="handleReply"
       >
         <MessageCircle class="h-5 w-5" />
-        <span>{{ tweet.totalCount }}</span>
+        <span>{{ tweet.stats.comments_count }}</span>
       </Button>
 
       <Button
@@ -556,3 +528,5 @@ const originalExcerpt = computed(() => {
   grid-template-rows: repeat(2, minmax(0, 1fr));
 }
 </style>
+
+

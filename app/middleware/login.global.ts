@@ -31,9 +31,6 @@ export default defineNuxtRouteMiddleware((to, from) => {
   if (!isAuthRoute && !preferenceStore.isLoggedIn) {
     // 如果正在刷新token，暂时不跳转，等待刷新完成
     if (preferenceStore.isRefreshingToken) {
-      console.log(
-        '[Middleware] 正在刷新token，暂不跳转登录页'
-      );
       return;
     }
 
@@ -50,3 +47,4 @@ export default defineNuxtRouteMiddleware((to, from) => {
     }
   }
 });
+

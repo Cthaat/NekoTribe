@@ -343,21 +343,18 @@ const handleViewDetail = (tweet: ModerationTweet) => {
 const handleDetailApprove = (id: number, note: string) => {
   handleApprove(id);
   if (note) {
-    console.log(`审核备注 (通过): ${note}`);
   }
 };
 
 const handleDetailReject = (id: number, note: string) => {
   handleReject(id);
   if (note) {
-    console.log(`审核备注 (拒绝): ${note}`);
   }
 };
 
 const handleDetailFlag = (id: number, note: string) => {
   handleFlag(id);
   if (note) {
-    console.log(`审核备注 (标记): ${note}`);
   }
 };
 

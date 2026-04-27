@@ -1,7 +1,43 @@
 import { defineStore } from 'pinia';
 import { computed } from 'vue';
 import type { UserPreference, ThemeMode } from './type';
-import { apiFetch } from '@/composables/useApi';
+import {
+  v2RefreshCurrentToken,
+  type V2SelfUser,
+  type V2TokenData
+} from '@/services';
+
+function createEmptyUser(): V2SelfUser {
+  return {
+    user_id: 0,
+    email: '',
+    username: '',
+    avatar_url: '',
+    display_name: '',
+    bio: '',
+    location: '',
+    website: '',
+    phone: '',
+    birth_date: null,
+    email_verified_at: null,
+    is_verified: 0,
+    is_active: 0,
+    status: '',
+    followers_count: 0,
+    following_count: 0,
+    posts_count: 0,
+    likes_count: 0,
+    created_at: '',
+    updated_at: '',
+    relationship: {
+      is_self: true,
+      is_following: false,
+      is_blocked: false,
+      is_blocking: false,
+      relation: 'self'
+    }
+  };
+}
 
 // --- 默认状态 ---
 // 这个对象保持不变，它定义了所有用户偏好的初始值。
@@ -32,33 +68,8 @@ const defaultPreferences: UserPreference = {
   mute_keywords: [],
   blocked_users: [],
   // 用户登录相关
-  access_token: '', // 初始值为空字符串
-  refresh_token: '', // 初始值为空字符串
-  // 用户信息对象
-  user: {
-    userId: 0,
-    email: '', // 邮箱
-    username: '', // 用户名
-    passwordHash: '', // 密码哈希
-    avatarUrl: '', // 头像地址
-    displayName: '', // 显示名称
-    bio: '', // 个人简介
-    location: '', // 所在地
-    website: '', // 个人网站
-    birthDate: '', // 生日
-    phone: '', // 手机号
-    isVerified: 0, // 是否已验证
-    isActive: 0, // 是否激活
-    followersCount: 0, // 粉丝数
-    followingCount: 0, // 关注数
-    tweetsCount: 0, // 推文数
-    likesCount: 0, // 点赞数
-    createdAt: '', // 创建时间
-    updatedAt: '', // 更新时间
-    lastLoginAt: '', // 最后登录时间
-    createdBy: '', // 创建人
-    updatedBy: '' // 更新人
-  }
+  user: createEmptyUser(),
+  auth_session: null
 };
 
 // --- Store 定义 ---
@@ -100,8 +111,7 @@ export const usePreferenceStore = defineStore(
 
     // 【修改点 2】: 新增一个 Getter 用于方便地判断登录状态
     const isLoggedIn = computed(() => {
-      // 只要 access_token 存在且不为空，我们就认为用户已登录。
-      return !!preferences.value?.access_token;
+      return preferences.value.user.user_id > 0;
     });
 
     // 3. 操作 (Actions):
@@ -110,24 +120,18 @@ export const usePreferenceStore = defineStore(
       K extends keyof UserPreference
     >(key: K, value: UserPreference[K]) {
       if (preferences.value) {
-        (preferences.value as any)[key] = value;
+        preferences.value[key] = value;
       }
     }
 
-    // 【修改点 3】: 新增专门用于认证的 Actions
-    /**
-     * 在用户成功登录后调用此 Action。
-     * @param newAccessToken 从 API 返回的 access token
-     * @param newRefreshToken 从 API 返回的 refresh token
-     */
-    function setAuthTokens(
-      newAccessToken: string,
-      newRefreshToken: string
+    function setCurrentUser(user: V2SelfUser) {
+      updatePreference('user', user);
+    }
+
+    function setCurrentSession(
+      session: V2TokenData | null
     ) {
-      console.log('[PreferenceStore] Setting auth tokens.');
-      // 使用已有的通用 action 来更新状态，这很优雅！
-      updatePreference('access_token', newAccessToken);
-      updatePreference('refresh_token', newRefreshToken);
+      updatePreference('auth_session', session);
     }
 
     // 用于防止重复刷新的Promise缓存
@@ -138,65 +142,21 @@ export const usePreferenceStore = defineStore(
     async function refreshAccessToken() {
       // 如果已经有一个刷新请求在进行中，直接返回该Promise
       if (refreshPromise) {
-        console.log(
-          '[PreferenceStore] Token刷新已在进行中，复用现有请求'
-        );
         return refreshPromise;
       }
-
-      console.log('[PreferenceStore] 开始刷新access token');
       isRefreshingToken.value = true;
 
       // 创建刷新Promise
       refreshPromise = (async () => {
         try {
-          // 这里调用 API 来刷新令牌
-          // 注意：服务端从 Cookie 中读取 refresh_token，不需要手动传递
-          // 服务端会自动通过 setCookie 更新 HttpOnly Cookie
-          const response: any = await apiFetch(
-            '/api/v1/auth/refresh',
-            {
-              method: 'GET'
-            }
-          );
-
-          console.log(
-            '[PreferenceStore] 刷新响应:',
-            response
-          );
-          const code = response.code || 200;
-
-          if (code === 200) {
-            const data = response.data;
-            console.log(
-              '[PreferenceStore] 刷新成功，更新令牌：',
-              'accessToken:',
-              data.accessToken,
-              'refreshToken:',
-              data.refreshToken
-            );
-            // 更新客户端 store 中的 token（与 HttpOnly Cookie 同步）
-            // 这样可以让前端代码也能访问到最新的 token
-            setAuthTokens(
-              data.accessToken,
-              data.refreshToken
-            );
-          } else {
-            console.error(
-              '[PreferenceStore] 刷新失败，清除认证信息'
-            );
-            clearAuthTokens();
-            throw new Error(
-              'Failed to refresh access token'
-            );
-          }
+          const session = await v2RefreshCurrentToken();
+          setCurrentSession(session);
         } catch (error) {
           console.error(
             '[PreferenceStore] Token刷新失败:',
             error
           );
-          // 刷新失败时清除认证信息并跳转登录
-          clearAuthTokens();
+          clearAuthState();
           throw error;
         } finally {
           // 清除Promise缓存，允许下次刷新
@@ -211,15 +171,9 @@ export const usePreferenceStore = defineStore(
     /**
      * 在用户登出时调用此 Action。
      */
-    function clearAuthTokens() {
-      console.log(
-        '[PreferenceStore] Clearing auth tokens.'
-      );
-      // 将令牌重置为初始的空字符串状态
-      updatePreference('access_token', '');
-      updatePreference('refresh_token', '');
-      // 跳转到
-      // 这里可以使用 Nuxt 的路由跳转方法
+    function clearAuthState() {
+      updatePreference('user', createEmptyUser());
+      updatePreference('auth_session', null);
       useRouter().push('/auth/login');
     }
 
@@ -241,13 +195,13 @@ export const usePreferenceStore = defineStore(
      * 如果选择只清除令牌，这个函数保持原样。
      */
     function resetToDefaults() {
-      let language = preferences.value.language;
-      console.log(
-        '[PreferenceStore] Resetting to defaults.',
-        language
-      );
+      const language = preferences.value.language;
       preferences.value = defaultPreferences;
       updatePreference('language', language);
+    }
+
+    if (preferences.value.user.user_id === undefined) {
+      preferences.value = defaultPreferences;
     }
 
     // 4. 返回: 暴露出新增的 getters 和 actions
@@ -260,9 +214,12 @@ export const usePreferenceStore = defineStore(
       setTheme,
       toggleCompactMode,
       resetToDefaults,
-      setAuthTokens, // 【新增】
-      refreshAccessToken, // 【新增】
-      clearAuthTokens // 【新增】
+      setCurrentUser,
+      setCurrentSession,
+      refreshAccessToken,
+      clearAuthState
     };
   }
 );
+
+

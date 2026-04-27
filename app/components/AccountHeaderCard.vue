@@ -117,7 +117,6 @@ const isFollowing = ref(props.user.follow === 'Follow');
 watch(
   () => props.user.follow,
   newValue => {
-    console.log('Follow status changed:', newValue);
     isFollowing.value = newValue === 'Follow';
   }
 );
@@ -125,7 +124,7 @@ watch(
 function followUser() {
   if (
     props.user.id ===
-    preferenceStore.preferences.user.userId
+    preferenceStore.preferences.user.user_id
   ) {
     toast.error('你不能关注自己。');
     return;
@@ -294,3 +293,4 @@ function followUser() {
     </Tabs>
   </div>
 </template>
+

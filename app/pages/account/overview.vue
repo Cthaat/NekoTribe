@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Separator } from '@/components/ui/separator';
 import ProfileForm from '@/components/ProfileForm.vue';
-import { apiFetch } from '@/composables/useApi';
+import { v2GetUserAnalytics } from '@/services';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
 import { onMounted, ref } from 'vue';
 import { Card, CardContent } from '@/components/ui/card';
@@ -34,32 +34,22 @@ const userAnalytics = ref<UserAnalyticsData>({
 
 onMounted(async () => {
   try {
-    const response = (await apiFetch(
-      `/api/v1/analytics/users/${preferenceStore.preferences.user.userId}/stats`,
-      {
-        method: 'GET'
-      }
-    )) as { data?: { user?: any } };
-
-    userAnalytics.value.totalTweets =
-      response.data?.user.totalTweets || 0;
-    userAnalytics.value.tweetsThisWeek =
-      response.data?.user.tweetsThisWeek || 0;
-    userAnalytics.value.totalLikesReceived =
-      response.data?.user.totalLikesReceived || 0;
-    userAnalytics.value.avgLikesPerTweet =
-      response.data?.user.avgLikesPerTweet || 0;
-    userAnalytics.value.totalLikesGiven =
-      response.data?.user.totalLikesGiven || 0;
-    userAnalytics.value.totalCommentsMade =
-      response.data?.user.totalCommentsMade || 0;
-    userAnalytics.value.engagementScore =
-      response.data?.user.engagementScore || 0;
-
-    console.log(
-      'Fetched user analytics:',
-      userAnalytics.value
+    const analytics = await v2GetUserAnalytics(
+      preferenceStore.preferences.user.user_id
     );
+    userAnalytics.value.totalTweets = analytics.total_posts;
+    userAnalytics.value.tweetsThisWeek =
+      analytics.posts_this_week;
+    userAnalytics.value.totalLikesReceived =
+      analytics.total_likes_received;
+    userAnalytics.value.avgLikesPerTweet =
+      analytics.avg_likes_per_post;
+    userAnalytics.value.totalLikesGiven =
+      analytics.total_likes_given;
+    userAnalytics.value.totalCommentsMade =
+      analytics.total_comments_made;
+    userAnalytics.value.engagementScore =
+      analytics.engagement_score;
   } catch (error) {
     console.error('Error fetching user analytics:', error);
     toast.error('Failed to fetch user analytics.');
@@ -85,3 +75,4 @@ onMounted(async () => {
     </CardContent>
   </Card>
 </template>
+

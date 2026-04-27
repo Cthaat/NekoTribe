@@ -2,13 +2,14 @@
 // 活跃会话页面
 // - 展示当前账号的所有登录会话（设备）
 // - 支持注销单个会话、注销除当前设备外的所有会话
-// - 当前设备通过 access_token 的后 6 位做“弱标记”（后端不会返回完整 token）
 // 导入 Vue 的响应式工具 ref 和生命周期钩子 onMounted
 import { ref, onMounted } from 'vue';
-// 导入用户偏好/用户登录信息的 Pinia 仓库（用于获取 access_token）
-import { usePreferenceStore } from '@/stores/user';
-// 导入封装的 API 请求函数
-import { apiFetch } from '@/composables/useApi';
+import type { V2SessionItem } from '@/types/v2';
+import {
+  v2ListSessions,
+  v2RevokeOtherSessions,
+  v2RevokeSession
+} from '@/services';
 // 导入分隔线 UI 组件
 import { Separator } from '@/components/ui/separator';
 // 导入卡片 UI 组件
@@ -20,36 +21,10 @@ import { Badge } from '@/components/ui/badge';
 // 导入通知/吐司组件
 import { toast } from 'vue-sonner';
 
-// 定义用户会话的数据结构（接口，仅用于类型标注）
-interface UserSession {
-  // 会话 ID（用于删除等操作）
-  id: string;
-  // 用户 ID（冗余字段，用于关联）
-  userId: number;
-  // 设备信息（如 iPhone、Chrome on Windows）
-  device: string;
-  // 登录时记录的 IP 地址
-  ip: string;
-  // 用户代理（User-Agent）字符串
-  userAgent: string;
-  // 地理位置（可选）
-  location?: string;
-  // 创建时间 ISO 字符串
-  createdAt: string;
-  // 最近访问时间 ISO 字符串
-  lastAccessedAt: string;
-  // token 后缀（仅用于标记“当前设备”，后端不会返回完整 token）
-  tokenSuffix?: string;
-}
-
-// 取出偏好/用户信息仓库实例
-const pref = usePreferenceStore();
 // 加载状态，避免重复操作与控制按钮禁用态
 const loading = ref(false);
 // 会话列表数据
-const sessions = ref<UserSession[]>([]);
-// 当前设备的 token 后缀，用于在列表中做弱标记
-const currentSuffix = ref<string | undefined>();
+const sessions = ref<V2SessionItem[]>([]);
 
 // 拉取会话列表
 // - 从后端读取当前用户会话
@@ -58,21 +33,8 @@ async function load() {
   // 进入加载状态
   loading.value = true;
   try {
-    // 发起 GET 请求，带上 Bearer 令牌
-    const res = await apiFetch<{
-      data: { sessions: UserSession[] };
-    }>('/api/v1/account/sessions', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${pref.preferences.access_token}`
-      }
-    });
-    // 设置返回的会话列表
-    sessions.value = res.data.sessions;
-    // 找出含有 tokenSuffix 的那条记录的后缀，标记“当前设备”
-    currentSuffix.value = sessions.value.find(
-      s => s.tokenSuffix
-    )?.tokenSuffix;
+    const result = await v2ListSessions();
+    sessions.value = result.items;
   } catch (e) {
     // 失败提示
     toast.error('Failed to load sessions');
@@ -85,16 +47,8 @@ async function load() {
 // 注销单个会话
 async function revoke(id: string) {
   try {
-    // 调用单个会话删除接口
-    await apiFetch('/api/v1/account/sessions/' + id, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${pref.preferences.access_token}`
-      }
-    });
-    // 成功提示
+    await v2RevokeSession(id);
     toast.success('Session revoked');
-    // 刷新列表
     await load();
   } catch (e) {
     // 失败提示
@@ -105,16 +59,8 @@ async function revoke(id: string) {
 // 注销除当前设备外的所有会话
 async function revokeOthers() {
   try {
-    // 调用“删除其它会话”接口
-    await apiFetch('/api/v1/account/sessions/others', {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${pref.preferences.access_token}`
-      }
-    });
-    // 成功提示
+    await v2RevokeOtherSessions();
     toast.success('Other sessions revoked');
-    // 刷新列表
     await load();
   } catch (e) {
     // 失败提示
@@ -184,7 +130,7 @@ onMounted(load);
             <!-- 单条会话行 -->
             <div
               v-for="s in sessions"
-              :key="s.id"
+              :key="s.session_id"
               class="flex flex-col gap-2 p-4 md:flex-row md:items-start md:justify-between"
             >
               <!-- 左侧：会话详情 -->
@@ -194,29 +140,29 @@ onMounted(load);
                   <!-- 标记徽章：当前设备/其它设备 -->
                   <Badge
                     :variant="
-                      s.tokenSuffix === currentSuffix
+                      s.is_current
                         ? 'secondary'
                         : 'outline'
                     "
                   >
                     <!-- 根据是否为当前设备显示不同文案 -->
                     {{
-                      s.tokenSuffix === currentSuffix
+                      s.is_current
                         ? $t('account.active.thisDevice')
                         : $t('account.active.otherDevice')
                     }}
                   </Badge>
                   <!-- 设备名称 -->
                   <span class="font-medium">{{
-                    s.device
+                    s.device_info
                   }}</span>
                 </div>
                 <!-- 次行：IP、位置、最后访问时间 -->
                 <div class="text-xs text-muted-foreground">
-                  {{ s.ip }} · {{ s.location || '—' }} ·
+                  {{ s.ip_address }} · — ·
                   {{
                     new Date(
-                      s.lastAccessedAt
+                      s.last_accessed_at
                     ).toLocaleString()
                   }}
                 </div>
@@ -224,7 +170,7 @@ onMounted(load);
                 <div
                   class="text-xs text-muted-foreground break-all"
                 >
-                  UA: {{ s.userAgent }}
+                  Session: {{ s.session_id }}
                 </div>
               </div>
               <!-- 右侧：操作按钮组 -->
@@ -233,11 +179,8 @@ onMounted(load);
                 <Button
                   size="sm"
                   variant="outline"
-                  :disabled="
-                    s.tokenSuffix === currentSuffix ||
-                    loading
-                  "
-                  @click="revoke(s.id)"
+                  :disabled="s.is_current || loading"
+                  @click="revoke(s.session_id)"
                   >{{ $t('account.active.revoke') }}</Button
                 >
               </div>
@@ -255,3 +198,5 @@ onMounted(load);
     </CardContent>
   </Card>
 </template>
+
+

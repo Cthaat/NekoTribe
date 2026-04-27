@@ -172,6 +172,7 @@ interface V2UserSettings {
 }
 
 interface V2UpdateSettingsPayload {
+  two_factor_enabled?: boolean;
   login_alerts?: boolean;
   profile_visibility?: 'public' | 'private';
   show_online_status?: boolean;
@@ -192,7 +193,11 @@ interface V2AccountStatement {
 }
 
 interface V2UpdateStatementPayload {
-  action: 'mark_read' | 'dismiss' | 'resolve';
+  action:
+    | 'mark_read'
+    | 'mark_unread'
+    | 'dismiss'
+    | 'resolve';
 }
 
 interface V2StatementStatusData {

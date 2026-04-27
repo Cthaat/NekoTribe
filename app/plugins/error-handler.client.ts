@@ -2,24 +2,31 @@
  * 全局错误处理插件 - 处理401错误的token刷新（后备方案）
  * 这个插件作为最后一道防线，处理未被useApiFetch捕获的401错误
  */
+interface ErrorWithStatus {
+  statusCode?: number;
+  response?: { status?: number };
+  data?: { code?: number };
+}
+
+function isUnauthorizedError(error: unknown): boolean {
+  const candidate = error as ErrorWithStatus;
+  return (
+    candidate?.statusCode === 401 ||
+    candidate?.response?.status === 401 ||
+    candidate?.data?.code === 401
+  );
+}
+
 export default defineNuxtPlugin(nuxtApp => {
   // 用于防止重复刷新的标志
   let isHandling401 = false;
 
   // Hook into Nuxt's error handling
-  nuxtApp.hook('vue:error', async (error: any) => {
-    console.log('[ErrorHandler] 捕获到错误:', error);
-
+  nuxtApp.hook('vue:error', async (error: unknown) => {
     // 检查是否是401错误
-    const is401Error =
-      error?.statusCode === 401 ||
-      error?.response?.status === 401 ||
-      error?.data?.code === 401;
+    const is401Error = isUnauthorizedError(error);
 
     if (is401Error && !isHandling401) {
-      console.log(
-        '[ErrorHandler] 检测到401错误（后备方案）'
-      );
       isHandling401 = true;
 
       try {
@@ -30,8 +37,6 @@ export default defineNuxtPlugin(nuxtApp => {
 
         // 尝试刷新token
         await preferenceStore.refreshAccessToken();
-
-        console.log('[ErrorHandler] Token刷新成功');
 
         // 清除错误，不显示给用户
         clearError();
@@ -50,19 +55,11 @@ export default defineNuxtPlugin(nuxtApp => {
   });
 
   // Hook into app error
-  nuxtApp.hook('app:error', async (error: any) => {
-    console.log('[ErrorHandler] App捕获到错误:', error);
-
+  nuxtApp.hook('app:error', async (error: unknown) => {
     // 检查是否是401错误
-    const is401Error =
-      error?.statusCode === 401 ||
-      error?.response?.status === 401 ||
-      error?.data?.code === 401;
+    const is401Error = isUnauthorizedError(error);
 
     if (is401Error && !isHandling401) {
-      console.log(
-        '[ErrorHandler] App检测到401错误（后备方案）'
-      );
       isHandling401 = true;
 
       try {
@@ -73,8 +70,6 @@ export default defineNuxtPlugin(nuxtApp => {
 
         // 尝试刷新token
         await preferenceStore.refreshAccessToken();
-
-        console.log('[ErrorHandler] Token刷新成功');
 
         // 清除错误，不显示给用户
         clearError();

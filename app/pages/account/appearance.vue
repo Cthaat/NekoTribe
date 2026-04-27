@@ -13,6 +13,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 // 引入偏好状态仓库（存储主题/语言/字号/紧凑模式）
 import { usePreferenceStore } from '@/stores/user';
+import type { LanguageCode } from '@/stores/type';
 // 引入分隔线组件
 import { Separator } from '@/components/ui/separator';
 // 引入卡片组件
@@ -56,9 +57,9 @@ const lang = computed({
   // 读取当前语言
   get: () => pref.preferences.language,
   // 写入 store 并更新 vue-i18n 的 locale
-  set: v => {
+  set: (v: LanguageCode) => {
     pref.updatePreference('language', v);
-    locale.value = v as any;
+    locale.value = v;
   }
 });
 </script>

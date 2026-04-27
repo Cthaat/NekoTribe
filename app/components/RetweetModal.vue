@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import type { PropType } from 'vue';
+import type { V2Post } from '@/types/v2';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +28,7 @@ const props = defineProps({
   },
   // 需要被转发的原始推文对象
   tweet: {
-    type: Object,
+    type: Object as PropType<V2Post>,
     required: true
   },
   // 从父组件传入，用于禁用按钮，防止重复提交
@@ -57,7 +59,7 @@ function handleRetweet() {
   // 向父组件发送事件，并附带用户的评论内容和原始推文ID
   emit('submit-retweet', {
     content: quoteContent.value,
-    originalTweetId: props.tweet.tweetId
+    originalTweetId: props.tweet.post_id
   });
 }
 
@@ -89,20 +91,20 @@ watch(internalOpen, isOpen => {
           <div class="flex items-center gap-2">
             <Avatar class="h-6 w-6">
               <AvatarImage
-                :src="tweet.avatarUrl"
-                :alt="tweet.username"
+                :src="tweet.author.avatar_url"
+                :alt="tweet.author.username"
               />
               <AvatarFallback>{{
-                tweet.username
+                tweet.author.username
                   ?.substring(0, 2)
                   .toUpperCase()
               }}</AvatarFallback>
             </Avatar>
             <span class="font-bold text-sm">{{
-              tweet.displayName
+              tweet.author.display_name
             }}</span>
             <span class="text-muted-foreground text-sm"
-              >@{{ tweet.username }}</span
+              >@{{ tweet.author.username }}</span
             >
           </div>
           <p
@@ -127,3 +129,5 @@ watch(internalOpen, isOpen => {
     </DialogContent>
   </Dialog>
 </template>
+
+

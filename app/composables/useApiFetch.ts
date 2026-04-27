@@ -1,24 +1,109 @@
-// composables/useApiFetch.ts
 import { useFetch } from '#app';
 import { getCurrentInstance, watch } from 'vue';
 
-// T 是你期望的响应数据类型
+type UseApiFetchOptions = NonNullable<
+  Parameters<typeof useFetch>[1]
+>;
+type UseApiFetchHeaders =
+  UseApiFetchOptions extends { headers?: infer THeaders }
+    ? THeaders
+    : HeadersInit;
+type OnRequestContext = Parameters<
+  NonNullable<UseApiFetchOptions['onRequest']>
+>[0];
+type OnResponseContext = Parameters<
+  NonNullable<UseApiFetchOptions['onResponse']>
+>[0];
+type OnResponseErrorContext = Parameters<
+  NonNullable<UseApiFetchOptions['onResponseError']>
+>[0] & { _is401?: boolean };
+
+interface ComponentDescriptor {
+  name?: string;
+  __name?: string;
+}
+
+interface StatusCarrier {
+  statusCode?: number;
+  status?: number;
+  data?: { code?: number };
+}
+
+function getComponentName(): string | undefined {
+  const inst = getCurrentInstance();
+  const component = inst?.type as
+    | ComponentDescriptor
+    | undefined;
+  return component?.name || component?.__name;
+}
+
+function buildStackSource(): string {
+  try {
+    throw new Error('trace');
+  } catch (error) {
+    const stack =
+      error instanceof Error ? error.stack || '' : '';
+    const line = stack
+      .split('\n')
+      .find(
+        item =>
+          /https?:\/\//.test(item) &&
+          !/node_modules|nuxt\//i.test(item)
+      );
+    return line ? line.trim() : '';
+  }
+}
+
+function headersToRecord(
+  headers: UseApiFetchHeaders | undefined
+): Record<string, string> {
+  if (!headers) {
+    return {};
+  }
+  if (headers instanceof Headers) {
+    return Object.fromEntries(headers.entries());
+  }
+  if (Array.isArray(headers)) {
+    return Object.fromEntries(
+      headers.map(([key, value]) => [key, String(value)])
+    );
+  }
+  return Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => [
+      key,
+      String(value)
+    ])
+  );
+}
+
+function toSafeHeaderValue(value: string): string {
+  try {
+    if (/[^\x00-\xFF]/.test(value)) {
+      return 'utf8:' + encodeURIComponent(value);
+    }
+    return value;
+  } catch {
+    return 'encoded-error';
+  }
+}
+
+function isRefreshPath(path: string): boolean {
+  return (
+    path.includes('/auth/refresh') ||
+    path.includes('/auth/tokens/current')
+  );
+}
+
 export function useApiFetch<T>(
   path: string,
-  options: any = {}
+  options: UseApiFetchOptions = {} as UseApiFetchOptions
 ) {
-  // 1. 获取运行时配置
+  const resolvedOptions = {
+    ...options
+  } as UseApiFetchOptions;
   const config = useRuntimeConfig();
+  resolvedOptions.baseURL = config.public.apiBase;
 
-  // 2. 利用 useFetch 的 baseURL 选项，自动拼接 URL
-  options.baseURL = config.public.apiBase;
-
-  // 3. 追加来源追踪头，帮助服务端定位发起请求的前端"来源"
-  //    - x-client-route: 当前路由
-  //    - x-client-component: 组件名（若可获取）
-  //    - x-client-source: 通过堆栈粗略解析到的来源（可能是打包后的 chunk）
-  //    - x-client-referer: 浏览器地址（客户端）
-  //    - x-client-platform: client/server 标识
   const isServer = typeof window === 'undefined';
   const route = (() => {
     try {
@@ -27,94 +112,54 @@ export function useApiFetch<T>(
       return undefined;
     }
   })();
-
-  const inst = getCurrentInstance();
-  const compName =
-    (inst?.type as any)?.name ||
-    (inst?.type as any)?.__name;
-
-  let stackSource = '';
-  try {
-    throw new Error('trace');
-  } catch (e: any) {
-    const stack: string = e?.stack || '';
-    // 取首个包含 http 的帧，排除 node_modules 与 nuxt 内部（尽力而为，生产可能只有 _nuxt/xxx.js）
-    const line = stack
-      .split('\n')
-      .find(
-        l =>
-          /https?:\/\//.test(l) &&
-          !/node_modules|nuxt\//i.test(l)
-      );
-    if (line) stackSource = line.trim();
-  }
-
-  // 辅助函数：将字符串转换为安全的 ASCII header 值（处理中文等非 ASCII 字符）
-  const toSafeHeaderValue = (value: string): string => {
-    try {
-      // 检测是否包含非 ASCII 字符（字符码 > 255）
-      if (/[^\x00-\xFF]/.test(value)) {
-        // 使用 encodeURIComponent 编码，然后标记为已编码
-        return 'utf8:' + encodeURIComponent(value);
-      }
-      return value;
-    } catch (e) {
-      // 编码失败时返回安全的占位符
-      return 'encoded-error';
-    }
-  };
+  const componentName = getComponentName();
+  const stackSource = buildStackSource();
 
   const headers: Record<string, string> = {
-    ...(options.headers || {})
+    ...headersToRecord(resolvedOptions.headers)
   };
-  if (route?.fullPath)
+  if (route?.fullPath) {
     headers['x-client-route'] = toSafeHeaderValue(
       String(route.fullPath)
     );
-  if (compName)
+  }
+  if (componentName) {
     headers['x-client-component'] = toSafeHeaderValue(
-      String(compName)
+      componentName
     );
-  if (stackSource)
+  }
+  if (stackSource) {
     headers['x-client-source'] = toSafeHeaderValue(
-      String(stackSource)
+      stackSource
     );
-  if (!isServer && typeof location !== 'undefined')
+  }
+  if (!isServer && typeof location !== 'undefined') {
     headers['x-client-referer'] = toSafeHeaderValue(
       String(location.href)
     );
+  }
   headers['x-client-platform'] = isServer
     ? 'server'
     : 'client';
 
-  options.headers = headers;
+  resolvedOptions.headers = headers;
+  resolvedOptions.credentials = 'include';
 
-  // 确保客户端请求携带Cookie
-  // 这对于httpOnly Cookie的认证至关重要
-  options.credentials = 'include';
-
-  // 添加请求拦截器 - 在发送请求前检查token
-  const originalOnRequest = options.onRequest;
-  options.onRequest = async (context: any) => {
-    // 调用用户自定义的请求处理（如果有）
+  const originalOnRequest = resolvedOptions.onRequest;
+  resolvedOptions.onRequest = async (
+    context: OnRequestContext
+  ) => {
     if (originalOnRequest) {
       await originalOnRequest(context);
     }
 
-    // 在客户端且不是刷新token接口时，检查token状态
-    if (!isServer && !path.includes('/auth/refresh')) {
+    if (!isServer && !isRefreshPath(path)) {
       try {
         const { usePreferenceStore } = await import(
           '~/stores/user'
         );
         const preferenceStore = usePreferenceStore();
-
-        // 如果正在刷新token，等待完成
         if (preferenceStore.isRefreshingToken) {
-          console.log(
-            '[useApiFetch] 等待token刷新完成后再发送请求'
-          );
-          // 等待最多3秒
           let waitTime = 0;
           while (
             preferenceStore.isRefreshingToken &&
@@ -135,121 +180,80 @@ export function useApiFetch<T>(
     }
   };
 
-  // 添加响应错误拦截器处理token过期
-  const originalOnResponseError = options.onResponseError;
-
-  // 添加onResponse拦截器来处理成功的响应
-  const originalOnResponse = options.onResponse;
-  options.onResponse = async (context: any) => {
-    // 调用用户自定义的响应处理（如果有）
+  const originalOnResponse = resolvedOptions.onResponse;
+  resolvedOptions.onResponse = async (
+    context: OnResponseContext
+  ) => {
     if (originalOnResponse) {
       await originalOnResponse(context);
     }
   };
 
-  options.onResponseError = async (context: any) => {
-    const { response, options: fetchOptions } = context;
-
-    // 检测401错误且不是刷新token接口本身
+  const originalOnResponseError =
+    resolvedOptions.onResponseError;
+  resolvedOptions.onResponseError = async (
+    context: OnResponseErrorContext
+  ) => {
     if (
-      response.status === 401 &&
-      !path.includes('/auth/refresh')
+      context.response.status === 401 &&
+      !isRefreshPath(path)
     ) {
-      console.log(
-        '[useApiFetch] 检测到401错误，阻止错误传播'
-      );
-
-      // 标记这是一个401错误，供watch处理
       context._is401 = true;
-
-      // 不抛出错误，不调用原始错误处理器
-      // 这样可以阻止错误显示给用户
       return;
     }
 
-    // 非401错误，调用用户自定义的错误处理（如果有）
     if (originalOnResponseError) {
       await originalOnResponseError(context);
     }
   };
 
-  // 禁用服务端渲染时的请求，只在客户端执行
-  // 这样可以避免SSR期间的认证问题
-  if (options.server === undefined) {
-    options.server = false;
+  if (resolvedOptions.server === undefined) {
+    resolvedOptions.server = false;
   }
 
-  // 4. 调用原始的 useFetch
-  const result = useFetch<T>(path, options);
+  const result = useFetch<T>(path, resolvedOptions);
 
-  // 5. 在客户端环境下，监听错误并自动处理401
-  if (!isServer && result) {
-    const originalError = result.error;
-    const originalRefresh = result.refresh;
-    const originalStatus = result.status;
-
-    // 使用ref跟踪是否正在刷新token，避免重复刷新
+  if (!isServer) {
     const isRefreshing = ref(false);
-    const isProcessing401 = ref(false); // 标记是否正在处理401
     let refreshAttempts = 0;
-    const MAX_REFRESH_ATTEMPTS = 2;
+    const maxRefreshAttempts = 2;
 
-    // 使用watch处理401错误 - 先处理，再清除
     watch(
-      [originalError, originalStatus],
-      async ([newError, newStatus]) => {
-        // 检测401错误
+      [result.error, result.status],
+      async ([newError]) => {
+        const statusCarrier = newError as
+          | StatusCarrier
+          | null
+          | undefined;
         const is401 =
-          (newError &&
-            (newError as any).statusCode === 401) ||
-          (newError && (newError as any).status === 401) ||
-          (newError &&
-            (newError as any).data?.code === 401);
+          statusCarrier?.statusCode === 401 ||
+          statusCarrier?.status === 401 ||
+          statusCarrier?.data?.code === 401;
 
         if (
           is401 &&
-          !path.includes('/auth/refresh') &&
+          !isRefreshPath(path) &&
           !isRefreshing.value &&
-          refreshAttempts < MAX_REFRESH_ATTEMPTS
+          refreshAttempts < maxRefreshAttempts
         ) {
-          console.log(
-            '[useApiFetch] 检测到401错误，开始处理'
-          );
-
-          // 标记正在处理
-          isProcessing401.value = true;
-
-          // 立即清除错误，防止UI显示
           result.error.value = null;
-
           isRefreshing.value = true;
-          refreshAttempts++;
+          refreshAttempts += 1;
 
           try {
             const { usePreferenceStore } = await import(
               '~/stores/user'
             );
             const preferenceStore = usePreferenceStore();
-
-            // 刷新token
             await preferenceStore.refreshAccessToken();
-
-            console.log(
-              '[useApiFetch] Token刷新成功，重新请求数据'
-            );
-
-            // token刷新成功后，自动重新请求
-            if (originalRefresh) {
-              await originalRefresh();
-            }
+            await result.refresh();
           } catch (error) {
             console.error(
               '[useApiFetch] Token刷新失败:',
               error
             );
 
-            // 刷新失败后，恢复错误显示并跳转登录页
-            if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
+            if (refreshAttempts >= maxRefreshAttempts) {
               result.error.value = newError;
               const router = useRouter();
               const localePath = useLocalePath();
@@ -257,14 +261,13 @@ export function useApiFetch<T>(
             }
           } finally {
             isRefreshing.value = false;
-            isProcessing401.value = false;
           }
         }
       },
       {
         deep: true,
         immediate: false,
-        flush: 'sync' // 同步执行，确保立即处理
+        flush: 'sync'
       }
     );
   }

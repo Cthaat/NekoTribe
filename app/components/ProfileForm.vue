@@ -31,70 +31,80 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'vue-sonner';
+import {
+  v2GetMe,
+  v2PatchMe,
+  type V2SelfUser
+} from '@/services';
 
 const verifiedEmails = ref([
   'm@example.com',
   'm@google.com',
   'm@support.com'
 ]);
-import { apiFetch } from '@/composables/useApi';
 
 const { t, locale, setLocale } = useI18n();
 
-const userInfo = ref({
-  displayName: '',
-  bio: '',
-  location: '',
-  website: '',
-  birthDate: '',
-  phone: ''
-});
+const userInfo = ref<V2SelfUser | null>(null);
+
+interface ProfileUrlItem {
+  value: string;
+}
+
+interface ProfileFormValues {
+  displayName: string;
+  bio: string;
+  location: string;
+  urls: ProfileUrlItem[];
+  birthDate?: DateValue;
+  phone: string;
+}
+
+function mapWebsiteToUrls(
+  website: string
+): ProfileUrlItem[] {
+  if (!website.trim()) {
+    return [{ value: '' }];
+  }
+
+  return website
+    .split(',')
+    .map(url => ({ value: url.trim() }))
+    .filter(item => item.value.length > 0);
+}
+
+function parseBirthDate(
+  birthDate: string | null
+): DateValue | undefined {
+  if (!birthDate) {
+    return undefined;
+  }
+
+  return parseDate(birthDate.split('T')[0]);
+}
+
+function buildInitialProfileValues(
+  user: V2SelfUser | null
+): ProfileFormValues {
+  return {
+    displayName: user?.display_name || '',
+    bio: user?.bio || '',
+    location: user?.location || '',
+    urls: mapWebsiteToUrls(user?.website || ''),
+    birthDate: parseBirthDate(user?.birth_date || null),
+    phone: user?.phone || ''
+  };
+}
 
 onMounted(async () => {
   try {
-    const response = (await apiFetch('/api/v1/users/me', {
-      method: 'GET'
-    })) as { data?: { userData?: { userInfo?: any } } };
-
-    userInfo.value = response.data?.userData?.userInfo;
-
-    console.log('Fetched user info:', userInfo);
-
-    let birth: any = userInfo.value.birthDate;
+    const me = await v2GetMe();
+    userInfo.value = me;
 
     // 检查 userInfo 是否存在
     if (userInfo.value) {
-      let formattedUrls;
-
-      // 2. 检查从 API 获取的 website 字符串是否存在且不为空
-      if (
-        userInfo.value.website &&
-        userInfo.value.website.trim() !== ''
-      ) {
-        // 如果存在，分割字符串并映射为对象数组
-        formattedUrls = userInfo.value.website
-          .split(',') // -> ['https://a.com', ' https://b.com']
-          .map(url => ({ value: url.trim() })); // -> [{value: 'https://a.com'}, {value: 'https://b.com'}]
-      } else {
-        // 如果不存在或为空，提供一个默认的空输入框
-        formattedUrls = [{ value: '' }];
-      }
-      // 使用 resetForm 将获取到的数据填充到表单中**
       resetForm({
-        values: {
-          displayName: userInfo.value.displayName || '',
-          bio: userInfo.value.bio || '',
-          location: userInfo.value.location || '',
-          // 确保 urls 的格式是 [{ value: '...' }]
-          // 如果 API 返回的 urls 为空或 null，则提供一个默认的空 URL 字段
-          urls: formattedUrls,
-          // 对于日历组件，最好将日期字符串转换为 DateValue 对象
-          // 假设 API 返回的 birthDate 是 'YYYY-MM-DD' 格式的字符串
-          birthDate: userInfo.value.birthDate
-            ? parseDate(birth.split('T')[0])
-            : undefined,
-          phone: userInfo.value.phone || ''
-        }
+        values: buildInitialProfileValues(userInfo.value)
       });
     }
   } catch (error) {
@@ -113,115 +123,82 @@ onMounted(async () => {
   }
 });
 
-const profileFormSchema = toTypedSchema(
-  z.object({
-    displayName: z
-      .string()
-      .min(2, {
-        message: t(
-          'account.profile.profilePage.displayNameMinLength'
-        )
-      })
-      .max(30, {
-        message: t(
-          'account.profile.profilePage.displayNameMaxLength'
-        )
-      }),
-    bio: z
-      .string()
-      .max(160, {
-        message: t(
-          'account.profile.profilePage.bioMaxLength'
-        )
-      })
-      .min(4, {
-        message: t(
-          'account.profile.profilePage.bioMinLength'
-        )
-      }),
-    location: z.string().max(30, {
+const profileFormSchema = z.object({
+  displayName: z
+    .string()
+    .trim()
+    .min(2, {
       message: t(
-        'account.profile.profilePage.locationMaxLength'
+        'account.profile.profilePage.displayNameMinLength'
+      )
+    })
+    .max(30, {
+      message: t(
+        'account.profile.profilePage.displayNameMaxLength'
       )
     }),
-    urls: z.array(
-      z.object({
-        value: z.string().optional()
-      })
-    ),
-    birthDate: z.any().optional(),
-    phone: z.string().optional()
-  })
-);
-
-let birth: any = userInfo.value.birthDate || null;
-const { handleSubmit, resetForm } = useForm({
-  validationSchema: profileFormSchema,
-  initialValues: {
-    displayName: userInfo.value.displayName || '',
-    bio: userInfo.value.bio || '',
-    location: userInfo.value.location || '',
-    // 确保 website 的格式是 [{ value: '...' }]
-    // 如果 API 返回的 website 为空或 null，则提供一个默认的空 URL 字段
-    urls:
-      userInfo.value.website &&
-      userInfo.value.website.length > 0
-        ? userInfo.value.website
-            .split(',')
-            .map((url: string) => ({ value: url.trim() }))
-        : [{ value: '' }],
-    // 对于日历组件，最好将日期字符串转换为 DateValue 对象
-    // 假设 API 返回的 birthDate 是 'YYYY-MM-DD' 格式的字符串
-    birthDate: userInfo.value.birthDate
-      ? parseDate(birth.split('T')[0])
-      : undefined,
-    phone: userInfo.value.phone || ''
-  }
+  bio: z
+    .string()
+    .trim()
+    .max(160, {
+      message: t(
+        'account.profile.profilePage.bioMaxLength'
+      )
+    })
+    .min(4, {
+      message: t(
+        'account.profile.profilePage.bioMinLength'
+      )
+    }),
+  location: z.string().trim().max(30, {
+    message: t(
+      'account.profile.profilePage.locationMaxLength'
+    )
+  }),
+  urls: z.array(
+    z.object({
+      value: z.string()
+    })
+  ),
+  birthDate: z.custom<DateValue>().optional(),
+  phone: z.string()
 });
 
-const onSubmit = handleSubmit(async values => {
-  let submitValues = {
-    ...values,
-    website: '',
-    birthDate: ''
+const { handleSubmit, resetForm } =
+  useForm<ProfileFormValues>({
+    validationSchema: toTypedSchema(profileFormSchema),
+    initialValues: buildInitialProfileValues(userInfo.value)
+  });
+
+const onSubmit = handleSubmit(
+  async (values: ProfileFormValues): Promise<void> => {
+  let website = '';
+
+  website = values.urls
+    .map(urlObject => urlObject.value.trim())
+    .filter(url => url.length > 0)
+    .join(',');
+  const payload = {
+    display_name: values.displayName,
+    bio: values.bio,
+    location: values.location,
+    website,
+    birth_date: values.birthDate
+      ? values.birthDate.toString()
+      : null,
+    phone: values.phone || undefined
   };
-
-  if (values.urls && Array.isArray(values.urls)) {
-    const urlString = values.urls
-      // 从对象数组中提取出 url 字符串 -> ['https://a.com', '', 'https://b.com']
-      .map(urlObject => urlObject.value)
-      // 过滤掉空字符串 -> ['https://a.com', 'https://b.com']
-      .filter(url => url && url.trim() !== '')
-      // 用逗号连接成一个字符串 -> 'https://a.com,https://b.com'
-      .join(',');
-
-    // 用处理好的字符串替换原来的数组
-    submitValues.website = urlString;
-  }
-
-  // 3. (可选但推荐) 同时处理 birthDate 字段
-  //    它现在是一个对象，提交时通常需要转换为 'YYYY-MM-DD' 格式的字符串
-  if (values.birthDate) {
-    submitValues.birthDate = values.birthDate.toString();
-  }
-  console.log('Form submitted with values:', submitValues);
   toast(t('account.profile.profilePage.successMessage'), {
     description: t(
       'account.profile.profilePage.successDescription'
     ),
     duration: 3000
   });
-  const response = await apiFetch('/api/v1/users/me', {
-    method: 'PUT',
-    body: JSON.stringify(submitValues),
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-  console.log('Profile update response:', response);
+  await v2PatchMe(payload);
   // 刷新页面
   window.location.reload();
-});
+  }
+);
 
 // 创建日期格式化实例，这部分是正确的
 const df = new DateFormatter(
@@ -471,3 +448,5 @@ const df = new DateFormatter(
     </div>
   </form>
 </template>
+
+

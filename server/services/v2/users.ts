@@ -410,6 +410,7 @@ export async function v2PatchSettings(
   await v2EnsureSettings(connection, auth.userId);
 
   const fields = [
+    'two_factor_enabled',
     'login_alerts',
     'show_online_status',
     'allow_dm_from_strangers',
@@ -469,14 +470,29 @@ export async function v2ListAccountStatements(
 ): Promise<V2Response<V2AccountStatement[]>> {
   const auth = v2Auth(event);
   const page = v2Page(event);
+  const status = v2QueryString(event, 'status', 'all');
+  const type = v2QueryString(event, 'type', 'all');
+  const filters = ['user_id = :user_id'];
+  const binds: Record<string, string | number> = {
+    user_id: auth.userId
+  };
+  if (status && status !== 'all') {
+    filters.push('status = :status');
+    binds.status = status;
+  }
+  if (type && type !== 'all') {
+    filters.push('statement_type = :statement_type');
+    binds.statement_type = type;
+  }
+  const whereClause = filters.join('\n      AND ');
   const total = await v2Count(
     connection,
     `
     SELECT COUNT(*) AS total
     FROM n_account_statements
-    WHERE user_id = :user_id
+    WHERE ${whereClause}
     `,
-    { user_id: auth.userId }
+    binds
   );
   const rows = await v2Rows(
     connection,
@@ -494,12 +510,12 @@ export async function v2ListAccountStatements(
         updated_at,
         ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
       FROM n_account_statements
-      WHERE user_id = :user_id
+      WHERE ${whereClause}
     )
     WHERE rn BETWEEN :start_row AND :end_row
     `,
     {
-      user_id: auth.userId,
+      ...binds,
       start_row: page.start,
       end_row: page.end
     }
@@ -527,6 +543,7 @@ export async function v2PatchAccountStatement(
   const statusMap: Record<V2UpdateStatementPayload['action'], string> =
     {
       mark_read: 'read',
+      mark_unread: 'unread',
       dismiss: 'dismissed',
       resolve: 'resolved'
     };

@@ -19,12 +19,12 @@ import {
   SelectValue
 } from '@/components/ui/select';
 // 引入 API/状态/提示
-import { apiFetch } from '@/composables/useApi';
-import { usePreferenceStore } from '@/stores/user';
+import {
+  v2GetSettings,
+  v2PatchSettings
+} from '@/services';
 import { toast } from 'vue-sonner';
 
-// 偏好/鉴权信息
-const pref = usePreferenceStore();
 // 加载与保存中的状态位
 const loading = ref(false);
 const saving = ref(false);
@@ -45,29 +45,21 @@ async function loadSettings() {
   // 进入加载态
   loading.value = true;
   try {
-    // 获取设置（需要带上 Bearer Token）
-    const res = await apiFetch<{ data: { settings: any } }>(
-      '/api/v1/account/settings',
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${pref.preferences.access_token}`
-        }
-      }
-    );
-    // 写入到本地响应式变量
-    const s = res.data.settings || {};
-    twoFactorEnabled.value = !!s.twoFactorEnabled;
-    loginAlerts.value = !!s.loginAlerts;
+    const settings = await v2GetSettings();
+    twoFactorEnabled.value = !!settings.two_factor_enabled;
+    loginAlerts.value = !!settings.login_alerts;
     profile_visibility.value =
-      s.profile_visibility || 'public';
-    show_online_status.value = !!s.show_online_status;
+      (settings.profile_visibility as
+        | 'public'
+        | 'private') || 'public';
+    show_online_status.value =
+      !!settings.show_online_status;
     allow_dm_from_strangers.value =
-      !!s.allow_dm_from_strangers;
+      !!settings.allow_dm_from_strangers;
     push_notification_enabled.value =
-      !!s.push_notification_enabled;
+      !!settings.push_notification_enabled;
     email_notification_enabled.value =
-      !!s.email_notification_enabled;
+      !!settings.email_notification_enabled;
   } catch (e) {
     // 失败提示
     toast.error('Failed to load settings');
@@ -82,29 +74,18 @@ async function saveSettings() {
   // 进入保存态
   saving.value = true;
   try {
-    // 合并更新（后端做 patch/merge）
-    await apiFetch('/api/v1/account/settings', {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${pref.preferences.access_token}`
-      },
-      body: {
-        // 安全
-        twoFactorEnabled: twoFactorEnabled.value,
-        loginAlerts: loginAlerts.value,
-        // 隐私
-        profile_visibility: profile_visibility.value,
-        show_online_status: show_online_status.value,
-        allow_dm_from_strangers:
-          allow_dm_from_strangers.value,
-        // 通知
-        push_notification_enabled:
-          push_notification_enabled.value,
-        email_notification_enabled:
-          email_notification_enabled.value
-      }
+    await v2PatchSettings({
+      two_factor_enabled: twoFactorEnabled.value,
+      login_alerts: loginAlerts.value,
+      profile_visibility: profile_visibility.value,
+      show_online_status: show_online_status.value,
+      allow_dm_from_strangers:
+        allow_dm_from_strangers.value,
+      push_notification_enabled:
+        push_notification_enabled.value,
+      email_notification_enabled:
+        email_notification_enabled.value
     });
-    // 成功提示
     toast.success('Settings saved');
   } catch (e) {
     // 失败提示
@@ -303,3 +284,4 @@ onMounted(loadSettings);
     </CardContent>
   </Card>
 </template>
+

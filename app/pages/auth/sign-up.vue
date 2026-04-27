@@ -31,10 +31,11 @@ import * as z from 'zod';
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm } from 'vee-validate';
 import { toast } from 'vue-sonner';
-import { useApiFetch } from '@/composables/useApiFetch'; // 导入自定义的 useApiFetch 组合式 API
-import { apiFetch } from '@/composables/useApi';
-import { useRouter } from 'vue-router';
-import { usePreferenceStore } from '~/stores/user'; // 导入 store
+import {
+  v2CreateOtp,
+  v2Register,
+  v2VerifyOtp
+} from '@/services';
 import {
   PinInput,
   PinInputGroup,
@@ -67,49 +68,51 @@ useHead({
   ]
 });
 
-// 更新 schema
-const formSchema = toTypedSchema(
-  z
-    .object({
-      email: z
-        .string()
-        .email({ message: t('auth.signUp.emailInvalid') }),
-      username: z.string().min(2, {
+const signUpFormSchema = z
+  .object({
+    email: z
+      .string()
+      .trim()
+      .email({ message: t('auth.signUp.emailInvalid') }),
+    username: z
+      .string()
+      .trim()
+      .min(2, {
         message: t('auth.signUp.usernameRequired')
       }),
-      displayName: z.string().min(2, {
+    displayName: z
+      .string()
+      .trim()
+      .min(2, {
         message: t('auth.signUp.displayNameRequired')
       }),
-      phone: z.string().optional(),
-      birthDate: z.any().optional(),
-      location: z.string().optional(),
-      bio: z.string().optional(),
-      password: z.string().min(6, {
-        message: t('auth.signUp.passwordTooShort')
-      }),
-      confirmPassword: z.string().min(6, {
-        message: t('auth.signUp.passwordTooShort')
-      }),
-      captcha: z.string().optional(),
-      // 简化 agreeToTerms 的验证逻辑
-      agreeToTerms: z
-        .boolean()
-        .refine(val => val === true, {
-          message: t('auth.signUp.termsNotAgreed')
-        })
+    phone: z.string(),
+    birthDate: z.custom<DateValue>().optional(),
+    location: z.string(),
+    bio: z.string(),
+    password: z.string().min(6, {
+      message: t('auth.signUp.passwordTooShort')
+    }),
+    confirmPassword: z.string().min(6, {
+      message: t('auth.signUp.passwordTooShort')
+    }),
+    captcha: z.string(),
+    agreeToTerms: z.boolean().refine(val => val === true, {
+      message: t('auth.signUp.termsNotAgreed')
     })
-    .refine(
-      data => data.password === data.confirmPassword,
-      {
-        message: t('auth.signUp.passwordMismatch'),
-        path: ['confirmPassword'] // 错误提示显示在确认密码字段
-      }
-    )
-);
+  })
+  .refine(
+    data => data.password === data.confirmPassword,
+    {
+      message: t('auth.signUp.passwordMismatch'),
+      path: ['confirmPassword']
+    }
+  );
+type SignUpFormValues = z.infer<typeof signUpFormSchema>;
 
 // 创建表单实例
-const form = useForm({
-  validationSchema: formSchema,
+const form = useForm<SignUpFormValues>({
+  validationSchema: toTypedSchema(signUpFormSchema),
   initialValues: {
     email: '',
     username: '',
@@ -129,9 +132,8 @@ const form = useForm({
 
 const isLoading = ref(false);
 
-const router = useRouter();
-
 const value = ref<string[]>([]);
+const verificationId = ref('');
 
 // --- 新增：为验证码按钮添加状态 ---
 const isCaptchaSending = ref(false);
@@ -156,17 +158,12 @@ async function sendCaptcha() {
   countdown.value = 60; // 重置倒计时
 
   try {
-    // 1. 调用 API，等待它完成
-    const response: any = await apiFetch(
-      '/api/v1/auth/get-verification',
-      {
-        method: 'POST',
-        body: {
-          account: email
-        }
-      }
-    );
-    console.log(response);
+    const response = await v2CreateOtp({
+      account: email,
+      type: 'register',
+      channel: 'email'
+    });
+    verificationId.value = response.verification_id;
 
     toast.success('the auth.signUp.captchaSent', {
       description: t('auth.signUp.captchaSentDescription')
@@ -187,15 +184,17 @@ async function sendCaptcha() {
         }
       }
     }, 1000); // 每秒执行一次
-  } catch (error: any) {
-    // 错误处理逻辑保持不变
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : t('auth.signUp.unknownError');
     console.error(
       t('auth.signUp.captchaSendError'),
-      error.data
+      error
     );
     toast.error(t('auth.signUp.captchaSendError'), {
-      description:
-        error.data?.message || t('auth.signUp.unknownError')
+      description: message
     });
   }
 }
@@ -208,22 +207,38 @@ onUnmounted(() => {
   }
 });
 
-async function onValidSubmit(values: Record<string, any>) {
+async function onValidSubmit(
+  values: SignUpFormValues
+): Promise<void> {
   isLoading.value = true;
 
-  values.captcha = value.value.join('');
-
   try {
-    // 1. 调用 API，等待它完成
-    const response: any = await apiFetch(
-      '/api/v1/auth/register',
-      {
-        method: 'POST',
-        body: values
-      }
-    );
+    if (!verificationId.value) {
+      throw new Error(t('auth.signUp.captchaSendError'));
+    }
 
-    console.log(t('auth.signUp.successRegister'), values);
+    await v2VerifyOtp({
+      account: values.email,
+      type: 'register',
+      verification_id: verificationId.value,
+      code: value.value.join('')
+    });
+
+    const response = await v2Register({
+      email: values.email,
+      username: values.username,
+      password: values.password,
+      confirm_password: values.confirmPassword,
+      display_name: values.displayName,
+      phone: values.phone.trim() || undefined,
+      birth_date: values.birthDate
+        ? values.birthDate.toString()
+        : undefined,
+      location: values.location.trim() || undefined,
+      bio: values.bio.trim() || undefined,
+      verification_id: verificationId.value,
+      agree_to_terms: values.agreeToTerms
+    });
 
     // 2. 成功后，唯一要做的就是导航！
     //    使用 await 确保导航被正确触发。
@@ -231,20 +246,18 @@ async function onValidSubmit(values: Record<string, any>) {
     toast(t('auth.signUp.successRegister'), {
       description: t('auth.signUp.redirectToLogin')
     });
-    console.log(
-      t('auth.signUp.successRegisterDescription'),
-      response
-    );
     await navigateTo('/auth/login');
-  } catch (error: any) {
-    // 错误处理逻辑保持不变
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : t('auth.signUp.unknownError');
     console.error(
       t('auth.signUp.registerFailed'),
-      error.data
+      error
     );
     toast.error(t('auth.signUp.registerFailed'), {
-      description:
-        error.data?.message || t('auth.signUp.unknownError')
+      description: message
     });
   } finally {
     isLoading.value = false;
@@ -267,19 +280,11 @@ const agreeToTermsValue = ref(false);
 
 // 监听变化并同步到表单
 watch(agreeToTermsValue, newValue => {
-  console.log(
-    t('auth.signUp.agreeToTermsChanged'),
-    newValue
-  );
   form.setFieldValue('agreeToTerms', newValue);
 });
 
 // 添加一个点击处理函数来调试
 const handleCheckboxChange = (checked: boolean) => {
-  console.log(
-    t('auth.signUp.agreeToTermsChanged'),
-    checked
-  );
   agreeToTermsValue.value = checked;
 };
 </script>
@@ -672,3 +677,5 @@ const handleCheckboxChange = (checked: boolean) => {
     </div>
   </div>
 </template>
+
+
