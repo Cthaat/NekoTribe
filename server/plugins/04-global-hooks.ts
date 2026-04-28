@@ -1,31 +1,105 @@
-export default defineNitroPlugin(nitroApp => {
-  // 请求到来时
-  nitroApp.hooks.hook('request', event => {
-    event.context._start = Date.now();
-    console.log(
-      `global-hooks:[${new Date().toISOString()}] 请求: ${event.path}`
-    );
-  });
+import type { H3Event } from 'h3';
+import {
+  getRequestLogContext,
+  logError,
+  logInfo,
+  logWarn,
+  serializeLogError
+} from '~/server/utils/logging';
 
-  // 响应发送前
+function responseStatus(
+  event: H3Event,
+  response: unknown
+): number {
+  const candidate = response as {
+    statusCode?: number;
+    status?: number;
+  };
+  return (
+    candidate.statusCode ??
+    candidate.status ??
+    event.node.res.statusCode
+  );
+}
+
+function shouldLogError(
+  path: string,
+  statusCode: number
+): boolean {
+  if (statusCode >= 500) {
+    return true;
+  }
+
+  return path.startsWith('/api/');
+}
+
+function errorEvent(input: unknown): H3Event | undefined {
+  const candidate = input as {
+    event?: H3Event;
+    node?: H3Event['node'];
+    context?: H3Event['context'];
+  };
+
+  if (candidate?.event) {
+    return candidate.event;
+  }
+
+  if (candidate?.node && candidate.context) {
+    return input as H3Event;
+  }
+
+  return undefined;
+}
+
+export default defineNitroPlugin(nitroApp => {
   nitroApp.hooks.hook(
     'beforeResponse',
     (event, response) => {
-      const duration =
-        Date.now() - (event.context._start || Date.now());
-      console.log(
-        `global-hooks:[${new Date().toISOString()}] 响应: ${event.path} 用时: ${duration}ms`
-      );
+      const context = getRequestLogContext(event);
+      const statusCode = responseStatus(event, response);
+      const durationMs =
+        Date.now() - (context?.startAt ?? Date.now());
+
+      logInfo('http:response', {
+        requestId: context?.requestId ?? 'unknown',
+        method:
+          context?.method ||
+          event.node.req.method ||
+          'UNKNOWN',
+        path: context?.path ?? event.path,
+        rawUrl: context?.rawUrl ?? event.node.req.url,
+        statusCode,
+        durationMs
+      });
     }
   );
 
-  // 捕获全局错误
-  nitroApp.hooks.hook('error', (error, event) => {
-    console.error(
-      `[global-hooks:${new Date().toISOString()}] 全局错误:`,
-      error,
-      '请求路径:',
-      event?.path
-    );
+  nitroApp.hooks.hook('error', (error, errorContext) => {
+    const event = errorEvent(errorContext);
+    const context = getRequestLogContext(event);
+    const serialized = serializeLogError(error);
+    const statusCode = serialized.statusCode ?? 500;
+    const path = context?.path ?? event?.path ?? 'unknown';
+    const payload = {
+      requestId: context?.requestId ?? 'unknown',
+      method:
+        context?.method ??
+        event?.node.req.method ??
+        'UNKNOWN',
+      path,
+      rawUrl:
+        context?.rawUrl ??
+        event?.node.req.url ??
+        path,
+      statusCode,
+      error: serialized
+    };
+
+    if (!shouldLogError(path, statusCode)) {
+      logWarn('http:ignored-error', payload);
+      return;
+    }
+
+    logError('http:error', payload);
   });
 });

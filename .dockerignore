@@ -3,7 +3,7 @@
 .github
 .vscode
 
-# Nuxt 3 的构建输出和缓存
+# Nuxt 构建输出和缓存
 # 我们希望在构建阶段重新生成它们，而不是复制本地的
 .output
 .nuxt
@@ -20,3 +20,12 @@ node_modules
 # 系统和日志文件
 .DS_Store
 npm-debug.log*
+
+# 本地运行数据和上传文件
+.history
+.data
+data/oracle-data
+data/oracle19c-data
+storage
+upload
+temp

@@ -250,7 +250,7 @@ export async function checkMediaFile(
         fileType
       );
       if (generatedThumbnail) {
-        thumbnailPath = `/upload/media/${options.tweetId}/thumbnails/${thumbnailFileName}`;
+        thumbnailPath = `/storage/media/${options.tweetId}/thumbnails/${thumbnailFileName}`;
       }
     }
   } catch (error) {

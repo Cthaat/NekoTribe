@@ -1,0 +1,494 @@
+<script setup lang="ts">
+import { ref, computed, nextTick } from 'vue';
+import type {
+  CreatePostFormVM,
+  PreviewPostVM
+} from '@/types/posts';
+import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import AppButton from '@/components/app/AppButton.vue';
+import { toast } from 'vue-sonner';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
+import { ImageUp, Send, X } from 'lucide-vue-next';
+
+import TweetPreviewCard from './TweetPreviewCard.vue';
+import MentionPicker from './MentionPicker.vue';
+
+const props = defineProps<{
+  replyTo?: PreviewPostVM;
+  quoteTo?: PreviewPostVM;
+}>();
+
+// --- 提交信息 ---
+const submitForm = ref<CreatePostFormVM>({
+  content: '',
+  replyToPostId: null,
+  repostOfPostId: null,
+  quotedPostId: null,
+  visibility: 'public',
+  tagNames: [],
+  mentionUserIds: [],
+  location: ''
+});
+
+// --- 传递信息 ---
+
+const emit = defineEmits([
+  'open-quote-dialog',
+  'open-reply-dialog',
+  'submit'
+]);
+
+// --- 配置项 ---
+const MAX_CHARS = 280; // 推文最大字符数
+
+// --- 响应式状态 ---
+const tweetContent = ref(''); // 存储推文的文本内容
+const mediaFiles = ref<File[]>([]); // 存储用于上传的真实文件对象
+const mediaPreviews = ref<string[]>([]); // 存储用于预览的临时本地 URL
+const fileInputRef = ref<HTMLInputElement | null>(null); // 用于引用隐藏的文件输入框
+const textareaRef = ref<HTMLTextAreaElement | null>(null); // Textarea 引用
+
+// @ 提及功能
+const showMentionPicker = ref(false);
+const mentionSearchQuery = ref('');
+const mentionPickerPosition = ref({ top: 0, left: 0 });
+const mentionStartIndex = ref(-1);
+const mentionPickerRef =
+  ref<InstanceType<typeof MentionPicker>>();
+const mentions = ref<string[]>([]); // 存储所有提及的用户名
+const mentionUserIds = ref<Record<string, string>>({}); // username -> userId 映射
+const { t } = useAppLocale();
+
+// --- 计算属性 ---
+
+const characterCount = computed(
+  () => tweetContent.value.length
+);
+const isTweetDisabled = computed(() => {
+  const count = characterCount.value;
+  return count === 0 || count > MAX_CHARS;
+});
+
+const circumference = 2 * Math.PI * 14; // 2 * π * r (半径为 14)
+const progressOffset = computed(() => {
+  const progress = Math.min(
+    characterCount.value / MAX_CHARS,
+    1
+  );
+  return circumference * (1 - progress);
+});
+
+const progressColorClass = computed(() => {
+  const count = characterCount.value;
+  if (count > MAX_CHARS) return 'text-red-500';
+  if (count > MAX_CHARS - 20) return 'text-yellow-500';
+  return 'text-white'; // 新风格：正常状态为白色
+});
+
+// --- 方法 ---
+
+function handleQuoteClick() {
+  // 当按钮被点击时，向父组件发出 'open-quote-dialog' 事件
+  emit('open-quote-dialog');
+}
+
+function handleReplyClick() {
+  // 当按钮被点击时，向父组件发出 'open-reply-dialog' 事件
+  emit('open-reply-dialog');
+}
+
+function triggerFileInput() {
+  fileInputRef.value?.click();
+}
+
+function handleFileSelect(event: Event) {
+  const target = event.target as HTMLInputElement;
+  if (!target.files) return;
+
+  const files = Array.from(target.files);
+  const remainingSlots = 4 - mediaFiles.value.length;
+
+  if (files.length > remainingSlots) {
+    toast.error(t('post.composer.mediaLimitTitle'), {
+      description: t('post.composer.mediaLimitDescription', {
+        count: remainingSlots > 0 ? remainingSlots : 0
+      })
+    });
+  }
+
+  const newFiles = files.slice(0, remainingSlots);
+  mediaFiles.value.push(...newFiles);
+  const newPreviews = newFiles.map(file =>
+    URL.createObjectURL(file)
+  );
+  mediaPreviews.value.push(...newPreviews);
+
+  target.value = '';
+}
+
+function removeMedia(index: number) {
+  const [removedPreview] = mediaPreviews.value.splice(
+    index,
+    1
+  );
+  URL.revokeObjectURL(removedPreview);
+  mediaFiles.value.splice(index, 1);
+}
+
+async function handleSubmit() {
+  if (isTweetDisabled.value) return;
+  submitForm.value.visibility = 'public';
+  submitForm.value.replyToPostId = null;
+  submitForm.value.quotedPostId = null;
+  submitForm.value.repostOfPostId = null;
+
+  if (props.replyTo) {
+    submitForm.value.replyToPostId =
+      props.replyTo.id
+  }
+  if (props.quoteTo) {
+    submitForm.value.quotedPostId =
+      props.quoteTo.id
+  }
+
+  // 创建 FormData 对象
+  const formData = new FormData();
+  // 只添加媒体文件
+  mediaFiles.value.forEach(file => {
+    formData.append('file', file);
+  });
+  // TODO: 添加描述字段
+  formData.append('altText', '111');
+  formData.append('description', '111123');
+
+  submitForm.value.content = tweetContent.value;
+  submitForm.value.mentionUserIds = mentions.value
+    .map(username => Number(mentionUserIds.value[username]))
+    .filter(userId => Number.isFinite(userId) && userId > 0);
+  submitForm.value.tagNames = Array.from(
+    new Set(
+      Array.from(
+        tweetContent.value.matchAll(/#([\p{L}\p{N}_]+)/gu)
+      )
+        .map(match => match[1])
+        .filter((tag): tag is string => !!tag)
+    )
+  );
+
+  emit('submit', { ...submitForm.value }, formData);
+}
+
+// 处理文本输入，检测 @ 符号
+function handleInput(event: Event) {
+  const textarea = event.target as HTMLTextAreaElement;
+  const content = textarea.value;
+  const cursorPos = textarea.selectionStart;
+
+  // 查找最近的 @ 符号
+  const textBeforeCursor = content.substring(0, cursorPos);
+  const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+  if (lastAtIndex >= 0) {
+    // 检查 @ 符号后面的文本
+    const textAfterAt = textBeforeCursor.substring(
+      lastAtIndex + 1
+    );
+
+    // 如果 @ 后面没有空格，显示提及选择器
+    if (
+      !textAfterAt.includes(' ') &&
+      !textAfterAt.includes('\n')
+    ) {
+      mentionSearchQuery.value = textAfterAt;
+      mentionStartIndex.value = lastAtIndex;
+      showMentionPicker.value = true;
+
+      // 计算下拉框位置
+      nextTick(() => {
+        if (textarea) {
+          const rect = textarea.getBoundingClientRect();
+          const lineHeight = 24; // 估算行高
+          const lines = textBeforeCursor.split('\n').length;
+          mentionPickerPosition.value = {
+            top: rect.top + lines * lineHeight + 10,
+            left: rect.left + 20
+          };
+        }
+      });
+      return;
+    }
+  }
+
+  // 否则隐藏选择器
+  showMentionPicker.value = false;
+}
+
+// 选择提及项
+function handleMentionSelect(item: {
+  type: string;
+  id: string;
+  userId?: string;
+  displayName: string;
+}) {
+  if (!textareaRef.value || mentionStartIndex.value < 0)
+    return;
+
+  const textarea = textareaRef.value;
+  const content = tweetContent.value;
+  const cursorPos = textarea.selectionStart;
+
+  // 构造提及文本
+  const mentionText =
+    item.type === 'user' ? `@${item.id}` : `#${item.id}`;
+
+  // 找到 @ 后面已输入的文本结束位置（空格或换行符之前）
+  let endPos = mentionStartIndex.value + 1; // 从 @ 后面开始
+  while (
+    endPos < content.length &&
+    content[endPos] !== ' ' &&
+    content[endPos] !== '\n' &&
+    content[endPos] !== '\t'
+  ) {
+    endPos++;
+  }
+
+  // 替换从 @ 符号到已输入文本结束的部分
+  const before = content.substring(
+    0,
+    mentionStartIndex.value
+  );
+  const after = content.substring(endPos);
+  tweetContent.value = before + mentionText + ' ' + after;
+
+  // 保存提及
+  if (
+    item.type === 'user' &&
+    !mentions.value.includes(item.id)
+  ) {
+    mentions.value.push(item.id);
+    // 保存 username -> userId 映射
+    if (item.userId) {
+      mentionUserIds.value[item.id] = item.userId;
+    }
+  }
+
+  // 设置光标位置
+  nextTick(() => {
+    const newCursorPos =
+      mentionStartIndex.value + mentionText.length + 1;
+    textarea.setSelectionRange(newCursorPos, newCursorPos);
+    textarea.focus();
+  });
+
+  showMentionPicker.value = false;
+}
+
+// 处理键盘事件
+function handleKeyDown(event: KeyboardEvent) {
+  if (showMentionPicker.value && mentionPickerRef.value) {
+    mentionPickerRef.value.handleKeyDown(event);
+  }
+}
+</script>
+
+<template>
+  <!-- 根元素是一个 flex 容器，使其内容能够垂直分布 -->
+  <div class="flex flex-col h-full max-w-3xl mx-auto">
+    <!-- 编辑器主区域，占据大部分可用空间 -->
+    <div class="flex-1 min-h-0 py-2 relative">
+      <Textarea
+        ref="textareaRef"
+        v-model="tweetContent"
+        :placeholder="t('post.composer.placeholder')"
+        class="w-full h-full bg-transparent text-lg text-gray-200 placeholder:text-gray-500 border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-2 resize-none leading-relaxed tracking-wide"
+        @input="handleInput"
+        @keydown="handleKeyDown"
+      />
+
+      <!-- @ 提及选择器 -->
+      <MentionPicker
+        ref="mentionPickerRef"
+        :show="showMentionPicker"
+        :search-query="mentionSearchQuery"
+        :position="mentionPickerPosition"
+        @select="handleMentionSelect"
+        @close="showMentionPicker = false"
+      />
+
+      <TweetPreviewCard
+        v-if="props.replyTo"
+        :tweet="props.replyTo"
+      />
+      <TweetPreviewCard
+        v-else-if="props.quoteTo"
+        :tweet="props.quoteTo"
+      />
+
+      <!-- 媒体预览区 -->
+      <div
+        v-if="mediaPreviews.length > 0"
+        class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3"
+      >
+        <div
+          v-for="(src, index) in mediaPreviews"
+          :key="src"
+          class="relative aspect-square group"
+        >
+          <img
+            :src="src"
+            class="w-full h-full object-cover rounded-lg"
+            :alt="t('post.composer.mediaPreviewAlt')"
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            class="absolute top-1 right-1 h-7 w-7 rounded-full bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+            @click="removeMedia(index)"
+          >
+            <X class="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部操作栏 -->
+    <div class="mt-4 py-4">
+      <Separator class="bg-gray-800" />
+      <div class="flex justify-between items-center pt-4">
+        <!-- 左侧功能按钮 -->
+        <div class="flex items-center gap-1">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  @click="triggerFileInput"
+                >
+                  <ImageUp
+                    class="h-6 w-6 text-gray-400 hover:text-white transition-colors"
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent
+                class="bg-black text-white border-gray-700"
+              >
+                <p>{{ t('post.composer.addMedia') }}</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <!-- TODO: 添加回复和引用功能 -->
+            <!--
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  @click="handleReplyClick"
+                >
+                  <MessageSquareReply
+                    class="h-6 w-6 text-gray-400 hover:text-white transition-colors"
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent
+                class="bg-black text-white border-gray-700"
+              >
+                <p>{{ t('post.composer.replyPost') }}</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  @click="handleQuoteClick"
+                >
+                  <MessageSquareQuote
+                    class="h-6 w-6 text-gray-400 hover:text-white transition-colors"
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent
+                class="bg-black text-white border-gray-700"
+              >
+                <p>{{ t('post.composer.quotePost') }}</p>
+              </TooltipContent>
+            </Tooltip> 
+            -->
+          </TooltipProvider>
+        </div>
+
+        <!-- 右侧提交区域 -->
+        <div class="flex items-center gap-4">
+          <!-- 环形进度条 -->
+          <div class="relative h-8 w-8">
+            <svg class="h-full w-full" viewBox="0 0 32 32">
+              <circle
+                cx="16"
+                cy="16"
+                r="14"
+                fill="transparent"
+                stroke="currentColor"
+                stroke-width="2.5"
+                class="text-gray-700"
+              />
+              <circle
+                cx="16"
+                cy="16"
+                r="14"
+                fill="transparent"
+                stroke="currentColor"
+                stroke-width="2.5"
+                :stroke-dasharray="circumference"
+                :stroke-dashoffset="progressOffset"
+                :class="progressColorClass"
+                class="transform -rotate-90 origin-center transition-all duration-300"
+              />
+            </svg>
+            <span
+              v-if="characterCount > MAX_CHARS - 21"
+              class="absolute inset-0 flex items-center justify-center text-xs font-bold"
+              :class="progressColorClass"
+            >
+              {{ MAX_CHARS - characterCount }}
+            </span>
+          </div>
+
+          <!-- 提交按钮 -->
+          <AppButton
+            @click="handleSubmit"
+            :disabled="isTweetDisabled"
+            class="h-10 px-5 font-bold"
+          >
+            <span class="inline-flex items-center gap-2">
+              <Send class="h-4 w-4 shrink-0" />
+              <span>{{ t('post.composer.publish') }}</span>
+            </span>
+          </AppButton>
+        </div>
+      </div>
+    </div>
+
+    <!-- 隐藏的文件输入框 -->
+    <input
+      ref="fileInputRef"
+      type="file"
+      multiple
+      accept="image/*,video/*"
+      class="hidden"
+      @change="handleFileSelect"
+    />
+  </div>
+</template>
+
+
+

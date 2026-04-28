@@ -1147,7 +1147,6 @@ CREATE INDEX idx_comment_likes_comment ON n_comment_likes(comment_id, created_at
 CREATE INDEX idx_comment_likes_user ON n_comment_likes(user_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_media_assets_owner ON n_media_assets(owner_user_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_media_assets_status ON n_media_assets(status, media_type) TABLESPACE neko_index;
-CREATE INDEX idx_post_media_post ON n_post_media(post_id, sort_order) TABLESPACE neko_index;
 CREATE INDEX idx_post_media_media ON n_post_media(media_id) TABLESPACE neko_index;
 
 -- 标签
@@ -5274,29 +5273,40 @@ INSERT INTO n_tags (name, name_lower, usage_count, trending_score, is_trending) 
 
 -- 13.3 关系
 DECLARE
+    v_dev_id       NUMBER;
+    v_admin_id     NUMBER;
+    v_reader_id    NUMBER;
+    v_designer_id  NUMBER;
+    v_pm_id        NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_dev_id FROM n_users WHERE username = 'v2_dev';
+    SELECT user_id INTO v_admin_id FROM n_users WHERE username = 'v2_admin';
+    SELECT user_id INTO v_reader_id FROM n_users WHERE username = 'v2_reader';
+    SELECT user_id INTO v_designer_id FROM n_users WHERE username = 'v2_designer';
+    SELECT user_id INTO v_pm_id FROM n_users WHERE username = 'v2_pm';
+
     sp_follow_user(
-        (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
-        (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+        v_dev_id,
+        v_admin_id,
         v_result
     );
 
     sp_follow_user(
-        (SELECT user_id FROM n_users WHERE username = 'v2_reader'),
-        (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        v_reader_id,
+        v_dev_id,
         v_result
     );
 
     sp_follow_user(
-        (SELECT user_id FROM n_users WHERE username = 'v2_designer'),
-        (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        v_designer_id,
+        v_dev_id,
         v_result
     );
 
     sp_follow_user(
-        (SELECT user_id FROM n_users WHERE username = 'v2_pm'),
-        (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+        v_pm_id,
+        v_admin_id,
         v_result
     );
 END;
@@ -5375,11 +5385,20 @@ WHERE username = 'v2_admin';
 
 -- 13.6 帖子
 DECLARE
+    v_admin_id NUMBER;
+    v_banner_media_id NUMBER;
+    v_v2_tag_id NUMBER;
+    v_api_tag_id NUMBER;
     v_post_id NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_admin_id FROM n_users WHERE username = 'v2_admin';
+    SELECT media_id INTO v_banner_media_id FROM n_media_assets WHERE storage_key = 'media/v2-banner.jpg';
+    SELECT tag_id INTO v_v2_tag_id FROM n_tags WHERE name_lower = 'v2';
+    SELECT tag_id INTO v_api_tag_id FROM n_tags WHERE name_lower = 'api';
+
     sp_create_post(
-        p_author_id         => (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+        p_author_id         => v_admin_id,
         p_content           => '欢迎来到 NekoTribe V2 开发环境，这条帖子用于验证 posts 详情、时间线、通知和统计。',
         p_post_type         => 'post',
         p_visibility        => 'public',
@@ -5391,24 +5410,35 @@ BEGIN
     INSERT INTO n_post_media (post_id, media_id, sort_order)
     VALUES (
         v_post_id,
-        (SELECT media_id FROM n_media_assets WHERE storage_key = 'media/v2-banner.jpg'),
+        v_banner_media_id,
         1
     );
 
     INSERT INTO n_post_tags (post_id, tag_id)
-    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'v2'));
+    VALUES (v_post_id, v_v2_tag_id);
 
     INSERT INTO n_post_tags (post_id, tag_id)
-    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'api'));
+    VALUES (v_post_id, v_api_tag_id);
 END;
 /
 
 DECLARE
+    v_dev_id NUMBER;
+    v_erd_media_id NUMBER;
+    v_oracle_tag_id NUMBER;
+    v_backend_tag_id NUMBER;
+    v_api_tag_id NUMBER;
     v_post_id NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_dev_id FROM n_users WHERE username = 'v2_dev';
+    SELECT media_id INTO v_erd_media_id FROM n_media_assets WHERE storage_key = 'media/oracle-erd.png';
+    SELECT tag_id INTO v_oracle_tag_id FROM n_tags WHERE name_lower = 'oracle';
+    SELECT tag_id INTO v_backend_tag_id FROM n_tags WHERE name_lower = 'backend';
+    SELECT tag_id INTO v_api_tag_id FROM n_tags WHERE name_lower = 'api';
+
     sp_create_post(
-        p_author_id         => (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        p_author_id         => v_dev_id,
         p_content           => '今天把 Oracle V2 基线库重构完成了，posts / comments / tags / notifications 都已经能直接开始开发。',
         p_post_type         => 'post',
         p_visibility        => 'public',
@@ -5420,27 +5450,32 @@ BEGIN
     INSERT INTO n_post_media (post_id, media_id, sort_order)
     VALUES (
         v_post_id,
-        (SELECT media_id FROM n_media_assets WHERE storage_key = 'media/oracle-erd.png'),
+        v_erd_media_id,
         1
     );
 
     INSERT INTO n_post_tags (post_id, tag_id)
-    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'oracle'));
+    VALUES (v_post_id, v_oracle_tag_id);
 
     INSERT INTO n_post_tags (post_id, tag_id)
-    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'backend'));
+    VALUES (v_post_id, v_backend_tag_id);
 
     INSERT INTO n_post_tags (post_id, tag_id)
-    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'api'));
+    VALUES (v_post_id, v_api_tag_id);
 END;
 /
 
 DECLARE
+    v_designer_id NUMBER;
+    v_design_tag_id NUMBER;
     v_post_id NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_designer_id FROM n_users WHERE username = 'v2_designer';
+    SELECT tag_id INTO v_design_tag_id FROM n_tags WHERE name_lower = 'design';
+
     sp_create_post(
-        p_author_id         => (SELECT user_id FROM n_users WHERE username = 'v2_designer'),
+        p_author_id         => v_designer_id,
         p_content           => 'V2 需要的不只是接口改名，还要一起整理响应结构和设计系统，这样前后端才能真正稳下来。',
         p_post_type         => 'post',
         p_visibility        => 'public',
@@ -5450,18 +5485,25 @@ BEGIN
     );
 
     INSERT INTO n_post_tags (post_id, tag_id)
-    VALUES (v_post_id, (SELECT tag_id FROM n_tags WHERE name_lower = 'design'));
+    VALUES (v_post_id, v_design_tag_id);
 END;
 /
 
 -- 13.7 评论
 DECLARE
+    v_admin_id NUMBER;
+    v_admin_post_id NUMBER;
+    v_dev_id NUMBER;
     v_comment_id NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_admin_id FROM n_users WHERE username = 'v2_admin';
+    SELECT user_id INTO v_dev_id FROM n_users WHERE username = 'v2_dev';
+    SELECT MIN(post_id) INTO v_admin_post_id FROM n_posts WHERE author_id = v_admin_id;
+
     sp_create_comment(
-        p_post_id           => (SELECT MIN(post_id) FROM n_posts WHERE author_id = (SELECT user_id FROM n_users WHERE username = 'v2_admin')),
-        p_user_id           => (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        p_post_id           => v_admin_post_id,
+        p_user_id           => v_dev_id,
         p_content           => '这条欢迎帖刚好可以拿来测试评论流和通知。',
         p_comment_id        => v_comment_id,
         p_result            => v_result
@@ -5470,12 +5512,19 @@ END;
 /
 
 DECLARE
+    v_dev_id NUMBER;
+    v_dev_post_id NUMBER;
+    v_reader_id NUMBER;
     v_comment_id NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_dev_id FROM n_users WHERE username = 'v2_dev';
+    SELECT user_id INTO v_reader_id FROM n_users WHERE username = 'v2_reader';
+    SELECT MIN(post_id) INTO v_dev_post_id FROM n_posts WHERE author_id = v_dev_id;
+
     sp_create_comment(
-        p_post_id           => (SELECT MIN(post_id) FROM n_posts WHERE author_id = (SELECT user_id FROM n_users WHERE username = 'v2_dev')),
-        p_user_id           => (SELECT user_id FROM n_users WHERE username = 'v2_reader'),
+        p_post_id           => v_dev_post_id,
+        p_user_id           => v_reader_id,
         p_content           => '请问这套 V2 SQL 也会覆盖群组接口吗？',
         p_comment_id        => v_comment_id,
         p_result            => v_result
@@ -5510,22 +5559,31 @@ VALUES (
 
 -- 13.9 通知
 DECLARE
+    v_pm_id NUMBER;
+    v_admin_id NUMBER;
+    v_admin_post_id NUMBER;
+    v_dev_id NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_pm_id FROM n_users WHERE username = 'v2_pm';
+    SELECT user_id INTO v_admin_id FROM n_users WHERE username = 'v2_admin';
+    SELECT user_id INTO v_dev_id FROM n_users WHERE username = 'v2_dev';
+    SELECT MIN(post_id) INTO v_admin_post_id FROM n_posts WHERE author_id = v_admin_id;
+
     sp_create_notification(
-        p_user_id        => (SELECT user_id FROM n_users WHERE username = 'v2_pm'),
+        p_user_id        => v_pm_id,
         p_type           => 'mention',
         p_title          => '你被提及了',
         p_message        => '管理员在欢迎帖里提到了你。',
         p_resource_type  => 'post',
-        p_resource_id    => (SELECT MIN(post_id) FROM n_posts WHERE author_id = (SELECT user_id FROM n_users WHERE username = 'v2_admin')),
-        p_actor_id       => (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+        p_resource_id    => v_admin_post_id,
+        p_actor_id       => v_admin_id,
         p_priority       => 'normal',
         p_result         => v_result
     );
 
     sp_create_notification(
-        p_user_id        => (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
+        p_user_id        => v_dev_id,
         p_type           => 'system',
         p_title          => 'V2 开发提示',
         p_message        => '请优先使用 v_post_detail、v_post_feed_item、v_notification_list_item 等视图进行联调。',
@@ -5557,11 +5615,14 @@ VALUES (
 
 -- 13.11 群组
 DECLARE
+    v_admin_id NUMBER;
     v_group_id NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_admin_id FROM n_users WHERE username = 'v2_admin';
+
     sp_create_group(
-        p_owner_id        => (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
+        p_owner_id        => v_admin_id,
         p_name            => 'V2 Core Team',
         p_description     => '用于联调群组详情、成员、帖子、邀请和时间线。',
         p_privacy         => 'public',
@@ -5577,11 +5638,14 @@ END;
 /
 
 DECLARE
+    v_designer_id NUMBER;
     v_group_id NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_designer_id FROM n_users WHERE username = 'v2_designer';
+
     sp_create_group(
-        p_owner_id        => (SELECT user_id FROM n_users WHERE username = 'v2_designer'),
+        p_owner_id        => v_designer_id,
         p_name            => 'V2 Design Lab',
         p_description     => '用于联调私密群组、邀请和审核流。',
         p_privacy         => 'private',
@@ -5598,19 +5662,26 @@ END;
 /
 
 DECLARE
+    v_dev_id NUMBER;
+    v_pm_id NUMBER;
+    v_group_id NUMBER;
     v_member_id NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_dev_id FROM n_users WHERE username = 'v2_dev';
+    SELECT user_id INTO v_pm_id FROM n_users WHERE username = 'v2_pm';
+    SELECT group_id INTO v_group_id FROM n_groups WHERE slug = 'v2-core-team';
+
     sp_join_group(
-        p_user_id     => (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
-        p_group_id    => (SELECT group_id FROM n_groups WHERE slug = 'v2-core-team'),
+        p_user_id     => v_dev_id,
+        p_group_id    => v_group_id,
         p_member_id   => v_member_id,
         p_result      => v_result
     );
 
     sp_join_group(
-        p_user_id     => (SELECT user_id FROM n_users WHERE username = 'v2_pm'),
-        p_group_id    => (SELECT group_id FROM n_groups WHERE slug = 'v2-core-team'),
+        p_user_id     => v_pm_id,
+        p_group_id    => v_group_id,
         p_member_id   => v_member_id,
         p_result      => v_result
     );
@@ -5618,12 +5689,17 @@ END;
 /
 
 DECLARE
+    v_admin_id NUMBER;
+    v_group_id NUMBER;
     v_post_id NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_admin_id FROM n_users WHERE username = 'v2_admin';
+    SELECT group_id INTO v_group_id FROM n_groups WHERE slug = 'v2-core-team';
+
     sp_create_group_post(
-        p_author_id  => (SELECT user_id FROM n_users WHERE username = 'v2_admin'),
-        p_group_id   => (SELECT group_id FROM n_groups WHERE slug = 'v2-core-team'),
+        p_author_id  => v_admin_id,
+        p_group_id   => v_group_id,
         p_content    => '欢迎进入 V2 Core Team 群组，这条帖子用于测试群组时间线。',
         p_post_id    => v_post_id,
         p_result     => v_result
@@ -5632,12 +5708,19 @@ END;
 /
 
 DECLARE
+    v_dev_id NUMBER;
+    v_group_id NUMBER;
+    v_group_post_id NUMBER;
     v_comment_id NUMBER;
     v_result VARCHAR2(500);
 BEGIN
+    SELECT user_id INTO v_dev_id FROM n_users WHERE username = 'v2_dev';
+    SELECT group_id INTO v_group_id FROM n_groups WHERE slug = 'v2-core-team';
+    SELECT MIN(post_id) INTO v_group_post_id FROM n_group_posts WHERE group_id = v_group_id;
+
     sp_create_group_comment(
-        p_author_id   => (SELECT user_id FROM n_users WHERE username = 'v2_dev'),
-        p_post_id     => (SELECT MIN(post_id) FROM n_group_posts WHERE group_id = (SELECT group_id FROM n_groups WHERE slug = 'v2-core-team')),
+        p_author_id   => v_dev_id,
+        p_post_id     => v_group_post_id,
         p_content     => '群组评论流也可以直接开始联调了。',
         p_comment_id  => v_comment_id,
         p_result      => v_result
@@ -5700,6 +5783,10 @@ END;
 --   这些物化视图用于加速 V2 的分析与趋势类接口。
 --   如果你暂时不需要，可单独注释掉。
 
+DECLARE
+    v_sql CLOB;
+BEGIN
+    v_sql := q'[
 CREATE MATERIALIZED VIEW mv_user_activity_daily
 REFRESH COMPLETE ON DEMAND
 AS
@@ -5713,13 +5800,24 @@ SELECT
 FROM n_posts p
 JOIN n_post_stats ps ON ps.post_id = p.post_id
 WHERE p.is_deleted = 0
-GROUP BY TRUNC(p.created_at), p.author_id;
+GROUP BY TRUNC(p.created_at), p.author_id]';
+    EXECUTE IMMEDIATE v_sql;
+    EXECUTE IMMEDIATE 'GRANT SELECT ON mv_user_activity_daily TO neko_readonly';
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('跳过 mv_user_activity_daily: ' || SQLERRM);
+END;
+/
 
+DECLARE
+    v_sql CLOB;
+BEGIN
+    v_sql := q'[
 CREATE MATERIALIZED VIEW mv_tag_trends_hourly
 REFRESH COMPLETE ON DEMAND
 AS
 SELECT
-    TRUNC(CAST(p.created_at AS DATE), 'HH24') AS trend_hour,
+    TRUNC(CAST(p.created_at AS DATE), ''HH24'') AS trend_hour,
     t.tag_id,
     t.name,
     COUNT(*) AS hourly_usage,
@@ -5730,8 +5828,19 @@ JOIN n_post_tags pt ON pt.post_id = p.post_id
 JOIN n_tags t ON t.tag_id = pt.tag_id
 JOIN n_post_stats ps ON ps.post_id = p.post_id
 WHERE p.is_deleted = 0
-GROUP BY TRUNC(CAST(p.created_at AS DATE), 'HH24'), t.tag_id, t.name;
+GROUP BY TRUNC(CAST(p.created_at AS DATE), ''HH24''), t.tag_id, t.name]';
+    EXECUTE IMMEDIATE v_sql;
+    EXECUTE IMMEDIATE 'GRANT SELECT ON mv_tag_trends_hourly TO neko_readonly';
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('跳过 mv_tag_trends_hourly: ' || SQLERRM);
+END;
+/
 
+DECLARE
+    v_sql CLOB;
+BEGIN
+    v_sql := q'[
 CREATE MATERIALIZED VIEW mv_post_engagement_daily
 REFRESH COMPLETE ON DEMAND
 AS
@@ -5749,11 +5858,14 @@ SELECT
     ps.engagement_score
 FROM n_posts p
 JOIN n_post_stats ps ON ps.post_id = p.post_id
-WHERE p.is_deleted = 0;
-
-GRANT SELECT ON mv_user_activity_daily TO neko_readonly;
-GRANT SELECT ON mv_tag_trends_hourly TO neko_readonly;
-GRANT SELECT ON mv_post_engagement_daily TO neko_readonly;
+WHERE p.is_deleted = 0]';
+    EXECUTE IMMEDIATE v_sql;
+    EXECUTE IMMEDIATE 'GRANT SELECT ON mv_post_engagement_daily TO neko_readonly';
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('跳过 mv_post_engagement_daily: ' || SQLERRM);
+END;
+/
 
 -- ==========================================
 -- 16. 建库完成提示

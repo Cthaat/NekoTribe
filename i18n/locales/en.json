@@ -5,9 +5,793 @@
     "prev": "Previous",
     "next": "Next",
     "cancel": "Cancel",
+    "delete": "Delete",
     "submit": "Submit",
+    "close": "Close",
+    "toggle": "Toggle",
+    "toggleSidebar": "Toggle sidebar",
+    "togglePasswordVisibility": "Toggle password visibility",
+    "more": "More",
+    "morePages": "More pages",
+    "search": "Search",
+    "loading": "Loading...",
+    "filter": "Filter",
+    "create": "Create",
+    "reset": "Reset",
+    "loadMore": "Load more",
+    "operationFailed": "Operation failed",
+    "unknownError": "Unknown error",
     "networkError": "Network error",
+    "removeFile": "Remove file",
+    "breadcrumb": "Breadcrumb",
+    "processing": "Processing...",
     "pagination": "Page {page} / {totalPages} · Total {total}"
+  },
+  "app": {
+    "brand": {
+      "name": "NekoTribe",
+      "tagline": "Edge Walker"
+    },
+    "meta": {
+      "description": "Social media platform"
+    }
+  },
+  "preferences": {
+    "language": {
+      "toggle": "Change language",
+      "en": "English",
+      "zh": "简体中文"
+    },
+    "theme": {
+      "toggle": "Toggle theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    }
+  },
+  "nav": {
+    "sections": {
+      "platform": "Platform"
+    },
+    "main": {
+      "trending": "Trending",
+      "tweet": "Tweet",
+      "home": "Home",
+      "myTweets": "My Tweets",
+      "mention": "Mention",
+      "bookmark": "Bookmark",
+      "meow": "Meow",
+      "groups": "Groups",
+      "discoverGroups": "Discover",
+      "myGroups": "My Groups",
+      "invites": "Invites",
+      "chat": "Chat",
+      "account": "Account",
+      "moderation": "Moderation",
+      "content": "Content",
+      "users": "Users",
+      "reports": "Reports",
+      "settings": "Settings"
+    },
+    "secondary": {
+      "support": "Support",
+      "feedback": "Feedback"
+    },
+    "projects": {
+      "design": "Design Engineering",
+      "sales": "Sales & Marketing",
+      "travel": "Travel"
+    },
+    "user": {
+      "fallbackName": "NekoTribe User",
+      "fallbackEmail": "user{'@'}example.com",
+      "upgrade": "Upgrade to Pro",
+      "account": "Account",
+      "billing": "Billing",
+      "notifications": "Notifications",
+      "logout": "Log out",
+      "logoutSuccess": "Logged out. Redirecting to login...",
+      "logoutError": "Failed to log out. Please try again."
+    }
+  },
+  "post": {
+    "actions": {
+      "addBookmark": "Add bookmark",
+      "removeBookmark": "Remove bookmark",
+      "delete": "Delete post"
+    },
+    "feedback": {
+      "liked": "Post liked",
+      "bookmarked": "Added to bookmarks",
+      "unbookmarked": "Removed from bookmarks",
+      "deleted": "Post deleted",
+      "deleteFailed": "Failed to delete post",
+      "retweeted": "Reposted",
+      "retweetFailed": "Failed to repost"
+    },
+    "feed": {
+      "loadFailed": "Failed to load posts",
+      "loadProblem": "Sorry, something went wrong while loading posts. Please refresh the page.",
+      "title": "Posts",
+      "total": "{count} posts",
+      "emptyUserPosts": "This user has not posted anything yet.",
+      "emptyTitle": "No posts yet.",
+      "emptyDescription": "Follow more users or check back later for new updates.",
+      "searchEmptyTitle": "No matching posts found.",
+      "searchEmptyDescription": "Try another keyword or search again later.",
+      "unavailable": "This post does not exist or has been deleted."
+    },
+    "composer": {
+      "placeholder": "What's happening?",
+      "publish": "Post",
+      "addMedia": "Add media",
+      "mediaPreviewAlt": "Media preview",
+      "mediaLimitTitle": "Media limit exceeded",
+      "mediaLimitDescription": "You can upload {count} more files.",
+      "replyPost": "Reply to post",
+      "quotePost": "Quote post"
+    },
+    "composePage": {
+      "title": "Create Post",
+      "description": "Share your thoughts and connect with the world.",
+      "publishSuccess": "Post published.",
+      "publishFailed": "Failed to publish: {message}",
+      "submitUnknownError": "An unknown error occurred. Please try again later.",
+      "loadSelectableFailed": "Unable to load posts. Please try again later.",
+      "submitting": "Publishing post...",
+      "quote": {
+        "title": "Choose a post to quote",
+        "description": "Select a post from the list below to add it to your quote.",
+        "empty": "No posts are available to quote."
+      },
+      "reply": {
+        "title": "Choose a post to reply to",
+        "description": "Select a post from the list below to add it to your reply.",
+        "empty": "No posts are available to reply to."
+      },
+      "dialog": {
+        "loading": "Loading posts..."
+      }
+    },
+    "retweet": {
+      "title": "Repost",
+      "placeholder": "Add a comment...",
+      "submit": "Repost",
+      "submitting": "Reposting...",
+      "viewOriginal": "View original",
+      "repostedFrom": "Reposted from",
+      "loadingOriginal": "Loading original post...",
+      "loadOriginalFailed": "Failed to load original post",
+      "unknownUser": "Unknown",
+      "unknownUserHandle": "{'@'}unknown",
+      "emptyContent": "(No content)",
+      "originalUnavailable": "Original post is unavailable or deleted.",
+      "tryOpenOriginal": "Try opening original"
+    },
+    "media": {
+      "thumbnailAlt": "Post media thumbnail"
+    },
+    "delete": {
+      "title": "Delete this post?",
+      "description": "This post will be removed from the timeline. This action cannot be undone."
+    }
+  },
+  "comment": {
+    "title": "Comments",
+    "count": "{count} comments",
+    "placeholder": "Write a comment...",
+    "reply": "Reply",
+    "replyPlaceholder": "Write a reply...",
+    "submitReply": "Submit reply",
+    "characterCount": "{count} / {max} characters",
+    "submit": "Post comment",
+    "submitting": "Posting...",
+    "emptyTitle": "No comments yet",
+    "emptyDescription": "Be the first to comment.",
+    "feedback": {
+      "liked": "Comment {id} liked.",
+      "unliked": "Comment {id} unliked.",
+      "submitted": "Comment posted.",
+      "replySubmitted": "Reply posted.",
+      "replyFailed": "Failed to post reply.",
+      "sendFailed": "Failed to send comment. Please try again later.",
+      "likeFailed": "Failed to like comment. Please try again later.",
+      "loadFailed": "Failed to load comments"
+    }
+  },
+  "groups": {
+    "title": "Groups",
+    "description": "Discover and manage your groups",
+    "tabs": {
+      "discover": "Discover Groups",
+      "my": "My Groups",
+      "invites": "Group Invites"
+    },
+    "actions": {
+      "create": "Create group",
+      "refreshList": "Refresh list",
+      "viewDetail": "View details",
+      "settings": "Group settings",
+      "join": "Join group",
+      "leave": "Leave group",
+      "requestJoin": "Request to join",
+      "manage": "Manage group",
+      "invite": "Invite"
+    },
+    "list": {
+      "count": "{count} groups"
+    },
+    "empty": {
+      "title": "No groups found",
+      "description": "Try adjusting your filters or create a new group."
+    },
+    "feedback": {
+      "joined": "Joined group",
+      "joinRequested": "Join request sent",
+      "joinFailed": "Failed to join group",
+      "left": "Left group",
+      "leaveFailed": "Failed to leave group",
+      "settingsWip": "Group settings are in development...",
+      "refreshFailed": "Refresh failed",
+      "refreshed": "List refreshed",
+      "noMore": "No more groups",
+      "created": "Group created.",
+      "createFailed": "Failed to create group",
+      "filtersReset": "Filters reset",
+      "inviteCopied": "Invite link copied",
+      "inviteCreated": "Invite created",
+      "inviteFailed": "Failed to create invite",
+      "loadInvitesFailed": "Failed to load invites",
+      "inviteAccepted": "Invite accepted",
+      "inviteAcceptFailed": "Failed to accept invite",
+      "inviteRejected": "Invite rejected",
+      "inviteRejectFailed": "Failed to reject invite"
+    },
+    "create": {
+      "title": "Create New Group",
+      "description": "Create a group to bring like-minded people together",
+      "avatar": "Group avatar",
+      "avatarDescription": "Click to upload a group avatar",
+      "name": "Group name *",
+      "namePlaceholder": "Enter group name",
+      "groupDescriptionLabel": "Group description *",
+      "groupDescriptionPlaceholder": "Describe your group...",
+      "category": "Group category *",
+      "categoryPlaceholder": "Select category",
+      "privacySettings": "Privacy settings",
+      "privacy": {
+        "publicDescription": "Anyone can view and join",
+        "privateDescription": "Requires request or invitation to join",
+        "secretDescription": "Invite-only visibility and membership"
+      },
+      "validation": {
+        "nameRequired": "Please enter a group name",
+        "descriptionRequired": "Please enter a group description",
+        "categoryRequired": "Please select a group category"
+      }
+    },
+    "detail": {
+      "tabs": {
+        "about": "About",
+        "posts": "Posts ({count})",
+        "members": "Members ({count})"
+      },
+      "aboutTitle": "Group intro",
+      "createdAt": "Created on {date}",
+      "owner": "Owner",
+      "categoryAndTags": "Category and tags",
+      "emptyPosts": "No posts yet",
+      "emptyMembers": "No members yet"
+    },
+    "member": {
+      "roles": {
+        "admin": "Admin",
+        "member": "Member"
+      },
+      "joinedAt": "Joined {date}",
+      "actions": {
+        "promote": "Make admin",
+        "demote": "Remove admin",
+        "mute": "Mute",
+        "unmute": "Unmute",
+        "remove": "Remove from group"
+      },
+      "feedback": {
+        "removed": "Member removed",
+        "promoted": "Member promoted to admin",
+        "demoted": "Admin role removed",
+        "muted": "Member muted",
+        "unmuted": "Member unmuted"
+      }
+    },
+    "post": {
+      "pinned": "Pinned",
+      "mediaAlt": "Media {index}",
+      "actions": {
+        "share": "Share",
+        "pin": "Pin post",
+        "unpin": "Unpin",
+        "delete": "Delete post",
+        "report": "Report"
+      },
+      "feedback": {
+        "pinned": "Post pinned",
+        "unpinned": "Post unpinned",
+        "deleted": "Post deleted",
+        "reported": "Report submitted"
+      }
+    },
+    "notifications": {
+      "enabled": "Notifications enabled",
+      "disabled": "Notifications disabled"
+    },
+    "invites": {
+      "pendingCount": "{count} pending invites",
+      "emptyTitle": "No pending invites",
+      "emptyDescription": "Invites will appear here when someone invites you to a group.",
+      "invitedYou": "invited you to join",
+      "reject": "Reject",
+      "accept": "Accept",
+      "expired": "Expired",
+      "expiresInDays": "Expires in {days}d {hours}h",
+      "expiresInHours": "Expires in {hours}h"
+    },
+    "filters": {
+      "searchPlaceholder": "Search group names or descriptions...",
+      "privacyPlaceholder": "Group type",
+      "categoryPlaceholder": "Category",
+      "sortPlaceholder": "Sort",
+      "current": "Current filters:",
+      "searchBadge": "Search: {value}",
+      "typeBadge": "Type:",
+      "categoryBadge": "Category:",
+      "privacy": {
+        "all": "All types",
+        "public": "Public group",
+        "private": "Private group",
+        "secret": "Secret group"
+      },
+      "category": {
+        "all": "All categories",
+        "tech": "Tech",
+        "game": "Games",
+        "music": "Music",
+        "art": "Art",
+        "life": "Life",
+        "study": "Study",
+        "work": "Work",
+        "other": "Other"
+      },
+      "sort": {
+        "popular": "Most popular",
+        "newest": "Newest",
+        "active": "Most active",
+        "members": "Most members"
+      }
+    },
+    "number": {
+      "tenThousand": "{value}w",
+      "thousand": "{value}k"
+    },
+    "stats": {
+      "members": "members",
+      "membersCount": "{count} members",
+      "posts": "{count} posts",
+      "totalGroups": "All Groups",
+      "myGroups": "My Groups",
+      "pendingInvites": "Pending Invites",
+      "todayPosts": "Today's Posts",
+      "activeMembers": "Active Members",
+      "newMembers": "New Members"
+    }
+  },
+  "time": {
+    "minutesAgo": "{count} minutes ago",
+    "hoursAgo": "{count} hours ago",
+    "daysAgo": "{count} days ago",
+    "todayAt": "Today {time}",
+    "yesterdayAt": "Yesterday {time}"
+  },
+  "avatar": {
+    "validation": {
+      "maxSize": "File size must not exceed {size}MB"
+    },
+    "feedback": {
+      "updated": "Avatar updated.",
+      "uploadFailed": "Upload failed. Please try again."
+    }
+  },
+  "chat": {
+    "fallbackChannel": "chat",
+    "groupFallbackName": "Group name",
+    "channelDescriptionFallback": "Channel description",
+    "searchPlaceholder": "Search messages...",
+    "replyingTo": "Replying to",
+    "currentUser": {
+      "short": "You",
+      "name": "Current user"
+    },
+    "status": {
+      "online": "Online",
+      "idle": "Idle",
+      "dnd": "Do not disturb",
+      "offline": "Offline"
+    },
+    "input": {
+      "placeholder": "Message #{channel}..."
+    },
+    "members": {
+      "searchPlaceholder": "Search members",
+      "onlineCount": "Online - {count}",
+      "offlineCount": "Offline - {count}",
+      "noOnline": "No online members",
+      "noOffline": "No offline members"
+    },
+    "message": {
+      "pinned": "Pinned",
+      "edited": "(edited)",
+      "pinnedMessages": "Pinned messages",
+      "noPinnedMessages": "No pinned messages",
+      "emptyTitle": "Welcome to #{channel}!",
+      "emptyDescription": "This is the start of the channel. Send the first message.",
+      "newMessages": "New messages"
+    },
+    "actions": {
+      "uploadAttachment": "Upload attachment",
+      "uploadImage": "Upload image",
+      "emoji": "Emoji",
+      "mentionUser": "Mention user",
+      "quoteChannel": "Quote channel",
+      "sendSticker": "Send sticker",
+      "sendMessage": "Send message",
+      "kick": "Kick from group",
+      "ban": "Ban user",
+      "inviteMembers": "Invite members",
+      "notificationSettings": "Notification settings",
+      "createChannel": "Create channel",
+      "muteChannel": "Mute channel",
+      "unmuteChannel": "Unmute channel",
+      "editChannel": "Edit channel",
+      "deleteChannel": "Delete channel",
+      "userSettings": "User settings",
+      "startVoiceCall": "Start voice call",
+      "startVideoCall": "Start video call",
+      "searchMessages": "Search messages",
+      "hideMembers": "Hide members",
+      "showMembers": "Show members",
+      "addReaction": "Add reaction",
+      "copyText": "Copy text",
+      "pinMessage": "Pin message",
+      "unpinMessage": "Unpin",
+      "editMessage": "Edit message",
+      "deleteMessage": "Delete message"
+    },
+    "feedback": {
+      "copied": "Copied to clipboard",
+      "sent": "Message sent",
+      "deleted": "Message deleted",
+      "pinned": "Message pinned",
+      "unpinned": "Message unpinned",
+      "createChannelWip": "Channel creation is in development...",
+      "channelMuted": "Channel muted",
+      "channelUnmuted": "Channel unmuted"
+    },
+    "mention": {
+      "searchFailed": "Failed to search mentions:",
+      "user": "User",
+      "post": "Post",
+      "loading": "Searching..."
+    }
+  },
+  "media": {
+    "lightboxAlt": "High resolution media"
+  },
+  "errorPage": {
+    "notFound": {
+      "title": "404 - Page not found",
+      "description": "The page you are looking for is not available.",
+      "possibleReasons": "This may be because:",
+      "invalidUrl": "The URL may be incorrect.",
+      "movedOrDeleted": "The page may have been moved or deleted.",
+      "serverBusy": "The server may be temporarily unavailable.",
+      "backHome": "Back to home"
+    }
+  },
+  "notifications": {
+    "mail": {
+      "deleteSuccess": "Mail moved to trash",
+      "deleteFailed": "Failed to move mail to trash",
+      "restoreSuccess": "Mail restored",
+      "restoreFailed": "Failed to restore mail",
+      "readFailed": "Failed to mark mail as read",
+      "systemName": "System",
+      "systemEmail": "system"
+    }
+  },
+  "mail": {
+    "folders": {
+      "inbox": "Inbox",
+      "trash": "Trash"
+    },
+    "tabs": {
+      "all": "All mail",
+      "unread": "Unread"
+    },
+    "searchPlaceholder": "Search",
+    "display": {
+      "archive": "Archive",
+      "moveToJunk": "Move to junk",
+      "moveToTrash": "Move to trash",
+      "restore": "Restore",
+      "restoreFromTrash": "Restore from trash",
+      "snooze": "Snooze",
+      "snoozeUntil": "Snooze until",
+      "laterToday": "Later today",
+      "tomorrow": "Tomorrow",
+      "thisWeekend": "This weekend",
+      "nextWeek": "Next week",
+      "reply": "Reply",
+      "replyAll": "Reply all",
+      "forward": "Forward",
+      "more": "More",
+      "markAsUnread": "Mark as unread",
+      "starThread": "Star thread",
+      "addLabel": "Add label",
+      "muteThread": "Mute thread",
+      "replyTo": "Reply-To:",
+      "noSelection": "No message selected"
+    }
+  },
+  "moderation": {
+    "title": "Content Moderation",
+    "description": "Review platform content and keep the community healthy",
+    "tabs": {
+      "content": "Content",
+      "users": "Users",
+      "reports": "Reports",
+      "settings": "Settings"
+    },
+    "actions": {
+      "viewDetail": "View details",
+      "approve": "Approve",
+      "approveFull": "Approve content",
+      "reject": "Reject",
+      "rejectPost": "Reject post",
+      "flag": "Flag for review",
+      "refresh": "Refresh",
+      "refreshList": "Refresh list",
+      "loadMore": "Load more"
+    },
+    "feedback": {
+      "approved": "Post approved",
+      "rejected": "Post rejected",
+      "flagged": "Post flagged for further review",
+      "refreshed": "List refreshed",
+      "noMore": "No more content",
+      "filtersReset": "Filters reset"
+    },
+    "status": {
+      "all": "All statuses",
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "flagged": "Flagged",
+      "unknown": "Unknown"
+    },
+    "stats": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "flagged": "Flagged",
+      "todayProcessed": "Processed today",
+      "avgProcessTime": "Avg. processing time",
+      "zeroMinutes": "0 min",
+      "minutes": "{count} min"
+    },
+    "list": {
+      "count": "{count} items pending review",
+      "emptyTitle": "No content pending review",
+      "emptyDescription": "There are no posts waiting for moderation. New reports will appear here."
+    },
+    "filters": {
+      "searchPlaceholder": "Search post content or users...",
+      "statusPlaceholder": "Status",
+      "reportReasonPlaceholder": "Report reason",
+      "dateRangePlaceholder": "Date range",
+      "sortPlaceholder": "Sort",
+      "current": "Current filters:",
+      "searchBadge": "Search: {value}",
+      "statusBadge": "Status: {value}",
+      "reasonBadge": "Reason: {value}",
+      "dateBadge": "Time: {value}",
+      "reasons": {
+        "all": "All reasons",
+        "spam": "Spam",
+        "harassment": "Harassment",
+        "hate": "Hate speech",
+        "violence": "Violent content",
+        "adult": "Adult content",
+        "misinformation": "Misinformation",
+        "copyright": "Copyright",
+        "other": "Other"
+      },
+      "dateRanges": {
+        "all": "All time",
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "week": "Last 7 days",
+        "month": "Last 30 days"
+      },
+      "sort": {
+        "newest": "Newest reports",
+        "oldest": "Oldest reports",
+        "mostReports": "Most reports",
+        "mostEngagement": "Most engagement"
+      }
+    },
+    "card": {
+      "reportCount": "{count} reports",
+      "publishedAt": "Published {time}",
+      "reportedAt": "Reported {time}",
+      "mediaAlt": "Media {index}"
+    },
+    "detail": {
+      "title": "Moderation Details",
+      "description": "Review post details and make a moderation decision",
+      "publishedAt": "Published {time}",
+      "reportedAt": "Reported {time}",
+      "postContent": "Post content",
+      "mediaContent": "Media ({current}/{total})",
+      "mediaAlt": "Media content",
+      "reportInfo": "Report info ({count} reports)",
+      "reportFallback": "The user reported this content",
+      "engagement": "Engagement",
+      "likes": "Likes",
+      "retweets": "Reposts",
+      "replies": "Replies",
+      "note": "Moderation note (optional)",
+      "notePlaceholder": "Enter moderation note..."
+    },
+    "reportDetails": {
+      "spam": {
+        "title": "Spam / ads",
+        "description": "Contains commercial advertising, spam links, or duplicated content"
+      },
+      "harassment": {
+        "title": "Harassment",
+        "description": "Malicious harassment or bullying targeting a specific user"
+      },
+      "hate": {
+        "title": "Hate speech",
+        "description": "Discriminatory language based on race, gender, religion, or similar traits"
+      },
+      "violence": {
+        "title": "Violent content",
+        "description": "Contains violent threats or graphic violent content"
+      },
+      "adult": {
+        "title": "Adult content",
+        "description": "Contains sexual content or content unsuitable for minors"
+      },
+      "misinformation": {
+        "title": "Misinformation",
+        "description": "Spreads false or misleading information"
+      },
+      "copyright": {
+        "title": "Copyright",
+        "description": "May infringe another person's copyright"
+      },
+      "other": {
+        "title": "Other",
+        "description": "Other reported issue"
+      }
+    },
+    "placeholder": {
+      "description": "This feature is in development. Please check back later.",
+      "users": {
+        "title": "User Management",
+        "intro": "User management will include:",
+        "item1": "User list browsing and search",
+        "item2": "User bans and unbans",
+        "item3": "User role management",
+        "item4": "User activity logs"
+      },
+      "reports": {
+        "title": "Report Management",
+        "intro": "Report management will include:",
+        "item1": "Report statistics and analysis",
+        "item2": "Report type distribution",
+        "item3": "High-frequency reporter tracking",
+        "item4": "Report handling efficiency dashboards"
+      },
+      "settings": {
+        "title": "Moderation Settings",
+        "intro": "Moderation settings will include:",
+        "item1": "Automatic moderation rule configuration",
+        "item2": "Sensitive word library management",
+        "item3": "Moderation workflow settings",
+        "item4": "Notification preference settings"
+      }
+    }
+  },
+  "diagnostics": {
+    "sonner": {
+      "normal": "Normal notification",
+      "error": "Error notification",
+      "normalToast": "A normal Sonner notification",
+      "errorToast": "An error Sonner notification"
+    },
+    "token": {
+      "pageTitle": "Token Refresh Test",
+      "infoTitle": "Current Token Info",
+      "sessionId": "Current session ID:",
+      "tokenTimeLeft": "Token time left:",
+      "loginStatus": "Login status:",
+      "none": "None",
+      "seconds": "{count} seconds",
+      "expired": "Token expired or invalid",
+      "loggedIn": "Logged in",
+      "loggedOut": "Logged out",
+      "actionsTitle": "Test Actions",
+      "requesting": "Requesting...",
+      "authRequest": "Call authenticated API",
+      "refreshing": "Refreshing...",
+      "manualRefresh": "Refresh Token manually",
+      "invalidateToken": "Tamper Token (simulate expiry)",
+      "clearTokens": "Clear all Tokens",
+      "logsTitle": "Operation Logs",
+      "clearLogs": "Clear logs",
+      "emptyLogs": "No logs yet...",
+      "instructionsTitle": "Test Notes",
+      "instructionsAuthTitle": "Call authenticated API:",
+      "instructionsAuth": "Calls an authenticated endpoint. If the Token is expired, it will refresh and retry automatically.",
+      "instructionsRefreshTitle": "Refresh Token manually:",
+      "instructionsRefresh": "Calls the refresh endpoint directly and updates the Token.",
+      "instructionsInvalidateTitle": "Tamper Token:",
+      "instructionsInvalidate": "Modifies the Token to simulate an expiry scenario.",
+      "instructionsClearTitle": "Clear all Tokens:",
+      "instructionsClear": "Deletes all authentication information and requires login again.",
+      "tipTitle": "Tip:",
+      "tip": "Open the browser console to inspect detailed refresh logs.",
+      "decodeFailed": "Token decoding failed",
+      "apiRequestStart": "Starting API request...",
+      "apiRequestSuccess": "API request succeeded",
+      "apiRequestFailed": "API request failed: {message}",
+      "apiErrorLog": "API error:",
+      "refreshStart": "Refreshing Token manually...",
+      "refreshSuccess": "Token refreshed",
+      "refreshFailed": "Token refresh failed: {message}",
+      "refreshErrorLog": "Refresh error:",
+      "noSession": "No current session",
+      "httpOnlyTamperUnavailable": "Cannot tamper Token directly in HttpOnly Cookie mode",
+      "tokensCleared": "All Tokens cleared",
+      "pageLoaded": "Test page loaded"
+    },
+    "websocket": {
+      "title": "WebSocket Test Page",
+      "connectionStatus": "Connection Status",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "connect": "Connect WebSocket",
+      "disconnect": "Disconnect",
+      "sendMessageTitle": "Send Message",
+      "messagePlaceholder": "Enter message...",
+      "send": "Send",
+      "sendPing": "Send Ping",
+      "roomIdPlaceholder": "Room ID",
+      "joinRoom": "Join room",
+      "leaveRoom": "Leave room",
+      "roomMessagePlaceholder": "Room message...",
+      "sendToRoom": "Send to room",
+      "broadcastPlaceholder": "Broadcast message...",
+      "broadcast": "Broadcast",
+      "messageHistory": "Message History",
+      "clearMessages": "Clear messages",
+      "emptyMessages": "No messages yet",
+      "connectedMessage": "WebSocket connected",
+      "closedMessage": "WebSocket closed",
+      "connectionError": "Connection error"
+    }
   },
   "middleware": {
     "login": {
@@ -43,7 +827,8 @@
       "successLogin": "Login successful, redirecting to homepage...",
       "loginFailed": "Login failed, please check your account and password.",
       "unknownError": "An unknown error occurred, please try again later.",
-      "resetPassword": "Reset Password"
+      "resetPassword": "Reset Password",
+      "coverImageAlt": "Login page cover image"
     },
     "signUp": {
       "title": "Sign Up",
@@ -87,11 +872,14 @@
       "captchaRequired": "Captcha is required.",
       "captchaSent": "Captcha has been sent.",
       "captchaSentDescription": "Please check your email or SMS for the captcha.",
+      "captchaSecondsLeft": "{count}s left",
       "unknownError": "An unknown error occurred, please try again later.",
       "successRegister": "Registration successful.",
+      "registerFailed": "Registration failed.",
       "redirectToLogin": "Redirecting to login page...",
       "successRegisterDescription": "Please log in with your new account.",
-      "agreeToTermsChanged": "Agree to terms of service status changed"
+      "agreeToTermsChanged": "Agree to terms of service status changed",
+      "coverImageAlt": "Registration page cover image"
     },
     "forgotPassword": {
       "title": "Forgot Password",
@@ -127,7 +915,10 @@
       "sendCaptcha": "Send Captcha",
       "newPasswordPlaceholder": "Please enter your new password",
       "confirmPasswordPlaceholder": "Please re-enter your new password",
-      "captchaPlaceholder": "Please enter the captcha"
+      "captchaPlaceholder": "Please enter the captcha",
+      "haveAccount": "Already have an account?",
+      "loginPrompt": "Log in",
+      "coverImageAlt": "Password reset page cover image"
     },
     "terms": {
       "title": "Terms of Service",
@@ -186,6 +977,31 @@
     }
   },
   "account": {
+    "switcher": {
+      "selectAccount": "Select account",
+      "selectAccountPlaceholder": "Select an account"
+    },
+    "title": "Account",
+    "breadcrumb": "Home - Account",
+    "errors": {
+      "loadUser": "Failed to fetch user info.",
+      "loadAnalytics": "Failed to fetch user analytics."
+    },
+    "header": {
+      "follow": "Follow",
+      "unfollow": "Unfollow",
+      "selfFollowError": "You cannot follow yourself.",
+      "followers": "Followers",
+      "following": "Following",
+      "likes": "Likes",
+      "activeScore": "Active Score",
+      "moreActions": "More actions"
+    },
+    "follow": {
+      "success": "Followed {name}.",
+      "unfollowSuccess": "Unfollowed {name}.",
+      "failed": "Failed to update follow state."
+    },
     "tabs": {
       "overview": "Overview",
       "settings": "Settings",
@@ -234,7 +1050,12 @@
       "2faDesc": "Add an extra layer of security to your account.",
       "loginAlerts": "Login alerts",
       "loginAlertsDesc": "Get notified when a new device logs in.",
-      "save": "Save settings"
+      "save": "Save settings",
+      "feedback": {
+        "loadFailed": "Failed to load settings",
+        "saved": "Settings saved",
+        "saveFailed": "Save failed"
+      }
     },
     "active": {
       "title": "Active Sessions",
@@ -243,7 +1064,14 @@
       "revokeOthers": "Sign out other devices",
       "thisDevice": "This device",
       "otherDevice": "Other device",
-      "contentPlaceholder": "Active sessions list coming soon."
+      "contentPlaceholder": "Active sessions list coming soon.",
+      "sessionId": "Session",
+      "feedback": {
+        "loadFailed": "Failed to load sessions",
+        "revoked": "Session revoked",
+        "othersRevoked": "Other sessions revoked",
+        "operationFailed": "Operation failed"
+      }
     },
     "statements": {
       "title": "Account Status",

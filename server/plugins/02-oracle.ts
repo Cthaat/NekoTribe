@@ -3,6 +3,11 @@ import {
   useRuntimeConfig
 } from '#imports';
 import oracledb from 'oracledb';
+import {
+  logError,
+  logInfo,
+  serializeLogError
+} from '~/server/utils/logging';
 
 // 1. 单例容器 (Singleton Container) - 无需改动
 export let pool: oracledb.Pool | null = null;
@@ -10,24 +15,40 @@ export let pool: oracledb.Pool | null = null;
 // 2. 初始化函数 - 无需改动
 async function initOraclePool() {
   if (!pool) {
-    console.log('Oracle 连接池实例不存在，正在创建...');
     const runtimeConfig = useRuntimeConfig();
+    const poolMin = Number(runtimeConfig.oraclePoolMin) || 2;
+    const poolMax = Number(runtimeConfig.oraclePoolMax) || 10;
+    const poolIncrement =
+      Number(runtimeConfig.oraclePoolIncrement) || 1;
+    logInfo('oracle', {
+      event: 'pool:create:start',
+      host: runtimeConfig.oracleHost,
+      port: runtimeConfig.oraclePort,
+      serviceName: runtimeConfig.oracleServiceName,
+      poolMin,
+      poolMax,
+      poolIncrement
+    });
     try {
       pool = await oracledb.createPool({
         user: runtimeConfig.oracleUser,
         password: runtimeConfig.oraclePassword,
         connectString: `${runtimeConfig.oracleHost}:${runtimeConfig.oraclePort}/${runtimeConfig.oracleServiceName}`,
-        poolMin: Number(runtimeConfig.oraclePoolMin) || 2,
-        poolMax: Number(runtimeConfig.oraclePoolMax) || 10,
-        poolIncrement:
-          Number(runtimeConfig.oraclePoolIncrement) || 1,
+        poolMin,
+        poolMax,
+        poolIncrement,
         poolTimeout: 300,
         queueMax: 100,
         queueTimeout: 60000
       });
-      console.log('Oracle 连接池已成功创建');
+      logInfo('oracle', {
+        event: 'pool:create:success'
+      });
     } catch (e) {
-      console.error('Oracle 连接池初始化失败:', e);
+      logError('oracle', {
+        event: 'pool:create:error',
+        error: serializeLogError(e)
+      });
       throw e; // 抛出错误很重要
     }
   }
@@ -61,18 +82,20 @@ export default defineNitroPlugin(nitroApp => {
         configurable: true
       }
     );
+  });
 
-    nitroApp.hooks.hook('close', async () => {
-      // 检查连接池是否在应用的生命周期中被创建了
-      if (pool) {
-        console.log(
-          'Nitro 正在关闭，开始清理 Oracle 连接池...'
-        );
-        // 如果创建了，就优雅地关闭它
-        await pool.close();
-        console.log('Oracle 连接池已成功关闭。');
-        pool = null; // 帮助垃圾回收
-      }
+  nitroApp.hooks.hook('close', async () => {
+    if (!pool) {
+      return;
+    }
+
+    logInfo('oracle', {
+      event: 'pool:close:start'
     });
+    await pool.close();
+    logInfo('oracle', {
+      event: 'pool:close:success'
+    });
+    pool = null;
   });
 });
