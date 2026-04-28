@@ -113,6 +113,8 @@ export default defineNuxtConfig({
     accessSecret: process.env.ACCESS_SECRET,
     // 访问令牌过期时间
     accessExpiresIn: process.env.ACCESS_EXPIRES_IN,
+    // Cookie 安全选项
+    cookieSecure: process.env.COOKIE_SECURE === 'true',
     // 刷新令牌密钥
     refreshSecret: process.env.REFRESH_SECRET,
     // 刷新令牌过期时间
