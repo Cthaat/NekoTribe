@@ -82,7 +82,7 @@ export default defineEventHandler(async event => {
     const info = parseRateLimitInfo(existingData, now);
 
     // 1分钟窗口限制
-    if (now - info.last > 6_000_000) {
+    if (now - info.last > 60_000) {
       info.count = 1;
       info.last = now;
     } else {
