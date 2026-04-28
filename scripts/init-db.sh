@@ -51,7 +51,7 @@ run_with_docker_oracle() {
   ALTER SESSION SET CONTAINER = ORCLPDB1;
   @$target
   EXIT;
-  EOF
+EOF
 }
 
 run_with_local_sqlplus() {
