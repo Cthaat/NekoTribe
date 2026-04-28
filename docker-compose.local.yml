@@ -1,6 +1,9 @@
 services:
   app:
-    image: ghcr.io/cthaat/nekotribe:master
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nekotribe:local
     restart: unless-stopped
     ports:
       - '${APP_PORT:-30001}:3000'
