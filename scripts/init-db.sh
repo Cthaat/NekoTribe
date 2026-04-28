@@ -21,21 +21,22 @@ load_env() {
   fi
 }
 
-wait_for_oracle_container() {
+wait_for_oracle_ready() {
   container_name=$1
   attempts=60
   count=1
 
   while [ "$count" -le "$attempts" ]; do
-    if docker exec "$container_name" sh -lc 'lsnrctl status >/dev/null 2>&1'; then
+    if docker exec "$container_name" sh -lc "echo 'SELECT 1 FROM dual;' | sqlplus -s / as sysdba" | grep -q "1"; then
+      echo "Oracle is ready."
       return 0
     fi
-    echo "Waiting for Oracle listener ($count/$attempts)..."
+    echo "Waiting for Oracle DB ready ($count/$attempts)..."
     count=$((count + 1))
-    sleep 10
+    sleep 5
   done
 
-  echo "Oracle listener did not become ready in time." >&2
+  echo "Oracle DB not ready in time." >&2
   return 1
 }
 
@@ -43,7 +44,7 @@ run_with_docker_oracle() {
   container_name=$1
   target=/tmp/neko_tribe-oracle-v2.sql
 
-  wait_for_oracle_container "$container_name"
+  wait_for_oracle_ready "$container_name"
   docker cp "$SQL_FILE" "$container_name:$target"
   docker exec -i "$container_name" sh -lc "sqlplus -s '/ as sysdba' <<EOF
 ALTER SESSION SET CONTAINER = ORCLPDB1;
