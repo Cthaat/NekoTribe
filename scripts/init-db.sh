@@ -25,9 +25,10 @@ wait_for_oracle_ready() {
   container_name=$1
   attempts=60
   count=1
+  oracle_sid=${ORACLE_SYS_SERVICE_NAME:-ORCLCDB}
 
   while [ "$count" -le "$attempts" ]; do
-    if docker exec "$container_name" sh -lc "echo 'SELECT 1 FROM dual;' | sqlplus -s / as sysdba" | grep -q "1"; then
+    if docker exec "$container_name" sh -lc "echo 'SELECT 1 FROM dual;' | ORACLE_SID=$oracle_sid sqlplus -s '/ as sysdba'" | grep -q "1"; then
       echo "Oracle is ready."
       return 0
     fi
@@ -43,10 +44,11 @@ wait_for_oracle_ready() {
 run_with_docker_oracle() {
   container_name=$1
   target=/tmp/neko_tribe-oracle-v2.sql
+  oracle_sid=${ORACLE_SYS_SERVICE_NAME:-ORCLCDB}
 
   wait_for_oracle_ready "$container_name"
   docker cp "$SQL_FILE" "$container_name:$target"
-  docker exec -i "$container_name" sh -lc "sqlplus -s \"/ as sysdba\"" <<EOF
+  docker exec -i "$container_name" sh -lc "ORACLE_SID=$oracle_sid sqlplus -s '/ as sysdba'" <<EOF
   ALTER PLUGGABLE DATABASE ORCLPDB1 OPEN;
   ALTER SESSION SET CONTAINER = ORCLPDB1;
   @$target

@@ -67,9 +67,10 @@ function Invoke-DockerOracleInit {
   param([string]$Name)
 
   $Target = '/tmp/neko_tribe-oracle-v2.sql'
+  $SysServiceName = if ($env:ORACLE_SYS_SERVICE_NAME) { $env:ORACLE_SYS_SERVICE_NAME } else { 'ORCLCDB' }
   Wait-OracleContainer -Name $Name
   docker cp $SqlFile "${Name}:$Target"
-  docker exec -i $Name sh -lc "sqlplus -s '/ as sysdba' @$Target"
+  docker exec -i $Name sh -lc "ORACLE_SID=$SysServiceName sqlplus -s '/ as sysdba' @$Target"
 }
 
 function Invoke-LocalSqlplusInit {
