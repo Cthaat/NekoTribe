@@ -1,12 +1,22 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineNuxtConfig({
-  compatibilityDate: '2025-05-15',
+  compatibilityDate: '2026-04-26',
+  debug: false,
   devtools: { enabled: true },
 
+  alias: {
+    '~/server': fileURLToPath(
+      new URL('./server', import.meta.url)
+    ),
+    '@/server': fileURLToPath(
+      new URL('./server', import.meta.url)
+    )
+  },
+
   modules: [
-    '@nuxt/content',
     '@nuxt/eslint',
     '@nuxt/fonts',
     '@nuxt/icon',
@@ -15,8 +25,7 @@ export default defineNuxtConfig({
     'shadcn-nuxt',
     '@nuxtjs/color-mode',
     '@nuxtjs/i18n',
-    '@pinia/nuxt',
-    'vue-sonner/nuxt'
+    '@pinia/nuxt'
   ],
 
   css: ['~/assets/css/tailwind.css'],
@@ -38,20 +47,41 @@ export default defineNuxtConfig({
      * Directory that the component lives in.
      * @default "./components/ui"
      */
-    componentDir: './components/ui'
+    componentDir: './app/components/ui'
+  },
+
+  typescript: {
+    strict: true
   },
 
   i18n: {
     locales: [
-      { code: 'en', name: 'English', file: 'en.json' },
-      { code: 'cn', name: 'Chinese', file: 'cn.json' }
+      {
+        code: 'en',
+        name: 'English',
+        language: 'en-US',
+        file: 'en.json'
+      },
+      {
+        code: 'zh',
+        name: '简体中文',
+        language: 'zh-CN',
+        file: 'zh.json'
+      }
     ],
-    defaultLocale: 'en', // 默认语言
-    lazy: true, // 推荐开启懒加载
-    langDir: 'locales' // 语言文件目录
+    defaultLocale: 'en',
+    lazy: true,
+    langDir: 'locales',
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: 'nekotribe_locale',
+      redirectOn: 'root',
+      fallbackLocale: 'en'
+    }
   },
 
   nitro: {
+    debug: false,
     experimental: {
       websocket: true
     },
@@ -61,19 +91,18 @@ export default defineNuxtConfig({
       routes: []
     },
     hooks: {
-      // 在 Nitro 实例关闭时，执行此函数
       close: () => {
-        // 当这个钩子被触发时，我们知道所有构建工作都已完成
-        console.log(
-          'Nuxt build process complete. Forcing exit to release OracleDB handles...'
+        const isBuildCommand = process.argv.some(
+          item => item === 'build'
         );
 
-        // 我们不直接退出，而是设置一个短暂的延时
-        // 这给日志信息完全刷新到控制台留出了一点时间
+        if (!isBuildCommand) {
+          return;
+        }
+
         setTimeout(() => {
-          // 传递 0 表示“成功退出”
           process.exit(0);
-        }, 500); // 500毫秒的延迟
+        }, 500);
       }
     }
   },
@@ -120,7 +149,7 @@ export default defineNuxtConfig({
     public: {
       wsUrl:
         process.env.NUXT_PUBLIC_WS_URL ||
-        'ws://localhost:3001',
+        'ws://localhost:3000/_ws',
       apiBase: process.env.NUXT_PUBLIC_API_BASE || ''
     }
   }

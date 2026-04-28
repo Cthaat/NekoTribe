@@ -15,7 +15,7 @@ export default defineEventHandler(async event => {
 
   try {
     const searchSql = `
-    SELECT username, display_name
+    SELECT user_id, username, display_name, avatar_url
     FROM (
       SELECT
         u.*,
@@ -41,9 +41,11 @@ export default defineEventHandler(async event => {
       success: true,
       message: 'Search users successfully',
       data: {
-        users: result.rows.map((row: ReturnUserInfo[]) => ({
-          username: row[0],
-          displayName: row[1]
+        users: result.rows.map((row: any[]) => ({
+          userId: row[0],
+          username: row[1],
+          displayName: row[2],
+          avatarUrl: row[3]
         }))
       },
       code: 200,

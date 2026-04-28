@@ -11,12 +11,11 @@
 
 // 导入 ioredis 库 - 这是一个功能强大的 Redis 客户端库
 import Redis from 'ioredis';
+import { resolveRedisOptions } from './redis-config';
 
 // =====================================
 // 全局变量定义
 // =====================================
-
-const runtimeConfig = useRuntimeConfig();
 
 // Redis 客户端实例 - 用于一般的 Redis 操作（读写数据）
 let redisClient: Redis | null = null;
@@ -44,29 +43,14 @@ export function isRedisAvailable(): boolean {
 
 /**
  * 创建 Redis 连接配置
- * @returns 返回 Redis 连接字符串或配置对象
+ * @returns 返回 ioredis 可直接使用的配置对象
  *
  * 支持两种配置方式：
  * 1. 使用 REDIS_URL 环境变量（如：redis://192.168.2.166:6379）
  * 2. 使用单独的环境变量（REDIS_HOST、REDIS_PORT 等）
  */
 function createRedisConfig() {
-  // 优先使用 REDIS_URL 连接字符串
-  const redisUrl = runtimeConfig.redisUrl;
-
-  if (redisUrl) {
-    // 如果设置了 REDIS_URL，直接返回连接字符串
-    // 格式示例：redis://username:password@hostname:port/database
-    return redisUrl;
-  } else {
-    // 如果没有 REDIS_URL，使用单独的配置参数
-    return {
-      host: runtimeConfig.redisHost, // Redis 服务器地址
-      port: parseInt(runtimeConfig.redisPort), // Redis 端口号
-      password: runtimeConfig.redisPassword, // Redis 密码（可选）
-      db: parseInt(runtimeConfig.redisDb) // 数据库编号（默认为 0）
-    };
-  }
+  return resolveRedisOptions();
 }
 
 /**
@@ -86,15 +70,7 @@ export function getRedisClient(): Redis | null {
       // 获取 Redis 连接配置
       const config = createRedisConfig();
 
-      // 根据配置类型创建 Redis 实例
-      if (typeof config === 'string') {
-        // 使用 Redis URL 连接字符串创建实例
-        // 示例：redis://192.168.2.166:6379
-        redisClient = new Redis(config);
-      } else {
-        // 使用配置对象创建实例
-        redisClient = new Redis({});
-      }
+      redisClient = new Redis(config);
 
       // 设置 Redis 客户端的事件监听器
       // 这些监听器帮助我们跟踪连接状态和处理错误
@@ -145,19 +121,7 @@ export function getRedisSubscriber(): Redis | null {
       // 获取 Redis 连接配置
       const config = createRedisConfig();
 
-      // 根据配置类型创建订阅者实例
-      if (typeof config === 'string') {
-        // 使用 Redis URL 连接字符串
-        redisSubscriber = new Redis(config);
-      } else {
-        // 使用配置对象
-        redisSubscriber = new Redis({
-          host: runtimeConfig.redisHost,
-          port: parseInt(runtimeConfig.redisPort),
-          password: runtimeConfig.redisPassword,
-          db: parseInt(runtimeConfig.redisDb)
-        });
-      }
+      redisSubscriber = new Redis(config);
 
       // 设置订阅者的事件监听器
       redisSubscriber.on('error', error => {
@@ -202,19 +166,7 @@ export function getRedisPublisher(): Redis | null {
       // 获取 Redis 连接配置
       const config = createRedisConfig();
 
-      // 根据配置类型创建发布者实例
-      if (typeof config === 'string') {
-        // 使用 Redis URL 连接字符串
-        redisPublisher = new Redis(config);
-      } else {
-        // 使用配置对象
-        redisPublisher = new Redis({
-          host: runtimeConfig.redisHost,
-          port: parseInt(runtimeConfig.redisPort),
-          password: runtimeConfig.redisPassword,
-          db: parseInt(runtimeConfig.redisDb)
-        });
-      }
+      redisPublisher = new Redis(config);
 
       // 设置发布者的事件监听器
       redisPublisher.on('error', error => {
