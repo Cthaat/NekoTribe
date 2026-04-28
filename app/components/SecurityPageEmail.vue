@@ -25,6 +25,7 @@ import {
   parseDate
 } from '@internationalized/date';
 import { Button } from '@/components/ui/button';
+import AppButton from '@/components/app/AppButton.vue';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -63,8 +64,9 @@ const verificationId = ref('');
 const isCaptchaSending = ref(false);
 const countdown = ref(60);
 let timer: ReturnType<typeof setInterval> | null = null; // 用于存储定时器实例
+const isLoading = ref(false);
 
-async function sendCaptcha() {
+async function sendCaptcha(): Promise<void> {
   const email = preferenceStore.preferences.user.email;
 
   // 2. 进入发送状态，禁用按钮
@@ -153,6 +155,7 @@ const { handleSubmit, resetForm } =
 
 const onSubmit = handleSubmit(
   async (values: EmailChangeFormValues): Promise<void> => {
+  isLoading.value = true;
   try {
     if (!verificationId.value) {
       throw new Error(
@@ -209,6 +212,8 @@ const onSubmit = handleSubmit(
       toast.error(
         t('account.security.securityPage.email.logoutError')
       );
+    } finally {
+      isLoading.value = false;
     }
   }
   }
@@ -284,10 +289,11 @@ const onSubmit = handleSubmit(
           <!-- 
         按钮现在是 Flexbox 的一部分，它会自动收缩以适应其内容大小。
         type="button" 很重要，可以防止它意外触发表单提交。-->
-          <Button
+          <AppButton
             type="button"
             @click="sendCaptcha"
-            :disabled="isCaptchaSending"
+            :disabled="isCaptchaSending || isLoading"
+            :loading="isCaptchaSending"
             class="w-32"
           >
             <!-- 
@@ -308,20 +314,28 @@ const onSubmit = handleSubmit(
                 )
               }}
             </span>
-          </Button>
+          </AppButton>
         </div>
         <FormMessage />
       </FormItem>
     </FormField>
 
     <div class="flex gap-2 justify-start">
-      <Button type="submit">
+      <AppButton
+        type="submit"
+        :loading="isLoading"
+        :loading-label="
+          $t(
+            'account.security.securityPage.email.updateButton'
+          )
+        "
+      >
         {{
           $t(
             'account.security.securityPage.email.updateButton'
           )
         }}
-      </Button>
+      </AppButton>
     </div>
   </form>
 </template>

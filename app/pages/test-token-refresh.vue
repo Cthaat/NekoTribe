@@ -50,39 +50,42 @@
       <div class="space-y-2">
         <h2 class="text-xl font-semibold">测试操作</h2>
 
-        <button
+        <AppButton
           @click="testApiCall"
           :disabled="loading"
-          class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          :loading="loading"
         >
           {{
             loading
               ? '请求中...'
               : '发起需要认证的 API 请求'
           }}
-        </button>
+        </AppButton>
 
-        <button
+        <AppButton
           @click="manualRefresh"
           :disabled="refreshing"
-          class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+          :loading="refreshing"
+          class="ml-2"
         >
           {{ refreshing ? '刷新中...' : '手动刷新 Token' }}
-        </button>
+        </AppButton>
 
-        <button
+        <AppButton
           @click="invalidateToken"
-          class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 ml-2"
+          variant="secondary"
+          class="ml-2"
         >
           篡改 Token（模拟过期）
-        </button>
+        </AppButton>
 
-        <button
+        <AppButton
           @click="clearAllTokens"
-          class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 ml-2"
+          variant="destructive"
+          class="ml-2"
         >
           清除所有 Token
-        </button>
+        </AppButton>
       </div>
 
       <!-- 日志显示 -->
@@ -91,12 +94,13 @@
       >
         <div class="flex justify-between items-center mb-2">
           <h2 class="text-xl font-semibold">操作日志</h2>
-          <button
+          <AppButton
             @click="logs = []"
-            class="px-3 py-1 bg-gray-700 text-white rounded text-sm hover:bg-gray-600"
+            size="sm"
+            variant="secondary"
           >
             清空日志
-          </button>
+          </AppButton>
         </div>
         <div
           class="h-64 overflow-y-auto font-mono text-xs space-y-1"
@@ -155,6 +159,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { usePreferenceStore } from '~/stores/user';
 import { v2ListNotifications } from '@/services';
+import AppButton from '@/components/app/AppButton.vue';
 
 const preferenceStore = usePreferenceStore();
 

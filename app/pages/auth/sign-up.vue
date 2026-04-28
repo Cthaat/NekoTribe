@@ -6,11 +6,10 @@ definePageMeta({
 
 import { ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
+import AppButton from '@/components/app/AppButton.vue';
+import AppCard from '@/components/app/AppCard.vue';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-// 1. 导入 useField 来手动控制字段
-import { useField } from 'vee-validate';
 // 日期选择器相关导入
 import {
   DateFormatter,
@@ -26,7 +25,6 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { useI18n } from 'vue-i18n';
-import { h } from 'vue';
 import * as z from 'zod';
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm } from 'vee-validate';
@@ -52,12 +50,9 @@ import {
 
 import { navigateTo } from '#app';
 
-const { t, locale, setLocale } = useI18n();
+const { t, locale } = useI18n();
 
 const description = t('auth.signUp.description');
-const iframeHeight = '800px';
-const containerClass = 'w-full h-full p-4 lg:p-0';
-
 useHead({
   title: t('auth.signUp.title'),
   meta: [
@@ -140,7 +135,7 @@ const isCaptchaSending = ref(false);
 const countdown = ref(60);
 let timer: ReturnType<typeof setInterval> | null = null; // 用于存储定时器实例
 
-async function sendCaptcha() {
+async function sendCaptcha(): Promise<void> {
   const { valid, errors } =
     await form.validateField('email');
   if (!valid) {
@@ -284,26 +279,27 @@ watch(agreeToTermsValue, newValue => {
 });
 
 // 添加一个点击处理函数来调试
-const handleCheckboxChange = (checked: boolean) => {
+const handleCheckboxChange = (checked: boolean): void => {
   agreeToTermsValue.value = checked;
 };
 </script>
 
 <template>
   <div
-    class="w-full lg:grid lg:min-h-[600px] lg:grid-cols-2 xl:min-h-[800px]"
+    class="min-h-screen w-full bg-background lg:grid lg:grid-cols-2"
   >
-    <div class="flex items-center justify-center py-12">
+    <div class="flex items-center justify-center px-4 py-12">
+      <AppCard class="w-full max-w-2xl shadow-sm" content-class="grid gap-6">
       <!-- 使用 vee-validate 的 handleSubmit 进行提交，它会先执行验证 -->
       <form
-        class="mx-auto grid w-[400px] gap-6"
+        class="grid gap-6"
         @submit="onSubmit"
       >
         <div class="grid gap-2 text-center">
-          <h1 class="text-3xl font-bold">
+          <h1 class="text-3xl font-semibold tracking-tight">
             {{ $t('auth.signUp.signUpPrompt') }}
           </h1>
-          <p class="text-balance text-muted-foreground">
+          <p class="text-sm text-muted-foreground">
             {{ $t('auth.signUp.signUpPromptDescription') }}
           </p>
         </div>
@@ -322,6 +318,7 @@ const handleCheckboxChange = (checked: boolean) => {
                 <Input
                   id="email"
                   type="email"
+                  :disabled="isLoading"
                   placeholder="m@example.com"
                   v-bind="componentField"
                 />
@@ -331,7 +328,7 @@ const handleCheckboxChange = (checked: boolean) => {
           </FormField>
 
           <!-- 两列布局区域 -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid gap-4 md:grid-cols-2">
             <!-- 用户名 -->
             <FormField
               v-slot="{ componentField }"
@@ -345,6 +342,7 @@ const handleCheckboxChange = (checked: boolean) => {
                   <Input
                     id="username"
                     type="text"
+                    :disabled="isLoading"
                     :placeholder="
                       $t('auth.signUp.usernamePlaceholder')
                     "
@@ -368,6 +366,7 @@ const handleCheckboxChange = (checked: boolean) => {
                   <Input
                     id="displayName"
                     type="text"
+                    :disabled="isLoading"
                     :placeholder="
                       $t(
                         'auth.signUp.displayNamePlaceholder'
@@ -393,6 +392,7 @@ const handleCheckboxChange = (checked: boolean) => {
                   <Input
                     id="phone"
                     type="tel"
+                    :disabled="isLoading"
                     :placeholder="
                       $t('auth.signUp.phonePlaceholder')
                     "
@@ -482,6 +482,7 @@ const handleCheckboxChange = (checked: boolean) => {
                   <Input
                     id="location"
                     type="text"
+                    :disabled="isLoading"
                     :placeholder="
                       $t('auth.signUp.locationPlaceholder')
                     "
@@ -503,6 +504,7 @@ const handleCheckboxChange = (checked: boolean) => {
                 <Input
                   id="bio"
                   type="text"
+                  :disabled="isLoading"
                   :placeholder="
                     $t('auth.signUp.bioPlaceholder')
                   "
@@ -514,7 +516,7 @@ const handleCheckboxChange = (checked: boolean) => {
           </FormField>
 
           <!-- 密码区域 (两列) -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid gap-4 md:grid-cols-2">
             <!-- 密码 -->
             <FormField
               v-slot="{ componentField }"
@@ -528,6 +530,7 @@ const handleCheckboxChange = (checked: boolean) => {
                   <Input
                     id="password"
                     type="password"
+                    :disabled="isLoading"
                     :placeholder="
                       $t('auth.signUp.passwordPlaceholder')
                     "
@@ -551,6 +554,7 @@ const handleCheckboxChange = (checked: boolean) => {
                   <Input
                     id="confirmPassword"
                     type="password"
+                    :disabled="isLoading"
                     :placeholder="
                       $t(
                         'auth.signUp.confirmPasswordPlaceholder'
@@ -602,10 +606,11 @@ const handleCheckboxChange = (checked: boolean) => {
         按钮现在是 Flexbox 的一部分，它会自动收缩以适应其内容大小。
         type="button" 很重要，可以防止它意外触发表单提交。
       -->
-                <Button
+                <AppButton
                   type="button"
                   @click="sendCaptcha"
-                  :disabled="isCaptchaSending"
+                  :disabled="isCaptchaSending || isLoading"
+                  :loading="isCaptchaSending"
                 >
                   <!-- 
     使用 v-if 和 v-else 来根据 isCaptchaSending 的状态显示不同的文本
@@ -616,7 +621,7 @@ const handleCheckboxChange = (checked: boolean) => {
                   <span v-else>
                     {{ $t('auth.signUp.sendCaptcha') }}
                   </span>
-                </Button>
+                </AppButton>
               </div>
               <FormMessage />
             </FormItem>
@@ -650,9 +655,14 @@ const handleCheckboxChange = (checked: boolean) => {
             </FormField>
           </div>
 
-          <Button type="submit" class="w-full mt-2">{{
-            $t('auth.signUp.signUpButton')
-          }}</Button>
+          <AppButton
+            type="submit"
+            class="w-full mt-2"
+            :loading="isLoading"
+            :loading-label="$t('auth.signUp.signUpButton')"
+          >
+            {{ $t('auth.signUp.signUpButton') }}
+          </AppButton>
         </div>
 
         <div class="mt-4 text-center text-sm">
@@ -665,6 +675,7 @@ const handleCheckboxChange = (checked: boolean) => {
           </NuxtLink>
         </div>
       </form>
+      </AppCard>
     </div>
     <div class="hidden bg-muted lg:block">
       <img

@@ -15,8 +15,26 @@ import {
 // UI 组件：分隔线、卡片、按钮、徽章
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import AppButton from '@/components/app/AppButton.vue';
+import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 // 提示组件
 import { toast } from 'vue-sonner';
 
@@ -51,7 +69,7 @@ const totalPages = computed(() =>
 );
 
 // 拉取列表
-async function load() {
+async function load(): Promise<void> {
   loading.value = true;
   try {
     const result = await v2ListAccountStatements({
@@ -86,7 +104,7 @@ async function actMark(
     | 'mark_unread'
     | 'resolve'
     | 'dismiss'
-) {
+): Promise<void> {
   try {
     await v2PatchAccountStatement(Number(id), {
       action
@@ -102,8 +120,22 @@ async function actMark(
 const showAppeal = ref<null | string>(null);
 const appealMsg = ref('');
 
+const appealDialogOpen = computed({
+  get: () => showAppeal.value !== null,
+  set: (open: boolean) => {
+    if (!open) {
+      showAppeal.value = null;
+    }
+  }
+});
+
+function reloadFromFirstPage(): void {
+  page.value = 1;
+  load();
+}
+
 // 提交申诉
-async function submitAppeal(id: string) {
+async function submitAppeal(id: string): Promise<void> {
   // 校验字数
   if (
     !appealMsg.value ||
@@ -124,6 +156,11 @@ async function submitAppeal(id: string) {
   } catch (e) {
     toast.error(t('account.statements.appealFailed'));
   }
+}
+
+async function submitCurrentAppeal(): Promise<void> {
+  if (!showAppeal.value) return;
+  await submitAppeal(showAppeal.value);
 }
 
 // 挂载时拉取一次
@@ -155,86 +192,100 @@ onMounted(load);
             <span class="text-sm text-muted-foreground">{{
               $t('account.statements.filters.type')
             }}</span>
-            <select
+            <Select
               v-model="typeFilter"
-              @change="
-                page = 1;
-                load();
-              "
-              class="h-9 rounded-md border bg-background px-3 text-sm"
+              @update:model-value="reloadFromFirstPage"
             >
-              <option value="all">
-                {{ $t('account.statements.types.all') }}
-              </option>
-              <option value="info">
-                {{ $t('account.statements.types.info') }}
-              </option>
-              <option value="warning">
-                {{ $t('account.statements.types.warning') }}
-              </option>
-              <option value="strike">
-                {{ $t('account.statements.types.strike') }}
-              </option>
-              <option value="suspension">
-                {{
-                  $t('account.statements.types.suspension')
-                }}
-              </option>
-            </select>
+              <SelectTrigger class="w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {{ $t('account.statements.types.all') }}
+                </SelectItem>
+                <SelectItem value="info">
+                  {{ $t('account.statements.types.info') }}
+                </SelectItem>
+                <SelectItem value="warning">
+                  {{ $t('account.statements.types.warning') }}
+                </SelectItem>
+                <SelectItem value="strike">
+                  {{ $t('account.statements.types.strike') }}
+                </SelectItem>
+                <SelectItem value="suspension">
+                  {{
+                    $t('account.statements.types.suspension')
+                  }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <!-- 状态筛选 -->
           <div class="flex items-center gap-2">
             <span class="text-sm text-muted-foreground">{{
               $t('account.statements.filters.status')
             }}</span>
-            <select
+            <Select
               v-model="statusFilter"
-              @change="
-                page = 1;
-                load();
-              "
-              class="h-9 rounded-md border bg-background px-3 text-sm"
+              @update:model-value="reloadFromFirstPage"
             >
-              <option value="all">
-                {{ $t('account.statements.status.all') }}
-              </option>
-              <option value="unread">
-                {{ $t('account.statements.status.unread') }}
-              </option>
-              <option value="read">
-                {{ $t('account.statements.status.read') }}
-              </option>
-              <option value="appealed">
-                {{
-                  $t('account.statements.status.appealed')
-                }}
-              </option>
-              <option value="resolved">
-                {{
-                  $t('account.statements.status.resolved')
-                }}
-              </option>
-              <option value="dismissed">
-                {{
-                  $t('account.statements.status.dismissed')
-                }}
-              </option>
-            </select>
+              <SelectTrigger class="w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {{ $t('account.statements.status.all') }}
+                </SelectItem>
+                <SelectItem value="unread">
+                  {{ $t('account.statements.status.unread') }}
+                </SelectItem>
+                <SelectItem value="read">
+                  {{ $t('account.statements.status.read') }}
+                </SelectItem>
+                <SelectItem value="appealed">
+                  {{
+                    $t('account.statements.status.appealed')
+                  }}
+                </SelectItem>
+                <SelectItem value="resolved">
+                  {{
+                    $t('account.statements.status.resolved')
+                  }}
+                </SelectItem>
+                <SelectItem value="dismissed">
+                  {{
+                    $t('account.statements.status.dismissed')
+                  }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <!-- 刷新按钮 -->
           <div class="ml-auto flex items-center gap-2">
-            <Button
+            <AppButton
               variant="outline"
               :disabled="loading"
+              :loading="loading"
               @click="load()"
-              >{{ $t('common.refresh') }}</Button
+              >{{ $t('common.refresh') }}</AppButton
             >
           </div>
         </div>
 
         <!-- 列表 -->
         <div class="mt-4 divide-y rounded-md border">
-          <template v-if="items.length">
+          <template v-if="loading && !items.length">
+            <div
+              v-for="index in 3"
+              :key="index"
+              class="space-y-3 p-4"
+            >
+              <Skeleton class="h-5 w-32" />
+              <Skeleton class="h-4 w-2/3" />
+              <Skeleton class="h-4 w-full" />
+            </div>
+          </template>
+          <template v-else-if="items.length">
             <!-- 列表项 -->
             <div
               v-for="it in items"
@@ -300,9 +351,10 @@ onMounted(load);
               <div
                 class="flex shrink-0 flex-wrap items-center gap-2 pt-2 md:pt-0"
               >
-                <Button
+                <AppButton
                   size="sm"
                   variant="ghost"
+                  :disabled="loading"
                   @click="
                     actMark(
                       it.id,
@@ -321,40 +373,43 @@ onMounted(load);
                           'account.statements.actions.markUnread'
                         )
                   }}
-                </Button>
-                <Button
+                </AppButton>
+                <AppButton
                   size="sm"
                   variant="outline"
+                  :disabled="loading"
                   @click="actMark(it.id, 'resolve')"
                   >{{
                     $t('account.statements.actions.resolve')
-                  }}</Button
+                  }}</AppButton
                 >
-                <Button
+                <AppButton
                   size="sm"
                   variant="outline"
+                  :disabled="loading"
                   @click="actMark(it.id, 'dismiss')"
                   >{{
                     $t('account.statements.actions.dismiss')
-                  }}</Button
+                  }}</AppButton
                 >
-                <Button
+                <AppButton
                   size="sm"
+                  :disabled="loading"
                   @click="showAppeal = it.id"
                   >{{
                     $t('account.statements.actions.appeal')
-                  }}</Button
+                  }}</AppButton
                 >
               </div>
             </div>
           </template>
           <!-- 空状态 -->
-          <div
+          <AppEmptyState
             v-else
-            class="p-6 text-center text-sm text-muted-foreground"
-          >
-            {{ $t('common.empty') }}
-          </div>
+            class="m-4"
+            :title="$t('common.empty')"
+            :description="$t('account.statements.description')"
+          />
         </div>
 
         <!-- 分页 -->
@@ -369,7 +424,7 @@ onMounted(load);
             }}
           </div>
           <div class="flex items-center gap-2">
-            <Button
+            <AppButton
               size="sm"
               variant="outline"
               :disabled="loading || page <= 1"
@@ -377,9 +432,9 @@ onMounted(load);
                 page = Math.max(1, page - 1);
                 load();
               "
-              >{{ $t('common.prev') }}</Button
+              >{{ $t('common.prev') }}</AppButton
             >
-            <Button
+            <AppButton
               size="sm"
               variant="outline"
               :disabled="loading || page >= totalPages"
@@ -387,46 +442,50 @@ onMounted(load);
                 page = Math.min(totalPages, page + 1);
                 load();
               "
-              >{{ $t('common.next') }}</Button
+              >{{ $t('common.next') }}</AppButton
             >
           </div>
         </div>
 
-        <!-- 申诉弹层（简单内联实现） -->
-        <div
-          v-if="showAppeal"
-          class="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4"
-        >
-          <div
-            class="w-full max-w-lg rounded-lg border bg-background p-4 shadow-lg"
-          >
-            <div class="mb-2 text-lg font-semibold">
-              {{ $t('account.statements.appealTitle') }}
-            </div>
-            <textarea
+        <Dialog v-model:open="appealDialogOpen">
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {{ $t('account.statements.appealTitle') }}
+              </DialogTitle>
+              <DialogDescription>
+                {{
+                  $t(
+                    'account.statements.appealPlaceholder'
+                  )
+                }}
+              </DialogDescription>
+            </DialogHeader>
+            <Textarea
               v-model="appealMsg"
               rows="5"
-              class="w-full resize-none rounded-md border bg-background p-2 text-sm"
+              class="resize-none"
               :placeholder="
                 $t(
                   'account.statements.appealPlaceholder'
                 ) as string
               "
             />
-            <div class="mt-3 flex justify-end gap-2">
-              <Button
+            <DialogFooter>
+              <AppButton
                 variant="ghost"
                 @click="showAppeal = null"
-                >{{ $t('common.cancel') }}</Button
+                >{{ $t('common.cancel') }}</AppButton
               >
-              <Button
+              <AppButton
                 :disabled="loading"
-                @click="submitAppeal(showAppeal as string)"
-                >{{ $t('common.submit') }}</Button
+                :loading="loading"
+                @click="submitCurrentAppeal"
+                >{{ $t('common.submit') }}</AppButton
               >
-            </div>
-          </div>
-        </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </CardContent>
   </Card>

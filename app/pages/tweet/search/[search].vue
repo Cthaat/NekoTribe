@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import type { PostVM } from '@/types/posts';
 import {
   v2BookmarkPost,
@@ -11,6 +11,7 @@ import {
   v2UnbookmarkPost
 } from '@/services/posts';
 import { usePostFeed } from '@/composables/usePostFeed';
+import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import TweetList from '@/components/TweetList.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import {
@@ -29,6 +30,7 @@ const localePath = useLocalePath();
 const isRetweetModalOpen = ref(false);
 const selectedTweetForRetweet = ref<PostVM | null>(null);
 const isSubmittingRetweet = ref(false);
+const hasMounted = ref(false);
 
 const feed = usePostFeed({
   debugName: 'tweet-search',
@@ -42,12 +44,18 @@ const feed = usePostFeed({
     })
 });
 
+onMounted(() => {
+  hasMounted.value = true;
+  void feed.refresh();
+});
+
 watch(
   [() => feed.page, () => route.params.search],
   () => {
-    feed.refresh();
-  },
-  { immediate: true }
+    if (hasMounted.value) {
+      void feed.refresh();
+    }
+  }
 );
 
 async function handleDeleteTweet(tweetId: number) {
@@ -154,7 +162,7 @@ async function handleBookmarkTweet(
 <template>
   <div class="pt-2">
     <div class="bg-background p-10">
-      <div v-if="feed.loading" class="space-y-4">
+      <div v-if="!hasMounted || feed.loading" class="space-y-4">
         <TweetCardSkeleton
           v-for="i in 5"
           :key="`skeleton-${i}`"
@@ -179,12 +187,11 @@ async function handleBookmarkTweet(
         @bookmark-tweet="handleBookmarkTweet"
       />
 
-      <div
+      <AppEmptyState
         v-else
-        class="text-center text-muted-foreground py-10"
-      >
-        没有找到相关推文。
-      </div>
+        title="没有找到相关推文。"
+        description="换个关键词试试，或稍后再搜索。"
+      />
 
       <RetweetModal
         v-if="selectedTweetForRetweet"

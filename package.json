@@ -49,7 +49,7 @@
     "pinia": "^3.0.3",
     "radix-vue": "^1.9.17",
     "reka-ui": "^2.3.2",
-    "shadcn-nuxt": "2.2.0",
+    "shadcn-nuxt": "2.6.2",
     "sharp": "^0.34.3",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.11",
@@ -57,7 +57,7 @@
     "vee-validate": "^4.15.1",
     "vue": "^3.5.17",
     "vue-router": "^4.5.1",
-    "vue-sonner": "^2.0.1",
+    "vue-sonner": "2.0.9",
     "ws": "^8.18.3",
     "zod": "^4.0.5"
   },

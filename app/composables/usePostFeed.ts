@@ -25,6 +25,70 @@ interface PostFeedState {
   ) => void;
 }
 
+interface SerializedFeedError {
+  name?: string;
+  message: string;
+  statusCode?: number;
+  statusMessage?: string;
+  data?: unknown;
+  stack?: string;
+}
+
+function toSerializable(value: unknown): unknown {
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(toSerializable);
+  }
+
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(
+        ([key, item]) => [key, toSerializable(item)]
+      )
+    );
+  }
+
+  return String(value);
+}
+
+function serializeFeedError(error: unknown): SerializedFeedError {
+  const candidate = error as {
+    name?: string;
+    message?: string;
+    statusCode?: number;
+    statusMessage?: string;
+    data?: unknown;
+    response?: {
+      status?: number;
+      statusText?: string;
+      _data?: unknown;
+    };
+    stack?: string;
+  };
+
+  return {
+    name: candidate.name,
+    message: candidate.message ?? String(error),
+    statusCode:
+      candidate.statusCode ?? candidate.response?.status,
+    statusMessage:
+      candidate.statusMessage ??
+      candidate.response?.statusText,
+    data: toSerializable(
+      candidate.data ?? candidate.response?._data
+    ),
+    stack: candidate.stack
+  };
+}
+
 function logPostFeed(
   debugName: string,
   message: string,
@@ -82,17 +146,16 @@ export function usePostFeed(
             .map(post => post.id)
         });
       } catch (caught) {
+        const errorDetails = serializeFeedError(caught);
         const message =
-          caught instanceof Error
-            ? caught.message
-            : '加载推文失败';
+          errorDetails.message || '加载推文失败';
         state.error = message;
         state.posts = [];
         state.total = 0;
 
         console.error(
           `[usePostFeed:${debugName}] refresh:error`,
-          caught
+          errorDetails
         );
       } finally {
         state.loading = false;

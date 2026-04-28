@@ -11,6 +11,7 @@ import {
   CardFooter,
   CardHeader
 } from '@/components/ui/card';
+import AppButton from '@/components/app/AppButton.vue';
 import Lightbox from '@/components/Lightbox.vue';
 import {
   Avatar,
@@ -25,6 +26,14 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
 import {
   MessageCircle,
   Repeat,
@@ -105,6 +114,7 @@ watch(
 const localIsBookmarked = ref(
   props.tweet.viewer.hasBookmarked
 );
+const isDeleteDialogOpen = ref(false);
 
 // 【修改二：添加 watch 来同步 prop 和本地 ref】
 // 当父组件的数据更新后，prop 会变化。我们需要监听这个变化，
@@ -139,10 +149,13 @@ function handleLike() {
 
 function handleDelete() {
   if (isOwnTweet.value) {
-    alert(`确定要删除推文 ${props.tweet.id} 吗？`);
-    // 在这里调用你的API来删除推文
-    emit('delete-tweet', props.tweet.id);
+    isDeleteDialogOpen.value = true;
   }
+}
+
+function confirmDelete() {
+  isDeleteDialogOpen.value = false;
+  emit('delete-tweet', props.tweet.id);
 }
 
 function handleBookmark() {
@@ -515,6 +528,28 @@ const originalExcerpt = computed(() => {
     :items="mediaItems"
     :start-index="lightboxStartIndex"
   />
+
+  <Dialog v-model:open="isDeleteDialogOpen">
+    <DialogContent @click.stop>
+      <DialogHeader>
+        <DialogTitle>删除这条推文？</DialogTitle>
+        <DialogDescription>
+          删除后这条推文将从时间线中移除，此操作不可撤销。
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <AppButton
+          variant="outline"
+          @click="isDeleteDialogOpen = false"
+        >
+          取消
+        </AppButton>
+        <AppButton variant="destructive" @click="confirmDelete">
+          删除
+        </AppButton>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <style scoped>

@@ -4,7 +4,8 @@ definePageMeta({
   layout: false
 });
 
-import { Button } from '@/components/ui/button';
+import AppButton from '@/components/app/AppButton.vue';
+import AppCard from '@/components/app/AppCard.vue';
 import { useI18n } from 'vue-i18n';
 import * as z from 'zod';
 import { toTypedSchema } from '@vee-validate/zod';
@@ -30,8 +31,6 @@ const localePath = useLocalePath();
 const preferenceStore = usePreferenceStore();
 
 const description = t('auth.login.description');
-const iframeHeight = '800px';
-const containerClass = 'w-full h-full p-4 lg:p-0';
 
 useHead({
   title: t('auth.login.title'),
@@ -100,18 +99,21 @@ const onSubmit = form.handleSubmit(onValidSubmit);
 
 <template>
   <div
-    class="w-full lg:grid lg:min-h-[600px] lg:grid-cols-2 xl:min-h-[800px]"
+    class="min-h-screen w-full bg-background lg:grid lg:grid-cols-2"
   >
-    <div class="flex items-center justify-center py-12">
-      <div class="mx-auto grid w-[350px] gap-6">
-        <div class="grid gap-2 text-center">
-          <h1 class="text-3xl font-bold">
-            {{ $t('auth.login.title') }}
-          </h1>
-          <p class="text-balance text-muted-foreground">
-            {{ $t('auth.login.loginPrompt') }}
-          </p>
-        </div>
+    <div class="flex items-center justify-center px-4 py-12">
+      <AppCard class="w-full max-w-sm shadow-sm" content-class="grid gap-6">
+        <template #header>
+          <div class="grid gap-2 text-center">
+            <h1 class="text-3xl font-semibold tracking-tight">
+              {{ $t('auth.login.title') }}
+            </h1>
+            <p class="text-sm text-muted-foreground">
+              {{ $t('auth.login.loginPrompt') }}
+            </p>
+          </div>
+        </template>
+
         <!-- 使用标准的 form 和 FormField 进行重构 -->
         <form
           class="grid gap-4"
@@ -129,6 +131,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
               <FormControl>
                 <Input
                   type="account"
+                  :disabled="isLoading"
                   :placeholder="
                     $t('auth.login.accountPlaceholder')
                   "
@@ -150,6 +153,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
               <FormControl>
                 <Input
                   type="password"
+                  :disabled="isLoading"
                   :placeholder="
                     $t('auth.login.passwordPlaceholder')
                   "
@@ -170,9 +174,14 @@ const onSubmit = form.handleSubmit(onValidSubmit);
             </NuxtLink>
           </div>
 
-          <Button type="submit" class="w-full">
+          <AppButton
+            type="submit"
+            class="w-full"
+            :loading="isLoading"
+            :loading-label="$t('auth.login.loginButton')"
+          >
             {{ $t('auth.login.loginButton') }}
-          </Button>
+          </AppButton>
         </form>
         <div class="mt-4 text-center text-sm">
           {{ $t('auth.login.noAccount') }}
@@ -183,7 +192,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
             {{ $t('auth.login.signUp') }}
           </NuxtLink>
         </div>
-      </div>
+      </AppCard>
     </div>
     <div class="hidden bg-muted lg:block">
       <img

@@ -328,9 +328,10 @@ const closeDialog = () => {
                 v-if="tweet.media.length > 1"
                 class="flex gap-2 mt-2 justify-center"
               >
-                <button
+                <Button
                   v-for="(media, index) in tweet.media"
                   :key="index"
+                  variant="ghost"
                   class="w-16 h-12 rounded overflow-hidden border-2 transition-colors"
                   :class="
                     selectedImageIndex === index
@@ -344,7 +345,7 @@ const closeDialog = () => {
                     alt=""
                     class="w-full h-full object-cover"
                   />
-                </button>
+                </Button>
               </div>
             </div>
           </div>

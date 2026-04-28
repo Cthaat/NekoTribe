@@ -7,6 +7,10 @@ import {
   type CurrentUserVM
 } from '@/services';
 
+interface ClearAuthStateOptions {
+  redirect?: boolean;
+}
+
 function createEmptyUser(): CurrentUserVM {
   return {
     id: 0,
@@ -71,6 +75,32 @@ const defaultPreferences: UserPreference = {
   user: createEmptyUser(),
   authSession: null
 };
+
+function resolveLoginPath(): string {
+  try {
+    const localePath = useLocalePath();
+    return localePath('/auth/login');
+  } catch {
+    return '/auth/login';
+  }
+}
+
+function redirectToLogin(): void {
+  if (!import.meta.client) {
+    return;
+  }
+
+  const loginPath = resolveLoginPath();
+  try {
+    const router = useRouter();
+    void router.push(loginPath);
+    return;
+  } catch {
+    if (window.location.pathname !== loginPath) {
+      window.location.assign(loginPath);
+    }
+  }
+}
 
 // --- Store 定义 ---
 export const usePreferenceStore = defineStore(
@@ -171,10 +201,14 @@ export const usePreferenceStore = defineStore(
     /**
      * 在用户登出时调用此 Action。
      */
-    function clearAuthState() {
+    function clearAuthState(
+      options: ClearAuthStateOptions = {}
+    ) {
       updatePreference('user', createEmptyUser());
       updatePreference('authSession', null);
-      useRouter().push('/auth/login');
+      if (options.redirect ?? true) {
+        redirectToLogin();
+      }
     }
 
     // 您已有的其他 actions (setTheme, toggleCompactMode) 保持不变

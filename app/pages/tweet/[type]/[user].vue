@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import type { PostVM } from '@/types/posts';
 import {
   v2BookmarkPost,
@@ -12,6 +12,7 @@ import {
   v2UnbookmarkPost
 } from '@/services/posts';
 import { usePostFeed } from '@/composables/usePostFeed';
+import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import TweetList from '@/components/TweetList.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import {
@@ -30,6 +31,7 @@ const route = useRoute();
 const isRetweetModalOpen = ref(false);
 const selectedTweetForRetweet = ref<PostVM | null>(null);
 const isSubmittingRetweet = ref(false);
+const hasMounted = ref(false);
 
 const timelineType = computed(() =>
   normalizePostTimelineType(String(route.params.type || 'home'))
@@ -51,6 +53,11 @@ const feed = usePostFeed({
     })
 });
 
+onMounted(() => {
+  hasMounted.value = true;
+  void feed.refresh();
+});
+
 watch(
   [
     () => feed.page,
@@ -58,9 +65,10 @@ watch(
     () => route.params.user
   ],
   () => {
-    feed.refresh();
-  },
-  { immediate: true }
+    if (hasMounted.value) {
+      void feed.refresh();
+    }
+  }
 );
 
 async function handleDeleteTweet(tweetId: number) {
@@ -167,7 +175,7 @@ async function handleBookmarkTweet(
 <template>
   <div class="pt-2">
     <div class="bg-background p-10">
-      <div v-if="feed.loading" class="space-y-4">
+      <div v-if="!hasMounted || feed.loading" class="space-y-4">
         <TweetCardSkeleton
           v-for="i in 5"
           :key="`skeleton-${i}`"
@@ -192,12 +200,11 @@ async function handleBookmarkTweet(
         @bookmark-tweet="handleBookmarkTweet"
       />
 
-      <div
+      <AppEmptyState
         v-else
-        class="text-center text-muted-foreground py-10"
-      >
-        这里还没有推文哦。
-      </div>
+        title="这里还没有推文哦。"
+        description="关注更多用户或稍后再来看看新的动态。"
+      />
 
       <RetweetModal
         v-if="selectedTweetForRetweet"

@@ -18,6 +18,100 @@ interface ComponentDescriptor {
   __name?: string;
 }
 
+interface SerializedApiError {
+  name?: string;
+  message: string;
+  statusCode?: number;
+  statusMessage?: string;
+  data?: unknown;
+  stack?: string;
+}
+
+type NuxtAppContext = ReturnType<typeof tryUseNuxtApp>;
+
+function toSerializable(value: unknown): unknown {
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(toSerializable);
+  }
+
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(
+        ([key, item]) => [key, toSerializable(item)]
+      )
+    );
+  }
+
+  return String(value);
+}
+
+function serializeApiError(error: unknown): SerializedApiError {
+  const candidate = error as {
+    name?: string;
+    message?: string;
+    statusCode?: number;
+    statusMessage?: string;
+    data?: unknown;
+    response?: {
+      status?: number;
+      statusText?: string;
+      _data?: unknown;
+    };
+    stack?: string;
+  };
+
+  return {
+    name: candidate.name,
+    message: candidate.message ?? String(error),
+    statusCode:
+      candidate.statusCode ?? candidate.response?.status,
+    statusMessage:
+      candidate.statusMessage ??
+      candidate.response?.statusText,
+    data: toSerializable(
+      candidate.data ?? candidate.response?._data
+    ),
+    stack: candidate.stack
+  };
+}
+
+function getApiBase(nuxtApp: NuxtAppContext): string {
+  if (nuxtApp) {
+    return String(nuxtApp.$config.public.apiBase ?? '');
+  }
+
+  try {
+    return String(useRuntimeConfig().public.apiBase ?? '');
+  } catch {
+    return '';
+  }
+}
+
+async function runWithNuxtContext<T>(
+  nuxtApp: NuxtAppContext,
+  callback: () => Promise<T>
+): Promise<T> {
+  if (nuxtApp) {
+    return await nuxtApp.runWithContext(callback);
+  }
+
+  const currentNuxtApp = tryUseNuxtApp();
+  if (currentNuxtApp) {
+    return await currentNuxtApp.runWithContext(callback);
+  }
+
+  return await callback();
+}
+
 function getComponentName(): string | undefined {
   const inst = getCurrentInstance();
   const component = inst?.type as
@@ -107,7 +201,7 @@ export const apiFetch = async <T>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> => {
-  const config = useRuntimeConfig();
+  const nuxtApp = tryUseNuxtApp();
   const isServer = typeof window === 'undefined';
   const route = (() => {
     try {
@@ -145,7 +239,7 @@ export const apiFetch = async <T>(
     : 'client';
 
   const mergedOptions: ApiFetchOptions = {
-    baseURL: config.public.apiBase,
+    baseURL: getApiBase(nuxtApp),
     credentials: 'include',
     ...options,
     headers: {
@@ -165,17 +259,25 @@ export const apiFetch = async <T>(
       !isRefreshPath(path)
     ) {
       try {
-        const { usePreferenceStore } = await import(
-          '~/stores/user'
+        await runWithNuxtContext(
+          nuxtApp,
+          async (): Promise<void> => {
+            const { usePreferenceStore } = await import(
+              '~/stores/user'
+            );
+            const preferenceStore = usePreferenceStore();
+            await preferenceStore.refreshAccessToken();
+          }
         );
-        const preferenceStore = usePreferenceStore();
-        await preferenceStore.refreshAccessToken();
         await new Promise(resolve =>
           setTimeout(resolve, 100)
         );
         return await $fetch<T>(path, mergedOptions);
       } catch (retryError) {
-        console.error('[apiFetch] 重试失败:', retryError);
+        console.error('[apiFetch] 401 refresh retry failed', {
+          path,
+          error: serializeApiError(retryError)
+        });
         throw retryError;
       }
     }

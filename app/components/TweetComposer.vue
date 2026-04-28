@@ -7,6 +7,8 @@ import type {
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import AppButton from '@/components/app/AppButton.vue';
+import { toast } from 'vue-sonner';
 import {
   Tooltip,
   TooltipContent,
@@ -113,9 +115,9 @@ function handleFileSelect(event: Event) {
   const remainingSlots = 4 - mediaFiles.value.length;
 
   if (files.length > remainingSlots) {
-    alert(
-      `你最多还能上传 ${remainingSlots > 0 ? ` ${remainingSlots} 个` : '0 个'}文件。`
-    );
+    toast.error('媒体数量超出限制', {
+      description: `你最多还能上传 ${remainingSlots > 0 ? `${remainingSlots} 个` : '0 个'}文件。`
+    });
   }
 
   const newFiles = files.slice(0, remainingSlots);
@@ -459,14 +461,14 @@ function handleKeyDown(event: KeyboardEvent) {
           </div>
 
           <!-- 提交按钮 -->
-          <Button
+          <AppButton
             @click="handleSubmit"
             :disabled="isTweetDisabled"
             class="font-bold"
           >
             <Send class="h-4 w-4 mr-2" />
             发布
-          </Button>
+          </AppButton>
         </div>
       </div>
     </div>

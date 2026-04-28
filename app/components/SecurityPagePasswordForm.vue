@@ -25,6 +25,7 @@ import {
   parseDate
 } from '@internationalized/date';
 import { Button } from '@/components/ui/button';
+import AppButton from '@/components/app/AppButton.vue';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -61,13 +62,14 @@ const verificationId = ref('');
 
 const isConfirmPasswordVisible = ref(false);
 const isPasswordVisible = ref(false);
+const isLoading = ref(false);
 
 // --- 新增：为验证码按钮添加状态 ---
 const isCaptchaSending = ref(false);
 const countdown = ref(60);
 let timer: ReturnType<typeof setInterval> | null = null; // 用于存储定时器实例
 
-async function sendCaptcha() {
+async function sendCaptcha(): Promise<void> {
   const email = preferenceStore.preferences.user.email;
 
   // 2. 进入发送状态，禁用按钮
@@ -173,6 +175,7 @@ const { handleSubmit, resetForm } =
 
 const onSubmit = handleSubmit(
   async (values: PasswordChangeFormValues): Promise<void> => {
+  isLoading.value = true;
   try {
     if (!verificationId.value) {
       throw new Error(
@@ -232,6 +235,8 @@ const onSubmit = handleSubmit(
           'account.security.securityPage.password.logoutError'
         )
       );
+    } finally {
+      isLoading.value = false;
     }
   }
   }
@@ -265,17 +270,19 @@ const onSubmit = handleSubmit(
               class="pr-10"
             />
           </FormControl>
-          <button
+          <AppButton
             type="button"
+            variant="ghost"
+            size="icon"
             @click="isPasswordVisible = !isPasswordVisible"
-            class="absolute inset-y-0 right-0 flex items-center justify-center h-full px-3 text-muted-foreground"
+            class="absolute inset-y-0 right-0 h-full rounded-l-none text-muted-foreground"
           >
             <Eye v-if="!isPasswordVisible" class="size-4" />
             <EyeOff v-else class="size-4" />
             <span class="sr-only"
               >Toggle password visibility</span
             >
-          </button>
+          </AppButton>
         </div>
         <FormDescription>
           {{
@@ -315,13 +322,15 @@ const onSubmit = handleSubmit(
               class="pr-10"
             />
           </FormControl>
-          <button
+          <AppButton
             type="button"
+            variant="ghost"
+            size="icon"
             @click="
               isConfirmPasswordVisible =
                 !isConfirmPasswordVisible
             "
-            class="absolute inset-y-0 right-0 flex items-center justify-center h-full px-3 text-muted-foreground"
+            class="absolute inset-y-0 right-0 h-full rounded-l-none text-muted-foreground"
           >
             <Eye
               v-if="!isConfirmPasswordVisible"
@@ -331,7 +340,7 @@ const onSubmit = handleSubmit(
             <span class="sr-only"
               >Toggle password visibility</span
             >
-          </button>
+          </AppButton>
         </div>
         <FormDescription>
           {{
@@ -381,10 +390,11 @@ const onSubmit = handleSubmit(
           <!-- 
         按钮现在是 Flexbox 的一部分，它会自动收缩以适应其内容大小。
         type="button" 很重要，可以防止它意外触发表单提交。-->
-          <Button
+          <AppButton
             type="button"
             @click="sendCaptcha"
-            :disabled="isCaptchaSending"
+            :disabled="isCaptchaSending || isLoading"
+            :loading="isCaptchaSending"
             class="w-32"
           >
             <!-- 
@@ -405,20 +415,28 @@ const onSubmit = handleSubmit(
                 )
               }}
             </span>
-          </Button>
+          </AppButton>
         </div>
         <FormMessage />
       </FormItem>
     </FormField>
 
     <div class="flex gap-2 justify-start">
-      <Button type="submit">
+      <AppButton
+        type="submit"
+        :loading="isLoading"
+        :loading-label="
+          $t(
+            'account.security.securityPage.password.resetPassword'
+          )
+        "
+      >
         {{
           $t(
             'account.security.securityPage.password.resetPassword'
           )
         }}
-      </Button>
+      </AppButton>
     </div>
   </form>
 </template>

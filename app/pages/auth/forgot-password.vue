@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { toTypedSchema } from '@vee-validate/zod';
-import { FieldArray, useForm } from 'vee-validate';
-import { h, ref } from 'vue';
+import { useForm } from 'vee-validate';
+import { ref } from 'vue';
 import * as z from 'zod';
-import { cn } from '@/lib/utils';
 import { Eye, EyeOff } from 'lucide-vue-next';
 import {
   FormControl,
@@ -18,24 +17,9 @@ import {
   PinInputGroup,
   PinInputSlot
 } from '@/components/ui/pin-input';
-import {
-  DateFormatter,
-  type DateValue,
-  getLocalTimeZone,
-  parseDate
-} from '@internationalized/date';
-import { Button } from '@/components/ui/button';
+import AppButton from '@/components/app/AppButton.vue';
+import AppCard from '@/components/app/AppCard.vue';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'vue-sonner';
 
 const verifiedEmails = ref([
@@ -66,6 +50,7 @@ const verificationId = ref('');
 
 const isConfirmPasswordVisible = ref(false);
 const isPasswordVisible = ref(false);
+const isLoading = ref(false);
 
 // --- 新增：为验证码按钮添加状态 ---
 const isCaptchaSending = ref(false);
@@ -73,7 +58,7 @@ const countdown = ref(60);
 let timer: ReturnType<typeof setInterval> | null = null; // 用于存储定时器实例
 const email = ref('');
 
-async function sendCaptcha() {
+async function sendCaptcha(): Promise<void> {
   // 1. 进入发送状态，禁用按钮
   isCaptchaSending.value = true;
   countdown.value = 60; // 重置倒计时
@@ -157,7 +142,7 @@ type ForgotPasswordFormValues = z.infer<
   typeof forgotPasswordFormSchema
 >;
 
-const { handleSubmit, resetForm } =
+const { handleSubmit } =
   useForm<ForgotPasswordFormValues>({
     validationSchema: toTypedSchema(
       forgotPasswordFormSchema
@@ -172,6 +157,7 @@ const { handleSubmit, resetForm } =
 
 const onSubmit = handleSubmit(
   async (values: ForgotPasswordFormValues): Promise<void> => {
+  isLoading.value = true;
   try {
     if (!verificationId.value) {
       throw new Error(t('auth.forgotPassword.captchaSendError'));
@@ -215,6 +201,8 @@ const onSubmit = handleSubmit(
       }, 2000);
     } catch (error) {
       toast.error('退出登录失败，请重试。');
+    } finally {
+      isLoading.value = false;
     }
   }
   }
@@ -223,20 +211,23 @@ const onSubmit = handleSubmit(
 
 <template>
   <div
-    class="w-full lg:grid lg:min-h-[600px] lg:grid-cols-2 xl:min-h-[800px]"
+    class="min-h-screen w-full bg-background lg:grid lg:grid-cols-2"
   >
-    <div class="flex items-center justify-center py-12">
-      <div class="mx-auto grid w-[350px] gap-6">
-        <div class="grid gap-2 text-center">
-          <h1 class="text-3xl font-bold">
-            {{ $t('auth.forgotPassword.title') }}
-          </h1>
-          <p class="text-balance text-muted-foreground">
-            {{
-              $t('auth.forgotPassword.forgotPasswordPrompt')
-            }}
-          </p>
-        </div>
+    <div class="flex items-center justify-center px-4 py-12">
+      <AppCard class="w-full max-w-sm shadow-sm" content-class="grid gap-6">
+        <template #header>
+          <div class="grid gap-2 text-center">
+            <h1 class="text-3xl font-semibold tracking-tight">
+              {{ $t('auth.forgotPassword.title') }}
+            </h1>
+            <p class="text-sm text-muted-foreground">
+              {{
+                $t('auth.forgotPassword.forgotPasswordPrompt')
+              }}
+            </p>
+          </div>
+        </template>
+
         <form class="space-y-8" @submit="onSubmit">
           <FormField
             v-slot="{ componentField }"
@@ -256,6 +247,7 @@ const onSubmit = handleSubmit(
                   "
                   v-bind="componentField"
                   v-model="email"
+                  :disabled="isLoading"
                   class="pr-10"
                 />
               </FormControl>
@@ -290,15 +282,18 @@ const onSubmit = handleSubmit(
                       )
                     "
                     v-bind="componentField"
+                    :disabled="isLoading"
                     class="pr-10"
                   />
                 </FormControl>
-                <button
+                <AppButton
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   @click="
                     isPasswordVisible = !isPasswordVisible
                   "
-                  class="absolute inset-y-0 right-0 flex items-center justify-center h-full px-3 text-muted-foreground"
+                  class="absolute inset-y-0 right-0 h-full rounded-l-none text-muted-foreground"
                 >
                   <Eye
                     v-if="!isPasswordVisible"
@@ -308,7 +303,7 @@ const onSubmit = handleSubmit(
                   <span class="sr-only"
                     >Toggle password visibility</span
                   >
-                </button>
+                </AppButton>
               </div>
               <FormDescription>
                 {{
@@ -343,16 +338,19 @@ const onSubmit = handleSubmit(
                       )
                     "
                     v-bind="componentField"
+                    :disabled="isLoading"
                     class="pr-10"
                   />
                 </FormControl>
-                <button
+                <AppButton
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   @click="
                     isConfirmPasswordVisible =
                       !isConfirmPasswordVisible
                   "
-                  class="absolute inset-y-0 right-0 flex items-center justify-center h-full px-3 text-muted-foreground"
+                  class="absolute inset-y-0 right-0 h-full rounded-l-none text-muted-foreground"
                 >
                   <Eye
                     v-if="!isConfirmPasswordVisible"
@@ -362,7 +360,7 @@ const onSubmit = handleSubmit(
                   <span class="sr-only"
                     >Toggle password visibility</span
                   >
-                </button>
+                </AppButton>
               </div>
               <FormDescription>
                 {{
@@ -413,10 +411,11 @@ const onSubmit = handleSubmit(
                 <!-- 
         按钮现在是 Flexbox 的一部分，它会自动收缩以适应其内容大小。
         type="button" 很重要，可以防止它意外触发表单提交。-->
-                <Button
+                <AppButton
                   type="button"
                   @click="sendCaptcha"
-                  :disabled="isCaptchaSending"
+                  :disabled="isCaptchaSending || isLoading"
+                  :loading="isCaptchaSending"
                   class="w-32"
                 >
                   <!-- 
@@ -435,16 +434,23 @@ const onSubmit = handleSubmit(
                       $t('auth.forgotPassword.sendCaptcha')
                     }}
                   </span>
-                </Button>
+                </AppButton>
               </div>
               <FormMessage />
             </FormItem>
           </FormField>
 
           <div class="flex gap-2 justify-start">
-            <Button type="submit">
+            <AppButton
+              type="submit"
+              class="w-full"
+              :loading="isLoading"
+              :loading-label="
+                $t('auth.forgotPassword.resetPassword')
+              "
+            >
               {{ $t('auth.forgotPassword.resetPassword') }}
-            </Button>
+            </AppButton>
           </div>
         </form>
         <div class="mt-4 text-center text-sm">
@@ -456,7 +462,7 @@ const onSubmit = handleSubmit(
             登录
           </NuxtLink>
         </div>
-      </div>
+      </AppCard>
     </div>
     <div class="hidden bg-muted lg:block">
       <img

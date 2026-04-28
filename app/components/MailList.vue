@@ -2,6 +2,7 @@
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   onMounted,
@@ -129,12 +130,13 @@ function selectMail(mailId: string) {
   <ScrollArea class="h-screen flex">
     <div class="flex-1 flex flex-col gap-2 p-4 pt-0">
       <TransitionGroup name="list" appear>
-        <button
+        <Button
           v-for="item of localItems"
           :key="item.id"
+          variant="ghost"
           :class="
             cn(
-              'flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all hover:bg-accent',
+              'h-auto w-full flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all hover:bg-accent',
               selectedMail === item.id && 'bg-muted'
             )
           "
@@ -187,7 +189,7 @@ function selectMail(mailId: string) {
               {{ label }}
             </Badge>
           </div>
-        </button>
+        </Button>
       </TransitionGroup>
       <!-- 无限滚动哨兵：接近底部时触发 loadMore -->
       <div ref="sentinel" class="h-1 w-full"></div>
