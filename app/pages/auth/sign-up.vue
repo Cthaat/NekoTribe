@@ -163,7 +163,7 @@ async function sendCaptcha() {
       type: 'register',
       channel: 'email'
     });
-    verificationId.value = response.verification_id;
+    verificationId.value = response.verificationId;
 
     toast.success('the auth.signUp.captchaSent', {
       description: t('auth.signUp.captchaSentDescription')
@@ -220,7 +220,7 @@ async function onValidSubmit(
     await v2VerifyOtp({
       account: values.email,
       type: 'register',
-      verification_id: verificationId.value,
+      verificationId: verificationId.value,
       code: value.value.join('')
     });
 
@@ -228,16 +228,16 @@ async function onValidSubmit(
       email: values.email,
       username: values.username,
       password: values.password,
-      confirm_password: values.confirmPassword,
-      display_name: values.displayName,
+      confirmPassword: values.confirmPassword,
+      displayName: values.displayName,
       phone: values.phone.trim() || undefined,
-      birth_date: values.birthDate
+      birthDate: values.birthDate
         ? values.birthDate.toString()
         : undefined,
       location: values.location.trim() || undefined,
       bio: values.bio.trim() || undefined,
-      verification_id: verificationId.value,
-      agree_to_terms: values.agreeToTerms
+      verificationId: verificationId.value,
+      agreeToTerms: values.agreeToTerms
     });
 
     // 2. 成功后，唯一要做的就是导航！

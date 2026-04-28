@@ -6,7 +6,7 @@ import { computed, ref, watch } from 'vue'
 import { type Dependency, DependencyType, type EnumValues } from './interface'
 import { getFromPath, getIndexIfArray } from './utils'
 
-export const [injectDependencies, provideDependencies] = createContext<Ref<Dependency<z.infer<z.ZodObject<any>>>[] | undefined>>('AutoFormDependencies')
+export const [injectDependencies, provideDependencies] = createContext<Ref<Dependency<z.infer<z.AnyZodObject>>[] | undefined>>('AutoFormDependencies')
 
 export default function useDependencies(
   fieldName: string,
@@ -14,7 +14,7 @@ export default function useDependencies(
   const form = useFormValues()
   // parsed test[0].age => test.age
   const currentFieldName = fieldName.replace(/\[\d+\]/g, '')
-  const currentFieldValue = useFieldValue<any>(fieldName)
+  const currentFieldValue = useFieldValue<unknown>(fieldName)
 
   if (!form)
     throw new Error('useDependencies should be used within <AutoForm>')
@@ -29,7 +29,7 @@ export default function useDependencies(
     dependency => dependency.targetField === currentFieldName,
   ))
 
-  function getSourceValue(dep: Dependency<any>) {
+  function getSourceValue(dep: Dependency<z.infer<z.AnyZodObject>>) {
     const source = dep.sourceField as string
     const index = getIndexIfArray(fieldName) ?? -1
     const [sourceLast, ...sourceInitial] = source.split('.').toReversed()

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import type { PropType } from 'vue';
-import type { V2Comment } from '@/types/v2';
+import type {
+  CommentVM,
+  NestedCommentVM
+} from '@/types/posts';
 import { toast } from 'vue-sonner';
 import { MessageSquare } from 'lucide-vue-next';
 import CommentCard from './CommentCard.vue';
@@ -9,9 +12,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 
 const props = defineProps({
-  // 从 API 获取的原始、扁平的评论列表
+  // Service 层输出的扁平评论 VM 列表
   comments: {
-    type: Array as PropType<V2Comment[]>,
+    type: Array as PropType<CommentVM[]>,
     required: true
   },
   // 这些评论所属的文章/帖子的 ID
@@ -36,27 +39,31 @@ const isCommentInputFocused = ref(false);
  * 这是一个非常关键的辅助函数。
  * @param list 扁平的评论数组
  */
-type NestedComment = V2Comment & { children: NestedComment[] };
-
-function flatToTree(list: V2Comment[]): NestedComment[] {
-  const map: Record<number, NestedComment> = {};
-  const roots: NestedComment[] = [];
+function flatToTree(list: CommentVM[]): NestedCommentVM[] {
+  const map: Record<number, NestedCommentVM> = {};
+  const roots: NestedCommentVM[] = [];
 
   // 第一次遍历：将所有节点放入 map 中，并初始化 children 数组
   for (const item of list) {
-    map[item.comment_id] = { ...item, children: [] };
+    map[item.id] = { ...item, children: [] };
   }
 
   // 第二次遍历：将每个节点连接到其父节点上
   for (const item of list) {
-    if (item.parent_comment_id) {
+    const current = map[item.id];
+    if (!current) continue;
+
+    if (item.parentCommentId) {
       // 如果是回复，找到它的父节点，并把自己加到父节点的 children 中
-      map[item.parent_comment_id]?.children.push(
-        map[item.comment_id]
-      );
+      const parent = map[item.parentCommentId];
+      if (parent) {
+        parent.children.push(current);
+      } else {
+        roots.push(current);
+      }
     } else {
       // 如果是顶级评论，直接放入 roots 数组
-      roots.push(map[item.comment_id]);
+      roots.push(current);
     }
   }
   return roots;
@@ -186,7 +193,7 @@ async function handleSubmitTweetReply() {
     <div v-if="nestedComments.length > 0" class="space-y-3">
       <CommentCard
         v-for="comment in nestedComments"
-        :key="comment.comment_id"
+        :key="comment.id"
         :comment="comment"
         :level="0"
         @like-comment="handleLikeComment"

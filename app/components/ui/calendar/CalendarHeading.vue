@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 const props = defineProps<CalendarHeadingProps & { class?: HTMLAttributes['class'] }>()
 
 defineSlots<{
-  default: (props: { headingValue: string }) => any
+  default: (props: { headingValue: string }) => unknown
 }>()
 
 const delegatedProps = reactiveOmit(props, 'class')

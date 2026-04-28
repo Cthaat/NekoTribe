@@ -713,6 +713,21 @@ export type V2CreateStatementAppealResponse =
 
 export type V2ListPostsRequest = V2PostListQuery;
 export type V2ListPostsResponse = V2ApiResponse<V2Post[]>;
+export type V2ListTrendingPostsRequest = V2PageQuery;
+export type V2ListTrendingPostsResponse =
+  V2ApiResponse<V2Post[]>;
+export type V2ListUserPostsRequest = V2PageQuery & {
+  sort?: V2PostSort;
+};
+export type V2ListUserPostsResponse =
+  V2ApiResponse<V2Post[]>;
+export type V2ListMyPostsRequest = V2PageQuery;
+export type V2ListMyPostsResponse = V2ApiResponse<V2Post[]>;
+export type V2ListMyBookmarkedPostsRequest = V2PageQuery & {
+  sort?: V2PostSort;
+};
+export type V2ListMyBookmarkedPostsResponse =
+  V2ApiResponse<V2Post[]>;
 export type V2CreatePostRequest = V2CreatePostPayload;
 export type V2CreatePostResponse = V2ApiResponse<V2Post>;
 export type V2GetPostResponse = V2ApiResponse<V2Post>;

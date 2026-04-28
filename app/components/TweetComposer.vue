@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue';
-import type { V2CreatePostPayload } from '@/types/v2';
+import type {
+  CreatePostFormVM,
+  PreviewPostVM
+} from '@/types/posts';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -10,42 +13,25 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
-import {
-  ImageUp,
-  Send,
-  X,
-  Reply,
-  MessageSquareReply,
-  MessageSquareQuote
-} from 'lucide-vue-next';
+import { ImageUp, Send, X } from 'lucide-vue-next';
 
 import TweetPreviewCard from './TweetPreviewCard.vue';
 import MentionPicker from './MentionPicker.vue';
 
-interface PreviewTweet {
-  tweetId: number;
-  author: {
-    displayName: string;
-    username: string;
-    avatarUrl: string;
-  };
-  content: string;
-}
-
 const props = defineProps<{
-  replyTo?: PreviewTweet;
-  quoteTo?: PreviewTweet;
+  replyTo?: PreviewPostVM;
+  quoteTo?: PreviewPostVM;
 }>();
 
 // --- 提交信息 ---
-const submitForm = ref<V2CreatePostPayload>({
+const submitForm = ref<CreatePostFormVM>({
   content: '',
-  reply_to_post_id: null,
-  repost_of_post_id: null,
-  quoted_post_id: null,
+  replyToPostId: null,
+  repostOfPostId: null,
+  quotedPostId: null,
   visibility: 'public',
-  tag_names: [],
-  mention_user_ids: [],
+  tagNames: [],
+  mentionUserIds: [],
   location: ''
 });
 
@@ -154,17 +140,17 @@ function removeMedia(index: number) {
 async function handleSubmit() {
   if (isTweetDisabled.value) return;
   submitForm.value.visibility = 'public';
-  submitForm.value.reply_to_post_id = null;
-  submitForm.value.quoted_post_id = null;
-  submitForm.value.repost_of_post_id = null;
+  submitForm.value.replyToPostId = null;
+  submitForm.value.quotedPostId = null;
+  submitForm.value.repostOfPostId = null;
 
   if (props.replyTo) {
-    submitForm.value.reply_to_post_id =
-      props.replyTo.tweetId
+    submitForm.value.replyToPostId =
+      props.replyTo.id
   }
   if (props.quoteTo) {
-    submitForm.value.quoted_post_id =
-      props.quoteTo.tweetId
+    submitForm.value.quotedPostId =
+      props.quoteTo.id
   }
 
   // 创建 FormData 对象
@@ -178,10 +164,10 @@ async function handleSubmit() {
   formData.append('description', '111123');
 
   submitForm.value.content = tweetContent.value;
-  submitForm.value.mention_user_ids = mentions.value
+  submitForm.value.mentionUserIds = mentions.value
     .map(username => Number(mentionUserIds.value[username]))
     .filter(userId => Number.isFinite(userId) && userId > 0);
-  submitForm.value.tag_names = Array.from(
+  submitForm.value.tagNames = Array.from(
     new Set(
       Array.from(
         tweetContent.value.matchAll(/#([\p{L}\p{N}_]+)/gu)
@@ -243,6 +229,7 @@ function handleInput(event: Event) {
 function handleMentionSelect(item: {
   type: string;
   id: string;
+  userId?: string;
   displayName: string;
 }) {
   if (!textareaRef.value || mentionStartIndex.value < 0)

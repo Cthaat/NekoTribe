@@ -80,7 +80,7 @@ async function sendCaptcha() {
       type: 'password_reset',
       channel: 'email'
     });
-    verificationId.value = response.verification_id;
+    verificationId.value = response.verificationId;
 
     toast.success(
       t(
@@ -183,9 +183,9 @@ const onSubmit = handleSubmit(
     }
     await v2PasswordReset({
       email: preferenceStore.preferences.user.email,
-      verification_id: verificationId.value,
+      verificationId: verificationId.value,
       code: value.value.join(''),
-      new_password: values.newPassword
+      newPassword: values.newPassword
     });
     toast.success(
       t(

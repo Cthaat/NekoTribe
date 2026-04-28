@@ -167,7 +167,7 @@ const timeLeft = ref(0);
 let timer: NodeJS.Timeout | null = null;
 
 const sessionId = computed(
-  () => preferenceStore.preferences.auth_session?.session_id || ''
+  () => preferenceStore.preferences.authSession?.sessionId || ''
 );
 const isLoggedIn = computed(
   () => preferenceStore.isLoggedIn
@@ -185,8 +185,8 @@ const addLog = (message: string) => {
 // 计算 Token 剩余时间
 const updateTimeLeft = () => {
   const accessTokenExpiresAt =
-    preferenceStore.preferences.auth_session
-      ?.access_token_expires_at;
+    preferenceStore.preferences.authSession
+      ?.accessTokenExpiresAt;
   if (!accessTokenExpiresAt) {
     timeLeft.value = 0;
     return;
@@ -213,7 +213,7 @@ const testApiCall = async () => {
   try {
     const response = await v2ListNotifications({
       page: 1,
-      page_size: 1
+      pageSize: 1
     });
 
     addLog('✅ API 请求成功');

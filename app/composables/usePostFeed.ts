@@ -1,80 +1,134 @@
-import type { V2PagedResult, V2Post } from '@/types/v2';
+import type { PostPageVM, PostVM } from '@/types/posts';
 
 interface UsePostFeedOptions {
+  debugName?: string;
   pageSize?: number;
   loadPage: (
     page: number,
     pageSize: number
-  ) => Promise<V2PagedResult<V2Post>>;
+  ) => Promise<PostPageVM>;
+}
+
+interface PostFeedState {
+  page: number;
+  pageSize: number;
+  posts: PostVM[];
+  loading: boolean;
+  error: string | null;
+  total: number;
+  readonly totalPages: number;
+  refresh: () => Promise<void>;
+  removePost: (postId: number) => void;
+  patchPost: (
+    postId: number,
+    updater: (post: PostVM) => PostVM
+  ) => void;
+}
+
+function logPostFeed(
+  debugName: string,
+  message: string,
+  payload?: Record<string, unknown>
+): void {
+  console.info(
+    `[usePostFeed:${debugName}] ${message}`,
+    payload ?? {}
+  );
 }
 
 export function usePostFeed(
   options: UsePostFeedOptions
-) {
-  const page = ref(1);
-  const pageSize = ref(options.pageSize ?? 15);
-  const posts = shallowRef<V2Post[]>([]);
-  const loading = ref(false);
-  const error = ref<string | null>(null);
-  const total = ref(0);
+): PostFeedState {
+  const debugName = options.debugName ?? 'default';
 
-  const totalPages = computed(() =>
-    Math.max(1, Math.ceil(total.value / pageSize.value))
-  );
-
-  async function refresh(): Promise<void> {
-    loading.value = true;
-    error.value = null;
-
-    try {
-      const result = await options.loadPage(
-        page.value,
-        pageSize.value
+  const state = reactive<PostFeedState>({
+    page: 1,
+    pageSize: options.pageSize ?? 15,
+    posts: [],
+    loading: false,
+    error: null,
+    total: 0,
+    get totalPages() {
+      return Math.max(
+        1,
+        Math.ceil(state.total / state.pageSize)
       );
-      posts.value = result.items;
-      total.value = result.meta?.total || result.items.length;
-    } catch (caught) {
-      error.value =
-        caught instanceof Error
-          ? caught.message
-          : '加载推文失败';
-      posts.value = [];
-      total.value = 0;
-    } finally {
-      loading.value = false;
+    },
+    async refresh(): Promise<void> {
+      state.loading = true;
+      state.error = null;
+
+      logPostFeed(debugName, 'refresh:start', {
+        page: state.page,
+        pageSize: state.pageSize
+      });
+
+      try {
+        const result = await options.loadPage(
+          state.page,
+          state.pageSize
+        );
+        state.posts = result.items;
+        state.total = result.total;
+
+        logPostFeed(debugName, 'refresh:success', {
+          itemCount: result.items.length,
+          total: result.total,
+          page: result.page,
+          pageSize: result.pageSize,
+          hasNext: result.hasNext,
+          firstIds: result.items
+            .slice(0, 5)
+            .map(post => post.id)
+        });
+      } catch (caught) {
+        const message =
+          caught instanceof Error
+            ? caught.message
+            : '加载推文失败';
+        state.error = message;
+        state.posts = [];
+        state.total = 0;
+
+        console.error(
+          `[usePostFeed:${debugName}] refresh:error`,
+          caught
+        );
+      } finally {
+        state.loading = false;
+      }
+    },
+    removePost(postId: number): void {
+      state.posts = state.posts.filter(
+        post => post.id !== postId
+      );
+      state.total = Math.max(state.total - 1, 0);
+      logPostFeed(debugName, 'remove', {
+        postId,
+        remaining: state.posts.length
+      });
+    },
+    patchPost(
+      postId: number,
+      updater: (post: PostVM) => PostVM
+    ): void {
+      const index = state.posts.findIndex(
+        post => post.id === postId
+      );
+      if (index === -1) {
+        console.warn(
+          `[usePostFeed:${debugName}] patch:missing-post`,
+          { postId }
+        );
+        return;
+      }
+
+      const currentPost = state.posts[index];
+      if (!currentPost) return;
+      state.posts[index] = updater(currentPost);
+      logPostFeed(debugName, 'patch', { postId });
     }
-  }
+  });
 
-  function removePost(postId: number): void {
-    posts.value = posts.value.filter(
-      post => post.post_id !== postId
-    );
-    total.value = Math.max(total.value - 1, 0);
-  }
-
-  function patchPost(
-    postId: number,
-    updater: (post: V2Post) => V2Post
-  ): void {
-    const index = posts.value.findIndex(
-      post => post.post_id === postId
-    );
-    if (index === -1) return;
-    const currentPost = posts.value[index];
-    if (!currentPost) return;
-    posts.value[index] = updater(currentPost);
-  }
-
-  return {
-    page,
-    pageSize,
-    posts,
-    loading,
-    error,
-    total,
-    totalPages,
-    refresh,
-    removePost,
-    patchPost
-  };
+  return state;
 }

@@ -50,14 +50,14 @@ watch(
 async function handleReadMail(mailId: string) {
   const notificationId = Number(mailId);
   const mail = mailbox.notifications.value.find(
-    item => item.notification_id === notificationId
+    item => item.id === notificationId
   );
   if (mail) {
-    mail.is_read = 1;
+    mail.read = true;
   }
   try {
     await v2SetNotificationReadStatus(notificationId, {
-      is_read: true
+      read: true
     });
   } catch (error) {
     console.error('标记邮件为已读失败:', error);
@@ -70,7 +70,7 @@ async function handleDeleteMail(mailId: string) {
     await v2DeleteNotification(notificationId);
     mailbox.notifications.value =
       mailbox.notifications.value.filter(
-        item => item.notification_id !== notificationId
+        item => item.id !== notificationId
       );
     toast.success('邮件已移至垃圾桶');
   } catch (error) {
@@ -85,7 +85,7 @@ async function handleRestoreMail(mailId: string) {
     await v2RestoreNotification(notificationId);
     mailbox.notifications.value =
       mailbox.notifications.value.filter(
-        item => item.notification_id !== notificationId
+        item => item.id !== notificationId
       );
     toast.success('邮件已恢复');
   } catch (error) {
@@ -96,17 +96,17 @@ async function handleRestoreMail(mailId: string) {
 
 const mails = computed(() =>
   mailbox.notifications.value.map(notification => ({
-    id: String(notification.notification_id),
-    avatar: notification.actor?.avatar_url || '',
+    id: String(notification.id),
+    avatar: notification.actor?.avatarUrl || '',
     name:
-      notification.actor?.display_name ||
+      notification.actor?.name ||
       notification.actor?.username ||
       'System',
     email: notification.actor?.username || 'system',
     subject: notification.title || notification.type,
     text: notification.message,
-    date: notification.created_at,
-    read: notification.is_read === 1,
+    date: notification.createdAt,
+    read: notification.read,
     labels: [notification.type]
   }))
 );

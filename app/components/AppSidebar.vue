@@ -41,18 +41,18 @@ const localePath = useLocalePath();
 
 const preferenceStore = usePreferenceStore();
 
-const userId = preferenceStore.preferences.user.user_id;
+const userId = preferenceStore.preferences.user.id;
 
 const baseNavData = {
   user: {
     name:
-      preferenceStore.preferences.user.display_name ||
+      preferenceStore.preferences.user.name ||
       'shadcn',
     email:
       preferenceStore.preferences.user.email ||
       'm@example.com',
     avatar:
-      preferenceStore.preferences.user.avatar_url ||
+      preferenceStore.preferences.user.avatarUrl ||
       '/avatars/shadcn.jpg'
   },
   navMain: [

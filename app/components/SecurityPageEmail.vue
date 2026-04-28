@@ -77,7 +77,7 @@ async function sendCaptcha() {
       type: 'change_email',
       channel: 'email'
     });
-    verificationId.value = response.verification_id;
+    verificationId.value = response.verificationId;
 
     toast.success(
       t('account.security.securityPage.email.captchaSent'),
@@ -162,8 +162,8 @@ const onSubmit = handleSubmit(
       );
     }
     await v2ChangeEmail({
-      new_email: values.email,
-      verification_id: verificationId.value,
+      newEmail: values.email,
+      verificationId: verificationId.value,
       code: value.value.join('')
     });
     toast.success(

@@ -68,6 +68,23 @@ function headersToRecord(
   );
 }
 
+function getForwardedRequestHeaders(
+  isServer: boolean
+): Record<string, string> {
+  if (!isServer) {
+    return {};
+  }
+
+  try {
+    return useRequestHeaders([
+      'cookie',
+      'authorization'
+    ]) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
 function toSafeHeaderValue(value: string): string {
   try {
     if (/[^\x00-\xFF]/.test(value)) {
@@ -132,6 +149,7 @@ export const apiFetch = async <T>(
     credentials: 'include',
     ...options,
     headers: {
+      ...getForwardedRequestHeaders(isServer),
       ...traceHeaders,
       ...headersToRecord(options.headers)
     }

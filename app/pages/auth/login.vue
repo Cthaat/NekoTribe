@@ -77,7 +77,7 @@ async function onValidSubmit(
     toast(t('auth.login.successLogin'), {
       description:
         t('auth.login.welcomeBack') +
-        ` ${response.user.display_name || '用户'}`
+        ` ${response.user.name || '用户'}`
     });
     await navigateTo(localePath('/'));
   } catch (error) {

@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { Separator } from '@/components/ui/separator';
 import ProfileForm from '@/components/ProfileForm.vue';
-import { v2GetUserAnalytics } from '@/services';
-import { usePreferenceStore } from '~/stores/user'; // 导入 store
+import {
+  v2GetMe,
+  v2GetUserAnalytics
+} from '@/services';
 import { onMounted, ref } from 'vue';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'vue-sonner';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
-
-const preferenceStore = usePreferenceStore();
 
 interface UserAnalyticsData {
   totalTweets: number;
@@ -34,22 +34,21 @@ const userAnalytics = ref<UserAnalyticsData>({
 
 onMounted(async () => {
   try {
-    const analytics = await v2GetUserAnalytics(
-      preferenceStore.preferences.user.user_id
-    );
-    userAnalytics.value.totalTweets = analytics.total_posts;
+    const me = await v2GetMe();
+    const analytics = await v2GetUserAnalytics(me.id);
+    userAnalytics.value.totalTweets = analytics.totalPosts;
     userAnalytics.value.tweetsThisWeek =
-      analytics.posts_this_week;
+      analytics.postsThisWeek;
     userAnalytics.value.totalLikesReceived =
-      analytics.total_likes_received;
+      analytics.totalLikesReceived;
     userAnalytics.value.avgLikesPerTweet =
-      analytics.avg_likes_per_post;
+      analytics.avgLikesPerPost;
     userAnalytics.value.totalLikesGiven =
-      analytics.total_likes_given;
+      analytics.totalLikesGiven;
     userAnalytics.value.totalCommentsMade =
-      analytics.total_comments_made;
+      analytics.totalCommentsMade;
     userAnalytics.value.engagementScore =
-      analytics.engagement_score;
+      analytics.engagementScore;
   } catch (error) {
     console.error('Error fetching user analytics:', error);
     toast.error('Failed to fetch user analytics.');

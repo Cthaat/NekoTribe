@@ -1,4 +1,4 @@
-import type { V2Notification } from '@/types/v2';
+import type { NotificationVM } from '@/types/notifications';
 import { v2ListNotifications } from '@/services/notifications';
 
 interface NotificationMailboxFilters {
@@ -13,7 +13,7 @@ export function useNotificationMailbox(
 ) {
   const page = ref(1);
   const pageSize = ref(filters.pageSize ?? 10);
-  const notifications = shallowRef<V2Notification[]>([]);
+  const notifications = shallowRef<NotificationVM[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
   const hasNext = ref(false);
@@ -35,9 +35,9 @@ export function useNotificationMailbox(
       const result = await v2ListNotifications({
         type: filters.type.value,
         page: page.value,
-        page_size: pageSize.value,
-        unread_only: filters.unreadOnly.value,
-        show_deleted: filters.showDeleted.value
+        pageSize: pageSize.value,
+        unreadOnly: filters.unreadOnly.value,
+        showDeleted: filters.showDeleted.value
       });
 
       if (isReset) {
@@ -47,13 +47,13 @@ export function useNotificationMailbox(
       }
 
       for (const item of result.items) {
-        if (!seenIds.value.has(item.notification_id)) {
-          seenIds.value.add(item.notification_id);
+        if (!seenIds.value.has(item.id)) {
+          seenIds.value.add(item.id);
           notifications.value.push(item);
         }
       }
 
-      hasNext.value = !!result.meta?.has_next;
+      hasNext.value = result.hasNext;
     } catch (caught) {
       error.value =
         caught instanceof Error

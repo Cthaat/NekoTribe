@@ -1,7 +1,7 @@
 <template>
   <div>
     <ClientOnly>
-      <Toaster richColors />
+      <Toaster richColors position="bottom-right" />
     </ClientOnly>
     <NuxtLayout>
       <NuxtPage />

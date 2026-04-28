@@ -75,17 +75,19 @@ const uploadAvatar = async (file: File) => {
 
   try {
     const response = await v2UpdateAvatar(formData);
-    if (response.avatar_url) {
+    if (response.avatarUrl) {
       // 上传成功，通知父组件更新头像
-      emit('update:avatar', response.avatar_url);
+      emit('update:avatar', response.avatarUrl);
       const preferenceStore = usePreferenceStore();
       // 更新 store 中的用户头像
       preferenceStore.updatePreference('user', {
         ...preferenceStore.preferences.user,
-        avatar_url: response.avatar_url
+        avatarUrl: response.avatarUrl
       });
       // 刷新页面
-      window.location.reload();
+      if (process.client) {
+        window.location.reload();
+      }
       toast('头像更新成功！');
     } else {
       throw new Error(

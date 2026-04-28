@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { toast } from 'vue-sonner';
 import {
   v2GetPost,
-  type V2Post
+  type PostVM
 } from '@/services';
 import {
   Card,
@@ -54,35 +54,30 @@ const emit = defineEmits([
 
 // 假设这是从你的状态管理或认证 context 中获取的当前登录用户ID
 const currentUserId =
-  preferenceStore.preferences.user.user_id;
+  preferenceStore.preferences.user.id;
 
 const props = defineProps<{
-  tweet: V2Post;
+  tweet: PostVM;
 }>();
 
 // 计算属性，判断这条推文是否属于当前登录用户
 const isOwnTweet = computed(
-  () => props.tweet.author.user_id === currentUserId
+  () => props.tweet.author.id === currentUserId
 );
 
 const mediaItems = computed(() => {
   return props.tweet.media.map(media => {
-    const isVideo =
-      media.media_type === 'video' ||
-      media.mime_type.startsWith('video/');
     return {
-      type: isVideo ? 'video' : 'image',
-      originalUrl: media.public_url,
-      thumbnailUrl:
-        media.thumbnail_url ||
-        (isVideo ? media.public_url : media.public_url)
+      type: media.type,
+      originalUrl: media.originalUrl,
+      thumbnailUrl: media.thumbnailUrl
     };
   });
 });
 
 // 格式化时间戳
 const formattedDate = computed(() => {
-  return new Date(props.tweet.created_at).toLocaleString(
+  return new Date(props.tweet.createdAt).toLocaleString(
     'zh-CN',
     {
       hour: '2-digit',
@@ -95,26 +90,26 @@ const formattedDate = computed(() => {
 });
 
 const localLiked = ref(
-  props.tweet.viewer_state.is_liked
+  props.tweet.viewer.hasLiked
 );
 
-const likeCount = ref(props.tweet.stats.likes_count);
+const likeCount = ref(props.tweet.counts.likes);
 
 watch(
-  () => props.tweet.viewer_state.is_liked,
+  () => props.tweet.viewer.hasLiked,
   newValue => {
     localLiked.value = newValue;
   }
 );
 
 const localIsBookmarked = ref(
-  props.tweet.viewer_state.is_bookmarked
+  props.tweet.viewer.hasBookmarked
 );
 
 // 【修改二：添加 watch 来同步 prop 和本地 ref】
 // 当父组件的数据更新后，prop 会变化。我们需要监听这个变化，
 watch(
-  () => props.tweet.viewer_state.is_bookmarked,
+  () => props.tweet.viewer.hasBookmarked,
   newValue => {
     localIsBookmarked.value = newValue;
   }
@@ -144,9 +139,9 @@ function handleLike() {
 
 function handleDelete() {
   if (isOwnTweet.value) {
-    alert(`确定要删除推文 ${props.tweet.post_id} 吗？`);
+    alert(`确定要删除推文 ${props.tweet.id} 吗？`);
     // 在这里调用你的API来删除推文
-    emit('delete-tweet', props.tweet.post_id);
+    emit('delete-tweet', props.tweet.id);
   }
 }
 
@@ -182,20 +177,20 @@ function toTweetDetail(tweetId: string) {
 }
 
 // ------- 转推：原文信息懒加载（作者与摘要） -------
-const originalTweet = ref<V2Post | null>(null);
+const originalTweet = ref<PostVM | null>(null);
 const originalLoading = ref(false);
 const originalError = ref<string | null>(null);
 
 async function fetchOriginalTweet() {
   if (
-    props.tweet.post_type === 'repost' &&
-    props.tweet.repost_of_post_id
+    props.tweet.postType === 'repost' &&
+    props.tweet.repostOfPostId
   ) {
     originalLoading.value = true;
     originalError.value = null;
     try {
       originalTweet.value = await v2GetPost(
-        props.tweet.repost_of_post_id
+        props.tweet.repostOfPostId
       );
     } catch (e) {
       originalError.value =
@@ -213,8 +208,8 @@ async function fetchOriginalTweet() {
 
 watch(
   () => [
-    props.tweet.post_type,
-    props.tweet.repost_of_post_id
+    props.tweet.postType,
+    props.tweet.repostOfPostId
   ],
   () => fetchOriginalTweet(),
   { immediate: true }
@@ -238,7 +233,7 @@ const originalExcerpt = computed(() => {
 
 <template>
   <Card
-    @click.stop="toTweetDetail(String(tweet.post_id))"
+    @click.stop="toTweetDetail(String(tweet.id))"
     class="border-none max-w-2xl mx-auto my-4 rounded-xl shadow-sm cursor-pointer transition-colors duration-200 ease-in-out hover:shadow-md hover:bg-gray-50 dark:hover:bg-neutral-900"
   >
     <CardHeader class="flex flex-row items-start p-4">
@@ -247,12 +242,12 @@ const originalExcerpt = computed(() => {
         @click.stop="
           () =>
             navigateTo(
-              localePath(`/user/${tweet.author.user_id}/profile`)
+              localePath(`/user/${tweet.author.id}/profile`)
             )
         "
       >
         <AvatarImage
-          :src="tweet.author.avatar_url"
+          :src="tweet.author.avatarUrl"
           :alt="tweet.author.username"
         />
         <AvatarFallback>{{
@@ -262,10 +257,10 @@ const originalExcerpt = computed(() => {
       <div class="flex-1">
         <div class="flex items-center gap-2">
           <h3 class="font-bold text-base">
-            {{ tweet.author.display_name }}
+            {{ tweet.author.name }}
           </h3>
           <BadgeCheck
-            v-if="tweet.author.is_verified"
+            v-if="tweet.author.verified"
             class="h-5 w-5 text-blue-500"
           />
           <span class="text-sm text-muted-foreground"
@@ -321,7 +316,7 @@ const originalExcerpt = computed(() => {
     <CardContent class="px-4 pb-2">
       <!-- 若为转发推文，展示“转推自 @xxx”与原文摘要预览 -->
       <div
-        v-if="tweet.post_type === 'repost'"
+        v-if="tweet.postType === 'repost'"
         class="mb-2 -mt-1 space-y-2"
       >
         <div class="flex items-center gap-2 text-xs">
@@ -335,7 +330,7 @@ const originalExcerpt = computed(() => {
             <NuxtLink
               :to="
                 localePath(
-                  `/user/${originalTweet.author.user_id}/profile`
+                  `/user/${originalTweet.author.id}/profile`
                 )
               "
               @click.stop
@@ -347,7 +342,7 @@ const originalExcerpt = computed(() => {
             <NuxtLink
               :to="
                 localePath(
-                  `/tweet/${originalTweet.post_id}`
+                  `/tweet/${originalTweet.id}`
                 )
               "
               @click.stop
@@ -364,7 +359,7 @@ const originalExcerpt = computed(() => {
             <NuxtLink
               :to="
                 localePath(
-                  `/tweet/${tweet.repost_of_post_id}`
+                  `/tweet/${tweet.repostOfPostId}`
                 )
               "
               @click.stop
@@ -378,12 +373,12 @@ const originalExcerpt = computed(() => {
         <div
           v-if="originalTweet && !originalLoading"
           class="rounded-lg border p-3 bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
-          @click.stop="toTweetDetail(String(originalTweet.post_id))"
+          @click.stop="toTweetDetail(String(originalTweet.id))"
         >
           <div class="flex items-center gap-2 mb-1 text-sm">
             <Avatar class="h-6 w-6">
               <AvatarImage
-                :src="originalTweet.author.avatar_url"
+                :src="originalTweet.author.avatarUrl"
                 :alt="originalTweet.author.username"
               />
               <AvatarFallback>
@@ -395,7 +390,7 @@ const originalExcerpt = computed(() => {
               </AvatarFallback>
             </Avatar>
             <span class="font-medium">
-              {{ originalTweet.author.display_name || '未知' }}
+              {{ originalTweet.author.name || '未知' }}
             </span>
             <span class="text-muted-foreground">
               {{ originalAuthorHandle || '@未知用户' }}
@@ -413,7 +408,7 @@ const originalExcerpt = computed(() => {
           原文不可用或已删除，
           <NuxtLink
             :to="
-              localePath(`/tweet/${tweet.repost_of_post_id}`)
+              localePath(`/tweet/${tweet.repostOfPostId}`)
             "
             @click.stop
             class="text-blue-600 hover:underline"
@@ -485,7 +480,7 @@ const originalExcerpt = computed(() => {
         @click.stop="handleRetweet"
       >
         <Repeat class="h-5 w-5" />
-        <span>{{ tweet.stats.retweets_count }}</span>
+        <span>{{ tweet.counts.retweets }}</span>
       </Button>
 
       <Button
@@ -495,7 +490,7 @@ const originalExcerpt = computed(() => {
         @click.stop="handleReply"
       >
         <MessageCircle class="h-5 w-5" />
-        <span>{{ tweet.stats.comments_count }}</span>
+        <span>{{ tweet.counts.comments }}</span>
       </Button>
 
       <Button

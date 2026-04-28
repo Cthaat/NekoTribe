@@ -3,37 +3,37 @@ import { computed } from 'vue';
 import type { UserPreference, ThemeMode } from './type';
 import {
   v2RefreshCurrentToken,
-  type V2SelfUser,
-  type V2TokenData
+  type AuthSessionVM,
+  type CurrentUserVM
 } from '@/services';
 
-function createEmptyUser(): V2SelfUser {
+function createEmptyUser(): CurrentUserVM {
   return {
-    user_id: 0,
+    id: 0,
     email: '',
     username: '',
-    avatar_url: '',
-    display_name: '',
+    avatarUrl: '',
+    name: '',
     bio: '',
     location: '',
     website: '',
     phone: '',
-    birth_date: null,
-    email_verified_at: null,
-    is_verified: 0,
-    is_active: 0,
+    birthDate: null,
+    emailVerifiedAt: null,
+    verified: false,
+    active: false,
     status: '',
-    followers_count: 0,
-    following_count: 0,
-    posts_count: 0,
-    likes_count: 0,
-    created_at: '',
-    updated_at: '',
+    followersCount: 0,
+    followingCount: 0,
+    postsCount: 0,
+    likesCount: 0,
+    createdAt: '',
+    updatedAt: '',
     relationship: {
-      is_self: true,
-      is_following: false,
-      is_blocked: false,
-      is_blocking: false,
+      isSelf: true,
+      isFollowing: false,
+      isBlocked: false,
+      isBlocking: false,
       relation: 'self'
     }
   };
@@ -69,7 +69,7 @@ const defaultPreferences: UserPreference = {
   blocked_users: [],
   // 用户登录相关
   user: createEmptyUser(),
-  auth_session: null
+  authSession: null
 };
 
 // --- Store 定义 ---
@@ -111,7 +111,7 @@ export const usePreferenceStore = defineStore(
 
     // 【修改点 2】: 新增一个 Getter 用于方便地判断登录状态
     const isLoggedIn = computed(() => {
-      return preferences.value.user.user_id > 0;
+      return preferences.value.user.id > 0;
     });
 
     // 3. 操作 (Actions):
@@ -124,14 +124,14 @@ export const usePreferenceStore = defineStore(
       }
     }
 
-    function setCurrentUser(user: V2SelfUser) {
+    function setCurrentUser(user: CurrentUserVM) {
       updatePreference('user', user);
     }
 
     function setCurrentSession(
-      session: V2TokenData | null
+      session: AuthSessionVM | null
     ) {
-      updatePreference('auth_session', session);
+      updatePreference('authSession', session);
     }
 
     // 用于防止重复刷新的Promise缓存
@@ -173,7 +173,7 @@ export const usePreferenceStore = defineStore(
      */
     function clearAuthState() {
       updatePreference('user', createEmptyUser());
-      updatePreference('auth_session', null);
+      updatePreference('authSession', null);
       useRouter().push('/auth/login');
     }
 
@@ -200,7 +200,7 @@ export const usePreferenceStore = defineStore(
       updatePreference('language', language);
     }
 
-    if (preferences.value.user.user_id === undefined) {
+    if (preferences.value.user.id === undefined) {
       preferences.value = defaultPreferences;
     }
 

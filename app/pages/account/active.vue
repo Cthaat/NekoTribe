@@ -4,11 +4,11 @@
 // - 支持注销单个会话、注销除当前设备外的所有会话
 // 导入 Vue 的响应式工具 ref 和生命周期钩子 onMounted
 import { ref, onMounted } from 'vue';
-import type { V2SessionItem } from '@/types/v2';
 import {
   v2ListSessions,
   v2RevokeOtherSessions,
-  v2RevokeSession
+  v2RevokeSession,
+  type SessionVM
 } from '@/services';
 // 导入分隔线 UI 组件
 import { Separator } from '@/components/ui/separator';
@@ -24,7 +24,7 @@ import { toast } from 'vue-sonner';
 // 加载状态，避免重复操作与控制按钮禁用态
 const loading = ref(false);
 // 会话列表数据
-const sessions = ref<V2SessionItem[]>([]);
+const sessions = ref<SessionVM[]>([]);
 
 // 拉取会话列表
 // - 从后端读取当前用户会话
@@ -130,7 +130,7 @@ onMounted(load);
             <!-- 单条会话行 -->
             <div
               v-for="s in sessions"
-              :key="s.session_id"
+              :key="s.id"
               class="flex flex-col gap-2 p-4 md:flex-row md:items-start md:justify-between"
             >
               <!-- 左侧：会话详情 -->
@@ -140,29 +140,29 @@ onMounted(load);
                   <!-- 标记徽章：当前设备/其它设备 -->
                   <Badge
                     :variant="
-                      s.is_current
+                      s.current
                         ? 'secondary'
                         : 'outline'
                     "
                   >
                     <!-- 根据是否为当前设备显示不同文案 -->
                     {{
-                      s.is_current
+                      s.current
                         ? $t('account.active.thisDevice')
                         : $t('account.active.otherDevice')
                     }}
                   </Badge>
                   <!-- 设备名称 -->
                   <span class="font-medium">{{
-                    s.device_info
+                    s.deviceInfo
                   }}</span>
                 </div>
                 <!-- 次行：IP、位置、最后访问时间 -->
                 <div class="text-xs text-muted-foreground">
-                  {{ s.ip_address }} · — ·
+                  {{ s.ipAddress }} · — ·
                   {{
                     new Date(
-                      s.last_accessed_at
+                      s.lastAccessedAt
                     ).toLocaleString()
                   }}
                 </div>
@@ -170,7 +170,7 @@ onMounted(load);
                 <div
                   class="text-xs text-muted-foreground break-all"
                 >
-                  Session: {{ s.session_id }}
+                  Session: {{ s.id }}
                 </div>
               </div>
               <!-- 右侧：操作按钮组 -->
@@ -179,8 +179,8 @@ onMounted(load);
                 <Button
                   size="sm"
                   variant="outline"
-                  :disabled="s.is_current || loading"
-                  @click="revoke(s.session_id)"
+                  :disabled="s.current || loading"
+                  @click="revoke(s.id)"
                   >{{ $t('account.active.revoke') }}</Button
                 >
               </div>

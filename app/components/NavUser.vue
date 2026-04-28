@@ -152,7 +152,7 @@ const { isMobile } = useSidebar();
                 () =>
                   navigateTo(
                     localePath(
-                      `/user/${preferenceStore.preferences.user.user_id}/notifications`
+                      `/user/${preferenceStore.preferences.user.id}/notifications`
                     )
                   )
               "

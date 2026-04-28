@@ -9,8 +9,6 @@ import {
 import { toast } from 'vue-sonner';
 import { useI18n } from 'vue-i18n';
 
-const preferenceStore = usePreferenceStore();
-
 // 1. 获取 i18n 的工具函数
 const { t } = useI18n();
 
@@ -88,26 +86,18 @@ onMounted(async () => {
   try {
     const me = await v2GetMe();
     user.value.name = me.username;
-    user.value.title = me.display_name;
+    user.value.title = me.name;
     user.value.location = me.location;
     user.value.email = me.email;
-    user.value.avatar = me.avatar_url;
-    user.value.stats.followersCount = me.followers_count;
-    user.value.stats.followingCount = me.following_count;
-    user.value.stats.likesCount = me.likes_count;
+    user.value.avatar = me.avatarUrl;
+    user.value.stats.followersCount = me.followersCount;
+    user.value.stats.followingCount = me.followingCount;
+    user.value.stats.likesCount = me.likesCount;
+    const analytics = await v2GetUserAnalytics(me.id);
+    user.value.point = analytics.engagementScore;
   } catch (error) {
     console.error('Error fetching user info:', error);
     toast.error('Failed to fetch user info.');
-  }
-
-  try {
-    const analytics = await v2GetUserAnalytics(
-      preferenceStore.preferences.user.user_id
-    );
-    user.value.point = analytics.engagement_score;
-  } catch (error) {
-    console.error('Error fetching user analytics:', error);
-    toast.error('Failed to fetch user analytics.');
   }
 });
 </script>

@@ -124,7 +124,7 @@ watch(
 function followUser() {
   if (
     props.user.id ===
-    preferenceStore.preferences.user.user_id
+    preferenceStore.preferences.user.id
   ) {
     toast.error('你不能关注自己。');
     return;

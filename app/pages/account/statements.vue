@@ -10,8 +10,7 @@ import {
   v2CreateStatementAppeal,
   v2ListAccountStatements,
   v2PatchAccountStatement,
-  type V2AccountStatement,
-  type V2AccountStatementAction
+  type AccountStatementVM
 } from '@/services';
 // UI 组件：分隔线、卡片、按钮、徽章
 import { Separator } from '@/components/ui/separator';
@@ -34,27 +33,6 @@ type StatementStatus =
   | 'dismissed'
   | 'appealed';
 
-// 申诉信息
-interface StatementAppeal {
-  id: string;
-  message: string;
-  createdAt: string;
-  status: 'pending' | 'approved' | 'rejected';
-  response?: string;
-}
-
-// 账户状态项
-interface AccountStatement {
-  id: string;
-  type: StatementType;
-  title: string;
-  message: string;
-  policy?: string;
-  createdAt: string;
-  status: StatementStatus;
-  appeal?: StatementAppeal;
-}
-
 // i18n 工具
 const { t } = useI18n();
 
@@ -65,26 +43,12 @@ const pageSize = ref(10);
 const total = ref(0);
 const statusFilter = ref<'all' | StatementStatus>('all');
 const typeFilter = ref<'all' | StatementType>('all');
-const items = ref<AccountStatement[]>([]);
+const items = ref<AccountStatementVM[]>([]);
 
 // 总页数计算
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(total.value / pageSize.value))
 );
-
-function toStatementView(
-  statement: V2AccountStatement
-): AccountStatement {
-  return {
-    id: String(statement.statement_id),
-    type: statement.type as StatementType,
-    title: statement.title,
-    message: statement.message,
-    policy: statement.policy_code || undefined,
-    createdAt: statement.created_at,
-    status: statement.status as StatementStatus
-  };
-}
 
 // 拉取列表
 async function load() {
@@ -92,7 +56,7 @@ async function load() {
   try {
     const result = await v2ListAccountStatements({
       page: page.value,
-      page_size: pageSize.value,
+      pageSize: pageSize.value,
       status:
         statusFilter.value === 'all'
           ? undefined
@@ -102,8 +66,8 @@ async function load() {
           ? undefined
           : typeFilter.value
     });
-    items.value = result.items.map(toStatementView);
-    total.value = result.meta?.total || result.items.length;
+    items.value = result.items;
+    total.value = result.total;
   } catch {
     // 网络错误提示
     toast.error(
@@ -150,7 +114,7 @@ async function submitAppeal(id: string) {
   }
   try {
     await v2CreateStatementAppeal(Number(id), {
-      appeal_message: appealMsg.value.trim()
+      appealMessage: appealMsg.value.trim()
     });
     // 成功后重置输入并刷新
     toast.success(t('account.statements.appealSubmitted'));

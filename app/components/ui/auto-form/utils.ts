@@ -2,8 +2,8 @@ import type { z } from 'zod'
 
 // TODO: This should support recursive ZodEffects but TypeScript doesn't allow circular type definitions.
 export type ZodObjectOrWrapped =
-  | z.ZodObject<any, any>
-  | z.ZodEffects<z.ZodObject<any, any>>
+  | z.AnyZodObject
+  | z.ZodEffects<z.AnyZodObject>
 
 /**
  * Beautify a camelCase string.
@@ -61,7 +61,7 @@ export function getBaseType(schema: z.ZodAny) {
 /**
  * Search for a "ZodDefault" in the Zod stack and return its value.
  */
-export function getDefaultValueInZodStack(schema: z.ZodAny): any {
+export function getDefaultValueInZodStack(schema: z.ZodAny): unknown {
   const typedSchema = schema as unknown as z.ZodDefault<
     z.ZodNumber | z.ZodString
   >
@@ -76,7 +76,7 @@ export function getDefaultValueInZodStack(schema: z.ZodAny): any {
   }
   if ('schema' in typedSchema._def) {
     return getDefaultValueInZodStack(
-      (typedSchema._def as any).schema as z.ZodAny,
+      (typedSchema._def as { schema: z.ZodAny }).schema,
     )
   }
 
@@ -85,12 +85,12 @@ export function getDefaultValueInZodStack(schema: z.ZodAny): any {
 
 export function getObjectFormSchema(
   schema: ZodObjectOrWrapped,
-): z.ZodObject<any, any> {
+): z.AnyZodObject {
   if (schema?._def.typeName === 'ZodEffects') {
-    const typedSchema = schema as z.ZodEffects<z.ZodObject<any, any>>
+    const typedSchema = schema as z.ZodEffects<z.AnyZodObject>
     return getObjectFormSchema(typedSchema._def.schema)
   }
-  return schema as z.ZodObject<any, any>
+  return schema as z.AnyZodObject
 }
 
 function isIndex(value: unknown): value is number {

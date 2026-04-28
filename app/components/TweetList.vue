@@ -1,18 +1,10 @@
 <script setup lang="ts">
 import TweetCard from '@/components/TweetCard.vue';
-import type { V2Post } from '@/types/v2';
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationNext,
-  PaginationPrevious
-} from '@/components/ui/pagination';
+import type { PostVM } from '@/types/posts';
 
 // 接收父组件传来的数据
 const props = defineProps<{
-  tweets: V2Post[];
+  tweets: PostVM[];
 }>();
 
 const emit = defineEmits([
@@ -27,23 +19,23 @@ function handleDeleteTweet(tweetId: number) {
   emit('delete-tweet', tweetId);
 }
 
-function handleReplyTweet(tweet: V2Post) {
+function handleReplyTweet(tweet: PostVM) {
   emit('reply-tweet', tweet);
 }
 
-function handleRetweetTweet(tweet: V2Post) {
+function handleRetweetTweet(tweet: PostVM) {
   emit('retweet-tweet', tweet);
 }
 
 function handleLikeTweet(
-  tweet: V2Post,
+  tweet: PostVM,
   action: 'like' | 'unlike'
 ) {
   emit('like-tweet', tweet, action);
 }
 
 function handleBookmarkTweet(
-  tweet: V2Post,
+  tweet: PostVM,
   action: 'mark' | 'unmark'
 ) {
   emit('bookmark-tweet', tweet, action);
@@ -54,7 +46,7 @@ function handleBookmarkTweet(
   <div class="bg-background">
     <div
       v-for="tweet in props.tweets"
-      :key="tweet.post_id"
+      :key="tweet.id"
     >
       <TweetCard
         @delete-tweet="handleDeleteTweet"
@@ -62,7 +54,7 @@ function handleBookmarkTweet(
         @retweet-tweet="handleRetweetTweet"
         @like-tweet="handleLikeTweet"
         @bookmark-tweet="handleBookmarkTweet"
-        :key="tweet.post_id"
+        :key="tweet.id"
         :tweet="tweet"
       />
     </div>

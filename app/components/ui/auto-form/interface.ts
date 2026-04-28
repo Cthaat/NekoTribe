@@ -12,7 +12,7 @@ export interface FieldProps {
 
 export interface Shape {
   type: string
-  default?: any
+  default?: unknown
   required?: boolean
   options?: string[]
   schema?: ZodAny
@@ -50,7 +50,7 @@ type UnwrapArray<T> = T extends (infer U)[] ? U : never
 export type Config<SchemaType extends object> = {
   // If SchemaType.key is an object, create a nested Config, otherwise ConfigItem
   [Key in keyof SchemaType]?:
-  SchemaType[Key] extends any[]
+  SchemaType[Key] extends unknown[]
     ? UnwrapArray<Config<SchemaType[Key]>>
     : SchemaType[Key] extends object
       ? Config<SchemaType[Key]>
@@ -64,14 +64,14 @@ export enum DependencyType {
   SETS_OPTIONS,
 }
 
-interface BaseDependency<SchemaType extends z.infer<z.ZodObject<any, any>>> {
+interface BaseDependency<SchemaType extends z.infer<z.AnyZodObject>> {
   sourceField: keyof SchemaType
   type: DependencyType
   targetField: keyof SchemaType
-  when: (sourceFieldValue: any, targetFieldValue: any) => boolean
+  when: (sourceFieldValue: unknown, targetFieldValue: unknown) => boolean
 }
 
-export type ValueDependency<SchemaType extends z.infer<z.ZodObject<any, any>>> =
+export type ValueDependency<SchemaType extends z.infer<z.AnyZodObject>> =
   BaseDependency<SchemaType> & {
     type:
       | DependencyType.DISABLES
@@ -82,7 +82,7 @@ export type ValueDependency<SchemaType extends z.infer<z.ZodObject<any, any>>> =
 export type EnumValues = readonly [string, ...string[]]
 
 export type OptionsDependency<
-  SchemaType extends z.infer<z.ZodObject<any, any>>,
+  SchemaType extends z.infer<z.AnyZodObject>,
 > = BaseDependency<SchemaType> & {
   type: DependencyType.SETS_OPTIONS
 
@@ -90,6 +90,6 @@ export type OptionsDependency<
   options: EnumValues
 }
 
-export type Dependency<SchemaType extends z.infer<z.ZodObject<any, any>>> =
+export type Dependency<SchemaType extends z.infer<z.AnyZodObject>> =
   | ValueDependency<SchemaType>
   | OptionsDependency<SchemaType>

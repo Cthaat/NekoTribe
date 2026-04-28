@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import type { V2CreatePostPayload } from '@/types/v2';
+import type {
+  CreatePostFormVM,
+  PreviewPostVM
+} from '@/types/posts';
 import {
   v2CreatePost,
+  v2ListPostPreviews,
   v2UploadMedia
 } from '@/services';
 import { toast } from 'vue-sonner';
-// 1. 导入 Separator 和 Button (如果它们还没被自动导入)
 import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -16,152 +18,62 @@ import {
   DialogDescription
 } from '@/components/ui/dialog';
 
-const localePath = useLocalePath();
-
-// 2. 导入我们功能强大的推文编辑器组件
 import TweetComposer from '@/components/TweetComposer.vue';
-
-interface PreviewTweet {
-  tweetId: number;
-  author: {
-    displayName: string;
-    username: string;
-    avatarUrl: string;
-  };
-  content: string;
-}
+const localePath = useLocalePath();
 
 const isQuoteDialogOpen = ref(false);
 const isReplyDialogOpen = ref(false);
-const tweetToQuote = ref<PreviewTweet | undefined>(
+const tweetToQuote = ref<PreviewPostVM | undefined>(
   undefined
 );
-const tweetToReply = ref<PreviewTweet | undefined>(
+const tweetToReply = ref<PreviewPostVM | undefined>(
   undefined
 );
 
-const selectableTweets = ref<PreviewTweet[]>([]); // 存储从 API 获取的推文
+const selectableTweets = ref<PreviewPostVM[]>([]); // 存储从 API 获取的推文
 const isDialogLoading = ref(false); // 控制 Dialog 内部的加载状态
 const dialogError = ref<string | null>(null); // 存储 Dialog 获取数据的错误信息
 
-function handleSelectQuote(tweet: PreviewTweet) {
+function handleSelectQuote(tweet: PreviewPostVM) {
   tweetToQuote.value = tweet;
   tweetToReply.value = undefined;
   isQuoteDialogOpen.value = false;
 }
-function handleSelectReply(tweet: PreviewTweet) {
+function handleSelectReply(tweet: PreviewPostVM) {
   tweetToReply.value = tweet;
   tweetToQuote.value = undefined;
   isReplyDialogOpen.value = false;
 }
 
+async function loadSelectableTweets(): Promise<void> {
+  isDialogLoading.value = true;
+  dialogError.value = null;
+
+  try {
+    const result = await v2ListPostPreviews({
+      page: 1,
+      pageSize: 10,
+      sort: 'newest',
+      timeline: 'home'
+    });
+    selectableTweets.value = result.items;
+  } catch (err) {
+    console.error('获取可选择推文失败:', err);
+    dialogError.value = '无法加载推文列表，请稍后再试。';
+  } finally {
+    isDialogLoading.value = false;
+  }
+}
+
 watch(isQuoteDialogOpen, async isOpen => {
-  // 我们只在 Dialog 打开时执行操作，并且仅当列表为空时才获取 (避免重复获取)
   if (isOpen && selectableTweets.value.length === 0) {
-    isDialogLoading.value = true;
-    dialogError.value = null;
-
-    try {
-      // TODO: 在真实应用中，这里会是一个 API 调用
-      // 我们用 setTimeout 来模拟一个网络延迟
-      await new Promise(resolve =>
-        setTimeout(resolve, 1000)
-      );
-
-      // 模拟 API 成功返回的数据
-      selectableTweets.value = [
-        {
-          tweetId: 1001,
-          author: {
-            displayName: '小明',
-            username: 'ming',
-            avatarUrl: '/avatars/01.png'
-          },
-          content:
-            '今天天气真不错！阳光明媚，适合出去走走。'
-        },
-        {
-          tweetId: 1002,
-          author: {
-            displayName: '小红',
-            username: 'hong',
-            avatarUrl: '/avatars/02.png'
-          },
-          content:
-            '刚刚发布了我的新项目 NekoTribe，它是一个基于 Nuxt 和 Vue 构建的社交平台，快来看看吧！'
-        },
-        {
-          tweetId: 1003,
-          author: {
-            displayName: '李华',
-            username: 'lihua',
-            avatarUrl: '/avatars/03.png'
-          },
-          content:
-            '深夜还在修复 Bug，程序员的浪漫你们不懂。 #加班'
-        }
-      ];
-    } catch (err) {
-      console.error('获取可引用推文失败:', err);
-      dialogError.value = '无法加载推文列表，请稍后再试。';
-    } finally {
-      isDialogLoading.value = false;
-    }
+    await loadSelectableTweets();
   }
 });
 
 watch(isReplyDialogOpen, async isOpen => {
-  // 我们只在 Dialog 打开时执行操作，并且仅当列表为空时才获取 (避免重复获取)
   if (isOpen && selectableTweets.value.length === 0) {
-    isDialogLoading.value = true;
-    dialogError.value = null;
-
-    try {
-      // 在真实应用中，这里会是一个 API 调用
-      // 我们用 setTimeout 来模拟一个网络延迟
-      await new Promise(resolve =>
-        setTimeout(resolve, 1000)
-      );
-
-      // 模拟 API 成功返回的数据
-      selectableTweets.value = [
-        {
-          tweetId: 1001,
-          author: {
-            displayName: '小明',
-            username: 'ming',
-            avatarUrl: '/avatars/01.png'
-          },
-          content:
-            '今天天气真不错！阳光明媚，适合出去走走。'
-        },
-        {
-          tweetId: 1002,
-          author: {
-            displayName: '小红',
-            username: 'hong',
-            avatarUrl: '/avatars/02.png'
-          },
-          content:
-            '刚刚发布了我的新项目 NekoTribe，它是一个基于 Nuxt 和 Vue 构建的社交平台，快来看看吧！'
-        },
-        {
-          tweetId: 1003,
-          author: {
-            displayName: '李华',
-            username: 'lihua',
-            avatarUrl: '/avatars/03.png'
-          },
-          content:
-            '深夜还在修复 Bug，程序员的浪漫你们不懂。 #加班'
-        }
-      ];
-    } catch (err) {
-      console.error('获取可回复推文失败:', err);
-      dialogError.value = '无法加载推文列表，请稍后再试。';
-    } finally {
-      isDialogLoading.value = false;
-    }
+    await loadSelectableTweets();
   }
 });
 
@@ -169,14 +81,9 @@ const isSubmitting = ref(false); // 控制提交状态
 const submissionError = ref<string | null>(null); // 存储提交错误信息
 // 3. 【核心修改】创建 handleTweetSubmit 方法来处理子组件上报的数据
 async function handleTweetSubmit(
-  submitForm: V2CreatePostPayload,
+  submitForm: CreatePostFormVM,
   formData: FormData
 ) {
-
-  // 【核心修复】使用 for...of 循环来打印 FormData 的内容
-  for (const [key, value] of formData.entries()) {
-  }
-
   isSubmitting.value = true;
   submissionError.value = null;
 
@@ -200,7 +107,7 @@ async function handleTweetSubmit(
 
     await v2CreatePost({
       ...submitForm,
-      media_ids: mediaIds
+      mediaIds
     });
 
     toast.success('推文发布成功！');
@@ -318,7 +225,7 @@ async function handleTweetSubmit(
             <div v-else class="grid gap-4">
               <div
                 v-for="tweet in selectableTweets"
-                :key="tweet.tweetId"
+                :key="tweet.id"
                 class="p-3 border border-gray-800 rounded-lg hover:bg-gray-800/50 cursor-pointer transition-colors"
                 @click="handleSelectQuote(tweet)"
               >
@@ -328,7 +235,7 @@ async function handleTweetSubmit(
                     class="h-5 w-5 rounded-full mr-2"
                   />
                   <span class="font-bold text-gray-200">{{
-                    tweet.author.displayName
+                    tweet.author.name
                   }}</span>
                   <span class="ml-1 text-gray-500"
                     >@{{ tweet.author.username }}</span
@@ -391,7 +298,7 @@ async function handleTweetSubmit(
             <div v-else class="grid gap-4">
               <div
                 v-for="tweet in selectableTweets"
-                :key="tweet.tweetId"
+                :key="tweet.id"
                 class="p-3 border border-gray-800 rounded-lg hover:bg-gray-800/50 cursor-pointer transition-colors"
                 @click="handleSelectReply(tweet)"
               >
@@ -401,7 +308,7 @@ async function handleTweetSubmit(
                     class="h-5 w-5 rounded-full mr-2"
                   />
                   <span class="font-bold text-gray-200">{{
-                    tweet.author.displayName
+                    tweet.author.name
                   }}</span>
                   <span class="ml-1 text-gray-500"
                     >@{{ tweet.author.username }}</span

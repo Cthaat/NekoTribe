@@ -44,16 +44,16 @@ async function searchMentions(query: string) {
     const userResult = await v2SearchUsers({
       q: query,
       page: 1,
-      page_size: 5
+      pageSize: 5
     });
 
     const users: MentionItem[] = userResult.items.map(u => ({
       type: 'user' as const,
       id: u.username,
-      userId: String(u.user_id),
-      displayName: u.display_name || u.username,
+      userId: String(u.id),
+      displayName: u.name,
       subtitle: `@${u.username}`,
-      avatarUrl: u.avatar_url
+      avatarUrl: u.avatarUrl
     }));
     mentionItems.value = [...users];
     selectedIndex.value = 0;

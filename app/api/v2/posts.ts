@@ -8,21 +8,47 @@ import type {
   V2Comment,
   V2CreateCommentPayload,
   V2CreatePostPayload,
+  V2ApiResponse,
   V2LikeCommentData,
   V2LikePostData,
   V2MediaAsset,
+  V2ListMyBookmarkedPostsRequest,
+  V2ListMyPostsRequest,
+  V2ListPostsRequest,
+  V2ListTrendingPostsRequest,
+  V2ListUserPostsRequest,
   V2PagedResult,
   V2Post,
   V2RetweetPayload
 } from '@/types/v2';
 
-function normalizePostQuery(query: {
-  page?: number;
-  page_size?: number;
-  sort?: string;
-  timeline?: string;
-  q?: string;
-}) {
+type PostListQuery =
+  | V2ListPostsRequest
+  | V2ListTrendingPostsRequest
+  | V2ListUserPostsRequest
+  | V2ListMyPostsRequest
+  | V2ListMyBookmarkedPostsRequest;
+
+function logPostListResponse(
+  source: string,
+  query: PostListQuery,
+  response: V2ApiResponse<V2Post[]>
+): void {
+  console.info(`[v2-api:posts] ${source}`, {
+    query,
+    code: response.code,
+    message: response.message,
+    itemCount: response.data.length,
+    meta: response.meta,
+    firstIds: response.data
+      .slice(0, 5)
+      .map(post => post.post_id)
+  });
+}
+
+function normalizePostQuery(
+  query: V2ListPostsRequest
+): V2ListPostsRequest {
   return {
     page: query.page,
     page_size: query.page_size,
@@ -32,13 +58,9 @@ function normalizePostQuery(query: {
   };
 }
 
-export async function v2ListPosts(query: {
-  page?: number;
-  page_size?: number;
-  sort?: 'newest' | 'oldest' | 'popular';
-  timeline?: 'home' | 'mentions';
-  q?: string;
-} = {}): Promise<V2PagedResult<V2Post>> {
+export async function v2ListPosts(
+  query: V2ListPostsRequest = {}
+): Promise<V2PagedResult<V2Post>> {
   const response = await v2Request<
     V2Post[],
     undefined,
@@ -47,56 +69,68 @@ export async function v2ListPosts(query: {
     method: 'GET',
     query: normalizePostQuery(query)
   });
+  logPostListResponse('list', normalizePostQuery(query), response);
   return toV2PagedResult(response);
 }
 
-export async function v2ListTrendingPosts(query: {
-  page?: number;
-  page_size?: number;
-} = {}): Promise<V2PagedResult<V2Post>> {
+export async function v2ListTrendingPosts(
+  query: V2ListTrendingPostsRequest = {}
+): Promise<V2PagedResult<V2Post>> {
   const response = await v2Request<
     V2Post[],
     undefined,
-    typeof query
+    V2ListTrendingPostsRequest
   >('/api/v2/posts/trending', {
     method: 'GET',
     query
   });
+  logPostListResponse('trending', query, response);
   return toV2PagedResult(response);
 }
 
 export async function v2ListUserPosts(
   userId: number,
-  query: {
-    page?: number;
-    page_size?: number;
-    sort?: 'newest' | 'oldest' | 'popular';
-  } = {}
+  query: V2ListUserPostsRequest = {}
 ): Promise<V2PagedResult<V2Post>> {
   const response = await v2Request<
     V2Post[],
     undefined,
-    typeof query
+    V2ListUserPostsRequest
   >(`/api/v2/users/${userId}/posts`, {
     method: 'GET',
     query
   });
+  logPostListResponse('user-posts', query, response);
   return toV2PagedResult(response);
 }
 
-export async function v2ListMyBookmarkedPosts(query: {
-  page?: number;
-  page_size?: number;
-  sort?: 'newest' | 'oldest' | 'popular';
-} = {}): Promise<V2PagedResult<V2Post>> {
+export async function v2ListMyPosts(
+  query: V2ListMyPostsRequest = {}
+): Promise<V2PagedResult<V2Post>> {
   const response = await v2Request<
     V2Post[],
     undefined,
-    typeof query
+    V2ListMyPostsRequest
+  >('/api/v2/users/me/posts', {
+    method: 'GET',
+    query
+  });
+  logPostListResponse('my-posts', query, response);
+  return toV2PagedResult(response);
+}
+
+export async function v2ListMyBookmarkedPosts(
+  query: V2ListMyBookmarkedPostsRequest = {}
+): Promise<V2PagedResult<V2Post>> {
+  const response = await v2Request<
+    V2Post[],
+    undefined,
+    V2ListMyBookmarkedPostsRequest
   >('/api/v2/users/me/bookmarks', {
     method: 'GET',
     query
   });
+  logPostListResponse('my-bookmarks', query, response);
   return toV2PagedResult(response);
 }
 

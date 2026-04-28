@@ -14,7 +14,7 @@ import {
 import { toast } from 'vue-sonner';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import type { V2Post } from '@/types/v2';
+import type { PostVM } from '@/types/posts';
 import {
   v2BookmarkPost,
   v2DeletePost,
@@ -97,7 +97,7 @@ const userId = computed(() => Number(route.params.id || 0));
 
 const page = ref(1);
 const pageSize = ref(10);
-const fullTweets = ref<V2Post[]>([]);
+const fullTweets = ref<PostVM[]>([]);
 const tweetsLoading = ref(false);
 const tweetsError = ref<string | null>(null);
 const totalTweetsCount = ref(0);
@@ -109,17 +109,17 @@ const totalPages = computed(() =>
 async function loadUserProfile() {
   try {
     const publicUser = await v2GetUserById(userId.value);
-    user.value.id = publicUser.user_id;
-    user.value.name = publicUser.display_name;
+    user.value.id = publicUser.id;
+    user.value.name = publicUser.name;
     user.value.title = publicUser.username;
     user.value.location = publicUser.location;
-    user.value.avatar = publicUser.avatar_url;
+    user.value.avatar = publicUser.avatarUrl;
     user.value.stats.followersCount =
-      publicUser.followers_count;
+      publicUser.followersCount;
     user.value.stats.followingCount =
-      publicUser.following_count;
-    user.value.stats.likesCount = publicUser.likes_count;
-    user.value.follow = publicUser.relationship.is_following
+      publicUser.followingCount;
+    user.value.stats.likesCount = publicUser.likesCount;
+    user.value.follow = publicUser.relationship.isFollowing
       ? 'Follow'
       : 'Unfollow';
   } catch (error) {
@@ -131,20 +131,20 @@ async function loadUserProfile() {
 async function loadUserAnalytics() {
   try {
     const analytics = await v2GetUserAnalytics(userId.value);
-    userAnalytics.value.totalTweets = analytics.total_posts;
+    userAnalytics.value.totalTweets = analytics.totalPosts;
     userAnalytics.value.tweetsThisWeek =
-      analytics.posts_this_week;
+      analytics.postsThisWeek;
     userAnalytics.value.totalLikesReceived =
-      analytics.total_likes_received;
+      analytics.totalLikesReceived;
     userAnalytics.value.avgLikesPerTweet =
-      analytics.avg_likes_per_post;
+      analytics.avgLikesPerPost;
     userAnalytics.value.totalLikesGiven =
-      analytics.total_likes_given;
+      analytics.totalLikesGiven;
     userAnalytics.value.totalCommentsMade =
-      analytics.total_comments_made;
+      analytics.totalCommentsMade;
     userAnalytics.value.engagementScore =
-      analytics.engagement_score;
-    user.value.point = analytics.engagement_score;
+      analytics.engagementScore;
+    user.value.point = analytics.engagementScore;
   } catch (error) {
     console.error('Error fetching user analytics:', error);
     toast.error('Failed to fetch user analytics.');
@@ -157,12 +157,11 @@ async function loadTweets() {
   try {
     const result = await v2ListUserPosts(userId.value, {
       page: page.value,
-      page_size: pageSize.value,
+      pageSize: pageSize.value,
       sort: 'newest'
     });
     fullTweets.value = result.items;
-    totalTweetsCount.value =
-      result.meta?.total || result.items.length;
+    totalTweetsCount.value = result.total;
   } catch (error) {
     console.error('Error fetching tweets:', error);
     tweetsError.value =
@@ -191,7 +190,7 @@ async function handleDeleteTweet(tweetId: number) {
     await v2DeletePost(tweetId);
     toast.success('推文已删除');
     fullTweets.value = fullTweets.value.filter(
-      tweet => tweet.post_id !== tweetId
+      tweet => tweet.id !== tweetId
     );
     totalTweetsCount.value = Math.max(totalTweetsCount.value - 1, 0);
   } catch (error) {
@@ -200,33 +199,42 @@ async function handleDeleteTweet(tweetId: number) {
   }
 }
 
-function handleReplyTweet(tweet: V2Post) {
-  const detailPage = localePath(`/tweet/${tweet.post_id}`);
+function handleReplyTweet(tweet: PostVM) {
+  const detailPage = localePath(`/tweet/${tweet.id}`);
   return navigateTo(detailPage);
 }
 
-function handleRetweetTweet(tweet: V2Post) {
-  const detailPage = localePath(`/tweet/${tweet.post_id}`);
+function handleRetweetTweet(tweet: PostVM) {
+  const detailPage = localePath(`/tweet/${tweet.id}`);
   return navigateTo(detailPage);
 }
 
 async function handleLikeTweet(
-  tweet: V2Post,
+  tweet: PostVM,
   action: 'like' | 'unlike'
 ) {
   try {
     const result =
       action === 'like'
-        ? await v2LikePost(tweet.post_id)
-        : await v2UnlikePost(tweet.post_id);
+        ? await v2LikePost(tweet.id)
+        : await v2UnlikePost(tweet.id);
     const index = fullTweets.value.findIndex(
-      item => item.post_id === tweet.post_id
+      item => item.id === tweet.id
     );
     if (index !== -1) {
-      fullTweets.value[index].viewer_state.is_liked =
-        result.is_liked;
-      fullTweets.value[index].stats.likes_count =
-        result.likes_count;
+      const currentTweet = fullTweets.value[index];
+      if (!currentTweet) return;
+      fullTweets.value[index] = {
+        ...currentTweet,
+        viewer: {
+          ...currentTweet.viewer,
+          hasLiked: result.isLiked
+        },
+        counts: {
+          ...currentTweet.counts,
+          likes: result.likesCount
+        }
+      };
     }
   } catch (error) {
     console.error('Error liking tweet:', error);
@@ -235,20 +243,27 @@ async function handleLikeTweet(
 }
 
 async function handleBookmarkTweet(
-  tweet: V2Post,
+  tweet: PostVM,
   action: 'mark' | 'unmark'
 ) {
   try {
     const result =
       action === 'mark'
-        ? await v2BookmarkPost(tweet.post_id)
-        : await v2UnbookmarkPost(tweet.post_id);
+        ? await v2BookmarkPost(tweet.id)
+        : await v2UnbookmarkPost(tweet.id);
     const index = fullTweets.value.findIndex(
-      item => item.post_id === tweet.post_id
+      item => item.id === tweet.id
     );
     if (index !== -1) {
-      fullTweets.value[index].viewer_state.is_bookmarked =
-        result.is_bookmarked;
+      const currentTweet = fullTweets.value[index];
+      if (!currentTweet) return;
+      fullTweets.value[index] = {
+        ...currentTweet,
+        viewer: {
+          ...currentTweet.viewer,
+          hasBookmarked: result.isBookmarked
+        }
+      };
     }
   } catch (error) {
     console.error('Error bookmarking tweet:', error);
@@ -275,7 +290,7 @@ async function followUser(targetUser: AccountHeaderUser, active: string) {
       result.relationship === 'following'
         ? 'Follow'
         : 'Unfollow';
-    user.value.stats.followersCount = result.followers_count;
+    user.value.stats.followersCount = result.followersCount;
     toast.success(
       `Successfully ${active}ed ${targetUser.name}.`
     );

@@ -34,7 +34,7 @@ import { toast } from 'vue-sonner';
 import {
   v2GetMe,
   v2PatchMe,
-  type V2SelfUser
+  type CurrentUserVM
 } from '@/services';
 
 const verifiedEmails = ref([
@@ -45,7 +45,7 @@ const verifiedEmails = ref([
 
 const { t, locale, setLocale } = useI18n();
 
-const userInfo = ref<V2SelfUser | null>(null);
+const userInfo = ref<CurrentUserVM | null>(null);
 
 interface ProfileUrlItem {
   value: string;
@@ -84,14 +84,14 @@ function parseBirthDate(
 }
 
 function buildInitialProfileValues(
-  user: V2SelfUser | null
+  user: CurrentUserVM | null
 ): ProfileFormValues {
   return {
-    displayName: user?.display_name || '',
+    displayName: user?.name || '',
     bio: user?.bio || '',
     location: user?.location || '',
     urls: mapWebsiteToUrls(user?.website || ''),
-    birthDate: parseBirthDate(user?.birth_date || null),
+    birthDate: parseBirthDate(user?.birthDate || null),
     phone: user?.phone || ''
   };
 }
@@ -179,11 +179,11 @@ const onSubmit = handleSubmit(
     .filter(url => url.length > 0)
     .join(',');
   const payload = {
-    display_name: values.displayName,
+    displayName: values.displayName,
     bio: values.bio,
     location: values.location,
     website,
-    birth_date: values.birthDate
+    birthDate: values.birthDate
       ? values.birthDate.toString()
       : null,
     phone: values.phone || undefined
@@ -196,7 +196,9 @@ const onSubmit = handleSubmit(
   });
   await v2PatchMe(payload);
   // 刷新页面
-  window.location.reload();
+  if (process.client) {
+    window.location.reload();
+  }
   }
 );
 

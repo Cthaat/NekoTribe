@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { ref, watch } from 'vue';
-import type { V2Post } from '@/types/v2';
+import type { PostVM } from '@/types/posts';
 import {
   v2BookmarkPost,
   v2CreateRetweet,
@@ -27,22 +27,23 @@ const route = useRoute();
 const localePath = useLocalePath();
 
 const isRetweetModalOpen = ref(false);
-const selectedTweetForRetweet = ref<V2Post | null>(null);
+const selectedTweetForRetweet = ref<PostVM | null>(null);
 const isSubmittingRetweet = ref(false);
 
 const feed = usePostFeed({
+  debugName: 'tweet-search',
   pageSize: 15,
   loadPage: async (page, pageSize) =>
     await v2ListPosts({
       page,
-      page_size: pageSize,
+      pageSize,
       sort: 'newest',
       q: String(route.params.search || '')
     })
 });
 
 watch(
-  [feed.page, () => route.params.search],
+  [() => feed.page, () => route.params.search],
   () => {
     feed.refresh();
   },
@@ -63,12 +64,12 @@ async function handleDeleteTweet(tweetId: number) {
   }
 }
 
-function handleReplyTweet(tweet: V2Post) {
-  const detailPage = localePath(`/tweet/${tweet.post_id}`);
+function handleReplyTweet(tweet: PostVM) {
+  const detailPage = localePath(`/tweet/${tweet.id}`);
   return navigateTo(detailPage, { replace: true });
 }
 
-function handleRetweetTweet(tweet: V2Post) {
+function handleRetweetTweet(tweet: PostVM) {
   selectedTweetForRetweet.value = tweet;
   isRetweetModalOpen.value = true;
 }
@@ -99,23 +100,23 @@ async function handleSubmitRetweet({
 }
 
 async function handleLikeTweet(
-  tweet: V2Post,
+  tweet: PostVM,
   action: 'like' | 'unlike'
 ) {
   try {
     const result =
       action === 'like'
-        ? await v2LikePost(tweet.post_id)
-        : await v2UnlikePost(tweet.post_id);
-    feed.patchPost(tweet.post_id, current => ({
+        ? await v2LikePost(tweet.id)
+        : await v2UnlikePost(tweet.id);
+    feed.patchPost(tweet.id, current => ({
       ...current,
-      viewer_state: {
-        ...current.viewer_state,
-        is_liked: result.is_liked
+      viewer: {
+        ...current.viewer,
+        hasLiked: result.isLiked
       },
-      stats: {
-        ...current.stats,
-        likes_count: result.likes_count
+      counts: {
+        ...current.counts,
+        likes: result.likesCount
       }
     }));
   } catch (error) {
@@ -125,19 +126,19 @@ async function handleLikeTweet(
 }
 
 async function handleBookmarkTweet(
-  tweet: V2Post,
+  tweet: PostVM,
   action: 'mark' | 'unmark'
 ) {
   try {
     const result =
       action === 'mark'
-        ? await v2BookmarkPost(tweet.post_id)
-        : await v2UnbookmarkPost(tweet.post_id);
-    feed.patchPost(tweet.post_id, current => ({
+        ? await v2BookmarkPost(tweet.id)
+        : await v2UnbookmarkPost(tweet.id);
+    feed.patchPost(tweet.id, current => ({
       ...current,
-      viewer_state: {
-        ...current.viewer_state,
-        is_bookmarked: result.is_bookmarked
+      viewer: {
+        ...current.viewer,
+        hasBookmarked: result.isBookmarked
       }
     }));
   } catch (error) {
@@ -178,6 +179,13 @@ async function handleBookmarkTweet(
         @bookmark-tweet="handleBookmarkTweet"
       />
 
+      <div
+        v-else
+        class="text-center text-muted-foreground py-10"
+      >
+        没有找到相关推文。
+      </div>
+
       <RetweetModal
         v-if="selectedTweetForRetweet"
         v-model:open="isRetweetModalOpen"
@@ -185,13 +193,6 @@ async function handleBookmarkTweet(
         :is-submitting="isSubmittingRetweet"
         @submit-retweet="handleSubmitRetweet"
       />
-
-      <div
-        v-else
-        class="text-center text-muted-foreground py-10"
-      >
-        没有找到相关推文。
-      </div>
     </div>
 
     <Pagination

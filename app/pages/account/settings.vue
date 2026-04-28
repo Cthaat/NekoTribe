@@ -32,13 +32,13 @@ const saving = ref(false);
 // 本地响应式数据：与后端字段一一对应
 const twoFactorEnabled = ref(false);
 const loginAlerts = ref(true);
-const profile_visibility = ref<'public' | 'private'>(
+const profileVisibility = ref<'public' | 'private'>(
   'public'
 );
-const show_online_status = ref(true);
-const allow_dm_from_strangers = ref(false);
-const push_notification_enabled = ref(true);
-const email_notification_enabled = ref(true);
+const showOnlineStatus = ref(true);
+const allowDmFromStrangers = ref(false);
+const pushNotificationEnabled = ref(true);
+const emailNotificationEnabled = ref(true);
 
 // 载入当前设置
 async function loadSettings() {
@@ -46,20 +46,19 @@ async function loadSettings() {
   loading.value = true;
   try {
     const settings = await v2GetSettings();
-    twoFactorEnabled.value = !!settings.two_factor_enabled;
-    loginAlerts.value = !!settings.login_alerts;
-    profile_visibility.value =
-      (settings.profile_visibility as
+    twoFactorEnabled.value = settings.twoFactorEnabled;
+    loginAlerts.value = settings.loginAlerts;
+    profileVisibility.value =
+      (settings.profileVisibility as
         | 'public'
         | 'private') || 'public';
-    show_online_status.value =
-      !!settings.show_online_status;
-    allow_dm_from_strangers.value =
-      !!settings.allow_dm_from_strangers;
-    push_notification_enabled.value =
-      !!settings.push_notification_enabled;
-    email_notification_enabled.value =
-      !!settings.email_notification_enabled;
+    showOnlineStatus.value = settings.showOnlineStatus;
+    allowDmFromStrangers.value =
+      settings.allowDmFromStrangers;
+    pushNotificationEnabled.value =
+      settings.pushNotificationEnabled;
+    emailNotificationEnabled.value =
+      settings.emailNotificationEnabled;
   } catch (e) {
     // 失败提示
     toast.error('Failed to load settings');
@@ -75,16 +74,13 @@ async function saveSettings() {
   saving.value = true;
   try {
     await v2PatchSettings({
-      two_factor_enabled: twoFactorEnabled.value,
-      login_alerts: loginAlerts.value,
-      profile_visibility: profile_visibility.value,
-      show_online_status: show_online_status.value,
-      allow_dm_from_strangers:
-        allow_dm_from_strangers.value,
-      push_notification_enabled:
-        push_notification_enabled.value,
-      email_notification_enabled:
-        email_notification_enabled.value
+      twoFactorEnabled: twoFactorEnabled.value,
+      loginAlerts: loginAlerts.value,
+      profileVisibility: profileVisibility.value,
+      showOnlineStatus: showOnlineStatus.value,
+      allowDmFromStrangers: allowDmFromStrangers.value,
+      pushNotificationEnabled: pushNotificationEnabled.value,
+      emailNotificationEnabled: emailNotificationEnabled.value
     });
     toast.success('Settings saved');
   } catch (e) {
@@ -141,7 +137,7 @@ onMounted(loadSettings);
                   }}
                 </div>
               </div>
-              <Select v-model="profile_visibility">
+              <Select v-model="profileVisibility">
                 <SelectTrigger class="w-[140px]"
                   ><SelectValue placeholder="-"
                 /></SelectTrigger>
@@ -169,7 +165,7 @@ onMounted(loadSettings);
                 </div>
               </div>
               <Switch
-                v-model:checked="show_online_status"
+                v-model:checked="showOnlineStatus"
               />
             </div>
 
@@ -184,7 +180,7 @@ onMounted(loadSettings);
                 </div>
               </div>
               <Switch
-                v-model:checked="allow_dm_from_strangers"
+                v-model:checked="allowDmFromStrangers"
               />
             </div>
           </div>
@@ -209,7 +205,7 @@ onMounted(loadSettings);
                 </div>
               </div>
               <Switch
-                v-model:checked="push_notification_enabled"
+                v-model:checked="pushNotificationEnabled"
               />
             </div>
             <!-- 邮件通知开关 -->
@@ -223,7 +219,7 @@ onMounted(loadSettings);
                 </div>
               </div>
               <Switch
-                v-model:checked="email_notification_enabled"
+                v-model:checked="emailNotificationEnabled"
               />
             </div>
           </div>

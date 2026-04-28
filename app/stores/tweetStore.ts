@@ -1,17 +1,17 @@
 import { defineStore } from 'pinia';
-import type { V2Post } from '@/types/v2';
+import type { PostVM } from '@/types/posts';
 
 export const useTweetStore = defineStore('tweet', {
   state: () => ({
     // 用于在页面跳转时临时存储的推文对象
-    selectedTweet: null as V2Post | null
+    selectedTweet: null as PostVM | null
   }),
   actions: {
     /**
      * 在导航前设置要传递的推文数据
      * @param tweet 要传递的推文对象
      */
-    setSelectedTweet(tweet: V2Post) {
+    setSelectedTweet(tweet: PostVM) {
       this.selectedTweet = tweet;
     },
 

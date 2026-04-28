@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue';
 import type {
-  V2Comment,
-  V2Post
+  CommentVM,
+  PostVM
 } from '@/services';
 import {
   v2BookmarkPost,
@@ -28,15 +28,15 @@ const route = useRoute();
 const localePath = useLocalePath();
 const preferenceStore = usePreferenceStore();
 
-const tweet = ref<V2Post | null>(null);
-const comments = ref<V2Comment[]>([]);
+const tweet = ref<PostVM | null>(null);
+const comments = ref<CommentVM[]>([]);
 const tweetPending = ref(false);
 const commentPending = ref(false);
 const tweetError = ref<string | null>(null);
 const commentError = ref<string | null>(null);
 
 const isRetweetModalOpen = ref(false);
-const selectedTweetForRetweet = ref<V2Post | null>(null);
+const selectedTweetForRetweet = ref<PostVM | null>(null);
 const isSubmittingRetweet = ref(false);
 
 async function loadTweet() {
@@ -60,7 +60,7 @@ async function loadComments() {
       Number(route.params.id),
       {
         page: 1,
-        page_size: 100,
+        pageSize: 100,
         sort: 'oldest'
       }
     );
@@ -80,7 +80,7 @@ async function handleDeleteTweet(tweetId: number) {
     await v2DeletePost(tweetId);
     toast.success('推文已成功删除。');
     const rootPath = localePath(
-      `/tweet/home/${preferenceStore.preferences.user.user_id}`
+      `/tweet/home/${preferenceStore.preferences.user.id}`
     );
     await navigateTo(rootPath);
   } catch (error) {
@@ -92,10 +92,10 @@ async function handleDeleteTweet(tweetId: number) {
   }
 }
 
-function handleReplyTweet(tweetItem: V2Post) {
+function handleReplyTweet(tweetItem: PostVM): void {
 }
 
-function handleRetweetTweet(tweetItem: V2Post) {
+function handleRetweetTweet(tweetItem: PostVM): void {
   selectedTweetForRetweet.value = tweetItem;
   isRetweetModalOpen.value = true;
 }
@@ -126,17 +126,26 @@ async function handleSubmitRetweet({
 }
 
 async function handleLikeTweet(
-  tweetItem: V2Post,
+  tweetItem: PostVM,
   action: 'like' | 'unlike'
 ) {
   try {
     const result =
       action === 'like'
-        ? await v2LikePost(tweetItem.post_id)
-        : await v2UnlikePost(tweetItem.post_id);
-    if (tweet.value && tweet.value.post_id === tweetItem.post_id) {
-      tweet.value.viewer_state.is_liked = result.is_liked;
-      tweet.value.stats.likes_count = result.likes_count;
+        ? await v2LikePost(tweetItem.id)
+        : await v2UnlikePost(tweetItem.id);
+    if (tweet.value && tweet.value.id === tweetItem.id) {
+      tweet.value = {
+        ...tweet.value,
+        viewer: {
+          ...tweet.value.viewer,
+          hasLiked: result.isLiked
+        },
+        counts: {
+          ...tweet.value.counts,
+          likes: result.likesCount
+        }
+      };
     }
   } catch (error) {
     console.error('Failed to like/unlike tweet:', error);
@@ -144,17 +153,22 @@ async function handleLikeTweet(
 }
 
 async function handleBookmarkTweet(
-  tweetItem: V2Post,
+  tweetItem: PostVM,
   action: 'mark' | 'unmark'
 ) {
   try {
     const result =
       action === 'mark'
-        ? await v2BookmarkPost(tweetItem.post_id)
-        : await v2UnbookmarkPost(tweetItem.post_id);
-    if (tweet.value && tweet.value.post_id === tweetItem.post_id) {
-      tweet.value.viewer_state.is_bookmarked =
-        result.is_bookmarked;
+        ? await v2BookmarkPost(tweetItem.id)
+        : await v2UnbookmarkPost(tweetItem.id);
+    if (tweet.value && tweet.value.id === tweetItem.id) {
+      tweet.value = {
+        ...tweet.value,
+        viewer: {
+          ...tweet.value.viewer,
+          hasBookmarked: result.isBookmarked
+        }
+      };
     }
   } catch (error) {
     console.error(
@@ -174,13 +188,22 @@ async function handleLikeTweetComment(
         ? await v2LikeComment(commentId)
         : await v2UnlikeComment(commentId);
     const index = comments.value.findIndex(
-      item => item.comment_id === commentId
+      item => item.id === commentId
     );
     if (index !== -1) {
-      comments.value[index].viewer_state.is_liked =
-        result.is_liked;
-      comments.value[index].stats.likes_count =
-        result.likes_count;
+      const currentComment = comments.value[index];
+      if (!currentComment) return;
+      comments.value[index] = {
+        ...currentComment,
+        viewer: {
+          ...currentComment.viewer,
+          hasLiked: result.isLiked
+        },
+        counts: {
+          ...currentComment.counts,
+          likes: result.likesCount
+        }
+      };
     }
   } catch (error) {
     console.error('Failed to like comment:', error);
@@ -191,9 +214,9 @@ async function handleLikeTweetComment(
 async function handleTweetComment(content: string) {
   if (!tweet.value) return;
   try {
-    await v2CreateComment(tweet.value.post_id, {
+    await v2CreateComment(tweet.value.id, {
       content,
-      parent_comment_id: null
+      parentCommentId: null
     });
     await loadComments();
   } catch (error) {
@@ -208,9 +231,9 @@ async function handleReplyTweetComment(
 ) {
   if (!tweet.value) return;
   try {
-    await v2CreateComment(tweet.value.post_id, {
+    await v2CreateComment(tweet.value.id, {
       content,
-      parent_comment_id: parentCommentId
+      parentCommentId
     });
     await loadComments();
   } catch (error) {
@@ -258,7 +281,7 @@ const pending = computed(
       />
       <CommentSection
         :comments="comments"
-        :post-id="tweet.post_id"
+        :post-id="tweet.id"
         @like-comment="handleLikeTweetComment"
         @submit-reply="handleReplyTweetComment"
         @send-reply="handleTweetComment"
@@ -273,5 +296,3 @@ const pending = computed(
     </div>
   </div>
 </template>
-
-

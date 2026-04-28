@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import type { PropType } from 'vue';
-import type { V2Comment } from '@/types/v2';
+import type { NestedCommentVM } from '@/types/posts';
 import {
   Avatar,
   AvatarFallback,
@@ -18,9 +18,7 @@ defineOptions({
 
 const props = defineProps({
   comment: {
-    type: Object as PropType<V2Comment & {
-      children?: (V2Comment & { children?: V2Comment[] })[];
-    }>,
+    type: Object as PropType<NestedCommentVM>,
     required: true
   },
   // 嵌套层级，用于计算缩进
@@ -38,12 +36,12 @@ const replyContent = ref('');
 const isReplyInputFocused = ref(false);
 
 // 用于点赞的“乐观更新”，提供即时反馈
-const localIsLiked = ref(props.comment.viewer_state.is_liked);
-const localLikesCount = ref(props.comment.stats.likes_count);
+const localIsLiked = ref(props.comment.viewer.hasLiked);
+const localLikesCount = ref(props.comment.counts.likes);
 
 // --- 计算属性 ---
 const formattedDate = computed(() => {
-  return new Date(props.comment.created_at).toLocaleString(
+  return new Date(props.comment.createdAt).toLocaleString(
     'zh-CN'
   );
 });
@@ -67,7 +65,7 @@ function handleLike() {
 
   // 2. 发送事件给父组件，让父组件处理 API 调用
   emit('like-comment', {
-    commentId: props.comment.comment_id,
+    commentId: props.comment.id,
     action: localIsLiked.value
       ? 'likeComment'
       : 'unlikeComment'
@@ -78,7 +76,7 @@ function handleSubmitReply() {
   if (!replyContent.value.trim()) return;
   // 发送事件，并附带父评论ID和回复内容
   emit('submit-reply', {
-    parentCommentId: props.comment.comment_id,
+    parentCommentId: props.comment.id,
     content: replyContent.value
   });
   // 提交后关闭回复框
@@ -108,15 +106,15 @@ function handleSubmitReply() {
           class="h-8 w-8 mr-3 ring-2 ring-background shadow-sm"
         >
           <AvatarImage
-            :src="comment.author.avatar_url"
-            :alt="comment.author.display_name"
+            :src="comment.author.avatarUrl"
+            :alt="comment.author.name"
           />
           <AvatarFallback>{{
-            comment.author.display_name?.substring(0, 1)
+            comment.author.name.substring(0, 1)
           }}</AvatarFallback>
         </Avatar>
         <span class="font-semibold">{{
-          comment.author.display_name
+          comment.author.name
         }}</span>
         <span class="mx-2 text-muted-foreground">·</span>
         <span class="text-muted-foreground">{{
@@ -230,7 +228,7 @@ function handleSubmitReply() {
     >
       <CommentCard
         v-for="childComment in comment.children"
-        :key="childComment.comment_id"
+        :key="childComment.id"
         :comment="childComment"
         :level="level + 1"
         @like-comment="$emit('like-comment', $event)"

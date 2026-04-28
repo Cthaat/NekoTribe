@@ -5,19 +5,10 @@ import {
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
-
-// 定义预览卡片所需的最少数据结构
-interface PreviewTweet {
-  author: {
-    displayName: string;
-    username: string;
-    avatarUrl: string;
-  };
-  content: string;
-}
+import type { PreviewPostVM } from '@/types/posts';
 
 const props = defineProps<{
-  tweet: PreviewTweet;
+  tweet: PreviewPostVM;
 }>();
 
 // 截断过长的内容以适应紧凑的布局
@@ -35,14 +26,14 @@ const truncatedContent = computed(() => {
       <Avatar class="h-5 w-5 mr-2">
         <AvatarImage
           :src="tweet.author.avatarUrl"
-          :alt="tweet.author.displayName"
+          :alt="tweet.author.name"
         />
         <AvatarFallback>{{
           tweet.author.username.substring(0, 1)
         }}</AvatarFallback>
       </Avatar>
       <span class="font-bold text-gray-200">{{
-        tweet.author.displayName
+        tweet.author.name
       }}</span>
       <span class="ml-1 text-gray-500"
         >@{{ tweet.author.username }}</span
