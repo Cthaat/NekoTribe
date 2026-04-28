@@ -6,6 +6,7 @@ on:
   # 当有代码推送到 main 分支时触发
   push:
     branches:
+      - master
       - main
       - shadcn-web
   # 允许您在GitHub Actions页面手动触发此工作流
