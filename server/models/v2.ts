@@ -12,6 +12,11 @@ import {
   v2StringOrNull,
   type V2DbRecord
 } from '~/server/utils/v2';
+import {
+  normalizeAvatarPublicUrl,
+  normalizeNullableStoragePublicUrl,
+  normalizeStoragePublicUrl
+} from '~/server/storage';
 
 function v2RelationObject(relation: string): V2Relationship {
   return {
@@ -30,7 +35,9 @@ export function v2MapPublicUser(row: V2DbRecord): V2PublicUser {
     user_id: v2Number(row.USER_ID),
     username: v2String(row.USERNAME),
     display_name: v2String(row.DISPLAY_NAME),
-    avatar_url: v2String(row.AVATAR_URL),
+    avatar_url: normalizeAvatarPublicUrl(
+      v2StringOrNull(row.AVATAR_URL)
+    ),
     bio: v2String(row.BIO),
     location: v2String(row.LOCATION),
     website: v2String(row.WEBSITE),
@@ -192,14 +199,18 @@ export function v2MapMedia(row: V2DbRecord): V2MediaAsset {
     media_id: v2Number(row.MEDIA_ID),
     media_type: v2String(row.MEDIA_TYPE),
     file_name: v2String(row.FILE_NAME),
-    public_url: v2String(row.PUBLIC_URL),
+    public_url: normalizeStoragePublicUrl(
+      v2String(row.PUBLIC_URL)
+    ),
     file_size: v2Number(row.FILE_SIZE),
     mime_type: v2String(row.MIME_TYPE),
     width: row.WIDTH === null ? null : v2Number(row.WIDTH),
     height: row.HEIGHT === null ? null : v2Number(row.HEIGHT),
     duration:
       row.DURATION === null ? null : v2Number(row.DURATION),
-    thumbnail_url: v2StringOrNull(row.THUMBNAIL_URL),
+    thumbnail_url: normalizeNullableStoragePublicUrl(
+      v2StringOrNull(row.THUMBNAIL_URL)
+    ),
     alt_text: v2StringOrNull(row.ALT_TEXT),
     status: v2String(row.STATUS),
     created_at: v2DateString(row.CREATED_AT) || ''
@@ -525,10 +536,12 @@ export async function v2MapGroup(
     name: v2String(row.GROUP_NAME ?? row.NAME),
     slug: v2String(row.SLUG),
     description: v2String(row.DESCRIPTION),
-    avatar_url: v2StringOrNull(
-      row.GROUP_AVATAR_URL ?? row.AVATAR_URL
+    avatar_url: normalizeNullableStoragePublicUrl(
+      v2StringOrNull(row.GROUP_AVATAR_URL ?? row.AVATAR_URL)
     ),
-    cover_url: v2StringOrNull(row.COVER_URL),
+    cover_url: normalizeNullableStoragePublicUrl(
+      v2StringOrNull(row.COVER_URL)
+    ),
     owner: await v2RequirePublicUser(
       connection,
       viewerId,
@@ -585,5 +598,6 @@ export function v2MediaUrlArray(value: unknown): string[] {
   return text
     .split(',')
     .map(item => item.trim())
-    .filter(item => item.length > 0);
+    .filter(item => item.length > 0)
+    .map(normalizeStoragePublicUrl);
 }

@@ -7,6 +7,12 @@ import {
   readBody
 } from 'h3';
 import oracledb from 'oracledb';
+import {
+  getRequestLogContext,
+  logError,
+  logInfo,
+  serializeLogError
+} from './logging';
 
 export type V2DbRecord = Record<string, unknown>;
 export type V2RouteHandler<T> = (
@@ -43,10 +49,47 @@ export function defineV2Handler<T>(
   handler: V2RouteHandler<T>
 ) {
   return defineEventHandler(
-    (event): Promise<V2Response<T>> =>
-      v2WithConnection(event, connection =>
-        handler(event, connection)
-      )
+    async (event): Promise<V2Response<T>> => {
+      const context = getRequestLogContext(event);
+      const startAt = Date.now();
+      const query = getQuery(event);
+      const auth = v2OptionalAuth(event);
+
+      logInfo('v2:handler:start', {
+        requestId: context?.requestId ?? 'unknown',
+        method:
+          context?.method ||
+          event.node.req.method ||
+          'UNKNOWN',
+        path: context?.path ?? event.path,
+        query,
+        authUserId: auth?.userId ?? null
+      });
+
+      try {
+        const response = await v2WithConnection(
+          event,
+          connection => handler(event, connection)
+        );
+        logInfo('v2:handler:success', {
+          requestId: context?.requestId ?? 'unknown',
+          path: context?.path ?? event.path,
+          code: response.code,
+          message: response.message,
+          meta: response.meta,
+          durationMs: Date.now() - startAt
+        });
+        return response;
+      } catch (error) {
+        logError('v2:handler:error', {
+          requestId: context?.requestId ?? 'unknown',
+          path: context?.path ?? event.path,
+          durationMs: Date.now() - startAt,
+          error: serializeLogError(error)
+        });
+        throw error;
+      }
+    }
   );
 }
 

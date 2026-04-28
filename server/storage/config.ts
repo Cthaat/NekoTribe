@@ -2,6 +2,7 @@ import path from 'node:path';
 import type { StorageConfig, StorageType } from './types';
 
 const DEFAULT_STORAGE_ROOT = './storage';
+const DEFAULT_STORAGE_PUBLIC_BASE = '/storage';
 
 function envValue(key: string): string | undefined {
   const value = process.env[key];
@@ -22,7 +23,7 @@ function normalizePublicBasePath(value: string): string {
     return `/${normalized}`;
   }
 
-  return normalized || '/uploads';
+  return normalized || DEFAULT_STORAGE_PUBLIC_BASE;
 }
 
 function resolvePathOrDefault(
@@ -60,12 +61,9 @@ export function getStorageConfig(): StorageConfig {
   return {
     type,
     rootPath,
-    legacyUploadPath: resolvePathOrDefault(
-      envValue('LEGACY_UPLOAD_PATH'),
-      path.join(rootPath, 'legacy-upload')
-    ),
     publicBasePath: normalizePublicBasePath(
-      envValue('STORAGE_PUBLIC_BASE') || '/uploads'
+      envValue('STORAGE_PUBLIC_BASE') ||
+        DEFAULT_STORAGE_PUBLIC_BASE
     ),
     publicBaseUrl: normalizeBaseUrl(envValue('BASE_URL')),
     cdnBaseUrl: normalizeBaseUrl(

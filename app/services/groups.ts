@@ -30,6 +30,11 @@ import type {
   GroupPost,
   GroupStatsData
 } from '@/types/groups';
+import {
+  normalizeAssetUrl,
+  normalizeAvatarUrl,
+  normalizeNullableAssetUrl
+} from '@/utils/assets';
 
 const groupPrivacyValues = [
   'public',
@@ -64,7 +69,7 @@ function mapOwner(user: V2PublicUser): GroupOwner {
     id: user.user_id,
     username: user.username,
     nickname: publicUserName(user),
-    avatar: user.avatar_url
+    avatar: normalizeAvatarUrl(user.avatar_url)
   };
 }
 
@@ -74,8 +79,9 @@ export function mapV2GroupToGroup(group: V2Group): Group {
     id: group.group_id,
     name: group.name,
     description: group.description,
-    avatar: group.avatar_url || '',
-    coverImage: group.cover_url || undefined,
+    avatar: normalizeNullableAssetUrl(group.avatar_url) || '',
+    coverImage:
+      normalizeNullableAssetUrl(group.cover_url) || undefined,
     privacy: group.privacy,
     memberCount: group.member_count,
     postCount: group.post_count,
@@ -99,7 +105,7 @@ function mapV2MemberToGroupMember(
     userId: member.user.user_id,
     username: member.user.username,
     nickname: displayName,
-    avatar: member.user.avatar_url,
+    avatar: normalizeAvatarUrl(member.user.avatar_url),
     role: member.role,
     joinedAt: member.joined_at,
     isMuted: member.status === 'muted'
@@ -122,10 +128,13 @@ function mapV2PostToGroupPost(
       ...mapOwner(post.author),
       role: 'member'
     },
-    media: post.media_urls.map(url => ({
-      type: mediaTypeFromUrl(url),
-      url
-    })),
+    media: post.media_urls.map(rawUrl => {
+      const url = normalizeAssetUrl(rawUrl);
+      return {
+        type: mediaTypeFromUrl(url),
+        url
+      };
+    }),
     isPinned: post.is_pinned,
     likeCount: post.likes_count,
     commentCount: post.comments_count,

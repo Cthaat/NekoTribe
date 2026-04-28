@@ -49,6 +49,10 @@ import {
   v2UnbookmarkPost as apiUnbookmarkPost,
   v2UploadMedia
 } from '@/api/v2/posts';
+import {
+  normalizeAssetUrl,
+  normalizeAvatarUrl
+} from '@/utils/assets';
 
 export {
   v2DeleteComment,
@@ -91,7 +95,7 @@ export function mapPublicUserToPostAuthor(
     id: user.user_id,
     username: user.username,
     name: user.display_name,
-    avatarUrl: user.avatar_url,
+    avatarUrl: normalizeAvatarUrl(user.avatar_url),
     bio: user.bio,
     location: user.location,
     website: user.website,
@@ -110,8 +114,10 @@ export function mapMediaToPostMedia(
   return {
     id: media.media_id,
     type: mediaTypeOf(media),
-    originalUrl: media.public_url,
-    thumbnailUrl: media.thumbnail_url || media.public_url,
+    originalUrl: normalizeAssetUrl(media.public_url),
+    thumbnailUrl: normalizeAssetUrl(
+      media.thumbnail_url || media.public_url
+    ),
     altText: media.alt_text
   };
 }
@@ -155,7 +161,7 @@ export function mapPostToPreview(dto: V2Post): PreviewPostVM {
     author: {
       name: dto.author.display_name,
       username: dto.author.username,
-      avatarUrl: dto.author.avatar_url
+      avatarUrl: normalizeAvatarUrl(dto.author.avatar_url)
     },
     content: dto.content
   };

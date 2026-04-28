@@ -1,4 +1,43 @@
 import { defineEventHandler, createError } from '#imports';
+import type Redis from 'ioredis';
+import {
+  getRequestLogContext,
+  logError,
+  logWarn,
+  serializeLogError
+} from '~/server/utils/logging';
+
+interface RateLimitEventContext {
+  redis?: Redis;
+}
+
+interface RateLimitInfo {
+  count: number;
+  last: number;
+}
+
+function parseRateLimitInfo(
+  input: string | null,
+  now: number
+): RateLimitInfo {
+  if (!input) {
+    return { count: 0, last: now };
+  }
+
+  try {
+    const parsed = JSON.parse(
+      input
+    ) as Partial<RateLimitInfo>;
+    return {
+      count:
+        typeof parsed.count === 'number' ? parsed.count : 0,
+      last:
+        typeof parsed.last === 'number' ? parsed.last : now
+    };
+  } catch {
+    return { count: 0, last: now };
+  }
+}
 
 export default defineEventHandler(async event => {
   // --- [新增的保护代码] ---
@@ -19,9 +58,15 @@ export default defineEventHandler(async event => {
   if (!event.node.req.method) return;
 
   // 获取 Redis 实例
-  const redis = event.context.redis;
+  const context = getRequestLogContext(event);
+  const redis = (event.context as RateLimitEventContext)
+    .redis;
   if (!redis) {
-    console.warn('Redis 未初始化，跳过限流检查');
+    logWarn('rate-limit', {
+      requestId: context?.requestId ?? 'unknown',
+      path,
+      event: 'redis:missing'
+    });
     return;
   }
 
@@ -34,11 +79,7 @@ export default defineEventHandler(async event => {
   try {
     // 从 Redis 获取当前 IP 的限流信息
     const existingData = await redis.get(redisKey);
-    let info = { count: 0, last: now };
-
-    if (existingData) {
-      info = JSON.parse(existingData);
-    }
+    const info = parseRateLimitInfo(existingData, now);
 
     // 1分钟窗口限制
     if (now - info.last > 60_000) {
@@ -64,12 +105,18 @@ export default defineEventHandler(async event => {
         } as ErrorResponse
       });
     }
-  } catch (err: any) {
+  } catch (err) {
+    const maybeError = err as { statusCode?: number };
     // 如果是限流错误，直接抛出
-    if (err.statusCode === 429) {
+    if (maybeError.statusCode === 429) {
       throw err;
     }
     // 如果是 Redis 错误，记录日志但不影响正常请求
-    console.error('Redis 限流检查失败:', err.message);
+    logError('rate-limit', {
+      requestId: context?.requestId ?? 'unknown',
+      path,
+      event: 'redis:error',
+      error: serializeLogError(err)
+    });
   }
 });

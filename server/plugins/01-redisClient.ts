@@ -1,20 +1,33 @@
 import { defineNitroPlugin } from '#imports';
+import type { H3Event } from 'h3';
 import Redis from 'ioredis';
 import { resolveRedisOptions } from '../utils/redis-config';
+import {
+  logError,
+  logInfo,
+  serializeLogError
+} from '~/server/utils/logging';
 
 // 1. 在插件的顶层作用域定义一个变量，它将作为我们的单例（Singleton）容器。
 //    初始值为 null，表示还没有创建实例。
 let redisInstance: Redis | null = null;
 
+interface RedisEventContext {
+  redis?: Redis;
+}
+
 /**
  * 这是一个获取Redis实例的函数。
  * 它采用了单例模式，确保在整个应用的生命周期中，只创建一个Redis连接。
  */
-function getRedisInstance() {
+function getRedisInstance(): Redis {
   // 2. 检查实例是否已经存在。
   if (!redisInstance) {
     // 如果不存在，才执行创建逻辑。
-    console.log('Redis 实例不存在，正在创建新的连接...');
+    logInfo('redis', {
+      event: 'client:create',
+      lazyConnect: true
+    });
 
     // 3. 创建新的 Redis 实例。
     redisInstance = new Redis({
@@ -27,10 +40,15 @@ function getRedisInstance() {
     });
 
     redisInstance.on('error', err => {
-      console.error('Redis 连接错误:', err);
+      logError('redis', {
+        event: 'client:error',
+        error: serializeLogError(err)
+      });
     });
     redisInstance.on('connect', () => {
-      console.log('Redis 连接成功');
+      logInfo('redis', {
+        event: 'client:connect'
+      });
     });
   }
 
@@ -39,40 +57,16 @@ function getRedisInstance() {
 }
 
 export default defineNitroPlugin(nitroApp => {
-  // 5. 我们不再直接注入一个已经创建好的实例。
-  //    而是使用 Object.defineProperty 定义一个 getter。
-  //    这使得 event.context.redis 成为一个“惰性”属性。
-  // 定义 nitroApp.hooks.hook 的类型
-  interface NitroAppHooks {
-    hook: (
-      eventName: string,
-      handler: (event: any) => void
-    ) => void;
-  }
-
-  // 定义 event.context 的类型
-  interface NitroEventContext {
-    redis?: Redis;
-    [key: string]: any;
-  }
-
-  // 定义 event 的类型
-  interface NitroEvent {
-    context: NitroEventContext;
-    [key: string]: any;
-  }
-
-  (nitroApp.hooks as NitroAppHooks).hook(
-    'request',
-    (event: NitroEvent) => {
-      Object.defineProperty(event.context, 'redis', {
-        // 当代码第一次尝试访问 event.context.redis 时，这个 get 函数才会被调用。
+  nitroApp.hooks.hook('request', (event: H3Event) => {
+    Object.defineProperty(
+      event.context as RedisEventContext,
+      'redis',
+      {
         get() {
           return getRedisInstance();
         },
-        // 允许此属性在热更新（HMR）时被重新配置。
         configurable: true
-      });
-    }
-  );
+      }
+    );
+  });
 });

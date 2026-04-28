@@ -24,8 +24,7 @@ fi
 
 mkdir -p \
   "$STORAGE_ROOT_DIR" \
-  "$STORAGE_ROOT_DIR/temp" \
-  "$STORAGE_ROOT_DIR/legacy-upload"
+  "$STORAGE_ROOT_DIR/temp"
 
 docker compose up -d --build
 docker compose ps

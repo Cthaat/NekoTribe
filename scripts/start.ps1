@@ -48,8 +48,7 @@ else {
 }
 
 $storageTempDir = Join-Path $storageRootDir 'temp'
-$legacyUploadDir = Join-Path $storageRootDir 'legacy-upload'
-New-Item -ItemType Directory -Force -Path $storageRootDir, $storageTempDir, $legacyUploadDir | Out-Null
+New-Item -ItemType Directory -Force -Path $storageRootDir, $storageTempDir | Out-Null
 
 docker compose up -d --build
 docker compose ps

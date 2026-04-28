@@ -6,6 +6,7 @@ import {
   type AuthSessionVM,
   type CurrentUserVM
 } from '@/services';
+import { normalizeAvatarUrl } from '@/utils/assets';
 
 interface ClearAuthStateOptions {
   redirect?: boolean;
@@ -40,6 +41,19 @@ function createEmptyUser(): CurrentUserVM {
       isBlocking: false,
       relation: 'self'
     }
+  };
+}
+
+function normalizeStoredUser(
+  user: CurrentUserVM
+): CurrentUserVM {
+  if (!user.id) {
+    return user;
+  }
+
+  return {
+    ...user,
+    avatarUrl: normalizeAvatarUrl(user.avatarUrl)
   };
 }
 
@@ -155,7 +169,7 @@ export const usePreferenceStore = defineStore(
     }
 
     function setCurrentUser(user: CurrentUserVM) {
-      updatePreference('user', user);
+      updatePreference('user', normalizeStoredUser(user));
     }
 
     function setCurrentSession(
@@ -237,6 +251,9 @@ export const usePreferenceStore = defineStore(
     if (preferences.value.user.id === undefined) {
       preferences.value = defaultPreferences;
     }
+    preferences.value.user = normalizeStoredUser(
+      preferences.value.user
+    );
 
     // 4. 返回: 暴露出新增的 getters 和 actions
     return {

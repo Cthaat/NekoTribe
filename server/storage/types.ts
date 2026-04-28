@@ -61,7 +61,6 @@ export interface StorageProvider {
 export interface StorageConfig {
   type: StorageType;
   rootPath: string;
-  legacyUploadPath: string;
   publicBasePath: string;
   publicBaseUrl: string | null;
   cdnBaseUrl: string | null;

@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-04-26',
+  debug: false,
   devtools: { enabled: true },
 
   alias: {
@@ -61,6 +62,7 @@ export default defineNuxtConfig({
   },
 
   nitro: {
+    debug: false,
     experimental: {
       websocket: true
     },
@@ -72,6 +74,10 @@ export default defineNuxtConfig({
     hooks: {
       // 在 Nitro 实例关闭时，执行此函数
       close: () => {
+        if (process.env.NODE_ENV !== 'production') {
+          return;
+        }
+
         // 当这个钩子被触发时，我们知道所有构建工作都已完成
         console.log(
           'Nuxt build process complete. Forcing exit to release OracleDB handles...'

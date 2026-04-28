@@ -84,6 +84,44 @@ function serializeApiError(error: unknown): SerializedApiError {
   };
 }
 
+function createClientRequestId(): string {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `client_${Date.now()}_${Math.random()
+    .toString(16)
+    .slice(2)}`;
+}
+
+function queryPayload(
+  options: ApiFetchOptions
+): unknown {
+  const candidate = options as { query?: unknown };
+  return toSerializable(candidate.query);
+}
+
+function logApiRequest(
+  payload: Record<string, unknown>
+): void {
+  console.info('[api:request]', payload);
+}
+
+function logApiResponse(
+  payload: Record<string, unknown>
+): void {
+  console.info('[api:response]', payload);
+}
+
+function logApiError(
+  payload: Record<string, unknown>
+): void {
+  console.error('[api:error]', payload);
+}
+
 function getApiBase(nuxtApp: NuxtAppContext): string {
   if (nuxtApp) {
     return String(nuxtApp.$config.public.apiBase ?? '');
@@ -203,6 +241,8 @@ export const apiFetch = async <T>(
 ): Promise<T> => {
   const nuxtApp = tryUseNuxtApp();
   const isServer = typeof window === 'undefined';
+  const requestId = createClientRequestId();
+  const startAt = Date.now();
   const route = (() => {
     try {
       return useRoute();
@@ -237,6 +277,7 @@ export const apiFetch = async <T>(
   traceHeaders['x-client-platform'] = isServer
     ? 'server'
     : 'client';
+  traceHeaders['x-request-id'] = requestId;
 
   const mergedOptions: ApiFetchOptions = {
     baseURL: getApiBase(nuxtApp),
@@ -249,8 +290,26 @@ export const apiFetch = async <T>(
     }
   };
 
+  const requestLogPayload = {
+    requestId,
+    method: String(options.method ?? 'GET'),
+    path,
+    query: queryPayload(options),
+    route: route?.fullPath ?? null,
+    component: componentName ?? null,
+    platform: isServer ? 'server' : 'client'
+  };
+
+  logApiRequest(requestLogPayload);
+
   try {
-    return await $fetch<T>(path, mergedOptions);
+    const response = await $fetch<T>(path, mergedOptions);
+    logApiResponse({
+      ...requestLogPayload,
+      durationMs: Date.now() - startAt,
+      retried: false
+    });
+    return response;
   } catch (error) {
     const maybeError = error as FetchError;
     if (
@@ -272,16 +331,30 @@ export const apiFetch = async <T>(
         await new Promise(resolve =>
           setTimeout(resolve, 100)
         );
-        return await $fetch<T>(path, mergedOptions);
+        const response = await $fetch<T>(path, mergedOptions);
+        logApiResponse({
+          ...requestLogPayload,
+          durationMs: Date.now() - startAt,
+          retried: true
+        });
+        return response;
       } catch (retryError) {
-        console.error('[apiFetch] 401 refresh retry failed', {
-          path,
+        logApiError({
+          ...requestLogPayload,
+          durationMs: Date.now() - startAt,
+          phase: 'refresh-retry',
           error: serializeApiError(retryError)
         });
         throw retryError;
       }
     }
 
+    logApiError({
+      ...requestLogPayload,
+      durationMs: Date.now() - startAt,
+      phase: 'request',
+      error: serializeApiError(error)
+    });
     throw error;
   }
 };

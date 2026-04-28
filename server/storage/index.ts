@@ -46,6 +46,8 @@ const MEDIA_MAX_SIZE = 500 * 1024 * 1024;
 
 export const STORAGE_AVATAR_MAX_SIZE = AVATAR_MAX_SIZE;
 export const STORAGE_MEDIA_MAX_SIZE = MEDIA_MAX_SIZE;
+export const DEFAULT_AVATAR_STORAGE_KEY =
+  'default-avatar.png';
 
 let cachedProvider: StorageProvider | null = null;
 
@@ -159,6 +161,18 @@ function buildPostMediaStorageKey(
       `${randomUUID()}${extension}`
     )
   );
+}
+
+function buildPublicUrlForKey(key: string): string {
+  const config = getStorageConfig();
+  const relativeUrl = `${config.publicBasePath}/${normalizeStorageKey(key)}`;
+  const baseUrl = config.cdnBaseUrl || config.publicBaseUrl;
+
+  if (!baseUrl) {
+    return relativeUrl;
+  }
+
+  return new URL(relativeUrl, `${baseUrl}/`).toString();
 }
 
 function getProvider(): StorageProvider {
@@ -278,12 +292,19 @@ export function managedPublicUrlToStorageKey(
   publicUrl: string
 ): string | null {
   const config = getStorageConfig();
-  const relativePrefix = `${config.publicBasePath}/`;
+  const publicPrefixes = [
+    `${config.publicBasePath}/`,
+    '/storage/',
+    '/uploads/',
+    '/upload/'
+  ].filter(
+    (value, index, array) => array.indexOf(value) === index
+  );
 
-  if (publicUrl.startsWith(relativePrefix)) {
-    return normalizeStorageKey(
-      publicUrl.slice(relativePrefix.length)
-    );
+  for (const prefix of publicPrefixes) {
+    if (publicUrl.startsWith(prefix)) {
+      return normalizeStorageKey(publicUrl.slice(prefix.length));
+    }
   }
 
   const baseUrl = config.cdnBaseUrl || config.publicBaseUrl;
@@ -297,46 +318,51 @@ export function managedPublicUrlToStorageKey(
     if (parsed.origin !== base.origin) {
       return null;
     }
-    if (!parsed.pathname.startsWith(relativePrefix)) {
-      return null;
+    for (const prefix of publicPrefixes) {
+      if (parsed.pathname.startsWith(prefix)) {
+        return normalizeStorageKey(
+          parsed.pathname.slice(prefix.length)
+        );
+      }
     }
-    return normalizeStorageKey(
-      parsed.pathname.slice(relativePrefix.length)
-    );
+    return null;
   } catch {
     return null;
   }
 }
 
-export function legacyPublicUrlToAbsolutePath(
+export function normalizeStoragePublicUrl(
   publicUrl: string
-): string | null {
-  const normalized = publicUrl.replace(/\\/g, '/');
-  const legacyPrefix = '/upload/';
-
-  if (!normalized.startsWith(legacyPrefix)) {
-    return null;
-  }
-
-  const config = getStorageConfig();
-  const relativePath = normalized.slice(legacyPrefix.length);
-  const absolutePath = path.resolve(
-    config.legacyUploadPath,
-    relativePath
-  );
-  const relative = path.relative(
-    config.legacyUploadPath,
-    absolutePath
-  );
-
+): string {
+  const trimmed = publicUrl.trim();
   if (
-    relative.startsWith('..') ||
-    path.isAbsolute(relative)
+    !trimmed ||
+    trimmed === '/default-avatar.png' ||
+    trimmed === 'default-avatar.png'
   ) {
-    return null;
+    return buildPublicUrlForKey(DEFAULT_AVATAR_STORAGE_KEY);
   }
 
-  return absolutePath;
+  const managedKey = managedPublicUrlToStorageKey(trimmed);
+  if (managedKey) {
+    return buildPublicUrlForKey(managedKey);
+  }
+
+  return trimmed;
+}
+
+export function normalizeNullableStoragePublicUrl(
+  publicUrl: string | null
+): string | null {
+  return publicUrl
+    ? normalizeStoragePublicUrl(publicUrl)
+    : null;
+}
+
+export function normalizeAvatarPublicUrl(
+  publicUrl: string | null | undefined
+): string {
+  return normalizeStoragePublicUrl(publicUrl ?? '');
 }
 
 export async function deleteManagedObject(
@@ -357,11 +383,6 @@ export async function deletePublicFileReference(
   if (managedKey) {
     await deleteManagedObject(managedKey);
     return;
-  }
-
-  const legacyPath = legacyPublicUrlToAbsolutePath(publicUrl);
-  if (legacyPath) {
-    await fs.promises.rm(legacyPath, { force: true });
   }
 }
 

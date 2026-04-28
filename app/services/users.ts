@@ -34,6 +34,7 @@ import type {
   UserSearchPageVM
 } from '@/types/users';
 import type { PageViewModel } from '@/types/posts';
+import { normalizeAvatarUrl } from '@/utils/assets';
 
 function mapPageMeta<TDto, TViewModel>(
   result: V2PagedResult<TDto>,
@@ -54,7 +55,7 @@ export function mapPublicUser(dto: V2PublicUser): PublicUserVM {
     id: dto.user_id,
     username: dto.username,
     name: dto.display_name,
-    avatarUrl: dto.avatar_url,
+    avatarUrl: normalizeAvatarUrl(dto.avatar_url),
     bio: dto.bio,
     location: dto.location,
     website: dto.website,
@@ -111,7 +112,7 @@ function mapFollowResult(dto: V2FollowUserData): FollowUserVM {
 
 function mapAvatar(dto: V2AvatarData): AvatarVM {
   return {
-    avatarUrl: dto.avatar_url,
+    avatarUrl: normalizeAvatarUrl(dto.avatar_url),
     avatarMediaId: dto.avatar_media_id
   };
 }

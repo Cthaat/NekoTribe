@@ -26,6 +26,7 @@ import type {
   RestoredNotificationVM,
   SetNotificationReadStatusFormVM
 } from '@/types/notifications';
+import { normalizeAvatarUrl } from '@/utils/assets';
 
 export { v2DeleteNotification };
 
@@ -52,7 +53,7 @@ function mapNotificationActor(
     id: actor.user_id,
     username: actor.username,
     name: actor.display_name,
-    avatarUrl: actor.avatar_url
+    avatarUrl: normalizeAvatarUrl(actor.avatar_url)
   };
 }
 
