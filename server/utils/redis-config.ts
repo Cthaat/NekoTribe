@@ -113,5 +113,11 @@ export function resolveRedisOptions(): RedisOptions {
     options.password = redisPassword;
   }
 
+  options.connectTimeout = 1500;
+  options.maxRetriesPerRequest = 1;
+  options.enableOfflineQueue = false;
+  options.retryStrategy = times =>
+    times > 1 ? null : Math.min(times * 200, 1000);
+
   return options;
 }

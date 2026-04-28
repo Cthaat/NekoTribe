@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import type { H3Event } from 'h3';
 import {
@@ -35,6 +36,18 @@ export interface SerializedLogError {
 
 interface RequestLogCarrier {
   requestLog?: RequestLogContext;
+}
+
+const requestLogStorage =
+  new AsyncLocalStorage<RequestLogContext>();
+
+function isH3Event(event: unknown): event is H3Event {
+  return (
+    !!event &&
+    typeof event === 'object' &&
+    'context' in event &&
+    'node' in event
+  );
 }
 
 function headerValue(value: unknown): string {
@@ -125,20 +138,23 @@ export function createRequestLogContext(
   };
 
   (event.context as RequestLogCarrier).requestLog = context;
+  requestLogStorage.enterWith(context);
   setResponseHeader(event, 'x-request-id', requestId);
 
   return context;
 }
 
 export function getRequestLogContext(
-  event: H3Event | undefined
+  event: unknown
 ): RequestLogContext | null {
-  if (!event?.context) {
-    return null;
+  if (!isH3Event(event)) {
+    return requestLogStorage.getStore() ?? null;
   }
 
   return (
-    (event.context as RequestLogCarrier).requestLog ?? null
+    (event.context as RequestLogCarrier).requestLog ??
+    requestLogStorage.getStore() ??
+    null
   );
 }
 

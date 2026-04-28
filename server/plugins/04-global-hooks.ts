@@ -33,6 +33,24 @@ function shouldLogError(
   return path.startsWith('/api/');
 }
 
+function errorEvent(input: unknown): H3Event | undefined {
+  const candidate = input as {
+    event?: H3Event;
+    node?: H3Event['node'];
+    context?: H3Event['context'];
+  };
+
+  if (candidate?.event) {
+    return candidate.event;
+  }
+
+  if (candidate?.node && candidate.context) {
+    return input as H3Event;
+  }
+
+  return undefined;
+}
+
 export default defineNitroPlugin(nitroApp => {
   nitroApp.hooks.hook(
     'beforeResponse',
@@ -56,18 +74,22 @@ export default defineNitroPlugin(nitroApp => {
     }
   );
 
-  nitroApp.hooks.hook('error', (error, event) => {
+  nitroApp.hooks.hook('error', (error, errorContext) => {
+    const event = errorEvent(errorContext);
     const context = getRequestLogContext(event);
     const serialized = serializeLogError(error);
     const statusCode = serialized.statusCode ?? 500;
     const path = context?.path ?? event?.path ?? 'unknown';
     const payload = {
       requestId: context?.requestId ?? 'unknown',
-      method: context?.method ?? event?.method ?? 'UNKNOWN',
+      method:
+        context?.method ??
+        event?.node.req.method ??
+        'UNKNOWN',
       path,
       rawUrl:
         context?.rawUrl ??
-        event?.node?.req?.url ??
+        event?.node.req.url ??
         path,
       statusCode,
       error: serialized

@@ -1,4 +1,5 @@
 import {
+  type H3Event,
   sendStream,
   setResponseHeader,
   setResponseStatus
@@ -15,7 +16,7 @@ const DEFAULT_AVATAR_PNG = Buffer.from(
   'base64'
 );
 
-function sendDefaultAvatar(event: Parameters<typeof setResponseHeader>[0]) {
+function sendDefaultAvatar(event: H3Event) {
   setResponseStatus(event, 200);
   setResponseHeader(event, 'Content-Type', 'image/png');
   setResponseHeader(
@@ -26,7 +27,7 @@ function sendDefaultAvatar(event: Parameters<typeof setResponseHeader>[0]) {
   setResponseHeader(
     event,
     'Content-Length',
-    String(DEFAULT_AVATAR_PNG.length)
+    DEFAULT_AVATAR_PNG.length
   );
   return DEFAULT_AVATAR_PNG;
 }

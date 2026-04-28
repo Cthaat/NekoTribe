@@ -127,7 +127,10 @@ export class LocalStorageProvider
     await fs.promises.rm(absolutePath, { force: true });
   }
 
-  getPublicUrl(key: string): string {
+  getPublicUrl(
+    key: string,
+    _visibility: StorageVisibility = 'public'
+  ): string {
     return buildPublicUrl(
       this.config,
       normalizeStorageKey(key)
