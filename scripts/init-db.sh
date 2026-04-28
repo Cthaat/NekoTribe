@@ -45,7 +45,11 @@ run_with_docker_oracle() {
 
   wait_for_oracle_container "$container_name"
   docker cp "$SQL_FILE" "$container_name:$target"
-  docker exec -i "$container_name" sh -lc "sqlplus -s '/ as sysdba' @$target"
+  docker exec -i "$container_name" sh -lc "sqlplus -s '/ as sysdba' <<EOF
+ALTER SESSION SET CONTAINER = ORCLPDB1;
+@$target
+EXIT;
+EOF"
 }
 
 run_with_local_sqlplus() {
