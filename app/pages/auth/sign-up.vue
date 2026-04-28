@@ -24,7 +24,6 @@ import {
   PopoverTrigger
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { useI18n } from 'vue-i18n';
 import * as z from 'zod';
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm } from 'vee-validate';
@@ -50,7 +49,8 @@ import {
 
 import { navigateTo } from '#app';
 
-const { t, locale } = useI18n();
+const { t, locale } = useAppLocale();
+const localePath = useLocalePath();
 
 const description = t('auth.signUp.description');
 useHead({
@@ -160,7 +160,7 @@ async function sendCaptcha(): Promise<void> {
     });
     verificationId.value = response.verificationId;
 
-    toast.success('the auth.signUp.captchaSent', {
+    toast.success(t('auth.signUp.captchaSent'), {
       description: t('auth.signUp.captchaSentDescription')
     });
 
@@ -261,7 +261,7 @@ async function onValidSubmit(
 
 // 创建日期格式化实例，这部分是正确的
 const df = new DateFormatter(
-  locale.value === 'cn' ? 'zh-CN' : 'en-US',
+  locale.value === 'zh' ? 'zh-CN' : 'en-US',
   {
     dateStyle: 'long'
   }
@@ -297,10 +297,10 @@ const handleCheckboxChange = (checked: boolean): void => {
       >
         <div class="grid gap-2 text-center">
           <h1 class="text-3xl font-semibold tracking-tight">
-            {{ $t('auth.signUp.signUpPrompt') }}
+            {{ t('auth.signUp.signUpPrompt') }}
           </h1>
           <p class="text-sm text-muted-foreground">
-            {{ $t('auth.signUp.signUpPromptDescription') }}
+            {{ t('auth.signUp.signUpPromptDescription') }}
           </p>
         </div>
 
@@ -312,14 +312,14 @@ const handleCheckboxChange = (checked: boolean): void => {
           >
             <FormItem>
               <FormLabel>{{
-                $t('auth.signUp.email')
+                t('auth.signUp.email')
               }}</FormLabel>
               <FormControl>
                 <Input
                   id="email"
                   type="email"
                   :disabled="isLoading"
-                  placeholder="m@example.com"
+                  :placeholder="t('auth.signUp.emailPlaceholder')"
                   v-bind="componentField"
                 />
               </FormControl>
@@ -336,7 +336,7 @@ const handleCheckboxChange = (checked: boolean): void => {
             >
               <FormItem>
                 <FormLabel>{{
-                  $t('auth.signUp.username')
+                  t('auth.signUp.username')
                 }}</FormLabel>
                 <FormControl>
                   <Input
@@ -344,7 +344,7 @@ const handleCheckboxChange = (checked: boolean): void => {
                     type="text"
                     :disabled="isLoading"
                     :placeholder="
-                      $t('auth.signUp.usernamePlaceholder')
+                      t('auth.signUp.usernamePlaceholder')
                     "
                     v-bind="componentField"
                   />
@@ -360,7 +360,7 @@ const handleCheckboxChange = (checked: boolean): void => {
             >
               <FormItem>
                 <FormLabel>{{
-                  $t('auth.signUp.displayName')
+                  t('auth.signUp.displayName')
                 }}</FormLabel>
                 <FormControl>
                   <Input
@@ -368,7 +368,7 @@ const handleCheckboxChange = (checked: boolean): void => {
                     type="text"
                     :disabled="isLoading"
                     :placeholder="
-                      $t(
+                      t(
                         'auth.signUp.displayNamePlaceholder'
                       )
                     "
@@ -386,7 +386,7 @@ const handleCheckboxChange = (checked: boolean): void => {
             >
               <FormItem>
                 <FormLabel>{{
-                  $t('auth.signUp.phone')
+                  t('auth.signUp.phone')
                 }}</FormLabel>
                 <FormControl>
                   <Input
@@ -394,7 +394,7 @@ const handleCheckboxChange = (checked: boolean): void => {
                     type="tel"
                     :disabled="isLoading"
                     :placeholder="
-                      $t('auth.signUp.phonePlaceholder')
+                      t('auth.signUp.phonePlaceholder')
                     "
                     v-bind="componentField"
                   />
@@ -410,7 +410,7 @@ const handleCheckboxChange = (checked: boolean): void => {
             >
               <FormItem>
                 <FormLabel>{{
-                  $t('auth.signUp.birthDate')
+                  t('auth.signUp.birthDate')
                 }}</FormLabel>
                 <Popover>
                   <PopoverTrigger as-child>
@@ -445,7 +445,7 @@ const handleCheckboxChange = (checked: boolean): void => {
                                   getLocalTimeZone()
                                 )
                               )
-                            : $t(
+                            : t(
                                 'auth.signUp.birthDatePlaceholder'
                               )
                         }}
@@ -476,7 +476,7 @@ const handleCheckboxChange = (checked: boolean): void => {
             >
               <FormItem>
                 <FormLabel>{{
-                  $t('auth.signUp.location')
+                  t('auth.signUp.location')
                 }}</FormLabel>
                 <FormControl>
                   <Input
@@ -484,7 +484,7 @@ const handleCheckboxChange = (checked: boolean): void => {
                     type="text"
                     :disabled="isLoading"
                     :placeholder="
-                      $t('auth.signUp.locationPlaceholder')
+                      t('auth.signUp.locationPlaceholder')
                     "
                     v-bind="componentField"
                   />
@@ -498,7 +498,7 @@ const handleCheckboxChange = (checked: boolean): void => {
           <FormField v-slot="{ componentField }" name="bio">
             <FormItem>
               <FormLabel>{{
-                $t('auth.signUp.bio')
+                t('auth.signUp.bio')
               }}</FormLabel>
               <FormControl>
                 <Input
@@ -506,7 +506,7 @@ const handleCheckboxChange = (checked: boolean): void => {
                   type="text"
                   :disabled="isLoading"
                   :placeholder="
-                    $t('auth.signUp.bioPlaceholder')
+                    t('auth.signUp.bioPlaceholder')
                   "
                   v-bind="componentField"
                 />
@@ -524,7 +524,7 @@ const handleCheckboxChange = (checked: boolean): void => {
             >
               <FormItem>
                 <FormLabel>{{
-                  $t('auth.signUp.password')
+                  t('auth.signUp.password')
                 }}</FormLabel>
                 <FormControl>
                   <Input
@@ -532,7 +532,7 @@ const handleCheckboxChange = (checked: boolean): void => {
                     type="password"
                     :disabled="isLoading"
                     :placeholder="
-                      $t('auth.signUp.passwordPlaceholder')
+                      t('auth.signUp.passwordPlaceholder')
                     "
                     v-bind="componentField"
                   />
@@ -548,7 +548,7 @@ const handleCheckboxChange = (checked: boolean): void => {
             >
               <FormItem>
                 <FormLabel>{{
-                  $t('auth.signUp.confirmPassword')
+                  t('auth.signUp.confirmPassword')
                 }}</FormLabel>
                 <FormControl>
                   <Input
@@ -556,7 +556,7 @@ const handleCheckboxChange = (checked: boolean): void => {
                     type="password"
                     :disabled="isLoading"
                     :placeholder="
-                      $t(
+                      t(
                         'auth.signUp.confirmPasswordPlaceholder'
                       )
                     "
@@ -575,7 +575,7 @@ const handleCheckboxChange = (checked: boolean): void => {
           >
             <FormItem>
               <FormLabel>{{
-                $t('auth.signUp.captcha')
+                t('auth.signUp.captcha')
               }}</FormLabel>
               <!-- 
       使用一个 div 作为 Flexbox 容器，
@@ -616,10 +616,14 @@ const handleCheckboxChange = (checked: boolean): void => {
     使用 v-if 和 v-else 来根据 isCaptchaSending 的状态显示不同的文本
   -->
                   <span v-if="isCaptchaSending">
-                    {{ countdown }} 秒后重试
+                    {{
+                      t('auth.signUp.captchaSecondsLeft', {
+                        count: countdown
+                      })
+                    }}
                   </span>
                   <span v-else>
-                    {{ $t('auth.signUp.sendCaptcha') }}
+                    {{ t('auth.signUp.sendCaptcha') }}
                   </span>
                 </AppButton>
               </div>
@@ -641,12 +645,12 @@ const handleCheckboxChange = (checked: boolean): void => {
                   <FormLabel
                     class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
-                    {{ $t('auth.signUp.agreeToTerms') }}
+                    {{ t('auth.signUp.agreeToTerms') }}
                     <NuxtLink
-                      :to="$localePath('/auth/terms')"
+                      :to="localePath('/auth/terms')"
                       class="underline text-blue-600"
                     >
-                      {{ $t('auth.signUp.termsLink') }}
+                      {{ t('auth.signUp.termsLink') }}
                     </NuxtLink>
                   </FormLabel>
                 </div>
@@ -659,19 +663,19 @@ const handleCheckboxChange = (checked: boolean): void => {
             type="submit"
             class="w-full mt-2"
             :loading="isLoading"
-            :loading-label="$t('auth.signUp.signUpButton')"
+            :loading-label="t('auth.signUp.signUpButton')"
           >
-            {{ $t('auth.signUp.signUpButton') }}
+            {{ t('auth.signUp.signUpButton') }}
           </AppButton>
         </div>
 
         <div class="mt-4 text-center text-sm">
-          {{ $t('auth.signUp.haveAccount') }}<br />
+          {{ t('auth.signUp.haveAccount') }}<br />
           <NuxtLink
-            :to="$localePath('/auth/login')"
+            :to="localePath('/auth/login')"
             class="underline"
           >
-            {{ $t('auth.signUp.loginPrompt') }}
+            {{ t('auth.signUp.loginPrompt') }}
           </NuxtLink>
         </div>
       </form>
@@ -680,7 +684,7 @@ const handleCheckboxChange = (checked: boolean): void => {
     <div class="hidden bg-muted lg:block">
       <img
         src="/placeholder.svg"
-        alt="Image"
+        :alt="t('auth.signUp.coverImageAlt')"
         width="1920"
         height="1080"
         class="h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"

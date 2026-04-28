@@ -11,6 +11,8 @@ import CommentCard from './CommentCard.vue';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 
+const { t } = useAppLocale();
+
 const props = defineProps({
   // Service 层输出的扁平评论 VM 列表
   comments: {
@@ -84,7 +86,12 @@ async function handleLikeComment({
   action: 'likeComment' | 'unlikeComment';
 }) {
   toast.success(
-    `评论 ${commentId} 已成功 ${action === 'likeComment' ? '点赞' : '取消点赞'}`
+    t(
+      action === 'likeComment'
+        ? 'comment.feedback.liked'
+        : 'comment.feedback.unliked',
+      { id: Number(commentId) }
+    )
   );
   emit('like-comment', commentId, action);
 }
@@ -98,10 +105,10 @@ async function handleSubmitReply({
 }) {
   isSubmitting.value = true;
   try {
-    toast.success('回复已成功发布！');
+    toast.success(t('comment.feedback.replySubmitted'));
     emit('submit-reply', parentCommentId, content);
   } catch (err) {
-    toast.error('回复评论失败。');
+    toast.error(t('comment.feedback.replyFailed'));
   } finally {
     isSubmitting.value = false;
   }
@@ -112,14 +119,20 @@ async function handleSubmitTweetReply() {
 
   isSubmitting.value = true;
   try {
-    toast.success('评论已成功发布！');
+    toast.success(t('comment.feedback.submitted'));
     emit('send-reply', newCommentContent.value);
     newCommentContent.value = ''; // 清空输入框
   } catch (err) {
-    toast.error('回复评论失败。');
+    toast.error(t('comment.feedback.replyFailed'));
   } finally {
     isSubmitting.value = false;
   }
+}
+
+function handleCommentInputBlur() {
+  globalThis.setTimeout(() => {
+    isCommentInputFocused.value = false;
+  }, 200);
 }
 </script>
 
@@ -130,12 +143,12 @@ async function handleSubmitTweetReply() {
       <h2
         class="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent"
       >
-        评论区
+        {{ t('comment.title') }}
       </h2>
       <span
         class="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full"
       >
-        {{ comments.length }} 条评论
+        {{ t('comment.count', { count: comments.length }) }}
       </span>
     </div>
 
@@ -150,15 +163,10 @@ async function handleSubmitTweetReply() {
     >
       <Textarea
         v-model="newCommentContent"
-        placeholder="写下你的评论..."
+        :placeholder="t('comment.placeholder')"
         class="mb-2 border-none focus-visible:ring-0 resize-none min-h-[80px] text-base bg-transparent"
         @focus="isCommentInputFocused = true"
-        @blur="
-          setTimeout(
-            () => (isCommentInputFocused = false),
-            200
-          )
-        "
+        @blur="handleCommentInputBlur"
       />
       <Transition
         enter-active-class="transition-all duration-300 ease-out"
@@ -173,7 +181,12 @@ async function handleSubmitTweetReply() {
           class="flex justify-between items-center mt-3"
         >
           <span class="text-xs text-muted-foreground ml-2">
-            {{ newCommentContent.length }} / 500 字符
+            {{
+              t('comment.characterCount', {
+                count: newCommentContent.length,
+                max: 500
+              })
+            }}
           </span>
           <Button
             @click="handleSubmitTweetReply"
@@ -183,7 +196,11 @@ async function handleSubmitTweetReply() {
             class="shadow-md hover:shadow-lg transition-all duration-200"
             size="sm"
           >
-            {{ isSubmitting ? '发布中...' : '发布评论' }}
+            {{
+              isSubmitting
+                ? t('comment.submitting')
+                : t('comment.submit')
+            }}
           </Button>
         </div>
       </Transition>
@@ -209,10 +226,10 @@ async function handleSubmitTweetReply() {
         />
       </div>
       <p class="text-lg font-medium text-foreground mb-2">
-        暂无评论
+        {{ t('comment.emptyTitle') }}
       </p>
       <p class="text-sm text-muted-foreground">
-        快来抢占第一个沙发吧！
+        {{ t('comment.emptyDescription') }}
       </p>
     </div>
   </div>

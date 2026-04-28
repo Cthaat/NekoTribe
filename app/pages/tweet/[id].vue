@@ -27,6 +27,7 @@ import { usePreferenceStore } from '~/stores/user';
 const route = useRoute();
 const localePath = useLocalePath();
 const preferenceStore = usePreferenceStore();
+const { t } = useAppLocale();
 
 const tweet = ref<PostVM | null>(null);
 const comments = ref<CommentVM[]>([]);
@@ -46,7 +47,9 @@ async function loadTweet() {
     tweet.value = await v2GetPost(Number(route.params.id));
   } catch (error) {
     tweetError.value =
-      error instanceof Error ? error.message : '加载推文失败';
+      error instanceof Error
+        ? error.message
+        : t('post.feed.loadFailed');
   } finally {
     tweetPending.value = false;
   }
@@ -67,7 +70,9 @@ async function loadComments() {
     comments.value = result.items;
   } catch (error) {
     commentError.value =
-      error instanceof Error ? error.message : '加载评论失败';
+      error instanceof Error
+        ? error.message
+        : t('comment.feedback.loadFailed');
   } finally {
     commentPending.value = false;
   }
@@ -78,15 +83,15 @@ await Promise.all([loadTweet(), loadComments()]);
 async function handleDeleteTweet(tweetId: number) {
   try {
     await v2DeletePost(tweetId);
-    toast.success('推文已成功删除。');
+    toast.success(t('post.feedback.deleted'));
     const rootPath = localePath(
       `/tweet/home/${preferenceStore.preferences.user.id}`
     );
     await navigateTo(rootPath);
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : '未知错误';
-    toast.error('删除推文失败，请稍后再试。', {
+      error instanceof Error ? error.message : t('common.unknownError');
+    toast.error(t('post.feedback.deleteFailed'), {
       description: message
     });
   }
@@ -113,11 +118,13 @@ async function handleSubmitRetweet({
       content,
       visibility: 'public'
     });
-    toast.success('转发成功！');
+    toast.success(t('post.feedback.retweeted'));
     await loadTweet();
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : '转发失败';
+      error instanceof Error
+        ? error.message
+        : t('post.feedback.retweetFailed');
     toast.error(message);
   } finally {
     isSubmittingRetweet.value = false;
@@ -207,7 +214,7 @@ async function handleLikeTweetComment(
     }
   } catch (error) {
     console.error('Failed to like comment:', error);
-    toast.error('点赞评论失败，请稍后重试。');
+    toast.error(t('comment.feedback.likeFailed'));
   }
 }
 
@@ -221,7 +228,7 @@ async function handleTweetComment(content: string) {
     await loadComments();
   } catch (error) {
     console.error('Failed to send tweet comment:', error);
-    toast.error('发送评论失败，请稍后重试。');
+    toast.error(t('comment.feedback.sendFailed'));
   }
 }
 
@@ -238,7 +245,7 @@ async function handleReplyTweetComment(
     await loadComments();
   } catch (error) {
     console.error('Failed to send tweet comment:', error);
-    toast.error('发送评论失败，请稍后重试。');
+    toast.error(t('comment.feedback.sendFailed'));
   }
 }
 
@@ -257,7 +264,7 @@ const pending = computed(
       v-else-if="tweetError || commentError"
       class="p-8 text-center text-destructive"
     >
-      <p>加载推文失败。</p>
+      <p>{{ t('post.feed.loadFailed') }}</p>
       <p class="text-sm mt-2">
         {{ tweetError || commentError || '' }}
       </p>
@@ -292,7 +299,7 @@ const pending = computed(
       v-else
       class="p-8 text-center text-muted-foreground"
     >
-      <p>此推文不存在或已被删除。</p>
+      <p>{{ t('post.feed.unavailable') }}</p>
     </div>
   </div>
 </template>

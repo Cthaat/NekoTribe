@@ -29,6 +29,7 @@ import { toast } from 'vue-sonner';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
 
 const preferenceStore = usePreferenceStore();
+const { t } = useAppLocale();
 
 // 2. 为 props 定义清晰的 TypeScript 类型
 interface UserData {
@@ -112,12 +113,12 @@ const normalizedScore = computed(() => {
 
 const tabValue = defineModel<string>();
 
-const isFollowing = ref(props.user.follow === 'Follow');
+const isFollowing = ref(props.user.follow === 'follow');
 
 watch(
   () => props.user.follow,
   newValue => {
-    isFollowing.value = newValue === 'Follow';
+    isFollowing.value = newValue === 'follow';
   }
 );
 
@@ -126,7 +127,7 @@ function followUser() {
     props.user.id ===
     preferenceStore.preferences.user.id
   ) {
-    toast.error('你不能关注自己。');
+    toast.error(t('account.header.selfFollowError'));
     return;
   }
   if (isFollowing.value) {
@@ -191,18 +192,21 @@ function followUser() {
                 variant="outline"
                 @click="followUser"
               >
-                关注
+                {{ t('account.header.follow') }}
               </Button>
               <Button
                 v-else
                 variant="destructive"
                 @click="followUser"
               >
-                取消关注
+                {{ t('account.header.unfollow') }}
               </Button>
-              <Button variant="ghost" size="icon"
-                ><MoreHorizontal class="w-4 h-4"
-              /></Button>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal class="w-4 h-4" />
+                <span class="sr-only">{{
+                  t('account.header.moreActions')
+                }}</span>
+              </Button>
             </div>
           </div>
 
@@ -223,7 +227,7 @@ function followUser() {
                   }}
                 </p>
                 <p class="text-xs text-muted-foreground">
-                  Followers
+                  {{ t('account.header.followers') }}
                 </p>
               </div>
               <div class="text-center">
@@ -233,7 +237,7 @@ function followUser() {
                   {{ user.stats.followingCount }}
                 </p>
                 <p class="text-xs text-muted-foreground">
-                  followingCount
+                  {{ t('account.header.following') }}
                 </p>
               </div>
               <div class="text-center">
@@ -243,7 +247,7 @@ function followUser() {
                   {{ user.stats.likesCount }}
                 </p>
                 <p class="text-xs text-muted-foreground">
-                  likesCount
+                  {{ t('account.header.likes') }}
                 </p>
               </div>
             </div>
@@ -251,7 +255,7 @@ function followUser() {
               <label
                 for="completion"
                 class="text-sm font-medium"
-                >Active Score</label
+                >{{ t('account.header.activeScore') }}</label
               >
               <div class="flex items-center gap-2">
                 <Progress

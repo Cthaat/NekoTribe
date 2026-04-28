@@ -41,7 +41,7 @@ definePageMeta({
 
 const preferenceStore = usePreferenceStore();
 
-const { t } = useI18n();
+const { t } = useAppLocale();
 
 const localePath = useLocalePath();
 
@@ -71,7 +71,7 @@ async function sendCaptcha(): Promise<void> {
     });
     verificationId.value = response.verificationId;
 
-    toast.success('the auth.forgotPassword.captchaSent', {
+    toast.success(t('auth.forgotPassword.captchaSent'), {
       description: t(
         'auth.forgotPassword.captchaSentDescription'
       )
@@ -169,7 +169,7 @@ const onSubmit = handleSubmit(
       newPassword: values.newPassword
     });
     toast.success(
-      'the auth.forgotPassword.resetPasswordSuccess',
+      t('auth.forgotPassword.resetPasswordSuccess'),
       {
         description: t(
           'auth.forgotPassword.resetPasswordSuccessDescription'
@@ -200,7 +200,7 @@ const onSubmit = handleSubmit(
         navigateTo(localePath('auth-login'));
       }, 2000);
     } catch (error) {
-      toast.error('退出登录失败，请重试。');
+      toast.error(t('account.security.securityPage.password.logoutError'));
     } finally {
       isLoading.value = false;
     }
@@ -218,11 +218,11 @@ const onSubmit = handleSubmit(
         <template #header>
           <div class="grid gap-2 text-center">
             <h1 class="text-3xl font-semibold tracking-tight">
-              {{ $t('auth.forgotPassword.title') }}
+              {{ t('auth.forgotPassword.title') }}
             </h1>
             <p class="text-sm text-muted-foreground">
               {{
-                $t('auth.forgotPassword.forgotPasswordPrompt')
+                t('auth.forgotPassword.forgotPasswordPrompt')
               }}
             </p>
           </div>
@@ -235,13 +235,13 @@ const onSubmit = handleSubmit(
           >
             <FormItem>
               <FormLabel>{{
-                $t('auth.forgotPassword.email')
+                t('auth.forgotPassword.email')
               }}</FormLabel>
               <FormControl>
                 <Input
                   type="text"
                   :placeholder="
-                    $t(
+                    t(
                       'auth.forgotPassword.emailPlaceholder'
                     )
                   "
@@ -253,7 +253,7 @@ const onSubmit = handleSubmit(
               </FormControl>
               <FormDescription>
                 {{
-                  $t('auth.forgotPassword.emailDescription')
+                  t('auth.forgotPassword.emailDescription')
                 }}
               </FormDescription>
               <FormMessage />
@@ -266,7 +266,7 @@ const onSubmit = handleSubmit(
           >
             <FormItem>
               <FormLabel>{{
-                $t('auth.forgotPassword.newPassword')
+                t('auth.forgotPassword.newPassword')
               }}</FormLabel>
               <div class="relative">
                 <FormControl>
@@ -277,7 +277,7 @@ const onSubmit = handleSubmit(
                         : 'password'
                     "
                     :placeholder="
-                      $t(
+                      t(
                         'auth.forgotPassword.newPasswordPlaceholder'
                       )
                     "
@@ -301,13 +301,13 @@ const onSubmit = handleSubmit(
                   />
                   <EyeOff v-else class="size-4" />
                   <span class="sr-only"
-                    >Toggle password visibility</span
+                    >{{ t('common.togglePasswordVisibility') }}</span
                   >
                 </AppButton>
               </div>
               <FormDescription>
                 {{
-                  $t(
+                  t(
                     'auth.forgotPassword.newPasswordDescription'
                   )
                 }}
@@ -322,7 +322,7 @@ const onSubmit = handleSubmit(
           >
             <FormItem>
               <FormLabel>{{
-                $t('auth.forgotPassword.confirmPassword')
+                t('auth.forgotPassword.confirmPassword')
               }}</FormLabel>
               <div class="relative">
                 <FormControl>
@@ -333,7 +333,7 @@ const onSubmit = handleSubmit(
                         : 'password'
                     "
                     :placeholder="
-                      $t(
+                      t(
                         'auth.forgotPassword.confirmPasswordPlaceholder'
                       )
                     "
@@ -358,13 +358,13 @@ const onSubmit = handleSubmit(
                   />
                   <EyeOff v-else class="size-4" />
                   <span class="sr-only"
-                    >Toggle password visibility</span
+                    >{{ t('common.togglePasswordVisibility') }}</span
                   >
                 </AppButton>
               </div>
               <FormDescription>
                 {{
-                  $t(
+                  t(
                     'auth.forgotPassword.confirmPasswordDescription'
                   )
                 }}
@@ -380,7 +380,7 @@ const onSubmit = handleSubmit(
           >
             <FormItem>
               <FormLabel>{{
-                $t('auth.forgotPassword.captcha')
+                t('auth.forgotPassword.captcha')
               }}</FormLabel>
               <!-- 
       使用一个 div 作为 Flexbox 容器，
@@ -424,14 +424,14 @@ const onSubmit = handleSubmit(
                   <span v-if="isCaptchaSending">
                     {{ countdown }}
                     {{
-                      $t(
+                      t(
                         'auth.forgotPassword.captchaSentSecondDescription'
                       )
                     }}
                   </span>
                   <span v-else>
                     {{
-                      $t('auth.forgotPassword.sendCaptcha')
+                      t('auth.forgotPassword.sendCaptcha')
                     }}
                   </span>
                 </AppButton>
@@ -446,20 +446,20 @@ const onSubmit = handleSubmit(
               class="w-full"
               :loading="isLoading"
               :loading-label="
-                $t('auth.forgotPassword.resetPassword')
+                t('auth.forgotPassword.resetPassword')
               "
             >
-              {{ $t('auth.forgotPassword.resetPassword') }}
+              {{ t('auth.forgotPassword.resetPassword') }}
             </AppButton>
           </div>
         </form>
         <div class="mt-4 text-center text-sm">
-          已拥有账户？
+          {{ t('auth.forgotPassword.haveAccount') }}
           <NuxtLink
-            :to="$localePath('auth-login')"
+            :to="localePath('auth-login')"
             class="underline"
           >
-            登录
+            {{ t('auth.forgotPassword.loginPrompt') }}
           </NuxtLink>
         </div>
       </AppCard>
@@ -467,7 +467,7 @@ const onSubmit = handleSubmit(
     <div class="hidden bg-muted lg:block">
       <img
         src="/placeholder.svg"
-        alt="Image"
+        :alt="t('auth.forgotPassword.coverImageAlt')"
         width="1920"
         height="1080"
         class="h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"

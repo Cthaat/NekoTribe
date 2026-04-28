@@ -9,6 +9,7 @@ import AutoFormLabel from './AutoFormLabel.vue'
 import { beautifyObjectName } from './utils'
 
 defineProps<FieldProps>()
+const { t } = useAppLocale()
 
 const inputFile = ref<File>()
 async function parseFileAsString(file: File | undefined): Promise<string> {
@@ -53,7 +54,7 @@ async function parseFileAsString(file: File | undefined): Promise<string> {
               :size="'icon'"
               :variant="'ghost'"
               class="h-[26px] w-[26px]"
-              aria-label="Remove file"
+              :aria-label="t('common.removeFile')"
               type="button"
               @click="() => {
                 inputFile = undefined

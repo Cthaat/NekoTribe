@@ -47,6 +47,7 @@ import type {
   GroupMember,
   GroupPost
 } from '@/types/groups';
+const { t, locale } = useAppLocale();
 
 const props = defineProps<{
   open: boolean;
@@ -97,20 +98,20 @@ const getPrivacyIcon = (privacy: string) => {
 const getPrivacyText = (privacy: string) => {
   switch (privacy) {
     case 'public':
-      return '公开群组';
+      return t('groups.filters.privacy.public');
     case 'private':
-      return '私密群组';
+      return t('groups.filters.privacy.private');
     case 'secret':
-      return '隐秘群组';
+      return t('groups.filters.privacy.secret');
     default:
-      return '公开群组';
+      return t('groups.filters.privacy.public');
   }
 };
 
 // 格式化日期
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);
-  return date.toLocaleDateString('zh-CN', {
+  return date.toLocaleDateString(locale.value === 'zh' ? 'zh-CN' : 'en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
@@ -131,7 +132,9 @@ const handleJoinLeave = () => {
 const toggleNotifications = () => {
   notificationsEnabled.value = !notificationsEnabled.value;
   toast.success(
-    notificationsEnabled.value ? '已开启通知' : '已关闭通知'
+    notificationsEnabled.value
+      ? t('groups.notifications.enabled')
+      : t('groups.notifications.disabled')
   );
 };
 
@@ -182,7 +185,7 @@ const handleTabChange = (value: string | number) => {
             class="absolute top-2 right-2 rounded-full"
             @click="closeDialog"
           >
-            <span class="sr-only">关闭</span>
+            <span class="sr-only">{{ t('common.close') }}</span>
             ×
           </Button>
         </div>
@@ -216,7 +219,7 @@ const handleTabChange = (value: string | number) => {
                   getPrivacyText(group.privacy)
                 }}</span>
                 <span>·</span>
-                <span>{{ group.memberCount }} 成员</span>
+                <span>{{ t('groups.stats.membersCount', { count: group.memberCount }) }}</span>
               </div>
             </div>
           </div>
@@ -232,10 +235,10 @@ const handleTabChange = (value: string | number) => {
             >
               {{
                 group.isMember
-                  ? '离开群组'
+                  ? t('groups.actions.leave')
                   : group.privacy === 'public'
-                    ? '加入群组'
-                    : '申请加入'
+                    ? t('groups.actions.join')
+                    : t('groups.actions.requestJoin')
               }}
             </Button>
             <Button
@@ -244,7 +247,7 @@ const handleTabChange = (value: string | number) => {
               @click="handleInvite"
             >
               <UserPlus class="h-4 w-4 mr-2" />
-              邀请
+              {{ t('groups.actions.invite') }}
             </Button>
             <Button
               v-if="group.isMember"
@@ -277,12 +280,12 @@ const handleTabChange = (value: string | number) => {
           @update:model-value="handleTabChange"
         >
           <TabsList class="mx-6 mt-2">
-            <TabsTrigger value="about">关于</TabsTrigger>
+            <TabsTrigger value="about">{{ t('groups.detail.tabs.about') }}</TabsTrigger>
             <TabsTrigger value="posts">
-              帖子 ({{ posts?.length || 0 }})
+              {{ t('groups.detail.tabs.posts', { count: posts?.length || 0 }) }}
             </TabsTrigger>
             <TabsTrigger value="members">
-              成员 ({{ members?.length || 0 }})
+              {{ t('groups.detail.tabs.members', { count: members?.length || 0 }) }}
             </TabsTrigger>
           </TabsList>
 
@@ -293,7 +296,7 @@ const handleTabChange = (value: string | number) => {
               class="mt-0 space-y-4"
             >
               <div>
-                <h3 class="font-medium mb-2">群组介绍</h3>
+                <h3 class="font-medium mb-2">{{ t('groups.detail.aboutTitle') }}</h3>
                 <p class="text-sm text-muted-foreground">
                   {{ group.description }}
                 </p>
@@ -309,8 +312,7 @@ const handleTabChange = (value: string | number) => {
                     class="h-4 w-4 text-muted-foreground"
                   />
                   <span
-                    >创建于
-                    {{ formatDate(group.createdAt) }}</span
+                    >{{ t('groups.detail.createdAt', { date: formatDate(group.createdAt) }) }}</span
                   >
                 </div>
                 <div
@@ -320,7 +322,7 @@ const handleTabChange = (value: string | number) => {
                     class="h-4 w-4 text-muted-foreground"
                   />
                   <span
-                    >{{ group.memberCount }} 位成员</span
+                    >{{ t('groups.stats.membersCount', { count: group.memberCount }) }}</span
                   >
                 </div>
                 <div
@@ -329,7 +331,7 @@ const handleTabChange = (value: string | number) => {
                   <MessageSquare
                     class="h-4 w-4 text-muted-foreground"
                   />
-                  <span>{{ group.postCount }} 篇帖子</span>
+                  <span>{{ t('groups.stats.posts', { count: group.postCount }) }}</span>
                 </div>
               </div>
 
@@ -337,7 +339,7 @@ const handleTabChange = (value: string | number) => {
 
               <!-- 群主信息 -->
               <div>
-                <h3 class="font-medium mb-3">群主</h3>
+                <h3 class="font-medium mb-3">{{ t('groups.detail.owner') }}</h3>
                 <div class="flex items-center gap-3">
                   <Avatar class="h-10 w-10">
                     <AvatarImage
@@ -357,7 +359,7 @@ const handleTabChange = (value: string | number) => {
                         class="gap-1 text-xs"
                       >
                         <Crown class="h-3 w-3" />
-                        群主
+                        {{ t('groups.detail.owner') }}
                       </Badge>
                     </div>
                     <span
@@ -376,7 +378,7 @@ const handleTabChange = (value: string | number) => {
                 "
               >
                 <Separator class="mb-4" />
-                <h3 class="font-medium mb-3">分类和标签</h3>
+                <h3 class="font-medium mb-3">{{ t('groups.detail.categoryAndTags') }}</h3>
                 <div class="flex flex-wrap gap-2">
                   <Badge
                     v-if="group.category"
@@ -404,7 +406,7 @@ const handleTabChange = (value: string | number) => {
                 v-if="!posts || posts.length === 0"
                 class="text-center py-8 text-muted-foreground"
               >
-                暂无帖子
+                {{ t('groups.detail.emptyPosts') }}
               </div>
               <GroupPostCard
                 v-for="post in posts"
@@ -420,7 +422,7 @@ const handleTabChange = (value: string | number) => {
                 v-if="!members || members.length === 0"
                 class="text-center py-8 text-muted-foreground"
               >
-                暂无成员
+                {{ t('groups.detail.emptyMembers') }}
               </div>
               <div v-else class="space-y-1">
                 <GroupMemberCard

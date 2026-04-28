@@ -38,6 +38,8 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip';
 
+const { t } = useAppLocale();
+
 // 成员类型定义
 export interface ChatMember {
   id: number;
@@ -118,15 +120,15 @@ const getStatusColor = (status: ChatMember['status']) => {
 const getStatusText = (status: ChatMember['status']) => {
   switch (status) {
     case 'online':
-      return '在线';
+      return t('chat.status.online');
     case 'idle':
-      return '离开';
+      return t('chat.status.idle');
     case 'dnd':
-      return '请勿打扰';
+      return t('chat.status.dnd');
     case 'offline':
-      return '离线';
+      return t('chat.status.offline');
     default:
-      return '离线';
+      return t('chat.status.offline');
   }
 };
 
@@ -167,7 +169,7 @@ const getRoleColor = (role: ChatMember['role']) => {
         />
         <Input
           v-model="searchQuery"
-          placeholder="搜索成员"
+          :placeholder="t('chat.members.searchPlaceholder')"
           class="pl-8 h-8 text-sm"
         />
       </div>
@@ -183,7 +185,7 @@ const getRoleColor = (role: ChatMember['role']) => {
         <CollapsibleTrigger
           class="flex items-center justify-between w-full px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
         >
-          <span>在线 — {{ onlineMembers.length }}</span>
+          <span>{{ t('chat.members.onlineCount', { count: onlineMembers.length }) }}</span>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div class="px-2 space-y-0.5">
@@ -266,7 +268,7 @@ const getRoleColor = (role: ChatMember['role']) => {
                       @click.stop="emit('message', member)"
                     >
                       <MessageSquare class="mr-2 h-4 w-4" />
-                      发送消息
+                      {{ t('chat.actions.sendMessage') }}
                     </DropdownMenuItem>
                     <template
                       v-if="
@@ -281,14 +283,14 @@ const getRoleColor = (role: ChatMember['role']) => {
                         "
                       >
                         <UserMinus class="mr-2 h-4 w-4" />
-                        踢出群组
+                        {{ t('chat.actions.kick') }}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         class="text-destructive focus:text-destructive"
                         @click.stop="emit('ban', member.id)"
                       >
                         <Ban class="mr-2 h-4 w-4" />
-                        封禁用户
+                        {{ t('chat.actions.ban') }}
                       </DropdownMenuItem>
                     </template>
                   </DropdownMenuContent>
@@ -300,7 +302,7 @@ const getRoleColor = (role: ChatMember['role']) => {
               v-if="onlineMembers.length === 0"
               class="text-xs text-muted-foreground text-center py-4"
             >
-              暂无在线成员
+              {{ t('chat.members.noOnline') }}
             </div>
           </div>
         </CollapsibleContent>
@@ -311,7 +313,7 @@ const getRoleColor = (role: ChatMember['role']) => {
         <CollapsibleTrigger
           class="flex items-center justify-between w-full px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
         >
-          <span>离线 — {{ offlineMembers.length }}</span>
+          <span>{{ t('chat.members.offlineCount', { count: offlineMembers.length }) }}</span>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div class="px-2 space-y-0.5">
@@ -374,7 +376,7 @@ const getRoleColor = (role: ChatMember['role']) => {
                       @click.stop="emit('message', member)"
                     >
                       <MessageSquare class="mr-2 h-4 w-4" />
-                      发送消息
+                      {{ t('chat.actions.sendMessage') }}
                     </DropdownMenuItem>
                     <template
                       v-if="
@@ -389,14 +391,14 @@ const getRoleColor = (role: ChatMember['role']) => {
                         "
                       >
                         <UserMinus class="mr-2 h-4 w-4" />
-                        踢出群组
+                        {{ t('chat.actions.kick') }}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         class="text-destructive focus:text-destructive"
                         @click.stop="emit('ban', member.id)"
                       >
                         <Ban class="mr-2 h-4 w-4" />
-                        封禁用户
+                        {{ t('chat.actions.ban') }}
                       </DropdownMenuItem>
                     </template>
                   </DropdownMenuContent>
@@ -408,7 +410,7 @@ const getRoleColor = (role: ChatMember['role']) => {
               v-if="offlineMembers.length === 0"
               class="text-xs text-muted-foreground text-center py-4"
             >
-              暂无离线成员
+              {{ t('chat.members.noOffline') }}
             </div>
           </div>
         </CollapsibleContent>

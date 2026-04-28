@@ -10,6 +10,7 @@ import {
 } from '@/services/notifications';
 import { useNotificationMailbox } from '@/composables/useNotificationMailbox';
 
+const { t } = useAppLocale();
 const route = useRoute();
 const type = ref<string>(
   (route.query.type as string) || 'all'
@@ -60,7 +61,7 @@ async function handleReadMail(mailId: string) {
       read: true
     });
   } catch (error) {
-    console.error('标记邮件为已读失败:', error);
+    console.error(t('notifications.mail.readFailed'), error);
   }
 }
 
@@ -72,10 +73,10 @@ async function handleDeleteMail(mailId: string) {
       mailbox.notifications.value.filter(
         item => item.id !== notificationId
       );
-    toast.success('邮件已移至垃圾桶');
+    toast.success(t('notifications.mail.deleteSuccess'));
   } catch (error) {
-    console.error('移至垃圾桶失败:', error);
-    toast.error('移至垃圾桶失败');
+    console.error(t('notifications.mail.deleteFailed'), error);
+    toast.error(t('notifications.mail.deleteFailed'));
   }
 }
 
@@ -87,10 +88,10 @@ async function handleRestoreMail(mailId: string) {
       mailbox.notifications.value.filter(
         item => item.id !== notificationId
       );
-    toast.success('邮件已恢复');
+    toast.success(t('notifications.mail.restoreSuccess'));
   } catch (error) {
-    console.error('恢复邮件失败:', error);
-    toast.error('恢复邮件失败');
+    console.error(t('notifications.mail.restoreFailed'), error);
+    toast.error(t('notifications.mail.restoreFailed'));
   }
 }
 
@@ -101,14 +102,20 @@ const mails = computed(() =>
     name:
       notification.actor?.name ||
       notification.actor?.username ||
-      'System',
-    email: notification.actor?.username || 'system',
+      t('notifications.mail.systemName'),
+    email:
+      notification.actor?.username ||
+      t('notifications.mail.systemEmail'),
     subject: notification.title || notification.type,
     text: notification.message,
     date: notification.createdAt,
     read: notification.read,
     labels: [notification.type]
   }))
+);
+
+const hasNoNotifications = computed(
+  () => mailbox.notifications.value.length === 0
 );
 </script>
 
@@ -126,7 +133,7 @@ const mails = computed(() =>
     />
 
     <div
-      v-if="mailbox.error && mailbox.notifications.length === 0"
+      v-if="mailbox.error && hasNoNotifications"
       class="px-6 py-4 text-sm text-destructive"
     >
       {{ mailbox.error }}

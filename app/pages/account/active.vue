@@ -21,6 +21,8 @@ import { Badge } from '@/components/ui/badge';
 // 导入通知/吐司组件
 import { toast } from 'vue-sonner';
 
+const { t } = useAppLocale();
+
 // 加载状态，避免重复操作与控制按钮禁用态
 const loading = ref(false);
 // 会话列表数据
@@ -37,7 +39,7 @@ async function load() {
     sessions.value = result.items;
   } catch (e) {
     // 失败提示
-    toast.error('Failed to load sessions');
+    toast.error(t('account.active.feedback.loadFailed'));
   } finally {
     // 结束加载状态
     loading.value = false;
@@ -48,11 +50,11 @@ async function load() {
 async function revoke(id: string) {
   try {
     await v2RevokeSession(id);
-    toast.success('Session revoked');
+    toast.success(t('account.active.feedback.revoked'));
     await load();
   } catch (e) {
     // 失败提示
-    toast.error('Operation failed');
+    toast.error(t('account.active.feedback.operationFailed'));
   }
 }
 
@@ -60,11 +62,11 @@ async function revoke(id: string) {
 async function revokeOthers() {
   try {
     await v2RevokeOtherSessions();
-    toast.success('Other sessions revoked');
+    toast.success(t('account.active.feedback.othersRevoked'));
     await load();
   } catch (e) {
     // 失败提示
-    toast.error('Operation failed');
+    toast.error(t('account.active.feedback.operationFailed'));
   }
 }
 
@@ -84,12 +86,12 @@ onMounted(load);
           <!-- 页面主标题：活跃会话 -->
           <h2 class="text-2xl font-bold tracking-tight">
             <!-- 国际化文案：标题 -->
-            {{ $t('account.active.title') }}
+            {{ t('account.active.title') }}
           </h2>
           <!-- 页面副标题/描述 -->
           <p class="text-muted-foreground">
             <!-- 国际化文案：描述 -->
-            {{ $t('account.active.description') }}
+            {{ t('account.active.description') }}
           </p>
         </div>
         <!-- 分隔线，用于分组 -->
@@ -100,7 +102,7 @@ onMounted(load);
           <!-- 左侧说明文字 -->
           <div class="text-sm text-muted-foreground">
             <!-- 国际化：同描述 -->
-            {{ $t('account.active.description') }}
+            {{ t('account.active.description') }}
           </div>
           <!-- 右侧按钮组 -->
           <div class="flex items-center gap-2">
@@ -109,7 +111,7 @@ onMounted(load);
               variant="outline"
               :disabled="loading"
               @click="load()"
-              >{{ $t('common.refresh') }}</Button
+              >{{ t('common.refresh') }}</Button
             >
             <!-- 注销其它设备按钮：删除除当前设备外的所有会话 -->
             <Button
@@ -117,7 +119,7 @@ onMounted(load);
               :disabled="loading || !sessions.length"
               @click="revokeOthers()"
               >{{
-                $t('account.active.revokeOthers')
+                t('account.active.revokeOthers')
               }}</Button
             >
           </div>
@@ -148,8 +150,8 @@ onMounted(load);
                     <!-- 根据是否为当前设备显示不同文案 -->
                     {{
                       s.current
-                        ? $t('account.active.thisDevice')
-                        : $t('account.active.otherDevice')
+                        ? t('account.active.thisDevice')
+                        : t('account.active.otherDevice')
                     }}
                   </Badge>
                   <!-- 设备名称 -->
@@ -181,7 +183,7 @@ onMounted(load);
                   variant="outline"
                   :disabled="s.current || loading"
                   @click="revoke(s.id)"
-                  >{{ $t('account.active.revoke') }}</Button
+                  >{{ t('account.active.revoke') }}</Button
                 >
               </div>
             </div>
@@ -191,7 +193,7 @@ onMounted(load);
             v-else
             class="p-6 text-center text-sm text-muted-foreground"
           >
-            {{ $t('common.empty') }}
+            {{ t('common.empty') }}
           </div>
         </div>
       </div>

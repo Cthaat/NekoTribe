@@ -16,6 +16,8 @@ import {
 } from 'lucide-vue-next';
 import { useAnimatedNumber } from '~/composables/useAnimatedNumber';
 
+const { t } = useAppLocale();
+
 interface UserAnalyticsData {
   totalTweets: number;
   tweetsThisWeek: number;
@@ -93,7 +95,7 @@ const formatNumber = (num: number) => {
       >
         <CardTitle class="text-sm font-medium">
           {{
-            $t('account.overview.overallPanel.totalTweets')
+            t('account.overview.overallPanel.totalTweets')
           }}
         </CardTitle>
         <Twitter class="size-4 text-muted-foreground" />
@@ -104,13 +106,13 @@ const formatNumber = (num: number) => {
         </div>
         <p class="text-xs text-muted-foreground">
           {{
-            $t(
+            t(
               'account.overview.overallPanel.tweetsThisWeek'
             )
           }}
           {{ userAnalytics.tweetsThisWeek }}
           {{
-            $t('account.overview.overallPanel.tweetsPiece')
+            t('account.overview.overallPanel.tweetsPiece')
           }}
         </p>
       </CardContent>
@@ -123,7 +125,7 @@ const formatNumber = (num: number) => {
       >
         <CardTitle class="text-sm font-medium">
           {{
-            $t(
+            t(
               'account.overview.overallPanel.likesReceived'
             )
           }}
@@ -140,13 +142,13 @@ const formatNumber = (num: number) => {
         </div>
         <p class="text-xs text-muted-foreground">
           {{
-            $t(
+            t(
               'account.overview.overallPanel.avgLikesPerTweet'
             )
           }}
           {{ animatedAvgLikesPerTweet.toFixed(1) }}
           {{
-            $t('account.overview.overallPanel.likesPiece')
+            t('account.overview.overallPanel.likesPiece')
           }}
         </p>
       </CardContent>
@@ -159,7 +161,7 @@ const formatNumber = (num: number) => {
       >
         <CardTitle class="text-sm font-medium">
           {{
-            $t(
+            t(
               'account.overview.overallPanel.engagementScore'
             )
           }}
@@ -172,7 +174,7 @@ const formatNumber = (num: number) => {
         </div>
         <p class="text-xs text-muted-foreground">
           {{
-            $t(
+            t(
               'account.overview.overallPanel.engagementScoreDescription'
             )
           }}
@@ -187,7 +189,7 @@ const formatNumber = (num: number) => {
       >
         <CardTitle class="text-sm font-medium">
           {{
-            $t(
+            t(
               'account.overview.overallPanel.outgoingInteractions'
             )
           }}
@@ -197,12 +199,12 @@ const formatNumber = (num: number) => {
       <CardContent>
         <div class="text-lg font-bold">
           {{
-            $t('account.overview.overallPanel.likesGiven')
+            t('account.overview.overallPanel.likesGiven')
           }}: {{ animatedTotalLikesGiven.toFixed(0) }}
         </div>
         <div class="text-lg font-bold">
           {{
-            $t(
+            t(
               'account.overview.overallPanel.commentsMade'
             )
           }}: {{ animatedTotalCommentsMade.toFixed(0) }}

@@ -25,6 +25,8 @@ import {
 } from '@/services';
 import { toast } from 'vue-sonner';
 
+const { t } = useAppLocale();
+
 // 加载与保存中的状态位
 const loading = ref(false);
 const saving = ref(false);
@@ -61,7 +63,7 @@ async function loadSettings() {
       settings.emailNotificationEnabled;
   } catch (e) {
     // 失败提示
-    toast.error('Failed to load settings');
+    toast.error(t('account.settings.feedback.loadFailed'));
   } finally {
     // 结束加载态
     loading.value = false;
@@ -82,10 +84,10 @@ async function saveSettings() {
       pushNotificationEnabled: pushNotificationEnabled.value,
       emailNotificationEnabled: emailNotificationEnabled.value
     });
-    toast.success('Settings saved');
+    toast.success(t('account.settings.feedback.saved'));
   } catch (e) {
     // 失败提示
-    toast.error('Save failed');
+    toast.error(t('account.settings.feedback.saveFailed'));
   } finally {
     // 结束保存态
     saving.value = false;
@@ -106,10 +108,10 @@ onMounted(loadSettings);
         <!-- 标题与副标题 -->
         <div class="space-y-0.5">
           <h2 class="text-2xl font-bold tracking-tight">
-            {{ $t('account.settings.title') }}
+            {{ t('account.settings.title') }}
           </h2>
           <p class="text-muted-foreground">
-            {{ $t('account.settings.description') }}
+            {{ t('account.settings.description') }}
           </p>
         </div>
 
@@ -122,18 +124,18 @@ onMounted(loadSettings);
         <!-- 隐私设置 -->
         <div class="space-y-2">
           <h3 class="text-lg font-semibold">
-            {{ $t('account.settings.privacy') }}
+            {{ t('account.settings.privacy') }}
           </h3>
           <div class="grid gap-4">
             <!-- 资料可见范围 -->
             <div class="flex items-center justify-between">
               <div>
                 <div class="font-medium">
-                  {{ $t('account.settings.visibility') }}
+                  {{ t('account.settings.visibility') }}
                 </div>
                 <div class="text-xs text-muted-foreground">
                   {{
-                    $t('account.settings.visibilityDesc')
+                    t('account.settings.visibilityDesc')
                   }}
                 </div>
               </div>
@@ -143,10 +145,10 @@ onMounted(loadSettings);
                 /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="public">{{
-                    $t('account.settings.visibilityPublic')
+                    t('account.settings.visibilityPublic')
                   }}</SelectItem>
                   <SelectItem value="private">{{
-                    $t('account.settings.visibilityPrivate')
+                    t('account.settings.visibilityPrivate')
                   }}</SelectItem>
                 </SelectContent>
               </Select>
@@ -156,11 +158,11 @@ onMounted(loadSettings);
             <div class="flex items-center justify-between">
               <div>
                 <div class="font-medium">
-                  {{ $t('account.settings.showOnline') }}
+                  {{ t('account.settings.showOnline') }}
                 </div>
                 <div class="text-xs text-muted-foreground">
                   {{
-                    $t('account.settings.showOnlineDesc')
+                    t('account.settings.showOnlineDesc')
                   }}
                 </div>
               </div>
@@ -173,10 +175,10 @@ onMounted(loadSettings);
             <div class="flex items-center justify-between">
               <div>
                 <div class="font-medium">
-                  {{ $t('account.settings.allowDM') }}
+                  {{ t('account.settings.allowDM') }}
                 </div>
                 <div class="text-xs text-muted-foreground">
-                  {{ $t('account.settings.allowDMDesc') }}
+                  {{ t('account.settings.allowDMDesc') }}
                 </div>
               </div>
               <Switch
@@ -191,17 +193,17 @@ onMounted(loadSettings);
         <!-- 通知设置 -->
         <div class="space-y-2">
           <h3 class="text-lg font-semibold">
-            {{ $t('account.settings.notifications') }}
+            {{ t('account.settings.notifications') }}
           </h3>
           <div class="grid gap-4">
             <!-- 推送通知开关 -->
             <div class="flex items-center justify-between">
               <div>
                 <div class="font-medium">
-                  {{ $t('account.settings.push') }}
+                  {{ t('account.settings.push') }}
                 </div>
                 <div class="text-xs text-muted-foreground">
-                  {{ $t('account.settings.pushDesc') }}
+                  {{ t('account.settings.pushDesc') }}
                 </div>
               </div>
               <Switch
@@ -212,10 +214,10 @@ onMounted(loadSettings);
             <div class="flex items-center justify-between">
               <div>
                 <div class="font-medium">
-                  {{ $t('account.settings.email') }}
+                  {{ t('account.settings.email') }}
                 </div>
                 <div class="text-xs text-muted-foreground">
-                  {{ $t('account.settings.emailDesc') }}
+                  {{ t('account.settings.emailDesc') }}
                 </div>
               </div>
               <Switch
@@ -230,17 +232,17 @@ onMounted(loadSettings);
         <!-- 安全其他 -->
         <div class="space-y-2">
           <h3 class="text-lg font-semibold">
-            {{ $t('account.settings.securityOther') }}
+            {{ t('account.settings.securityOther') }}
           </h3>
           <div class="grid gap-4">
             <!-- 二次验证开关 -->
             <div class="flex items-center justify-between">
               <div>
                 <div class="font-medium">
-                  {{ $t('account.settings.2fa') }}
+                  {{ t('account.settings.2fa') }}
                 </div>
                 <div class="text-xs text-muted-foreground">
-                  {{ $t('account.settings.2faDesc') }}
+                  {{ t('account.settings.2faDesc') }}
                 </div>
               </div>
               <Switch v-model:checked="twoFactorEnabled" />
@@ -249,11 +251,11 @@ onMounted(loadSettings);
             <div class="flex items-center justify-between">
               <div>
                 <div class="font-medium">
-                  {{ $t('account.settings.loginAlerts') }}
+                  {{ t('account.settings.loginAlerts') }}
                 </div>
                 <div class="text-xs text-muted-foreground">
                   {{
-                    $t('account.settings.loginAlertsDesc')
+                    t('account.settings.loginAlertsDesc')
                   }}
                 </div>
               </div>
@@ -268,12 +270,12 @@ onMounted(loadSettings);
             variant="outline"
             :disabled="loading || saving"
             @click="loadSettings()"
-            >{{ $t('common.refresh') }}</Button
+            >{{ t('common.refresh') }}</Button
           >
           <Button
             :disabled="loading || saving"
             @click="saveSettings()"
-            >{{ $t('account.settings.save') }}</Button
+            >{{ t('account.settings.save') }}</Button
           >
         </div>
       </div>

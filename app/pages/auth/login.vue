@@ -6,7 +6,6 @@ definePageMeta({
 
 import AppButton from '@/components/app/AppButton.vue';
 import AppCard from '@/components/app/AppCard.vue';
-import { useI18n } from 'vue-i18n';
 import * as z from 'zod';
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm } from 'vee-validate';
@@ -24,7 +23,7 @@ import {
 import { Input } from '@/components/ui/input'; // 导入 Input 组件
 import { navigateTo } from '#app';
 
-const { t } = useI18n();
+const { t } = useAppLocale();
 
 const localePath = useLocalePath();
 
@@ -76,7 +75,7 @@ async function onValidSubmit(
     toast(t('auth.login.successLogin'), {
       description:
         t('auth.login.welcomeBack') +
-        ` ${response.user.name || '用户'}`
+        ` ${response.user.name || t('nav.user.fallbackName')}`
     });
     await navigateTo(localePath('/'));
   } catch (error) {
@@ -106,10 +105,10 @@ const onSubmit = form.handleSubmit(onValidSubmit);
         <template #header>
           <div class="grid gap-2 text-center">
             <h1 class="text-3xl font-semibold tracking-tight">
-              {{ $t('auth.login.title') }}
+              {{ t('auth.login.title') }}
             </h1>
             <p class="text-sm text-muted-foreground">
-              {{ $t('auth.login.loginPrompt') }}
+              {{ t('auth.login.loginPrompt') }}
             </p>
           </div>
         </template>
@@ -126,14 +125,14 @@ const onSubmit = form.handleSubmit(onValidSubmit);
           >
             <FormItem>
               <FormLabel>{{
-                $t('auth.login.account')
+                t('auth.login.account')
               }}</FormLabel>
               <FormControl>
                 <Input
                   type="account"
                   :disabled="isLoading"
                   :placeholder="
-                    $t('auth.login.accountPlaceholder')
+                    t('auth.login.accountPlaceholder')
                   "
                   v-bind="componentField"
                 />
@@ -148,14 +147,14 @@ const onSubmit = form.handleSubmit(onValidSubmit);
           >
             <FormItem>
               <FormLabel>{{
-                $t('auth.login.password')
+                t('auth.login.password')
               }}</FormLabel>
               <FormControl>
                 <Input
                   type="password"
                   :disabled="isLoading"
                   :placeholder="
-                    $t('auth.login.passwordPlaceholder')
+                    t('auth.login.passwordPlaceholder')
                   "
                   v-bind="componentField"
                 />
@@ -165,12 +164,12 @@ const onSubmit = form.handleSubmit(onValidSubmit);
           </FormField>
 
           <div class="mt-4 text-center text-sm">
-            {{ $t('auth.login.forgotPassword') }}
+            {{ t('auth.login.forgotPassword') }}
             <NuxtLink
-              :to="$localePath('auth-forgot-password')"
+              :to="localePath('auth-forgot-password')"
               class="underline"
             >
-              {{ $t('auth.login.resetPassword') }}
+              {{ t('auth.login.resetPassword') }}
             </NuxtLink>
           </div>
 
@@ -178,18 +177,18 @@ const onSubmit = form.handleSubmit(onValidSubmit);
             type="submit"
             class="w-full"
             :loading="isLoading"
-            :loading-label="$t('auth.login.loginButton')"
+            :loading-label="t('auth.login.loginButton')"
           >
-            {{ $t('auth.login.loginButton') }}
+            {{ t('auth.login.loginButton') }}
           </AppButton>
         </form>
         <div class="mt-4 text-center text-sm">
-          {{ $t('auth.login.noAccount') }}
+          {{ t('auth.login.noAccount') }}
           <NuxtLink
-            :to="$localePath('/auth/sign-up')"
+            :to="localePath('/auth/sign-up')"
             class="underline"
           >
-            {{ $t('auth.login.signUp') }}
+            {{ t('auth.login.signUp') }}
           </NuxtLink>
         </div>
       </AppCard>
@@ -197,7 +196,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
     <div class="hidden bg-muted lg:block">
       <img
         src="/placeholder.svg"
-        alt="Image"
+        :alt="t('auth.login.coverImageAlt')"
         width="1920"
         height="1080"
         class="h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"

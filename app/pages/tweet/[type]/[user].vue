@@ -27,6 +27,7 @@ import { useRoute } from 'vue-router';
 
 const localePath = useLocalePath();
 const route = useRoute();
+const { t } = useAppLocale();
 
 const isRetweetModalOpen = ref(false);
 const selectedTweetForRetweet = ref<PostVM | null>(null);
@@ -74,12 +75,12 @@ watch(
 async function handleDeleteTweet(tweetId: number) {
   try {
     await v2DeletePost(tweetId);
-    toast.success('推文已成功删除。');
+    toast.success(t('post.feedback.deleted'));
     feed.removePost(tweetId);
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : '未知错误';
-    toast.error('删除推文失败，请稍后再试。', {
+      error instanceof Error ? error.message : t('common.unknownError');
+    toast.error(t('post.feedback.deleteFailed'), {
       description: message
     });
   }
@@ -108,11 +109,13 @@ async function handleSubmitRetweet({
       content,
       visibility: 'public'
     });
-    toast.success('转发成功！');
+    toast.success(t('post.feedback.retweeted'));
     await feed.refresh();
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : '转发失败';
+      error instanceof Error
+        ? error.message
+        : t('post.feedback.retweetFailed');
     toast.error(message);
   } finally {
     isSubmittingRetweet.value = false;
@@ -142,7 +145,7 @@ async function handleLikeTweet(
     }));
   } catch (error) {
     console.error('Failed to like/unlike tweet:', error);
-    toast.error('操作失败');
+    toast.error(t('common.operationFailed'));
   }
 }
 
@@ -167,7 +170,7 @@ async function handleBookmarkTweet(
       'Failed to bookmark/unbookmark tweet:',
       error
     );
-    toast.error('操作失败');
+    toast.error(t('common.operationFailed'));
   }
 }
 </script>
@@ -186,7 +189,7 @@ async function handleBookmarkTweet(
         v-else-if="feed.error"
         class="text-center text-destructive"
       >
-        抱歉，加载推文时遇到问题，请刷新页面。
+        {{ t('post.feed.loadProblem') }}
         <pre class="text-xs mt-2">{{ feed.error }}</pre>
       </div>
 
@@ -202,8 +205,8 @@ async function handleBookmarkTweet(
 
       <AppEmptyState
         v-else
-        title="这里还没有推文哦。"
-        description="关注更多用户或稍后再来看看新的动态。"
+        :title="t('post.feed.emptyTitle')"
+        :description="t('post.feed.emptyDescription')"
       />
 
       <RetweetModal

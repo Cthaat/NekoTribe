@@ -53,7 +53,7 @@ import { usePreferenceStore } from '~/stores/user'; // 导入 store
 
 const preferenceStore = usePreferenceStore();
 
-const { t } = useI18n();
+const { t } = useAppLocale();
 
 const localePath = useLocalePath();
 
@@ -251,7 +251,7 @@ const onSubmit = handleSubmit(
     >
       <FormItem>
         <FormLabel>{{
-          $t(
+          t(
             'account.security.securityPage.password.newPassword'
           )
         }}</FormLabel>
@@ -262,7 +262,7 @@ const onSubmit = handleSubmit(
                 isPasswordVisible ? 'text' : 'password'
               "
               :placeholder="
-                $t(
+                t(
                   'account.security.securityPage.password.newPassword'
                 )
               "
@@ -286,7 +286,7 @@ const onSubmit = handleSubmit(
         </div>
         <FormDescription>
           {{
-            $t(
+            t(
               'account.security.securityPage.password.newPasswordDescription'
             )
           }}
@@ -301,7 +301,7 @@ const onSubmit = handleSubmit(
     >
       <FormItem>
         <FormLabel>{{
-          $t(
+          t(
             'account.security.securityPage.password.confirmPassword'
           )
         }}</FormLabel>
@@ -314,7 +314,7 @@ const onSubmit = handleSubmit(
                   : 'password'
               "
               :placeholder="
-                $t(
+                t(
                   'account.security.securityPage.password.confirmPassword'
                 )
               "
@@ -344,7 +344,7 @@ const onSubmit = handleSubmit(
         </div>
         <FormDescription>
           {{
-            $t(
+            t(
               'account.security.securityPage.password.confirmPasswordDescription'
             )
           }}
@@ -357,7 +357,7 @@ const onSubmit = handleSubmit(
     <FormField v-slot="{ componentField }" name="captcha">
       <FormItem>
         <FormLabel>{{
-          $t(
+          t(
             'account.security.securityPage.password.captcha'
           )
         }}</FormLabel>
@@ -403,14 +403,14 @@ const onSubmit = handleSubmit(
             <span v-if="isCaptchaSending">
               {{
                 countdown +
-                $t(
+                t(
                   'account.security.securityPage.password.captchaSecondsLeft'
                 )
               }}
             </span>
             <span v-else>
               {{
-                $t(
+                t(
                   'account.security.securityPage.password.sendCaptcha'
                 )
               }}
@@ -426,13 +426,13 @@ const onSubmit = handleSubmit(
         type="submit"
         :loading="isLoading"
         :loading-label="
-          $t(
+          t(
             'account.security.securityPage.password.resetPassword'
           )
         "
       >
         {{
-          $t(
+          t(
             'account.security.securityPage.password.resetPassword'
           )
         }}

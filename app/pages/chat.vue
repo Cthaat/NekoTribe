@@ -9,6 +9,7 @@ import type {
 } from '@/components/ChatChannelList.vue';
 import type { ChatMessageType } from '@/components/ChatMessage.vue';
 import type { ChatMember } from '@/components/ChatMemberList.vue';
+const { t } = useAppLocale();
 
 definePageMeta({
   layout: 'chat'
@@ -106,10 +107,16 @@ const channelCategories = ref<ChannelCategory[]>([
   }
 ]);
 
+const initialChannel =
+  channelCategories.value[1]?.channels[0] ??
+  channelCategories.value[0]?.channels[0];
+
+if (!initialChannel) {
+  throw new Error('Missing chat channel seed');
+}
+
 // 当前选中的频道
-const activeChannel = ref<Channel>(
-  channelCategories.value[1].channels[0]
-);
+const activeChannel = ref<Channel>(initialChannel);
 
 // 模拟成员数据
 const members = ref<ChatMember[]>([
@@ -480,7 +487,7 @@ const handleSendMessage = (
     }))
   };
   messages.value.push(newMessage);
-  toast.success('消息已发送');
+  toast.success(t('chat.feedback.sent'));
 };
 
 // 添加表情反应
@@ -525,7 +532,7 @@ const handleDeleteMessage = (messageId: number) => {
   );
   if (index !== -1) {
     messages.value.splice(index, 1);
-    toast.success('消息已删除');
+    toast.success(t('chat.feedback.deleted'));
   }
 };
 
@@ -537,14 +544,16 @@ const handlePinMessage = (messageId: number) => {
   if (message) {
     message.isPinned = !message.isPinned;
     toast.success(
-      message.isPinned ? '消息已置顶' : '已取消置顶'
+      message.isPinned
+        ? t('chat.feedback.pinned')
+        : t('chat.feedback.unpinned')
     );
   }
 };
 
 // 创建频道
 const handleCreateChannel = (categoryId: number) => {
-  toast.info('创建频道功能开发中...');
+  toast.info(t('chat.feedback.createChannelWip'));
 };
 
 // 切换频道静音
@@ -553,8 +562,8 @@ const handleToggleMute = () => {
     !activeChannel.value.isMuted;
   toast.success(
     activeChannel.value.isMuted
-      ? '已静音该频道'
-      : '已取消静音'
+      ? t('chat.feedback.channelMuted')
+      : t('chat.feedback.channelUnmuted')
   );
 };
 </script>

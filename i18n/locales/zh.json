@@ -1,0 +1,1269 @@
+{
+  "common": {
+    "refresh": "刷新",
+    "empty": "暂无数据",
+    "prev": "上一页",
+    "next": "下一页",
+    "cancel": "取消",
+    "delete": "删除",
+    "submit": "提交",
+    "close": "关闭",
+    "toggle": "展开/收起",
+    "toggleSidebar": "展开/收起侧边栏",
+    "togglePasswordVisibility": "显示/隐藏密码",
+    "more": "更多",
+    "morePages": "更多页面",
+    "search": "搜索",
+    "loading": "加载中...",
+    "filter": "筛选",
+    "create": "创建",
+    "reset": "重置",
+    "loadMore": "加载更多",
+    "operationFailed": "操作失败",
+    "unknownError": "未知错误",
+    "networkError": "网络错误",
+    "removeFile": "移除文件",
+    "breadcrumb": "面包屑导航",
+    "processing": "正在处理中...",
+    "pagination": "第 {page} / {totalPages} 页 · 共 {total} 条"
+  },
+  "app": {
+    "brand": {
+      "name": "NekoTribe",
+      "tagline": "Edge Walker"
+    },
+    "meta": {
+      "description": "社交媒体平台"
+    }
+  },
+  "preferences": {
+    "language": {
+      "toggle": "切换语言",
+      "en": "English",
+      "zh": "简体中文"
+    },
+    "theme": {
+      "toggle": "切换主题",
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统"
+    }
+  },
+  "nav": {
+    "sections": {
+      "platform": "平台"
+    },
+    "main": {
+      "trending": "趋势",
+      "tweet": "推文",
+      "home": "首页",
+      "myTweets": "我的推文",
+      "mention": "提及",
+      "bookmark": "书签",
+      "meow": "喵窝",
+      "groups": "群组",
+      "discoverGroups": "发现",
+      "myGroups": "我的群组",
+      "invites": "邀请",
+      "chat": "聊天",
+      "account": "账户",
+      "moderation": "审核",
+      "content": "内容",
+      "users": "用户",
+      "reports": "举报",
+      "settings": "设置"
+    },
+    "secondary": {
+      "support": "支持",
+      "feedback": "反馈"
+    },
+    "projects": {
+      "design": "设计工程",
+      "sales": "销售与市场",
+      "travel": "旅行"
+    },
+    "user": {
+      "fallbackName": "NekoTribe 用户",
+      "fallbackEmail": "user{'@'}example.com",
+      "upgrade": "升级到 Pro",
+      "account": "账户",
+      "billing": "账单",
+      "notifications": "通知",
+      "logout": "退出登录",
+      "logoutSuccess": "退出登录成功，正在跳转到登录页面...",
+      "logoutError": "退出登录失败，请重试。"
+    }
+  },
+  "post": {
+    "actions": {
+      "addBookmark": "加入书签",
+      "removeBookmark": "删除书签",
+      "delete": "删除推文"
+    },
+    "feedback": {
+      "liked": "已点赞此推文",
+      "bookmarked": "已添加到书签",
+      "unbookmarked": "已从书签中移除",
+      "deleted": "推文已删除",
+      "deleteFailed": "删除推文失败",
+      "retweeted": "转发成功",
+      "retweetFailed": "转发失败"
+    },
+    "feed": {
+      "loadFailed": "加载推文失败",
+      "loadProblem": "抱歉，加载推文时遇到问题，请刷新页面。",
+      "title": "推文",
+      "total": "共 {count} 条推文",
+      "emptyUserPosts": "该用户还没有发布任何推文",
+      "emptyTitle": "这里还没有推文哦。",
+      "emptyDescription": "关注更多用户或稍后再来看看新的动态。",
+      "searchEmptyTitle": "没有找到相关推文。",
+      "searchEmptyDescription": "换个关键词试试，或稍后再搜索。",
+      "unavailable": "此推文不存在或已被删除。"
+    },
+    "composer": {
+      "placeholder": "有什么新鲜事？",
+      "publish": "发布",
+      "addMedia": "添加媒体",
+      "mediaPreviewAlt": "媒体预览",
+      "mediaLimitTitle": "媒体数量超出限制",
+      "mediaLimitDescription": "你最多还能上传 {count} 个文件。",
+      "replyPost": "回复推文",
+      "quotePost": "引用推文"
+    },
+    "composePage": {
+      "title": "发布推文",
+      "description": "分享你的想法，与世界连接。",
+      "publishSuccess": "推文发布成功！",
+      "publishFailed": "发布失败: {message}",
+      "submitUnknownError": "发生未知错误，请稍后再试。",
+      "loadSelectableFailed": "无法加载推文列表，请稍后再试。",
+      "submitting": "正在发布推文...",
+      "quote": {
+        "title": "选择要引用的推文",
+        "description": "从下面的列表中选择一条推文来添加到你的引用中。",
+        "empty": "没有找到可供引用的推文。"
+      },
+      "reply": {
+        "title": "选择要回复的推文",
+        "description": "从下面的列表中选择一条推文来添加到你的回复中。",
+        "empty": "没有找到可供回复的推文。"
+      },
+      "dialog": {
+        "loading": "正在加载推文..."
+      }
+    },
+    "retweet": {
+      "title": "转发推文",
+      "placeholder": "添加评论...",
+      "submit": "转发",
+      "submitting": "正在转发...",
+      "viewOriginal": "查看原文",
+      "repostedFrom": "转推自",
+      "loadingOriginal": "正在加载原文...",
+      "loadOriginalFailed": "加载原文失败",
+      "unknownUser": "未知",
+      "unknownUserHandle": "{'@'}未知用户",
+      "emptyContent": "（无内容）",
+      "originalUnavailable": "原文不可用或已删除。",
+      "tryOpenOriginal": "尝试打开原文"
+    },
+    "media": {
+      "thumbnailAlt": "推文媒体缩略图"
+    },
+    "delete": {
+      "title": "删除这条推文？",
+      "description": "删除后这条推文将从时间线中移除，此操作不可撤销。"
+    }
+  },
+  "comment": {
+    "title": "评论区",
+    "count": "{count} 条评论",
+    "placeholder": "写下你的评论...",
+    "reply": "回复",
+    "replyPlaceholder": "写下你的回复...",
+    "submitReply": "提交回复",
+    "characterCount": "{count} / {max} 字符",
+    "submit": "发布评论",
+    "submitting": "发布中...",
+    "emptyTitle": "暂无评论",
+    "emptyDescription": "快来抢占第一个沙发吧！",
+    "feedback": {
+      "liked": "评论 {id} 已点赞。",
+      "unliked": "评论 {id} 已取消点赞。",
+      "submitted": "评论已成功发布！",
+      "replySubmitted": "回复已成功发布！",
+      "replyFailed": "回复评论失败。",
+      "sendFailed": "发送评论失败，请稍后重试。",
+      "likeFailed": "点赞评论失败，请稍后重试。",
+      "loadFailed": "加载评论失败"
+    }
+  },
+  "groups": {
+    "title": "群组",
+    "description": "发现和管理你的群组",
+    "tabs": {
+      "discover": "发现群组",
+      "my": "我的群组",
+      "invites": "群组邀请"
+    },
+    "actions": {
+      "create": "创建群组",
+      "refreshList": "刷新列表",
+      "viewDetail": "查看详情",
+      "settings": "群组设置",
+      "join": "加入群组",
+      "leave": "离开群组",
+      "requestJoin": "申请加入",
+      "manage": "管理群组",
+      "invite": "邀请"
+    },
+    "list": {
+      "count": "共 {count} 个群组"
+    },
+    "empty": {
+      "title": "没有找到群组",
+      "description": "尝试调整过滤条件或创建一个新的群组"
+    },
+    "feedback": {
+      "joined": "已加入群组",
+      "joinRequested": "已发送加入申请",
+      "joinFailed": "加入群组失败",
+      "left": "已离开群组",
+      "leaveFailed": "离开群组失败",
+      "settingsWip": "群组设置功能开发中...",
+      "refreshFailed": "刷新失败",
+      "refreshed": "列表已刷新",
+      "noMore": "没有更多群组了",
+      "created": "群组创建成功！",
+      "createFailed": "群组创建失败",
+      "filtersReset": "过滤器已重置",
+      "inviteCopied": "邀请链接已复制",
+      "inviteCreated": "邀请已创建",
+      "inviteFailed": "创建邀请失败",
+      "loadInvitesFailed": "加载邀请失败",
+      "inviteAccepted": "已接受邀请",
+      "inviteAcceptFailed": "接受邀请失败",
+      "inviteRejected": "已拒绝邀请",
+      "inviteRejectFailed": "拒绝邀请失败"
+    },
+    "create": {
+      "title": "创建新群组",
+      "description": "创建一个群组来聚集志同道合的朋友",
+      "avatar": "群组头像",
+      "avatarDescription": "点击上传群组头像",
+      "name": "群组名称 *",
+      "namePlaceholder": "输入群组名称",
+      "groupDescriptionLabel": "群组描述 *",
+      "groupDescriptionPlaceholder": "描述一下你的群组...",
+      "category": "群组分类 *",
+      "categoryPlaceholder": "选择分类",
+      "privacySettings": "隐私设置",
+      "privacy": {
+        "publicDescription": "任何人都可以查看和加入",
+        "privateDescription": "需要申请或邀请才能加入",
+        "secretDescription": "仅邀请可见和加入"
+      },
+      "validation": {
+        "nameRequired": "请输入群组名称",
+        "descriptionRequired": "请输入群组描述",
+        "categoryRequired": "请选择群组分类"
+      }
+    },
+    "detail": {
+      "tabs": {
+        "about": "关于",
+        "posts": "帖子 ({count})",
+        "members": "成员 ({count})"
+      },
+      "aboutTitle": "群组介绍",
+      "createdAt": "创建于 {date}",
+      "owner": "群主",
+      "categoryAndTags": "分类和标签",
+      "emptyPosts": "暂无帖子",
+      "emptyMembers": "暂无成员"
+    },
+    "member": {
+      "roles": {
+        "admin": "管理员",
+        "member": "成员"
+      },
+      "joinedAt": "{date} 加入",
+      "actions": {
+        "promote": "设为管理员",
+        "demote": "取消管理员",
+        "mute": "禁言",
+        "unmute": "解除禁言",
+        "remove": "移出群组"
+      },
+      "feedback": {
+        "removed": "成员已移除",
+        "promoted": "已设为管理员",
+        "demoted": "已取消管理员",
+        "muted": "已禁言",
+        "unmuted": "已解除禁言"
+      }
+    },
+    "post": {
+      "pinned": "置顶",
+      "mediaAlt": "媒体 {index}",
+      "actions": {
+        "share": "分享",
+        "pin": "置顶帖子",
+        "unpin": "取消置顶",
+        "delete": "删除帖子",
+        "report": "举报"
+      },
+      "feedback": {
+        "pinned": "已置顶",
+        "unpinned": "已取消置顶",
+        "deleted": "帖子已删除",
+        "reported": "举报已提交"
+      }
+    },
+    "notifications": {
+      "enabled": "已开启通知",
+      "disabled": "已关闭通知"
+    },
+    "invites": {
+      "pendingCount": "共 {count} 条待处理邀请",
+      "emptyTitle": "没有待处理的邀请",
+      "emptyDescription": "当有人邀请你加入群组时，邀请会显示在这里",
+      "invitedYou": "邀请你加入",
+      "reject": "拒绝",
+      "accept": "接受",
+      "expired": "已过期",
+      "expiresInDays": "{days}天{hours}小时后过期",
+      "expiresInHours": "{hours}小时后过期"
+    },
+    "filters": {
+      "searchPlaceholder": "搜索群组名称或描述...",
+      "privacyPlaceholder": "群组类型",
+      "categoryPlaceholder": "分类",
+      "sortPlaceholder": "排序",
+      "current": "当前过滤：",
+      "searchBadge": "搜索: {value}",
+      "typeBadge": "类型:",
+      "categoryBadge": "分类:",
+      "privacy": {
+        "all": "全部类型",
+        "public": "公开群组",
+        "private": "私密群组",
+        "secret": "隐秘群组"
+      },
+      "category": {
+        "all": "全部分类",
+        "tech": "科技",
+        "game": "游戏",
+        "music": "音乐",
+        "art": "艺术",
+        "life": "生活",
+        "study": "学习",
+        "work": "工作",
+        "other": "其他"
+      },
+      "sort": {
+        "popular": "最热门",
+        "newest": "最新创建",
+        "active": "最活跃",
+        "members": "成员最多"
+      }
+    },
+    "number": {
+      "tenThousand": "{value}万",
+      "thousand": "{value}千"
+    },
+    "stats": {
+      "members": "成员",
+      "membersCount": "{count} 位成员",
+      "posts": "{count} 帖子",
+      "totalGroups": "全部群组",
+      "myGroups": "我的群组",
+      "pendingInvites": "待处理邀请",
+      "todayPosts": "今日帖子",
+      "activeMembers": "活跃成员",
+      "newMembers": "新增成员"
+    }
+  },
+  "time": {
+    "minutesAgo": "{count}分钟前",
+    "hoursAgo": "{count}小时前",
+    "daysAgo": "{count}天前",
+    "todayAt": "今天 {time}",
+    "yesterdayAt": "昨天 {time}"
+  },
+  "avatar": {
+    "validation": {
+      "maxSize": "文件大小不能超过 {size}MB"
+    },
+    "feedback": {
+      "updated": "头像更新成功！",
+      "uploadFailed": "上传失败，请重试。"
+    }
+  },
+  "chat": {
+    "fallbackChannel": "聊天",
+    "groupFallbackName": "群组名称",
+    "channelDescriptionFallback": "频道描述",
+    "searchPlaceholder": "搜索消息...",
+    "replyingTo": "回复",
+    "currentUser": {
+      "short": "你",
+      "name": "当前用户"
+    },
+    "status": {
+      "online": "在线",
+      "idle": "离开",
+      "dnd": "请勿打扰",
+      "offline": "离线"
+    },
+    "input": {
+      "placeholder": "在 #{channel} 中发送消息..."
+    },
+    "members": {
+      "searchPlaceholder": "搜索成员",
+      "onlineCount": "在线 - {count}",
+      "offlineCount": "离线 - {count}",
+      "noOnline": "暂无在线成员",
+      "noOffline": "暂无离线成员"
+    },
+    "message": {
+      "pinned": "已置顶",
+      "edited": "（已编辑）",
+      "pinnedMessages": "置顶消息",
+      "noPinnedMessages": "暂无置顶消息",
+      "emptyTitle": "欢迎来到 #{channel}！",
+      "emptyDescription": "这是频道的开始，发送第一条消息吧！",
+      "newMessages": "新消息"
+    },
+    "actions": {
+      "uploadAttachment": "上传附件",
+      "uploadImage": "上传图片",
+      "emoji": "表情",
+      "mentionUser": "提及用户",
+      "quoteChannel": "引用频道",
+      "sendSticker": "发送贴纸",
+      "sendMessage": "发送消息",
+      "kick": "踢出群组",
+      "ban": "封禁用户",
+      "inviteMembers": "邀请成员",
+      "notificationSettings": "通知设置",
+      "createChannel": "创建频道",
+      "muteChannel": "静音频道",
+      "unmuteChannel": "取消静音",
+      "editChannel": "编辑频道",
+      "deleteChannel": "删除频道",
+      "userSettings": "用户设置",
+      "startVoiceCall": "开始语音通话",
+      "startVideoCall": "开始视频通话",
+      "searchMessages": "搜索消息",
+      "hideMembers": "隐藏成员",
+      "showMembers": "显示成员",
+      "addReaction": "添加表情",
+      "copyText": "复制文本",
+      "pinMessage": "置顶消息",
+      "unpinMessage": "取消置顶",
+      "editMessage": "编辑消息",
+      "deleteMessage": "删除消息"
+    },
+    "feedback": {
+      "copied": "已复制到剪贴板",
+      "sent": "消息已发送",
+      "deleted": "消息已删除",
+      "pinned": "消息已置顶",
+      "unpinned": "已取消置顶",
+      "createChannelWip": "创建频道功能开发中...",
+      "channelMuted": "已静音该频道",
+      "channelUnmuted": "已取消静音"
+    },
+    "mention": {
+      "searchFailed": "搜索提及失败:",
+      "user": "用户",
+      "post": "推文",
+      "loading": "搜索中..."
+    }
+  },
+  "media": {
+    "lightboxAlt": "高清媒体"
+  },
+  "errorPage": {
+    "notFound": {
+      "title": "404 - 页面未找到",
+      "description": "您要寻找的页面不可用。",
+      "possibleReasons": "这可能是因为：",
+      "invalidUrl": "您输入的网址有误。",
+      "movedOrDeleted": "该页面已被移动或删除。",
+      "serverBusy": "服务器暂时不可用。",
+      "backHome": "返回首页"
+    }
+  },
+  "notifications": {
+    "mail": {
+      "deleteSuccess": "邮件已移至垃圾桶",
+      "deleteFailed": "移至垃圾桶失败",
+      "restoreSuccess": "邮件已恢复",
+      "restoreFailed": "恢复邮件失败",
+      "readFailed": "标记邮件为已读失败",
+      "systemName": "系统",
+      "systemEmail": "system"
+    }
+  },
+  "mail": {
+    "folders": {
+      "inbox": "收件箱",
+      "trash": "垃圾桶"
+    },
+    "tabs": {
+      "all": "全部邮件",
+      "unread": "未读"
+    },
+    "searchPlaceholder": "搜索",
+    "display": {
+      "archive": "归档",
+      "moveToJunk": "移至垃圾邮件",
+      "moveToTrash": "移至垃圾桶",
+      "restore": "恢复",
+      "restoreFromTrash": "从垃圾桶恢复",
+      "snooze": "稍后提醒",
+      "snoozeUntil": "稍后提醒至",
+      "laterToday": "今天晚些时候",
+      "tomorrow": "明天",
+      "thisWeekend": "本周末",
+      "nextWeek": "下周",
+      "reply": "回复",
+      "replyAll": "全部回复",
+      "forward": "转发",
+      "more": "更多",
+      "markAsUnread": "标记为未读",
+      "starThread": "星标会话",
+      "addLabel": "添加标签",
+      "muteThread": "静音会话",
+      "replyTo": "回复至：",
+      "noSelection": "未选择邮件"
+    }
+  },
+  "moderation": {
+    "title": "内容审核",
+    "description": "管理和审核平台内容，维护社区健康",
+    "tabs": {
+      "content": "内容审核",
+      "users": "用户管理",
+      "reports": "举报管理",
+      "settings": "审核设置"
+    },
+    "actions": {
+      "viewDetail": "查看详情",
+      "approve": "通过",
+      "approveFull": "通过审核",
+      "reject": "拒绝",
+      "rejectPost": "拒绝推文",
+      "flag": "标记审查",
+      "refresh": "刷新",
+      "refreshList": "刷新列表",
+      "loadMore": "加载更多"
+    },
+    "feedback": {
+      "approved": "推文已通过审核",
+      "rejected": "推文已拒绝",
+      "flagged": "推文已标记待进一步审查",
+      "refreshed": "列表已刷新",
+      "noMore": "没有更多内容了",
+      "filtersReset": "过滤器已重置"
+    },
+    "status": {
+      "all": "全部状态",
+      "pending": "待审核",
+      "approved": "已通过",
+      "rejected": "已拒绝",
+      "flagged": "已标记",
+      "unknown": "未知"
+    },
+    "stats": {
+      "pending": "待审核",
+      "approved": "已通过",
+      "rejected": "已拒绝",
+      "flagged": "已标记",
+      "todayProcessed": "今日处理",
+      "avgProcessTime": "平均处理时间",
+      "zeroMinutes": "0分钟",
+      "minutes": "{count}分钟"
+    },
+    "list": {
+      "count": "共 {count} 条待审核内容",
+      "emptyTitle": "没有待审核的内容",
+      "emptyDescription": "当前没有需要审核的推文。新的举报内容将会显示在这里。"
+    },
+    "filters": {
+      "searchPlaceholder": "搜索推文内容或用户...",
+      "statusPlaceholder": "选择状态",
+      "reportReasonPlaceholder": "举报原因",
+      "dateRangePlaceholder": "时间范围",
+      "sortPlaceholder": "排序方式",
+      "current": "当前过滤：",
+      "searchBadge": "搜索: {value}",
+      "statusBadge": "状态: {value}",
+      "reasonBadge": "原因: {value}",
+      "dateBadge": "时间: {value}",
+      "reasons": {
+        "all": "全部原因",
+        "spam": "垃圾信息",
+        "harassment": "骚扰",
+        "hate": "仇恨言论",
+        "violence": "暴力内容",
+        "adult": "成人内容",
+        "misinformation": "虚假信息",
+        "copyright": "侵权",
+        "other": "其他"
+      },
+      "dateRanges": {
+        "all": "全部时间",
+        "today": "今天",
+        "yesterday": "昨天",
+        "week": "最近一周",
+        "month": "最近一月"
+      },
+      "sort": {
+        "newest": "最新举报",
+        "oldest": "最早举报",
+        "mostReports": "举报最多",
+        "mostEngagement": "互动最多"
+      }
+    },
+    "card": {
+      "reportCount": "{count} 次举报",
+      "publishedAt": "发布于 {time}",
+      "reportedAt": "举报于 {time}",
+      "mediaAlt": "媒体 {index}"
+    },
+    "detail": {
+      "title": "审核详情",
+      "description": "查看推文详细信息并做出审核决定",
+      "publishedAt": "发布于 {time}",
+      "reportedAt": "举报于 {time}",
+      "postContent": "推文内容",
+      "mediaContent": "媒体内容 ({current}/{total})",
+      "mediaAlt": "媒体内容",
+      "reportInfo": "举报信息 ({count} 次举报)",
+      "reportFallback": "用户举报了此内容",
+      "engagement": "互动数据",
+      "likes": "喜欢",
+      "retweets": "转发",
+      "replies": "回复",
+      "note": "审核备注 (可选)",
+      "notePlaceholder": "输入审核备注..."
+    },
+    "reportDetails": {
+      "spam": {
+        "title": "垃圾信息/广告",
+        "description": "包含商业广告、垃圾链接或重复发布的内容"
+      },
+      "harassment": {
+        "title": "骚扰行为",
+        "description": "针对特定用户的恶意骚扰或网络欺凌"
+      },
+      "hate": {
+        "title": "仇恨言论",
+        "description": "基于种族、性别、宗教等的歧视性言论"
+      },
+      "violence": {
+        "title": "暴力内容",
+        "description": "包含暴力威胁或血腥暴力内容"
+      },
+      "adult": {
+        "title": "成人/色情内容",
+        "description": "包含色情或不适合未成年人的内容"
+      },
+      "misinformation": {
+        "title": "虚假信息",
+        "description": "散布虚假或误导性信息"
+      },
+      "copyright": {
+        "title": "侵权",
+        "description": "可能侵犯他人版权"
+      },
+      "other": {
+        "title": "其他",
+        "description": "其他举报问题"
+      }
+    },
+    "placeholder": {
+      "description": "此功能正在开发中，敬请期待...",
+      "users": {
+        "title": "用户管理",
+        "intro": "用户管理功能将包括：",
+        "item1": "用户列表查看与搜索",
+        "item2": "用户封禁与解封",
+        "item3": "用户角色管理",
+        "item4": "用户行为日志查看"
+      },
+      "reports": {
+        "title": "举报管理",
+        "intro": "举报管理功能将包括：",
+        "item1": "举报统计与分析",
+        "item2": "举报类型分布",
+        "item3": "高频举报用户追踪",
+        "item4": "举报处理效率报表"
+      },
+      "settings": {
+        "title": "审核设置",
+        "intro": "审核设置功能将包括：",
+        "item1": "自动审核规则配置",
+        "item2": "敏感词库管理",
+        "item3": "审核流程设置",
+        "item4": "通知偏好设置"
+      }
+    }
+  },
+  "diagnostics": {
+    "sonner": {
+      "normal": "普通通知",
+      "error": "错误通知",
+      "normalToast": "一个普通的 Sonner 通知",
+      "errorToast": "一个错误的 Sonner 通知"
+    },
+    "token": {
+      "pageTitle": "Token 刷新测试页面",
+      "infoTitle": "当前 Token 信息",
+      "sessionId": "当前会话 ID:",
+      "tokenTimeLeft": "Token 剩余时间:",
+      "loginStatus": "登录状态:",
+      "none": "无",
+      "seconds": "{count} 秒",
+      "expired": "Token 已过期或无效",
+      "loggedIn": "已登录",
+      "loggedOut": "未登录",
+      "actionsTitle": "测试操作",
+      "requesting": "请求中...",
+      "authRequest": "发起需要认证的 API 请求",
+      "refreshing": "刷新中...",
+      "manualRefresh": "手动刷新 Token",
+      "invalidateToken": "篡改 Token（模拟过期）",
+      "clearTokens": "清除所有 Token",
+      "logsTitle": "操作日志",
+      "clearLogs": "清空日志",
+      "emptyLogs": "暂无日志...",
+      "instructionsTitle": "测试说明",
+      "instructionsAuthTitle": "发起需要认证的 API 请求：",
+      "instructionsAuth": "会调用一个需要认证的接口，如果 Token 过期会自动刷新并重试",
+      "instructionsRefreshTitle": "手动刷新 Token：",
+      "instructionsRefresh": "直接调用刷新接口，更新 Token",
+      "instructionsInvalidateTitle": "篡改 Token：",
+      "instructionsInvalidate": "修改 Token 使其无效，模拟过期场景",
+      "instructionsClearTitle": "清除所有 Token：",
+      "instructionsClear": "删除所有认证信息，需要重新登录",
+      "tipTitle": "提示：",
+      "tip": "打开浏览器控制台可以查看详细的刷新日志",
+      "decodeFailed": "Token 解码失败",
+      "apiRequestStart": "发起 API 请求...",
+      "apiRequestSuccess": "API 请求成功",
+      "apiRequestFailed": "API 请求失败: {message}",
+      "apiErrorLog": "API 错误:",
+      "refreshStart": "手动刷新 Token...",
+      "refreshSuccess": "Token 刷新成功",
+      "refreshFailed": "Token 刷新失败: {message}",
+      "refreshErrorLog": "刷新错误:",
+      "noSession": "当前没有会话",
+      "httpOnlyTamperUnavailable": "HttpOnly Cookie 模式下无法在客户端直接篡改 Token",
+      "tokensCleared": "所有 Token 已清除",
+      "pageLoaded": "测试页面已加载"
+    },
+    "websocket": {
+      "title": "WebSocket 测试页面",
+      "connectionStatus": "连接状态",
+      "connected": "已连接",
+      "disconnected": "未连接",
+      "connect": "连接 WebSocket",
+      "disconnect": "断开连接",
+      "sendMessageTitle": "发送消息",
+      "messagePlaceholder": "输入消息...",
+      "send": "发送",
+      "sendPing": "发送 Ping",
+      "roomIdPlaceholder": "房间ID",
+      "joinRoom": "加入房间",
+      "leaveRoom": "离开房间",
+      "roomMessagePlaceholder": "房间消息...",
+      "sendToRoom": "发送到房间",
+      "broadcastPlaceholder": "广播消息...",
+      "broadcast": "广播消息",
+      "messageHistory": "消息历史",
+      "clearMessages": "清空消息",
+      "emptyMessages": "暂无消息",
+      "connectedMessage": "WebSocket 连接已建立",
+      "closedMessage": "WebSocket 连接已关闭",
+      "connectionError": "连接错误"
+    }
+  },
+  "middleware": {
+    "login": {
+      "redirecting": "用户未登录，正在跳转到登录页面"
+    }
+  },
+  "index": {},
+  "auth": {
+    "login": {
+      "title": "登录",
+      "loginPrompt": "在下面输入您的电子邮件以登录您的帐户。",
+      "email": "电子邮件",
+      "password": "密码",
+      "rememberMe": "记住我",
+      "forgotPassword": "忘记密码？",
+      "loginButton": "登录",
+      "noAccount": "没有账户？",
+      "description": "一个双栏登录页面。\n左侧为登录表单，包含邮箱和密码。有忘记密码链接和注册新账号链接。右侧为封面图片。",
+      "emailError": "请输入有效的电子邮件地址。",
+      "passwordError": "密码不能为空。",
+      "emailPlaceholder": "请输入您的电子邮件",
+      "passwordPlaceholder": "请输入您的密码",
+      "signUp": "注册新账号",
+      "emailRequired": "邮箱不能为空",
+      "emailInvalid": "请输入有效的邮箱地址。",
+      "passwordRequired": "密码不能为空",
+      "passwordTooShort": "密码至少需要6个字符。",
+      "account": "账号",
+      "accountPlaceholder": "请输入您的账号",
+      "accountRequired": "账号不能为空",
+      "loginSuccess": "登录成功",
+      "welcomeBack": "欢迎回来",
+      "successLogin": "登录成功,即将跳转到首页...",
+      "loginFailed": "登录失败,请检查您的账号和密码是否正确。",
+      "unknownError": "发生未知错误，请稍后再试。",
+      "resetPassword": "重置密码",
+      "coverImageAlt": "登录页封面图"
+    },
+    "signUp": {
+      "title": "注册",
+      "description": "一个双栏注册页面。\n左侧为注册表单，包含邮箱、用户名、密码、确认密码、显示名称、简介、所在地、手机号、生日、验证码和服务条款勾选。右侧为封面图片。",
+      "termsNotAgreed": "请先同意服务条款",
+      "signUpPrompt": "注册新账号",
+      "signUpPromptDescription": "请填写以下信息以创建新账号",
+      "emailPlaceholder": "请输入您的电子邮件",
+      "email": "电子邮件",
+      "username": "用户名",
+      "usernamePlaceholder": "3-20位字母数字下划线",
+      "password": "密码",
+      "passwordPlaceholder": "8-32位，包含字母数字",
+      "confirmPassword": "确认密码",
+      "confirmPasswordPlaceholder": "请再次输入密码",
+      "displayName": "显示名称",
+      "displayNamePlaceholder": "请输入您的昵称",
+      "bio": "简介",
+      "bioPlaceholder": "一句话介绍自己",
+      "location": "所在地",
+      "locationPlaceholder": "城市/地区",
+      "phone": "手机号",
+      "phonePlaceholder": "可选",
+      "birthDate": "生日",
+      "birthDatePlaceholder": "请选择日期",
+      "captcha": "验证码",
+      "captchaPlaceholder": "请输入验证码",
+      "terms": "服务条款",
+      "agreeToTerms": "我已阅读并同意",
+      "termsLink": "服务条款",
+      "signUpButton": "注册",
+      "haveAccount": "已有账号？",
+      "loginPrompt": "立即登录",
+      "sendCaptcha": "发送验证码",
+      "emailInvalid": "请输入有效的电子邮件地址。",
+      "usernameRequired": "用户名不能为空",
+      "displayNameRequired": "显示名称不能为空",
+      "passwordTooShort": "密码至少需要6个字符",
+      "passwordMismatch": "两次输入的密码不一致",
+      "captchaSendError": "验证码发送失败，请稍后再试",
+      "captchaRequired": "验证码不能为空",
+      "captchaSent": "验证码已发送",
+      "captchaSentDescription": "请注意查收您的电子邮件或短信验证码。",
+      "captchaSecondsLeft": "{count} 秒后重试",
+      "unknownError": "发生未知错误，请稍后再试。",
+      "successRegister": "注册成功",
+      "registerFailed": "注册失败",
+      "redirectToLogin": "正在跳转到登录页面...",
+      "successRegisterDescription": "请使用您的新账号登录。",
+      "agreeToTermsChanged": "同意服务条款状态已改变",
+      "coverImageAlt": "注册页封面图"
+    },
+    "forgotPassword": {
+      "title": "重置密码",
+      "description": "请输入您的电子邮件地址以重置密码。",
+      "emailPlaceholder": "请输入您的电子邮件",
+      "sendButton": "发送验证码",
+      "successMessage": "验证码已发送，请检查您的电子邮件。",
+      "errorMessage": "发送验证码失败，请稍后再试。",
+      "captchaSent": "验证码已发送",
+      "captchaSentDescription": "请注意查收您的电子邮件或短信验证码。",
+      "captchaSendError": "验证码发送失败，请稍后再试",
+      "captchaRequired": "验证码不能为空",
+      "unknownError": "发生未知错误，请稍后再试。",
+      "emailInvalid": "请输入有效的电子邮件地址。",
+      "emailRequired": "电子邮件不能为空",
+      "emailAlreadyVerified": "该电子邮件地址已被验证，请使用其他电子邮件地址。",
+      "passwordTooShort": "密码至少需要6个字符",
+      "passwordMismatch": "两次输入的密码不一致",
+      "resetPasswordSuccess": "密码重置成功",
+      "resetPasswordSuccessDescription": "请使用新密码登录。",
+      "resetPasswordError": "密码重置失败，请稍后再试。",
+      "resetPassword": "重置密码",
+      "forgotPasswordPrompt": "忘记密码？请输入您的电子邮件地址以重置密码。",
+      "email": "电子邮件",
+      "emailDescription": "请输入您注册时使用的电子邮件地址。",
+      "newPassword": "新密码",
+      "newPasswordDescription": "您的新密码必须至少包含8个字符。",
+      "confirmPassword": "确认密码",
+      "confirmPasswordDescription": "请再次输入您的新密码以确认。",
+      "captcha": "验证码",
+      "captchaDescription": "请输入您收到的验证码。",
+      "captchaSentSecondDescription": "秒后重试",
+      "sendCaptcha": "发送验证码",
+      "newPasswordPlaceholder": "请输入新密码",
+      "confirmPasswordPlaceholder": "请再次输入新密码",
+      "captchaPlaceholder": "请输入验证码",
+      "haveAccount": "已拥有账户？",
+      "loginPrompt": "登录",
+      "coverImageAlt": "密码重置页封面图"
+    },
+    "terms": {
+      "title": "服务条款",
+      "description": "请仔细阅读以下服务条款和隐私政策。",
+      "lastUpdated": "最后更新日期",
+      "toc": {
+        "title": "目录",
+        "acceptance": "接受条款",
+        "accounts": "账户责任",
+        "conduct": "用户行为",
+        "termination": "终止服务",
+        "faq": "常见问题",
+        "privacy": "隐私政策"
+      },
+      "sections": {
+        "acceptance": {
+          "title": "1. 接受条款",
+          "content": "通过访问或使用本服务，您同意遵守这些条款。如果您不同意这些条款，请不要使用本服务。"
+        },
+        "accounts": {
+          "title": "2. 账户责任",
+          "content": "您有责任维护您的账户信息的安全性和保密性。任何通过您的账户进行的活动都将被视为您本人所为。"
+        },
+        "conduct": {
+          "title": "3. 用户行为",
+          "alertTitle": "3. 警告，请注意，您同意不得从事以下任何行为，否则将承担相应的责任：",
+          "content": "您同意不从事任何可能损害、禁用、过载或干扰本服务的行为。",
+          "prohibited": {
+            "item1": "冒充他人",
+            "item2": "发布虚假信息",
+            "item3": "进行恶意攻击"
+          }
+        },
+        "termination": {
+          "title": "4. 终止服务",
+          "content": "我们保留在任何时候终止或暂停您的访问权限的权利，无论是否通知。"
+        }
+      },
+      "faq": {
+        "title": "常见问题",
+        "description": "以下是一些常见问题及其解答。",
+        "q1": {
+          "question": "我可以更改我的电子邮件地址吗？",
+          "answer": "是的，您可以在账户设置中更改您的电子邮件地址。"
+        },
+        "q2": {
+          "question": "如果我忘记密码怎么办？",
+          "answer": "您可以通过登录页面的“忘记密码”链接重置您的密码。"
+        },
+        "q3": {
+          "question": "如何删除我的账户？",
+          "answer": "请联系客户支持以请求删除您的账户。"
+        }
+      },
+      "registerButton": "返回注册"
+    }
+  },
+  "account": {
+    "switcher": {
+      "selectAccount": "选择账户",
+      "selectAccountPlaceholder": "请选择账户"
+    },
+    "title": "账户",
+    "breadcrumb": "首页 - 账户",
+    "errors": {
+      "loadUser": "获取用户信息失败。",
+      "loadAnalytics": "获取用户统计失败。"
+    },
+    "header": {
+      "follow": "关注",
+      "unfollow": "取消关注",
+      "selfFollowError": "你不能关注自己。",
+      "followers": "粉丝",
+      "following": "关注",
+      "likes": "获赞",
+      "activeScore": "活跃分",
+      "moreActions": "更多操作"
+    },
+    "follow": {
+      "success": "已关注 {name}。",
+      "unfollowSuccess": "已取消关注 {name}。",
+      "failed": "关注状态更新失败。"
+    },
+    "tabs": {
+      "overview": "概览",
+      "settings": "设置",
+      "profile": "个人资料",
+      "appearance": "外观",
+      "security": "安全",
+      "active": "活跃设备",
+      "statements": "账户状态"
+    },
+    "appearance": {
+      "title": "外观设置",
+      "description": "自定义主题、明暗模式与布局偏好。",
+      "contentPlaceholder": "外观相关设置即将上线。",
+      "theme": "主题",
+      "themeLight": "明亮",
+      "themeDark": "深色",
+      "themeSystem": "跟随系统",
+      "language": "语言",
+      "fontSize": "字号",
+      "fontSmall": "小",
+      "fontNormal": "正常",
+      "fontLarge": "大",
+      "compactMode": "紧凑模式",
+      "compactOn": "开启",
+      "compactOff": "关闭"
+    },
+    "settings": {
+      "title": "账户设置",
+      "description": "在这里管理安全、邮箱与其他账户偏好。",
+      "privacy": "隐私",
+      "visibility": "资料可见性",
+      "visibilityDesc": "控制谁可以查看你的资料。",
+      "visibilityPublic": "公开",
+      "visibilityPrivate": "私密",
+      "showOnline": "显示在线状态",
+      "showOnlineDesc": "允许他人看到你是否在线。",
+      "allowDM": "允许陌生人私信",
+      "allowDMDesc": "允许任何人向你发送私信。",
+      "notifications": "通知",
+      "push": "推送通知",
+      "pushDesc": "在此设备接收推送通知。",
+      "email": "邮件通知",
+      "emailDesc": "通过电子邮件接收重要消息。",
+      "securityOther": "安全",
+      "2fa": "两步验证",
+      "2faDesc": "为账户增加一层安全保护。",
+      "loginAlerts": "登录提醒",
+      "loginAlertsDesc": "新设备登录时向你提醒。",
+      "save": "保存设置",
+      "feedback": {
+        "loadFailed": "加载设置失败",
+        "saved": "设置已保存",
+        "saveFailed": "保存失败"
+      }
+    },
+    "active": {
+      "title": "活跃设备",
+      "description": "管理当前登录的设备与会话。",
+      "revoke": "注销会话",
+      "revokeOthers": "一键下线其他设备",
+      "thisDevice": "本设备",
+      "otherDevice": "其它设备",
+      "contentPlaceholder": "活跃会话列表即将上线。",
+      "sessionId": "会话",
+      "feedback": {
+        "loadFailed": "加载会话失败",
+        "revoked": "会话已注销",
+        "othersRevoked": "其它设备已下线",
+        "operationFailed": "操作失败"
+      }
+    },
+    "statements": {
+      "title": "账户状态",
+      "description": "查看账户状态、违规记录与合规通知。",
+      "contentPlaceholder": "账户状态将显示在此处。",
+      "filters": {
+        "type": "类型",
+        "status": "状态"
+      },
+      "types": {
+        "all": "全部",
+        "info": "信息",
+        "warning": "警告",
+        "strike": "违规",
+        "suspension": "封禁"
+      },
+      "status": {
+        "all": "全部",
+        "unread": "未读",
+        "read": "已读",
+        "appealed": "已申诉",
+        "resolved": "已解决",
+        "dismissed": "已忽略"
+      },
+      "actions": {
+        "markRead": "标记已读",
+        "markUnread": "标记未读",
+        "resolve": "解决",
+        "dismiss": "忽略",
+        "appeal": "申诉"
+      },
+      "appealTitle": "提交申诉",
+      "appealPlaceholder": "请描述您的理由（至少10个字符）。",
+      "appealTooShort": "申诉内容需至少10个字符。",
+      "appealSubmitted": "申诉已提交。",
+      "appealFailed": "申诉提交失败。",
+      "appealStatus": "申诉状态",
+      "actionSuccess": "操作成功。",
+      "actionFailed": "操作失败。"
+    },
+    "overview": {
+      "title": "账号概览",
+      "description": "在这里查看您的账号信息和统计。",
+      "editProfile": "编辑个人资料",
+      "changePassword": "更改密码",
+      "privacySettings": "隐私设置",
+      "notificationSettings": "通知设置",
+      "accountSecurity": "账号安全",
+      "logout": "退出登录",
+      "overallPanel": {
+        "totalTweets": "总推文数",
+        "tweetsThisWeek": "本周新增",
+        "tweetsPiece": "条",
+        "likesReceived": "收到的赞",
+        "avgLikesPerTweet": "平均每条推文",
+        "likesPiece": "赞",
+        "engagementScore": "互动分数",
+        "engagementScoreDescription": "综合评估用户活跃度",
+        "outgoingInteractions": "发出的互动",
+        "likesGiven": "送出赞",
+        "commentsMade": "发表评论"
+      }
+    },
+    "profile": {
+      "title": "个人资料设置",
+      "description": "在这里修改您的个人资料信息。",
+      "username": "用户名",
+      "usernamePlaceholder": "请输入您的用户名",
+      "displayName": "显示名称",
+      "displayNamePlaceholder": "请输入您的显示名称",
+      "bio": "简介",
+      "bioPlaceholder": "一句话介绍自己",
+      "location": "所在地",
+      "locationPlaceholder": "城市/地区",
+      "website": "个人网站",
+      "websitePlaceholder": "请输入您的个人网站链接",
+      "profilePicture": "头像",
+      "profilePictureUpload": "上传头像",
+      "coverPhoto": "封面照片",
+      "coverPhotoUpload": "上传封面照片",
+      "saveButton": "保存个人资料",
+      "profilePage": {
+        "title": "用户名",
+        "label": "用户名",
+        "placeholder": "请输入您的用户名",
+        "updateButton": "更新用户名",
+        "description": "用户名是您在平台上的唯一标识，请确保它符合规范。",
+        "usernameRequired": "用户名不能为空",
+        "usernameInvalid": "用户名只能包含字母、数字和下划线。",
+        "usernameTaken": "该用户名已被使用，请选择其他用户名。",
+        "updateSuccess": "用户名更新成功",
+        "updateError": "用户名更新失败，请稍后再试。",
+        "errorFetchingUserInfo": "获取用户信息失败",
+        "errorFetchingUserInfoDescription": "请检查您的网络连接或稍后再试。",
+        "displayNameMinLength": "显示名称必须至少为 2 个字符。",
+        "displayNameMaxLength": "显示名称不得超过 30 个字符。",
+        "displayNameRequired": "显示名称不能为空",
+        "bioMaxLength": "简介不得超过 160 个字符。",
+        "bioMinLength": "简介必须至少为 2 个字符。",
+        "locationMaxLength": "所在地不得超过 30 个字符。",
+        "successMessage": "个人资料更新成功",
+        "successDescription": "您的个人资料已成功更新。",
+        "displayName": "显示名称",
+        "displayNamePlaceholder": "请输入您的显示名称",
+        "displayNameDescription": "这是您的公开显示名称。可以是您的真实姓名或化名。",
+        "bio": "简介",
+        "bioPlaceholder": "告诉我们一些关于您的信息",
+        "bioDescription": "您可以 {atSign}提及 其他用户和组织以链接到他们。",
+        "location": "所在地",
+        "locationPlaceholder": "您所在的城市或地区",
+        "locationDescription": "这是可选的，但有助于其他人了解您的位置。",
+        "website": "个人网站",
+        "websitePlaceholder": "请输入您的个人网站链接",
+        "websiteDescription": "这是您在互联网上的个人主页或博客链接。",
+        "addWebsite": "添加网站",
+        "websiteRequired": "网站链接不能为空",
+        "phone": "手机号",
+        "phonePlaceholder": "请输入您的手机号",
+        "phoneDescription": "这是可选的，但可以帮助其他人更容易地联系到您。",
+        "phoneRequired": "手机号不能为空",
+        "updateProfile": "更新个人资料",
+        "updateProfileSuccess": "个人资料更新成功",
+        "resetForm": "重置表单"
+      }
+    },
+    "security": {
+      "title": "账号安全",
+      "description": "在这里修改您的账号安全相关设置。",
+      "email": "电子邮件",
+      "emailPlaceholder": "请输入您的电子邮件",
+      "changeEmail": "更改电子邮件",
+      "currentPassword": "当前密码",
+      "currentPasswordPlaceholder": "请输入当前密码",
+      "newPassword": "新密码",
+      "newPasswordPlaceholder": "请输入新密码",
+      "confirmNewPassword": "确认新密码",
+      "confirmNewPasswordPlaceholder": "请再次输入新密码",
+      "updateButton": "更新安全设置",
+      "securityPage": {
+        "password": {
+          "title": "更改密码",
+          "label": "密码",
+          "placeholder": "请输入您的密码",
+          "updateButton": "更新密码",
+          "description": "请确保您的密码足够强大，包含字母、数字和特殊字符。",
+          "captchaSent": "验证码已发送",
+          "captchaSentDescription": "请注意查收您的电子邮件或短信验证码。",
+          "captchaSendError": "验证码发送失败，请稍后再试",
+          "unknownError": "发生未知错误，请稍后再试",
+          "passwordTooShort": "密码至少需要6个字符",
+          "passwordMismatch": "两次输入的密码不一致",
+          "resetPasswordSuccess": "密码重置成功",
+          "resetPasswordSuccessDescription": "请使用新密码登录。",
+          "resetPasswordError": "密码重置失败，请稍后再试。",
+          "logoutError": "退出登录失败，请重试。",
+          "newPassword": "新密码",
+          "newPasswordDescription": "输入您的新密码,至少8个字符。",
+          "confirmPassword": "确认密码",
+          "confirmPasswordDescription": "请再次输入您的新密码以确认。",
+          "captcha": "验证码",
+          "captchaDescription": "请输入您收到的验证码。",
+          "captchaSecondsLeft": "秒后重试",
+          "sendCaptcha": "发送验证码",
+          "newPasswordPlaceholder": "请输入新密码",
+          "resetPassword": "重置密码"
+        },
+        "email": {
+          "title": "更改电子邮件",
+          "label": "新电子邮件",
+          "placeholder": "请输入新的电子邮件地址",
+          "updateButton": "更新电子邮件",
+          "description": "请确保您的新电子邮件地址有效且可访问。",
+          "emailRequired": "电子邮件不能为空",
+          "emailInvalid": "请输入有效的电子邮件地址。",
+          "emailAlreadyVerified": "该电子邮件地址已被验证，请使用其他电子邮件地址。",
+          "emailChangeSuccess": "电子邮件更改成功",
+          "emailChangeSuccessDescription": "请使用新电子邮件登录。",
+          "emailChangeError": "电子邮件更改失败，请稍后再试。",
+          "captchaSent": "验证码已发送",
+          "captchaSentDescription": "请注意查收您的电子邮件或短信验证码。",
+          "captchaSendError": "验证码发送失败，请稍后再试",
+          "captchaRequired": "验证码不能为空",
+          "unknownError": "发生未知错误，请稍后再试。",
+          "logoutError": "退出登录失败，请重试。",
+          "emailLabel": "新电子邮件",
+          "emailPlaceholder": "请输入新的电子邮件地址",
+          "emailDescription": "请确保您的新电子邮件地址有效且可访问。",
+          "captchaLabel": "验证码",
+          "secondsLeft": "秒后重试",
+          "sendCaptcha": "发送验证码"
+        }
+      }
+    }
+  }
+}

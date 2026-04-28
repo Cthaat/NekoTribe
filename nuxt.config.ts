@@ -8,12 +8,15 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
 
   alias: {
-    '~/server': fileURLToPath(new URL('./server', import.meta.url)),
-    '@/server': fileURLToPath(new URL('./server', import.meta.url))
+    '~/server': fileURLToPath(
+      new URL('./server', import.meta.url)
+    ),
+    '@/server': fileURLToPath(
+      new URL('./server', import.meta.url)
+    )
   },
 
   modules: [
-    '@nuxt/content',
     '@nuxt/eslint',
     '@nuxt/fonts',
     '@nuxt/icon',
@@ -53,12 +56,28 @@ export default defineNuxtConfig({
 
   i18n: {
     locales: [
-      { code: 'en', name: 'English', file: 'en.json' },
-      { code: 'cn', name: 'Chinese', file: 'cn.json' }
+      {
+        code: 'en',
+        name: 'English',
+        language: 'en-US',
+        file: 'en.json'
+      },
+      {
+        code: 'zh',
+        name: '简体中文',
+        language: 'zh-CN',
+        file: 'zh.json'
+      }
     ],
-    defaultLocale: 'en', // 默认语言
-    lazy: true, // 推荐开启懒加载
-    langDir: 'locales' // 语言文件目录
+    defaultLocale: 'en',
+    lazy: true,
+    langDir: 'locales',
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: 'nekotribe_locale',
+      redirectOn: 'root',
+      fallbackLocale: 'en'
+    }
   },
 
   nitro: {

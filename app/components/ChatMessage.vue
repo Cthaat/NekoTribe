@@ -30,6 +30,8 @@ import {
 } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 
+const { t } = useAppLocale();
+
 // 消息类型定义
 export interface ChatMessageType {
   id: number;
@@ -99,10 +101,10 @@ const roleColor = computed(() => {
 const roleBadge = computed(() => {
   switch (props.message.author.role) {
     case 'owner':
-      return { label: '群主', variant: 'default' as const };
+      return { label: t('groups.detail.owner'), variant: 'default' as const };
     case 'admin':
       return {
-        label: '管理员',
+        label: t('groups.member.roles.admin'),
         variant: 'secondary' as const
       };
     default:
@@ -120,9 +122,13 @@ const formatTime = (dateStr: string) => {
   );
 
   if (diffDays === 0) {
-    return `今天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    return t('time.todayAt', {
+      time: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+    });
   } else if (diffDays === 1) {
-    return `昨天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    return t('time.yesterdayAt', {
+      time: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+    });
   } else {
     return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   }
@@ -204,7 +210,7 @@ const handleCopy = () => {
           class="text-xs h-5 gap-1"
         >
           <Pin class="h-3 w-3" />
-          已置顶
+          {{ t('chat.message.pinned') }}
         </Badge>
       </div>
 
@@ -229,7 +235,7 @@ const handleCopy = () => {
           v-if="message.editedAt"
           class="text-xs text-muted-foreground ml-1"
         >
-          (已编辑)
+          {{ t('chat.message.edited') }}
         </span>
       </div>
 
@@ -342,7 +348,7 @@ const handleCopy = () => {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">
-            <p>添加表情</p>
+            <p>{{ t('chat.actions.addReaction') }}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -359,7 +365,7 @@ const handleCopy = () => {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">
-            <p>回复</p>
+            <p>{{ t('comment.reply') }}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -377,14 +383,16 @@ const handleCopy = () => {
           <DropdownMenuContent align="end">
             <DropdownMenuItem @click="handleCopy">
               <Copy class="mr-2 h-4 w-4" />
-              复制文本
+              {{ t('chat.actions.copyText') }}
             </DropdownMenuItem>
             <DropdownMenuItem
               @click="emit('pin', message.id)"
             >
               <Pin class="mr-2 h-4 w-4" />
               {{
-                message.isPinned ? '取消置顶' : '置顶消息'
+                message.isPinned
+                  ? t('chat.actions.unpinMessage')
+                  : t('chat.actions.pinMessage')
               }}
             </DropdownMenuItem>
             <DropdownMenuSeparator v-if="isOwn" />
@@ -393,7 +401,7 @@ const handleCopy = () => {
               @click="emit('edit', message)"
             >
               <Edit3 class="mr-2 h-4 w-4" />
-              编辑消息
+              {{ t('chat.actions.editMessage') }}
             </DropdownMenuItem>
             <DropdownMenuItem
               v-if="isOwn"
@@ -401,7 +409,7 @@ const handleCopy = () => {
               @click="emit('delete', message.id)"
             >
               <Trash2 class="mr-2 h-4 w-4" />
-              删除消息
+              {{ t('chat.actions.deleteMessage') }}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

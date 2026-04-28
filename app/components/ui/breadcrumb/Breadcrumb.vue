@@ -4,11 +4,13 @@ import type { HTMLAttributes } from 'vue'
 const props = defineProps<{
   class?: HTMLAttributes['class']
 }>()
+
+const { t } = useAppLocale()
 </script>
 
 <template>
   <nav
-    aria-label="breadcrumb"
+    :aria-label="t('common.breadcrumb')"
     data-slot="breadcrumb"
     :class="props.class"
   >

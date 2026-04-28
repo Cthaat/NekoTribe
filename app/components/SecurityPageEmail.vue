@@ -53,7 +53,7 @@ import { usePreferenceStore } from '~/stores/user'; // 导入 store
 
 const preferenceStore = usePreferenceStore();
 
-const { t } = useI18n();
+const { t } = useAppLocale();
 
 const localePath = useLocalePath();
 
@@ -225,7 +225,7 @@ const onSubmit = handleSubmit(
     <FormField v-slot="{ componentField }" name="email">
       <FormItem>
         <FormLabel>{{
-          $t(
+          t(
             'account.security.securityPage.email.emailLabel'
           )
         }}</FormLabel>
@@ -233,7 +233,7 @@ const onSubmit = handleSubmit(
           <Input
             type="text"
             :placeholder="
-              $t(
+              t(
                 'account.security.securityPage.email.emailPlaceholder'
               )
             "
@@ -243,7 +243,7 @@ const onSubmit = handleSubmit(
         </FormControl>
         <FormDescription>
           {{
-            $t(
+            t(
               'account.security.securityPage.email.emailDescription'
             )
           }}
@@ -256,7 +256,7 @@ const onSubmit = handleSubmit(
     <FormField v-slot="{ componentField }" name="captcha">
       <FormItem>
         <FormLabel>{{
-          $t(
+          t(
             'account.security.securityPage.email.captchaLabel'
           )
         }}</FormLabel>
@@ -309,7 +309,7 @@ const onSubmit = handleSubmit(
             </span>
             <span v-else>
               {{
-                $t(
+                t(
                   'account.security.securityPage.email.sendCaptcha'
                 )
               }}
@@ -325,13 +325,13 @@ const onSubmit = handleSubmit(
         type="submit"
         :loading="isLoading"
         :loading-label="
-          $t(
+          t(
             'account.security.securityPage.email.updateButton'
           )
         "
       >
         {{
-          $t(
+          t(
             'account.security.securityPage.email.updateButton'
           )
         }}

@@ -11,21 +11,23 @@
 
 <script setup lang="ts">
 import { Toaster } from "@/components/ui/sonner"
+const { t, locale } = useAppLocale()
+
 useSeoMeta({
-  title: 'NekoTribe',
-  description: '社交媒体平台',
-  ogTitle: 'NekoTribe',
-  ogDescription: '社交媒体平台',
+  title: () => t('app.brand.name'),
+  description: () => t('app.meta.description'),
+  ogTitle: () => t('app.brand.name'),
+  ogDescription: () => t('app.meta.description'),
   ogImage: '/icon.png',
   ogUrl: 'https://neko-tribe.vercel.app/',
-  twitterTitle: 'NekoTribe',
-  twitterDescription: '社交媒体平台',
+  twitterTitle: () => t('app.brand.name'),
+  twitterDescription: () => t('app.meta.description'),
   twitterImage: '/icon.png',
 });
 
 useHead({
   htmlAttrs: {
-    lang: 'zh-cn'
+    lang: () => locale.value
   },
   link: [
     {

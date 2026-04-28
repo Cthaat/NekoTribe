@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/tooltip';
 
 export interface LinkProp {
+  value: string;
   title: string;
   label?: string;
   icon: string;
@@ -22,11 +23,11 @@ interface NavProps {
 
 const props = defineProps<NavProps>();
 const emit = defineEmits<{
-  (e: 'nav-click', title: string): void;
+  (e: 'nav-click', value: string): void;
 }>();
 
-function handleClick(title: string) {
-  emit('nav-click', title);
+function handleClick(value: string) {
+  emit('nav-click', value);
 }
 </script>
 
@@ -58,7 +59,7 @@ function handleClick(title: string) {
                     'dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white'
                 )
               "
-              @click.prevent="handleClick(link.title)"
+              @click.prevent="handleClick(link.value)"
             >
               <Icon :icon="link.icon" class="size-4" />
               <span class="sr-only">{{ link.title }}</span>
@@ -93,7 +94,7 @@ function handleClick(title: string) {
               'justify-start'
             )
           "
-          @click.prevent="handleClick(link.title)"
+          @click.prevent="handleClick(link.value)"
         >
           <Icon :icon="link.icon" class="mr-2 size-4" />
           {{ link.title }}

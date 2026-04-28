@@ -44,6 +44,7 @@ import type { ChatMessageType } from './ChatMessage.vue';
 import type { ChatMember } from './ChatMemberList.vue';
 import type { Channel } from './ChatChannelList.vue';
 import { toast } from 'vue-sonner';
+const { t } = useAppLocale();
 
 const props = defineProps<{
   channel: Channel;
@@ -81,6 +82,7 @@ const isFirstInGroup = (index: number) => {
   if (index === 0) return true;
   const currentMsg = props.messages[index];
   const prevMsg = props.messages[index - 1];
+  if (!currentMsg || !prevMsg) return true;
 
   // 系统消息始终独立
   if (currentMsg.type === 'system') return true;
@@ -163,7 +165,7 @@ const cancelReply = () => {
 // 复制消息
 const handleCopy = (content: string) => {
   navigator.clipboard.writeText(content);
-  toast.success('已复制到剪贴板');
+  toast.success(t('chat.feedback.copied'));
 };
 
 // 监听新消息
@@ -203,7 +205,10 @@ onMounted(() => {
           <span
             class="text-sm text-muted-foreground truncate max-w-xs"
           >
-            {{ channel.lastMessage || '频道描述' }}
+            {{
+              channel.lastMessage ||
+              t('chat.channelDescriptionFallback')
+            }}
           </span>
         </div>
 
@@ -221,7 +226,7 @@ onMounted(() => {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>开始语音通话</p>
+                <p>{{ t('chat.actions.startVoiceCall') }}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -237,7 +242,7 @@ onMounted(() => {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>开始视频通话</p>
+                <p>{{ t('chat.actions.startVideoCall') }}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -263,19 +268,19 @@ onMounted(() => {
                   </SheetTrigger>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>置顶消息</p>
+                  <p>{{ t('chat.message.pinnedMessages') }}</p>
                 </TooltipContent>
               </Tooltip>
               <SheetContent side="right" class="w-80">
                 <SheetHeader>
-                  <SheetTitle>置顶消息</SheetTitle>
+                  <SheetTitle>{{ t('chat.message.pinnedMessages') }}</SheetTitle>
                 </SheetHeader>
                 <div class="mt-4 space-y-2">
                   <div
                     v-if="!pinnedMessages?.length"
                     class="text-center text-muted-foreground py-8"
                   >
-                    暂无置顶消息
+                    {{ t('chat.message.noPinnedMessages') }}
                   </div>
                   <div
                     v-for="msg in pinnedMessages"
@@ -323,8 +328,8 @@ onMounted(() => {
                 <p>
                   {{
                     channel.isMuted
-                      ? '取消静音'
-                      : '静音频道'
+                      ? t('chat.actions.unmuteChannel')
+                      : t('chat.actions.muteChannel')
                   }}
                 </p>
               </TooltipContent>
@@ -344,7 +349,7 @@ onMounted(() => {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>搜索消息</p>
+                <p>{{ t('chat.actions.searchMessages') }}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -371,7 +376,9 @@ onMounted(() => {
               <TooltipContent>
                 <p>
                   {{
-                    showMemberList ? '隐藏成员' : '显示成员'
+                    showMemberList
+                      ? t('chat.actions.hideMembers')
+                      : t('chat.actions.showMembers')
                   }}
                 </p>
               </TooltipContent>
@@ -391,7 +398,7 @@ onMounted(() => {
           />
           <Input
             v-model="searchQuery"
-            placeholder="搜索消息..."
+            :placeholder="t('chat.searchPlaceholder')"
             class="pl-9"
             @input="emit('search', searchQuery)"
           />
@@ -442,10 +449,14 @@ onMounted(() => {
         >
           <Hash class="h-16 w-16 mb-4 opacity-50" />
           <h3 class="text-lg font-semibold mb-1">
-            欢迎来到 #{{ channel.name }}！
+            {{
+              t('chat.message.emptyTitle', {
+                channel: channel.name
+              })
+            }}
           </h3>
           <p class="text-sm">
-            这是频道的开始，发送第一条消息吧！
+            {{ t('chat.message.emptyDescription') }}
           </p>
         </div>
 
@@ -460,7 +471,7 @@ onMounted(() => {
             @click="scrollToBottom"
           >
             <ArrowDown class="h-4 w-4" />
-            新消息
+            {{ t('chat.message.newMessages') }}
           </Button>
         </div>
       </div>

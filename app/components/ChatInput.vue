@@ -25,6 +25,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip';
 import type { ChatMessageType } from './ChatMessage.vue';
+const { t } = useAppLocale();
 
 const props = defineProps<{
   channelName?: string;
@@ -159,7 +160,7 @@ const handleCancelReply = () => {
         class="h-4 w-4 text-muted-foreground flex-shrink-0"
       />
       <div class="flex-1 min-w-0">
-        <span class="text-muted-foreground">回复 </span>
+        <span class="text-muted-foreground">{{ t('chat.replyingTo') }} </span>
         <span class="font-medium">{{
           replyTo.author.nickname
         }}</span>
@@ -256,7 +257,7 @@ const handleCancelReply = () => {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              <p>上传附件</p>
+              <p>{{ t('chat.actions.uploadAttachment') }}</p>
             </TooltipContent>
           </Tooltip>
 
@@ -280,7 +281,7 @@ const handleCancelReply = () => {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              <p>上传图片</p>
+              <p>{{ t('chat.actions.uploadImage') }}</p>
             </TooltipContent>
           </Tooltip>
 
@@ -299,7 +300,7 @@ const handleCancelReply = () => {
                 </PopoverTrigger>
               </TooltipTrigger>
               <TooltipContent side="top">
-                <p>表情</p>
+                <p>{{ t('chat.actions.emoji') }}</p>
               </TooltipContent>
             </Tooltip>
             <PopoverContent
@@ -340,7 +341,7 @@ const handleCancelReply = () => {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              <p>提及用户</p>
+              <p>{{ t('chat.actions.mentionUser') }}</p>
             </TooltipContent>
           </Tooltip>
 
@@ -356,7 +357,7 @@ const handleCancelReply = () => {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              <p>引用频道</p>
+              <p>{{ t('chat.actions.quoteChannel') }}</p>
             </TooltipContent>
           </Tooltip>
 
@@ -372,7 +373,7 @@ const handleCancelReply = () => {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              <p>发送贴纸</p>
+              <p>{{ t('chat.actions.sendSticker') }}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -383,7 +384,11 @@ const handleCancelReply = () => {
         <Textarea
           ref="textareaRef"
           v-model="message"
-          :placeholder="`在 #${channelName || '聊天'} 中发送消息...`"
+          :placeholder="
+            t('chat.input.placeholder', {
+              channel: channelName || t('chat.fallbackChannel')
+            })
+          "
           :disabled="disabled"
           class="min-h-[44px] max-h-32 resize-none pr-12"
           rows="1"

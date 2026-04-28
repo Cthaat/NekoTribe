@@ -36,7 +36,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'vue-sonner';
-import type { ModerationTweet } from './ModerationCard.vue';
+import type {
+  ModerationReportReason,
+  ModerationTweet
+} from './ModerationCard.vue';
 
 const props = defineProps<{
   open: boolean;
@@ -49,6 +52,8 @@ const emit = defineEmits<{
   (e: 'reject', id: number, note: string): void;
   (e: 'flag', id: number, note: string): void;
 }>();
+
+const { t, locale } = useAppLocale();
 
 // 本地状态
 const moderationNote = ref('');
@@ -66,9 +71,9 @@ watch(
 );
 
 // 格式化时间
-const formatTime = (dateStr: string) => {
+const formatTime = (dateStr: string): string => {
   const date = new Date(dateStr);
-  return date.toLocaleString('zh-CN', {
+  return date.toLocaleString(locale.value, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -82,31 +87,31 @@ const getStatusInfo = (status: string) => {
   switch (status) {
     case 'pending':
       return {
-        text: '待审核',
+        text: t('moderation.status.pending'),
         variant: 'secondary' as const,
         color: 'text-yellow-500'
       };
     case 'approved':
       return {
-        text: '已通过',
+        text: t('moderation.status.approved'),
         variant: 'default' as const,
         color: 'text-green-500'
       };
     case 'rejected':
       return {
-        text: '已拒绝',
+        text: t('moderation.status.rejected'),
         variant: 'destructive' as const,
         color: 'text-destructive'
       };
     case 'flagged':
       return {
-        text: '已标记',
+        text: t('moderation.status.flagged'),
         variant: 'outline' as const,
         color: 'text-orange-500'
       };
     default:
       return {
-        text: '未知',
+        text: t('moderation.status.unknown'),
         variant: 'secondary' as const,
         color: 'text-muted-foreground'
       };
@@ -115,34 +120,55 @@ const getStatusInfo = (status: string) => {
 
 // 举报原因详情
 const reportReasonDetails: Record<
-  string,
-  { title: string; description: string }
+  ModerationReportReason,
+  { titleKey: string; descriptionKey: string }
 > = {
-  垃圾信息: {
-    title: '垃圾信息/广告',
-    description: '包含商业广告、垃圾链接或重复发布的内容'
+  spam: {
+    titleKey: 'moderation.reportDetails.spam.title',
+    descriptionKey: 'moderation.reportDetails.spam.description'
   },
-  骚扰: {
-    title: '骚扰行为',
-    description: '针对特定用户的恶意骚扰或网络欺凌'
+  harassment: {
+    titleKey: 'moderation.reportDetails.harassment.title',
+    descriptionKey: 'moderation.reportDetails.harassment.description'
   },
-  仇恨言论: {
-    title: '仇恨言论',
-    description: '基于种族、性别、宗教等的歧视性言论'
+  hate: {
+    titleKey: 'moderation.reportDetails.hate.title',
+    descriptionKey: 'moderation.reportDetails.hate.description'
   },
-  暴力内容: {
-    title: '暴力内容',
-    description: '包含暴力威胁或血腥暴力内容'
+  violence: {
+    titleKey: 'moderation.reportDetails.violence.title',
+    descriptionKey: 'moderation.reportDetails.violence.description'
   },
-  成人内容: {
-    title: '成人/色情内容',
-    description: '包含色情或不适合未成年人的内容'
+  adult: {
+    titleKey: 'moderation.reportDetails.adult.title',
+    descriptionKey: 'moderation.reportDetails.adult.description'
   },
-  虚假信息: {
-    title: '虚假信息',
-    description: '散布虚假或误导性信息'
+  misinformation: {
+    titleKey: 'moderation.reportDetails.misinformation.title',
+    descriptionKey:
+      'moderation.reportDetails.misinformation.description'
+  },
+  copyright: {
+    titleKey: 'moderation.reportDetails.copyright.title',
+    descriptionKey: 'moderation.reportDetails.copyright.description'
+  },
+  other: {
+    titleKey: 'moderation.reportDetails.other.title',
+    descriptionKey: 'moderation.reportDetails.other.description'
   }
 };
+
+const getReportReasonTitle = (
+  reason: ModerationReportReason
+): string => t(reportReasonDetails[reason].titleKey);
+
+const getReportReasonDescription = (
+  reason: ModerationReportReason
+): string => t(reportReasonDetails[reason].descriptionKey);
+
+const selectedMedia = computed(
+  () => props.tweet?.media?.[selectedImageIndex.value] ?? null
+);
 
 // 图片导航
 const prevImage = () => {
@@ -165,7 +191,7 @@ const handleApprove = () => {
   if (props.tweet) {
     emit('approve', props.tweet.id, moderationNote.value);
     emit('update:open', false);
-    toast.success('推文已通过审核');
+    toast.success(t('moderation.feedback.approved'));
   }
 };
 
@@ -173,7 +199,7 @@ const handleReject = () => {
   if (props.tweet) {
     emit('reject', props.tweet.id, moderationNote.value);
     emit('update:open', false);
-    toast.success('推文已拒绝');
+    toast.success(t('moderation.feedback.rejected'));
   }
 };
 
@@ -181,7 +207,7 @@ const handleFlag = () => {
   if (props.tweet) {
     emit('flag', props.tweet.id, moderationNote.value);
     emit('update:open', false);
-    toast.info('推文已标记待进一步审查');
+    toast.info(t('moderation.feedback.flagged'));
   }
 };
 
@@ -198,10 +224,10 @@ const closeDialog = () => {
       <DialogHeader>
         <DialogTitle class="flex items-center gap-2">
           <Eye class="h-5 w-5" />
-          审核详情
+          {{ t('moderation.detail.title') }}
         </DialogTitle>
         <DialogDescription>
-          查看推文详细信息并做出审核决定
+          {{ t('moderation.detail.description') }}
         </DialogDescription>
       </DialogHeader>
 
@@ -248,15 +274,21 @@ const closeDialog = () => {
                 <div class="flex items-center gap-1">
                   <Calendar class="h-3 w-3" />
                   <span
-                    >发布于
-                    {{ formatTime(tweet.createdAt) }}</span
+                    >{{
+                      t('moderation.detail.publishedAt', {
+                        time: formatTime(tweet.createdAt)
+                      })
+                    }}</span
                   >
                 </div>
                 <div class="flex items-center gap-1">
                   <Flag class="h-3 w-3" />
                   <span
-                    >举报于
-                    {{ formatTime(tweet.reportedAt) }}</span
+                    >{{
+                      t('moderation.detail.reportedAt', {
+                        time: formatTime(tweet.reportedAt)
+                      })
+                    }}</span
                   >
                 </div>
               </div>
@@ -266,7 +298,7 @@ const closeDialog = () => {
           <!-- 推文内容 -->
           <div>
             <h4 class="text-sm font-medium mb-2">
-              推文内容
+              {{ t('moderation.detail.postContent') }}
             </h4>
             <div
               class="p-4 border rounded-lg bg-background"
@@ -280,17 +312,21 @@ const closeDialog = () => {
           <!-- 媒体内容 -->
           <div v-if="tweet.media && tweet.media.length > 0">
             <h4 class="text-sm font-medium mb-2">
-              媒体内容 ({{ selectedImageIndex + 1 }}/{{
-                tweet.media.length
-              }})
+              {{
+                t('moderation.detail.mediaContent', {
+                  current: selectedImageIndex + 1,
+                  total: tweet.media.length
+                })
+              }}
             </h4>
             <div class="relative">
               <div
                 class="aspect-video rounded-lg overflow-hidden bg-muted"
               >
                 <img
-                  :src="tweet.media[selectedImageIndex].url"
-                  alt="媒体内容"
+                  v-if="selectedMedia"
+                  :src="selectedMedia.url"
+                  :alt="t('moderation.detail.mediaAlt')"
                   class="w-full h-full object-contain"
                 />
               </div>
@@ -358,7 +394,11 @@ const closeDialog = () => {
               <AlertTriangle
                 class="h-4 w-4 text-destructive"
               />
-              举报信息 ({{ tweet.reportCount }} 次举报)
+              {{
+                t('moderation.detail.reportInfo', {
+                  count: tweet.reportCount
+                })
+              }}
             </h4>
             <div class="space-y-2">
               <div
@@ -367,18 +407,12 @@ const closeDialog = () => {
                 class="p-3 border rounded-lg bg-destructive/5"
               >
                 <div class="font-medium text-sm">
-                  {{
-                    reportReasonDetails[reason]?.title ||
-                    reason
-                  }}
+                  {{ getReportReasonTitle(reason) }}
                 </div>
                 <div
                   class="text-xs text-muted-foreground mt-1"
                 >
-                  {{
-                    reportReasonDetails[reason]
-                      ?.description || '用户举报了此内容'
-                  }}
+                  {{ getReportReasonDescription(reason) }}
                 </div>
               </div>
             </div>
@@ -387,7 +421,7 @@ const closeDialog = () => {
           <!-- 互动数据 -->
           <div>
             <h4 class="text-sm font-medium mb-2">
-              互动数据
+              {{ t('moderation.detail.engagement') }}
             </h4>
             <div
               class="flex items-center gap-6 p-4 border rounded-lg"
@@ -398,7 +432,7 @@ const closeDialog = () => {
                   tweet.likes
                 }}</span>
                 <span class="text-sm text-muted-foreground"
-                  >喜欢</span
+                  >{{ t('moderation.detail.likes') }}</span
                 >
               </div>
               <div class="flex items-center gap-2">
@@ -407,7 +441,7 @@ const closeDialog = () => {
                   tweet.retweets
                 }}</span>
                 <span class="text-sm text-muted-foreground"
-                  >转发</span
+                  >{{ t('moderation.detail.retweets') }}</span
                 >
               </div>
               <div class="flex items-center gap-2">
@@ -418,7 +452,7 @@ const closeDialog = () => {
                   tweet.replies
                 }}</span>
                 <span class="text-sm text-muted-foreground"
-                  >回复</span
+                  >{{ t('moderation.detail.replies') }}</span
                 >
               </div>
             </div>
@@ -431,12 +465,12 @@ const closeDialog = () => {
             <Label
               for="moderation-note"
               class="text-sm font-medium"
-              >审核备注 (可选)</Label
+              >{{ t('moderation.detail.note') }}</Label
             >
             <Textarea
               id="moderation-note"
               v-model="moderationNote"
-              placeholder="输入审核备注..."
+              :placeholder="t('moderation.detail.notePlaceholder')"
               class="mt-2"
               rows="3"
             />
@@ -446,7 +480,7 @@ const closeDialog = () => {
 
       <DialogFooter class="flex-shrink-0 gap-2 sm:gap-0">
         <Button variant="outline" @click="closeDialog">
-          取消
+          {{ t('common.cancel') }}
         </Button>
         <Button
           variant="outline"
@@ -454,18 +488,18 @@ const closeDialog = () => {
           @click="handleFlag"
         >
           <Flag class="h-4 w-4 mr-2" />
-          标记审查
+          {{ t('moderation.actions.flag') }}
         </Button>
         <Button variant="destructive" @click="handleReject">
           <XCircle class="h-4 w-4 mr-2" />
-          拒绝
+          {{ t('moderation.actions.reject') }}
         </Button>
         <Button
           class="bg-green-600 hover:bg-green-700"
           @click="handleApprove"
         >
           <CheckCircle class="h-4 w-4 mr-2" />
-          通过
+          {{ t('moderation.actions.approve') }}
         </Button>
       </DialogFooter>
     </DialogContent>

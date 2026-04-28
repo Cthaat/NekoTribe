@@ -45,6 +45,7 @@ const props = defineProps<{
 import { navigateTo } from '#app';
 const preferenceStore = usePreferenceStore();
 const isLoading = ref(false);
+const { t } = useAppLocale();
 
 async function handleLogout() {
   if (isLoading.value) return; // 防止重复点击
@@ -53,10 +54,10 @@ async function handleLogout() {
   try {
     preferenceStore.resetToDefaults(); // 重置用户偏好设置
     await v2LogoutCurrent();
-    toast('退出登录成功，正在跳转到登录页面...');
+    toast(t('nav.user.logoutSuccess'));
     navigateTo(localePath('/auth/login'));
   } catch (error) {
-    toast.error('退出登录失败，请重试。');
+    toast.error(t('nav.user.logoutError'));
   } finally {
     // 无论成功与否，最终都将加载状态设为 false
     // （虽然成功后会重定向，但这是个好习惯）
@@ -134,18 +135,18 @@ const { isMobile } = useSidebar();
           <DropdownMenuGroup>
             <DropdownMenuItem>
               <Sparkles />
-              Upgrade to Pro
+              {{ t('nav.user.upgrade') }}
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem>
               <BadgeCheck />
-              Account
+              {{ t('nav.user.account') }}
             </DropdownMenuItem>
             <DropdownMenuItem>
               <CreditCard />
-              Billing
+              {{ t('nav.user.billing') }}
             </DropdownMenuItem>
             <DropdownMenuItem
               @select="
@@ -158,7 +159,7 @@ const { isMobile } = useSidebar();
               "
             >
               <Bell />
-              Notifications
+              {{ t('nav.user.notifications') }}
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
@@ -167,7 +168,7 @@ const { isMobile } = useSidebar();
             :disabled="isLoading"
           >
             <LogOut class="mr-2 h-4 w-4" />
-            Log out
+            {{ t('nav.user.logout') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

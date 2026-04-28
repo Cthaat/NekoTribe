@@ -43,7 +43,7 @@ const verifiedEmails = ref([
   'm@support.com'
 ]);
 
-const { t, locale, setLocale } = useI18n();
+const { t, locale } = useAppLocale();
 
 const userInfo = ref<CurrentUserVM | null>(null);
 
@@ -108,7 +108,10 @@ onMounted(async () => {
       });
     }
   } catch (error) {
-    console.error('Error fetching user info:', error);
+    console.error(
+      t('account.profile.profilePage.errorFetchingUserInfo'),
+      error
+    );
     toast.error(
       t(
         'account.profile.profilePage.errorFetchingUserInfo'
@@ -204,7 +207,7 @@ const onSubmit = handleSubmit(
 
 // 创建日期格式化实例，这部分是正确的
 const df = new DateFormatter(
-  locale.value === 'cn' ? 'zh-CN' : 'en-US',
+  locale.value === 'zh' ? 'zh-CN' : 'en-US',
   {
     dateStyle: 'long'
   }
@@ -219,13 +222,13 @@ const df = new DateFormatter(
     >
       <FormItem>
         <FormLabel>{{
-          $t('account.profile.profilePage.displayName')
+          t('account.profile.profilePage.displayName')
         }}</FormLabel>
         <FormControl>
           <Input
             type="text"
             :placeholder="
-              $t(
+              t(
                 'account.profile.profilePage.displayNamePlaceholder'
               )
             "
@@ -234,7 +237,7 @@ const df = new DateFormatter(
         </FormControl>
         <FormDescription>
           {{
-            $t(
+            t(
               'account.profile.profilePage.displayNameDescription'
             )
           }}
@@ -246,12 +249,12 @@ const df = new DateFormatter(
     <FormField v-slot="{ componentField }" name="bio">
       <FormItem>
         <FormLabel>{{
-          $t('account.profile.profilePage.bio')
+          t('account.profile.profilePage.bio')
         }}</FormLabel>
         <FormControl>
           <Textarea
             :placeholder="
-              $t(
+              t(
                 'account.profile.profilePage.bioPlaceholder'
               )
             "
@@ -260,7 +263,7 @@ const df = new DateFormatter(
         </FormControl>
         <FormDescription>
           {{
-            $t(
+            t(
               'account.profile.profilePage.bioDescription',
               { atSign: '@' }
             )
@@ -273,12 +276,12 @@ const df = new DateFormatter(
     <FormField v-slot="{ componentField }" name="location">
       <FormItem>
         <FormLabel>{{
-          $t('account.profile.profilePage.location')
+          t('account.profile.profilePage.location')
         }}</FormLabel>
         <FormControl>
           <Textarea
             :placeholder="
-              $t(
+              t(
                 'account.profile.profilePage.locationPlaceholder'
               )
             "
@@ -287,7 +290,7 @@ const df = new DateFormatter(
         </FormControl>
         <FormDescription>
           {{
-            $t(
+            t(
               'account.profile.profilePage.locationDescription'
             )
           }}
@@ -311,14 +314,14 @@ const df = new DateFormatter(
                 :class="cn(index !== 0 && 'sr-only')"
               >
                 {{
-                  $t('account.profile.profilePage.website')
+                  t('account.profile.profilePage.website')
                 }}
               </FormLabel>
               <FormDescription
                 :class="cn(index !== 0 && 'sr-only')"
               >
                 {{
-                  $t(
+                  t(
                     'account.profile.profilePage.websiteDescription'
                   )
                 }}
@@ -343,7 +346,7 @@ const df = new DateFormatter(
           class="text-xs w-20 mt-2"
           @click="push({ value: '' })"
         >
-          {{ $t('account.profile.profilePage.addWebsite') }}
+          {{ t('account.profile.profilePage.addWebsite') }}
         </Button>
       </FieldArray>
     </div>
@@ -355,7 +358,7 @@ const df = new DateFormatter(
     >
       <FormItem>
         <FormLabel>{{
-          $t('auth.signUp.birthDate')
+          t('auth.signUp.birthDate')
         }}</FormLabel>
         <Popover>
           <PopoverTrigger as-child>
@@ -385,7 +388,7 @@ const df = new DateFormatter(
                     ? df.format(
                         value.toDate(getLocalTimeZone())
                       )
-                    : $t('auth.signUp.birthDatePlaceholder')
+                    : t('auth.signUp.birthDatePlaceholder')
                 }}
               </Button>
             </FormControl>
@@ -410,12 +413,12 @@ const df = new DateFormatter(
     <FormField v-slot="{ componentField }" name="phone">
       <FormItem>
         <FormLabel>{{
-          $t('account.profile.profilePage.phone')
+          t('account.profile.profilePage.phone')
         }}</FormLabel>
         <FormControl>
           <Textarea
             :placeholder="
-              $t(
+              t(
                 'account.profile.profilePage.phonePlaceholder'
               )
             "
@@ -424,7 +427,7 @@ const df = new DateFormatter(
         </FormControl>
         <FormDescription>
           {{
-            $t(
+            t(
               'account.profile.profilePage.phoneDescription'
             )
           }}
@@ -436,7 +439,7 @@ const df = new DateFormatter(
     <div class="flex gap-2 justify-start">
       <Button type="submit">
         {{
-          $t('account.profile.profilePage.updateProfile')
+          t('account.profile.profilePage.updateProfile')
         }}
       </Button>
 
@@ -445,7 +448,7 @@ const df = new DateFormatter(
         variant="outline"
         @click="resetForm"
       >
-        {{ $t('account.profile.profilePage.resetForm') }}
+        {{ t('account.profile.profilePage.resetForm') }}
       </Button>
     </div>
   </form>

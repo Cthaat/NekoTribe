@@ -20,6 +20,7 @@ import {
 
 import TweetComposer from '@/components/TweetComposer.vue';
 const localePath = useLocalePath();
+const { t } = useAppLocale();
 
 const isQuoteDialogOpen = ref(false);
 const isReplyDialogOpen = ref(false);
@@ -59,7 +60,7 @@ async function loadSelectableTweets(): Promise<void> {
     selectableTweets.value = result.items;
   } catch (err) {
     console.error('获取可选择推文失败:', err);
-    dialogError.value = '无法加载推文列表，请稍后再试。';
+    dialogError.value = t('post.composePage.loadSelectableFailed');
   } finally {
     isDialogLoading.value = false;
   }
@@ -110,7 +111,7 @@ async function handleTweetSubmit(
       mediaIds
     });
 
-    toast.success('推文发布成功！');
+    toast.success(t('post.composePage.publishSuccess'));
 
     // 跳转到推文页
     await navigateTo(localePath('/'));
@@ -122,8 +123,12 @@ async function handleTweetSubmit(
     submissionError.value =
       err instanceof Error
         ? err.message
-        : '发生未知错误，请稍后再试。';
-    toast.error(`发布失败: ${submissionError.value}`);
+        : t('post.composePage.submitUnknownError');
+    toast.error(
+      t('post.composePage.publishFailed', {
+        message: submissionError.value
+      })
+    );
   } finally {
     isSubmitting.value = false;
   }
@@ -144,14 +149,12 @@ async function handleTweetSubmit(
         >
           <div>
             <h2 class="text-2xl font-bold tracking-tight">
-              发布推文
+              {{ t('post.composePage.title') }}
             </h2>
             <p class="text-muted-foreground text-sm mt-1">
-              分享你的想法，与世界连接。
+              {{ t('post.composePage.description') }}
             </p>
           </div>
-          <!-- TODO: 这个按钮可以链接到草稿箱或执行其他操作 -->
-          <!-- <Button variant="secondary">查看草稿</Button> -->
         </div>
 
         <!-- 分割线（也放入相同容器中以保持对齐） -->
@@ -185,10 +188,12 @@ async function handleTweetSubmit(
         >
           <DialogHeader>
             <DialogTitle class="text-white"
-              >选择要引用的推文</DialogTitle
+              >{{ t('post.composePage.quote.title') }}</DialogTitle
             >
             <DialogDescription
-              >从下面的列表中选择一条推文来添加到你的引用中。</DialogDescription
+              >{{
+                t('post.composePage.quote.description')
+              }}</DialogDescription
             >
           </DialogHeader>
 
@@ -200,7 +205,7 @@ async function handleTweetSubmit(
               class="flex items-center justify-center h-48"
             >
               <p class="text-muted-foreground">
-                正在加载推文...
+                {{ t('post.composePage.dialog.loading') }}
               </p>
               <!-- 你也可以在这里放一个旋转的加载图标 -->
             </div>
@@ -218,7 +223,7 @@ async function handleTweetSubmit(
               v-else-if="selectableTweets.length === 0"
               class="text-center text-muted-foreground"
             >
-              <p>没有找到可供引用的推文。</p>
+              <p>{{ t('post.composePage.quote.empty') }}</p>
             </div>
 
             <!-- 4. 成功状态 -->
@@ -258,10 +263,12 @@ async function handleTweetSubmit(
         >
           <DialogHeader>
             <DialogTitle class="text-white"
-              >选择要回复的推文</DialogTitle
+              >{{ t('post.composePage.reply.title') }}</DialogTitle
             >
             <DialogDescription
-              >从下面的列表中选择一条推文来添加到你的回复中。</DialogDescription
+              >{{
+                t('post.composePage.reply.description')
+              }}</DialogDescription
             >
           </DialogHeader>
 
@@ -273,7 +280,7 @@ async function handleTweetSubmit(
               class="flex items-center justify-center h-48"
             >
               <p class="text-muted-foreground">
-                正在加载推文...
+                {{ t('post.composePage.dialog.loading') }}
               </p>
               <!-- 你也可以在这里放一个旋转的加载图标 -->
             </div>
@@ -291,7 +298,7 @@ async function handleTweetSubmit(
               v-else-if="selectableTweets.length === 0"
               class="text-center text-muted-foreground"
             >
-              <p>没有找到可供回复的推文。</p>
+              <p>{{ t('post.composePage.reply.empty') }}</p>
             </div>
 
             <!-- 4. 成功状态 -->
@@ -327,7 +334,7 @@ async function handleTweetSubmit(
     </div>
     <LoadingOverlay
       v-if="isSubmitting"
-      text="正在发布推文..."
+      :text="t('post.composePage.submitting')"
     />
   </div>
 </template>

@@ -12,6 +12,8 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
+ENV NODE_OPTIONS=--max-old-space-size=4096
+
 RUN corepack enable
 
 COPY --from=deps /app/node_modules ./node_modules

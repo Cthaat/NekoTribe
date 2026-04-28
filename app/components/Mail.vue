@@ -53,6 +53,7 @@ const props = withDefaults(defineProps<MailProps>(), {
   defaultLayout: () => [265, 440, 655]
 });
 
+const { t } = useAppLocale();
 const isCollapsed = ref(props.defaultCollapsed);
 const selectedMail = ref<string | undefined>(
   props.mails[0]?.id
@@ -95,13 +96,15 @@ const currentView = ref<'inbox' | 'trash'>('inbox');
 
 const links = computed<LinkProp[]>(() => [
   {
-    title: 'Inbox',
+    value: 'inbox',
+    title: t('mail.folders.inbox'),
     icon: 'lucide:inbox',
     variant:
       currentView.value === 'inbox' ? 'default' : 'ghost'
   },
   {
-    title: 'Trash',
+    value: 'trash',
+    title: t('mail.folders.trash'),
     icon: 'lucide:trash-2',
     variant:
       currentView.value === 'trash' ? 'default' : 'ghost'
@@ -109,10 +112,10 @@ const links = computed<LinkProp[]>(() => [
 ]);
 
 // 切换视图
-function handleNavClick(title: string) {
-  if (title === 'Inbox') {
+function handleNavClick(value: string) {
+  if (value === 'inbox') {
     currentView.value = 'inbox';
-  } else if (title === 'Trash') {
+  } else if (value === 'trash') {
     currentView.value = 'trash';
   }
 }
@@ -174,7 +177,9 @@ function handleReadMail(mailId: string) {
           <div class="flex items-center px-4 py-2">
             <h1 class="text-xl font-bold">
               {{
-                currentView === 'inbox' ? 'Inbox' : 'Trash'
+                currentView === 'inbox'
+                  ? t('mail.folders.inbox')
+                  : t('mail.folders.trash')
               }}
             </h1>
             <TabsList class="ml-auto">
@@ -182,13 +187,13 @@ function handleReadMail(mailId: string) {
                 value="all"
                 class="text-zinc-600 dark:text-zinc-200"
               >
-                All mail
+                {{ t('mail.tabs.all') }}
               </TabsTrigger>
               <TabsTrigger
                 value="unread"
                 class="text-zinc-600 dark:text-zinc-200"
               >
-                Unread
+                {{ t('mail.tabs.unread') }}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -203,7 +208,7 @@ function handleReadMail(mailId: string) {
                 />
                 <Input
                   v-model="searchValue"
-                  placeholder="Search"
+                  :placeholder="t('mail.searchPlaceholder')"
                   class="pl-8"
                 />
               </div>

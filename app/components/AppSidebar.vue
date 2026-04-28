@@ -38,108 +38,120 @@ const props = withDefaults(defineProps<SidebarProps>(), {
 });
 
 const localePath = useLocalePath();
+const { t } = useAppLocale();
 
 const preferenceStore = usePreferenceStore();
 
-const userId = preferenceStore.preferences.user.id;
+const userId = computed(
+  () => preferenceStore.preferences.user.id
+);
 
-const baseNavData = {
+const baseNavData = computed(() => ({
   user: {
     name:
       preferenceStore.preferences.user.name ||
-      'shadcn',
+      t('nav.user.fallbackName'),
     email:
       preferenceStore.preferences.user.email ||
-      'm@example.com',
+      t('nav.user.fallbackEmail'),
     avatar:
       preferenceStore.preferences.user.avatarUrl ||
       '/avatars/shadcn.jpg'
   },
   navMain: [
     {
-      title: 'Trending',
-      url: `/tweet/trending/${userId}`,
+      title: t('nav.main.trending'),
+      url: `/tweet/trending/${userId.value}`,
       icon: Flame
     },
     {
-      title: 'Tweet',
-      url: `/tweet/home/${userId}`,
+      title: t('nav.main.tweet'),
+      url: `/tweet/home/${userId.value}`,
       icon: Cat,
       items: [
         {
-          title: 'Home',
-          url: `/tweet/home/${userId}`
+          title: t('nav.main.home'),
+          url: `/tweet/home/${userId.value}`
         },
         {
-          title: 'My Tweets',
-          url: `/tweet/my_tweets/${userId}`
+          title: t('nav.main.myTweets'),
+          url: `/tweet/my_tweets/${userId.value}`
         },
         {
-          title: 'Mention',
-          url: `/tweet/mention/${userId}`
+          title: t('nav.main.mention'),
+          url: `/tweet/mention/${userId.value}`
         },
         {
-          title: 'Bookmark',
-          url: `/tweet/bookmark/${userId}`
+          title: t('nav.main.bookmark'),
+          url: `/tweet/bookmark/${userId.value}`
         }
       ]
     },
     {
-      title: 'Meow',
+      title: t('nav.main.meow'),
       url: 'meow',
       icon: Send
     },
     {
-      title: 'Groups',
+      title: t('nav.main.groups'),
       url: '/groups/discover',
       icon: Users,
       items: [
-        { title: 'Discover', url: '/groups/discover' },
-        { title: 'My Groups', url: '/groups/my' },
-        { title: 'Invites', url: '/groups/invites' }
+        {
+          title: t('nav.main.discoverGroups'),
+          url: '/groups/discover'
+        },
+        { title: t('nav.main.myGroups'), url: '/groups/my' },
+        { title: t('nav.main.invites'), url: '/groups/invites' }
       ]
     },
     {
-      title: 'Chat',
+      title: t('nav.main.chat'),
       url: '/chat',
       icon: MessageSquare
     },
     {
-      title: 'Account',
+      title: t('nav.main.account'),
       url: 'account-overview', // 使用路由名称
       icon: Settings2,
       items: [
-        { title: 'Overview', url: 'account-overview' },
-        { title: 'Settings', url: 'account-settings' },
-        { title: 'Profile', url: 'account-profile' },
-        { title: 'Appearance', url: 'account-appearance' },
-        { title: 'Security', url: 'account-security' },
-        { title: 'Active', url: 'account-active' },
-        { title: 'Statements', url: 'account-statements' }
+        { title: t('account.tabs.overview'), url: 'account-overview' },
+        { title: t('account.tabs.settings'), url: 'account-settings' },
+        { title: t('account.tabs.profile'), url: 'account-profile' },
+        {
+          title: t('account.tabs.appearance'),
+          url: 'account-appearance'
+        },
+        { title: t('account.tabs.security'), url: 'account-security' },
+        { title: t('account.tabs.active'), url: 'account-active' },
+        {
+          title: t('account.tabs.statements'),
+          url: 'account-statements'
+        }
       ]
     },
     {
-      title: 'Moderation',
+      title: t('nav.main.moderation'),
       url: '/moderation/content',
       icon: Shield,
       items: [
-        { title: 'Content', url: '/moderation/content' },
-        { title: 'Users', url: '/moderation/users' },
-        { title: 'Reports', url: '/moderation/reports' },
-        { title: 'Settings', url: '/moderation/settings' }
+        { title: t('nav.main.content'), url: '/moderation/content' },
+        { title: t('nav.main.users'), url: '/moderation/users' },
+        { title: t('nav.main.reports'), url: '/moderation/reports' },
+        { title: t('nav.main.settings'), url: '/moderation/settings' }
       ]
     }
   ],
   navSecondary: [
-    { title: 'Support', url: '#', icon: LifeBuoy },
-    { title: 'Feedback', url: '#', icon: Send }
+    { title: t('nav.secondary.support'), url: '#', icon: LifeBuoy },
+    { title: t('nav.secondary.feedback'), url: '#', icon: Send }
   ],
   projects: [
-    { name: 'Design Engineering', url: '#', icon: Frame },
-    { name: 'Sales & Marketing', url: '#', icon: PieChart },
-    { name: 'Travel', url: '#', icon: Map }
+    { name: t('nav.projects.design'), url: '#', icon: Frame },
+    { name: t('nav.projects.sales'), url: '#', icon: PieChart },
+    { name: t('nav.projects.travel'), url: '#', icon: Map }
   ]
-};
+}));
 
 interface LocalizedMenuItem {
   url: string;
@@ -162,7 +174,7 @@ const localizedNav = computed(() => {
 
   return {
     // 处理 navMain，它有嵌套的 items
-    navMain: baseNavData.navMain.map(mainItem => ({
+    navMain: baseNavData.value.navMain.map(mainItem => ({
       ...mainItem,
       url: processMenuItem(mainItem),
       items: mainItem.items
@@ -174,13 +186,13 @@ const localizedNav = computed(() => {
     })),
 
     // 处理 navSecondary，它没有嵌套
-    navSecondary: baseNavData.navSecondary.map(item => ({
+    navSecondary: baseNavData.value.navSecondary.map(item => ({
       ...item,
       url: processMenuItem(item)
     })),
 
     // 处理 projects，它也没有嵌套
-    projects: baseNavData.projects.map(project => ({
+    projects: baseNavData.value.projects.map(project => ({
       ...project,
       url: processMenuItem(project)
     }))
@@ -194,7 +206,7 @@ const localizedNav = computed(() => {
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" as-child>
-            <NuxtLink :to="$localePath('/')">
+            <NuxtLink :to="localePath('/')">
               <div
                 class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
               >
@@ -205,11 +217,11 @@ const localizedNav = computed(() => {
               >
                 <span
                   class="truncate font-medium justify-center"
-                  >NekoTribe</span
+                  >{{ t('app.brand.name') }}</span
                 >
                 <span
                   class="truncate text-xs justify-center"
-                  >Edge Walker</span
+                  >{{ t('app.brand.tagline') }}</span
                 >
               </div>
             </NuxtLink>

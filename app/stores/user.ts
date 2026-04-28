@@ -1,6 +1,10 @@
 import { defineStore } from 'pinia';
 import { computed } from 'vue';
-import type { UserPreference, ThemeMode } from './type';
+import type {
+  UserPreference,
+  ThemeMode,
+  LanguageCode
+} from './type';
 import {
   v2RefreshCurrentToken,
   type AuthSessionVM,
@@ -55,6 +59,20 @@ function normalizeStoredUser(
     ...user,
     avatarUrl: normalizeAvatarUrl(user.avatarUrl)
   };
+}
+
+function normalizeStoredLanguage(
+  language: string | undefined
+): LanguageCode {
+  if (
+    language === 'zh' ||
+    language === 'cn' ||
+    language?.startsWith('zh')
+  ) {
+    return 'zh';
+  }
+
+  return 'en';
 }
 
 // --- 默认状态 ---
@@ -243,7 +261,9 @@ export const usePreferenceStore = defineStore(
      * 如果选择只清除令牌，这个函数保持原样。
      */
     function resetToDefaults() {
-      const language = preferences.value.language;
+      const language = normalizeStoredLanguage(
+        preferences.value.language
+      );
       preferences.value = defaultPreferences;
       updatePreference('language', language);
     }
@@ -253,6 +273,9 @@ export const usePreferenceStore = defineStore(
     }
     preferences.value.user = normalizeStoredUser(
       preferences.value.user
+    );
+    preferences.value.language = normalizeStoredLanguage(
+      preferences.value.language
     );
 
     // 4. 返回: 暴露出新增的 getters 和 actions

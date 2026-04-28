@@ -29,6 +29,7 @@ import type { GroupInviteView } from '@/types/groups';
 
 const invites = ref<GroupInviteView[]>([]);
 const isRefreshing = ref(false);
+const { t } = useAppLocale();
 
 function formatTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -38,10 +39,10 @@ function formatTime(dateStr: string): string {
 
   if (hours < 1) {
     const minutes = Math.floor(diff / (1000 * 60));
-    return `${Math.max(minutes, 0)}分钟前`;
+    return t('time.minutesAgo', { count: Math.max(minutes, 0) });
   }
-  if (hours < 24) return `${hours}小时前`;
-  return `${Math.floor(hours / 24)}天前`;
+  if (hours < 24) return t('time.hoursAgo', { count: hours });
+  return t('time.daysAgo', { count: Math.floor(hours / 24) });
 }
 
 function getRemainingTime(expiresAt: string): string {
@@ -49,7 +50,7 @@ function getRemainingTime(expiresAt: string): string {
   const now = new Date();
   const diff = expires.getTime() - now.getTime();
 
-  if (diff <= 0) return '已过期';
+  if (diff <= 0) return t('groups.invites.expired');
 
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor(
@@ -57,8 +58,13 @@ function getRemainingTime(expiresAt: string): string {
       (1000 * 60 * 60)
   );
 
-  if (days > 0) return `${days}天${hours}小时后过期`;
-  return `${hours}小时后过期`;
+  if (days > 0) {
+    return t('groups.invites.expiresInDays', {
+      days,
+      hours
+    });
+  }
+  return t('groups.invites.expiresInHours', { hours });
 }
 
 async function refreshInvites(): Promise<void> {
@@ -67,7 +73,7 @@ async function refreshInvites(): Promise<void> {
     invites.value = await listMyGroupInvites();
   } catch (error) {
     invites.value = [];
-    toast.error('加载邀请失败', {
+    toast.error(t('groups.feedback.loadInvitesFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
@@ -82,9 +88,9 @@ async function handleAccept(id: number): Promise<void> {
     invites.value = invites.value.filter(
       invite => invite.id !== id
     );
-    toast.success('已接受邀请');
+    toast.success(t('groups.feedback.inviteAccepted'));
   } catch (error) {
-    toast.error('接受邀请失败', {
+    toast.error(t('groups.feedback.inviteAcceptFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
@@ -97,9 +103,9 @@ async function handleReject(id: number): Promise<void> {
     invites.value = invites.value.filter(
       invite => invite.id !== id
     );
-    toast.info('已拒绝邀请');
+    toast.info(t('groups.feedback.inviteRejected'));
   } catch (error) {
-    toast.error('拒绝邀请失败', {
+    toast.error(t('groups.feedback.inviteRejectFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
@@ -108,7 +114,7 @@ async function handleReject(id: number): Promise<void> {
 
 async function handleRefresh(): Promise<void> {
   await refreshInvites();
-  toast.success('已刷新');
+  toast.success(t('groups.feedback.refreshed'));
 }
 
 onMounted(() => {
@@ -121,11 +127,7 @@ onMounted(() => {
     <!-- 头部 -->
     <div class="flex items-center justify-between">
       <div class="text-sm text-muted-foreground">
-        共
-        <span class="font-medium text-foreground">{{
-          invites.length
-        }}</span>
-        条待处理邀请
+        {{ t('groups.invites.pendingCount', { count: invites.length }) }}
       </div>
       <Button
         variant="outline"
@@ -139,7 +141,7 @@ onMounted(() => {
             { 'animate-spin': isRefreshing }
           ]"
         />
-        刷新
+        {{ t('common.refresh') }}
       </Button>
     </div>
 
@@ -152,10 +154,10 @@ onMounted(() => {
         <Inbox class="h-8 w-8 text-muted-foreground" />
       </div>
       <h3 class="text-lg font-medium mb-1">
-        没有待处理的邀请
+        {{ t('groups.invites.emptyTitle') }}
       </h3>
       <p class="text-sm text-muted-foreground max-w-sm">
-        当有人邀请你加入群组时，邀请会显示在这里
+        {{ t('groups.invites.emptyDescription') }}
       </p>
     </div>
 
@@ -211,7 +213,7 @@ onMounted(() => {
                     invite.inviter.nickname
                   }}</span>
                   <span class="text-muted-foreground">
-                    邀请你加入</span
+                    {{ t('groups.invites.invitedYou') }}</span
                   >
                 </span>
               </div>
@@ -255,14 +257,14 @@ onMounted(() => {
               @click="handleReject(invite.id)"
             >
               <XCircle class="h-4 w-4 mr-1" />
-              拒绝
+              {{ t('groups.invites.reject') }}
             </Button>
             <Button
               size="sm"
               @click="handleAccept(invite.id)"
             >
               <CheckCircle class="h-4 w-4 mr-1" />
-              接受
+              {{ t('groups.invites.accept') }}
             </Button>
           </div>
         </CardFooter>

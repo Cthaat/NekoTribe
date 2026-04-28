@@ -16,7 +16,6 @@ import {
   Trash2,
   RotateCcw
 } from 'lucide-vue-next';
-import { computed } from 'vue';
 import {
   Avatar,
   AvatarFallback
@@ -29,15 +28,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { Label } from '@/components/ui/label';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger
 } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Tooltip,
   TooltipContent,
@@ -51,6 +47,7 @@ interface MailDisplayProps {
 }
 
 const props = defineProps<MailDisplayProps>();
+const { t } = useAppLocale();
 
 const today = new Date();
 
@@ -69,10 +66,14 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
               :disabled="!mail"
             >
               <Archive class="size-4" />
-              <span class="sr-only">Archive</span>
+              <span class="sr-only">{{
+                t('mail.display.archive')
+              }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Archive</TooltipContent>
+          <TooltipContent>{{
+            t('mail.display.archive')
+          }}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger as-child>
@@ -82,10 +83,14 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
               :disabled="!mail"
             >
               <ArchiveX class="size-4" />
-              <span class="sr-only">Move to junk</span>
+              <span class="sr-only">{{
+                t('mail.display.moveToJunk')
+              }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Move to junk</TooltipContent>
+          <TooltipContent>{{
+            t('mail.display.moveToJunk')
+          }}</TooltipContent>
         </Tooltip>
         <Tooltip v-if="!isTrashView">
           <TooltipTrigger as-child>
@@ -96,10 +101,14 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
               @click.stop="emit('delete-mail', mail.id)"
             >
               <Trash2 class="size-4" />
-              <span class="sr-only">Move to trash</span>
+              <span class="sr-only">{{
+                t('mail.display.moveToTrash')
+              }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Move to trash</TooltipContent>
+          <TooltipContent>{{
+            t('mail.display.moveToTrash')
+          }}</TooltipContent>
         </Tooltip>
         <Tooltip v-else>
           <TooltipTrigger as-child>
@@ -110,11 +119,13 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
               @click.stop="emit('restore-mail', mail.id)"
             >
               <RotateCcw class="size-4" />
-              <span class="sr-only">Restore</span>
+              <span class="sr-only">{{
+                t('mail.display.restore')
+              }}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent
-            >Restore from trash</TooltipContent
+            >{{ t('mail.display.restoreFromTrash') }}</TooltipContent
           >
         </Tooltip>
         <Separator
@@ -131,7 +142,9 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
                   :disabled="!mail"
                 >
                   <Clock class="size-4" />
-                  <span class="sr-only">Snooze</span>
+                  <span class="sr-only">{{
+                    t('mail.display.snooze')
+                  }}</span>
                 </Button>
               </TooltipTrigger>
             </PopoverTrigger>
@@ -140,14 +153,14 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
                 class="flex flex-col gap-2 border-r px-2 py-4"
               >
                 <div class="px-4 text-sm font-medium">
-                  Snooze until
+                  {{ t('mail.display.snoozeUntil') }}
                 </div>
                 <div class="grid min-w-[250px] gap-1">
                   <Button
                     variant="ghost"
                     class="justify-start font-normal"
                   >
-                    Later today
+                    {{ t('mail.display.laterToday') }}
                     <span
                       class="ml-auto text-muted-foreground"
                     >
@@ -163,7 +176,7 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
                     variant="ghost"
                     class="justify-start font-normal"
                   >
-                    Tomorrow
+                    {{ t('mail.display.tomorrow') }}
                     <span
                       class="ml-auto text-muted-foreground"
                     >
@@ -179,7 +192,7 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
                     variant="ghost"
                     class="justify-start font-normal"
                   >
-                    This weekend
+                    {{ t('mail.display.thisWeekend') }}
                     <span
                       class="ml-auto text-muted-foreground"
                     >
@@ -195,7 +208,7 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
                     variant="ghost"
                     class="justify-start font-normal"
                   >
-                    Next week
+                    {{ t('mail.display.nextWeek') }}
                     <span
                       class="ml-auto text-muted-foreground"
                     >
@@ -214,7 +227,9 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
               </div>
             </PopoverContent>
           </Popover>
-          <TooltipContent>Snooze</TooltipContent>
+          <TooltipContent>{{
+            t('mail.display.snooze')
+          }}</TooltipContent>
         </Tooltip>
       </div>
       <div
@@ -229,10 +244,14 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
               :disabled="!mail"
             >
               <Reply class="size-4" />
-              <span class="sr-only">Reply</span>
+              <span class="sr-only">{{
+                t('mail.display.reply')
+              }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Reply</TooltipContent>
+          <TooltipContent>{{
+            t('mail.display.reply')
+          }}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger as-child>
@@ -242,10 +261,14 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
               :disabled="!mail"
             >
               <ReplyAll class="size-4" />
-              <span class="sr-only">Reply all</span>
+              <span class="sr-only">{{
+                t('mail.display.replyAll')
+              }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Reply all</TooltipContent>
+          <TooltipContent>{{
+            t('mail.display.replyAll')
+          }}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger as-child>
@@ -255,10 +278,14 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
               :disabled="!mail"
             >
               <Forward class="size-4" />
-              <span class="sr-only">Forward</span>
+              <span class="sr-only">{{
+                t('mail.display.forward')
+              }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Forward</TooltipContent>
+          <TooltipContent>{{
+            t('mail.display.forward')
+          }}</TooltipContent>
         </Tooltip>
       </div>
       <Separator orientation="vertical" class="mx-2 h-6" />
@@ -270,16 +297,24 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
             :disabled="!mail"
           >
             <MoreVertical class="size-4" />
-            <span class="sr-only">More</span>
+            <span class="sr-only">{{
+              t('mail.display.more')
+            }}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
-            >Mark as unread</DropdownMenuItem
+            >{{ t('mail.display.markAsUnread') }}</DropdownMenuItem
           >
-          <DropdownMenuItem>Star thread</DropdownMenuItem>
-          <DropdownMenuItem>Add label</DropdownMenuItem>
-          <DropdownMenuItem>Mute thread</DropdownMenuItem>
+          <DropdownMenuItem>{{
+            t('mail.display.starThread')
+          }}</DropdownMenuItem>
+          <DropdownMenuItem>{{
+            t('mail.display.addLabel')
+          }}</DropdownMenuItem>
+          <DropdownMenuItem>{{
+            t('mail.display.muteThread')
+          }}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -304,7 +339,9 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
               {{ mail.subject }}
             </div>
             <div class="line-clamp-1 text-xs">
-              <span class="font-medium">Reply-To:</span>
+              <span class="font-medium">{{
+                t('mail.display.replyTo')
+              }}</span>
               {{ mail.email }}
             </div>
           </div>
@@ -320,44 +357,12 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
       <div class="flex-1 whitespace-pre-wrap p-4 text-sm">
         {{ mail.text }}
       </div>
-      <!-- <Separator class="mt-auto" /> -->
-      <!-- TODO: 后续添加回复功能 -->
-      <!-- <div class="p-4">
-        <form>
-          <div class="grid gap-4">
-            <Textarea
-              class="p-4"
-              :placeholder="`Reply ${mail.name}...`"
-            />
-            <div class="flex items-center">
-              <Label
-                html-for="mute"
-                class="flex items-center gap-2 text-xs font-normal"
-              >
-                <Switch
-                  id="mute"
-                  aria-label="Mute thread"
-                />
-                Mute this thread
-              </Label>
-              <Button
-                type="button"
-                size="sm"
-                class="ml-auto"
-                :disabled="!mail"
-              >
-                Send
-              </Button>
-            </div>
-          </div>
-        </form>
-      </div> -->
     </div>
     <div
       v-else
       class="p-8 text-center text-muted-foreground"
     >
-      No message selected
+      {{ t('mail.display.noSelection') }}
     </div>
   </div>
 </template>

@@ -20,6 +20,8 @@ import {
   CardTitle
 } from '@/components/ui/card';
 
+const { t } = useAppLocale();
+
 // 定义页面 meta
 definePageMeta({
   layout: 'default'
@@ -32,25 +34,25 @@ const activeTab = ref('content');
 const tabs = [
   {
     value: 'content',
-    label: '内容审核',
+    labelKey: 'moderation.tabs.content',
     icon: FileText,
     path: '/moderation/content'
   },
   {
     value: 'users',
-    label: '用户管理',
+    labelKey: 'moderation.tabs.users',
     icon: Users,
     path: '/moderation/users'
   },
   {
     value: 'reports',
-    label: '举报管理',
+    labelKey: 'moderation.tabs.reports',
     icon: BarChart3,
     path: '/moderation/reports'
   },
   {
     value: 'settings',
-    label: '审核设置',
+    labelKey: 'moderation.tabs.settings',
     icon: Settings,
     path: '/moderation/settings'
   }
@@ -99,9 +101,11 @@ watch(currentPath, newPath => {
         <Shield class="h-6 w-6 text-primary" />
       </div>
       <div>
-        <h1 class="text-2xl font-bold">内容审核</h1>
+        <h1 class="text-2xl font-bold">
+          {{ t('moderation.title') }}
+        </h1>
         <p class="text-sm text-muted-foreground">
-          管理和审核平台内容，维护社区健康
+          {{ t('moderation.description') }}
         </p>
       </div>
     </div>
@@ -123,7 +127,7 @@ watch(currentPath, newPath => {
         >
           <component :is="tab.icon" class="h-4 w-4" />
           <span class="hidden sm:inline">{{
-            tab.label
+            t(tab.labelKey)
           }}</span>
         </TabsTrigger>
       </TabsList>

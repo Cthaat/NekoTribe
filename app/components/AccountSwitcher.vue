@@ -20,8 +20,11 @@ interface AccountSwitcherProps {
 }
 
 const props = defineProps<AccountSwitcherProps>();
+const { t } = useAppLocale();
 
-const selectedEmail = ref<string>(props.accounts[0].email);
+const selectedEmail = ref<string>(
+  props.accounts[0]?.email ?? ''
+);
 const selectedEmailData = computed(() =>
   props.accounts.find(
     item => item.email === selectedEmail.value
@@ -32,7 +35,7 @@ const selectedEmailData = computed(() =>
 <template>
   <Select v-model="selectedEmail">
     <SelectTrigger
-      aria-label="Select account"
+      :aria-label="t('account.switcher.selectAccount')"
       :class="
         cn(
           'flex items-center gap-2 [&>span]:line-clamp-1 [&>span]:flex [&>span]:w-full [&>span]:items-center [&>span]:gap-1 [&>span]:truncate [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0',
@@ -43,14 +46,21 @@ const selectedEmailData = computed(() =>
         )
       "
     >
-      <SelectValue placeholder="Select an account">
-        <div class="flex items-center gap-3">
+      <SelectValue
+        :placeholder="
+          t('account.switcher.selectAccountPlaceholder')
+        "
+      >
+        <div
+          v-if="selectedEmailData"
+          class="flex items-center gap-3"
+        >
           <Icon
             class="size-4"
-            :icon="selectedEmailData!.icon"
+            :icon="selectedEmailData.icon"
           />
           <span v-if="!isCollapsed">
-            {{ selectedEmailData!.label }}
+            {{ selectedEmailData.label }}
           </span>
         </div>
       </SelectValue>

@@ -34,6 +34,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'vue-sonner';
 
+export type ModerationReportReason =
+  | 'spam'
+  | 'harassment'
+  | 'hate'
+  | 'violence'
+  | 'adult'
+  | 'misinformation'
+  | 'copyright'
+  | 'other';
+
 // 审核推文类型定义
 export interface ModerationTweet {
   id: number;
@@ -51,7 +61,7 @@ export interface ModerationTweet {
     thumbnail?: string;
   }[];
   reportCount: number;
-  reportReasons: string[];
+  reportReasons: ModerationReportReason[];
   status: 'pending' | 'approved' | 'rejected' | 'flagged';
   createdAt: string;
   reportedAt: string;
@@ -63,6 +73,19 @@ export interface ModerationTweet {
 const props = defineProps<{
   tweet: ModerationTweet;
 }>();
+
+const { t } = useAppLocale();
+
+const reasonLabelKeys: Record<ModerationReportReason, string> = {
+  spam: 'moderation.filters.reasons.spam',
+  harassment: 'moderation.filters.reasons.harassment',
+  hate: 'moderation.filters.reasons.hate',
+  violence: 'moderation.filters.reasons.violence',
+  adult: 'moderation.filters.reasons.adult',
+  misinformation: 'moderation.filters.reasons.misinformation',
+  copyright: 'moderation.filters.reasons.copyright',
+  other: 'moderation.filters.reasons.other'
+};
 
 const emit = defineEmits<{
   (e: 'approve', id: number): void;
@@ -91,20 +114,20 @@ const statusBadgeVariant = computed(() => {
 const statusText = computed(() => {
   switch (props.tweet.status) {
     case 'pending':
-      return '待审核';
+      return t('moderation.status.pending');
     case 'approved':
-      return '已通过';
+      return t('moderation.status.approved');
     case 'rejected':
-      return '已拒绝';
+      return t('moderation.status.rejected');
     case 'flagged':
-      return '已标记';
+      return t('moderation.status.flagged');
     default:
-      return '未知';
+      return t('moderation.status.unknown');
   }
 });
 
 // 格式化时间
-const formatTime = (dateStr: string) => {
+const formatTime = (dateStr: string): string => {
   const date = new Date(dateStr);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
@@ -112,29 +135,33 @@ const formatTime = (dateStr: string) => {
 
   if (hours < 1) {
     const minutes = Math.floor(diff / (1000 * 60));
-    return `${minutes}分钟前`;
+    return t('time.minutesAgo', { count: minutes });
   } else if (hours < 24) {
-    return `${hours}小时前`;
+    return t('time.hoursAgo', { count: hours });
   } else {
     const days = Math.floor(hours / 24);
-    return `${days}天前`;
+    return t('time.daysAgo', { count: days });
   }
 };
+
+const getReasonLabel = (
+  reason: ModerationReportReason
+): string => t(reasonLabelKeys[reason]);
 
 // 处理审核操作
 const handleApprove = () => {
   emit('approve', props.tweet.id);
-  toast.success('推文已通过审核');
+  toast.success(t('moderation.feedback.approved'));
 };
 
 const handleReject = () => {
   emit('reject', props.tweet.id);
-  toast.success('推文已拒绝');
+  toast.success(t('moderation.feedback.rejected'));
 };
 
 const handleFlag = () => {
   emit('flag', props.tweet.id);
-  toast.info('推文已标记待进一步审查');
+  toast.info(t('moderation.feedback.flagged'));
 };
 
 const handleViewDetail = () => {
@@ -194,7 +221,7 @@ const handleViewDetail = () => {
           <DropdownMenuContent align="end">
             <DropdownMenuItem @click="handleViewDetail">
               <Eye class="h-4 w-4 mr-2" />
-              查看详情
+              {{ t('moderation.actions.viewDetail') }}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -202,21 +229,21 @@ const handleViewDetail = () => {
               class="text-green-600"
             >
               <CheckCircle class="h-4 w-4 mr-2" />
-              通过审核
+              {{ t('moderation.actions.approveFull') }}
             </DropdownMenuItem>
             <DropdownMenuItem
               @click="handleReject"
               class="text-destructive"
             >
               <XCircle class="h-4 w-4 mr-2" />
-              拒绝推文
+              {{ t('moderation.actions.rejectPost') }}
             </DropdownMenuItem>
             <DropdownMenuItem
               @click="handleFlag"
               class="text-yellow-600"
             >
               <Flag class="h-4 w-4 mr-2" />
-              标记审查
+              {{ t('moderation.actions.flag') }}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -245,7 +272,11 @@ const handleViewDetail = () => {
         >
           <img
             :src="media.thumbnail || media.url"
-            :alt="`媒体 ${index + 1}`"
+            :alt="
+              t('moderation.card.mediaAlt', {
+                index: index + 1
+              })
+            "
             class="w-full h-full object-cover"
           />
           <div
@@ -270,7 +301,11 @@ const handleViewDetail = () => {
         <AlertTriangle class="h-4 w-4 text-destructive" />
         <div class="flex-1">
           <span class="text-sm font-medium text-destructive"
-            >{{ tweet.reportCount }} 次举报</span
+            >{{
+              t('moderation.card.reportCount', {
+                count: tweet.reportCount
+              })
+            }}</span
           >
           <div class="flex flex-wrap gap-1 mt-1">
             <Badge
@@ -279,7 +314,7 @@ const handleViewDetail = () => {
               variant="outline"
               class="text-xs"
             >
-              {{ reason }}
+              {{ getReasonLabel(reason) }}
             </Badge>
           </div>
         </div>
@@ -292,13 +327,21 @@ const handleViewDetail = () => {
         <div class="flex items-center gap-1">
           <Clock class="h-3 w-3" />
           <span
-            >发布于 {{ formatTime(tweet.createdAt) }}</span
+            >{{
+              t('moderation.card.publishedAt', {
+                time: formatTime(tweet.createdAt)
+              })
+            }}</span
           >
         </div>
         <div class="flex items-center gap-1">
           <Flag class="h-3 w-3" />
           <span
-            >举报于 {{ formatTime(tweet.reportedAt) }}</span
+            >{{
+              t('moderation.card.reportedAt', {
+                time: formatTime(tweet.reportedAt)
+              })
+            }}</span
           >
         </div>
       </div>
@@ -332,7 +375,7 @@ const handleViewDetail = () => {
           @click="handleApprove"
         >
           <CheckCircle class="h-4 w-4 mr-1" />
-          通过
+          {{ t('moderation.actions.approve') }}
         </Button>
         <Button
           variant="outline"
@@ -341,7 +384,7 @@ const handleViewDetail = () => {
           @click="handleReject"
         >
           <XCircle class="h-4 w-4 mr-1" />
-          拒绝
+          {{ t('moderation.actions.reject') }}
         </Button>
         <Button
           variant="ghost"

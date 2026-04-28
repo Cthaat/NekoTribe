@@ -39,6 +39,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:open', 'submit-retweet']);
+const { t } = useAppLocale();
 
 // --- 内部状态 ---
 
@@ -75,14 +76,14 @@ watch(internalOpen, isOpen => {
   <Dialog v-model:open="internalOpen">
     <DialogContent class="sm:max-w-[525px]">
       <DialogHeader>
-        <DialogTitle>转发推文</DialogTitle>
+        <DialogTitle>{{ t('post.retweet.title') }}</DialogTitle>
       </DialogHeader>
 
       <div class="flex flex-col gap-4 py-4">
         <!-- 文本输入框，用于添加评论 -->
         <Textarea
           v-model="quoteContent"
-          placeholder="添加评论..."
+          :placeholder="t('post.retweet.placeholder')"
           class="min-h-[80px]"
         />
 
@@ -122,8 +123,8 @@ watch(internalOpen, isOpen => {
           class="w-full"
         >
           <!-- 在提交时可以显示加载状态 -->
-          <span v-if="!isSubmitting">转发</span>
-          <span v-else>正在转发...</span>
+          <span v-if="!isSubmitting">{{ t('post.retweet.submit') }}</span>
+          <span v-else>{{ t('post.retweet.submitting') }}</span>
         </Button>
       </DialogFooter>
     </DialogContent>

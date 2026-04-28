@@ -4,6 +4,8 @@ import { LoaderCircle } from 'lucide-vue-next';
 defineProps<{
   text?: string; // 允许自定义加载时显示的文字
 }>();
+
+const { t } = useAppLocale();
 </script>
 
 <template>
@@ -20,7 +22,7 @@ defineProps<{
     >
       <LoaderCircle class="h-10 w-10 animate-spin" />
       <p class="text-lg font-semibold">
-        {{ text || '正在处理中...' }}
+        {{ text || t('common.processing') }}
       </p>
     </div>
   </div>

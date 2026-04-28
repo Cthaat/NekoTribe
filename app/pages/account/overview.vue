@@ -8,9 +8,8 @@ import {
 import { onMounted, ref } from 'vue';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'vue-sonner';
-import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n();
+const { t } = useAppLocale();
 
 interface UserAnalyticsData {
   totalTweets: number;
@@ -50,8 +49,8 @@ onMounted(async () => {
     userAnalytics.value.engagementScore =
       analytics.engagementScore;
   } catch (error) {
-    console.error('Error fetching user analytics:', error);
-    toast.error('Failed to fetch user analytics.');
+    console.error(t('account.errors.loadAnalytics'), error);
+    toast.error(t('account.errors.loadAnalytics'));
   }
 });
 </script>
@@ -62,10 +61,10 @@ onMounted(async () => {
       <div class="hidden space-y-6 p-8 pb-16 md:block">
         <div class="space-y-0.5">
           <h2 class="text-2xl font-bold tracking-tight">
-            {{ $t('account.overview.title') }}
+            {{ t('account.overview.title') }}
           </h2>
           <p class="text-muted-foreground">
-            {{ $t('account.overview.description') }}
+            {{ t('account.overview.description') }}
           </p>
         </div>
         <Separator class="my-6" />

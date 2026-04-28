@@ -79,6 +79,7 @@ function setupObserver() {
   observer = new IntersectionObserver(
     entries => {
       const entry = entries[0];
+      if (!entry) return;
       if (
         entry.isIntersecting &&
         props.loadMore &&

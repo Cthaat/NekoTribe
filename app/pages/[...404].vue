@@ -14,6 +14,8 @@ import {
   CardTitle
 } from '@/components/ui/card';
 
+const { t } = useAppLocale();
+
 // Nuxt 会自动将错误信息作为 props 传入
 defineProps({
   error: Object
@@ -38,30 +40,32 @@ const handleClearError = () =>
         <CardTitle
           class="text-3xl font-bold tracking-tight"
         >
-          404 - 页面未找到
+          {{ t('errorPage.notFound.title') }}
         </CardTitle>
         <CardDescription
           class="text-lg text-muted-foreground"
         >
-          糟糕！您要寻找的页面似乎已“离家出走”。
+          {{ t('errorPage.notFound.description') }}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div
           class="space-y-2 text-left text-sm text-muted-foreground"
         >
-          <p>这可能是因为：</p>
+          <p>{{ t('errorPage.notFound.possibleReasons') }}</p>
           <ul class="list-inside list-disc space-y-1">
-            <li>您输入的网址有误。</li>
-            <li>该页面已被移动或删除。</li>
-            <li>我们的服务器正在进行一场太空漫游。</li>
+            <li>{{ t('errorPage.notFound.invalidUrl') }}</li>
+            <li>
+              {{ t('errorPage.notFound.movedOrDeleted') }}
+            </li>
+            <li>{{ t('errorPage.notFound.serverBusy') }}</li>
           </ul>
         </div>
       </CardContent>
       <CardFooter>
         <Button class="w-full" @click="handleClearError">
           <Home class="mr-2 size-4" />
-          返回首页
+          {{ t('errorPage.notFound.backHome') }}
         </Button>
       </CardFooter>
     </Card>

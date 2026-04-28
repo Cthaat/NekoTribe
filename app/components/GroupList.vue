@@ -22,6 +22,7 @@ const emit = defineEmits<{
 }>();
 
 const isRefreshing = ref(false);
+const { t } = useAppLocale();
 
 // 处理刷新
 const handleRefresh = async () => {
@@ -55,11 +56,7 @@ const handleSettings = (id: number) => {
     <!-- 列表头部 -->
     <div class="flex items-center justify-between">
       <div class="text-sm text-muted-foreground">
-        共
-        <span class="font-medium text-foreground">{{
-          groups.length
-        }}</span>
-        个群组
+        {{ t('groups.list.count', { count: groups.length }) }}
       </div>
       <div class="flex items-center gap-2">
         <Button
@@ -67,7 +64,7 @@ const handleSettings = (id: number) => {
           @click="emit('create')"
         >
           <Plus class="h-4 w-4 mr-2" />
-          创建群组
+          {{ t('groups.actions.create') }}
         </Button>
         <Button
           variant="outline"
@@ -81,7 +78,7 @@ const handleSettings = (id: number) => {
               { 'animate-spin': isRefreshing }
             ]"
           />
-          刷新
+          {{ t('common.refresh') }}
         </Button>
       </div>
     </div>
@@ -104,21 +101,23 @@ const handleSettings = (id: number) => {
       <div class="p-4 bg-muted rounded-full mb-4">
         <Inbox class="h-8 w-8 text-muted-foreground" />
       </div>
-      <h3 class="text-lg font-medium mb-1">没有找到群组</h3>
+      <h3 class="text-lg font-medium mb-1">
+        {{ t('groups.empty.title') }}
+      </h3>
       <p class="text-sm text-muted-foreground max-w-sm">
-        尝试调整过滤条件或创建一个新的群组
+        {{ t('groups.empty.description') }}
       </p>
       <div class="flex gap-2 mt-4">
         <Button variant="outline" @click="handleRefresh">
           <RefreshCw class="h-4 w-4 mr-2" />
-          刷新列表
+          {{ t('groups.actions.refreshList') }}
         </Button>
         <Button
           v-if="showCreateButton"
           @click="emit('create')"
         >
           <Plus class="h-4 w-4 mr-2" />
-          创建群组
+          {{ t('groups.actions.create') }}
         </Button>
       </div>
     </div>
@@ -145,7 +144,7 @@ const handleSettings = (id: number) => {
       class="flex justify-center pt-4"
     >
       <Button variant="outline" @click="emit('load-more')">
-        加载更多
+        {{ t('common.loadMore') }}
       </Button>
     </div>
   </div>

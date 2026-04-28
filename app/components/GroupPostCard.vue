@@ -33,6 +33,7 @@ import { toast } from 'vue-sonner';
 import type { GroupPost } from '@/types/groups';
 
 export type { GroupPost } from '@/types/groups';
+const { t, locale } = useAppLocale();
 
 const props = defineProps<{
   post: GroupPost;
@@ -62,15 +63,15 @@ const formatTime = (dateStr: string) => {
 
   if (hours < 1) {
     const minutes = Math.floor(diff / (1000 * 60));
-    return `${minutes}分钟前`;
+    return t('time.minutesAgo', { count: minutes });
   } else if (hours < 24) {
-    return `${hours}小时前`;
+    return t('time.hoursAgo', { count: hours });
   } else {
     const days = Math.floor(hours / 24);
     if (days < 7) {
-      return `${days}天前`;
+      return t('time.daysAgo', { count: days });
     }
-    return date.toLocaleDateString('zh-CN', {
+    return date.toLocaleDateString(locale.value === 'zh' ? 'zh-CN' : 'en-US', {
       month: 'short',
       day: 'numeric'
     });
@@ -81,11 +82,11 @@ const formatTime = (dateStr: string) => {
 const getRoleBadge = (role: string) => {
   switch (role) {
     case 'owner':
-      return { text: '群主', variant: 'default' as const };
+      return { text: t('groups.detail.owner'), variant: 'default' as const };
     case 'admin':
     case 'moderator':
       return {
-        text: '管理',
+        text: t('groups.member.roles.admin'),
         variant: 'secondary' as const
       };
     default:
@@ -109,23 +110,23 @@ const handleComment = () => {
 const handlePin = () => {
   if (props.post.isPinned) {
     emit('unpin', props.post.id);
-    toast.success('已取消置顶');
+    toast.success(t('groups.post.feedback.unpinned'));
   } else {
     emit('pin', props.post.id);
-    toast.success('已置顶');
+    toast.success(t('groups.post.feedback.pinned'));
   }
 };
 
 // 处理删除
 const handleDelete = () => {
   emit('delete', props.post.id);
-  toast.success('帖子已删除');
+  toast.success(t('groups.post.feedback.deleted'));
 };
 
 // 处理举报
 const handleReport = () => {
   emit('report', props.post.id);
-  toast.success('举报已提交');
+  toast.success(t('groups.post.feedback.reported'));
 };
 
 // 处理分享
@@ -174,7 +175,7 @@ const handleShare = () => {
               class="gap-1 text-xs"
             >
               <Pin class="h-3 w-3" />
-              置顶
+              {{ t('groups.post.pinned') }}
             </Badge>
           </div>
           <span class="text-xs text-muted-foreground">
@@ -198,7 +199,7 @@ const handleShare = () => {
         <DropdownMenuContent align="end">
           <DropdownMenuItem @click="handleShare">
             <Share2 class="h-4 w-4 mr-2" />
-            分享
+            {{ t('groups.post.actions.share') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator
             v-if="canManage || isAuthor"
@@ -208,7 +209,11 @@ const handleShare = () => {
             @click="handlePin"
           >
             <Pin class="h-4 w-4 mr-2" />
-            {{ post.isPinned ? '取消置顶' : '置顶帖子' }}
+            {{
+              post.isPinned
+                ? t('groups.post.actions.unpin')
+                : t('groups.post.actions.pin')
+            }}
           </DropdownMenuItem>
           <DropdownMenuItem
             v-if="canManage || isAuthor"
@@ -216,7 +221,7 @@ const handleShare = () => {
             @click="handleDelete"
           >
             <Trash2 class="h-4 w-4 mr-2" />
-            删除帖子
+            {{ t('groups.post.actions.delete') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator v-if="!isAuthor" />
           <DropdownMenuItem
@@ -224,7 +229,7 @@ const handleShare = () => {
             @click="handleReport"
           >
             <Flag class="h-4 w-4 mr-2" />
-            举报
+            {{ t('groups.post.actions.report') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -252,7 +257,7 @@ const handleShare = () => {
         >
           <img
             :src="media.thumbnail || media.url"
-            :alt="`媒体 ${index + 1}`"
+            :alt="t('groups.post.mediaAlt', { index: index + 1 })"
             class="w-full h-full object-cover"
           />
           <div

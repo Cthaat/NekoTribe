@@ -18,6 +18,7 @@ import {
 import type { GroupFiltersData } from '@/types/groups';
 
 export type { GroupFiltersData } from '@/types/groups';
+const { t } = useAppLocale();
 
 const props = withDefaults(
   defineProps<{
@@ -100,32 +101,46 @@ const hasActiveFilters = () => {
 
 // 隐私选项
 const privacyOptions = [
-  { value: 'all', label: '全部类型' },
-  { value: 'public', label: '公开群组' },
-  { value: 'private', label: '私密群组' },
-  { value: 'secret', label: '隐秘群组' }
+  { value: 'all', labelKey: 'groups.filters.privacy.all' },
+  { value: 'public', labelKey: 'groups.filters.privacy.public' },
+  { value: 'private', labelKey: 'groups.filters.privacy.private' },
+  { value: 'secret', labelKey: 'groups.filters.privacy.secret' }
 ];
 
 // 分类选项
 const categoryOptions = [
-  { value: 'all', label: '全部分类' },
-  { value: 'tech', label: '科技' },
-  { value: 'game', label: '游戏' },
-  { value: 'music', label: '音乐' },
-  { value: 'art', label: '艺术' },
-  { value: 'life', label: '生活' },
-  { value: 'study', label: '学习' },
-  { value: 'work', label: '工作' },
-  { value: 'other', label: '其他' }
+  { value: 'all', labelKey: 'groups.filters.category.all' },
+  { value: 'tech', labelKey: 'groups.filters.category.tech' },
+  { value: 'game', labelKey: 'groups.filters.category.game' },
+  { value: 'music', labelKey: 'groups.filters.category.music' },
+  { value: 'art', labelKey: 'groups.filters.category.art' },
+  { value: 'life', labelKey: 'groups.filters.category.life' },
+  { value: 'study', labelKey: 'groups.filters.category.study' },
+  { value: 'work', labelKey: 'groups.filters.category.work' },
+  { value: 'other', labelKey: 'groups.filters.category.other' }
 ];
 
 // 排序选项
 const sortOptions = [
-  { value: 'popular', label: '最热门' },
-  { value: 'newest', label: '最新创建' },
-  { value: 'active', label: '最活跃' },
-  { value: 'members', label: '成员最多' }
+  { value: 'popular', labelKey: 'groups.filters.sort.popular' },
+  { value: 'newest', labelKey: 'groups.filters.sort.newest' },
+  { value: 'active', labelKey: 'groups.filters.sort.active' },
+  { value: 'members', labelKey: 'groups.filters.sort.members' }
 ];
+
+function getPrivacyOptionLabel(value: string): string {
+  return t(
+    privacyOptions.find(option => option.value === value)
+      ?.labelKey || 'groups.filters.privacy.all'
+  );
+}
+
+function getCategoryOptionLabel(value: string): string {
+  return t(
+    categoryOptions.find(option => option.value === value)
+      ?.labelKey || 'groups.filters.category.all'
+  );
+}
 </script>
 
 <template>
@@ -140,7 +155,7 @@ const sortOptions = [
         <Input
           :model-value="localFilters.search"
           @update:model-value="updateSearch"
-          placeholder="搜索群组名称或描述..."
+          :placeholder="t('groups.filters.searchPlaceholder')"
           class="pl-9"
         />
       </div>
@@ -151,7 +166,7 @@ const sortOptions = [
         @update:model-value="updatePrivacy"
       >
         <SelectTrigger class="w-[130px]">
-          <SelectValue placeholder="群组类型" />
+          <SelectValue :placeholder="t('groups.filters.privacyPlaceholder')" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem
@@ -159,7 +174,7 @@ const sortOptions = [
             :key="option.value"
             :value="option.value"
           >
-            {{ option.label }}
+            {{ t(option.labelKey) }}
           </SelectItem>
         </SelectContent>
       </Select>
@@ -170,7 +185,7 @@ const sortOptions = [
         @update:model-value="updateCategory"
       >
         <SelectTrigger class="w-[120px]">
-          <SelectValue placeholder="分类" />
+          <SelectValue :placeholder="t('groups.filters.categoryPlaceholder')" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem
@@ -178,7 +193,7 @@ const sortOptions = [
             :key="option.value"
             :value="option.value"
           >
-            {{ option.label }}
+            {{ t(option.labelKey) }}
           </SelectItem>
         </SelectContent>
       </Select>
@@ -190,7 +205,7 @@ const sortOptions = [
       >
         <SelectTrigger class="w-[120px]">
           <SlidersHorizontal class="h-4 w-4 mr-2" />
-          <SelectValue placeholder="排序" />
+          <SelectValue :placeholder="t('groups.filters.sortPlaceholder')" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem
@@ -198,7 +213,7 @@ const sortOptions = [
             :key="option.value"
             :value="option.value"
           >
-            {{ option.label }}
+            {{ t(option.labelKey) }}
           </SelectItem>
         </SelectContent>
       </Select>
@@ -212,7 +227,7 @@ const sortOptions = [
         @click="resetFilters"
       >
         <X class="h-4 w-4 mr-1" />
-        重置
+        {{ t('common.reset') }}
       </Button>
     </div>
 
@@ -222,7 +237,7 @@ const sortOptions = [
       class="flex flex-wrap items-center gap-2"
     >
       <span class="text-sm text-muted-foreground"
-        >当前过滤：</span
+        >{{ t('groups.filters.current') }}</span
       >
 
       <Badge
@@ -231,7 +246,7 @@ const sortOptions = [
         class="gap-1 cursor-pointer"
         @click="updateSearch('')"
       >
-        搜索: {{ localFilters.search }}
+        {{ t('groups.filters.searchBadge', { value: localFilters.search }) }}
         <X class="h-3 w-3" />
       </Badge>
 
@@ -241,12 +256,8 @@ const sortOptions = [
         class="gap-1 cursor-pointer"
         @click="updatePrivacy('all')"
       >
-        类型:
-        {{
-          privacyOptions.find(
-            o => o.value === localFilters.privacy
-          )?.label
-        }}
+        {{ t('groups.filters.typeBadge') }}
+        {{ getPrivacyOptionLabel(localFilters.privacy) }}
         <X class="h-3 w-3" />
       </Badge>
 
@@ -256,12 +267,8 @@ const sortOptions = [
         class="gap-1 cursor-pointer"
         @click="updateCategory('all')"
       >
-        分类:
-        {{
-          categoryOptions.find(
-            o => o.value === localFilters.category
-          )?.label
-        }}
+        {{ t('groups.filters.categoryBadge') }}
+        {{ getCategoryOptionLabel(localFilters.category) }}
         <X class="h-3 w-3" />
       </Badge>
     </div>

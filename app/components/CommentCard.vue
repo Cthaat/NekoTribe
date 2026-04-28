@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Heart, MessageSquare } from 'lucide-vue-next';
 
+const { t, locale } = useAppLocale();
+
 // 递归组件需要明确地定义自己的名字，以便在模板中引用
 defineOptions({
   name: 'CommentCard'
@@ -42,7 +44,7 @@ const localLikesCount = ref(props.comment.counts.likes);
 // --- 计算属性 ---
 const formattedDate = computed(() => {
   return new Date(props.comment.createdAt).toLocaleString(
-    'zh-CN'
+    locale.value === 'zh' ? 'zh-CN' : 'en-US'
   );
 });
 
@@ -82,6 +84,12 @@ function handleSubmitReply() {
   // 提交后关闭回复框
   isReplyBoxOpen.value = false;
   replyContent.value = '';
+}
+
+function handleReplyBlur() {
+  globalThis.setTimeout(() => {
+    isReplyInputFocused.value = false;
+  }, 200);
 }
 </script>
 
@@ -155,7 +163,7 @@ function handleSubmitReply() {
           @click="toggleReplyBox"
         >
           <MessageSquare class="h-4 w-4" />
-          <span class="text-xs font-medium">回复</span>
+          <span class="text-xs font-medium">{{ t('comment.reply') }}</span>
         </Button>
       </div>
 
@@ -179,15 +187,10 @@ function handleSubmitReply() {
         >
           <Textarea
             v-model="replyContent"
-            placeholder="写下你的回复..."
+            :placeholder="t('comment.replyPlaceholder')"
             class="mb-2 border-none focus-visible:ring-0 resize-none min-h-[60px] bg-transparent"
             @focus="isReplyInputFocused = true"
-            @blur="
-              setTimeout(
-                () => (isReplyInputFocused = false),
-                200
-              )
-            "
+            @blur="handleReplyBlur"
           />
           <Transition
             enter-active-class="transition-all duration-300 ease-out"
@@ -205,13 +208,13 @@ function handleSubmitReply() {
                 variant="ghost"
                 size="sm"
                 @click="toggleReplyBox"
-                >取消</Button
+                >{{ t('common.cancel') }}</Button
               >
               <Button
                 size="sm"
                 @click="handleSubmitReply"
                 :disabled="!replyContent.trim()"
-                >提交回复</Button
+                >{{ t('comment.submitReply') }}</Button
               >
             </div>
           </Transition>

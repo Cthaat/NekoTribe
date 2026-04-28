@@ -7,6 +7,8 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
+
+const { t } = useAppLocale();
 </script>
 
 <template>
@@ -19,20 +21,22 @@ import {
           class="h-8 w-8 text-muted-foreground"
         />
       </div>
-      <CardTitle>用户管理</CardTitle>
+      <CardTitle>{{
+        t('moderation.placeholder.users.title')
+      }}</CardTitle>
       <CardDescription>
-        此功能正在开发中，敬请期待...
+        {{ t('moderation.placeholder.description') }}
       </CardDescription>
     </CardHeader>
     <CardContent
       class="text-center text-sm text-muted-foreground"
     >
-      <p>用户管理功能将包括：</p>
+      <p>{{ t('moderation.placeholder.users.intro') }}</p>
       <ul class="mt-2 space-y-1">
-        <li>• 用户列表查看与搜索</li>
-        <li>• 用户封禁与解封</li>
-        <li>• 用户角色管理</li>
-        <li>• 用户行为日志查看</li>
+        <li>• {{ t('moderation.placeholder.users.item1') }}</li>
+        <li>• {{ t('moderation.placeholder.users.item2') }}</li>
+        <li>• {{ t('moderation.placeholder.users.item3') }}</li>
+        <li>• {{ t('moderation.placeholder.users.item4') }}</li>
       </ul>
     </CardContent>
   </Card>

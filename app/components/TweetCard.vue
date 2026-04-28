@@ -50,6 +50,7 @@ import TweetContent from '@/components/TweetContent.vue';
 
 const preferenceStore = usePreferenceStore();
 const tweetStore = useTweetStore(); // 2. 获取 store 实例
+const { t, locale } = useAppLocale();
 
 const localePath = useLocalePath();
 
@@ -86,8 +87,10 @@ const mediaItems = computed(() => {
 
 // 格式化时间戳
 const formattedDate = computed(() => {
+  const dateLocale =
+    locale.value === 'zh' ? 'zh-CN' : 'en-US';
   return new Date(props.tweet.createdAt).toLocaleString(
-    'zh-CN',
+    dateLocale,
     {
       hour: '2-digit',
       minute: '2-digit',
@@ -138,7 +141,7 @@ function handleLike() {
   localLiked.value = !localLiked.value; // 切换喜欢状态
   likeCount.value += localLiked.value ? 1 : -1; // 更新喜欢计数
   if (localLiked.value) {
-    toast.success('已点赞此推文');
+    toast.success(t('post.feedback.liked'));
   }
   emit(
     'like-tweet',
@@ -162,8 +165,8 @@ function handleBookmark() {
   localIsBookmarked.value = !localIsBookmarked.value;
   toast.success(
     localIsBookmarked.value
-      ? '已添加到书签'
-      : '已从书签中移除'
+      ? t('post.feedback.bookmarked')
+      : t('post.feedback.unbookmarked')
   );
   emit(
     'bookmark-tweet',
@@ -207,7 +210,9 @@ async function fetchOriginalTweet() {
       );
     } catch (e) {
       originalError.value =
-        e instanceof Error ? e.message : '加载原文失败';
+        e instanceof Error
+          ? e.message
+          : t('post.repost.loadOriginalFailed');
       originalTweet.value = null;
     } finally {
       originalLoading.value = false;
@@ -302,7 +307,7 @@ const originalExcerpt = computed(() => {
             class="text-blue-500"
           >
             <BookmarkPlus class="mr-2 h-4 w-4" />
-            <span>加入书签</span>
+            <span>{{ t('post.actions.addBookmark') }}</span>
           </DropdownMenuItem>
 
           <DropdownMenuItem
@@ -311,7 +316,7 @@ const originalExcerpt = computed(() => {
             class="text-blue-500"
           >
             <BookmarkCheck class="mr-2 h-4 w-4" />
-            <span>删除书签</span>
+            <span>{{ t('post.actions.removeBookmark') }}</span>
           </DropdownMenuItem>
 
           <DropdownMenuItem
@@ -320,7 +325,7 @@ const originalExcerpt = computed(() => {
             class="text-red-500"
           >
             <Trash2 class="mr-2 h-4 w-4" />
-            <span>删除推文</span>
+            <span>{{ t('post.actions.delete') }}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -338,7 +343,7 @@ const originalExcerpt = computed(() => {
             v-if="originalTweet && !originalLoading"
           >
             <span class="text-muted-foreground"
-              >转推自</span
+              >{{ t('post.repost.repostedFrom') }}</span
             >
             <NuxtLink
               :to="
@@ -349,7 +354,10 @@ const originalExcerpt = computed(() => {
               @click.stop
               class="text-blue-600 hover:underline"
             >
-              {{ originalAuthorHandle || '@未知用户' }}
+              {{
+                originalAuthorHandle ||
+                t('post.repost.unknownUserHandle')
+              }}
             </NuxtLink>
             <span class="text-muted-foreground">·</span>
             <NuxtLink
@@ -360,12 +368,12 @@ const originalExcerpt = computed(() => {
               "
               @click.stop
               class="text-blue-600 hover:underline"
-              >查看原文</NuxtLink
+              >{{ t('post.repost.viewOriginal') }}</NuxtLink
             >
           </template>
           <template v-else-if="originalLoading">
             <span class="text-muted-foreground"
-              >正在加载原文…</span
+              >{{ t('post.repost.loadingOriginal') }}</span
             >
           </template>
           <template v-else>
@@ -377,7 +385,7 @@ const originalExcerpt = computed(() => {
               "
               @click.stop
               class="text-blue-600 hover:underline"
-              >查看原文</NuxtLink
+              >{{ t('post.repost.viewOriginal') }}</NuxtLink
             >
           </template>
         </div>
@@ -403,14 +411,20 @@ const originalExcerpt = computed(() => {
               </AvatarFallback>
             </Avatar>
             <span class="font-medium">
-              {{ originalTweet.author.name || '未知' }}
+              {{
+                originalTweet.author.name ||
+                t('post.repost.unknownUser')
+              }}
             </span>
             <span class="text-muted-foreground">
-              {{ originalAuthorHandle || '@未知用户' }}
+              {{
+                originalAuthorHandle ||
+                t('post.repost.unknownUserHandle')
+              }}
             </span>
           </div>
           <p class="text-sm text-foreground/90">
-            {{ originalExcerpt || '（无内容）' }}
+            {{ originalExcerpt || t('post.repost.emptyContent') }}
           </p>
         </div>
 
@@ -418,14 +432,14 @@ const originalExcerpt = computed(() => {
           v-else-if="originalError && !originalLoading"
           class="text-xs text-muted-foreground"
         >
-          原文不可用或已删除，
+          {{ t('post.repost.originalUnavailable') }}
           <NuxtLink
             :to="
               localePath(`/tweet/${tweet.repostOfPostId}`)
             "
             @click.stop
             class="text-blue-600 hover:underline"
-            >尝试打开原文</NuxtLink
+            >{{ t('post.repost.tryOpenOriginal') }}</NuxtLink
           >
         </div>
       </div>
@@ -460,7 +474,7 @@ const originalExcerpt = computed(() => {
             <img
               :src="item.thumbnailUrl"
               class="object-cover w-full h-full transition-transform group-hover:scale-105"
-              alt="推文媒体缩略图"
+              :alt="t('post.media.thumbnailAlt')"
             />
 
             <!-- 如果是视频，在中间叠加一个播放图标 -->
@@ -532,9 +546,9 @@ const originalExcerpt = computed(() => {
   <Dialog v-model:open="isDeleteDialogOpen">
     <DialogContent @click.stop>
       <DialogHeader>
-        <DialogTitle>删除这条推文？</DialogTitle>
+        <DialogTitle>{{ t('post.delete.title') }}</DialogTitle>
         <DialogDescription>
-          删除后这条推文将从时间线中移除，此操作不可撤销。
+          {{ t('post.delete.description') }}
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
@@ -542,10 +556,10 @@ const originalExcerpt = computed(() => {
           variant="outline"
           @click="isDeleteDialogOpen = false"
         >
-          取消
+          {{ t('common.cancel') }}
         </AppButton>
         <AppButton variant="destructive" @click="confirmDelete">
-          删除
+          {{ t('common.delete') }}
         </AppButton>
       </DialogFooter>
     </DialogContent>

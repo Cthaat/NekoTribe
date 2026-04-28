@@ -24,6 +24,7 @@ const description =
 const iframeHeight = '800px';
 
 const localePath = useLocalePath();
+const { t } = useAppLocale();
 
 function handleSearchEnter(e: KeyboardEvent) {
   if (e.key === 'Enter' && searchQuery.value.trim()) {
@@ -62,7 +63,7 @@ function handleSearchEnter(e: KeyboardEvent) {
             <input
               v-model="searchQuery"
               type="text"
-              placeholder="Search"
+              :placeholder="t('common.search')"
               @keydown="handleSearchEnter"
               class="w-full h-full bg-transparent border-0 rounded-full pl-12 pr-4 py-2 text-neutral-200 placeholder:text-neutral-500 focus:outline-none focus:ring-0"
             />

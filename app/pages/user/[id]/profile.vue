@@ -12,7 +12,6 @@ import {
   PaginationPrevious
 } from '@/components/ui/pagination';
 import { toast } from 'vue-sonner';
-import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import type { PostVM } from '@/types/posts';
 import {
@@ -29,7 +28,7 @@ import {
 } from '@/services';
 
 const route = useRoute();
-const { t } = useI18n();
+const { t } = useAppLocale();
 const localePath = useLocalePath();
 
 interface AccountHeaderUser {
@@ -65,7 +64,7 @@ const user = ref<AccountHeaderUser>({
   location: '',
   email: '',
   avatar: '',
-  follow: 'Unfollow',
+  follow: 'unfollow',
   stats: {
     followersCount: 0,
     followingCount: 0,
@@ -120,11 +119,11 @@ async function loadUserProfile() {
       publicUser.followingCount;
     user.value.stats.likesCount = publicUser.likesCount;
     user.value.follow = publicUser.relationship.isFollowing
-      ? 'Follow'
-      : 'Unfollow';
+      ? 'follow'
+      : 'unfollow';
   } catch (error) {
-    console.error('Error fetching user info:', error);
-    toast.error('Failed to fetch user info.');
+    console.error(t('account.errors.loadUser'), error);
+    toast.error(t('account.errors.loadUser'));
   }
 }
 
@@ -146,8 +145,8 @@ async function loadUserAnalytics() {
       analytics.engagementScore;
     user.value.point = analytics.engagementScore;
   } catch (error) {
-    console.error('Error fetching user analytics:', error);
-    toast.error('Failed to fetch user analytics.');
+    console.error(t('account.errors.loadAnalytics'), error);
+    toast.error(t('account.errors.loadAnalytics'));
   }
 }
 
@@ -165,7 +164,9 @@ async function loadTweets() {
   } catch (error) {
     console.error('Error fetching tweets:', error);
     tweetsError.value =
-      error instanceof Error ? error.message : '加载推文失败';
+      error instanceof Error
+        ? error.message
+        : t('post.feed.loadFailed');
     fullTweets.value = [];
     totalTweetsCount.value = 0;
   } finally {
@@ -188,14 +189,14 @@ onMounted(async () => {
 async function handleDeleteTweet(tweetId: number) {
   try {
     await v2DeletePost(tweetId);
-    toast.success('推文已删除');
+    toast.success(t('post.feedback.deleted'));
     fullTweets.value = fullTweets.value.filter(
       tweet => tweet.id !== tweetId
     );
     totalTweetsCount.value = Math.max(totalTweetsCount.value - 1, 0);
   } catch (error) {
     console.error('Error deleting tweet:', error);
-    toast.error('删除推文失败');
+    toast.error(t('post.feedback.deleteFailed'));
   }
 }
 
@@ -238,7 +239,7 @@ async function handleLikeTweet(
     }
   } catch (error) {
     console.error('Error liking tweet:', error);
-    toast.error('操作失败');
+    toast.error(t('common.operationFailed'));
   }
 }
 
@@ -267,7 +268,7 @@ async function handleBookmarkTweet(
     }
   } catch (error) {
     console.error('Error bookmarking tweet:', error);
-    toast.error('操作失败');
+    toast.error(t('common.operationFailed'));
   }
 }
 
@@ -288,15 +289,20 @@ async function followUser(targetUser: AccountHeaderUser, active: string) {
         : await v2UnfollowUser(targetUser.id);
     user.value.follow =
       result.relationship === 'following'
-        ? 'Follow'
-        : 'Unfollow';
+        ? 'follow'
+        : 'unfollow';
     user.value.stats.followersCount = result.followersCount;
     toast.success(
-      `Successfully ${active}ed ${targetUser.name}.`
+      t(
+        active === 'follow'
+          ? 'account.follow.success'
+          : 'account.follow.unfollowSuccess',
+        { name: targetUser.name }
+      )
     );
   } catch (error) {
-    console.error('Error following user:', error);
-    toast.error('Failed to follow user.');
+    console.error(t('account.follow.failed'), error);
+    toast.error(t('account.follow.failed'));
   }
 }
 </script>
@@ -315,10 +321,10 @@ async function followUser(targetUser: AccountHeaderUser, active: string) {
         <div class="hidden space-y-6 p-8 pb-16 md:block">
           <div class="space-y-0.5">
             <h2 class="text-2xl font-bold tracking-tight">
-              {{ $t('account.overview.title') }}
+              {{ t('account.overview.title') }}
             </h2>
             <p class="text-muted-foreground">
-              {{ $t('account.overview.description') }}
+              {{ t('account.overview.description') }}
             </p>
           </div>
           <Separator class="my-6" />
@@ -332,10 +338,14 @@ async function followUser(targetUser: AccountHeaderUser, active: string) {
         <div class="space-y-4">
           <div class="p-6 pb-4">
             <h2 class="text-2xl font-bold tracking-tight">
-              推文
+              {{ t('post.feed.title') }}
             </h2>
             <p class="text-muted-foreground">
-              共 {{ totalTweetsCount }} 条推文
+              {{
+                t('post.feed.total', {
+                  count: totalTweetsCount
+                })
+              }}
             </p>
           </div>
 
@@ -370,7 +380,9 @@ async function followUser(targetUser: AccountHeaderUser, active: string) {
             v-else
             class="p-12 text-center text-muted-foreground"
           >
-            <p class="text-lg">该用户还没有发布任何推文</p>
+            <p class="text-lg">
+              {{ t('post.feed.emptyUserPosts') }}
+            </p>
           </div>
 
           <div v-if="totalPages > 1" class="p-6 pt-4">

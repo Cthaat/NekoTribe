@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 const props = defineProps<PaginationEllipsisProps & { class?: HTMLAttributes['class'] }>()
 
 const delegatedProps = reactiveOmit(props, 'class')
+const { t } = useAppLocale()
 </script>
 
 <template>
@@ -18,7 +19,7 @@ const delegatedProps = reactiveOmit(props, 'class')
   >
     <slot>
       <MoreHorizontal class="size-4" />
-      <span class="sr-only">More pages</span>
+      <span class="sr-only">{{ t('common.morePages') }}</span>
     </slot>
   </PaginationEllipsis>
 </template>

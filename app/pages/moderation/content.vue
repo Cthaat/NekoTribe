@@ -5,9 +5,14 @@ import ModerationStats from '@/components/ModerationStats.vue';
 import ModerationFilters from '@/components/ModerationFilters.vue';
 import ModerationList from '@/components/ModerationList.vue';
 import ModerationDetailModal from '@/components/ModerationDetailModal.vue';
-import type { ModerationTweet } from '@/components/ModerationCard.vue';
+import type {
+  ModerationReportReason,
+  ModerationTweet
+} from '@/components/ModerationCard.vue';
 import type { ModerationStatsData } from '@/components/ModerationStats.vue';
 import type { ModerationFiltersData } from '@/components/ModerationFilters.vue';
+
+const { t } = useAppLocale();
 
 // ==================== 测试数据 ====================
 
@@ -18,8 +23,15 @@ const statsData = ref<ModerationStatsData>({
   rejected: 42,
   flagged: 8,
   todayProcessed: 31,
-  avgProcessTime: '15分钟'
+  avgProcessTime: ''
 });
+
+const localizedStatsData = computed<ModerationStatsData>(() => ({
+  ...statsData.value,
+  avgProcessTime: t('moderation.stats.minutes', {
+    count: 15
+  })
+}));
 
 // 模拟推文数据
 const mockTweets: ModerationTweet[] = [
@@ -45,7 +57,7 @@ const mockTweets: ModerationTweet[] = [
       }
     ],
     reportCount: 5,
-    reportReasons: ['垃圾信息', '骚扰'],
+    reportReasons: ['spam', 'harassment'],
     status: 'pending',
     createdAt: new Date(
       Date.now() - 2 * 60 * 60 * 1000
@@ -69,7 +81,7 @@ const mockTweets: ModerationTweet[] = [
       isVerified: false
     },
     reportCount: 15,
-    reportReasons: ['垃圾信息', '虚假信息'],
+    reportReasons: ['spam', 'misinformation'],
     status: 'pending',
     createdAt: new Date(
       Date.now() - 5 * 60 * 60 * 1000
@@ -107,7 +119,7 @@ const mockTweets: ModerationTweet[] = [
       }
     ],
     reportCount: 1,
-    reportReasons: ['其他'],
+    reportReasons: ['other'],
     status: 'pending',
     createdAt: new Date(
       Date.now() - 8 * 60 * 60 * 1000
@@ -131,7 +143,7 @@ const mockTweets: ModerationTweet[] = [
       isVerified: false
     },
     reportCount: 8,
-    reportReasons: ['骚扰', '虚假信息'],
+    reportReasons: ['harassment', 'misinformation'],
     status: 'pending',
     createdAt: new Date(
       Date.now() - 12 * 60 * 60 * 1000
@@ -155,7 +167,7 @@ const mockTweets: ModerationTweet[] = [
       isVerified: true
     },
     reportCount: 2,
-    reportReasons: ['垃圾信息'],
+    reportReasons: ['spam'],
     status: 'pending',
     createdAt: new Date(
       Date.now() - 24 * 60 * 60 * 1000
@@ -186,7 +198,7 @@ const mockTweets: ModerationTweet[] = [
       }
     ],
     reportCount: 1,
-    reportReasons: ['成人内容'],
+    reportReasons: ['adult'],
     status: 'flagged',
     createdAt: new Date(
       Date.now() - 36 * 60 * 60 * 1000
@@ -213,6 +225,22 @@ const filters = ref<ModerationFiltersData>({
 
 // 推文列表
 const tweets = ref<ModerationTweet[]>([...mockTweets]);
+
+const reportReasonValues: ModerationReportReason[] = [
+  'spam',
+  'harassment',
+  'hate',
+  'violence',
+  'adult',
+  'misinformation',
+  'copyright',
+  'other'
+];
+
+const isReportReason = (
+  value: string
+): value is ModerationReportReason =>
+  reportReasonValues.includes(value as ModerationReportReason);
 
 // 加载状态
 const loading = ref(false);
@@ -250,20 +278,12 @@ const filteredTweets = computed(() => {
 
   // 举报原因过滤
   if (filters.value.reportReason !== 'all') {
-    const reasonMap: Record<string, string> = {
-      spam: '垃圾信息',
-      harassment: '骚扰',
-      hate: '仇恨言论',
-      violence: '暴力内容',
-      adult: '成人内容',
-      misinformation: '虚假信息',
-      copyright: '侵权',
-      other: '其他'
-    };
-    const reason = reasonMap[filters.value.reportReason];
-    result = result.filter(t =>
-      t.reportReasons.includes(reason)
-    );
+    const reason = filters.value.reportReason;
+    if (isReportReason(reason)) {
+      result = result.filter(t =>
+        t.reportReasons.includes(reason)
+      );
+    }
   }
 
   // 排序
@@ -304,8 +324,9 @@ const filteredTweets = computed(() => {
 // 通过审核
 const handleApprove = (id: number) => {
   const index = tweets.value.findIndex(t => t.id === id);
-  if (index !== -1) {
-    tweets.value[index].status = 'approved';
+  const tweet = tweets.value[index];
+  if (tweet) {
+    tweet.status = 'approved';
     statsData.value.pending--;
     statsData.value.approved++;
     statsData.value.todayProcessed++;
@@ -315,8 +336,9 @@ const handleApprove = (id: number) => {
 // 拒绝推文
 const handleReject = (id: number) => {
   const index = tweets.value.findIndex(t => t.id === id);
-  if (index !== -1) {
-    tweets.value[index].status = 'rejected';
+  const tweet = tweets.value[index];
+  if (tweet) {
+    tweet.status = 'rejected';
     statsData.value.pending--;
     statsData.value.rejected++;
     statsData.value.todayProcessed++;
@@ -326,8 +348,9 @@ const handleReject = (id: number) => {
 // 标记审查
 const handleFlag = (id: number) => {
   const index = tweets.value.findIndex(t => t.id === id);
-  if (index !== -1) {
-    tweets.value[index].status = 'flagged';
+  const tweet = tweets.value[index];
+  if (tweet) {
+    tweet.status = 'flagged';
     statsData.value.pending--;
     statsData.value.flagged++;
   }
@@ -365,25 +388,25 @@ const handleRefresh = () => {
     // 模拟刷新
     tweets.value = [...mockTweets];
     loading.value = false;
-    toast.success('列表已刷新');
+    toast.success(t('moderation.feedback.refreshed'));
   }, 1000);
 };
 
 // 加载更多
 const handleLoadMore = () => {
-  toast.info('没有更多内容了');
+  toast.info(t('moderation.feedback.noMore'));
 };
 
 // 重置过滤器
 const handleResetFilters = () => {
-  toast.info('过滤器已重置');
+  toast.info(t('moderation.feedback.filtersReset'));
 };
 </script>
 
 <template>
   <div class="space-y-6">
     <!-- 统计面板 -->
-    <ModerationStats :stats="statsData" />
+    <ModerationStats :stats="localizedStatsData" />
 
     <!-- 过滤器 -->
     <ModerationFilters

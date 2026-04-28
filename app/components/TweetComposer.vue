@@ -64,6 +64,7 @@ const mentionPickerRef =
   ref<InstanceType<typeof MentionPicker>>();
 const mentions = ref<string[]>([]); // 存储所有提及的用户名
 const mentionUserIds = ref<Record<string, string>>({}); // username -> userId 映射
+const { t } = useAppLocale();
 
 // --- 计算属性 ---
 
@@ -115,8 +116,10 @@ function handleFileSelect(event: Event) {
   const remainingSlots = 4 - mediaFiles.value.length;
 
   if (files.length > remainingSlots) {
-    toast.error('媒体数量超出限制', {
-      description: `你最多还能上传 ${remainingSlots > 0 ? `${remainingSlots} 个` : '0 个'}文件。`
+    toast.error(t('post.composer.mediaLimitTitle'), {
+      description: t('post.composer.mediaLimitDescription', {
+        count: remainingSlots > 0 ? remainingSlots : 0
+      })
     });
   }
 
@@ -303,7 +306,7 @@ function handleKeyDown(event: KeyboardEvent) {
       <Textarea
         ref="textareaRef"
         v-model="tweetContent"
-        placeholder="有什么新鲜事？"
+        :placeholder="t('post.composer.placeholder')"
         class="w-full h-full bg-transparent text-lg text-gray-200 placeholder:text-gray-500 border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-2 resize-none leading-relaxed tracking-wide"
         @input="handleInput"
         @keydown="handleKeyDown"
@@ -341,7 +344,7 @@ function handleKeyDown(event: KeyboardEvent) {
           <img
             :src="src"
             class="w-full h-full object-cover rounded-lg"
-            alt="媒体预览"
+            :alt="t('post.composer.mediaPreviewAlt')"
           />
           <Button
             variant="ghost"
@@ -377,7 +380,7 @@ function handleKeyDown(event: KeyboardEvent) {
               <TooltipContent
                 class="bg-black text-white border-gray-700"
               >
-                <p>添加媒体</p>
+                <p>{{ t('post.composer.addMedia') }}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -398,7 +401,7 @@ function handleKeyDown(event: KeyboardEvent) {
               <TooltipContent
                 class="bg-black text-white border-gray-700"
               >
-                <p>回复推文</p>
+                <p>{{ t('post.composer.replyPost') }}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -417,7 +420,7 @@ function handleKeyDown(event: KeyboardEvent) {
               <TooltipContent
                 class="bg-black text-white border-gray-700"
               >
-                <p>引用推文</p>
+                <p>{{ t('post.composer.quotePost') }}</p>
               </TooltipContent>
             </Tooltip> 
             -->
@@ -468,7 +471,7 @@ function handleKeyDown(event: KeyboardEvent) {
           >
             <span class="inline-flex items-center gap-2">
               <Send class="h-4 w-4 shrink-0" />
-              <span>发布</span>
+              <span>{{ t('post.composer.publish') }}</span>
             </span>
           </AppButton>
         </div>

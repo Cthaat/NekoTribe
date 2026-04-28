@@ -7,6 +7,8 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
+
+const { t } = useAppLocale();
 </script>
 
 <template>
@@ -19,20 +21,22 @@ import {
           class="h-8 w-8 text-muted-foreground"
         />
       </div>
-      <CardTitle>审核设置</CardTitle>
+      <CardTitle>{{
+        t('moderation.placeholder.settings.title')
+      }}</CardTitle>
       <CardDescription>
-        此功能正在开发中，敬请期待...
+        {{ t('moderation.placeholder.description') }}
       </CardDescription>
     </CardHeader>
     <CardContent
       class="text-center text-sm text-muted-foreground"
     >
-      <p>审核设置功能将包括：</p>
+      <p>{{ t('moderation.placeholder.settings.intro') }}</p>
       <ul class="mt-2 space-y-1">
-        <li>• 自动审核规则配置</li>
-        <li>• 敏感词库管理</li>
-        <li>• 审核流程设置</li>
-        <li>• 通知偏好设置</li>
+        <li>• {{ t('moderation.placeholder.settings.item1') }}</li>
+        <li>• {{ t('moderation.placeholder.settings.item2') }}</li>
+        <li>• {{ t('moderation.placeholder.settings.item3') }}</li>
+        <li>• {{ t('moderation.placeholder.settings.item4') }}</li>
       </ul>
     </CardContent>
   </Card>

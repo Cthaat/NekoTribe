@@ -20,6 +20,7 @@ const emit = defineEmits<{
 }>();
 
 const isRefreshing = ref(false);
+const { t } = useAppLocale();
 
 // 处理刷新
 const handleRefresh = async () => {
@@ -54,11 +55,11 @@ const handleViewDetail = (tweet: ModerationTweet) => {
     <!-- 列表头部 -->
     <div class="flex items-center justify-between">
       <div class="text-sm text-muted-foreground">
-        共
-        <span class="font-medium text-foreground">{{
-          tweets.length
-        }}</span>
-        条待审核内容
+        {{
+          t('moderation.list.count', {
+            count: tweets.length
+          })
+        }}
       </div>
       <Button
         variant="outline"
@@ -72,7 +73,7 @@ const handleViewDetail = (tweet: ModerationTweet) => {
             { 'animate-spin': isRefreshing }
           ]"
         />
-        刷新
+        {{ t('moderation.actions.refresh') }}
       </Button>
     </div>
 
@@ -92,10 +93,10 @@ const handleViewDetail = (tweet: ModerationTweet) => {
         <Inbox class="h-8 w-8 text-muted-foreground" />
       </div>
       <h3 class="text-lg font-medium mb-1">
-        没有待审核的内容
+        {{ t('moderation.list.emptyTitle') }}
       </h3>
       <p class="text-sm text-muted-foreground max-w-sm">
-        当前没有需要审核的推文。新的举报内容将会显示在这里。
+        {{ t('moderation.list.emptyDescription') }}
       </p>
       <Button
         variant="outline"
@@ -103,7 +104,7 @@ const handleViewDetail = (tweet: ModerationTweet) => {
         @click="handleRefresh"
       >
         <RefreshCw class="h-4 w-4 mr-2" />
-        刷新列表
+        {{ t('moderation.actions.refreshList') }}
       </Button>
     </div>
 
@@ -125,7 +126,7 @@ const handleViewDetail = (tweet: ModerationTweet) => {
           variant="outline"
           @click="emit('load-more')"
         >
-          加载更多
+          {{ t('moderation.actions.loadMore') }}
         </Button>
       </div>
     </div>

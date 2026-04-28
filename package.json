@@ -29,7 +29,6 @@
     "@vue/shared": "3.5.33"
   },
   "dependencies": {
-    "@nuxt/content": "3.6.2",
     "@nuxt/eslint": "1.5.0",
     "@nuxt/fonts": "0.11.4",
     "@nuxt/icon": "1.15.0",

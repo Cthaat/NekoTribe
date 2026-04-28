@@ -29,6 +29,7 @@ import { toast } from 'vue-sonner';
 import type { GroupMember } from '@/types/groups';
 
 export type { GroupMember } from '@/types/groups';
+const { t, locale } = useAppLocale();
 
 const props = defineProps<{
   member: GroupMember;
@@ -62,12 +63,12 @@ const roleIcon = computed(() => {
 const roleText = computed(() => {
   switch (props.member.role) {
     case 'owner':
-      return '群主';
+      return t('groups.detail.owner');
     case 'admin':
     case 'moderator':
-      return '管理员';
+      return t('groups.member.roles.admin');
     default:
-      return '成员';
+      return t('groups.member.roles.member');
   }
 });
 
@@ -87,7 +88,7 @@ const roleBadgeVariant = computed(() => {
 // 格式化时间
 const formatTime = (dateStr: string) => {
   const date = new Date(dateStr);
-  return date.toLocaleDateString('zh-CN', {
+  return date.toLocaleDateString(locale.value === 'zh' ? 'zh-CN' : 'en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
@@ -97,27 +98,27 @@ const formatTime = (dateStr: string) => {
 // 处理操作
 const handleRemove = () => {
   emit('remove', props.member.id);
-  toast.success('成员已移除');
+  toast.success(t('groups.member.feedback.removed'));
 };
 
 const handlePromote = () => {
   emit('promote', props.member.id);
-  toast.success('已设为管理员');
+  toast.success(t('groups.member.feedback.promoted'));
 };
 
 const handleDemote = () => {
   emit('demote', props.member.id);
-  toast.success('已取消管理员');
+  toast.success(t('groups.member.feedback.demoted'));
 };
 
 const handleMute = () => {
   emit('mute', props.member.id);
-  toast.success('已禁言');
+  toast.success(t('groups.member.feedback.muted'));
 };
 
 const handleUnmute = () => {
   emit('unmute', props.member.id);
-  toast.success('已解除禁言');
+  toast.success(t('groups.member.feedback.unmuted'));
 };
 
 const handleViewProfile = () => {
@@ -176,7 +177,7 @@ const handleViewProfile = () => {
       <span
         class="text-xs text-muted-foreground hidden sm:inline"
       >
-        {{ formatTime(member.joinedAt) }} 加入
+        {{ t('groups.member.joinedAt', { date: formatTime(member.joinedAt) }) }}
       </span>
 
       <!-- 管理操作 -->
@@ -202,14 +203,14 @@ const handleViewProfile = () => {
             @click="handlePromote"
           >
             <ShieldPlus class="h-4 w-4 mr-2" />
-            设为管理员
+            {{ t('groups.member.actions.promote') }}
           </DropdownMenuItem>
           <DropdownMenuItem
             v-if="member.role === 'admin'"
             @click="handleDemote"
           >
             <ShieldMinus class="h-4 w-4 mr-2" />
-            取消管理员
+            {{ t('groups.member.actions.demote') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -217,11 +218,11 @@ const handleViewProfile = () => {
             @click="handleMute"
           >
             <VolumeX class="h-4 w-4 mr-2" />
-            禁言
+            {{ t('groups.member.actions.mute') }}
           </DropdownMenuItem>
           <DropdownMenuItem v-else @click="handleUnmute">
             <Volume2 class="h-4 w-4 mr-2" />
-            解除禁言
+            {{ t('groups.member.actions.unmute') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -229,7 +230,7 @@ const handleViewProfile = () => {
             @click="handleRemove"
           >
             <UserMinus class="h-4 w-4 mr-2" />
-            移出群组
+            {{ t('groups.member.actions.remove') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

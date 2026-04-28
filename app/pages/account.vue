@@ -7,19 +7,19 @@ import {
   v2GetUserAnalytics
 } from '@/services';
 import { toast } from 'vue-sonner';
-import { useI18n } from 'vue-i18n';
 
-// 1. 获取 i18n 的工具函数
-const { t } = useI18n();
+const { t } = useAppLocale();
 
 const localePath = useLocalePath();
 
 interface AccountHeaderUser {
+  id: number;
   name: string;
   title: string;
   location: string;
   email: string;
   avatar: string;
+  follow: string;
   stats: {
     followersCount: number;
     followingCount: number;
@@ -29,11 +29,13 @@ interface AccountHeaderUser {
 }
 
 const user = ref<AccountHeaderUser>({
+  id: 0,
   name: '',
   title: '',
   location: '',
   email: '',
   avatar: '',
+  follow: 'follow',
   stats: {
     followersCount: 0,
     followingCount: 0,
@@ -44,47 +46,45 @@ const user = ref<AccountHeaderUser>({
 
 const baseAccountTabs = [
   {
-    name: t('account.tabs.overview'),
+    labelKey: 'account.tabs.overview',
     to: 'account-overview'
   },
   {
-    name: t('account.tabs.settings'),
+    labelKey: 'account.tabs.settings',
     to: 'account-settings'
   },
   {
-    name: t('account.tabs.profile'),
+    labelKey: 'account.tabs.profile',
     to: 'account-profile'
   },
   {
-    name: t('account.tabs.appearance'),
+    labelKey: 'account.tabs.appearance',
     to: 'account-appearance'
   },
   {
-    name: t('account.tabs.security'),
+    labelKey: 'account.tabs.security',
     to: 'account-security'
   },
-  { name: t('account.tabs.active'), to: 'account-active' },
+  { labelKey: 'account.tabs.active', to: 'account-active' },
   {
-    name: t('account.tabs.statements'),
+    labelKey: 'account.tabs.statements',
     to: 'account-statements'
   }
 ];
 
-// 3. ✨ 创建一个 computed 属性来生成最终给模板使用的数据
 const localizedAccountTabs = computed(() => {
   return baseAccountTabs.map(tab => ({
-    // ✨ 使用 t() 函数来翻译名称
-    name: t(tab.name),
-    // ✨ 使用 localePath() 函数来本地化链接
+    name: t(tab.labelKey),
     to: localePath(tab.to)
   }));
 });
 
-const activeTab = ref('Overview');
+const activeTab = ref(t('account.tabs.overview'));
 
 onMounted(async () => {
   try {
     const me = await v2GetMe();
+    user.value.id = me.id;
     user.value.name = me.username;
     user.value.title = me.name;
     user.value.location = me.location;
@@ -96,8 +96,8 @@ onMounted(async () => {
     const analytics = await v2GetUserAnalytics(me.id);
     user.value.point = analytics.engagementScore;
   } catch (error) {
-    console.error('Error fetching user info:', error);
-    toast.error('Failed to fetch user info.');
+    console.error(t('account.errors.loadUser'), error);
+    toast.error(t('account.errors.loadUser'));
   }
 });
 </script>
@@ -108,15 +108,15 @@ onMounted(async () => {
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold tracking-tight">
-          Account - {{ activeTab }}
+          {{ t('account.title') }} - {{ activeTab }}
         </h1>
         <p class="text-muted-foreground text-sm">
-          Home - Account
+          {{ t('account.breadcrumb') }}
         </p>
       </div>
       <div class="flex items-center space-x-2">
-        <Button variant="outline">Filter</Button>
-        <Button>Create</Button>
+        <Button variant="outline">{{ t('common.filter') }}</Button>
+        <Button>{{ t('common.create') }}</Button>
       </div>
     </div>
 

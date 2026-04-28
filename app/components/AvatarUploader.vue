@@ -9,6 +9,7 @@ import {
 import { Loader2 } from 'lucide-vue-next';
 import { v2UpdateAvatar } from '@/services';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
+const { t } = useAppLocale();
 
 // --- Props & Emits ---
 const props = defineProps({
@@ -54,7 +55,7 @@ const onFileSelected = (event: Event) => {
   // 文件验证（大小和类型）
   const maxSizeInMB = 5;
   if (file.size > maxSizeInMB * 1024 * 1024) {
-    toast.error(`文件大小不能超过 ${maxSizeInMB}MB`);
+    toast.error(t('avatar.validation.maxSize', { size: maxSizeInMB }));
     return;
   }
 
@@ -88,15 +89,15 @@ const uploadAvatar = async (file: File) => {
       if (process.client) {
         window.location.reload();
       }
-      toast('头像更新成功！');
+      toast(t('avatar.feedback.updated'));
     } else {
       throw new Error(
         'API did not return a new avatar URL.'
       );
     }
   } catch (error) {
-    console.error('上传头像失败:', error);
-    toast.error('上传失败，请重试。');
+    console.error(t('avatar.feedback.uploadFailed'), error);
+    toast.error(t('avatar.feedback.uploadFailed'));
     // 上传失败，清除本地预览，恢复到旧头像
     previewUrl.value = null;
   } finally {

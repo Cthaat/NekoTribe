@@ -39,6 +39,7 @@ import { toast } from 'vue-sonner';
 import type { CreateGroupData } from '@/types/groups';
 
 export type { CreateGroupData } from '@/types/groups';
+const { t } = useAppLocale();
 
 const props = defineProps<{
   open: boolean;
@@ -78,34 +79,34 @@ watch(
 
 // 分类选项
 const categoryOptions = [
-  { value: 'tech', label: '科技' },
-  { value: 'game', label: '游戏' },
-  { value: 'music', label: '音乐' },
-  { value: 'art', label: '艺术' },
-  { value: 'life', label: '生活' },
-  { value: 'study', label: '学习' },
-  { value: 'work', label: '工作' },
-  { value: 'other', label: '其他' }
+  { value: 'tech', labelKey: 'groups.filters.category.tech' },
+  { value: 'game', labelKey: 'groups.filters.category.game' },
+  { value: 'music', labelKey: 'groups.filters.category.music' },
+  { value: 'art', labelKey: 'groups.filters.category.art' },
+  { value: 'life', labelKey: 'groups.filters.category.life' },
+  { value: 'study', labelKey: 'groups.filters.category.study' },
+  { value: 'work', labelKey: 'groups.filters.category.work' },
+  { value: 'other', labelKey: 'groups.filters.category.other' }
 ];
 
 // 隐私选项
 const privacyOptions = [
   {
     value: 'public' as const,
-    label: '公开群组',
-    description: '任何人都可以查看和加入',
+    labelKey: 'groups.filters.privacy.public',
+    descriptionKey: 'groups.create.privacy.publicDescription',
     icon: Globe
   },
   {
     value: 'private' as const,
-    label: '私密群组',
-    description: '需要申请或邀请才能加入',
+    labelKey: 'groups.filters.privacy.private',
+    descriptionKey: 'groups.create.privacy.privateDescription',
     icon: Lock
   },
   {
     value: 'secret' as const,
-    label: '隐秘群组',
-    description: '仅邀请可见和加入',
+    labelKey: 'groups.filters.privacy.secret',
+    descriptionKey: 'groups.create.privacy.secretDescription',
     icon: Shield
   }
 ];
@@ -118,15 +119,15 @@ const updateCategory = (value: unknown) => {
 // 提交表单
 const handleSubmit = () => {
   if (!formData.value.name.trim()) {
-    toast.error('请输入群组名称');
+    toast.error(t('groups.create.validation.nameRequired'));
     return;
   }
   if (!formData.value.description.trim()) {
-    toast.error('请输入群组描述');
+    toast.error(t('groups.create.validation.descriptionRequired'));
     return;
   }
   if (!formData.value.category) {
-    toast.error('请选择群组分类');
+    toast.error(t('groups.create.validation.categoryRequired'));
     return;
   }
 
@@ -143,9 +144,9 @@ const closeDialog = () => {
   <Dialog :open="open" @update:open="closeDialog">
     <DialogContent class="max-w-lg">
       <DialogHeader>
-        <DialogTitle>创建新群组</DialogTitle>
+        <DialogTitle>{{ t('groups.create.title') }}</DialogTitle>
         <DialogDescription>
-          创建一个群组来聚集志同道合的朋友
+          {{ t('groups.create.description') }}
         </DialogDescription>
       </DialogHeader>
 
@@ -171,20 +172,20 @@ const closeDialog = () => {
             </Button>
           </div>
           <div class="flex-1">
-            <Label>群组头像</Label>
+            <Label>{{ t('groups.create.avatar') }}</Label>
             <p class="text-sm text-muted-foreground">
-              点击上传群组头像
+              {{ t('groups.create.avatarDescription') }}
             </p>
           </div>
         </div>
 
         <!-- 群组名称 -->
         <div class="space-y-2">
-          <Label for="name">群组名称 *</Label>
+          <Label for="name">{{ t('groups.create.name') }}</Label>
           <Input
             id="name"
             v-model="formData.name"
-            placeholder="输入群组名称"
+            :placeholder="t('groups.create.namePlaceholder')"
             maxlength="50"
           />
           <p
@@ -196,11 +197,11 @@ const closeDialog = () => {
 
         <!-- 群组描述 -->
         <div class="space-y-2">
-          <Label for="description">群组描述 *</Label>
+          <Label for="description">{{ t('groups.create.groupDescriptionLabel') }}</Label>
           <Textarea
             id="description"
             v-model="formData.description"
-            placeholder="描述一下你的群组..."
+            :placeholder="t('groups.create.groupDescriptionPlaceholder')"
             rows="3"
             maxlength="500"
           />
@@ -213,13 +214,13 @@ const closeDialog = () => {
 
         <!-- 群组分类 -->
         <div class="space-y-2">
-          <Label>群组分类 *</Label>
+          <Label>{{ t('groups.create.category') }}</Label>
           <Select
             :model-value="formData.category"
             @update:model-value="updateCategory"
           >
             <SelectTrigger>
-              <SelectValue placeholder="选择分类" />
+              <SelectValue :placeholder="t('groups.create.categoryPlaceholder')" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem
@@ -227,7 +228,7 @@ const closeDialog = () => {
                 :key="option.value"
                 :value="option.value"
               >
-                {{ option.label }}
+                {{ t(option.labelKey) }}
               </SelectItem>
             </SelectContent>
           </Select>
@@ -235,7 +236,7 @@ const closeDialog = () => {
 
         <!-- 隐私设置 -->
         <div class="space-y-3">
-          <Label>隐私设置</Label>
+          <Label>{{ t('groups.create.privacySettings') }}</Label>
           <RadioGroup
             v-model="formData.privacy"
             class="space-y-2"
@@ -262,13 +263,13 @@ const closeDialog = () => {
                     class="h-4 w-4"
                   />
                   <span class="font-medium text-sm">{{
-                    option.label
+                    t(option.labelKey)
                   }}</span>
                 </div>
                 <p
                   class="text-xs text-muted-foreground mt-0.5"
                 >
-                  {{ option.description }}
+                  {{ t(option.descriptionKey) }}
                 </p>
               </div>
             </div>
@@ -278,9 +279,11 @@ const closeDialog = () => {
 
       <DialogFooter>
         <Button variant="outline" @click="closeDialog">
-          取消
+          {{ t('common.cancel') }}
         </Button>
-        <Button @click="handleSubmit"> 创建群组 </Button>
+        <Button @click="handleSubmit">
+          {{ t('groups.actions.create') }}
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

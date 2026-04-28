@@ -1,11 +1,11 @@
 // middleware/auth.ts
 import { usePreferenceStore } from '~/stores/user';
-import { useI18n } from 'vue-i18n';
 import { toast } from 'vue-sonner';
 
 export default defineNuxtRouteMiddleware((to, from) => {
   const preferenceStore = usePreferenceStore();
   const localePath = useLocalePath();
+  const { t } = useAppLocaleController();
 
   const AUTH_ROUTE_NAMES = [
     'auth-login',
@@ -34,9 +34,9 @@ export default defineNuxtRouteMiddleware((to, from) => {
       return;
     }
 
-    toast.error(
-      'User is not logged in, redirecting to localized login page'
-    );
+    if (import.meta.client) {
+      toast.error(t('middleware.login.redirecting'));
+    }
 
     const loginPath = localePath('auth-login');
 
@@ -47,4 +47,3 @@ export default defineNuxtRouteMiddleware((to, from) => {
     }
   }
 });
-

@@ -37,6 +37,8 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip';
 
+const { t } = useAppLocale();
+
 // 频道类型定义
 export interface Channel {
   id: number;
@@ -132,7 +134,7 @@ const selectChannel = (channel: Channel) => {
             class="w-full justify-between font-semibold text-base h-auto py-2"
           >
             <span class="truncate">{{
-              groupName || '群组名称'
+              groupName || t('chat.groupFallbackName')
             }}</span>
             <ChevronDown
               class="h-4 w-4 flex-shrink-0 ml-2"
@@ -142,19 +144,19 @@ const selectChannel = (channel: Channel) => {
         <DropdownMenuContent class="w-56" align="start">
           <DropdownMenuItem>
             <Users class="mr-2 h-4 w-4" />
-            邀请成员
+            {{ t('chat.actions.inviteMembers') }}
           </DropdownMenuItem>
           <DropdownMenuItem
             v-if="canManage"
             @click="emit('settings')"
           >
             <Settings class="mr-2 h-4 w-4" />
-            群组设置
+            {{ t('groups.actions.settings') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem>
             <Bell class="mr-2 h-4 w-4" />
-            通知设置
+            {{ t('chat.actions.notificationSettings') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -202,7 +204,7 @@ const selectChannel = (channel: Channel) => {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  <p>创建频道</p>
+                  <p>{{ t('chat.actions.createChannel') }}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -295,8 +297,8 @@ const selectChannel = (channel: Channel) => {
                         />
                         {{
                           channel.isMuted
-                            ? '取消静音'
-                            : '静音频道'
+                            ? t('chat.actions.unmuteChannel')
+                            : t('chat.actions.muteChannel')
                         }}
                       </DropdownMenuItem>
                       <template v-if="canManage">
@@ -307,7 +309,7 @@ const selectChannel = (channel: Channel) => {
                           "
                         >
                           <Edit3 class="mr-2 h-4 w-4" />
-                          编辑频道
+                          {{ t('chat.actions.editChannel') }}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           class="text-destructive focus:text-destructive"
@@ -319,7 +321,7 @@ const selectChannel = (channel: Channel) => {
                           "
                         >
                           <Trash2 class="mr-2 h-4 w-4" />
-                          删除频道
+                          {{ t('chat.actions.deleteChannel') }}
                         </DropdownMenuItem>
                       </template>
                     </DropdownMenuContent>
@@ -343,7 +345,7 @@ const selectChannel = (channel: Channel) => {
           <div
             class="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center"
           >
-            <span class="text-sm font-medium">你</span>
+            <span class="text-sm font-medium">{{ t('chat.currentUser.short') }}</span>
           </div>
           <div
             class="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-background"
@@ -351,10 +353,10 @@ const selectChannel = (channel: Channel) => {
         </div>
         <div class="flex-1 min-w-0">
           <div class="text-sm font-medium truncate">
-            当前用户
+            {{ t('chat.currentUser.name') }}
           </div>
           <div class="text-xs text-muted-foreground">
-            在线
+            {{ t('chat.status.online') }}
           </div>
         </div>
         <TooltipProvider>
@@ -369,7 +371,7 @@ const selectChannel = (channel: Channel) => {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              <p>用户设置</p>
+              <p>{{ t('chat.actions.userSettings') }}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

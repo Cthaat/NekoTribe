@@ -11,6 +11,7 @@ import type {
   Group,
   GroupFiltersData
 } from '@/types/groups';
+const { t } = useAppLocale();
 
 const filters = ref<GroupFiltersData>({
   search: '',
@@ -64,11 +65,11 @@ async function handleJoin(id: number): Promise<void> {
     syncSelectedGroup(id);
     toast.success(
       status === 'active'
-        ? '已加入群组'
-        : '已发送加入申请'
+        ? t('groups.feedback.joined')
+        : t('groups.feedback.joinRequested')
     );
   } catch (error) {
-    toast.error('加入群组失败', {
+    toast.error(t('groups.feedback.joinFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
@@ -79,9 +80,9 @@ async function handleLeave(id: number): Promise<void> {
   try {
     await groupList.leave(id);
     syncSelectedGroup(id);
-    toast.success('已离开群组');
+    toast.success(t('groups.feedback.left'));
   } catch (error) {
-    toast.error('离开群组失败', {
+    toast.error(t('groups.feedback.leaveFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
@@ -93,19 +94,21 @@ async function handleViewDetail(group: Group): Promise<void> {
 }
 
 function handleSettings(_id: number): void {
-  toast.info('群组设置功能开发中...');
+  toast.info(t('groups.feedback.settingsWip'));
 }
 
 async function handleRefresh(): Promise<void> {
   await groupList.refresh();
   toast.success(
-    groupList.error.value ? '刷新失败' : '列表已刷新'
+    groupList.error.value
+      ? t('groups.feedback.refreshFailed')
+      : t('groups.feedback.refreshed')
   );
 }
 
 async function handleLoadMore(): Promise<void> {
   if (!groupList.hasNext.value) {
-    toast.info('没有更多群组了');
+    toast.info(t('groups.feedback.noMore'));
     return;
   }
   await groupList.loadMore();
@@ -120,9 +123,9 @@ async function handleCreateSubmit(
 ): Promise<void> {
   try {
     await groupList.create(data);
-    toast.success('群组创建成功！');
+    toast.success(t('groups.feedback.created'));
   } catch (error) {
-    toast.error('群组创建失败', {
+    toast.error(t('groups.feedback.createFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
@@ -130,17 +133,19 @@ async function handleCreateSubmit(
 }
 
 function handleResetFilters(): void {
-  toast.info('过滤器已重置');
+  toast.info(t('groups.feedback.filtersReset'));
 }
 
 async function handleInvite(id: number): Promise<void> {
   try {
     const inviteUrl = await groupDetail.createInvite(id);
     toast.success(
-      inviteUrl ? '邀请链接已复制' : '邀请已创建'
+      inviteUrl
+        ? t('groups.feedback.inviteCopied')
+        : t('groups.feedback.inviteCreated')
     );
   } catch (error) {
-    toast.error('创建邀请失败', {
+    toast.error(t('groups.feedback.inviteFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });

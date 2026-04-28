@@ -27,6 +27,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits(['update:open']);
+const { t } = useAppLocale();
 
 const currentIndex = ref(props.startIndex || 0);
 
@@ -78,22 +79,24 @@ function prev() {
         >
           <div class="max-w-[90vw] max-h-[90vh] relative">
             <Transition name="fade" mode="out-in">
-              <img
-                v-if="currentItem.type === 'image'"
-                :key="`image-${currentItem.originalUrl}`"
-                :src="currentItem.originalUrl"
-                class="block max-w-full max-h-full object-contain rounded-lg"
-                alt="高清媒体"
-              />
-              <video
-                v-else-if="currentItem.type === 'video'"
-                :key="`video-${currentItem.originalUrl}`"
-                :src="currentItem.originalUrl"
-                class="block max-w-full max-h-full object-contain rounded-lg"
-                controls
-                autoplay
-                loop
-              />
+              <template v-if="currentItem">
+                <img
+                  v-if="currentItem.type === 'image'"
+                  :key="`image-${currentItem.originalUrl}`"
+                  :src="currentItem.originalUrl"
+                  class="block max-w-full max-h-full object-contain rounded-lg"
+                  :alt="t('media.lightboxAlt')"
+                />
+                <video
+                  v-else-if="currentItem.type === 'video'"
+                  :key="`video-${currentItem.originalUrl}`"
+                  :src="currentItem.originalUrl"
+                  class="block max-w-full max-h-full object-contain rounded-lg"
+                  controls
+                  autoplay
+                  loop
+                />
+              </template>
             </Transition>
           </div>
 

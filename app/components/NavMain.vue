@@ -29,11 +29,13 @@ defineProps<{
     }[]
   }[]
 }>()
+
+const { t } = useAppLocale()
 </script>
 
 <template>
   <SidebarGroup>
-    <SidebarGroupLabel>Platform</SidebarGroupLabel>
+    <SidebarGroupLabel>{{ t('nav.sections.platform') }}</SidebarGroupLabel>
     <SidebarMenu>
       <Collapsible v-for="item in items" :key="item.title" as-child :default-open="item.isActive">
         <SidebarMenuItem>
@@ -47,7 +49,7 @@ defineProps<{
             <CollapsibleTrigger as-child>
               <SidebarMenuAction class="data-[state=open]:rotate-90">
                 <ChevronRight />
-                <span class="sr-only">Toggle</span>
+                <span class="sr-only">{{ t('common.toggle') }}</span>
               </SidebarMenuAction>
             </CollapsibleTrigger>
             <CollapsibleContent>

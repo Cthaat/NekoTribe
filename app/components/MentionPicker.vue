@@ -8,6 +8,8 @@ import {
 } from '@/components/ui/avatar';
 import { User, FileText } from 'lucide-vue-next';
 
+const { t } = useAppLocale();
+
 interface MentionItem {
   type: 'user' | 'tweet';
   id: string;
@@ -58,7 +60,7 @@ async function searchMentions(query: string) {
     mentionItems.value = [...users];
     selectedIndex.value = 0;
   } catch (error) {
-    console.error('搜索提及失败:', error);
+    console.error(t('chat.mention.searchFailed'), error);
     mentionItems.value = [];
   } finally {
     isLoading.value = false;
@@ -101,8 +103,10 @@ function handleKeyDown(event: KeyboardEvent) {
       break;
     case 'Enter':
       event.preventDefault();
-      if (mentionItems.value[selectedIndex.value]) {
-        selectItem(mentionItems.value[selectedIndex.value]);
+      const selectedItem =
+        mentionItems.value[selectedIndex.value];
+      if (selectedItem) {
+        selectItem(selectedItem);
       }
       break;
     case 'Escape':
@@ -174,7 +178,11 @@ defineExpose({
 
         <!-- 类型标识 -->
         <div class="text-xs text-gray-500 uppercase">
-          {{ item.type === 'user' ? '用户' : '推文' }}
+          {{
+            item.type === 'user'
+              ? t('chat.mention.user')
+              : t('chat.mention.post')
+          }}
         </div>
       </div>
 
@@ -182,7 +190,7 @@ defineExpose({
         v-if="isLoading"
         class="px-4 py-3 text-center text-gray-400"
       >
-        搜索中...
+        {{ t('chat.mention.loading') }}
       </div>
     </div>
   </div>

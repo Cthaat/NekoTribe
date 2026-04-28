@@ -3,7 +3,7 @@
 <template>
   <div class="container mx-auto p-8">
     <h1 class="text-3xl font-bold mb-6">
-      Token 刷新测试页面
+      {{ t('diagnostics.token.pageTitle') }}
     </h1>
 
     <div class="space-y-4">
@@ -12,27 +12,35 @@
         class="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg"
       >
         <h2 class="text-xl font-semibold mb-2">
-          当前 Token 信息
+          {{ t('diagnostics.token.infoTitle') }}
         </h2>
         <div class="space-y-2 text-sm">
           <div>
-            <strong>当前会话 ID:</strong>
+            <strong>{{
+              t('diagnostics.token.sessionId')
+            }}</strong>
             {{
               sessionId
                 ? sessionId.substring(0, 20) + '...'
-                : '无'
+                : t('diagnostics.token.none')
             }}
           </div>
           <div>
-            <strong>Token 剩余时间:</strong>
+            <strong>{{
+              t('diagnostics.token.tokenTimeLeft')
+            }}</strong>
             {{
               timeLeft > 0
-                ? `${Math.floor(timeLeft)} 秒`
-                : 'Token 已过期或无效'
+                ? t('diagnostics.token.seconds', {
+                    count: Math.floor(timeLeft)
+                  })
+                : t('diagnostics.token.expired')
             }}
           </div>
           <div>
-            <strong>登录状态:</strong>
+            <strong>{{
+              t('diagnostics.token.loginStatus')
+            }}</strong>
             <span
               :class="
                 isLoggedIn
@@ -40,7 +48,11 @@
                   : 'text-red-600'
               "
             >
-              {{ isLoggedIn ? '已登录' : '未登录' }}
+              {{
+                isLoggedIn
+                  ? t('diagnostics.token.loggedIn')
+                  : t('diagnostics.token.loggedOut')
+              }}
             </span>
           </div>
         </div>
@@ -48,7 +60,9 @@
 
       <!-- 操作按钮 -->
       <div class="space-y-2">
-        <h2 class="text-xl font-semibold">测试操作</h2>
+        <h2 class="text-xl font-semibold">
+          {{ t('diagnostics.token.actionsTitle') }}
+        </h2>
 
         <AppButton
           @click="testApiCall"
@@ -57,8 +71,8 @@
         >
           {{
             loading
-              ? '请求中...'
-              : '发起需要认证的 API 请求'
+              ? t('diagnostics.token.requesting')
+              : t('diagnostics.token.authRequest')
           }}
         </AppButton>
 
@@ -68,7 +82,11 @@
           :loading="refreshing"
           class="ml-2"
         >
-          {{ refreshing ? '刷新中...' : '手动刷新 Token' }}
+          {{
+            refreshing
+              ? t('diagnostics.token.refreshing')
+              : t('diagnostics.token.manualRefresh')
+          }}
         </AppButton>
 
         <AppButton
@@ -76,7 +94,7 @@
           variant="secondary"
           class="ml-2"
         >
-          篡改 Token（模拟过期）
+          {{ t('diagnostics.token.invalidateToken') }}
         </AppButton>
 
         <AppButton
@@ -84,7 +102,7 @@
           variant="destructive"
           class="ml-2"
         >
-          清除所有 Token
+          {{ t('diagnostics.token.clearTokens') }}
         </AppButton>
       </div>
 
@@ -93,13 +111,15 @@
         class="p-4 bg-gray-900 text-green-400 rounded-lg"
       >
         <div class="flex justify-between items-center mb-2">
-          <h2 class="text-xl font-semibold">操作日志</h2>
+          <h2 class="text-xl font-semibold">
+            {{ t('diagnostics.token.logsTitle') }}
+          </h2>
           <AppButton
             @click="logs = []"
             size="sm"
             variant="secondary"
           >
-            清空日志
+            {{ t('diagnostics.token.clearLogs') }}
           </AppButton>
         </div>
         <div
@@ -109,7 +129,7 @@
             v-if="logs.length === 0"
             class="text-gray-500"
           >
-            暂无日志...
+            {{ t('diagnostics.token.emptyLogs') }}
           </div>
           <div v-for="(log, index) in logs" :key="index">
             <span class="text-gray-500">{{
@@ -124,31 +144,42 @@
       <div
         class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg"
       >
-        <h2 class="text-xl font-semibold mb-2">测试说明</h2>
+        <h2 class="text-xl font-semibold mb-2">
+          {{ t('diagnostics.token.instructionsTitle') }}
+        </h2>
         <ul class="list-disc list-inside space-y-1 text-sm">
           <li>
-            <strong>发起需要认证的 API 请求：</strong
-            >会调用一个需要认证的接口，如果 Token
-            过期会自动刷新并重试
+            <strong>{{
+              t('diagnostics.token.instructionsAuthTitle')
+            }}</strong
+            >{{ t('diagnostics.token.instructionsAuth') }}
           </li>
           <li>
-            <strong>手动刷新 Token：</strong
-            >直接调用刷新接口，更新 Token
+            <strong>{{
+              t('diagnostics.token.instructionsRefreshTitle')
+            }}</strong
+            >{{ t('diagnostics.token.instructionsRefresh') }}
           </li>
           <li>
-            <strong>篡改 Token：</strong>修改 Token
-            使其无效，模拟过期场景
+            <strong>{{
+              t('diagnostics.token.instructionsInvalidateTitle')
+            }}</strong
+            >{{ t('diagnostics.token.instructionsInvalidate') }}
           </li>
           <li>
-            <strong>清除所有 Token：</strong
-            >删除所有认证信息，需要重新登录
+            <strong>{{
+              t('diagnostics.token.instructionsClearTitle')
+            }}</strong
+            >{{ t('diagnostics.token.instructionsClear') }}
           </li>
         </ul>
         <div
           class="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded"
         >
-          <strong>⚠️ 提示：</strong
-          >打开浏览器控制台可以查看详细的刷新日志
+          <strong>{{
+            t('diagnostics.token.tipTitle')
+          }}</strong
+          >{{ t('diagnostics.token.tip') }}
         </div>
       </div>
     </div>
@@ -161,6 +192,7 @@ import { usePreferenceStore } from '~/stores/user';
 import { v2ListNotifications } from '@/services';
 import AppButton from '@/components/app/AppButton.vue';
 
+const { t, locale } = useAppLocale();
 const preferenceStore = usePreferenceStore();
 
 const loading = ref(false);
@@ -181,7 +213,7 @@ const isLoggedIn = computed(
 // 添加日志
 const addLog = (message: string) => {
   const now = new Date();
-  const time = now.toLocaleTimeString('zh-CN', {
+  const time = now.toLocaleTimeString(locale.value, {
     hour12: false
   });
   logs.value.push({ time, message });
@@ -206,14 +238,14 @@ const updateTimeLeft = () => {
     );
   } catch (error) {
     timeLeft.value = 0;
-    addLog('❌ Token 解码失败');
+    addLog(`❌ ${t('diagnostics.token.decodeFailed')}`);
   }
 };
 
 // 测试 API 调用
 const testApiCall = async () => {
   loading.value = true;
-  addLog('🚀 发起 API 请求...');
+  addLog(`🚀 ${t('diagnostics.token.apiRequestStart')}`);
 
   try {
     const response = await v2ListNotifications({
@@ -221,14 +253,18 @@ const testApiCall = async () => {
       pageSize: 1
     });
 
-    addLog('✅ API 请求成功');
+    addLog(`✅ ${t('diagnostics.token.apiRequestSuccess')}`);
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : '未知错误';
+      error instanceof Error
+        ? error.message
+        : t('common.unknownError');
     addLog(
-      `❌ API 请求失败: ${message}`
+      `❌ ${t('diagnostics.token.apiRequestFailed', {
+        message
+      })}`
     );
-    console.error('API 错误:', error);
+    console.error(t('diagnostics.token.apiErrorLog'), error);
   } finally {
     loading.value = false;
     updateTimeLeft();
@@ -238,19 +274,23 @@ const testApiCall = async () => {
 // 手动刷新 Token
 const manualRefresh = async () => {
   refreshing.value = true;
-  addLog('🔄 手动刷新 Token...');
+  addLog(`🔄 ${t('diagnostics.token.refreshStart')}`);
 
   try {
     await preferenceStore.refreshAccessToken();
-    addLog('✅ Token 刷新成功');
+    addLog(`✅ ${t('diagnostics.token.refreshSuccess')}`);
     updateTimeLeft();
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : '未知错误';
+      error instanceof Error
+        ? error.message
+        : t('common.unknownError');
     addLog(
-      `❌ Token 刷新失败: ${message}`
+      `❌ ${t('diagnostics.token.refreshFailed', {
+        message
+      })}`
     );
-    console.error('刷新错误:', error);
+    console.error(t('diagnostics.token.refreshErrorLog'), error);
   } finally {
     refreshing.value = false;
   }
@@ -259,16 +299,18 @@ const manualRefresh = async () => {
 // 篡改 Token
 const invalidateToken = () => {
   if (!sessionId.value) {
-    addLog('⚠️ 当前没有会话');
+    addLog(`⚠️ ${t('diagnostics.token.noSession')}`);
     return;
   }
-  addLog('⚠️ HttpOnly Cookie 模式下无法在客户端直接篡改 Token');
+  addLog(
+    `⚠️ ${t('diagnostics.token.httpOnlyTamperUnavailable')}`
+  );
 };
 
 // 清除所有 Token
 const clearAllTokens = () => {
   preferenceStore.clearAuthState();
-  addLog('🗑️ 所有 Token 已清除');
+  addLog(`🗑️ ${t('diagnostics.token.tokensCleared')}`);
   updateTimeLeft();
 };
 
@@ -276,7 +318,7 @@ const clearAllTokens = () => {
 onMounted(() => {
   updateTimeLeft();
   timer = setInterval(updateTimeLeft, 1000);
-  addLog('✨ 测试页面已加载');
+  addLog(`✨ ${t('diagnostics.token.pageLoaded')}`);
 });
 
 onUnmounted(() => {

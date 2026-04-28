@@ -38,6 +38,7 @@ export type { Group } from '@/types/groups';
 const props = defineProps<{
   group: Group;
 }>();
+const { t } = useAppLocale();
 
 const emit = defineEmits<{
   (e: 'join', id: number): void;
@@ -64,22 +65,26 @@ const privacyIcon = computed(() => {
 const privacyText = computed(() => {
   switch (props.group.privacy) {
     case 'public':
-      return '公开群组';
+      return t('groups.filters.privacy.public');
     case 'private':
-      return '私密群组';
+      return t('groups.filters.privacy.private');
     case 'secret':
-      return '隐秘群组';
+      return t('groups.filters.privacy.secret');
     default:
-      return '公开群组';
+      return t('groups.filters.privacy.public');
   }
 });
 
 // 格式化成员数量
 const formatMemberCount = (count: number) => {
   if (count >= 10000) {
-    return `${(count / 10000).toFixed(1)}万`;
+    return t('groups.number.tenThousand', {
+      value: (count / 10000).toFixed(1)
+    });
   } else if (count >= 1000) {
-    return `${(count / 1000).toFixed(1)}千`;
+    return t('groups.number.thousand', {
+      value: (count / 1000).toFixed(1)
+    });
   }
   return count.toString();
 };
@@ -158,7 +163,7 @@ const handleSettings = () => {
               @click.stop="handleViewDetail"
             >
               <Eye class="h-4 w-4 mr-2" />
-              查看详情
+              {{ t('groups.actions.viewDetail') }}
             </DropdownMenuItem>
             <DropdownMenuSeparator
               v-if="group.isOwner || group.isAdmin"
@@ -168,7 +173,7 @@ const handleSettings = () => {
               @click.stop="handleSettings"
             >
               <Settings class="h-4 w-4 mr-2" />
-              群组设置
+              {{ t('groups.actions.settings') }}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -223,11 +228,11 @@ const handleSettings = () => {
             >{{
               formatMemberCount(group.memberCount)
             }}
-            成员</span
+            {{ t('groups.stats.members') }}</span
           >
         </div>
         <div class="flex items-center gap-1">
-          <span>{{ group.postCount }} 帖子</span>
+          <span>{{ t('groups.stats.posts', { count: group.postCount }) }}</span>
         </div>
       </div>
     </CardContent>
@@ -245,10 +250,10 @@ const handleSettings = () => {
         />
         {{
           group.isMember
-            ? '离开群组'
+            ? t('groups.actions.leave')
             : group.privacy === 'public'
-              ? '加入群组'
-              : '申请加入'
+              ? t('groups.actions.join')
+              : t('groups.actions.requestJoin')
         }}
       </Button>
       <Button
@@ -258,7 +263,7 @@ const handleSettings = () => {
         @click="handleSettings"
       >
         <Settings class="h-4 w-4 mr-2" />
-        管理群组
+        {{ t('groups.actions.manage') }}
       </Button>
     </CardFooter>
   </Card>

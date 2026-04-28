@@ -25,9 +25,8 @@ import {
   AccordionTrigger
 } from '@/components/ui/accordion';
 import { AlertTriangle, FileText } from 'lucide-vue-next';
-import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n();
+const { t } = useAppLocale();
 
 // 2. 使用 useLocalePath 来处理路由
 const localePath = useLocalePath();
@@ -36,35 +35,35 @@ const localePath = useLocalePath();
 const tocItems = [
   {
     id: '#acceptance',
-    titleKey: t('auth.terms.toc.acceptance')
+    titleKey: 'auth.terms.toc.acceptance'
   },
   {
     id: '#accounts',
-    titleKey: t('auth.terms.toc.accounts')
+    titleKey: 'auth.terms.toc.accounts'
   },
-  { id: '#conduct', titleKey: t('auth.terms.toc.conduct') },
+  { id: '#conduct', titleKey: 'auth.terms.toc.conduct' },
   {
     id: '#termination',
-    titleKey: t('auth.terms.toc.termination')
+    titleKey: 'auth.terms.toc.termination'
   },
-  { id: '#faq', titleKey: t('auth.terms.toc.faq') }
+  { id: '#faq', titleKey: 'auth.terms.toc.faq' }
 ];
 
 const faqItems = [
   {
     value: 'faq-1',
-    questionKey: t('auth.terms.faq.q1.question'),
-    answerKey: t('auth.terms.faq.q1.answer')
+    questionKey: 'auth.terms.faq.q1.question',
+    answerKey: 'auth.terms.faq.q1.answer'
   },
   {
     value: 'faq-2',
-    questionKey: t('auth.terms.faq.q2.question'),
-    answerKey: t('auth.terms.faq.q2.answer')
+    questionKey: 'auth.terms.faq.q2.question',
+    answerKey: 'auth.terms.faq.q2.answer'
   },
   {
     value: 'faq-3',
-    questionKey: t('auth.terms.faq.q3.question'),
-    answerKey: t('auth.terms.faq.q3.answer')
+    questionKey: 'auth.terms.faq.q3.question',
+    answerKey: 'auth.terms.faq.q3.answer'
   }
 ];
 </script>
@@ -77,15 +76,15 @@ const faqItems = [
           <FileText class="size-8 text-primary" />
           <div>
             <CardTitle class="text-3xl font-bold">
-              {{ $t('auth.terms.title') }}
+              {{ t('auth.terms.title') }}
             </CardTitle>
             <CardDescription>
-              {{ $t('auth.terms.description') }}
+              {{ t('auth.terms.description') }}
             </CardDescription>
           </div>
         </div>
         <p class="text-xs text-muted-foreground pt-2">
-          {{ $t('auth.terms.lastUpdated') }}: 2025.7.16
+          {{ t('auth.terms.lastUpdated') }}: 2025.7.16
         </p>
       </CardHeader>
 
@@ -95,12 +94,12 @@ const faqItems = [
         <!-- 目录 (Table of Contents) -->
         <div class="p-4 bg-muted/50 rounded-lg">
           <h3 class="font-semibold mb-2">
-            {{ $t('auth.terms.toc.title') }}
+            {{ t('auth.terms.toc.title') }}
           </h3>
           <ul class="space-y-1 list-inside">
             <li v-for="item in tocItems" :key="item.id">
               <a :href="item.id" class="hover:underline">
-                {{ $t(item.titleKey) }}
+                {{ t(item.titleKey) }}
               </a>
             </li>
           </ul>
@@ -115,12 +114,12 @@ const faqItems = [
             >
               1.
               {{
-                $t('auth.terms.sections.acceptance.title')
+                t('auth.terms.sections.acceptance.title')
               }}
             </h2>
             <p class="leading-relaxed">
               {{
-                $t('auth.terms.sections.acceptance.content')
+                t('auth.terms.sections.acceptance.content')
               }}
             </p>
           </section>
@@ -131,11 +130,11 @@ const faqItems = [
               class="text-2xl font-semibold border-b pb-2 mb-4"
             >
               2.
-              {{ $t('auth.terms.sections.accounts.title') }}
+              {{ t('auth.terms.sections.accounts.title') }}
             </h2>
             <p class="leading-relaxed">
               {{
-                $t('auth.terms.sections.accounts.content')
+                t('auth.terms.sections.accounts.content')
               }}
             </p>
           </section>
@@ -146,11 +145,11 @@ const faqItems = [
               class="text-2xl font-semibold border-b pb-2 mb-4"
             >
               3.
-              {{ $t('auth.terms.sections.conduct.title') }}
+              {{ t('auth.terms.sections.conduct.title') }}
             </h2>
             <p class="leading-relaxed mb-4">
               {{
-                $t('auth.terms.sections.conduct.content')
+                t('auth.terms.sections.conduct.content')
               }}
             </p>
 
@@ -158,27 +157,27 @@ const faqItems = [
             <Alert variant="destructive">
               <AlertTriangle class="h-4 w-4" />
               <AlertTitle>{{
-                $t('auth.terms.sections.conduct.alertTitle')
+                t('auth.terms.sections.conduct.alertTitle')
               }}</AlertTitle>
               <AlertDescription>
                 <ul class="list-disc pl-5 mt-2">
                   <li>
                     {{
-                      $t(
+                      t(
                         'auth.terms.sections.conduct.prohibited.item1'
                       )
                     }}
                   </li>
                   <li>
                     {{
-                      $t(
+                      t(
                         'auth.terms.sections.conduct.prohibited.item2'
                       )
                     }}
                   </li>
                   <li>
                     {{
-                      $t(
+                      t(
                         'auth.terms.sections.conduct.prohibited.item3'
                       )
                     }}
@@ -195,12 +194,12 @@ const faqItems = [
             >
               4.
               {{
-                $t('auth.terms.sections.termination.title')
+                t('auth.terms.sections.termination.title')
               }}
             </h2>
             <p class="leading-relaxed">
               {{
-                $t(
+                t(
                   'auth.terms.sections.termination.content'
                 )
               }}
@@ -212,10 +211,10 @@ const faqItems = [
             <h2
               class="text-2xl font-semibold border-b pb-2 mb-4"
             >
-              5. {{ $t('auth.terms.faq.title') }}
+              5. {{ t('auth.terms.faq.title') }}
             </h2>
             <p class="leading-relaxed mb-4">
-              {{ $t('auth.terms.faq.description') }}
+              {{ t('auth.terms.faq.description') }}
             </p>
             <!-- 分割线 -->
             <Separator class="my-4" />
@@ -230,10 +229,10 @@ const faqItems = [
                 :value="faq.value"
               >
                 <AccordionTrigger>{{
-                  $t(faq.questionKey)
+                  t(faq.questionKey)
                 }}</AccordionTrigger>
                 <AccordionContent class="text-base">
-                  {{ $t(faq.answerKey) }}
+                  {{ t(faq.answerKey) }}
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -246,7 +245,7 @@ const faqItems = [
                   $router.push(localePath('auth-sign-up'))
                 "
               >
-                {{ $t('auth.terms.registerButton') }}
+                {{ t('auth.terms.registerButton') }}
               </Button>
             </div>
           </section>

@@ -9,8 +9,6 @@
 // 全局 CSS 读取后实现全站即时生效。
 // 引入计算属性工具
 import { computed } from 'vue';
-// 引入国际化钩子
-import { useI18n } from 'vue-i18n';
 // 引入偏好状态仓库（存储主题/语言/字号/紧凑模式）
 import { usePreferenceStore } from '@/stores/user';
 import type { LanguageCode } from '@/stores/type';
@@ -25,8 +23,7 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
 
 // 取出偏好仓库实例
 const pref = usePreferenceStore();
-// 取出 i18n 实例（locale 用于切换语言）
-const { locale, t } = useI18n();
+const { locale, t, setAppLocale } = useAppLocale();
 
 // 主题模式绑定：读写 store 中的 theme_mode
 const theme = computed({
@@ -55,11 +52,10 @@ const fontSize = computed({
 // 语言绑定：同时更新 i18n 的 locale
 const lang = computed({
   // 读取当前语言
-  get: () => pref.preferences.language,
+  get: () => locale.value,
   // 写入 store 并更新 vue-i18n 的 locale
   set: (v: LanguageCode) => {
-    pref.updatePreference('language', v);
-    locale.value = v;
+    void setAppLocale(v);
   }
 });
 </script>
@@ -76,12 +72,12 @@ const lang = computed({
           <!-- 页面主标题：外观设置 -->
           <h2 class="text-2xl font-bold tracking-tight">
             <!-- 国际化文案：标题 -->
-            {{ $t('account.appearance.title') }}
+            {{ t('account.appearance.title') }}
           </h2>
           <!-- 页面副标题/描述 -->
           <p class="text-muted-foreground">
             <!-- 国际化文案：描述 -->
-            {{ $t('account.appearance.description') }}
+            {{ t('account.appearance.description') }}
           </p>
         </div>
         <!-- 分隔线，用于分组 -->
@@ -95,7 +91,7 @@ const lang = computed({
             <div class="flex items-center gap-2">
               <ColorModeIcon />
               <div class="font-medium">
-                {{ $t('account.appearance.theme') }}
+                {{ t('account.appearance.theme') }}
               </div>
             </div>
             <!-- 主题选择按钮三连：Light / Dark / System -->
@@ -107,7 +103,7 @@ const lang = computed({
                 "
                 @click="theme = 'light'"
                 >{{
-                  $t('account.appearance.themeLight')
+                  t('account.appearance.themeLight')
                 }}</Button
               >
               <!-- Dark 按钮 -->
@@ -117,7 +113,7 @@ const lang = computed({
                 "
                 @click="theme = 'dark'"
                 >{{
-                  $t('account.appearance.themeDark')
+                  t('account.appearance.themeDark')
                 }}</Button
               >
               <!-- System 按钮：跟随系统 -->
@@ -127,7 +123,7 @@ const lang = computed({
                 "
                 @click="theme = 'system'"
                 >{{
-                  $t('account.appearance.themeSystem')
+                  t('account.appearance.themeSystem')
                 }}</Button
               >
             </div>
@@ -137,17 +133,16 @@ const lang = computed({
           <div class="space-y-2">
             <!-- 小标题：语言 -->
             <div class="font-medium">
-              {{ $t('account.appearance.language') }}
+              {{ t('account.appearance.language') }}
             </div>
             <!-- 语言按钮组：中文 / English -->
             <div class="flex flex-wrap gap-2">
-              <!-- 中文按钮：lang === 'cn' 时为选中态 -->
               <Button
                 :variant="
-                  lang === 'cn' ? 'default' : 'outline'
+                  lang === 'zh' ? 'default' : 'outline'
                 "
-                @click="lang = 'cn'"
-                >中文</Button
+                @click="lang = 'zh'"
+                >{{ t('preferences.language.zh') }}</Button
               >
               <!-- English 按钮：lang === 'en' 时为选中态 -->
               <Button
@@ -155,7 +150,7 @@ const lang = computed({
                   lang === 'en' ? 'default' : 'outline'
                 "
                 @click="lang = 'en'"
-                >English</Button
+                >{{ t('preferences.language.en') }}</Button
               >
             </div>
           </div>
@@ -164,7 +159,7 @@ const lang = computed({
           <div class="space-y-2">
             <!-- 小标题：字号 -->
             <div class="font-medium">
-              {{ $t('account.appearance.fontSize') }}
+              {{ t('account.appearance.fontSize') }}
             </div>
             <!-- 字号按钮组：small / normal / large -->
             <div class="flex flex-wrap gap-2">
@@ -177,7 +172,7 @@ const lang = computed({
                 "
                 @click="fontSize = 'small'"
                 >{{
-                  $t('account.appearance.fontSmall')
+                  t('account.appearance.fontSmall')
                 }}</Button
               >
               <!-- normal 按钮 -->
@@ -189,7 +184,7 @@ const lang = computed({
                 "
                 @click="fontSize = 'normal'"
                 >{{
-                  $t('account.appearance.fontNormal')
+                  t('account.appearance.fontNormal')
                 }}</Button
               >
               <!-- large 按钮 -->
@@ -201,7 +196,7 @@ const lang = computed({
                 "
                 @click="fontSize = 'large'"
                 >{{
-                  $t('account.appearance.fontLarge')
+                  t('account.appearance.fontLarge')
                 }}</Button
               >
             </div>
@@ -211,7 +206,7 @@ const lang = computed({
           <div class="space-y-2">
             <!-- 小标题：紧凑模式 -->
             <div class="font-medium">
-              {{ $t('account.appearance.compactMode') }}
+              {{ t('account.appearance.compactMode') }}
             </div>
             <!-- 紧凑模式按钮组：开 / 关 -->
             <div class="flex flex-wrap gap-2">
@@ -220,7 +215,7 @@ const lang = computed({
                 :variant="compact ? 'default' : 'outline'"
                 @click="compact = true"
                 >{{
-                  $t('account.appearance.compactOn')
+                  t('account.appearance.compactOn')
                 }}</Button
               >
               <!-- 关：compact === false -->
@@ -228,7 +223,7 @@ const lang = computed({
                 :variant="!compact ? 'default' : 'outline'"
                 @click="compact = false"
                 >{{
-                  $t('account.appearance.compactOff')
+                  t('account.appearance.compactOff')
                 }}</Button
               >
             </div>

@@ -1,4 +1,8 @@
 import { usePreferenceStore } from '@/stores/user';
+import {
+  normalizeAppLocale,
+  useAppLocaleController
+} from '@/composables/useAppLocale';
 
 /**
  * 客户端 UI 偏好同步插件
@@ -14,16 +18,7 @@ import { usePreferenceStore } from '@/stores/user';
 export default defineNuxtPlugin(() => {
   if (process.server) return;
   const pref = usePreferenceStore();
-  // 不能在插件里直接调用 useI18n（需处于组件 setup 上下文），
-  // 这里通过 NuxtApp 注入的 $i18n 进行交互，兼容 @nuxtjs/i18n 或手动安装的 vue-i18n。
-  const nuxtApp = useNuxtApp();
-  const $i18n = nuxtApp.$i18n as
-    | {
-        setLocale?: (locale: string) => void;
-        locale?: string | { value: string };
-        global?: { locale?: { value: string } };
-      }
-    | undefined;
+  const { locale, setAppLocale } = useAppLocaleController();
 
   // html 根节点，用于挂载 class 与 data- 属性
   const html = document.documentElement;
@@ -89,49 +84,11 @@ export default defineNuxtPlugin(() => {
     else html.classList.remove('compact');
   };
 
-  /**
-   * 同步多语言：当偏好语言变化时，尽量更新 i18n 的 locale，并同步 <html lang>
-   * 兼容几种常见形态：
-   * - $i18n.setLocale(lang)
-   * - $i18n.locale.value = lang
-   * - $i18n.global.locale.value = lang
-   * - $i18n.locale = lang（字符串）
-   */
   const applyLanguage = () => {
-    const lang = pref.preferences.language as
-      | string
-      | undefined;
-    if (!lang) return;
-
-    try {
-      // 读取当前语言
-      let current: string | undefined;
-      if ($i18n?.locale?.value !== undefined)
-        current = $i18n.locale.value;
-      else if ($i18n?.global?.locale?.value !== undefined)
-        current = $i18n.global.locale.value;
-      else if (typeof $i18n?.locale === 'string')
-        current = $i18n.locale;
-
-      if (current !== lang) {
-        if (typeof $i18n?.setLocale === 'function') {
-          // 部分 i18n 集成提供的异步设置方法
-          $i18n.setLocale(lang);
-        } else if ($i18n?.locale?.value !== undefined) {
-          $i18n.locale.value = lang;
-        } else if (
-          $i18n?.global?.locale?.value !== undefined
-        ) {
-          $i18n.global.locale.value = lang;
-        } else if (typeof $i18n?.locale === 'string') {
-          $i18n.locale = lang;
-        }
-      }
-    } catch {
-      // 忽略可能的环境差异错误
+    const lang = normalizeAppLocale(pref.preferences.language);
+    if (locale.value !== lang) {
+      void setAppLocale(lang);
     }
-
-    // 无论 i18n 是否可用，都同步到 <html lang>
     html.setAttribute('lang', lang);
   };
 

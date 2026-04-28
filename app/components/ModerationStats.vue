@@ -35,50 +35,54 @@ const props = withDefaults(
       rejected: 0,
       flagged: 0,
       todayProcessed: 0,
-      avgProcessTime: '0分钟'
+      avgProcessTime: ''
     })
   }
 );
 
+const { t } = useAppLocale();
+
 const statsCards = computed(() => [
   {
-    title: '待审核',
+    title: t('moderation.stats.pending'),
     value: props.stats.pending,
     icon: Clock,
     color: 'text-yellow-500',
     bgColor: 'bg-yellow-500/10'
   },
   {
-    title: '已通过',
+    title: t('moderation.stats.approved'),
     value: props.stats.approved,
     icon: CheckCircle,
     color: 'text-green-500',
     bgColor: 'bg-green-500/10'
   },
   {
-    title: '已拒绝',
+    title: t('moderation.stats.rejected'),
     value: props.stats.rejected,
     icon: XCircle,
     color: 'text-destructive',
     bgColor: 'bg-destructive/10'
   },
   {
-    title: '已标记',
+    title: t('moderation.stats.flagged'),
     value: props.stats.flagged,
     icon: Flag,
     color: 'text-orange-500',
     bgColor: 'bg-orange-500/10'
   },
   {
-    title: '今日处理',
+    title: t('moderation.stats.todayProcessed'),
     value: props.stats.todayProcessed,
     icon: TrendingUp,
     color: 'text-blue-500',
     bgColor: 'bg-blue-500/10'
   },
   {
-    title: '平均处理时间',
-    value: props.stats.avgProcessTime,
+    title: t('moderation.stats.avgProcessTime'),
+    value:
+      props.stats.avgProcessTime ||
+      t('moderation.stats.zeroMinutes'),
     icon: AlertTriangle,
     color: 'text-purple-500',
     bgColor: 'bg-purple-500/10',

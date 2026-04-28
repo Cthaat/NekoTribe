@@ -22,6 +22,11 @@ import {
   PopoverTrigger
 } from '@/components/ui/popover';
 
+interface SelectOption {
+  value: string;
+  labelKey: string;
+}
+
 export interface ModerationFiltersData {
   search: string;
   status: string;
@@ -52,6 +57,8 @@ const emit = defineEmits<{
   ): void;
   (e: 'reset'): void;
 }>();
+
+const { t } = useAppLocale();
 
 // 本地状态
 const localFilters = ref({ ...props.modelValue });
@@ -121,43 +128,78 @@ const hasActiveFilters = () => {
 };
 
 // 状态选项
-const statusOptions = [
-  { value: 'all', label: '全部状态' },
-  { value: 'pending', label: '待审核' },
-  { value: 'approved', label: '已通过' },
-  { value: 'rejected', label: '已拒绝' },
-  { value: 'flagged', label: '已标记' }
+const statusOptions: SelectOption[] = [
+  { value: 'all', labelKey: 'moderation.status.all' },
+  { value: 'pending', labelKey: 'moderation.status.pending' },
+  { value: 'approved', labelKey: 'moderation.status.approved' },
+  { value: 'rejected', labelKey: 'moderation.status.rejected' },
+  { value: 'flagged', labelKey: 'moderation.status.flagged' }
 ];
 
 // 举报原因选项
-const reportReasonOptions = [
-  { value: 'all', label: '全部原因' },
-  { value: 'spam', label: '垃圾信息' },
-  { value: 'harassment', label: '骚扰' },
-  { value: 'hate', label: '仇恨言论' },
-  { value: 'violence', label: '暴力内容' },
-  { value: 'adult', label: '成人内容' },
-  { value: 'misinformation', label: '虚假信息' },
-  { value: 'copyright', label: '侵权' },
-  { value: 'other', label: '其他' }
+const reportReasonOptions: SelectOption[] = [
+  { value: 'all', labelKey: 'moderation.filters.reasons.all' },
+  { value: 'spam', labelKey: 'moderation.filters.reasons.spam' },
+  {
+    value: 'harassment',
+    labelKey: 'moderation.filters.reasons.harassment'
+  },
+  { value: 'hate', labelKey: 'moderation.filters.reasons.hate' },
+  {
+    value: 'violence',
+    labelKey: 'moderation.filters.reasons.violence'
+  },
+  { value: 'adult', labelKey: 'moderation.filters.reasons.adult' },
+  {
+    value: 'misinformation',
+    labelKey: 'moderation.filters.reasons.misinformation'
+  },
+  {
+    value: 'copyright',
+    labelKey: 'moderation.filters.reasons.copyright'
+  },
+  { value: 'other', labelKey: 'moderation.filters.reasons.other' }
 ];
 
 // 时间范围选项
-const dateRangeOptions = [
-  { value: 'all', label: '全部时间' },
-  { value: 'today', label: '今天' },
-  { value: 'yesterday', label: '昨天' },
-  { value: 'week', label: '最近一周' },
-  { value: 'month', label: '最近一月' }
+const dateRangeOptions: SelectOption[] = [
+  { value: 'all', labelKey: 'moderation.filters.dateRanges.all' },
+  {
+    value: 'today',
+    labelKey: 'moderation.filters.dateRanges.today'
+  },
+  {
+    value: 'yesterday',
+    labelKey: 'moderation.filters.dateRanges.yesterday'
+  },
+  { value: 'week', labelKey: 'moderation.filters.dateRanges.week' },
+  {
+    value: 'month',
+    labelKey: 'moderation.filters.dateRanges.month'
+  }
 ];
 
 // 排序选项
-const sortOptions = [
-  { value: 'newest', label: '最新举报' },
-  { value: 'oldest', label: '最早举报' },
-  { value: 'most_reports', label: '举报最多' },
-  { value: 'most_engagement', label: '互动最多' }
+const sortOptions: SelectOption[] = [
+  { value: 'newest', labelKey: 'moderation.filters.sort.newest' },
+  { value: 'oldest', labelKey: 'moderation.filters.sort.oldest' },
+  {
+    value: 'most_reports',
+    labelKey: 'moderation.filters.sort.mostReports'
+  },
+  {
+    value: 'most_engagement',
+    labelKey: 'moderation.filters.sort.mostEngagement'
+  }
 ];
+
+const getOptionLabel = (
+  options: SelectOption[],
+  value: string
+): string => {
+  const option = options.find(item => item.value === value);
+  return option ? t(option.labelKey) : value;
+};
 </script>
 
 <template>
@@ -172,7 +214,7 @@ const sortOptions = [
         <Input
           :model-value="localFilters.search"
           @update:model-value="updateSearch"
-          placeholder="搜索推文内容或用户..."
+          :placeholder="t('moderation.filters.searchPlaceholder')"
           class="pl-9"
         />
       </div>
@@ -183,7 +225,11 @@ const sortOptions = [
         @update:model-value="updateStatus"
       >
         <SelectTrigger class="w-[140px]">
-          <SelectValue placeholder="选择状态" />
+          <SelectValue
+            :placeholder="
+              t('moderation.filters.statusPlaceholder')
+            "
+          />
         </SelectTrigger>
         <SelectContent>
           <SelectItem
@@ -191,7 +237,7 @@ const sortOptions = [
             :key="option.value"
             :value="option.value"
           >
-            {{ option.label }}
+            {{ t(option.labelKey) }}
           </SelectItem>
         </SelectContent>
       </Select>
@@ -202,7 +248,11 @@ const sortOptions = [
         @update:model-value="updateReportReason"
       >
         <SelectTrigger class="w-[140px]">
-          <SelectValue placeholder="举报原因" />
+          <SelectValue
+            :placeholder="
+              t('moderation.filters.reportReasonPlaceholder')
+            "
+          />
         </SelectTrigger>
         <SelectContent>
           <SelectItem
@@ -210,7 +260,7 @@ const sortOptions = [
             :key="option.value"
             :value="option.value"
           >
-            {{ option.label }}
+            {{ t(option.labelKey) }}
           </SelectItem>
         </SelectContent>
       </Select>
@@ -222,7 +272,11 @@ const sortOptions = [
       >
         <SelectTrigger class="w-[140px]">
           <Calendar class="h-4 w-4 mr-2" />
-          <SelectValue placeholder="时间范围" />
+          <SelectValue
+            :placeholder="
+              t('moderation.filters.dateRangePlaceholder')
+            "
+          />
         </SelectTrigger>
         <SelectContent>
           <SelectItem
@@ -230,7 +284,7 @@ const sortOptions = [
             :key="option.value"
             :value="option.value"
           >
-            {{ option.label }}
+            {{ t(option.labelKey) }}
           </SelectItem>
         </SelectContent>
       </Select>
@@ -241,7 +295,9 @@ const sortOptions = [
         @update:model-value="updateSortBy"
       >
         <SelectTrigger class="w-[140px]">
-          <SelectValue placeholder="排序方式" />
+          <SelectValue
+            :placeholder="t('moderation.filters.sortPlaceholder')"
+          />
         </SelectTrigger>
         <SelectContent>
           <SelectItem
@@ -249,7 +305,7 @@ const sortOptions = [
             :key="option.value"
             :value="option.value"
           >
-            {{ option.label }}
+            {{ t(option.labelKey) }}
           </SelectItem>
         </SelectContent>
       </Select>
@@ -263,7 +319,7 @@ const sortOptions = [
         class="text-muted-foreground"
       >
         <X class="h-4 w-4 mr-1" />
-        重置
+        {{ t('common.reset') }}
       </Button>
     </div>
 
@@ -273,7 +329,7 @@ const sortOptions = [
       class="flex flex-wrap items-center gap-2"
     >
       <span class="text-sm text-muted-foreground"
-        >当前过滤：</span
+        >{{ t('moderation.filters.current') }}</span
       >
 
       <Badge
@@ -282,7 +338,11 @@ const sortOptions = [
         class="gap-1 cursor-pointer"
         @click="updateSearch('')"
       >
-        搜索: {{ localFilters.search }}
+        {{
+          t('moderation.filters.searchBadge', {
+            value: localFilters.search
+          })
+        }}
         <X class="h-3 w-3" />
       </Badge>
 
@@ -292,11 +352,13 @@ const sortOptions = [
         class="gap-1 cursor-pointer"
         @click="updateStatus('all')"
       >
-        状态:
         {{
-          statusOptions.find(
-            o => o.value === localFilters.status
-          )?.label
+          t('moderation.filters.statusBadge', {
+            value: getOptionLabel(
+              statusOptions,
+              localFilters.status
+            )
+          })
         }}
         <X class="h-3 w-3" />
       </Badge>
@@ -307,11 +369,13 @@ const sortOptions = [
         class="gap-1 cursor-pointer"
         @click="updateReportReason('all')"
       >
-        原因:
         {{
-          reportReasonOptions.find(
-            o => o.value === localFilters.reportReason
-          )?.label
+          t('moderation.filters.reasonBadge', {
+            value: getOptionLabel(
+              reportReasonOptions,
+              localFilters.reportReason
+            )
+          })
         }}
         <X class="h-3 w-3" />
       </Badge>
@@ -322,11 +386,13 @@ const sortOptions = [
         class="gap-1 cursor-pointer"
         @click="updateDateRange('all')"
       >
-        时间:
         {{
-          dateRangeOptions.find(
-            o => o.value === localFilters.dateRange
-          )?.label
+          t('moderation.filters.dateBadge', {
+            value: getOptionLabel(
+              dateRangeOptions,
+              localFilters.dateRange
+            )
+          })
         }}
         <X class="h-3 w-3" />
       </Badge>

@@ -21,24 +21,25 @@ definePageMeta({
 
 // 当前选中的标签
 const activeTab = ref('discover');
+const { t } = useAppLocale();
 
 // 导航标签配置
 const tabs = [
   {
     value: 'discover',
-    label: '发现群组',
+    labelKey: 'groups.tabs.discover',
     icon: Compass,
     path: '/groups/discover'
   },
   {
     value: 'my',
-    label: '我的群组',
+    labelKey: 'groups.tabs.my',
     icon: UserCheck,
     path: '/groups/my'
   },
   {
     value: 'invites',
-    label: '群组邀请',
+    labelKey: 'groups.tabs.invites',
     icon: Bell,
     path: '/groups/invites'
   }
@@ -88,9 +89,9 @@ watch(currentPath, newPath => {
           <Users class="h-6 w-6 text-primary" />
         </div>
         <div>
-          <h1 class="text-2xl font-bold">群组</h1>
+          <h1 class="text-2xl font-bold">{{ t('groups.title') }}</h1>
           <p class="text-sm text-muted-foreground">
-            发现和管理你的群组
+            {{ t('groups.description') }}
           </p>
         </div>
       </div>
@@ -113,7 +114,7 @@ watch(currentPath, newPath => {
         >
           <component :is="tab.icon" class="h-4 w-4" />
           <span class="hidden sm:inline">{{
-            tab.label
+            t(tab.labelKey)
           }}</span>
         </TabsTrigger>
       </TabsList>

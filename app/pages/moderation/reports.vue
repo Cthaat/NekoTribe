@@ -7,6 +7,8 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
+
+const { t } = useAppLocale();
 </script>
 
 <template>
@@ -19,20 +21,22 @@ import {
           class="h-8 w-8 text-muted-foreground"
         />
       </div>
-      <CardTitle>举报管理</CardTitle>
+      <CardTitle>{{
+        t('moderation.placeholder.reports.title')
+      }}</CardTitle>
       <CardDescription>
-        此功能正在开发中，敬请期待...
+        {{ t('moderation.placeholder.description') }}
       </CardDescription>
     </CardHeader>
     <CardContent
       class="text-center text-sm text-muted-foreground"
     >
-      <p>举报管理功能将包括：</p>
+      <p>{{ t('moderation.placeholder.reports.intro') }}</p>
       <ul class="mt-2 space-y-1">
-        <li>• 举报统计与分析</li>
-        <li>• 举报类型分布</li>
-        <li>• 高频举报用户追踪</li>
-        <li>• 举报处理效率报表</li>
+        <li>• {{ t('moderation.placeholder.reports.item1') }}</li>
+        <li>• {{ t('moderation.placeholder.reports.item2') }}</li>
+        <li>• {{ t('moderation.placeholder.reports.item3') }}</li>
+        <li>• {{ t('moderation.placeholder.reports.item4') }}</li>
       </ul>
     </CardContent>
   </Card>

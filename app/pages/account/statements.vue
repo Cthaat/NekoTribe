@@ -4,8 +4,6 @@
 // - 支持操作：标记已读/未读、解决、忽略、提交申诉
 // 引入 Vue 响应式与计算属性
 import { ref, onMounted, computed } from 'vue';
-// 引入 i18n
-import { useI18n } from 'vue-i18n';
 import {
   v2CreateStatementAppeal,
   v2ListAccountStatements,
@@ -52,7 +50,7 @@ type StatementStatus =
   | 'appealed';
 
 // i18n 工具
-const { t } = useI18n();
+const { t } = useAppLocale();
 
 // 列表与分页状态
 const loading = ref(false);
@@ -62,6 +60,17 @@ const total = ref(0);
 const statusFilter = ref<'all' | StatementStatus>('all');
 const typeFilter = ref<'all' | StatementType>('all');
 const items = ref<AccountStatementVM[]>([]);
+
+const statementTypeLabelKeys: Record<StatementType, string> = {
+  info: 'account.statements.types.info',
+  warning: 'account.statements.types.warning',
+  strike: 'account.statements.types.strike',
+  suspension: 'account.statements.types.suspension'
+};
+
+function getStatementTypeLabel(type: StatementType): string {
+  return t(statementTypeLabelKeys[type]);
+}
 
 // 总页数计算
 const totalPages = computed(() =>
@@ -88,9 +97,7 @@ async function load(): Promise<void> {
     total.value = result.total;
   } catch {
     // 网络错误提示
-    toast.error(
-      t('common.networkError') || 'Network error'
-    );
+    toast.error(t('common.networkError'));
   } finally {
     loading.value = false;
   }
@@ -177,10 +184,10 @@ onMounted(load);
         <!-- 标题与描述 -->
         <div class="space-y-0.5">
           <h2 class="text-2xl font-bold tracking-tight">
-            {{ $t('account.statements.title') }}
+            {{ t('account.statements.title') }}
           </h2>
           <p class="text-muted-foreground">
-            {{ $t('account.statements.description') }}
+            {{ t('account.statements.description') }}
           </p>
         </div>
         <Separator class="my-6" />
@@ -190,7 +197,7 @@ onMounted(load);
           <!-- 类型筛选 -->
           <div class="flex items-center gap-2">
             <span class="text-sm text-muted-foreground">{{
-              $t('account.statements.filters.type')
+              t('account.statements.filters.type')
             }}</span>
             <Select
               v-model="typeFilter"
@@ -201,20 +208,20 @@ onMounted(load);
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
-                  {{ $t('account.statements.types.all') }}
+                  {{ t('account.statements.types.all') }}
                 </SelectItem>
                 <SelectItem value="info">
-                  {{ $t('account.statements.types.info') }}
+                  {{ t('account.statements.types.info') }}
                 </SelectItem>
                 <SelectItem value="warning">
-                  {{ $t('account.statements.types.warning') }}
+                  {{ t('account.statements.types.warning') }}
                 </SelectItem>
                 <SelectItem value="strike">
-                  {{ $t('account.statements.types.strike') }}
+                  {{ t('account.statements.types.strike') }}
                 </SelectItem>
                 <SelectItem value="suspension">
                   {{
-                    $t('account.statements.types.suspension')
+                    t('account.statements.types.suspension')
                   }}
                 </SelectItem>
               </SelectContent>
@@ -223,7 +230,7 @@ onMounted(load);
           <!-- 状态筛选 -->
           <div class="flex items-center gap-2">
             <span class="text-sm text-muted-foreground">{{
-              $t('account.statements.filters.status')
+              t('account.statements.filters.status')
             }}</span>
             <Select
               v-model="statusFilter"
@@ -234,27 +241,27 @@ onMounted(load);
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
-                  {{ $t('account.statements.status.all') }}
+                  {{ t('account.statements.status.all') }}
                 </SelectItem>
                 <SelectItem value="unread">
-                  {{ $t('account.statements.status.unread') }}
+                  {{ t('account.statements.status.unread') }}
                 </SelectItem>
                 <SelectItem value="read">
-                  {{ $t('account.statements.status.read') }}
+                  {{ t('account.statements.status.read') }}
                 </SelectItem>
                 <SelectItem value="appealed">
                   {{
-                    $t('account.statements.status.appealed')
+                    t('account.statements.status.appealed')
                   }}
                 </SelectItem>
                 <SelectItem value="resolved">
                   {{
-                    $t('account.statements.status.resolved')
+                    t('account.statements.status.resolved')
                   }}
                 </SelectItem>
                 <SelectItem value="dismissed">
                   {{
-                    $t('account.statements.status.dismissed')
+                    t('account.statements.status.dismissed')
                   }}
                 </SelectItem>
               </SelectContent>
@@ -267,7 +274,7 @@ onMounted(load);
               :disabled="loading"
               :loading="loading"
               @click="load()"
-              >{{ $t('common.refresh') }}</AppButton
+              >{{ t('common.refresh') }}</AppButton
             >
           </div>
         </div>
@@ -308,10 +315,7 @@ onMounted(load);
                     "
                   >
                     {{
-                      $t(
-                        'account.statements.types.' +
-                          it.type
-                      )
+                      getStatementTypeLabel(it.type)
                     }}
                   </Badge>
                   <!-- 创建时间 -->
@@ -343,7 +347,7 @@ onMounted(load);
                   class="text-xs text-amber-600 dark:text-amber-400"
                 >
                   {{
-                    $t('account.statements.appealStatus')
+                    t('account.statements.appealStatus')
                   }}: {{ it.appeal.status }}
                 </div>
               </div>
@@ -366,10 +370,10 @@ onMounted(load);
                 >
                   {{
                     it.status === 'unread'
-                      ? $t(
+                      ? t(
                           'account.statements.actions.markRead'
                         )
-                      : $t(
+                      : t(
                           'account.statements.actions.markUnread'
                         )
                   }}
@@ -380,7 +384,7 @@ onMounted(load);
                   :disabled="loading"
                   @click="actMark(it.id, 'resolve')"
                   >{{
-                    $t('account.statements.actions.resolve')
+                    t('account.statements.actions.resolve')
                   }}</AppButton
                 >
                 <AppButton
@@ -389,7 +393,7 @@ onMounted(load);
                   :disabled="loading"
                   @click="actMark(it.id, 'dismiss')"
                   >{{
-                    $t('account.statements.actions.dismiss')
+                    t('account.statements.actions.dismiss')
                   }}</AppButton
                 >
                 <AppButton
@@ -397,7 +401,7 @@ onMounted(load);
                   :disabled="loading"
                   @click="showAppeal = it.id"
                   >{{
-                    $t('account.statements.actions.appeal')
+                    t('account.statements.actions.appeal')
                   }}</AppButton
                 >
               </div>
@@ -407,8 +411,8 @@ onMounted(load);
           <AppEmptyState
             v-else
             class="m-4"
-            :title="$t('common.empty')"
-            :description="$t('account.statements.description')"
+            :title="t('common.empty')"
+            :description="t('account.statements.description')"
           />
         </div>
 
@@ -416,7 +420,7 @@ onMounted(load);
         <div class="mt-4 flex items-center justify-between">
           <div class="text-sm text-muted-foreground">
             {{
-              $t('common.pagination', {
+              t('common.pagination', {
                 page,
                 totalPages,
                 total
@@ -432,7 +436,7 @@ onMounted(load);
                 page = Math.max(1, page - 1);
                 load();
               "
-              >{{ $t('common.prev') }}</AppButton
+              >{{ t('common.prev') }}</AppButton
             >
             <AppButton
               size="sm"
@@ -442,7 +446,7 @@ onMounted(load);
                 page = Math.min(totalPages, page + 1);
                 load();
               "
-              >{{ $t('common.next') }}</AppButton
+              >{{ t('common.next') }}</AppButton
             >
           </div>
         </div>
@@ -451,11 +455,11 @@ onMounted(load);
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {{ $t('account.statements.appealTitle') }}
+                {{ t('account.statements.appealTitle') }}
               </DialogTitle>
               <DialogDescription>
                 {{
-                  $t(
+                  t(
                     'account.statements.appealPlaceholder'
                   )
                 }}
@@ -466,22 +470,22 @@ onMounted(load);
               rows="5"
               class="resize-none"
               :placeholder="
-                $t(
+                t(
                   'account.statements.appealPlaceholder'
-                ) as string
+                )
               "
             />
             <DialogFooter>
               <AppButton
                 variant="ghost"
                 @click="showAppeal = null"
-                >{{ $t('common.cancel') }}</AppButton
+                >{{ t('common.cancel') }}</AppButton
               >
               <AppButton
                 :disabled="loading"
                 :loading="loading"
                 @click="submitCurrentAppeal"
-                >{{ $t('common.submit') }}</AppButton
+                >{{ t('common.submit') }}</AppButton
               >
             </DialogFooter>
           </DialogContent>

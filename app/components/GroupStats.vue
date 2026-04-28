@@ -34,44 +34,46 @@ const props = withDefaults(
   }
 );
 
+const { t } = useAppLocale();
+
 const statsCards = computed(() => [
   {
-    title: '全部群组',
+    title: t('groups.stats.totalGroups'),
     value: props.stats.totalGroups,
     icon: Users,
     color: 'text-blue-500',
     bgColor: 'bg-blue-500/10'
   },
   {
-    title: '我的群组',
+    title: t('groups.stats.myGroups'),
     value: props.stats.myGroups,
     icon: FileText,
     color: 'text-green-500',
     bgColor: 'bg-green-500/10'
   },
   {
-    title: '待处理邀请',
+    title: t('groups.stats.pendingInvites'),
     value: props.stats.pendingInvites,
     icon: UserPlus,
     color: 'text-yellow-500',
     bgColor: 'bg-yellow-500/10'
   },
   {
-    title: '今日帖子',
+    title: t('groups.stats.todayPosts'),
     value: props.stats.todayPosts,
     icon: MessageSquare,
     color: 'text-purple-500',
     bgColor: 'bg-purple-500/10'
   },
   {
-    title: '活跃成员',
+    title: t('groups.stats.activeMembers'),
     value: props.stats.activeMembers,
     icon: TrendingUp,
     color: 'text-orange-500',
     bgColor: 'bg-orange-500/10'
   },
   {
-    title: '新增成员',
+    title: t('groups.stats.newMembers'),
     value: props.stats.newMembers,
     icon: Clock,
     color: 'text-pink-500',
