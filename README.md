@@ -1,284 +1,263 @@
 # NekoTribe
 
-NekoTribe 是一个基于 Nuxt 4 的全栈社交应用。项目包含 Vue 前端、Nitro Server API、Oracle 数据模型、Redis 实时消息能力、媒体上传、通知、账号安全流程，以及并行运行的 v1/v2 API。
+English | [中文](doc/README.md)
 
-本仓库已按“新开发者克隆后可快速启动”的目标整理：复制环境变量样例、启动 Docker 依赖、初始化 Oracle、运行本地开发服务即可进入联调。
+NekoTribe is a full-stack social application built on Nuxt 4. It bundles a Vue frontend, Nitro Server API, Oracle data model, Redis realtime messaging, media uploads, notifications, account security flows, and parallel v1/v2 APIs.
 
-## 项目定位
+This repo is organized so a new developer can start quickly after clone: copy the env sample, start Docker dependencies, initialize Oracle, run the local dev server, then begin integration.
 
-NekoTribe 的目标是构建一个面向社交内容发布、群组互动和账号安全管理的全栈应用。它不是单纯的前端演示项目，而是包含完整服务端 API、数据库模型、认证会话、文件上传、实时通信和容器化运行环境的工程化项目。
+## Highlights
 
-项目当前处于 v1 到 v2 并行演进阶段：
+- Full-stack Nuxt 4 app with a clear frontend/backend boundary.
+- Parallel v1/v2 API evolution to avoid risky big-bang migration.
+- Oracle 19c, Redis 7, and WebSocket realtime messaging.
+- Media upload pipeline with validation and local storage.
+- Docker-first local dev and full-stack runtime scripts.
 
-- v1 保留旧接口和旧业务路径，用于兼容既有功能。
-- v2 按资源化 API、Oracle v2 数据模型和更清晰的服务分层重新实现。
-- 前端仍可逐步迁移到 v2 接口，后端保持 v1/v2 并行，避免一次性切换造成不可控风险。
-- 运维层面提供 `.env.example`、Docker Compose、Nginx 配置和初始化脚本，降低新环境启动成本。
+## Quick Links
 
-## 核心能力
+- API docs: https://3kjlg46jpj.apifox.cn
+- Quick start: [Local Development](#quick-start-local-development)
+- Quick start: [Full Docker Stack](#quick-start-full-docker-stack)
+- Config: [Environment Variables](#environment-variables)
+- Docs: [Documentation Index](#documentation-index)
 
-| 模块         | 说明                                                                               | 主要位置                                                                                                      |
-| ------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 用户认证     | 注册、登录、刷新令牌、退出登录、验证码、密码重置、会话管理。                       | `server/api/v2/auth`、`server/services/v2/auth.ts`、`app/pages/auth`                                          |
-| 用户资料     | 当前用户资料、公开用户资料、头像、邮箱、设置、关注/粉丝、屏蔽、静音、用户统计。    | `server/api/v2/users`、`server/services/v2/users.ts`、`app/pages/user`、`app/pages/account`                   |
-| 内容发布     | 帖子创建、列表、详情、删除、趋势、回复、转发、收藏、点赞、评论。                   | `server/api/v2/posts`、`server/api/v2/comments`、`server/services/v2/posts.ts`                                |
-| 群组系统     | 群组创建、列表、详情、成员、角色、禁言、审批、邀请、群内帖子、群内评论、审计日志。 | `server/api/v2/groups`、`server/services/v2/groups.ts`、`app/pages/groups`                                    |
-| 通知系统     | 通知列表、已读状态、恢复、删除、批量状态处理。                                     | `server/api/v2/notifications`、`server/services/v2/notifications.ts`、`app/pages/user/[id]/notifications.vue` |
-| 媒体上传     | 头像、帖子媒体、独立媒体资源，支持图片、视频、音频校验和本地存储。                 | `server/api/v2/media`、`server/services/v2/media.ts`、`upload/`                                               |
-| 标签与搜索   | 标签列表、热门标签、标签关联帖子、标签分析。                                       | `server/api/v2/tags`、`app/pages/tweet/search/[search].vue`                                                   |
-| 推荐反馈     | 用户推荐、内容推荐反馈入口。                                                       | `server/api/v2/recommendations`、`server/api/v2/users/recommendations.get.ts`                                 |
-| 账号安全     | 安全设置、邮箱变更、密码重置、登录设备、账号声明和申诉。                           | `server/api/v2/users/me/account-statements`、`app/pages/account/security.vue`                                 |
-| 审核后台     | 内容、用户、举报、审核配置等管理页面。                                             | `app/pages/moderation`、`app/components/Moderation*.vue`                                                      |
-| 实时通信     | WebSocket 连接、房间消息、广播、Redis 发布/订阅。                                  | `server/routes/_ws.ts`、`server/utils/redis.ts`、`app/pages/ws/index.vue`                                     |
-| 国际化与主题 | 中英文语言文件、明暗主题、UI 偏好。                                                | `i18n/`、`app/plugins/ui-preferences.client.ts`、`app/components/ColorModeIcon.vue`                           |
+## Table of Contents
 
-[API接口文档](https://3kjlg46jpj.apifox.cn)
+- [Project Overview](#project-overview)
+- [Core Capabilities](#core-capabilities)
+- [User-Facing Pages](#user-facing-pages)
+- [Architecture](#architecture)
+- [API and Data Model](#api-and-data-model)
+- [Tech Stack](#tech-stack)
+- [Requirements](#requirements)
+- [Quick Start: Local Development](#quick-start-local-development)
+- [Quick Start: Full Docker Stack](#quick-start-full-docker-stack)
+- [Scripts](#scripts)
+- [Environment Variables](#environment-variables)
+- [External Services](#external-services)
+- [Documentation Index](#documentation-index)
+- [Engineering Conventions](#engineering-conventions)
+- [Directory Structure](#directory-structure)
+- [Development and Verification](#development-and-verification)
+- [Production Deployment](#production-deployment)
+- [FAQ](#faq)
 
-## 用户侧页面
+## Project Overview
 
-| 页面               | 路径                                    | 说明                                               |
-| ------------------ | --------------------------------------- | -------------------------------------------------- |
-| 首页               | `app/pages/index.vue`                   | 内容流和主要入口。                                 |
-| 登录/注册/找回密码 | `app/pages/auth/*`                      | 认证流程、条款页和密码找回流程。                   |
-| 账号中心           | `app/pages/account/*`                   | 概览、资料、安全、外观、设置、活跃会话、账号声明。 |
-| 用户主页           | `app/pages/user/[id]/profile.vue`       | 公开资料、用户帖子和用户互动入口。                 |
-| 用户通知           | `app/pages/user/[id]/notifications.vue` | 通知展示和处理。                                   |
-| 帖子详情           | `app/pages/tweet/[id].vue`              | 帖子内容、评论、互动。                             |
-| 帖子列表/搜索      | `app/pages/tweet/*`                     | 按类型、用户或搜索词展示内容。                     |
-| 群组               | `app/pages/groups*.vue`                 | 群组首页、发现、我的群组、邀请。                   |
-| 聊天               | `app/pages/chat.vue`                    | 聊天界面入口。                                     |
-| 审核后台           | `app/pages/moderation*.vue`             | 内容审核、用户审核、举报和配置。                   |
-| WebSocket 测试     | `app/pages/ws/index.vue`                | 本地验证实时通信能力。                             |
+NekoTribe aims to build a full-stack application for social content publishing, group interaction, and account security management. It is not a simple frontend demo project; it includes complete server APIs, database models, auth sessions, file uploads, realtime communication, and a containerized runtime.
 
-## 系统架构
+The project is currently evolving in parallel from v1 to v2:
 
-整体运行链路可以理解为：
+- v1 keeps legacy endpoints and business paths for compatibility.
+- v2 is rebuilt with resource-oriented APIs, the Oracle v2 data model, and clearer service layering.
+- The frontend can migrate to v2 gradually, while the backend keeps v1/v2 in parallel to avoid risky big-bang switches.
+- Operations include `.env.example`, Docker Compose, Nginx config, and initialization scripts to reduce environment setup cost.
+
+## Core Capabilities
+
+| Module                  | Description                                                                                                       | Primary Locations                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Authentication          | Registration, login, refresh tokens, logout, OTP, password reset, session management.                             | `server/api/v2/auth`, `server/services/v2/auth.ts`, `app/pages/auth`                                          |
+| User Profile            | Current user profile, public profile, avatar, email, settings, follow/followers, block, mute, user stats.         | `server/api/v2/users`, `server/services/v2/users.ts`, `app/pages/user`, `app/pages/account`                   |
+| Content Publishing      | Post creation, list, detail, delete, trends, replies, reposts, bookmarks, likes, comments.                        | `server/api/v2/posts`, `server/api/v2/comments`, `server/services/v2/posts.ts`                                |
+| Groups                  | Group creation, list, detail, members, roles, mutes, approvals, invites, group posts, group comments, audit logs. | `server/api/v2/groups`, `server/services/v2/groups.ts`, `app/pages/groups`                                    |
+| Notifications           | Notification list, read status, restore, delete, batch status handling.                                           | `server/api/v2/notifications`, `server/services/v2/notifications.ts`, `app/pages/user/[id]/notifications.vue` |
+| Media Upload            | Avatars, post media, standalone media assets, with image/video/audio validation and local storage.                | `server/api/v2/media`, `server/services/v2/media.ts`, `upload/`                                               |
+| Tags and Search         | Tag list, hot tags, tag posts, tag analytics.                                                                     | `server/api/v2/tags`, `app/pages/tweet/search/[search].vue`                                                   |
+| Recommendation Feedback | User recommendations, content recommendation feedback entry.                                                      | `server/api/v2/recommendations`, `server/api/v2/users/recommendations.get.ts`                                 |
+| Account Security        | Security settings, email change, password reset, login devices, account statements and appeals.                   | `server/api/v2/users/me/account-statements`, `app/pages/account/security.vue`                                 |
+| Moderation Console      | Admin pages for content, users, reports, and moderation config.                                                   | `app/pages/moderation`, `app/components/Moderation*.vue`                                                      |
+| Realtime Messaging      | WebSocket connections, room messages, broadcasts, Redis pub/sub.                                                  | `server/routes/_ws.ts`, `server/utils/redis.ts`, `app/pages/ws/index.vue`                                     |
+| i18n and Theme          | Chinese/English locales, light/dark theme, UI preferences.                                                        | `i18n/`, `app/plugins/ui-preferences.client.ts`, `app/components/ColorModeIcon.vue`                           |
+
+## User-Facing Pages
+
+| Page                              | Path                                    | Description                                                                             |
+| --------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------- |
+| Home                              | `app/pages/index.vue`                   | Feed and main entry.                                                                    |
+| Login / Register / Password Reset | `app/pages/auth/*`                      | Auth flows, terms, and password recovery.                                               |
+| Account Center                    | `app/pages/account/*`                   | Overview, profile, security, appearance, settings, active sessions, account statements. |
+| User Profile                      | `app/pages/user/[id]/profile.vue`       | Public profile, user posts, user interactions.                                          |
+| User Notifications                | `app/pages/user/[id]/notifications.vue` | Notification display and handling.                                                      |
+| Post Detail                       | `app/pages/tweet/[id].vue`              | Post content, comments, interactions.                                                   |
+| Post List / Search                | `app/pages/tweet/*`                     | Content by type, user, or query.                                                        |
+| Groups                            | `app/pages/groups*.vue`                 | Group home, discover, my groups, invites.                                               |
+| Chat                              | `app/pages/chat.vue`                    | Chat entry page.                                                                        |
+| Moderation Console                | `app/pages/moderation*.vue`             | Content moderation, user review, reports, configuration.                                |
+| WebSocket Test                    | `app/pages/ws/index.vue`                | Local verification for realtime messaging.                                              |
+
+## Architecture
+
+### System Flow
 
 ```text
-浏览器
+Browser
   ↓
-Nuxt 4 前端应用 app/
+Nuxt 4 frontend app/
   ↓  $fetch / useApi / useApiFetch
 Nitro Server API server/api
   ↓
-业务服务 server/services
+Business services server/services
   ↓
-共享模型 server/models + 通用工具 server/utils
+Shared models server/models + common utils server/utils
   ↓
-Oracle / Redis / SMTP / 本地 upload 存储
+Oracle / Redis / SMTP / local upload storage
 ```
 
-前端和后端在同一个 Nuxt 4 项目中，但职责边界清晰：
+### Responsibility Boundaries
 
-- 前端只负责页面、组件、状态和用户交互。
-- API 路由只负责解析请求、调用服务和返回响应。
-- 服务层负责业务流程和数据库读写编排。
-- 模型层负责数据库记录到业务对象的映射。
-- 工具层只放无业务语义的通用能力，例如数据库执行、请求解析、响应封装、鉴权解析和 Redis 通信。
+- The frontend only handles pages, components, state, and user interaction.
+- API routes only parse requests, call services, and return responses.
+- The service layer owns business flows and database orchestration.
+- The model layer maps database rows to business objects.
+- The utils layer holds generic, non-domain utilities such as DB execution, request parsing, response wrappers, auth parsing, and Redis communication.
 
-## 前端架构
+### Frontend Architecture
 
-前端采用 Nuxt 4 的 `app/` 目录结构：
+The frontend follows Nuxt 4's `app/` directory structure:
 
-- `app/pages`：文件路由页面，覆盖首页、认证、账号、用户、帖子、群组、聊天、审核和测试页面。
-- `app/components`：业务组件，例如帖子卡片、评论区、群组卡片、账号表单、审核列表、聊天组件。
-- `app/components/ui`：shadcn-nuxt 风格的基础 UI 组件，例如按钮、表单、对话框、下拉菜单、分页、侧边栏。
-- `app/stores`：Pinia 状态管理，当前包含用户偏好、推文状态等。
-- `app/composables`：API 请求封装和通用组合式函数。
-- `app/middleware`：路由中间件，用于登录态和主流程控制。
-- `app/plugins`：客户端插件，例如错误处理、UI 偏好和已废弃心跳插件。
-- `app/assets/css`：Tailwind CSS 入口。
+- `app/pages`: file-based routes for home, auth, account, users, posts, groups, chat, moderation, and test pages.
+- `app/components`: business components such as post cards, comment sections, group cards, account forms, moderation lists, chat widgets.
+- `app/components/ui`: shadcn-nuxt style base UI components such as buttons, forms, dialogs, dropdowns, pagination, sidebars.
+- `app/stores`: Pinia state management, currently user preferences and tweet state.
+- `app/composables`: API wrappers and shared composables.
+- `app/middleware`: route middleware for auth state and main flow control.
+- `app/plugins`: client plugins such as error handling, UI preferences, and a deprecated heartbeat plugin.
+- `app/assets/css`: Tailwind CSS entry.
 
-前端请求主要通过 `useApi.ts` 和 `useApiFetch.ts` 封装，集中处理 API 基础地址、认证失败重试和错误提示。这样可以在迁移 v1/v2 接口时减少页面级改动。
+Frontend requests are wrapped by `useApi.ts` and `useApiFetch.ts` to centralize API base URLs, auth-failure retries, and error notifications. This reduces page-level changes when migrating v1/v2 APIs.
 
-## 后端架构
+### Backend Architecture
 
-后端基于 Nuxt Nitro：
+The backend is based on Nuxt Nitro:
 
-- `server/api/v1`：旧版 API。除非处理明确 bug，否则不应做结构性改动。
-- `server/api/v2`：新版 API。接口按资源组织，例如 `auth`、`users`、`posts`、`groups`、`notifications`、`media`、`tags`。
-- `server/services/v2`：v2 业务服务。复杂业务逻辑不放在路由文件中。
-- `server/models`：共享模型和数据库映射，降低 SQL 行字段和响应对象之间的耦合。
-- `server/types`：全局类型定义，包含 DTO、VO、响应结构和业务对象类型。
-- `server/utils`：通用工具，包括 v2 响应封装、数据库执行、鉴权解析、Redis、WebSocket 会话和上传校验。
-- `server/plugins`：Nitro 插件，当前包含 Redis 惰性注入、Oracle 连接池、日志和全局钩子。
-- `server/middleware`：服务端中间件，包含鉴权、日志和限流等能力。
-- `server/routes/_ws.ts`：WebSocket 路由。
+- `server/api/v1`: legacy APIs. Avoid structural changes unless fixing an explicit bug.
+- `server/api/v2`: new APIs, organized by resource like `auth`, `users`, `posts`, `groups`, `notifications`, `media`, `tags`.
+- `server/services/v2`: v2 service layer. Complex business logic stays out of route files.
+- `server/models`: shared models and DB mapping, reducing coupling between SQL rows and response objects.
+- `server/types`: global type definitions, including DTOs, VOs, response structures, and domain types.
+- `server/utils`: generic utilities, including v2 response wrappers, DB execution, auth parsing, Redis, WebSocket sessions, and upload validation.
+- `server/plugins`: Nitro plugins, currently Redis lazy injection, Oracle pools, logging, and global hooks.
+- `server/middleware`: server middleware for auth, logging, and rate limits.
+- `server/routes/_ws.ts`: WebSocket route.
 
-v2 API 的推荐实现方式是“薄路由 + 服务层 + 模型映射”：
+### v2 API Pattern
 
 ```text
 server/api/v2/xxx/*.ts
-  解析路径参数和 HTTP 方法
+  Parse path params and HTTP methods
   ↓
 server/services/v2/*.ts
-  校验请求体、鉴权、业务规则、事务编排
+  Validate body, auth, business rules, transaction orchestration
   ↓
 server/utils/v2.ts
-  执行 SQL、分页、响应封装、错误抛出
+  Execute SQL, paginate, wrap responses, throw errors
   ↓
 server/models/v2.ts
-  数据库行映射为前端可用对象
+  Map DB rows into frontend-ready objects
 ```
 
-## v2 API 模块概览
+### Key Runtime Flows
 
-| API 模块          | 能力范围                                                                                                                           |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `auth`            | OTP、注册、登录、刷新当前令牌、退出、会话列表、删除会话、删除其他会话、密码重置。                                                  |
-| `users`           | 用户列表、当前用户、用户详情、关注、粉丝、共同关注、用户帖子、用户分析、设置、头像、邮箱、收藏、屏蔽、静音、群组、账号声明与申诉。 |
-| `posts`           | 帖子列表、发帖、详情、删除、趋势、评论、点赞、点赞列表、转发、回复、收藏、分析。                                                   |
-| `comments`        | 评论删除、评论点赞、取消点赞。                                                                                                     |
-| `groups`          | 群组 CRUD、按 slug 查询、热门群组、成员管理、角色变更、禁言、审批、邀请、邀请码、群内帖子、群内评论、置顶、审计日志、所有权转让。  |
-| `notifications`   | 通知列表、删除、恢复、单条或批量已读状态。                                                                                         |
-| `media`           | 媒体上传和删除。                                                                                                                   |
-| `tags`            | 标签列表、热门标签、标签帖子、标签分析。                                                                                           |
-| `recommendations` | 推荐反馈。                                                                                                                         |
+#### Auth and Sessions
 
-## 数据模型概览
+1. Users complete registration or password reset with an email OTP.
+2. After login, the server issues access and refresh tokens and writes them to HttpOnly cookies.
+3. Session data is stored in Oracle; refresh tokens are stored as hashes only.
+4. When access tokens expire, frontend request wrappers can trigger refresh flow.
+5. Logout or session deletion revokes the session in Oracle and clears cookies.
 
-v2 数据库基线在 `doc/neko_tribe-oracle-v2.sql`，目标是把旧的推文式、动作式模型升级为更清晰的资源模型。
+#### Database Access
 
-| 领域     | 主要表/对象                                                                                | 说明                                           |
-| -------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------- |
-| 用户     | `n_users`、`n_user_stats`、`n_user_settings`                                               | 用户主表、统计数据和偏好设置。                 |
-| 认证     | `n_auth_otp_events`、`n_auth_sessions`                                                     | 验证码事件、访问/刷新令牌会话和设备信息。      |
-| 社交关系 | `n_user_follows`、`n_user_blocks`、`n_user_mutes`                                          | 关注、屏蔽、静音分表，避免旧模型混装关系类型。 |
-| 内容     | `n_posts`、`n_post_stats`、`n_post_likes`、`n_post_bookmarks`                              | 帖子、帖子统计、点赞和收藏。                   |
-| 评论     | `n_comments`、`n_comment_stats`、`n_comment_likes`                                         | 评论、评论统计和评论点赞。                     |
-| 媒体     | `n_media_assets`、`n_post_media`                                                           | 独立媒体资源和帖子媒体关联。                   |
-| 标签     | `n_tags`、`n_post_tags`、`n_post_mentions`                                                 | 标签、帖子标签和提及关系。                     |
-| 通知     | `n_notifications`、`n_notification_preferences`                                            | 通知记录和通知偏好。                           |
-| 账号治理 | `n_account_statements`、`n_statement_appeals`                                              | 账号声明、处罚或风控记录，以及申诉流程。       |
-| 群组     | `n_groups`、`n_group_members`、`n_group_posts`、`n_group_invites`、`n_group_audit_logs` 等 | 群组、成员、邀请、群内内容和审计日志。         |
+1. `server/plugins/02-oracle.ts` creates the Oracle pool lazily.
+2. Requests get a connection via `event.context.getOracleConnection`.
+3. v2 services use execution helpers in `server/utils/v2.ts` for queries, pagination, and transactions.
+4. Responses are mapped via `server/models/v2.ts` before return.
 
-旧版 SQL 和阶段性 SQL 仍保留在 `doc/` 和 `data/` 中，用于追溯历史设计。新环境优先使用 `doc/neko_tribe-oracle-v2.sql`。
+#### Redis and Realtime Messaging
 
-## 关键运行链路
+1. `server/plugins/01-redisClient.ts` provides a lazy Redis instance for normal requests.
+2. `server/utils/redis.ts` provides publishers, subscribers, and fallbacks for WebSocket.
+3. `server/routes/_ws.ts` maintains sessions, rooms, broadcasts, and heartbeat.
+4. In multi-instance deployments, Redis pub/sub enables cross-instance broadcasts.
 
-### 认证与会话
+#### Media Uploads
 
-1. 用户通过邮箱验证码完成注册或密码重置。
-2. 登录成功后，服务端签发访问令牌和刷新令牌，并写入 HttpOnly Cookie。
-3. 会话信息写入 Oracle，刷新令牌只保存哈希值。
-4. 当前访问令牌过期时，前端请求封装可触发刷新流程。
-5. 退出登录或删除会话时，服务端撤销 Oracle 中对应会话并清理 Cookie。
+1. The frontend uploads avatars or media files via form submissions.
+2. The server uses `formidable` to receive multipart files.
+3. `file-type` validates real MIME types and limits file types and sizes.
+4. Files are saved to `upload/`, and Nginx serves them from `/upload/`.
+5. Media metadata is stored in Oracle, while business objects only store public URLs and storage keys.
 
-### 数据库访问
+#### Containerized Startup
 
-1. `server/plugins/02-oracle.ts` 以惰性方式创建 Oracle 连接池。
-2. 请求进入 API 后，通过 `event.context.getOracleConnection` 获取连接。
-3. v2 服务使用 `server/utils/v2.ts` 中的执行函数进行查询、分页和事务处理。
-4. 返回前通过 `server/models/v2.ts` 映射成稳定响应对象。
+1. `Dockerfile` builds Nuxt production artifacts.
+2. `docker-compose.yml` orchestrates app, Redis, Oracle, and Nginx.
+3. `.env` provides app, DB, cache, SMTP, and port configuration.
+4. `scripts/init-db.*` writes the v2 Oracle baseline into the target database.
 
-### Redis 与实时通信
+## API and Data Model
 
-1. `server/plugins/01-redisClient.ts` 为普通请求提供 Redis 惰性实例。
-2. `server/utils/redis.ts` 为 WebSocket 提供发布者、订阅者和降级能力。
-3. `server/routes/_ws.ts` 维护连接会话、房间、广播和心跳。
-4. 多实例部署时，Redis pub/sub 用于跨实例广播。
+### v2 API Module Overview
 
-### 媒体上传
+| API Module        | Scope                                                                                                                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth`            | OTP, registration, login, refresh current token, logout, session list, delete session, delete other sessions, password reset.                                                           |
+| `users`           | User list, current user, user detail, follow, followers, mutual follow, user posts, analytics, settings, avatar, email, bookmarks, block, mute, groups, account statements and appeals. |
+| `posts`           | Post list, create, detail, delete, trends, comments, likes, like list, repost, reply, bookmarks, analytics.                                                                             |
+| `comments`        | Comment delete, comment like, unlike.                                                                                                                                                   |
+| `groups`          | Group CRUD, query by slug, hot groups, member management, role changes, mute, approvals, invites, invite codes, group posts, group comments, pin, audit logs, ownership transfer.       |
+| `notifications`   | Notification list, delete, restore, single or batch read status.                                                                                                                        |
+| `media`           | Media upload and delete.                                                                                                                                                                |
+| `tags`            | Tag list, hot tags, tag posts, tag analytics.                                                                                                                                           |
+| `recommendations` | Recommendation feedback.                                                                                                                                                                |
 
-1. 前端通过表单上传头像或媒体文件。
-2. 服务端使用 `formidable` 接收 multipart 文件。
-3. 使用 `file-type` 校验真实 MIME 类型，按配置限制文件类型和大小。
-4. 文件保存到 `upload/`，Nginx 通过 `/upload/` 静态直出。
-5. 媒体元数据写入 Oracle，业务对象只保存公开 URL 和存储 key。
+### Data Model Overview
 
-### 容器化启动
+The v2 database baseline is in `doc/neko_tribe-oracle-v2.sql`, aiming to upgrade the old tweet/action models into clearer resource models.
 
-1. `Dockerfile` 构建 Nuxt 生产产物。
-2. `docker-compose.yml` 编排 app、Redis、Oracle 和 Nginx。
-3. `.env` 提供应用、数据库、缓存、SMTP 和端口配置。
-4. `scripts/init-db.*` 负责把 v2 Oracle 基线写入目标数据库。
+| Domain             | Primary Tables/Objects                                                                        | Description                                                |
+| ------------------ | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Users              | `n_users`, `n_user_stats`, `n_user_settings`                                                  | User master, stats, and preference settings.               |
+| Auth               | `n_auth_otp_events`, `n_auth_sessions`                                                        | OTP events, access/refresh token sessions and device info. |
+| Social Graph       | `n_user_follows`, `n_user_blocks`, `n_user_mutes`                                             | Follow, block, mute tables to avoid mixing relation types. |
+| Content            | `n_posts`, `n_post_stats`, `n_post_likes`, `n_post_bookmarks`                                 | Posts, post stats, likes, bookmarks.                       |
+| Comments           | `n_comments`, `n_comment_stats`, `n_comment_likes`                                            | Comments, comment stats, comment likes.                    |
+| Media              | `n_media_assets`, `n_post_media`                                                              | Media assets and post media relations.                     |
+| Tags               | `n_tags`, `n_post_tags`, `n_post_mentions`                                                    | Tags, post tags, mentions.                                 |
+| Notifications      | `n_notifications`, `n_notification_preferences`                                               | Notification records and preferences.                      |
+| Account Governance | `n_account_statements`, `n_statement_appeals`                                                 | Account statements, enforcement records, and appeal flow.  |
+| Groups             | `n_groups`, `n_group_members`, `n_group_posts`, `n_group_invites`, `n_group_audit_logs`, etc. | Groups, members, invites, group content, audit logs.       |
 
-## 文档索引
+Legacy SQL and stage SQL remain in `doc/` and `data/` to trace historical designs. New environments should use `doc/neko_tribe-oracle-v2.sql` first.
 
-| 文档                                        | 说明                                   |
-| ------------------------------------------- | -------------------------------------- |
-| `README.md`                                 | 项目总览、架构、启动、配置和部署入口。 |
-| `docs/README.md`                            | 新增运维文档目录说明。                 |
-| `doc/NekoTribe-V2接口与Oracle重构总设计.md` | v2 API 与 Oracle 重构设计总览。        |
-| `doc/NekoTribe-V2-Apifox接口详细文档.md`    | v2 接口详细说明。                      |
-| `doc/NekoTribe-V2-Apifox导入.json`          | Apifox 导入文件。                      |
-| `doc/API v2平滑迁移实战指南(新手版).md`     | v1 到 v2 平滑迁移方法。                |
-| `doc/neko_tribe-oracle-v2.sql`              | v2 Oracle 数据库基线。                 |
-| `doc/群组功能API文档.md`                    | 群组功能 API 说明。                    |
-| `doc/Token无感刷新实现文档.md`              | Token 无感刷新实现说明。               |
-| `doc/NekoTribe长期最终可执行路线图.md`      | 长期演进路线。                         |
-| `config/versions/README.md`                 | 服务版本元数据说明。                   |
-| `script/github/README.md`                   | 标签和发布自动化脚本说明。             |
+## Tech Stack
 
-## 工程约定
+| Area               | Technology                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Frontend           | Nuxt 4, Vue 3, TypeScript, Pinia, Nuxt UI, shadcn-nuxt, Tailwind CSS 4                                                   |
+| Backend            | Nitro Server API, h3, TypeScript                                                                                         |
+| API Versioning     | Legacy `server/api/v1`, resource-style `server/api/v2`                                                                   |
+| Database           | Oracle 19c, accessed via `oracledb`                                                                                      |
+| Cache and Realtime | Redis 7 via `ioredis`; Nitro WebSocket route at `server/routes/_ws.ts`                                                   |
+| Auth               | JWT access/refresh tokens, HttpOnly cookies, bcrypt                                                                      |
+| Email              | SMTP via `nodemailer`                                                                                                    |
+| Media              | Local file uploads, `formidable`, `file-type`, `sharp`, `ffprobe-static`, optional system `ffmpeg` for legacy thumbnails |
+| Runtime            | Node.js 22, Yarn 1.x, Docker Compose                                                                                     |
 
-- 业务代码优先使用 TypeScript 明确类型，避免关键数据结构隐式漂移。
-- v1 与 v2 API 保持隔离，v2 不调用 v1 路由逻辑。
-- 共享能力只能抽到 `server/utils` 或 `server/models`，不得让工具层依赖具体业务模块。
-- 新增接口优先采用 REST 风格路径和 HTTP 方法。
-- 新增环境配置必须同步更新 `.env.example` 和 README 环境变量表。
-- 新增外部服务必须在 README 的“外部服务”中说明用途、启动方式和配置方式。
-- 上传文件、数据库运行数据、缓存和构建产物不得提交到 Git。
-
-## 技术栈
-
-| 领域           | 技术                                                                                                        |
-| -------------- | ----------------------------------------------------------------------------------------------------------- |
-| 前端           | Nuxt 4、Vue 3、TypeScript、Pinia、Nuxt UI、shadcn-nuxt、Tailwind CSS 4                                      |
-| 后端           | Nitro Server API、h3、TypeScript                                                                            |
-| API 版本       | `server/api/v1` 旧接口，`server/api/v2` 资源化接口                                                          |
-| 数据库         | Oracle 19c，通过 `oracledb` 访问                                                                            |
-| 缓存与实时能力 | Redis 7，通过 `ioredis` 访问；Nitro WebSocket 路由为 `server/routes/_ws.ts`                                 |
-| 认证           | JWT 访问令牌/刷新令牌、HttpOnly Cookie、bcrypt                                                              |
-| 邮件           | SMTP，通过 `nodemailer` 发送                                                                                |
-| 媒体           | 本地文件系统上传、`formidable`、`file-type`、`sharp`、`ffprobe-static`，旧版缩略图链路可选依赖系统 `ffmpeg` |
-| 运行环境       | Node.js 22、Yarn 1.x、Docker Compose                                                                        |
-
-## 目录结构
-
-```text
-NekoTribe/
-├── app/                         # Nuxt 4 前端应用：页面、布局、组件、状态、组合式函数
-├── server/                      # Nitro 后端
-│   ├── api/
-│   │   ├── v1/                  # 旧版 API，保持隔离
-│   │   └── v2/                  # v2 API 路由
-│   ├── services/                # 业务服务，包含 services/v2
-│   ├── models/                  # 共享数据库模型与领域映射
-│   ├── utils/                   # 请求、响应、数据库、Redis 等通用工具
-│   ├── types/                   # 全局服务端/API 类型
-│   ├── middleware/              # 服务端中间件
-│   ├── plugins/                 # Nitro 插件：Redis、Oracle、日志与钩子
-│   └── routes/                  # 非 API 的 Nitro 路由，包含 WebSocket
-├── config/                      # 版本元数据和服务配置
-├── doc/                         # 既有产品、API、SQL 设计文档
-├── docs/                        # 新增运维手册和运行说明
-├── data/                        # 本地数据库相关资源；运行期数据库数据已忽略
-├── i18n/                        # 国际化语言文件
-├── nginx/                       # Nginx 反向代理与上传文件静态服务配置
-├── public/                      # 公共静态资源
-├── script/                      # 既有发布自动化脚本，不重命名
-├── scripts/                     # 本地开发、启动、初始化脚本
-├── .env.example                 # 脱敏环境变量模板
-├── docker-compose.yml           # 本地依赖与应用编排
-├── Dockerfile                   # 标准容器构建入口
-└── README.md
-```
-
-Nuxt 4 标准前端目录是 `app/`。本项目保留 `app/`，不强行改成 `client/`，避免引入路由、别名和组件路径迁移风险。
-
-## 环境要求
+## Requirements
 
 - Node.js 22+
-- Yarn 1.x；如果本机没有 `yarn`，先执行 `corepack enable`。
-- Docker Desktop 或 Docker Engine，并支持 Compose v2。
-- Windows 推荐使用 PowerShell；Git Bash、WSL、macOS shell 或 Linux shell 可运行 `.sh` 脚本。
-- 如果使用内置 Oracle 镜像，需要 Oracle Container Registry 访问权限并接受镜像协议。
-- 可选：如果在 Docker 外运行旧版 v1 媒体缩略图功能，需要本机安装 `ffmpeg`。
+- Yarn 1.x; if `yarn` is missing, run `corepack enable` first.
+- Docker Desktop or Docker Engine with Compose v2.
+- Windows is recommended with PowerShell; Git Bash, WSL, macOS shell, or Linux shell can run `.sh` scripts.
+- If using the built-in Oracle image, Oracle Container Registry access and license acceptance are required.
+- Optional: for legacy v1 media thumbnails outside Docker, install `ffmpeg` locally.
 
-## 快速开始：本地开发
+## Quick Start: Local Development
 
-适用于“前端和 Nitro 开发服务器在宿主机运行，Oracle/Redis 用 Docker 启动”的场景。
+For "frontend and Nitro dev servers run on the host, Oracle/Redis run in Docker":
 
 ```bash
 corepack enable
@@ -289,14 +268,14 @@ bash scripts/init-db.sh
 yarn dev
 ```
 
-访问地址：
+Access:
 
-- 应用：`http://localhost:3000`
-- WebSocket 测试页：`http://localhost:3000/ws`
-- 宿主机访问 Oracle：`localhost:5501/ORCLPDB1`
-- 宿主机访问 Redis：`localhost:6379`
+- App: `http://localhost:3000`
+- WebSocket test page: `http://localhost:3000/ws`
+- Host Oracle: `localhost:5501/ORCLPDB1`
+- Host Redis: `localhost:6379`
 
-PowerShell 等价命令：
+PowerShell equivalent:
 
 ```powershell
 corepack enable
@@ -307,9 +286,9 @@ docker compose up -d redis oracle19c
 yarn dev
 ```
 
-## 快速开始：完整 Docker 栈
+## Quick Start: Full Docker Stack
 
-适用于“应用、Redis、Oracle、Nginx 全部在 Docker 中运行”的场景。
+For "app, Redis, Oracle, Nginx all run in Docker":
 
 ```bash
 cp .env.example .env
@@ -317,138 +296,161 @@ docker compose up -d --build
 bash scripts/init-db.sh
 ```
 
-PowerShell：
+PowerShell:
 
 ```powershell
 .\scripts\start.ps1
 .\scripts\init-db.ps1
 ```
 
-访问地址：
+Access:
 
-- 应用容器端口：`http://localhost:30001`
-- Nginx 反向代理与上传文件静态服务：`http://localhost:30002`
-- Oracle 监听端口：`localhost:5501`
-- Oracle EM Express：`http://localhost:5500/em`
+- App container port: `http://localhost:30001`
+- Nginx reverse proxy and upload static: `http://localhost:30002`
+- Oracle listener port: `localhost:5501`
+- Oracle EM Express: `http://localhost:5500/em`
 
-Oracle 首次启动通常需要数分钟。如果拉取 Oracle 镜像失败，请先执行 `docker login container-registry.oracle.com`，并在 Oracle Container Registry 接受数据库镜像协议；也可以改用外部 Oracle 实例并更新 `.env`。
+Oracle usually needs a few minutes on first boot. If the Oracle image fails to pull, run `docker login container-registry.oracle.com`, accept the database image license in the Oracle Container Registry; or use an external Oracle instance and update `.env`.
 
-## 脚本说明
+## Scripts
 
-| 脚本                          | 用途                                                                                           |
-| ----------------------------- | ---------------------------------------------------------------------------------------------- |
-| `scripts/dev.sh`              | 缺少 `.env` 时自动复制模板，启动 Redis/Oracle 容器，安装依赖并运行 `yarn dev`。                |
-| `scripts/start.sh`            | 缺少 `.env` 时自动复制模板，并构建启动完整 Docker 栈。                                         |
-| `scripts/init-db.sh`          | 将 `doc/neko_tribe-oracle-v2.sql` 执行到运行中的 `oracle19c` 容器，或通过本地 SQL\*Plus 执行。 |
-| `scripts/dev.ps1`             | `scripts/dev.sh` 的 PowerShell 等价脚本。                                                      |
-| `scripts/start.ps1`           | `scripts/start.sh` 的 PowerShell 等价脚本。                                                    |
-| `scripts/init-db.ps1`         | `scripts/init-db.sh` 的 PowerShell 等价脚本。                                                  |
-| `yarn dev`                    | 启动 Nuxt 开发服务器。                                                                         |
-| `yarn build`                  | 构建 Nuxt 生产产物。                                                                           |
-| `yarn start` / `yarn preview` | 本地预览已构建的 Nuxt 产物。                                                                   |
-| `yarn typecheck`              | 运行 Nuxt TypeScript 类型检查。                                                                |
-| `yarn docker:up`              | 执行 `docker compose up -d --build`。                                                          |
-| `yarn docker:down`            | 停止 Docker Compose 栈。                                                                       |
+| Script                        | Purpose                                                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `scripts/dev.sh`              | If `.env` is missing, copy template, start Redis/Oracle containers, install dependencies, then run `yarn dev`. |
+| `scripts/start.sh`            | If `.env` is missing, copy template, then build and start full Docker stack.                                   |
+| `scripts/init-db.sh`          | Execute `doc/neko_tribe-oracle-v2.sql` in the running `oracle19c` container, or via local SQL\*Plus.           |
+| `scripts/dev.ps1`             | PowerShell equivalent of `scripts/dev.sh`.                                                                     |
+| `scripts/start.ps1`           | PowerShell equivalent of `scripts/start.sh`.                                                                   |
+| `scripts/init-db.ps1`         | PowerShell equivalent of `scripts/init-db.sh`.                                                                 |
+| `yarn dev`                    | Start Nuxt dev server.                                                                                         |
+| `yarn build`                  | Build Nuxt production output.                                                                                  |
+| `yarn start` / `yarn preview` | Preview the built Nuxt output locally.                                                                         |
+| `yarn typecheck`              | Run Nuxt TypeScript type checking.                                                                             |
+| `yarn docker:up`              | Run `docker compose up -d --build`.                                                                            |
+| `yarn docker:down`            | Stop the Docker Compose stack.                                                                                 |
 
-数据库初始化脚本面向全新的开发数据库。v2 SQL 会创建用户、表空间、表、序列、触发器、视图和种子数据。如果目标 schema 已存在，请先人工审查并调整 SQL 后再执行。
+Database init scripts target fresh dev databases. The v2 SQL creates users, tablespaces, tables, sequences, triggers, views, and seed data. If the target schema already exists, review and adjust the SQL before running.
 
-## 环境变量
+## Environment Variables
 
-复制 `.env.example` 为 `.env`。除本地开发外，必须替换所有示例密钥和密码。
+Copy `.env.example` to `.env`. For non-local environments, replace all example secrets and passwords.
 
-| 变量                      | 是否必需      | 示例值                     | 用途                                                        |
-| ------------------------- | ------------- | -------------------------- | ----------------------------------------------------------- |
-| `NODE_ENV`                | 是            | `development`              | 运行环境。                                                  |
-| `APP_PORT`                | Docker        | `30001`                    | 应用容器映射到宿主机的端口。                                |
-| `NGINX_PORT`              | Docker        | `30002`                    | Nginx 容器映射到宿主机的端口。                              |
-| `ACCESS_SECRET`           | 是            | 替换为随机长密钥           | JWT 访问令牌签名密钥。                                      |
-| `ACCESS_EXPIRES_IN`       | 是            | `900`                      | 访问令牌有效期，单位秒。                                    |
-| `REFRESH_SECRET`          | 是            | 替换为随机长密钥           | JWT 刷新令牌签名密钥。                                      |
-| `REFRESH_EXPIRES_IN`      | 是            | `2592000`                  | 刷新令牌有效期，单位秒。                                    |
-| `ORACLE_HOST`             | 是            | `localhost`                | 宿主机开发模式下应用连接的 Oracle 主机。                    |
-| `ORACLE_PORT`             | 是            | `5501`                     | 宿主机开发模式下应用连接的 Oracle 端口。                    |
-| `ORACLE_SERVICE_NAME`     | 是            | `ORCLPDB1`                 | 应用连接池使用的 Oracle 服务名。                            |
-| `ORACLE_SID`              | 否            | 空                         | 兼容字段；当前连接池使用服务名。                            |
-| `ORACLE_USER`             | 是            | `neko_app`                 | 应用 schema 用户。                                          |
-| `ORACLE_PASSWORD`         | 是            | 来自 v2 SQL                | 本地开发应用 schema 密码。                                  |
-| `ORACLE_POOL_MIN`         | 否            | `2`                        | Oracle 连接池最小连接数。                                   |
-| `ORACLE_POOL_MAX`         | 否            | `10`                       | Oracle 连接池最大连接数。                                   |
-| `ORACLE_POOL_INCREMENT`   | 否            | `1`                        | Oracle 连接池扩容步长。                                     |
-| `ORACLE_HOST_PORT`        | Docker        | `5501`                     | Oracle 容器 `1521` 映射到宿主机的端口。                     |
-| `ORACLE_EM_PORT`          | Docker        | `5500`                     | Oracle EM Express 映射端口。                                |
-| `ORACLE_PWD`              | Docker/初始化 | 替换为安全密码             | Oracle 容器 SYS/SYSTEM 密码，也是初始化脚本的 SYSDBA 密码。 |
-| `ORACLE_SYS_SERVICE_NAME` | 初始化        | `ORCLCDB`                  | `scripts/init-db.*` 使用的 CDB 服务名。                     |
-| `DOCKER_ORACLE_HOST`      | Docker        | `oracle19c`                | 应用容器内访问 Oracle 的主机名。                            |
-| `DOCKER_ORACLE_PORT`      | Docker        | `1521`                     | 应用容器内访问 Oracle 的端口。                              |
-| `DOCKER_NODE_ENV`         | Docker        | `production`               | 应用容器运行环境，默认固定为生产模式。                      |
-| `DOCKER_REDIS_URL`        | Docker        | `redis://redis:6379`       | 应用容器内 Redis 连接串，覆盖宿主机开发用的 `REDIS_URL`。   |
-| `REDIS_URL`               | 否            | 空                         | 可选 Redis 连接字符串；设置后 Redis 工具优先使用它。        |
-| `REDIS_HOST`              | 是            | `localhost`                | 宿主机开发模式下 Redis 主机。                               |
-| `REDIS_PORT`              | 是            | `6379`                     | Redis 端口。                                                |
-| `REDIS_DB`                | 否            | `0`                        | Redis 数据库编号。                                          |
-| `REDIS_PASSWORD`          | 否            | 替换为安全密码             | Redis 密码；内置 Redis 服务会读取该值。                     |
-| `DOCKER_REDIS_HOST`       | Docker        | `redis`                    | 应用容器内访问 Redis 的主机名。                             |
-| `DOCKER_REDIS_PORT`       | Docker        | `6379`                     | 应用容器内访问 Redis 的端口。                               |
-| `SMTP_HOST`               | 邮件          | `smtp.example.com`         | 验证码和账号邮件使用的 SMTP 主机。                          |
-| `SMTP_PORT`               | 邮件          | `465`                      | SMTP 端口；当前代码按安全 SMTP 创建连接。                   |
-| `SMTP_USER`               | 邮件          | 空                         | SMTP 用户名和发件人。                                       |
-| `SMTP_PASS`               | 邮件          | 空                         | SMTP 密码或应用专用密码。                                   |
-| `NUXT_PUBLIC_WS_URL`      | 否            | `ws://localhost:3000/_ws`  | 客户端运行时使用的公开 WebSocket 地址。                     |
-| `DOCKER_PUBLIC_WS_URL`    | Docker        | `ws://localhost:30001/_ws` | 应用容器模式下公开给客户端的 WebSocket 地址。               |
-| `NUXT_PUBLIC_API_BASE`    | 否            | 空                         | 客户端 API 基础地址；空表示同源。                           |
+| Variable                  | Required    | Example                           | Purpose                                                         |
+| ------------------------- | ----------- | --------------------------------- | --------------------------------------------------------------- |
+| `NODE_ENV`                | Yes         | `development`                     | Runtime environment.                                            |
+| `APP_PORT`                | Docker      | `30001`                           | App container port mapped to host.                              |
+| `NGINX_PORT`              | Docker      | `30002`                           | Nginx container port mapped to host.                            |
+| `ACCESS_SECRET`           | Yes         | Replace with a random long secret | JWT access token signing secret.                                |
+| `ACCESS_EXPIRES_IN`       | Yes         | `900`                             | Access token TTL in seconds.                                    |
+| `REFRESH_SECRET`          | Yes         | Replace with a random long secret | JWT refresh token signing secret.                               |
+| `REFRESH_EXPIRES_IN`      | Yes         | `2592000`                         | Refresh token TTL in seconds.                                   |
+| `ORACLE_HOST`             | Yes         | `localhost`                       | Oracle host for host dev mode.                                  |
+| `ORACLE_PORT`             | Yes         | `5501`                            | Oracle port for host dev mode.                                  |
+| `ORACLE_SERVICE_NAME`     | Yes         | `ORCLPDB1`                        | Oracle service name for connection pool.                        |
+| `ORACLE_SID`              | No          | empty                             | Compatibility field; pool uses service name.                    |
+| `ORACLE_USER`             | Yes         | `neko_app`                        | App schema user.                                                |
+| `ORACLE_PASSWORD`         | Yes         | From v2 SQL                       | App schema password for local dev.                              |
+| `ORACLE_POOL_MIN`         | No          | `2`                               | Oracle pool minimum connections.                                |
+| `ORACLE_POOL_MAX`         | No          | `10`                              | Oracle pool maximum connections.                                |
+| `ORACLE_POOL_INCREMENT`   | No          | `1`                               | Oracle pool growth step.                                        |
+| `ORACLE_HOST_PORT`        | Docker      | `5501`                            | Oracle container `1521` mapped to host.                         |
+| `ORACLE_EM_PORT`          | Docker      | `5500`                            | Oracle EM Express mapped port.                                  |
+| `ORACLE_PWD`              | Docker/Init | Replace with a strong password    | SYS/SYSTEM password for the Oracle container and init scripts.  |
+| `ORACLE_SYS_SERVICE_NAME` | Init        | `ORCLCDB`                         | CDB service name used by `scripts/init-db.*`.                   |
+| `DOCKER_ORACLE_HOST`      | Docker      | `oracle19c`                       | Oracle host inside the app container.                           |
+| `DOCKER_ORACLE_PORT`      | Docker      | `1521`                            | Oracle port inside the app container.                           |
+| `DOCKER_NODE_ENV`         | Docker      | `production`                      | App container runtime, fixed to production.                     |
+| `DOCKER_REDIS_URL`        | Docker      | `redis://redis:6379`              | Redis URL inside the app container, overrides host `REDIS_URL`. |
+| `REDIS_URL`               | No          | empty                             | Optional Redis URL; preferred by Redis utils if set.            |
+| `REDIS_HOST`              | Yes         | `localhost`                       | Redis host for host dev mode.                                   |
+| `REDIS_PORT`              | Yes         | `6379`                            | Redis port.                                                     |
+| `REDIS_DB`                | No          | `0`                               | Redis database number.                                          |
+| `REDIS_PASSWORD`          | No          | Replace with a strong password    | Redis password; compose service reads it from `.env`.           |
+| `DOCKER_REDIS_HOST`       | Docker      | `redis`                           | Redis host inside the app container.                            |
+| `DOCKER_REDIS_PORT`       | Docker      | `6379`                            | Redis port inside the app container.                            |
+| `SMTP_HOST`               | Email       | `smtp.example.com`                | SMTP host for OTP and account emails.                           |
+| `SMTP_PORT`               | Email       | `465`                             | SMTP port; current code uses secure SMTP.                       |
+| `SMTP_USER`               | Email       | empty                             | SMTP username and sender.                                       |
+| `SMTP_PASS`               | Email       | empty                             | SMTP password or app-specific password.                         |
+| `NUXT_PUBLIC_WS_URL`      | No          | `ws://localhost:3000/_ws`         | Public WebSocket URL for local client.                          |
+| `DOCKER_PUBLIC_WS_URL`    | Docker      | `ws://localhost:30001/_ws`        | Public WebSocket URL for Docker mode.                           |
+| `NUXT_PUBLIC_API_BASE`    | No          | empty                             | Client API base; empty means same origin.                       |
 
-## 外部服务
+## External Services
 
-| 服务         | 用途                                                         | 本地启动方式                                                                                   | 配置方式                                                                                  |
-| ------------ | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Oracle 19c   | 用户、帖子、群组、通知、认证会话、媒体元数据等主业务数据库。 | `docker compose up -d oracle19c` 后执行 `bash scripts/init-db.sh` 或 `.\scripts\init-db.ps1`。 | `.env` 中的 `ORACLE_*`。                                                                  |
-| Redis 7      | v1 验证码存储、WebSocket 发布/订阅和实时广播。               | `docker compose up -d redis`。                                                                 | `.env` 中的 `REDIS_*`。                                                                   |
-| SMTP         | 发送邮箱验证码、密码重置和账号相关邮件。                     | 使用任意兼容 SMTP 的邮件服务商。                                                               | `.env` 中的 `SMTP_*`。                                                                    |
-| Nginx        | 静态服务 `/upload/` 文件，并在 Docker 模式下反向代理应用。   | 包含在 `docker compose up -d --build` 中。                                                     | 完整 Docker 使用 `nginx/nginx.compose.conf`；反代宿主机 dev 服务使用 `nginx/nginx.conf`。 |
-| 文件系统上传 | 存储用户头像和媒体文件。                                     | 按需在 `upload/` 下创建，已被 git 忽略。                                                       | 挂载到 Nginx 容器的 `/usr/share/nginx/upload`。                                           |
-| 媒体工具链   | 校验图片、视频、音频并为旧版链路生成缩略图。                 | Docker 镜像已安装 `ffmpeg`；宿主机旧版媒体链路需要系统 `ffmpeg`。                              | `sharp`、`file-type`、`ffprobe-static`，可选系统 `ffmpeg`。                               |
+| Service             | Purpose                                                                            | Local Startup                                                                               | Configuration                                                                 |
+| ------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Oracle 19c          | Primary DB for users, posts, groups, notifications, auth sessions, media metadata. | `docker compose up -d oracle19c` then `bash scripts/init-db.sh` or `.\scripts\init-db.ps1`. | `ORACLE_*` in `.env`.                                                         |
+| Redis 7             | v1 OTP storage, WebSocket pub/sub, realtime broadcasts.                            | `docker compose up -d redis`.                                                               | `REDIS_*` in `.env`.                                                          |
+| SMTP                | Send OTP, password reset, and account emails.                                      | Any SMTP-compatible provider.                                                               | `SMTP_*` in `.env`.                                                           |
+| Nginx               | Serve `/upload/` files and reverse proxy in Docker mode.                           | Included in `docker compose up -d --build`.                                                 | `nginx/nginx.compose.conf` for Docker; `nginx/nginx.conf` for host dev proxy. |
+| File Upload Storage | Store user avatars and media files.                                                | Create under `upload/` as needed; git-ignored.                                              | Mount to `/usr/share/nginx/upload` in Nginx.                                  |
+| Media Toolchain     | Validate images/video/audio and generate legacy thumbnails.                        | Docker image includes `ffmpeg`; host legacy flow needs system `ffmpeg`.                     | `sharp`, `file-type`, `ffprobe-static`, optional system `ffmpeg`.             |
 
-假设：`doc/neko_tribe-oracle-v2.sql` 是当前 v2 开发数据库基线。`data/oracle-init/` 下的文件保留为历史群组模块脚本，主 compose 不再自动挂载它们，因为这些脚本本身不是完整数据库基线。
+Note: `doc/neko_tribe-oracle-v2.sql` is the current v2 dev baseline. Files under `data/oracle-init/` are kept as historical group-module scripts; the main compose no longer mounts them because these scripts are not a full DB baseline.
 
-## API 架构
+## Documentation Index
 
-- `server/api/v1` 存放旧接口，应保持隔离。
-- `server/api/v2` 存放 v2 REST 风格接口。
-- `server/services/v2` 存放 v2 业务逻辑。
-- `server/models` 存放共享数据库行映射和领域模型辅助函数。
-- `server/types` 存放全局 DTO、VO 和 API 类型。
-- `server/utils` 存放无业务语义的通用工具，例如请求解析、响应封装、数据库访问、Redis 和 WebSocket 辅助能力。
+| Document                                    | Description                                                                             |
+| ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `README.md`                                 | Project overview, architecture, startup, configuration, and deployment entry (English). |
+| `doc/README.md`                             | Project overview and setup guide (Chinese).                                             |
+| `docs/README.md`                            | New ops docs directory overview.                                                        |
+| `doc/NekoTribe-V2接口与Oracle重构总设计.md` | v2 API and Oracle refactor design overview.                                             |
+| `doc/NekoTribe-V2-Apifox接口详细文档.md`    | v2 API detailed specification.                                                          |
+| `doc/NekoTribe-V2-Apifox导入.json`          | Apifox import file.                                                                     |
+| `doc/API v2平滑迁移实战指南(新手版).md`     | v1 to v2 migration guide.                                                               |
+| `doc/neko_tribe-oracle-v2.sql`              | v2 Oracle database baseline.                                                            |
+| `doc/群组功能API文档.md`                    | Group API specification.                                                                |
+| `doc/Token无感刷新实现文档.md`              | Token silent refresh design.                                                            |
+| `doc/NekoTribe长期最终可执行路线图.md`      | Long-term roadmap.                                                                      |
+| `config/versions/README.md`                 | Service version metadata.                                                               |
+| `script/github/README.md`                   | Tagging and release automation scripts.                                                 |
 
-v2 不应调用 v1 路由逻辑。可复用能力只能抽到中立的工具函数或共享模型中。
+## Engineering Conventions
 
-## 数据库初始化
+- Prefer TypeScript types for business code to avoid implicit data drift.
+- Keep v1 and v2 APIs isolated; v2 must not call v1 route logic.
+- Shared capabilities may only live in `server/utils` or `server/models`, and must not depend on business modules.
+- New APIs should use REST-style paths and HTTP methods.
+- New env config must update `.env.example` and the README env table.
+- New external services must be described in "External Services" with purpose, startup, and configuration.
+- Uploads, database runtime data, caches, and build artifacts must not be committed to Git.
 
-Docker Oracle：
+## Directory Structure
 
-```bash
-docker compose up -d oracle19c
-bash scripts/init-db.sh
+```text
+NekoTribe/
+├── app/                         # Nuxt 4 frontend: pages, layouts, components, stores, composables
+├── server/                      # Nitro backend
+│   ├── api/
+│   │   ├── v1/                  # Legacy APIs, kept isolated
+│   │   └── v2/                  # v2 API routes
+│   ├── services/                # Business services, including services/v2
+│   ├── models/                  # Shared DB models and domain mapping
+│   ├── utils/                   # Request/response, DB, Redis common utilities
+│   ├── types/                   # Global server/API types
+│   ├── middleware/              # Server middleware
+│   ├── plugins/                 # Nitro plugins: Redis, Oracle, logging, hooks
+│   └── routes/                  # Non-API Nitro routes, including WebSocket
+├── config/                      # Version metadata and service config
+├── doc/                         # Existing product, API, and SQL docs
+├── docs/                        # New ops manuals and runtime notes
+├── data/                        # Local DB resources; runtime data is ignored
+├── i18n/                        # Locale files
+├── nginx/                       # Nginx reverse proxy and upload static config
+├── public/                      # Public static assets
+├── script/                      # Existing release automation scripts, do not rename
+├── scripts/                     # Local dev, startup, and init scripts
+├── .env.example                 # Redacted env template
+├── docker-compose.yml           # Local dependencies and app orchestration
+├── Dockerfile                   # Container build entry
+└── README.md
 ```
 
-外部 Oracle：
+Nuxt 4's standard frontend directory is `app/`. This project keeps `app/` (instead of forcing `client/`) to avoid routing, alias, and component path migration risk.
 
-1. 安装 SQL\*Plus 或 SQLcl。
-2. 在 `.env` 中配置 `ORACLE_HOST`、`ORACLE_PORT`、`ORACLE_PWD` 和 `ORACLE_SYS_SERVICE_NAME`。
-3. 执行：
-
-```bash
-bash scripts/init-db.sh
-```
-
-PowerShell 可执行：
-
-```powershell
-.\scripts\init-db.ps1
-```
-
-SQL 顶部包含表空间和用户等环境初始化逻辑。生产环境或共享数据库执行前，必须先审查 `doc/neko_tribe-oracle-v2.sql` 顶部初始化部分。
-
-## 开发与验证
+## Development and Verification
 
 ```bash
 yarn install --frozen-lockfile
@@ -456,14 +458,14 @@ yarn typecheck
 yarn build
 ```
 
-常用检查：
+Common checks:
 
 ```bash
 docker compose config --quiet
 bash -n scripts/dev.sh scripts/start.sh scripts/init-db.sh
 ```
 
-PowerShell 脚本语法检查：
+PowerShell script syntax check:
 
 ```powershell
 $errors = @()
@@ -473,64 +475,64 @@ foreach ($f in 'scripts/dev.ps1','scripts/start.ps1','scripts/init-db.ps1') {
 if ($errors.Count) { $errors; exit 1 }
 ```
 
-## 生产部署
+## Production Deployment
 
-1. 准备 Oracle、Redis、SMTP 和持久化上传存储。
-2. 基于 `.env.example` 创建生产 `.env`，替换所有密钥和密码。
-3. 审查并执行生产数据库初始化或迁移 SQL。
-4. 构建并运行应用镜像：
+1. Prepare Oracle, Redis, SMTP, and persistent upload storage.
+2. Create production `.env` from `.env.example`, replacing all secrets and passwords.
+3. Review and run production DB init or migration SQL.
+4. Build and run the app image:
 
 ```bash
 docker build -t nekotribe:prod .
 docker run --env-file .env -p 3000:3000 nekotribe:prod
 ```
 
-5. 在应用前放置 Nginx 或其他反向代理。
-6. 挂载持久化 `upload/` 存储，并由反向代理或等价对象存储服务提供 `/upload/` 访问。
-7. 生产环境应使用 HTTPS，以便认证 Cookie 可以安全启用 `secure`。
+5. Place Nginx or another reverse proxy in front of the app.
+6. Mount persistent `upload/` storage and serve `/upload/` via the proxy or an equivalent object store.
+7. Use HTTPS in production so auth cookies can safely enable `secure`.
 
-内置 `docker-compose.yml` 面向本地开发和小型测试环境。生产环境建议使用托管 Oracle/Redis，并且不要复用示例密码。
+The bundled `docker-compose.yml` targets local dev and small test environments. For production, prefer managed Oracle/Redis and avoid example passwords.
 
-## 常见问题
+## FAQ
 
-### Docker 无法拉取 Oracle 镜像
+### Docker cannot pull the Oracle image
 
-`container-registry.oracle.com/database/enterprise:19.3.0.0` 需要 Oracle Container Registry 权限和镜像协议确认。先执行 `docker login container-registry.oracle.com`，在 Oracle Container Registry 接受数据库镜像协议后重试。
+`container-registry.oracle.com/database/enterprise:19.3.0.0` requires Oracle Container Registry access and license acceptance. Run `docker login container-registry.oracle.com`, accept the license, then retry.
 
-### 应用启动后 API 请求报 Oracle 错误
+### Oracle errors after app startup
 
-先确认 Oracle 容器健康，再执行 `bash scripts/init-db.sh` 或 `.\scripts\init-db.ps1`。同时确认本地开发模式使用 `ORACLE_HOST=localhost`、`ORACLE_PORT=5501`；Docker 应用模式使用 `DOCKER_ORACLE_HOST=oracle19c`、`DOCKER_ORACLE_PORT=1521`。
+Confirm the Oracle container is healthy, then run `bash scripts/init-db.sh` or `.\scripts\init-db.ps1`. Also confirm host dev uses `ORACLE_HOST=localhost`, `ORACLE_PORT=5501`, while Docker app mode uses `DOCKER_ORACLE_HOST=oracle19c`, `DOCKER_ORACLE_PORT=1521`.
 
-### Redis 认证失败
+### Redis authentication failure
 
-确认 `.env` 中的 `REDIS_PASSWORD` 与 Redis 容器实际密码一致。内置 compose 服务会从 `.env` 读取该值。
+Confirm `REDIS_PASSWORD` in `.env` matches the Redis container password. The built-in compose service reads the value from `.env`.
 
-### `docker compose up -d --build` 提示 `dependency failed to start`，但稍后 `app` 变成 `healthy`
+### `docker compose up -d --build` shows `dependency failed to start`, but `app` later becomes `healthy`
 
-这通常不是应用彻底启动失败，而是冷启动阶段超过了 Docker 早期健康检查窗口。当前配置已经改为：
+This is usually not a real failure, but a cold-start phase exceeding the early health check window. Current config has been adjusted:
 
-- 健康检查走 `GET /api/health`，不再依赖首页 SSR。
-- Docker 模式强制覆盖 `DOCKER_REDIS_URL=redis://redis:6379`，避免容器内误连 `localhost`。
-- `app` 健康检查窗口已放宽，覆盖 Oracle 冷启动和 Nuxt 首次初始化。
+- Health checks use `GET /api/health` instead of homepage SSR.
+- Docker mode forces `DOCKER_REDIS_URL=redis://redis:6379` to avoid localhost inside containers.
+- The `app` health window was widened to cover Oracle cold start and Nuxt first init.
 
-如果仍然出现该问题，优先检查：
+If it still happens, check:
 
 1. `docker logs -f nekotribe-app-1`
 2. `docker inspect nekotribe-app-1 --format '{{json .State.Health}}'`
-3. `.env` 中是否错误写入了 Docker 不应使用的宿主机地址
+3. Whether `.env` mistakenly uses host-only addresses for Docker mode
 
-### 邮箱验证码无法发送
+### Email OTP not sending
 
-需要配置 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER` 和 `SMTP_PASS`。应用可以在未配置 SMTP 时启动，但邮箱验证码流程依赖 SMTP。
+Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASS`. The app can start without SMTP, but email OTP flow depends on it.
 
-### 本地是否必须安装 Oracle Instant Client
+### Do I need Oracle Instant Client locally?
 
-当前代码没有调用 `oracledb.initOracleClient`，默认使用 node-oracledb thin 模式。只有目标部署需要 thick 模式能力时，才需要安装 Oracle Instant Client。
+Current code does not call `oracledb.initOracleClient`, so it defaults to node-oracledb thin mode. Install Oracle Instant Client only if your target deployment needs thick mode features.
 
-### 为什么同时存在 `doc/` 和 `docs/`
+### Why both `doc/` and `docs/`
 
-`doc/` 存放既有产品、API 和 SQL 文档，代码和历史资料中已有引用。`docs/` 用于新增运维手册和运行说明，避免破坏旧链接。
+`doc/` stores existing product, API, and SQL docs with historical references. `docs/` is for new ops manuals and runtime notes, avoiding breaking old links.
 
-### 为什么同时存在 `script/` 和 `scripts/`
+### Why both `script/` and `scripts/`
 
-`script/` 被既有发布和版本自动化使用。`scripts/` 存放新增的开发、启动和部署辅助脚本。
+`script/` is used by existing release/version automation. `scripts/` holds new dev, startup, and deployment helpers.
