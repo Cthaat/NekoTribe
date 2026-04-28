@@ -93,8 +93,8 @@ function v2RefreshExpiresSeconds(): number {
 }
 
 function v2CookieSecure(): boolean {
-  // return process.env.NODE_ENV === 'production';
-  return false;
+  return process.env.NODE_ENV === 'production';
+  // return false;
 }
 
 function v2SetAuthCookies(
