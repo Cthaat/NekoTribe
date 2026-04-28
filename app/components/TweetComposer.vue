@@ -464,10 +464,12 @@ function handleKeyDown(event: KeyboardEvent) {
           <AppButton
             @click="handleSubmit"
             :disabled="isTweetDisabled"
-            class="font-bold"
+            class="h-10 px-5 font-bold"
           >
-            <Send class="h-4 w-4 mr-2" />
-            发布
+            <span class="inline-flex items-center gap-2">
+              <Send class="h-4 w-4 shrink-0" />
+              <span>发布</span>
+            </span>
           </AppButton>
         </div>
       </div>
