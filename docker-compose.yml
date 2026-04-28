@@ -2,6 +2,7 @@ services:
   app:
     image: ghcr.io/cthaat/nekotribe:master
     restart: unless-stopped
+    pull_policy: always
     ports:
       - '${APP_PORT:-30001}:3000'
     env_file:
