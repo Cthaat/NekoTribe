@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/card';
 
 const { t } = useAppLocale();
+const localePath = useLocalePath();
 
 // 定义页面 meta
 definePageMeta({
@@ -64,7 +65,7 @@ const handleTabChange = (value: string | number) => {
   activeTab.value = strValue;
   const tab = tabs.find(t => t.value === strValue);
   if (tab) {
-    navigateTo(tab.path);
+    navigateTo(localePath(tab.path));
   }
 };
 

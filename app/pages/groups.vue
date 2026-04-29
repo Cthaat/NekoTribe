@@ -22,6 +22,7 @@ definePageMeta({
 // 当前选中的标签
 const activeTab = ref('discover');
 const { t } = useAppLocale();
+const localePath = useLocalePath();
 
 // 导航标签配置
 const tabs = [
@@ -51,7 +52,7 @@ const handleTabChange = (value: string | number) => {
   activeTab.value = strValue;
   const tab = tabs.find(t => t.value === strValue);
   if (tab) {
-    navigateTo(tab.path);
+    navigateTo(localePath(tab.path));
   }
 };
 

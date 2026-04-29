@@ -241,7 +241,7 @@ async function onValidSubmit(
     toast(t('auth.signUp.successRegister'), {
       description: t('auth.signUp.redirectToLogin')
     });
-    await navigateTo('/auth/login');
+    await navigateTo(localePath('/auth/login'));
   } catch (error) {
     const message =
       error instanceof Error
