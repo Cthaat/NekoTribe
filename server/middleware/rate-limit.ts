@@ -81,8 +81,8 @@ export default defineEventHandler(async event => {
     const existingData = await redis.get(redisKey);
     const info = parseRateLimitInfo(existingData, now);
 
-    // 1分钟窗口限制
-    if (now - info.last > 60_000) {
+    // 10 秒窗口限制
+    if (now - info.last > 10_000) {
       info.count = 1;
       info.last = now;
     } else {
@@ -93,7 +93,7 @@ export default defineEventHandler(async event => {
     await redis.setex(redisKey, 120, JSON.stringify(info));
 
     // 如果超过限制，直接抛出错误，阻止后续执行
-    if (info.count > 10_000_000) {
+    if (info.count > 100) {
       throw createError({
         statusCode: 429,
         message: '请求过于频繁，请稍后再试',
