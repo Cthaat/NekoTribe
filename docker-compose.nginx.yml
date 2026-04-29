@@ -8,6 +8,8 @@ services:
     ports:
       - '30002:80' # 如端口被占用，可改为 "30002:80"
     volumes:
+      # 挂载自定义主配置（含 worker_connections 等）
+      - ./nginx/nginx.main.conf:/etc/nginx/nginx.conf:ro
       # 挂载自定义站点配置
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       # 挂载统一存储目录，只读直出
