@@ -15,7 +15,11 @@ import {
   AvatarImage
 } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
-import { ref } from 'vue';
+import {
+  computed,
+  ref,
+  watch
+} from 'vue';
 import {
   ArrowUp,
   ArrowDown,
@@ -114,6 +118,10 @@ const normalizedScore = computed(() => {
 const tabValue = defineModel<string>();
 
 const isFollowing = ref(props.user.follow === 'follow');
+const showFollowAction = computed(() => {
+  const currentUserId = preferenceStore.preferences.user.id;
+  return props.user.id > 0 && props.user.id !== currentUserId;
+});
 
 watch(
   () => props.user.follow,
@@ -188,14 +196,14 @@ function followUser() {
             </div>
             <div class="flex items-center space-x-2">
               <Button
-                v-if="!isFollowing"
+                v-if="showFollowAction && !isFollowing"
                 variant="outline"
                 @click="followUser"
               >
                 {{ t('account.header.follow') }}
               </Button>
               <Button
-                v-else
+                v-else-if="showFollowAction"
                 variant="destructive"
                 @click="followUser"
               >
