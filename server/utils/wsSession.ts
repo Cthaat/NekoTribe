@@ -8,14 +8,26 @@
 // 3. 会话活动时间的跟踪
 // 4. 房间成员的查询功能
 //
-// 注意：本版本已移除用户认证功能，专注于会话和房间管理
+// 注意：业务房间依赖 v2 登录态，匿名连接不进入会话池
 
 // 导入 crossws 库的 Peer 类型
 import type { Peer } from 'crossws';
 
+export const WS_SERVER_ID = `ws_server_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
 // =====================================
 // 类型定义
 // =====================================
+
+export interface WSSessionAuthPayload {
+  userId: number;
+  userName?: string;
+  sessionId?: string;
+  jti?: string;
+  type: 'access' | 'refresh';
+  iat?: number;
+  exp?: number;
+}
 
 /**
  * WebSocket 会话信息接口
@@ -25,6 +37,7 @@ import type { Peer } from 'crossws';
  */
 export interface WSSession {
   peer: Peer; // WebSocket 连接对象，用于发送消息
+  auth: WSSessionAuthPayload; // 已认证的 v2 用户信息
   joinedRooms: Set<string>; // 用户已加入的房间集合（使用 Set 避免重复）
   lastActivity: number; // 最后活动时间戳，用于清理不活跃的连接
 }
@@ -51,10 +64,15 @@ class WSSessionManager {
    *
    * 当有新的客户端连接时调用此方法
    */
-  addSession(sessionId: string, peer: Peer): void {
+  addSession(
+    sessionId: string,
+    peer: Peer,
+    auth: WSSessionAuthPayload
+  ): void {
     // 创建新的会话对象
     const session: WSSession = {
       peer, // 保存 WebSocket 连接对象
+      auth,
       joinedRooms: new Set(), // 初始化空的房间集合
       lastActivity: Date.now() // 记录当前时间为最后活动时间
     };
@@ -226,6 +244,31 @@ class WSSessionManager {
  * 这样可以在不同模块间共享会话状态
  */
 export const sessionManager = new WSSessionManager();
+
+export function sendWsToRoom(
+  roomId: string,
+  message: unknown
+): void {
+  const roomSessions = sessionManager.getRoomSessions(roomId);
+
+  roomSessions.forEach(session => {
+    try {
+      session.peer.send(JSON.stringify(message));
+    } catch (error) {
+      console.error(`向房间 ${roomId} 发送消息失败:`, error);
+    }
+  });
+}
+
+export function sendWsToAll(message: unknown): void {
+  sessionManager.getAllSessions().forEach(session => {
+    try {
+      session.peer.send(JSON.stringify(message));
+    } catch (error) {
+      console.error('发送广播消息失败:', error);
+    }
+  });
+}
 
 /**
  * 定期清理超时会话的定时器

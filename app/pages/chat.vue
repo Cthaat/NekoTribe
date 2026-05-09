@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref
+} from 'vue';
 import { toast } from 'vue-sonner';
 import ChatChannelList from '@/components/ChatChannelList.vue';
 import ChatRoom from '@/components/ChatRoom.vue';
@@ -9,595 +14,651 @@ import type {
 } from '@/components/ChatChannelList.vue';
 import type { ChatMessageType } from '@/components/ChatMessage.vue';
 import type { ChatMember } from '@/components/ChatMemberList.vue';
+import {
+  v2CreateChatChannel,
+  v2CreateChatMessage,
+  v2CreateChatReaction,
+  v2DeleteChatChannel,
+  v2DeleteChatMessage,
+  v2DeleteChatReaction,
+  v2ListChatChannels,
+  v2ListChatGroups,
+  v2ListChatMembers,
+  v2ListChatMessages,
+  v2SetChatChannelMuteStatus,
+  v2SetChatMessagePinStatus,
+  v2UpdateChatChannel,
+  v2UpdateChatMessage,
+  v2UploadMedia
+} from '@/api/v2';
+import {
+  buildChatChannelCategories,
+  mapV2ChatGroup,
+  mapV2ChatMember,
+  mapV2ChatMessage,
+  replaceChatMessage,
+  type ChatGroupVM
+} from '@/services/chat';
+import { usePreferenceStore } from '@/stores/user';
+import type { V2ChatMessage } from '@/types/v2';
+
 const { t } = useAppLocale();
 
 definePageMeta({
   layout: 'chat'
 });
 
-// 模拟群组数据
-const groupInfo = ref({
-  id: 1,
-  name: 'NekoTribe 开发者社区',
-  avatar:
-    'https://api.dicebear.com/7.x/identicon/svg?seed=neko-dev'
-});
-
-// 模拟频道分类和频道数据
-const channelCategories = ref<ChannelCategory[]>([
-  {
-    id: 1,
-    name: '公告',
-    channels: [
-      {
-        id: 1,
-        name: '公告板',
-        type: 'announcement',
-        unreadCount: 2,
-        lastMessage: '最新版本 v2.0 已发布！'
-      },
-      {
-        id: 2,
-        name: '规则须知',
-        type: 'text',
-        lastMessage: '请阅读社区规则'
-      }
-    ]
-  },
-  {
-    id: 2,
-    name: '文字频道',
-    channels: [
-      {
-        id: 3,
-        name: '综合讨论',
-        type: 'text',
-        unreadCount: 15,
-        lastMessage: '大家好！有人在吗？'
-      },
-      {
-        id: 4,
-        name: '技术交流',
-        type: 'text',
-        unreadCount: 5,
-        lastMessage: 'Vue 3 的新特性真不错'
-      },
-      {
-        id: 5,
-        name: '问题求助',
-        type: 'text',
-        lastMessage: '请问这个问题怎么解决？'
-      },
-      {
-        id: 6,
-        name: '项目分享',
-        type: 'text',
-        lastMessage: '看看我的新项目！'
-      },
-      {
-        id: 7,
-        name: '管理员专区',
-        type: 'text',
-        isPrivate: true,
-        lastMessage: '内部讨论'
-      }
-    ]
-  },
-  {
-    id: 3,
-    name: '语音频道',
-    channels: [
-      {
-        id: 8,
-        name: '休闲聊天',
-        type: 'voice'
-      },
-      {
-        id: 9,
-        name: '结对编程',
-        type: 'voice'
-      },
-      {
-        id: 10,
-        name: '会议室',
-        type: 'video',
-        isPrivate: true
-      }
-    ]
-  }
-]);
-
-const initialChannel =
-  channelCategories.value[1]?.channels[0] ??
-  channelCategories.value[0]?.channels[0];
-
-if (!initialChannel) {
-  throw new Error('Missing chat channel seed');
+interface ChatWsEvent {
+  type: string;
+  data?: {
+    channel_id?: number;
+    message_id?: number;
+    message?: V2ChatMessage;
+  };
 }
 
-// 当前选中的频道
-const activeChannel = ref<Channel>(initialChannel);
+const preferenceStore = usePreferenceStore();
+const groups = ref<ChatGroupVM[]>([]);
+const activeGroup = ref<ChatGroupVM | null>(null);
+const channelCategories = ref<ChannelCategory[]>([]);
+const activeChannel = ref<Channel | null>(null);
+const members = ref<ChatMember[]>([]);
+const messages = ref<ChatMessageType[]>([]);
+const isLoading = ref(true);
+const isLoadingMessages = ref(false);
+const isSending = ref(false);
+const errorMessage = ref('');
+const messagePage = ref(1);
+const hasMoreMessages = ref(false);
+const searchQuery = ref('');
 
-// 模拟成员数据
-const members = ref<ChatMember[]>([
-  {
-    id: 1,
-    username: 'nekoadmin',
-    nickname: '猫猫管理员',
-    avatar:
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
-    role: 'owner',
-    status: 'online',
-    statusText: '正在码代码...'
-  },
-  {
-    id: 2,
-    username: 'devcat',
-    nickname: '开发喵',
-    avatar:
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=devcat',
-    role: 'admin',
-    status: 'online',
-    statusText: '🎮 游戏中'
-  },
-  {
-    id: 3,
-    username: 'coder123',
-    nickname: '代码小能手',
-    avatar:
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=coder123',
-    role: 'member',
-    status: 'online',
-    isInVoice: true
-  },
-  {
-    id: 4,
-    username: 'designer',
-    nickname: '设计师小姐姐',
-    avatar:
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=designer',
-    role: 'member',
-    status: 'idle',
-    statusText: '去吃饭了~'
-  },
-  {
-    id: 5,
-    username: 'newbie',
-    nickname: '萌新一枚',
-    avatar:
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=newbie',
-    role: 'member',
-    status: 'dnd',
-    statusText: '请勿打扰，专心学习'
-  },
-  {
-    id: 6,
-    username: 'olduser',
-    nickname: '老用户',
-    avatar:
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=olduser',
-    role: 'member',
-    status: 'offline'
-  },
-  {
-    id: 7,
-    username: 'silent',
-    nickname: '潜水员',
-    avatar:
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=silent',
-    role: 'member',
-    status: 'offline'
-  },
-  {
-    id: 8,
-    username: 'helper',
-    nickname: '热心助人',
-    avatar:
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=helper',
-    role: 'member',
-    status: 'online'
-  }
-]);
+const currentUserId = computed(
+  () => preferenceStore.preferences.user.id
+);
+const currentUserName = computed(
+  () =>
+    preferenceStore.preferences.user.name ||
+    preferenceStore.preferences.user.username ||
+    t('chat.currentUser.name')
+);
+const canManage = computed(
+  () => activeGroup.value?.canManage ?? false
+);
+const pinnedMessages = computed(() =>
+  messages.value.filter(message => message.isPinned)
+);
+const membersById = computed(
+  () => new Map(members.value.map(member => [member.id, member]))
+);
 
-// 模拟消息数据
-const messages = ref<ChatMessageType[]>([
-  {
-    id: 1,
-    content:
-      '欢迎来到 NekoTribe 开发者社区！这是我们的综合讨论频道。',
-    type: 'system',
-    author: {
-      id: 0,
-      username: 'system',
-      nickname: '系统',
-      avatar: ''
-    },
-    createdAt: '2024-12-15T08:00:00Z'
-  },
-  {
-    id: 2,
-    content:
-      '大家好！我是管理员，有任何问题都可以在这里提问哦~ 🐱',
-    type: 'text',
-    author: {
-      id: 1,
-      username: 'nekoadmin',
-      nickname: '猫猫管理员',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
-      role: 'owner'
-    },
-    createdAt: '2024-12-15T08:05:00Z',
-    isPinned: true,
-    reactions: [
-      { emoji: '👋', count: 5, reacted: true },
-      { emoji: '❤️', count: 3, reacted: false }
-    ]
-  },
-  {
-    id: 3,
-    content: '新人报到！请多多关照 😊',
-    type: 'text',
-    author: {
-      id: 5,
-      username: 'newbie',
-      nickname: '萌新一枚',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=newbie',
-      role: 'member'
-    },
-    createdAt: '2024-12-15T09:30:00Z',
-    reactions: [
-      { emoji: '👍', count: 8, reacted: false },
-      { emoji: '🎉', count: 4, reacted: true }
-    ]
-  },
-  {
-    id: 4,
-    content: '欢迎欢迎！有问题随时问',
-    type: 'text',
-    author: {
-      id: 2,
-      username: 'devcat',
-      nickname: '开发喵',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=devcat',
-      role: 'admin'
-    },
-    createdAt: '2024-12-15T09:32:00Z'
-  },
-  {
-    id: 5,
-    content:
-      '谢谢大家！我想问一下，这个项目是用什么技术栈开发的呀？',
-    type: 'text',
-    author: {
-      id: 5,
-      username: 'newbie',
-      nickname: '萌新一枚',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=newbie',
-      role: 'member'
-    },
-    createdAt: '2024-12-15T09:35:00Z'
-  },
-  {
-    id: 6,
-    content:
-      '我们用的是 Vue 3 + Nuxt 3 + TypeScript，UI 组件库是 shadcn-vue',
-    type: 'text',
-    author: {
-      id: 3,
-      username: 'coder123',
-      nickname: '代码小能手',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=coder123',
-      role: 'member'
-    },
-    createdAt: '2024-12-15T09:36:00Z',
-    replyTo: {
-      id: 5,
-      content:
-        '谢谢大家！我想问一下，这个项目是用什么技术栈开发的呀？',
-      author: {
-        nickname: '萌新一枚'
-      }
-    }
-  },
-  {
-    id: 7,
-    content:
-      '对的！而且我们还用了 Tailwind CSS 做样式，非常好用',
-    type: 'text',
-    author: {
-      id: 3,
-      username: 'coder123',
-      nickname: '代码小能手',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=coder123',
-      role: 'member'
-    },
-    createdAt: '2024-12-15T09:36:30Z'
-  },
-  {
-    id: 8,
-    content:
-      '哇，这个技术栈很现代化诶！我之前一直用 React，Vue 3 和 React 有什么区别吗？',
-    type: 'text',
-    author: {
-      id: 5,
-      username: 'newbie',
-      nickname: '萌新一枚',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=newbie',
-      role: 'member'
-    },
-    createdAt: '2024-12-15T09:40:00Z'
-  },
-  {
-    id: 9,
-    content:
-      '主要区别在于响应式系统的实现方式不同。Vue 3 使用 Proxy 实现响应式，而 React 需要手动调用 setState。Vue 的模板语法也更接近原生 HTML，上手会更快一些。',
-    type: 'text',
-    author: {
-      id: 2,
-      username: 'devcat',
-      nickname: '开发喵',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=devcat',
-      role: 'admin'
-    },
-    createdAt: '2024-12-15T09:42:00Z',
-    reactions: [
-      { emoji: '👍', count: 3, reacted: false },
-      { emoji: '🙏', count: 2, reacted: false }
-    ]
-  },
-  {
-    id: 10,
-    content: '我来分享一张我们新设计的界面截图~',
-    type: 'text',
-    author: {
-      id: 4,
-      username: 'designer',
-      nickname: '设计师小姐姐',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=designer',
-      role: 'member'
-    },
-    createdAt: '2024-12-15T10:00:00Z',
-    attachments: [
-      {
-        id: 1,
-        name: 'new-design.png',
-        url: 'https://picsum.photos/400/300',
-        type: 'image'
-      }
-    ]
-  },
-  {
-    id: 11,
-    content: '哇！好漂亮！配色很舒服',
-    type: 'text',
-    author: {
-      id: 8,
-      username: 'helper',
-      nickname: '热心助人',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=helper',
-      role: 'member'
-    },
-    createdAt: '2024-12-15T10:02:00Z',
-    reactions: [{ emoji: '😍', count: 5, reacted: true }]
-  },
-  {
-    id: 12,
-    content:
-      '今天下午 3 点有个线上分享会，大家记得参加哦！主题是《如何编写高质量的 TypeScript 代码》',
-    type: 'text',
-    author: {
-      id: 1,
-      username: 'nekoadmin',
-      nickname: '猫猫管理员',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
-      role: 'owner'
-    },
-    createdAt: '2024-12-16T08:00:00Z',
-    isPinned: true
-  },
-  {
-    id: 13,
-    content: '好的，准时参加！',
-    type: 'text',
-    author: {
-      id: 3,
-      username: 'coder123',
-      nickname: '代码小能手',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=coder123',
-      role: 'member'
-    },
-    createdAt: '2024-12-16T08:05:00Z'
-  },
-  {
-    id: 14,
-    content: '我也会来的！',
-    type: 'text',
-    author: {
-      id: 5,
-      username: 'newbie',
-      nickname: '萌新一枚',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=newbie',
-      role: 'member'
-    },
-    createdAt: '2024-12-16T08:06:00Z'
-  }
-]);
+let ws: WebSocket | null = null;
+let shouldReconnectWs = true;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
-// 置顶消息
-const pinnedMessages = computed(() => {
-  return messages.value.filter(m => m.isPinned);
-});
-
-// 选择频道
-const handleSelectChannel = (channel: Channel) => {
-  activeChannel.value = channel;
-  // 清除未读计数
-  const category = channelCategories.value.find(c =>
-    c.channels.some(ch => ch.id === channel.id)
+function allChannels(): Channel[] {
+  return channelCategories.value.flatMap(
+    category => category.channels
   );
-  if (category) {
-    const ch = category.channels.find(
-      c => c.id === channel.id
-    );
-    if (ch) {
-      ch.unreadCount = 0;
-    }
-  }
-};
+}
 
-// 发送消息
-const handleSendMessage = (
-  content: string,
-  attachments?: File[]
-) => {
-  const newMessage: ChatMessageType = {
-    id: messages.value.length + 1,
-    content,
-    type: 'text',
-    author: {
-      id: 1,
-      username: 'nekoadmin',
-      nickname: '猫猫管理员',
-      avatar:
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
-      role: 'owner'
-    },
-    createdAt: new Date().toISOString(),
-    attachments: attachments?.map((file, index) => ({
-      id: Date.now() + index,
-      name: file.name,
-      url: URL.createObjectURL(file),
-      type: file.type.startsWith('image/')
-        ? ('image' as const)
-        : ('file' as const),
-      size: file.size
-    }))
+function findCategoryName(categoryId: number): string {
+  return (
+    channelCategories.value.find(
+      category => category.id === categoryId
+    )?.name ?? '文字频道'
+  );
+}
+
+function sendWs(payload: Record<string, unknown>): void {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(payload));
+  }
+}
+
+function joinWsChannel(channelId: number): void {
+  sendWs({
+    type: 'chat_join_channel',
+    data: { channelId }
+  });
+}
+
+function leaveWsChannel(channelId: number): void {
+  sendWs({
+    type: 'chat_leave_channel',
+    data: { channelId }
+  });
+}
+
+function upsertMessage(message: ChatMessageType): void {
+  messages.value = replaceChatMessage(messages.value, message);
+}
+
+function updateChannelPreview(
+  rawMessage: V2ChatMessage,
+  isActiveChannel: boolean
+): void {
+  for (const category of channelCategories.value) {
+    const channel = category.channels.find(
+      item => item.id === rawMessage.channel_id
+    );
+    if (!channel) continue;
+
+    channel.lastMessage =
+      rawMessage.content ||
+      (rawMessage.media.length > 0
+        ? t('chat.message.attachmentPreview')
+        : '');
+    channel.lastMessageTime = rawMessage.created_at;
+    if (!isActiveChannel && !channel.isMuted) {
+      channel.unreadCount = (channel.unreadCount ?? 0) + 1;
+    }
+    break;
+  }
+}
+
+function handleWsMessage(event: MessageEvent<string>): void {
+  let payload: ChatWsEvent;
+  try {
+    payload = JSON.parse(event.data) as ChatWsEvent;
+  } catch {
+    return;
+  }
+
+  const channelId = payload.data?.channel_id;
+  const isActiveChannel =
+    channelId !== undefined &&
+    activeChannel.value?.id === channelId;
+
+  if (
+    [
+      'chat_message',
+      'chat_message_updated',
+      'chat_reaction_updated'
+    ].includes(payload.type) &&
+    payload.data?.message
+  ) {
+    const vm = mapV2ChatMessage(
+      payload.data.message,
+      membersById.value
+    );
+    if (isActiveChannel) {
+      upsertMessage(vm);
+    }
+    if (payload.type === 'chat_message') {
+      updateChannelPreview(payload.data.message, isActiveChannel);
+    }
+    return;
+  }
+
+  if (
+    payload.type === 'chat_message_deleted' &&
+    payload.data?.message_id
+  ) {
+    messages.value = messages.value.filter(
+      message => message.id !== payload.data?.message_id
+    );
+  }
+}
+
+function connectWs(): void {
+  if (!import.meta.client || ws) return;
+
+  const protocol =
+    window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${protocol}//${window.location.host}/_ws`);
+  ws.onopen = () => {
+    if (activeChannel.value) {
+      joinWsChannel(activeChannel.value.id);
+    }
   };
-  messages.value.push(newMessage);
-  toast.success(t('chat.feedback.sent'));
-};
+  ws.onmessage = handleWsMessage;
+  ws.onclose = () => {
+    ws = null;
+    if (!shouldReconnectWs) return;
+    reconnectTimer = setTimeout(connectWs, 3000);
+  };
+}
 
-// 添加表情反应
-const handleReact = (messageId: number, emoji: string) => {
-  const message = messages.value.find(
-    m => m.id === messageId
-  );
-  if (message) {
-    if (!message.reactions) {
-      message.reactions = [];
-    }
-    const existingReaction = message.reactions.find(
-      r => r.emoji === emoji
+async function loadMessages(
+  channelId: number,
+  reset = true,
+  q = searchQuery.value
+): Promise<void> {
+  if (isLoadingMessages.value) return;
+  isLoadingMessages.value = true;
+  try {
+    const page = reset ? 1 : messagePage.value + 1;
+    const result = await v2ListChatMessages(channelId, {
+      page,
+      page_size: 50,
+      q: q.trim() || undefined
+    });
+    const mapped = result.items.map(message =>
+      mapV2ChatMessage(message, membersById.value)
     );
-    if (existingReaction) {
-      if (existingReaction.reacted) {
-        existingReaction.count--;
-        existingReaction.reacted = false;
-        if (existingReaction.count === 0) {
-          message.reactions = message.reactions.filter(
-            r => r.emoji !== emoji
-          );
-        }
-      } else {
-        existingReaction.count++;
-        existingReaction.reacted = true;
-      }
-    } else {
-      message.reactions.push({
-        emoji,
-        count: 1,
-        reacted: true
-      });
+    messages.value = reset
+      ? mapped
+      : [...mapped, ...messages.value];
+    messagePage.value = page;
+    hasMoreMessages.value = result.meta?.has_next ?? false;
+  } catch {
+    toast.error(t('chat.feedback.loadMessagesFailed'));
+  } finally {
+    isLoadingMessages.value = false;
+  }
+}
+
+async function refreshChannels(
+  preferredChannelId?: number
+): Promise<void> {
+  if (!activeGroup.value) return;
+  const channels = await v2ListChatChannels(activeGroup.value.id);
+  channelCategories.value = buildChatChannelCategories(channels);
+
+  const availableChannels = allChannels().filter(
+    channel =>
+      channel.type === 'text' ||
+      channel.type === 'announcement'
+  );
+  const nextChannel =
+    availableChannels.find(
+      channel => channel.id === preferredChannelId
+    ) ??
+    availableChannels.find(
+      channel => channel.id === activeChannel.value?.id
+    ) ??
+    availableChannels[0] ??
+    null;
+
+  activeChannel.value = nextChannel;
+}
+
+async function loadGroup(group: ChatGroupVM): Promise<Channel | null> {
+  activeGroup.value = group;
+  const [memberItems] = await Promise.all([
+    v2ListChatMembers(group.id),
+    refreshChannels()
+  ]);
+  members.value = memberItems.map(mapV2ChatMember);
+
+  if (activeChannel.value) {
+    await loadMessages(activeChannel.value.id);
+  }
+  return activeChannel.value;
+}
+
+async function loadChat(): Promise<void> {
+  isLoading.value = true;
+  errorMessage.value = '';
+  try {
+    const result = await v2ListChatGroups({
+      page: 1,
+      page_size: 50
+    });
+    groups.value = result.items.map(mapV2ChatGroup);
+    const firstGroup = groups.value[0] ?? null;
+    if (firstGroup) {
+      await loadGroup(firstGroup);
+      connectWs();
     }
+  } catch {
+    errorMessage.value = t('chat.feedback.loadFailed');
+  } finally {
+    isLoading.value = false;
   }
-};
+}
 
-// 删除消息
-const handleDeleteMessage = (messageId: number) => {
-  const index = messages.value.findIndex(
-    m => m.id === messageId
+async function handleSelectChannel(
+  channel: Channel
+): Promise<void> {
+  if (activeChannel.value?.id === channel.id) return;
+  if (activeChannel.value) {
+    leaveWsChannel(activeChannel.value.id);
+  }
+  activeChannel.value = channel;
+  channel.unreadCount = 0;
+  searchQuery.value = '';
+  await loadMessages(channel.id);
+  joinWsChannel(channel.id);
+}
+
+async function handleSelectGroup(groupId: number): Promise<void> {
+  const group = groups.value.find(item => item.id === groupId);
+  if (!group || group.id === activeGroup.value?.id) return;
+
+  if (activeChannel.value) {
+    leaveWsChannel(activeChannel.value.id);
+  }
+  activeChannel.value = null;
+  messages.value = [];
+  searchQuery.value = '';
+  const nextChannel = await loadGroup(group);
+  if (nextChannel) {
+    joinWsChannel(nextChannel.id);
+  }
+}
+
+async function uploadAttachments(
+  files: File[] = []
+): Promise<number[]> {
+  const mediaIds: number[] = [];
+  for (const file of files) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('alt_text', file.name);
+    const media = await v2UploadMedia(formData);
+    mediaIds.push(media.media_id);
+  }
+  return mediaIds;
+}
+
+async function handleSendMessage(
+  content: string,
+  attachments?: File[],
+  replyToMessageId?: number
+): Promise<void> {
+  if (!activeChannel.value || isSending.value) return;
+  isSending.value = true;
+  try {
+    const mediaIds = await uploadAttachments(attachments);
+    const created = await v2CreateChatMessage(
+      activeChannel.value.id,
+      {
+        content,
+        media_ids: mediaIds,
+        reply_to_message_id: replyToMessageId ?? null
+      }
+    );
+    upsertMessage(
+      mapV2ChatMessage(created, membersById.value)
+    );
+    updateChannelPreview(created, true);
+    toast.success(t('chat.feedback.sent'));
+  } catch {
+    toast.error(t('chat.feedback.sendFailed'));
+  } finally {
+    isSending.value = false;
+  }
+}
+
+async function handleReact(
+  messageId: number,
+  emoji: string
+): Promise<void> {
+  const message = messages.value.find(item => item.id === messageId);
+  const reacted = message?.reactions?.some(
+    reaction => reaction.emoji === emoji && reaction.reacted
   );
-  if (index !== -1) {
-    messages.value.splice(index, 1);
+  try {
+    const updated = reacted
+      ? await v2DeleteChatReaction(messageId, { emoji })
+      : await v2CreateChatReaction(messageId, { emoji });
+    upsertMessage(
+      mapV2ChatMessage(updated, membersById.value)
+    );
+  } catch {
+    toast.error(t('chat.feedback.reactionFailed'));
+  }
+}
+
+async function handleDeleteMessage(
+  messageId: number
+): Promise<void> {
+  try {
+    await v2DeleteChatMessage(messageId);
+    messages.value = messages.value.filter(
+      message => message.id !== messageId
+    );
     toast.success(t('chat.feedback.deleted'));
+  } catch {
+    toast.error(t('chat.feedback.deleteFailed'));
   }
-};
+}
 
-// 置顶消息
-const handlePinMessage = (messageId: number) => {
-  const message = messages.value.find(
-    m => m.id === messageId
+async function handleEditMessage(
+  message: ChatMessageType
+): Promise<void> {
+  if (!import.meta.client) return;
+  const content = window
+    .prompt(t('chat.prompts.messageContent'), message.content)
+    ?.trim();
+  if (!content || content === message.content) return;
+
+  try {
+    const updated = await v2UpdateChatMessage(message.id, {
+      content
+    });
+    upsertMessage(
+      mapV2ChatMessage(updated, membersById.value)
+    );
+    toast.success(t('chat.feedback.messageUpdated'));
+  } catch {
+    toast.error(t('chat.feedback.updateMessageFailed'));
+  }
+}
+
+async function handlePinMessage(messageId: number): Promise<void> {
+  const current = messages.value.find(
+    message => message.id === messageId
   );
-  if (message) {
-    message.isPinned = !message.isPinned;
+  if (!current) return;
+
+  try {
+    const updated = await v2SetChatMessagePinStatus(messageId, {
+      is_pinned: !current.isPinned
+    });
+    upsertMessage(
+      mapV2ChatMessage(updated, membersById.value)
+    );
     toast.success(
-      message.isPinned
+      updated.is_pinned
         ? t('chat.feedback.pinned')
         : t('chat.feedback.unpinned')
     );
+  } catch {
+    toast.error(t('chat.feedback.pinFailed'));
   }
-};
+}
 
-// 创建频道
-const handleCreateChannel = (categoryId: number) => {
-  toast.info(t('chat.feedback.createChannelWip'));
-};
+async function handleCreateChannel(
+  categoryId: number
+): Promise<void> {
+  if (!activeGroup.value || !import.meta.client) return;
+  const name = window
+    .prompt(t('chat.prompts.channelName'))
+    ?.trim();
+  if (!name) return;
 
-// 切换频道静音
-const handleToggleMute = () => {
-  activeChannel.value.isMuted =
-    !activeChannel.value.isMuted;
-  toast.success(
-    activeChannel.value.isMuted
-      ? t('chat.feedback.channelMuted')
-      : t('chat.feedback.channelUnmuted')
-  );
-};
+  try {
+    const created = await v2CreateChatChannel(activeGroup.value.id, {
+      name,
+      type: 'text',
+      category: findCategoryName(categoryId)
+    });
+    await refreshChannels(created.channel_id);
+    if (activeChannel.value) {
+      await loadMessages(activeChannel.value.id);
+      joinWsChannel(activeChannel.value.id);
+    }
+    toast.success(t('chat.feedback.channelCreated'));
+  } catch {
+    toast.error(t('chat.feedback.createChannelFailed'));
+  }
+}
+
+async function handleEditChannel(
+  channel: Channel
+): Promise<void> {
+  if (!import.meta.client) return;
+  const name = window
+    .prompt(t('chat.prompts.channelName'), channel.name)
+    ?.trim();
+  if (!name || name === channel.name) return;
+
+  try {
+    const updated = await v2UpdateChatChannel(channel.id, {
+      name
+    });
+    await refreshChannels(updated.channel_id);
+    toast.success(t('chat.feedback.channelUpdated'));
+  } catch {
+    toast.error(t('chat.feedback.updateChannelFailed'));
+  }
+}
+
+async function handleDeleteChannel(
+  channelId: number
+): Promise<void> {
+  if (!import.meta.client) return;
+  if (!window.confirm(t('chat.prompts.deleteChannel'))) return;
+
+  try {
+    await v2DeleteChatChannel(channelId);
+    if (activeChannel.value?.id === channelId) {
+      leaveWsChannel(channelId);
+      messages.value = [];
+      activeChannel.value = null;
+    }
+    await refreshChannels();
+    if (activeChannel.value) {
+      await loadMessages(activeChannel.value.id);
+      joinWsChannel(activeChannel.value.id);
+    }
+    toast.success(t('chat.feedback.channelDeleted'));
+  } catch {
+    toast.error(t('chat.feedback.deleteChannelFailed'));
+  }
+}
+
+async function handleToggleChannelMute(
+  channelId?: number
+): Promise<void> {
+  const targetId = channelId ?? activeChannel.value?.id;
+  if (!targetId) return;
+  const channel = allChannels().find(item => item.id === targetId);
+  if (!channel) return;
+
+  try {
+    const nextMuted = !channel.isMuted;
+    await v2SetChatChannelMuteStatus(targetId, nextMuted);
+    channel.isMuted = nextMuted;
+    if (activeChannel.value?.id === targetId) {
+      activeChannel.value.isMuted = nextMuted;
+    }
+    toast.success(
+      nextMuted
+        ? t('chat.feedback.channelMuted')
+        : t('chat.feedback.channelUnmuted')
+    );
+  } catch {
+    toast.error(t('chat.feedback.muteFailed'));
+  }
+}
+
+function handleSearch(query: string): void {
+  searchQuery.value = query;
+  if (!activeChannel.value) return;
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    if (activeChannel.value) {
+      void loadMessages(activeChannel.value.id, true, query);
+    }
+  }, 300);
+}
+
+function handleLoadMore(): void {
+  if (!activeChannel.value || !hasMoreMessages.value) return;
+  void loadMessages(activeChannel.value.id, false);
+}
+
+onMounted(() => {
+  void loadChat();
+});
+
+onBeforeUnmount(() => {
+  shouldReconnectWs = false;
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  if (searchTimer) clearTimeout(searchTimer);
+  if (activeChannel.value) {
+    leaveWsChannel(activeChannel.value.id);
+  }
+  ws?.close();
+});
 </script>
 
 <template>
-  <div class="flex h-full w-full">
-    <!-- 频道列表 -->
+  <div class="flex h-full min-h-0 w-full overflow-hidden">
     <div
-      class="w-60 flex-shrink-0 border-r hidden md:block bg-muted/20"
+      class="hidden h-full min-h-0 w-60 flex-shrink-0 overflow-hidden border-r bg-muted/20 md:block"
     >
       <ChatChannelList
         :categories="channelCategories"
-        :active-channel-id="activeChannel.id"
-        :group-name="groupInfo.name"
-        :group-avatar="groupInfo.avatar"
-        :can-manage="true"
+        :active-channel-id="activeChannel?.id"
+        :group-name="activeGroup?.name"
+        :group-avatar="activeGroup?.avatar"
+        :groups="groups"
+        :active-group-id="activeGroup?.id"
+        :can-manage="canManage"
+        :current-user-name="currentUserName"
+        @select-group="handleSelectGroup"
         @select="handleSelectChannel"
         @create-channel="handleCreateChannel"
+        @edit-channel="handleEditChannel"
+        @delete-channel="handleDeleteChannel"
+        @toggle-mute="handleToggleChannelMute"
       />
     </div>
 
-    <!-- 聊天室 -->
-    <div class="flex-1 min-w-0 h-full">
+    <div class="h-full min-h-0 flex-1 min-w-0 overflow-hidden">
+      <div
+        v-if="isLoading"
+        class="h-full flex items-center justify-center text-muted-foreground"
+      >
+        {{ t('common.loading') }}
+      </div>
+      <div
+        v-else-if="errorMessage"
+        class="h-full flex flex-col items-center justify-center gap-3 text-muted-foreground"
+      >
+        <p>{{ errorMessage }}</p>
+        <button
+          class="text-sm text-primary hover:underline"
+          @click="loadChat"
+        >
+          {{ t('common.refresh') }}
+        </button>
+      </div>
+      <div
+        v-else-if="!activeGroup"
+        class="h-full flex items-center justify-center text-muted-foreground"
+      >
+        {{ t('chat.empty.noGroups') }}
+      </div>
+      <div
+        v-else-if="!activeChannel"
+        class="h-full flex items-center justify-center text-muted-foreground"
+      >
+        {{ t('chat.empty.noChannels') }}
+      </div>
       <ChatRoom
+        v-else
         :channel="activeChannel"
         :messages="messages"
         :members="members"
         :pinned-messages="pinnedMessages"
-        :can-manage="true"
+        :can-manage="canManage"
+        :is-loading="isLoadingMessages"
+        :is-sending="isSending"
+        :current-user-id="currentUserId"
         @send="handleSendMessage"
+        @load-more="handleLoadMore"
         @react="handleReact"
+        @edit="handleEditMessage"
         @delete="handleDeleteMessage"
         @pin="handlePinMessage"
-        @toggle-mute="handleToggleMute"
+        @toggle-mute="() => handleToggleChannelMute()"
+        @search="handleSearch"
       />
     </div>
   </div>

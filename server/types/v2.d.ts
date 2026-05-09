@@ -65,6 +65,8 @@ interface V2SelfUser extends V2PublicUser {
   updated_at: string;
 }
 
+type V2GroupRole = 'owner' | 'admin' | 'moderator' | 'member';
+
 interface V2AuthOtpPayload {
   account: string;
   type: 'register' | 'password_reset' | 'change_email';
@@ -581,4 +583,129 @@ interface V2GroupAuditLog {
   details: V2Json | null;
   ip_address: string | null;
   created_at: string;
+}
+
+type V2ChatChannelType =
+  | 'text'
+  | 'announcement'
+  | 'voice'
+  | 'video';
+
+interface V2ChatGroup {
+  group_id: number;
+  name: string;
+  avatar_url: string | null;
+  member_count: number;
+  channel_count: number;
+  unread_count: number;
+  membership: V2GroupMembership & {
+    can_manage: boolean;
+  };
+}
+
+interface V2ChatChannelLastMessage {
+  message_id: number;
+  content: string;
+  author_name: string;
+  created_at: string;
+}
+
+interface V2ChatChannel {
+  channel_id: number;
+  group_id: number;
+  name: string;
+  type: V2ChatChannelType;
+  category: string;
+  position: number;
+  is_private: boolean;
+  is_muted_by_me: boolean;
+  unread_count: number;
+  last_message: V2ChatChannelLastMessage | null;
+  created_at: string;
+  updated_at: string;
+  can_manage: boolean;
+}
+
+interface V2ChatMember {
+  user_id: number;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  role: V2GroupRole;
+  status: string;
+  online_status: 'online' | 'offline';
+}
+
+interface V2ChatReactionSummary {
+  emoji: string;
+  count: number;
+  reacted_by_me: boolean;
+}
+
+interface V2ChatMessageReply {
+  message_id: number;
+  content: string;
+  author_name: string;
+}
+
+interface V2ChatMessage {
+  message_id: number;
+  channel_id: number;
+  group_id: number;
+  message_type: 'text' | 'system';
+  content: string;
+  author: V2PublicUser;
+  reply_to: V2ChatMessageReply | null;
+  media: V2MediaAsset[];
+  reactions: V2ChatReactionSummary[];
+  is_pinned: boolean;
+  is_deleted: boolean;
+  can_delete: boolean;
+  can_pin: boolean;
+  created_at: string;
+  updated_at: string;
+  edited_at: string | null;
+  deleted_at: string | null;
+}
+
+interface V2CreateChatChannelPayload {
+  name: string;
+  type?: V2ChatChannelType;
+  category?: string;
+  is_private?: boolean;
+}
+
+interface V2UpdateChatChannelPayload {
+  name?: string;
+  category?: string;
+  is_private?: boolean;
+}
+
+interface V2CreateChatMessagePayload {
+  content?: string;
+  reply_to_message_id?: number | null;
+  media_ids?: number[];
+}
+
+interface V2UpdateChatMessagePayload {
+  content: string;
+}
+
+interface V2ChatReactionPayload {
+  emoji: string;
+}
+
+interface V2ChatMessagePinPayload {
+  is_pinned: boolean;
+}
+
+interface V2ChatReadStatusData {
+  channel_id: number;
+  last_read_message_id: number | null;
+  unread_count: number;
+}
+
+interface V2ChatChannelMuteData {
+  channel_id: number;
+  is_muted: boolean;
 }

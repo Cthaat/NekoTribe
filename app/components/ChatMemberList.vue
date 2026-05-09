@@ -46,7 +46,7 @@ export interface ChatMember {
   username: string;
   nickname: string;
   avatar: string;
-  role: 'owner' | 'admin' | 'member';
+  role: 'owner' | 'admin' | 'moderator' | 'member';
   status: 'online' | 'idle' | 'dnd' | 'offline';
   statusText?: string;
   isInVoice?: boolean;
@@ -138,6 +138,7 @@ const getRoleIcon = (role: ChatMember['role']) => {
     case 'owner':
       return Crown;
     case 'admin':
+    case 'moderator':
       return Shield;
     default:
       return null;
@@ -151,6 +152,8 @@ const getRoleColor = (role: ChatMember['role']) => {
       return 'text-amber-500';
     case 'admin':
       return 'text-blue-500';
+    case 'moderator':
+      return 'text-emerald-500';
     default:
       return '';
   }
@@ -159,10 +162,10 @@ const getRoleColor = (role: ChatMember['role']) => {
 
 <template>
   <div
-    class="flex flex-col h-full bg-muted/30 border-l w-60"
+    class="flex h-full min-h-0 w-60 shrink-0 flex-col overflow-hidden border-l bg-muted/30"
   >
     <!-- 搜索框 -->
-    <div class="p-3 border-b">
+    <div class="shrink-0 border-b p-3">
       <div class="relative">
         <Search
           class="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
@@ -176,7 +179,7 @@ const getRoleColor = (role: ChatMember['role']) => {
     </div>
 
     <!-- 成员列表 -->
-    <div class="flex-1 overflow-y-auto py-2">
+    <div class="min-h-0 flex-1 overflow-y-auto py-2">
       <!-- 在线成员 -->
       <Collapsible
         v-model:open="isOnlineExpanded"
@@ -273,7 +276,9 @@ const getRoleColor = (role: ChatMember['role']) => {
                     <template
                       v-if="
                         canManage &&
-                        member.role === 'member'
+                        !['owner', 'admin'].includes(
+                          member.role
+                        )
                       "
                     >
                       <DropdownMenuSeparator />
@@ -381,7 +386,9 @@ const getRoleColor = (role: ChatMember['role']) => {
                     <template
                       v-if="
                         canManage &&
-                        member.role === 'member'
+                        !['owner', 'admin'].includes(
+                          member.role
+                        )
                       "
                     >
                       <DropdownMenuSeparator />

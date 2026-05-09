@@ -53,10 +53,17 @@ const props = defineProps<{
   pinnedMessages?: ChatMessageType[];
   canManage?: boolean;
   isLoading?: boolean;
+  isSending?: boolean;
+  currentUserId?: number;
 }>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string, attachments?: File[]): void;
+  (
+    e: 'send',
+    content: string,
+    attachments?: File[],
+    replyToMessageId?: number
+  ): void;
   (e: 'load-more'): void;
   (e: 'react', messageId: number, emoji: string): void;
   (e: 'reply', message: ChatMessageType): void;
@@ -109,8 +116,10 @@ const shouldShowAvatar = (index: number) => {
 
 // 是否是自己的消息
 const isOwnMessage = (message: ChatMessageType) => {
-  // 这里假设当前用户 ID 为 1
-  return message.author.id === 1;
+  return (
+    props.currentUserId !== undefined &&
+    message.author.id === props.currentUserId
+  );
 };
 
 // 滚动到底部
@@ -148,7 +157,8 @@ const handleSend = (
   content: string,
   attachments?: File[]
 ) => {
-  emit('send', content, attachments);
+  emit('send', content, attachments, replyTo.value?.id);
+  replyTo.value = null;
   scrollToBottom();
 };
 
@@ -189,9 +199,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex h-full">
+  <div class="flex h-full min-h-0 overflow-hidden">
     <!-- 主聊天区域 -->
-    <div class="flex-1 flex flex-col min-w-0">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden min-w-0">
       <!-- 频道头部 -->
       <div
         class="h-12 border-b flex items-center justify-between px-4 bg-background flex-shrink-0"
@@ -408,7 +418,7 @@ onMounted(() => {
       <!-- 消息区域 -->
       <div
         ref="messagesContainerRef"
-        class="flex-1 overflow-y-auto relative"
+        class="relative min-h-0 flex-1 overflow-y-auto"
         @scroll="handleScroll"
       >
         <!-- 加载中 -->
@@ -480,6 +490,7 @@ onMounted(() => {
       <ChatInput
         :channel-name="channel.name"
         :reply-to="replyTo"
+        :disabled="isSending"
         @send="handleSend"
         @cancel-reply="cancelReply"
       />

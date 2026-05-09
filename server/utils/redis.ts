@@ -209,6 +209,7 @@ export const REDIS_CHANNELS = {
   BROADCAST: 'ws:broadcast', // 全局广播频道 - 向所有连接的用户发送消息
   USER_MESSAGE: 'ws:user:', // 用户私信频道前缀 (完整格式: ws:user:{userId})
   ROOM_MESSAGE: 'ws:room:', // 房间消息频道前缀 (完整格式: ws:room:{roomId})
+  CHAT_CHANNEL: 'ws:chat:channel:', // 群组聊天频道前缀 (完整格式: ws:chat:channel:{channelId})
   SYSTEM_NOTIFICATION: 'ws:system' // 系统通知频道 - 系统级别的通知消息
 } as const;
 
@@ -227,11 +228,18 @@ export interface WSMessage {
     | 'broadcast'
     | 'user_message'
     | 'room_message'
+    | 'chat_message'
+    | 'chat_message_deleted'
+    | 'chat_message_updated'
+    | 'chat_reaction_updated'
+    | 'chat_channel_updated'
+    | 'pong'
+    | 'error'
     | 'system_notification'; // 消息类型
   from?: string; // 发送者标识（可选）
   to?: string; // 接收者标识（可选，用于私信）
   room?: string; // 房间标识（可选，用于房间消息）
-  data: any; // 消息数据，可以是任何类型
+  data: unknown; // 消息数据
   timestamp: number; // 时间戳，用于消息排序和过期处理
 }
 

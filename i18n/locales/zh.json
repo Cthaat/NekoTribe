@@ -286,6 +286,7 @@
     "member": {
       "roles": {
         "admin": "管理员",
+        "moderator": "协管员",
         "member": "成员"
       },
       "joinedAt": "{date} 加入",
@@ -430,6 +431,7 @@
     "message": {
       "pinned": "已置顶",
       "edited": "（已编辑）",
+      "attachmentPreview": "[附件]",
       "pinnedMessages": "置顶消息",
       "noPinnedMessages": "暂无置顶消息",
       "emptyTitle": "欢迎来到 #{channel}！",
@@ -466,15 +468,38 @@
       "editMessage": "编辑消息",
       "deleteMessage": "删除消息"
     },
+    "empty": {
+      "noGroups": "你还没有加入任何群组",
+      "noChannels": "当前群组还没有可访问的文字频道"
+    },
+    "prompts": {
+      "channelName": "请输入频道名称",
+      "messageContent": "编辑消息内容",
+      "deleteChannel": "确认删除该频道？频道消息会保留在数据库中但不再展示。"
+    },
     "feedback": {
       "copied": "已复制到剪贴板",
       "sent": "消息已发送",
+      "sendFailed": "消息发送失败",
+      "loadFailed": "聊天加载失败",
+      "loadMessagesFailed": "消息加载失败",
       "deleted": "消息已删除",
+      "deleteFailed": "消息删除失败",
+      "messageUpdated": "消息已更新",
+      "updateMessageFailed": "消息更新失败",
       "pinned": "消息已置顶",
       "unpinned": "已取消置顶",
-      "createChannelWip": "创建频道功能开发中...",
+      "pinFailed": "置顶状态更新失败",
+      "reactionFailed": "表情反应更新失败",
+      "channelCreated": "频道已创建",
+      "createChannelFailed": "频道创建失败",
+      "channelUpdated": "频道已更新",
+      "updateChannelFailed": "频道更新失败",
+      "channelDeleted": "频道已删除",
+      "deleteChannelFailed": "频道删除失败",
       "channelMuted": "已静音该频道",
-      "channelUnmuted": "已取消静音"
+      "channelUnmuted": "已取消静音",
+      "muteFailed": "频道静音状态更新失败"
     },
     "mention": {
       "searchFailed": "搜索提及失败:",
