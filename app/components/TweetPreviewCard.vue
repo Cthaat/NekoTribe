@@ -21,7 +21,7 @@ const truncatedContent = computed(() => {
 </script>
 
 <template>
-  <div class="mt-2 p-3 border border-gray-700 rounded-lg">
+  <div class="mt-2 rounded-lg border bg-background/60 p-3">
     <div class="flex items-center text-sm mb-1">
       <Avatar class="h-5 w-5 mr-2">
         <AvatarImage
@@ -32,14 +32,14 @@ const truncatedContent = computed(() => {
           tweet.author.username.substring(0, 1)
         }}</AvatarFallback>
       </Avatar>
-      <span class="font-bold text-gray-200">{{
+      <span class="font-bold">{{
         tweet.author.name
       }}</span>
-      <span class="ml-1 text-gray-500"
+      <span class="ml-1 text-muted-foreground"
         >@{{ tweet.author.username }}</span
       >
     </div>
-    <p class="text-gray-400 text-sm leading-snug">
+    <p class="text-muted-foreground text-sm leading-snug">
       {{ truncatedContent }}
     </p>
   </div>

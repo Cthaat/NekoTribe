@@ -128,8 +128,31 @@
       "mediaPreviewAlt": "媒体预览",
       "mediaLimitTitle": "媒体数量超出限制",
       "mediaLimitDescription": "你最多还能上传 {count} 个文件。",
+      "mediaTypeTitle": "文件类型不支持",
+      "mediaTypeDescription": "发布推文目前支持图片和视频。",
+      "removeMedia": "移除媒体",
+      "dropHint": "松开以上传图片或视频",
+      "altTextPlaceholder": "添加媒体说明（可选）",
       "replyPost": "回复推文",
-      "quotePost": "引用推文"
+      "quotePost": "引用推文",
+      "replyingTo": "正在回复",
+      "quoting": "正在引用",
+      "clearContext": "移除引用",
+      "addTag": "话题",
+      "tagLabel": "添加话题",
+      "tagPlaceholder": "输入话题名称",
+      "duplicateTag": "这个话题已经添加过了",
+      "tagLimitTitle": "话题数量已达上限",
+      "tagLimitDescription": "最多添加 {count} 个话题。",
+      "addLocation": "位置",
+      "locationLabel": "添加位置",
+      "locationPlaceholder": "城市、地点或活动",
+      "visibility": {
+        "public": "公开",
+        "followers": "关注者",
+        "mentioned": "提及的人",
+        "private": "仅自己"
+      }
     },
     "composePage": {
       "title": "发布推文",

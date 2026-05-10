@@ -128,8 +128,31 @@
       "mediaPreviewAlt": "Media preview",
       "mediaLimitTitle": "Media limit exceeded",
       "mediaLimitDescription": "You can upload {count} more files.",
+      "mediaTypeTitle": "Unsupported file type",
+      "mediaTypeDescription": "Post media currently supports images and videos.",
+      "removeMedia": "Remove media",
+      "dropHint": "Drop to upload images or videos",
+      "altTextPlaceholder": "Add media description (optional)",
       "replyPost": "Reply to post",
-      "quotePost": "Quote post"
+      "quotePost": "Quote post",
+      "replyingTo": "Replying to",
+      "quoting": "Quoting",
+      "clearContext": "Remove context",
+      "addTag": "Topic",
+      "tagLabel": "Add topic",
+      "tagPlaceholder": "Enter topic name",
+      "duplicateTag": "This topic is already added",
+      "tagLimitTitle": "Topic limit reached",
+      "tagLimitDescription": "You can add up to {count} topics.",
+      "addLocation": "Location",
+      "locationLabel": "Add location",
+      "locationPlaceholder": "City, place, or event",
+      "visibility": {
+        "public": "Public",
+        "followers": "Followers",
+        "mentioned": "Mentioned",
+        "private": "Only me"
+      }
     },
     "composePage": {
       "title": "Create Post",

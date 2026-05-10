@@ -10,6 +10,7 @@ import {
 } from '@/services';
 import { toast } from 'vue-sonner';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -91,14 +92,16 @@ async function handleTweetSubmit(
   try {
     const mediaIds: number[] = [];
     const fileEntries = formData.getAll('file');
-    const altText = String(formData.get('altText') || '');
 
-    for (const entry of fileEntries) {
+    for (const [index, entry] of fileEntries.entries()) {
       if (!(entry instanceof File)) {
         continue;
       }
       const mediaFormData = new FormData();
       mediaFormData.append('file', entry);
+      const altText = String(
+        formData.get(`altText:${index}`) || ''
+      );
       if (altText) {
         mediaFormData.append('alt_text', altText);
       }
@@ -175,19 +178,20 @@ async function handleTweetSubmit(
         <TweetComposer
           @open-quote-dialog="isQuoteDialogOpen = true"
           @open-reply-dialog="isReplyDialogOpen = true"
+          @clear-quote="tweetToQuote = undefined"
+          @clear-reply="tweetToReply = undefined"
           @submit="handleTweetSubmit"
           :quote-to="tweetToQuote"
           :reply-to="tweetToReply"
+          :is-submitting="isSubmitting"
         />
       </div>
       <!-- TODO: 未来可以把Dialog单独抽取为一个组件 -->
       <!-- “引用推文” Dialog -->
       <Dialog v-model:open="isQuoteDialogOpen">
-        <DialogContent
-          class="sm:max-w-lg bg-background border-gray-700"
-        >
+        <DialogContent class="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle class="text-white"
+            <DialogTitle
               >{{ t('post.composePage.quote.title') }}</DialogTitle
             >
             <DialogDescription
@@ -198,7 +202,7 @@ async function handleTweetSubmit(
           </DialogHeader>
 
           <!-- 【核心修改】根据数据状态显示不同的内容 -->
-          <div class="py-4 max-h-[60vh] overflow-y-auto">
+          <ScrollArea class="max-h-[60vh] py-4 pr-4">
             <!-- 1. 加载状态 -->
             <div
               v-if="isDialogLoading"
@@ -231,7 +235,7 @@ async function handleTweetSubmit(
               <div
                 v-for="tweet in selectableTweets"
                 :key="tweet.id"
-                class="p-3 border border-gray-800 rounded-lg hover:bg-gray-800/50 cursor-pointer transition-colors"
+                class="cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent"
                 @click="handleSelectQuote(tweet)"
               >
                 <div class="flex items-center text-sm mb-2">
@@ -239,30 +243,28 @@ async function handleTweetSubmit(
                     :src="tweet.author.avatarUrl"
                     class="h-5 w-5 rounded-full mr-2"
                   />
-                  <span class="font-bold text-gray-200">{{
+                  <span class="font-bold">{{
                     tweet.author.name
                   }}</span>
-                  <span class="ml-1 text-gray-500"
+                  <span class="ml-1 text-muted-foreground"
                     >@{{ tweet.author.username }}</span
                   >
                 </div>
                 <p
-                  class="text-gray-400 text-sm leading-snug"
+                  class="text-muted-foreground text-sm leading-snug"
                 >
                   {{ tweet.content }}
                 </p>
               </div>
             </div>
-          </div>
+          </ScrollArea>
         </DialogContent>
       </Dialog>
 
       <Dialog v-model:open="isReplyDialogOpen">
-        <DialogContent
-          class="sm:max-w-lg bg-background border-gray-700"
-        >
+        <DialogContent class="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle class="text-white"
+            <DialogTitle
               >{{ t('post.composePage.reply.title') }}</DialogTitle
             >
             <DialogDescription
@@ -273,7 +275,7 @@ async function handleTweetSubmit(
           </DialogHeader>
 
           <!-- 【核心修改】根据数据状态显示不同的内容 -->
-          <div class="py-4 max-h-[60vh] overflow-y-auto">
+          <ScrollArea class="max-h-[60vh] py-4 pr-4">
             <!-- 1. 加载状态 -->
             <div
               v-if="isDialogLoading"
@@ -306,7 +308,7 @@ async function handleTweetSubmit(
               <div
                 v-for="tweet in selectableTweets"
                 :key="tweet.id"
-                class="p-3 border border-gray-800 rounded-lg hover:bg-gray-800/50 cursor-pointer transition-colors"
+                class="cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent"
                 @click="handleSelectReply(tweet)"
               >
                 <div class="flex items-center text-sm mb-2">
@@ -314,21 +316,21 @@ async function handleTweetSubmit(
                     :src="tweet.author.avatarUrl"
                     class="h-5 w-5 rounded-full mr-2"
                   />
-                  <span class="font-bold text-gray-200">{{
+                  <span class="font-bold">{{
                     tweet.author.name
                   }}</span>
-                  <span class="ml-1 text-gray-500"
+                  <span class="ml-1 text-muted-foreground"
                     >@{{ tweet.author.username }}</span
                   >
                 </div>
                 <p
-                  class="text-gray-400 text-sm leading-snug"
+                  class="text-muted-foreground text-sm leading-snug"
                 >
                   {{ tweet.content }}
                 </p>
               </div>
             </div>
-          </div>
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>
