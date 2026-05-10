@@ -8,6 +8,17 @@ import {
 import { toast } from 'vue-sonner';
 import ChatChannelList from '@/components/ChatChannelList.vue';
 import ChatRoom from '@/components/ChatRoom.vue';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import type {
   Channel,
   ChannelCategory
@@ -67,10 +78,14 @@ const messages = ref<ChatMessageType[]>([]);
 const isLoading = ref(true);
 const isLoadingMessages = ref(false);
 const isSending = ref(false);
+const isCreatingChannel = ref(false);
 const errorMessage = ref('');
 const messagePage = ref(1);
 const hasMoreMessages = ref(false);
 const searchQuery = ref('');
+const createChannelDialogOpen = ref(false);
+const createChannelCategoryId = ref<number | null>(null);
+const createChannelName = ref('');
 
 const currentUserId = computed(
   () => preferenceStore.preferences.user.id
@@ -89,6 +104,16 @@ const pinnedMessages = computed(() =>
 );
 const membersById = computed(
   () => new Map(members.value.map(member => [member.id, member]))
+);
+const createChannelCategoryName = computed(() =>
+  createChannelCategoryId.value === null
+    ? '文字频道'
+    : findCategoryName(createChannelCategoryId.value)
+);
+const canSubmitCreateChannel = computed(
+  () =>
+    createChannelName.value.trim().length > 0 &&
+    !isCreatingChannel.value
 );
 
 let ws: WebSocket | null = null;
@@ -461,17 +486,22 @@ async function handlePinMessage(messageId: number): Promise<void> {
   }
 }
 
-async function handleCreateChannel(
-  categoryId: number
-): Promise<void> {
-  if (!activeGroup.value || !import.meta.client) return;
-  const name = window
-    .prompt(t('chat.prompts.channelName'))
-    ?.trim();
-  if (!name) return;
+function handleCreateChannel(categoryId: number): void {
+  if (!activeGroup.value) return;
+  createChannelCategoryId.value = categoryId;
+  createChannelName.value = '';
+  createChannelDialogOpen.value = true;
+}
 
+async function submitCreateChannel(): Promise<void> {
+  const group = activeGroup.value;
+  const categoryId = createChannelCategoryId.value;
+  const name = createChannelName.value.trim();
+  if (!group || categoryId === null || !name) return;
+
+  isCreatingChannel.value = true;
   try {
-    const created = await v2CreateChatChannel(activeGroup.value.id, {
+    const created = await v2CreateChatChannel(group.id, {
       name,
       type: 'text',
       category: findCategoryName(categoryId)
@@ -481,9 +511,12 @@ async function handleCreateChannel(
       await loadMessages(activeChannel.value.id);
       joinWsChannel(activeChannel.value.id);
     }
+    createChannelDialogOpen.value = false;
     toast.success(t('chat.feedback.channelCreated'));
   } catch {
     toast.error(t('chat.feedback.createChannelFailed'));
+  } finally {
+    isCreatingChannel.value = false;
   }
 }
 
@@ -609,6 +642,63 @@ onBeforeUnmount(() => {
         @toggle-mute="handleToggleChannelMute"
       />
     </div>
+
+    <Dialog v-model:open="createChannelDialogOpen">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {{ t('chat.dialogs.createChannel.title') }}
+          </DialogTitle>
+          <DialogDescription>
+            {{
+              t('chat.dialogs.createChannel.description', {
+                category: createChannelCategoryName
+              })
+            }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          class="space-y-4"
+          @submit.prevent="submitCreateChannel"
+        >
+          <div class="space-y-2">
+            <Label for="create-channel-name">
+              {{ t('chat.dialogs.createChannel.nameLabel') }}
+            </Label>
+            <Input
+              id="create-channel-name"
+              v-model="createChannelName"
+              :placeholder="t('chat.prompts.channelName')"
+              :disabled="isCreatingChannel"
+              maxlength="64"
+              autocomplete="off"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              :disabled="isCreatingChannel"
+              @click="createChannelDialogOpen = false"
+            >
+              {{ t('common.cancel') }}
+            </Button>
+            <Button
+              type="submit"
+              :disabled="!canSubmitCreateChannel"
+            >
+              {{
+                isCreatingChannel
+                  ? t('common.processing')
+                  : t('common.create')
+              }}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
 
     <div class="h-full min-h-0 flex-1 min-w-0 overflow-hidden">
       <div

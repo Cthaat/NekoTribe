@@ -477,6 +477,13 @@
       "messageContent": "Edit message content",
       "deleteChannel": "Delete this channel? Messages stay in the database but will no longer be shown."
     },
+    "dialogs": {
+      "createChannel": {
+        "title": "Create channel",
+        "description": "Category: {category}",
+        "nameLabel": "Channel name"
+      }
+    },
     "feedback": {
       "copied": "Copied to clipboard",
       "sent": "Message sent",

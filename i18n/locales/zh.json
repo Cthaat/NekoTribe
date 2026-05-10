@@ -477,6 +477,13 @@
       "messageContent": "编辑消息内容",
       "deleteChannel": "确认删除该频道？频道消息会保留在数据库中但不再展示。"
     },
+    "dialogs": {
+      "createChannel": {
+        "title": "创建频道",
+        "description": "频道分类：{category}",
+        "nameLabel": "频道名称"
+      }
+    },
     "feedback": {
       "copied": "已复制到剪贴板",
       "sent": "消息已发送",
