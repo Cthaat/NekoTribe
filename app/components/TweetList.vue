@@ -2,10 +2,15 @@
 import TweetCard from '@/components/TweetCard.vue';
 import type { PostVM } from '@/types/posts';
 
-// 接收父组件传来的数据
-const props = defineProps<{
-  tweets: PostVM[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    tweets: PostVM[];
+    showRelationContext?: boolean;
+  }>(),
+  {
+    showRelationContext: true
+  }
+);
 
 const emit = defineEmits([
   'delete-tweet',
@@ -56,6 +61,7 @@ function handleBookmarkTweet(
         @bookmark-tweet="handleBookmarkTweet"
         :key="tweet.id"
         :tweet="tweet"
+        :show-relation-context="showRelationContext"
       />
     </div>
   </div>

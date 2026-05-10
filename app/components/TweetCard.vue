@@ -67,9 +67,15 @@ const emit = defineEmits([
 const currentUserId =
   preferenceStore.preferences.user.id;
 
-const props = defineProps<{
-  tweet: PostVM;
-}>();
+const props = withDefaults(
+  defineProps<{
+    tweet: PostVM;
+    showRelationContext?: boolean;
+  }>(),
+  {
+    showRelationContext: true
+  }
+);
 
 // 计算属性，判断这条推文是否属于当前登录用户
 const isOwnTweet = computed(
@@ -204,6 +210,8 @@ const relatedTweetKind = computed<RelatedTweetKind | null>(() => {
 });
 
 const relatedTweetId = computed(() => {
+  if (!props.showRelationContext) return null;
+
   if (relatedTweetKind.value === 'reply') {
     return props.tweet.replyToPostId;
   }

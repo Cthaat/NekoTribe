@@ -415,6 +415,7 @@ const pending = computed(
         <TweetList
           v-else-if="replyPosts.length > 0"
           :tweets="replyPosts"
+          :show-relation-context="false"
           @delete-tweet="handleDeleteTweet"
           @reply-tweet="handleReplyTweet"
           @retweet-tweet="handleRetweetTweet"
