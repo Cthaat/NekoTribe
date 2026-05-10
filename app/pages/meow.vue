@@ -47,6 +47,13 @@ function handleSelectReply(tweet: PreviewPostVM) {
   isReplyDialogOpen.value = false;
 }
 
+function previewPostId(
+  tweet: PreviewPostVM | undefined
+): number | null {
+  const id = tweet?.id;
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
 async function loadSelectableTweets(): Promise<void> {
   isDialogLoading.value = true;
   dialogError.value = null;
@@ -109,12 +116,22 @@ async function handleTweetSubmit(
       mediaIds.push(media.media_id);
     }
 
+    const replyToPostId =
+      submitForm.replyToPostId ?? previewPostId(tweetToReply.value);
+    const quotedPostId =
+      submitForm.quotedPostId ?? previewPostId(tweetToQuote.value);
+
     await v2CreatePost({
       ...submitForm,
+      replyToPostId,
+      repostOfPostId: null,
+      quotedPostId,
       mediaIds
     });
 
     toast.success(t('post.composePage.publishSuccess'));
+    tweetToReply.value = undefined;
+    tweetToQuote.value = undefined;
 
     // 跳转到推文页
     await navigateTo(localePath('/'));
