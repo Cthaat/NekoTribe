@@ -10,6 +10,7 @@ import {
   Bell,
   BellOff,
   Copy,
+  ArrowLeft,
   Link,
   Search,
   UserPlus
@@ -37,6 +38,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import AppSendButton from '@/components/app/AppSendButton.vue';
 import type {
   Channel,
   ChannelCategory
@@ -133,6 +135,8 @@ const groupSettingsOpen = ref(false);
 const groupSettingsModel = ref<Group | null>(null);
 const directConversationId = ref<number | null>(null);
 const directMessageTargetId = ref<number | null>(null);
+const directMessageStandaloneTarget = ref<ChatMember | null>(null);
+const directMessageContent = ref('');
 const directMessages = ref<V2DirectMessage[]>([]);
 const isLoadingDirectMessages = ref(false);
 const isSendingDirectMessage = ref(false);
@@ -148,6 +152,9 @@ const currentUserName = computed(
 );
 const canManage = computed(
   () => activeGroup.value?.canManage ?? false
+);
+const isDirectMessageStandalone = computed(
+  () => directMessageStandaloneTarget.value !== null
 );
 const chatChannels = computed(() => allChannels());
 const existingMemberIds = computed(
@@ -908,6 +915,35 @@ async function handleOpenDirectMessage(
   }
 }
 
+async function handleOpenDirectMessageStandalone(
+  member: ChatMember
+): Promise<void> {
+  await handleOpenDirectMessage(member);
+  directMessageContent.value = '';
+  directMessageStandaloneTarget.value = member;
+}
+
+function closeDirectMessageStandalone(): void {
+  directMessageStandaloneTarget.value = null;
+}
+
+function handleSendDirectMessageKeydown(
+  event: KeyboardEvent
+): void {
+  if (event.key !== 'Enter' || event.shiftKey) return;
+  event.preventDefault();
+  void submitStandaloneDirectMessage();
+}
+
+async function submitStandaloneDirectMessage(): Promise<void> {
+  const target = directMessageStandaloneTarget.value;
+  const content = directMessageContent.value.trim();
+  if (!target || !content) return;
+
+  await handleSendDirectMessage(target.id, content);
+  directMessageContent.value = '';
+}
+
 async function handleSendDirectMessage(
   targetUserId: number,
   content: string
@@ -960,6 +996,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex h-full min-h-0 w-full overflow-hidden">
     <div
+      v-if="!isDirectMessageStandalone"
       class="hidden h-full min-h-0 w-60 flex-shrink-0 overflow-hidden border-r bg-muted/20 md:block"
     >
       <ChatChannelList
@@ -1372,37 +1409,149 @@ onBeforeUnmount(() => {
       >
         {{ t('chat.empty.noGroups') }}
       </div>
-      <div
-        v-else-if="!activeChannel"
-        class="h-full flex items-center justify-center text-muted-foreground"
-      >
-        {{ t('chat.empty.noChannels') }}
-      </div>
-      <ChatRoom
-        v-else
-        :channel="activeChannel"
-        :messages="messages"
-        :members="members"
-        :pinned-messages="pinnedMessages"
-        :can-manage="canManage"
-        :is-loading="isLoadingMessages"
-        :is-sending="isSending"
-        :current-user-id="currentUserId"
-        :direct-messages="directMessages"
-        :is-loading-direct-messages="isLoadingDirectMessages"
-        :is-sending-direct-message="isSendingDirectMessage"
-        :channels="chatChannels"
-        @send="handleSendMessage"
-        @load-more="handleLoadMore"
-        @react="handleReact"
-        @edit="handleEditMessage"
-        @delete="handleDeleteMessage"
-        @pin="handlePinMessage"
-        @toggle-mute="() => handleToggleChannelMute()"
-        @search="handleSearch"
-        @open-direct-message="handleOpenDirectMessage"
-        @send-direct-message="handleSendDirectMessage"
-      />
+      <template v-else>
+        <div
+          v-if="isDirectMessageStandalone && directMessageStandaloneTarget"
+          class="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <div class="flex items-center gap-3 border-b bg-background px-4 py-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full"
+              @click="closeDirectMessageStandalone"
+            >
+              <ArrowLeft class="h-4 w-4" />
+              <span class="sr-only">返回频道</span>
+            </Button>
+
+            <Avatar class="h-10 w-10 shrink-0 ring-1 ring-border">
+              <AvatarImage
+                :src="directMessageStandaloneTarget.avatar"
+                :alt="directMessageStandaloneTarget.nickname"
+              />
+              <AvatarFallback>
+                {{ directMessageStandaloneTarget.nickname.slice(0, 2) }}
+              </AvatarFallback>
+            </Avatar>
+
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-base font-semibold leading-6">
+                {{ directMessageStandaloneTarget.nickname }}
+              </div>
+              <div class="truncate text-sm text-muted-foreground">
+                @{{ directMessageStandaloneTarget.username }}
+              </div>
+            </div>
+
+            <span class="rounded-full border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+              {{ t('chat.directMessage.title') }}
+            </span>
+          </div>
+
+          <div class="relative min-h-0 flex-1">
+            <ScrollArea class="h-full">
+              <div class="min-h-full px-4 py-4">
+                <div
+                  v-if="isLoadingDirectMessages"
+                  class="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground"
+                >
+                  {{ t('chat.directMessage.loading') }}
+                </div>
+
+                <div
+                  v-else-if="!directMessages?.length"
+                  class="flex min-h-[40vh] flex-col items-center justify-center text-center text-muted-foreground"
+                >
+                  <div class="font-medium text-foreground">
+                    {{ t('chat.directMessage.emptyTitle') }}
+                  </div>
+                  <div class="mt-1 text-sm">
+                    {{ t('chat.directMessage.emptyDescription') }}
+                  </div>
+                </div>
+
+                <div v-else class="flex flex-col gap-3 pb-4">
+                  <div
+                    v-for="message in directMessages"
+                    :key="message.message_id"
+                    class="flex"
+                    :class="{ 'justify-end': message.author.user_id === currentUserId }"
+                  >
+                    <div class="max-w-[72%]">
+                      <div
+                        class="rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm"
+                        :class="message.author.user_id === currentUserId ? 'ml-auto bg-primary text-primary-foreground' : 'bg-card text-foreground border'"
+                      >
+                        <div class="whitespace-pre-wrap break-words">{{ message.content }}</div>
+                      </div>
+                      <div
+                        class="mt-1 px-1 text-[11px] text-muted-foreground"
+                        :class="message.author.user_id === currentUserId ? 'text-right' : 'text-left'"
+                      >
+                        {{ new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ScrollArea>
+          </div>
+
+          <div class="border-t bg-background p-3">
+            <div class="flex items-center gap-3 rounded-full border bg-card/80 px-3 py-2 shadow-sm">
+              <Input
+                v-model="directMessageContent"
+                :placeholder="t('chat.directMessage.placeholder', { user: directMessageStandaloneTarget.nickname })"
+                class="h-11 flex-1 border-0 bg-transparent px-1 py-0 leading-none shadow-none focus-visible:ring-0"
+                @keydown="handleSendDirectMessageKeydown"
+              />
+              <AppSendButton
+                :loading="isSendingDirectMessage"
+                :disabled="isLoadingDirectMessages || isSendingDirectMessage || !directMessageContent.trim()"
+                class="h-11 shrink-0 rounded-full px-4"
+                @click="submitDirectMessage"
+              >
+                {{ isSendingDirectMessage ? t('common.processing') : t('chat.actions.sendMessage') }}
+              </AppSendButton>
+            </div>
+          </div>
+        </div>
+
+        <ChatRoom
+          v-else-if="activeChannel"
+          :channel="activeChannel"
+          :messages="messages"
+          :members="members"
+          :pinned-messages="pinnedMessages"
+          :can-manage="canManage"
+          :is-loading="isLoadingMessages"
+          :is-sending="isSending"
+          :current-user-id="currentUserId"
+          :direct-messages="directMessages"
+          :is-loading-direct-messages="isLoadingDirectMessages"
+          :is-sending-direct-message="isSendingDirectMessage"
+          :channels="chatChannels"
+          @send="handleSendMessage"
+          @load-more="handleLoadMore"
+          @react="handleReact"
+          @edit="handleEditMessage"
+          @delete="handleDeleteMessage"
+          @pin="handlePinMessage"
+          @toggle-mute="() => handleToggleChannelMute()"
+          @search="handleSearch"
+          @open-direct-message="handleOpenDirectMessage"
+          @open-direct-message-standalone="handleOpenDirectMessageStandalone"
+          @send-direct-message="handleSendDirectMessage"
+        />
+
+        <div
+          v-else
+          class="h-full flex items-center justify-center text-muted-foreground"
+        >
+          {{ t('chat.empty.noChannels') }}
+        </div>
+      </template>
     </div>
   </div>
 </template>

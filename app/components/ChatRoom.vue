@@ -18,7 +18,8 @@ import {
   Video,
   PanelRightClose,
   PanelRightOpen,
-  ArrowDown
+  ArrowDown,
+  Maximize2
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,6 +96,7 @@ const emit = defineEmits<{
   (e: 'toggle-mute'): void;
   (e: 'search', query: string): void;
   (e: 'open-direct-message', member: ChatMember): void;
+  (e: 'open-direct-message-standalone', member: ChatMember): void;
   (
     e: 'send-direct-message',
     targetUserId: number,
@@ -188,6 +190,18 @@ const openDirectMessage = (member: ChatMember) => {
   directMessageContent.value = '';
   directMessageOpen.value = true;
   emit('open-direct-message', member);
+};
+
+const openDirectMessageStandalone = () => {
+  if (!directMessageTarget.value) return;
+  emit('open-direct-message-standalone', directMessageTarget.value);
+};
+
+const handleDirectMessageKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    submitDirectMessage();
+  }
 };
 
 const submitDirectMessage = () => {
@@ -661,7 +675,7 @@ onBeforeUnmount(() => {
     <Sheet v-model:open="directMessageOpen">
       <SheetContent side="right" class="flex w-full flex-col p-0 sm:w-96">
         <div class="border-b px-5 py-4">
-          <div class="flex items-start gap-3 pr-8">
+          <div class="flex items-start gap-3 pr-16">
             <Avatar class="h-11 w-11 shrink-0 ring-1 ring-border">
               <AvatarImage
                 v-if="directMessageTarget"
@@ -673,16 +687,32 @@ onBeforeUnmount(() => {
               </AvatarFallback>
             </Avatar>
             <div class="min-w-0 flex-1">
-              <div class="truncate text-base font-semibold leading-6" v-if="directMessageTarget">
+              <div
+                v-if="directMessageTarget"
+                class="truncate text-base font-semibold leading-6"
+              >
                 {{ directMessageTarget.nickname }}
               </div>
-              <div class="truncate text-sm text-muted-foreground" v-if="directMessageTarget">
+              <div
+                v-if="directMessageTarget"
+                class="truncate text-sm text-muted-foreground"
+              >
                 @{{ directMessageTarget.username }}
               </div>
               <div class="mt-1 text-xs text-muted-foreground">
                 {{ t('chat.directMessage.title') }}
               </div>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="ml-auto mt-0.5 h-9 w-9 rounded-full"
+              :disabled="!directMessageTarget"
+              @click="openDirectMessageStandalone"
+            >
+              <Maximize2 class="h-4 w-4" />
+              <span class="sr-only">展开到主界面</span>
+            </Button>
           </div>
         </div>
 
@@ -729,16 +759,17 @@ onBeforeUnmount(() => {
           </ScrollArea>
 
           <div class="rounded-2xl border bg-card p-3 shadow-sm">
-            <div class="flex items-end gap-3">
-              <Textarea
+            <div class="flex items-center gap-3 rounded-full border bg-background/90 px-3 py-2">
+              <Input
                 v-model="directMessageContent"
                 :placeholder="t('chat.directMessage.placeholder', { user: directMessageTarget.nickname })"
-                class="min-h-12 flex-1 resize-none rounded-xl border-0 bg-transparent px-1 py-2 shadow-none focus-visible:ring-0"
+                class="h-11 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
+                @keydown="handleDirectMessageKeydown"
               />
               <AppSendButton
                 :loading="isSendingDirectMessage"
                 :disabled="isLoadingDirectMessages || isSendingDirectMessage || !directMessageContent.trim()"
-                class="h-11 shrink-0 rounded-xl px-4"
+                class="h-11 shrink-0 rounded-full px-4"
                 @click="submitDirectMessage"
               >
                 {{ isSendingDirectMessage ? t('common.processing') : t('chat.actions.sendMessage') }}
@@ -748,5 +779,6 @@ onBeforeUnmount(() => {
         </div>
       </SheetContent>
     </Sheet>
+
   </div>
 </template>
