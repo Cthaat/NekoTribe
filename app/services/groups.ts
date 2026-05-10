@@ -1,17 +1,29 @@
 import {
+  v2ApproveGroupMember,
+  v2ChangeGroupMemberRole,
   v2CreateGroup,
   v2CreateGroupInvite,
+  v2DeleteGroup,
+  v2GetGroupById,
   v2JoinGroup,
   v2LeaveGroup,
+  v2ListGroupInvites,
   v2ListGroupMembers,
   v2ListGroupPosts,
   v2ListGroups,
   v2ListMyGroups,
-  v2RespondGroupInvite
+  v2MuteGroupMember,
+  v2PatchGroup,
+  v2RemoveGroupMember,
+  v2RespondGroupInvite,
+  v2TransferGroupOwnership,
+  v2UnmuteGroupMember
 } from '@/api/v2/groups';
 import type {
+  V2CreateGroupInviteData,
   V2CreateGroupPayload,
   V2Group,
+  V2GroupInvite,
   V2GroupMember,
   V2GroupPost,
   V2GroupPrivacy,
@@ -28,7 +40,8 @@ import type {
   GroupMember,
   GroupOwner,
   GroupPost,
-  GroupStatsData
+  GroupStatsData,
+  UpdateGroupData
 } from '@/types/groups';
 import {
   normalizeAssetUrl,
@@ -83,19 +96,23 @@ export function mapV2GroupToGroup(group: V2Group): Group {
     coverImage:
       normalizeNullableAssetUrl(group.cover_url) || undefined,
     privacy: group.privacy,
+    joinApproval: group.join_approval,
+    postPermission: group.post_permission,
     memberCount: group.member_count,
     postCount: group.post_count,
     createdAt: group.created_at,
+    updatedAt: group.updated_at,
     owner: mapOwner(group.owner),
     isMember: group.membership.is_member,
     isOwner: role === 'owner',
     isAdmin: role ? elevatedRoles.includes(role) : false,
+    membershipRole: role,
     membershipStatus: group.membership.status,
     tags: []
   };
 }
 
-function mapV2MemberToGroupMember(
+export function mapV2MemberToGroupMember(
   member: V2GroupMember
 ): GroupMember {
   const displayName =
@@ -107,8 +124,10 @@ function mapV2MemberToGroupMember(
     nickname: displayName,
     avatar: normalizeAvatarUrl(member.user.avatar_url),
     role: member.role,
+    status: member.status,
     joinedAt: member.joined_at,
-    isMuted: member.status === 'muted'
+    isMuted: member.status === 'muted',
+    mutedUntil: member.mute_until ?? undefined
   };
 }
 
@@ -300,6 +319,33 @@ export async function createGroup(
   return mapV2GroupToGroup(await v2CreateGroup(payload));
 }
 
+export async function getGroup(groupId: number): Promise<Group> {
+  return mapV2GroupToGroup(await v2GetGroupById(groupId));
+}
+
+export async function updateGroup(
+  groupId: number,
+  data: UpdateGroupData
+): Promise<Group> {
+  return mapV2GroupToGroup(
+    await v2PatchGroup(groupId, {
+      name: data.name,
+      description: data.description,
+      avatar_url: data.avatar || null,
+      cover_url: data.coverImage || null,
+      privacy: data.privacy,
+      join_approval: data.joinApproval,
+      post_permission: data.postPermission
+    })
+  );
+}
+
+export async function deleteGroup(
+  groupId: number
+): Promise<void> {
+  await v2DeleteGroup(groupId);
+}
+
 export async function joinGroup(
   groupId: number
 ): Promise<string> {
@@ -341,13 +387,90 @@ export async function loadGroupDetail(
   };
 }
 
+export async function listGroupMembers(
+  groupId: number
+): Promise<GroupMember[]> {
+  const result = await v2ListGroupMembers(groupId, {
+    page: 1,
+    page_size: 100
+  });
+  return result.items.map(mapV2MemberToGroupMember);
+}
+
+export async function approveGroupMember(
+  groupId: number,
+  memberId: number,
+  approved: boolean
+): Promise<void> {
+  await v2ApproveGroupMember(groupId, memberId, approved);
+}
+
+export async function removeGroupMember(
+  groupId: number,
+  userId: number
+): Promise<void> {
+  await v2RemoveGroupMember(groupId, userId);
+}
+
+export async function changeGroupMemberRole(
+  groupId: number,
+  userId: number,
+  role: Exclude<V2GroupRole, 'owner'>
+): Promise<void> {
+  await v2ChangeGroupMemberRole(groupId, userId, role);
+}
+
+export async function muteGroupMember(
+  groupId: number,
+  userId: number,
+  durationHours: number,
+  reason: string | null = null
+): Promise<void> {
+  await v2MuteGroupMember(groupId, userId, {
+    duration_hours: durationHours,
+    reason
+  });
+}
+
+export async function unmuteGroupMember(
+  groupId: number,
+  userId: number
+): Promise<void> {
+  await v2UnmuteGroupMember(groupId, userId);
+}
+
+export async function transferGroupOwnership(
+  groupId: number,
+  newOwnerId: number
+): Promise<void> {
+  await v2TransferGroupOwnership(groupId, newOwnerId);
+}
+
+export async function listGroupInvites(
+  groupId: number
+): Promise<V2GroupInvite[]> {
+  const result = await v2ListGroupInvites(groupId, {
+    page: 1,
+    page_size: 20
+  });
+  return result.items;
+}
+
+export async function createGroupInviteData(
+  groupId: number,
+  maxUses: number,
+  expireHours: number
+): Promise<V2CreateGroupInviteData> {
+  return await v2CreateGroupInvite(groupId, {
+    max_uses: maxUses,
+    expire_hours: expireHours
+  });
+}
+
 export async function createGroupInvite(
   groupId: number
 ): Promise<string | null> {
-  const result = await v2CreateGroupInvite(groupId, {
-    max_uses: 100,
-    expire_hours: 168
-  });
+  const result = await createGroupInviteData(groupId, 100, 168);
   return result.invite_url;
 }
 

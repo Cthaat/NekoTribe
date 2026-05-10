@@ -1,4 +1,8 @@
-import type { V2GroupPrivacy, V2GroupRole } from './v2';
+import type {
+  V2GroupPostPermission,
+  V2GroupPrivacy,
+  V2GroupRole
+} from './v2';
 
 export type GroupPrivacy = V2GroupPrivacy;
 export type GroupRole = V2GroupRole;
@@ -17,13 +21,17 @@ export interface Group {
   avatar: string;
   coverImage?: string;
   privacy: GroupPrivacy;
+  joinApproval: boolean;
+  postPermission: V2GroupPostPermission;
   memberCount: number;
   postCount: number;
   createdAt: string;
+  updatedAt: string;
   owner: GroupOwner;
   isMember?: boolean;
   isOwner?: boolean;
   isAdmin?: boolean;
+  membershipRole?: GroupRole | null;
   membershipStatus?: string | null;
   category?: string;
   tags?: string[];
@@ -36,6 +44,7 @@ export interface GroupMember {
   nickname: string;
   avatar: string;
   role: GroupRole;
+  status: string;
   joinedAt: string;
   isMuted?: boolean;
   mutedUntil?: string;
@@ -85,6 +94,16 @@ export interface CreateGroupData {
   coverImage: string;
   privacy: GroupPrivacy;
   category: string;
+}
+
+export interface UpdateGroupData {
+  name: string;
+  description: string;
+  avatar: string;
+  coverImage: string;
+  privacy: GroupPrivacy;
+  joinApproval: boolean;
+  postPermission: V2GroupPostPermission;
 }
 
 export interface GroupInviteView {

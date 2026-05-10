@@ -488,7 +488,21 @@ export interface V2GroupMember {
   role_desc: string;
   status: string;
   nickname: string | null;
+  mute_until?: string | null;
   joined_at: string;
+}
+
+export interface V2GroupMemberStatusData {
+  member_id?: number;
+  user_id?: number;
+  status?: string;
+  role?: V2GroupRole;
+  mute_until?: string | null;
+}
+
+export interface V2TransferGroupOwnershipData {
+  group_id: number;
+  owner_id: number;
 }
 
 export interface V2GroupPost {
@@ -575,6 +589,7 @@ export interface V2InviteResponseData {
 }
 
 export interface V2PageQuery {
+  [key: string]: V2Primitive | undefined;
   page?: number;
   page_size?: number;
 }
@@ -611,6 +626,7 @@ export interface V2GroupListQuery extends V2PageQuery {
 }
 
 export interface V2PopularGroupsQuery {
+  [key: string]: V2Primitive | undefined;
   limit?: number;
 }
 
@@ -950,10 +966,15 @@ export type V2CreateGroupResponse = V2ApiResponse<V2Group>;
 export type V2GetGroupResponse = V2ApiResponse<V2Group>;
 export type V2PatchGroupRequest = V2UpdateGroupPayload;
 export type V2PatchGroupResponse = V2ApiResponse<V2Group>;
+export type V2DeleteGroupResponse = V2ApiResponse<null>;
 export type V2JoinGroupRequest = V2JoinGroupPayload;
 export type V2JoinGroupResponse =
   V2ApiResponse<V2JoinGroupData>;
 export type V2LeaveGroupResponse = V2ApiResponse<null>;
+export type V2GroupMemberStatusResponse =
+  V2ApiResponse<V2GroupMemberStatusData>;
+export type V2TransferGroupOwnershipResponse =
+  V2ApiResponse<V2TransferGroupOwnershipData>;
 export type V2ListGroupMembersRequest =
   V2GroupMemberListQuery;
 export type V2ListGroupMembersResponse = V2ApiResponse<

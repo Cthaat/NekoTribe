@@ -283,8 +283,85 @@
       "emptyPosts": "No posts yet",
       "emptyMembers": "No members yet"
     },
+    "manage": {
+      "title": "Manage {name}",
+      "description": "Update group details, member permissions, invite links, and danger actions.",
+      "save": "Save settings",
+      "saving": "Saving...",
+      "never": "None",
+      "defaultMuteReason": "Group moderation mute",
+      "memberSearch": "Search members",
+      "pendingTitle": "Pending members ({count})",
+      "emptyMembers": "No matching members",
+      "tabs": {
+        "settings": "Settings",
+        "members": "Members",
+        "invites": "Invites",
+        "danger": "Danger"
+      },
+      "fields": {
+        "name": "Group name",
+        "description": "Group description",
+        "avatar": "Avatar URL",
+        "cover": "Cover URL",
+        "privacy": "Group type",
+        "joinApproval": "Join approval",
+        "joinApprovalHint": "When enabled, new members need approval before joining.",
+        "postPermission": "Post permission"
+      },
+      "postPermission": {
+        "all": "All members",
+        "moderator_up": "Moderators and up",
+        "admin_only": "Admins only"
+      },
+      "status": {
+        "active": "Active",
+        "pending": "Pending",
+        "muted": "Muted",
+        "banned": "Banned",
+        "unknown": "Unknown"
+      },
+      "actions": {
+        "approve": "Approve",
+        "reject": "Reject",
+        "transferOwnership": "Transfer ownership",
+        "copyInvite": "Copy invite link"
+      },
+      "invites": {
+        "maxUses": "Max uses",
+        "expireHours": "Valid hours",
+        "create": "Create invite",
+        "expiresAt": "Expires: {date}",
+        "empty": "No invite links yet"
+      },
+      "danger": {
+        "title": "Disband group",
+        "description": "The group will be soft-deleted and members will no longer be able to access it. Only the owner can do this.",
+        "confirmLabel": "Type {name} to confirm",
+        "delete": "Disband group"
+      },
+      "validation": {
+        "nameRequired": "Please enter a group name",
+        "deleteConfirm": "Type the full group name to confirm"
+      },
+      "feedback": {
+        "updated": "Group settings saved",
+        "updateFailed": "Failed to save group settings",
+        "deleted": "Group disbanded",
+        "deleteFailed": "Failed to disband group",
+        "memberUpdated": "Member permissions updated",
+        "memberApproved": "Join request approved",
+        "memberRejected": "Join request rejected",
+        "memberFailed": "Member operation failed",
+        "ownershipTransferred": "Ownership transferred",
+        "inviteCreated": "Invite created and copied",
+        "loadMembersFailed": "Failed to load members",
+        "loadInvitesFailed": "Failed to load invites"
+      }
+    },
     "member": {
       "roles": {
+        "owner": "Owner",
         "admin": "Admin",
         "moderator": "Moderator",
         "member": "Member"

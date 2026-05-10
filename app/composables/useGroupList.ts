@@ -132,13 +132,9 @@ export function useGroupList(
     groupId: number,
     updater: (group: Group) => Group
   ): void {
-    const index = groups.value.findIndex(
-      group => group.id === groupId
+    groups.value = groups.value.map(group =>
+      group.id === groupId ? updater(group) : group
     );
-    if (index === -1) return;
-    const current = groups.value[index];
-    if (!current) return;
-    groups.value[index] = updater(current);
   }
 
   async function create(data: CreateGroupData): Promise<Group> {

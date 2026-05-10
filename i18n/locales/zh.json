@@ -283,8 +283,85 @@
       "emptyPosts": "暂无帖子",
       "emptyMembers": "暂无成员"
     },
+    "manage": {
+      "title": "管理 {name}",
+      "description": "更新群组资料、成员权限、邀请链接和危险操作。",
+      "save": "保存设置",
+      "saving": "保存中...",
+      "never": "无",
+      "defaultMuteReason": "群组管理禁言",
+      "memberSearch": "搜索成员",
+      "pendingTitle": "待审批成员 ({count})",
+      "emptyMembers": "没有匹配的成员",
+      "tabs": {
+        "settings": "设置",
+        "members": "成员",
+        "invites": "邀请",
+        "danger": "危险操作"
+      },
+      "fields": {
+        "name": "群组名称",
+        "description": "群组描述",
+        "avatar": "头像 URL",
+        "cover": "封面 URL",
+        "privacy": "群组类型",
+        "joinApproval": "加入审批",
+        "joinApprovalHint": "开启后，新成员需要管理员审批才能加入。",
+        "postPermission": "发帖权限"
+      },
+      "postPermission": {
+        "all": "所有成员",
+        "moderator_up": "协管员及以上",
+        "admin_only": "仅管理员"
+      },
+      "status": {
+        "active": "正常",
+        "pending": "待审批",
+        "muted": "禁言",
+        "banned": "封禁",
+        "unknown": "未知"
+      },
+      "actions": {
+        "approve": "通过",
+        "reject": "拒绝",
+        "transferOwnership": "转让群主",
+        "copyInvite": "复制邀请链接"
+      },
+      "invites": {
+        "maxUses": "最大使用次数",
+        "expireHours": "有效小时数",
+        "create": "创建邀请",
+        "expiresAt": "过期时间：{date}",
+        "empty": "暂无邀请链接"
+      },
+      "danger": {
+        "title": "解散群组",
+        "description": "解散后群组会被软删除，成员将无法继续访问该群组。此操作仅群主可执行。",
+        "confirmLabel": "输入 {name} 以确认",
+        "delete": "解散群组"
+      },
+      "validation": {
+        "nameRequired": "请输入群组名称",
+        "deleteConfirm": "请输入完整群组名称以确认解散"
+      },
+      "feedback": {
+        "updated": "群组设置已保存",
+        "updateFailed": "保存群组设置失败",
+        "deleted": "群组已解散",
+        "deleteFailed": "解散群组失败",
+        "memberUpdated": "成员权限已更新",
+        "memberApproved": "已通过加入申请",
+        "memberRejected": "已拒绝加入申请",
+        "memberFailed": "成员操作失败",
+        "ownershipTransferred": "群主已转让",
+        "inviteCreated": "邀请已创建并复制",
+        "loadMembersFailed": "加载成员失败",
+        "loadInvitesFailed": "加载邀请失败"
+      }
+    },
     "member": {
       "roles": {
+        "owner": "群主",
         "admin": "管理员",
         "moderator": "协管员",
         "member": "成员"
