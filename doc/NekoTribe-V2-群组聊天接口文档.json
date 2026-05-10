@@ -431,10 +431,7 @@
               },
               "example": {
                 "content": "今晚继续联调",
-                "reply_to_message_id": null,
-                "media_ids": [
-                  600001
-                ]
+                "reply_to_message_id": null
               }
             }
           }
@@ -1829,7 +1826,7 @@
       },
       "V2CreateChatMessagePayload": {
         "type": "object",
-        "description": "content 与 media_ids 至少需要提供其一。",
+        "description": "content 与 media_ids 至少需要提供其一。media_ids 必须来自当前用户先调用 POST /api/v2/media 上传或登记后返回的 ready 媒体。",
         "properties": {
           "content": {
             "type": "string",
@@ -1845,13 +1842,13 @@
           },
           "media_ids": {
             "type": "array",
-            "description": "附件媒体 ID，必须属于当前用户且状态为 ready",
+            "description": "附件媒体 ID，必须先调用 POST /api/v2/media 上传或登记媒体，并使用返回的、属于当前用户且状态为 ready 的 media_id",
             "items": {
               "type": "integer",
               "format": "int64"
             },
             "example": [
-              600001
+              123
             ]
           }
         }

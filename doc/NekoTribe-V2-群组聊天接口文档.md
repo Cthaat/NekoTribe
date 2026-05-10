@@ -482,8 +482,7 @@ Path：
 ```json
 {
   "content": "今晚继续联调",
-  "reply_to_message_id": null,
-  "media_ids": [600001]
+  "reply_to_message_id": null
 }
 ```
 
@@ -493,7 +492,17 @@ Path：
 | --- | --- | --- | --- |
 | `content` | string | 否 | 消息文本；当无附件时必填 |
 | `reply_to_message_id` | number / null | 否 | 回复目标消息 ID，必须属于同一频道 |
-| `media_ids` | number[] | 否 | 附件媒体 ID，必须属于当前用户且状态为 `ready` |
+| `media_ids` | number[] | 否 | 附件媒体 ID，必须先调用 `POST /api/v2/media` 上传或登记媒体，并使用返回的、属于当前用户且状态为 `ready` 的 `media_id` |
+
+附件消息示例：
+
+```json
+{
+  "content": "今晚继续联调",
+  "reply_to_message_id": null,
+  "media_ids": [123]
+}
+```
 
 成功响应：`data` 为 `V2ChatMessage`。
 
