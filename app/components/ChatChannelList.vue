@@ -84,6 +84,8 @@ const emit = defineEmits<{
   (e: 'delete-channel', channelId: number): void;
   (e: 'toggle-mute', channelId: number): void;
   (e: 'toggle-category', categoryId: number): void;
+  (e: 'invite-members'): void;
+  (e: 'notification-settings'): void;
   (e: 'settings'): void;
 }>();
 
@@ -186,7 +188,7 @@ const currentUserInitials = computed(() => {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </template>
-          <DropdownMenuItem>
+          <DropdownMenuItem @click="emit('invite-members')">
             <Users class="mr-2 h-4 w-4" />
             {{ t('chat.actions.inviteMembers') }}
           </DropdownMenuItem>
@@ -195,10 +197,10 @@ const currentUserInitials = computed(() => {
             @click="emit('settings')"
           >
             <Settings class="mr-2 h-4 w-4" />
-            {{ t('groups.actions.settings') }}
+            {{ t('chat.actions.chatSettings') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>
+          <DropdownMenuItem @click="emit('notification-settings')">
             <Bell class="mr-2 h-4 w-4" />
             {{ t('chat.actions.notificationSettings') }}
           </DropdownMenuItem>
