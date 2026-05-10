@@ -3,16 +3,16 @@
   "info": {
     "title": "NekoTribe API v2 群组聊天接口",
     "version": "2.0.0",
-    "description": "由 doc/NekoTribe-V2-群组聊天接口文档.md 转换而来。REST 接口基础路径为 /api/v2；消息写入、编辑、删除、置顶、反应变更通过 REST 完成；WebSocket 只负责频道订阅和事件推送。"
+    "description": "由 doc/NekoTribe-V2-群组聊天接口文档.md 转换而来。REST 接口路径已包含 /api/v2 前缀，便于 Apifox 直接导入；消息写入、编辑、删除、置顶、反应变更通过 REST 完成；WebSocket 只负责频道订阅和事件推送。"
   },
   "servers": [
     {
-      "url": "/api/v2",
-      "description": "当前站点 API v2"
+      "url": "http://localhost:3000",
+      "description": "本地开发 Nuxt 服务"
     },
     {
-      "url": "http://localhost:3000/api/v2",
-      "description": "本地开发 API v2"
+      "url": "https://api.nekotribe.com",
+      "description": "生产环境占位"
     }
   ],
   "tags": [
@@ -42,7 +42,7 @@
     }
   ],
   "paths": {
-    "/chat/groups": {
+    "/api/v2/chat/groups": {
       "get": {
         "tags": [
           "群组聊天"
@@ -105,7 +105,7 @@
         }
       }
     },
-    "/chat/groups/{id}/channels": {
+    "/api/v2/chat/groups/{id}/channels": {
       "get": {
         "tags": [
           "群组聊天"
@@ -215,7 +215,7 @@
         }
       }
     },
-    "/chat/channels/{channel_id}": {
+    "/api/v2/chat/channels/{channel_id}": {
       "patch": {
         "tags": [
           "群组聊天"
@@ -309,7 +309,7 @@
         }
       }
     },
-    "/chat/groups/{id}/members": {
+    "/api/v2/chat/groups/{id}/members": {
       "get": {
         "tags": [
           "群组聊天"
@@ -360,7 +360,7 @@
         }
       }
     },
-    "/chat/channels/{channel_id}/messages": {
+    "/api/v2/chat/channels/{channel_id}/messages": {
       "get": {
         "tags": [
           "频道消息"
@@ -465,7 +465,7 @@
         }
       }
     },
-    "/chat/messages/{message_id}": {
+    "/api/v2/chat/messages/{message_id}": {
       "patch": {
         "tags": [
           "频道消息"
@@ -557,7 +557,7 @@
         }
       }
     },
-    "/chat/messages/{message_id}/pin-status": {
+    "/api/v2/chat/messages/{message_id}/pin-status": {
       "put": {
         "tags": [
           "频道消息"
@@ -606,7 +606,7 @@
         }
       }
     },
-    "/chat/messages/{message_id}/reactions": {
+    "/api/v2/chat/messages/{message_id}/reactions": {
       "post": {
         "tags": [
           "频道消息"
@@ -702,7 +702,7 @@
         }
       }
     },
-    "/chat/channels/{channel_id}/read-status": {
+    "/api/v2/chat/channels/{channel_id}/read-status": {
       "put": {
         "tags": [
           "频道消息"
@@ -760,7 +760,7 @@
         }
       }
     },
-    "/chat/channels/{channel_id}/mute-status": {
+    "/api/v2/chat/channels/{channel_id}/mute-status": {
       "put": {
         "tags": [
           "频道消息"
