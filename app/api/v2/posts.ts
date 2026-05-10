@@ -134,6 +134,27 @@ export async function v2ListMyBookmarkedPosts(
   return toV2PagedResult(response);
 }
 
+export async function v2ListPostReplies(
+  postId: number,
+  query: V2ListPostsRequest = {}
+): Promise<V2PagedResult<V2Post>> {
+  const normalizedQuery = normalizePostQuery(query);
+  const response = await v2Request<
+    V2Post[],
+    undefined,
+    ReturnType<typeof normalizePostQuery>
+  >(`/api/v2/posts/${postId}/replies`, {
+    method: 'GET',
+    query: normalizedQuery
+  });
+  logPostListResponse(
+    'post-replies',
+    normalizedQuery,
+    response
+  );
+  return toV2PagedResult(response);
+}
+
 export async function v2GetPost(
   postId: number
 ): Promise<V2Post> {

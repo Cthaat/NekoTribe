@@ -35,6 +35,7 @@ const { t } = useAppLocale();
 // 消息类型定义
 export interface ChatMessageType {
   id: number;
+  channelId?: number;
   content: string;
   type: 'text' | 'image' | 'file' | 'system';
   author: {
@@ -42,7 +43,7 @@ export interface ChatMessageType {
     username: string;
     nickname: string;
     avatar: string;
-    role?: 'owner' | 'admin' | 'member';
+    role?: 'owner' | 'admin' | 'moderator' | 'member';
     isOnline?: boolean;
   };
   createdAt: string;
@@ -60,6 +61,8 @@ export interface ChatMessageType {
     count: number;
     reacted: boolean;
   }>;
+  canDelete?: boolean;
+  canPin?: boolean;
   attachments?: Array<{
     id: number;
     name: string;
@@ -92,6 +95,8 @@ const roleColor = computed(() => {
       return 'text-amber-500';
     case 'admin':
       return 'text-blue-500';
+    case 'moderator':
+      return 'text-emerald-500';
     default:
       return 'text-foreground';
   }
@@ -106,6 +111,11 @@ const roleBadge = computed(() => {
       return {
         label: t('groups.member.roles.admin'),
         variant: 'secondary' as const
+      };
+    case 'moderator':
+      return {
+        label: t('groups.member.roles.moderator'),
+        variant: 'outline' as const
       };
     default:
       return null;
@@ -273,9 +283,14 @@ const handleCopy = () => {
         >
           <div class="p-2 bg-background rounded">📄</div>
           <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium truncate">
+            <a
+              :href="attachment.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="block text-sm font-medium truncate hover:underline"
+            >
               {{ attachment.name }}
-            </div>
+            </a>
             <div class="text-xs text-muted-foreground">
               {{
                 attachment.size
@@ -386,6 +401,7 @@ const handleCopy = () => {
               {{ t('chat.actions.copyText') }}
             </DropdownMenuItem>
             <DropdownMenuItem
+              v-if="message.canPin"
               @click="emit('pin', message.id)"
             >
               <Pin class="mr-2 h-4 w-4" />
@@ -395,7 +411,9 @@ const handleCopy = () => {
                   : t('chat.actions.pinMessage')
               }}
             </DropdownMenuItem>
-            <DropdownMenuSeparator v-if="isOwn" />
+            <DropdownMenuSeparator
+              v-if="isOwn || message.canDelete"
+            />
             <DropdownMenuItem
               v-if="isOwn"
               @click="emit('edit', message)"
@@ -404,7 +422,7 @@ const handleCopy = () => {
               {{ t('chat.actions.editMessage') }}
             </DropdownMenuItem>
             <DropdownMenuItem
-              v-if="isOwn"
+              v-if="isOwn || message.canDelete"
               class="text-destructive focus:text-destructive"
               @click="emit('delete', message.id)"
             >

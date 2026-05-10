@@ -87,20 +87,55 @@ async function v2ReadCreatePostPayload(
     visibility: v2PostVisibility(
       v2String(body.visibility, 'public')
     ) as V2CreatePostPayload['visibility'],
-    media_ids: v2NumberArray(body.media_ids),
-    tag_names: v2StringArray(body.tag_names),
-    mention_user_ids: v2NumberArray(body.mention_user_ids),
+    media_ids: v2NumberArray(
+      v2BodyField(body, 'media_ids', 'mediaIds')
+    ),
+    tag_names: v2StringArray(
+      v2BodyField(body, 'tag_names', 'tagNames')
+    ),
+    mention_user_ids: v2NumberArray(
+      v2BodyField(
+        body,
+        'mention_user_ids',
+        'mentionUserIds'
+      )
+    ),
     reply_to_post_id: v2RequiredOptionalNumber(
-      body.reply_to_post_id
+      v2BodyField(
+        body,
+        'reply_to_post_id',
+        'replyToPostId'
+      )
     ),
     repost_of_post_id: v2RequiredOptionalNumber(
-      body.repost_of_post_id
+      v2BodyField(
+        body,
+        'repost_of_post_id',
+        'repostOfPostId'
+      )
     ),
     quoted_post_id: v2RequiredOptionalNumber(
-      body.quoted_post_id
+      v2BodyField(
+        body,
+        'quoted_post_id',
+        'quotedPostId'
+      )
     ),
     location: v2String(body.location)
   };
+}
+
+function v2BodyField(
+  body: Record<string, unknown>,
+  primaryKey: string,
+  fallbackKey: string
+): unknown {
+  return Object.prototype.hasOwnProperty.call(
+    body,
+    primaryKey
+  )
+    ? body[primaryKey]
+    : body[fallbackKey];
 }
 
 function v2RequiredOptionalNumber(

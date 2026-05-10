@@ -12,6 +12,7 @@ import type {
   V2GroupInviteListQuery,
   V2GroupListQuery,
   V2GroupMember,
+  V2GroupMemberStatusData,
   V2GroupMemberListQuery,
   V2GroupPost,
   V2GroupPostListQuery,
@@ -20,6 +21,7 @@ import type {
   V2PagedResult,
   V2PageQuery,
   V2PopularGroupsQuery,
+  V2TransferGroupOwnershipData,
   V2UpdateGroupPayload,
   V2InviteResponseData,
   V2InviteResponsePayload
@@ -105,6 +107,14 @@ export async function v2PatchGroup(
   });
 }
 
+export async function v2DeleteGroup(
+  groupId: number
+): Promise<void> {
+  await v2RequestData<null>(`/api/v2/groups/${groupId}`, {
+    method: 'DELETE'
+  });
+}
+
 export async function v2JoinGroup(
   groupId: number,
   payload: V2JoinGroupPayload = {}
@@ -142,6 +152,100 @@ export async function v2ListGroupMembers(
     query
   });
   return toV2PagedResult(response);
+}
+
+export async function v2ApproveGroupMember(
+  groupId: number,
+  memberId: number,
+  approved: boolean
+): Promise<V2GroupMemberStatusData> {
+  return await v2RequestData<
+    V2GroupMemberStatusData,
+    { approved: boolean }
+  >(
+    `/api/v2/groups/${groupId}/members/${memberId}/approval-status`,
+    {
+      method: 'PUT',
+      body: { approved }
+    }
+  );
+}
+
+export async function v2RemoveGroupMember(
+  groupId: number,
+  userId: number
+): Promise<void> {
+  await v2RequestData<null>(
+    `/api/v2/groups/${groupId}/members/${userId}`,
+    {
+      method: 'DELETE'
+    }
+  );
+}
+
+export async function v2ChangeGroupMemberRole(
+  groupId: number,
+  userId: number,
+  role: 'admin' | 'moderator' | 'member'
+): Promise<V2GroupMemberStatusData> {
+  return await v2RequestData<
+    V2GroupMemberStatusData,
+    { role: 'admin' | 'moderator' | 'member' }
+  >(
+    `/api/v2/groups/${groupId}/members/${userId}/role`,
+    {
+      method: 'PATCH',
+      body: { role }
+    }
+  );
+}
+
+export async function v2MuteGroupMember(
+  groupId: number,
+  userId: number,
+  payload: {
+    duration_hours: number;
+    reason?: string | null;
+  }
+): Promise<V2GroupMemberStatusData> {
+  return await v2RequestData<
+    V2GroupMemberStatusData,
+    {
+      duration_hours: number;
+      reason?: string | null;
+    }
+  >(
+    `/api/v2/groups/${groupId}/members/${userId}/mute-status`,
+    {
+      method: 'PUT',
+      body: payload
+    }
+  );
+}
+
+export async function v2UnmuteGroupMember(
+  groupId: number,
+  userId: number
+): Promise<V2GroupMemberStatusData> {
+  return await v2RequestData<V2GroupMemberStatusData>(
+    `/api/v2/groups/${groupId}/members/${userId}/mute-status`,
+    {
+      method: 'DELETE'
+    }
+  );
+}
+
+export async function v2TransferGroupOwnership(
+  groupId: number,
+  newOwnerId: number
+): Promise<V2TransferGroupOwnershipData> {
+  return await v2RequestData<
+    V2TransferGroupOwnershipData,
+    { new_owner_id: number }
+  >(`/api/v2/groups/${groupId}/ownership`, {
+    method: 'PUT',
+    body: { new_owner_id: newOwnerId }
+  });
 }
 
 export async function v2ListGroupPosts(

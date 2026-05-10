@@ -8,7 +8,8 @@ export type ManagedMediaType =
   | 'image'
   | 'gif'
   | 'video'
-  | 'audio';
+  | 'audio'
+  | 'file';
 
 export interface StorageCapabilities {
   multipartUpload: boolean;

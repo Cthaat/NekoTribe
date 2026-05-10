@@ -128,8 +128,32 @@
       "mediaPreviewAlt": "媒体预览",
       "mediaLimitTitle": "媒体数量超出限制",
       "mediaLimitDescription": "你最多还能上传 {count} 个文件。",
+      "mediaTypeTitle": "文件类型不支持",
+      "mediaTypeDescription": "发布推文目前支持图片和视频。",
+      "removeMedia": "移除媒体",
+      "dropHint": "松开以上传图片或视频",
+      "altTextPlaceholder": "添加媒体说明（可选）",
       "replyPost": "回复推文",
-      "quotePost": "引用推文"
+      "quotePost": "引用推文",
+      "addMention": "提及用户",
+      "replyingTo": "正在回复",
+      "quoting": "正在引用",
+      "clearContext": "移除引用",
+      "addTag": "话题",
+      "tagLabel": "添加话题",
+      "tagPlaceholder": "输入话题名称",
+      "duplicateTag": "这个话题已经添加过了",
+      "tagLimitTitle": "话题数量已达上限",
+      "tagLimitDescription": "最多添加 {count} 个话题。",
+      "addLocation": "位置",
+      "locationLabel": "添加位置",
+      "locationPlaceholder": "城市、地点或活动",
+      "visibility": {
+        "public": "公开",
+        "followers": "关注者",
+        "mentioned": "提及的人",
+        "private": "仅自己"
+      }
     },
     "composePage": {
       "title": "发布推文",
@@ -167,6 +191,27 @@
       "emptyContent": "（无内容）",
       "originalUnavailable": "原文不可用或已删除。",
       "tryOpenOriginal": "尝试打开原文"
+    },
+    "relation": {
+      "replyingTo": "回复",
+      "quoting": "引用",
+      "reposting": "转推自",
+      "viewOriginal": "查看原文",
+      "loadingOriginal": "正在加载原文...",
+      "loadFailed": "加载原文失败",
+      "unknownUser": "未知",
+      "unknownUserHandle": "{'@'}未知用户",
+      "emptyContent": "（无内容）",
+      "originalUnavailable": "原文不可用或已删除。",
+      "tryOpenOriginal": "尝试打开原文"
+    },
+    "replies": {
+      "title": "回复文章",
+      "total": "共 {count} 条回复",
+      "empty": "这篇文章还没有回复。",
+      "loadFailed": "加载回复文章失败",
+      "loadMore": "加载更多回复",
+      "loading": "正在加载..."
     },
     "media": {
       "thumbnailAlt": "推文媒体缩略图"
@@ -283,9 +328,87 @@
       "emptyPosts": "暂无帖子",
       "emptyMembers": "暂无成员"
     },
+    "manage": {
+      "title": "管理 {name}",
+      "description": "更新群组资料、成员权限、邀请链接和危险操作。",
+      "save": "保存设置",
+      "saving": "保存中...",
+      "never": "无",
+      "defaultMuteReason": "群组管理禁言",
+      "memberSearch": "搜索成员",
+      "pendingTitle": "待审批成员 ({count})",
+      "emptyMembers": "没有匹配的成员",
+      "tabs": {
+        "settings": "设置",
+        "members": "成员",
+        "invites": "邀请",
+        "danger": "危险操作"
+      },
+      "fields": {
+        "name": "群组名称",
+        "description": "群组描述",
+        "avatar": "头像 URL",
+        "cover": "封面 URL",
+        "privacy": "群组类型",
+        "joinApproval": "加入审批",
+        "joinApprovalHint": "开启后，新成员需要管理员审批才能加入。",
+        "postPermission": "发帖权限"
+      },
+      "postPermission": {
+        "all": "所有成员",
+        "moderator_up": "协管员及以上",
+        "admin_only": "仅管理员"
+      },
+      "status": {
+        "active": "正常",
+        "pending": "待审批",
+        "muted": "禁言",
+        "banned": "封禁",
+        "unknown": "未知"
+      },
+      "actions": {
+        "approve": "通过",
+        "reject": "拒绝",
+        "transferOwnership": "转让群主",
+        "copyInvite": "复制邀请链接"
+      },
+      "invites": {
+        "maxUses": "最大使用次数",
+        "expireHours": "有效小时数",
+        "create": "创建邀请",
+        "expiresAt": "过期时间：{date}",
+        "empty": "暂无邀请链接"
+      },
+      "danger": {
+        "title": "解散群组",
+        "description": "解散后群组会被软删除，成员将无法继续访问该群组。此操作仅群主可执行。",
+        "confirmLabel": "输入 {name} 以确认",
+        "delete": "解散群组"
+      },
+      "validation": {
+        "nameRequired": "请输入群组名称",
+        "deleteConfirm": "请输入完整群组名称以确认解散"
+      },
+      "feedback": {
+        "updated": "群组设置已保存",
+        "updateFailed": "保存群组设置失败",
+        "deleted": "群组已解散",
+        "deleteFailed": "解散群组失败",
+        "memberUpdated": "成员权限已更新",
+        "memberApproved": "已通过加入申请",
+        "memberRejected": "已拒绝加入申请",
+        "memberFailed": "成员操作失败",
+        "ownershipTransferred": "群主已转让",
+        "inviteCreated": "邀请已创建并复制",
+        "loadMembersFailed": "加载成员失败",
+        "loadInvitesFailed": "加载邀请失败"
+      }
+    },
     "member": {
       "roles": {
+        "owner": "群主",
         "admin": "管理员",
+        "moderator": "协管员",
         "member": "成员"
       },
       "joinedAt": "{date} 加入",
@@ -427,14 +550,76 @@
       "noOnline": "暂无在线成员",
       "noOffline": "暂无离线成员"
     },
+    "notifications": {
+      "title": "频道通知",
+      "muteLabel": "静音此频道",
+      "muteDescription": "开启后，此频道的新消息不会计入提醒。",
+      "groupTitle": "聊天通知设置",
+      "groupDescription": "管理 {group} 中每个频道的通知状态。",
+      "noChannels": "当前群组还没有可设置的频道。",
+      "channelMuted": "已静音，新消息不会计入提醒。",
+      "channelUnmuted": "正常提醒，新消息会计入未读。"
+    },
+    "invite": {
+      "title": "邀请成员",
+      "description": "邀请用户加入 {group}，或创建可分享的邀请链接。",
+      "searchLabel": "搜索用户",
+      "searchPlaceholder": "输入用户名或昵称",
+      "searchHint": "选择用户会创建定向邀请；不选择用户则创建通用邀请链接。",
+      "searching": "正在搜索用户...",
+      "noResults": "没有找到可邀请的用户",
+      "emptySearch": "输入至少 2 个字符开始搜索。",
+      "selected": "已选择",
+      "clearSelection": "清除",
+      "linkTitle": "邀请链接",
+      "linkDescription": "未选择具体用户时，会创建一个可复制分享的邀请链接。",
+      "maxUses": "最大使用次数",
+      "expireHours": "有效小时数",
+      "messageLabel": "邀请留言",
+      "messagePlaceholder": "写一句邀请说明（可选）",
+      "createdTitle": "邀请已创建",
+      "targetedCreated": "定向邀请已发送给该用户。",
+      "sendInvite": "发送邀请",
+      "createLink": "创建邀请链接"
+    },
+    "calls": {
+      "voiceTitle": "语音通话",
+      "voiceDescription": "语音房间和实时通话信令尚未接入后端。",
+      "videoTitle": "视频通话",
+      "videoDescription": "视频房间和实时通话信令尚未接入后端。"
+    },
+    "directMessage": {
+      "title": "私聊",
+      "placeholder": "给 {user} 发送私信...",
+      "loading": "正在加载私聊记录...",
+      "emptyTitle": "还没有私聊记录",
+      "emptyDescription": "发送第一条私信开始对话。"
+    },
     "message": {
       "pinned": "已置顶",
       "edited": "（已编辑）",
+      "attachmentPreview": "[附件]",
       "pinnedMessages": "置顶消息",
       "noPinnedMessages": "暂无置顶消息",
       "emptyTitle": "欢迎来到 #{channel}！",
       "emptyDescription": "这是频道的开始，发送第一条消息吧！",
       "newMessages": "新消息"
+    },
+    "composer": {
+      "searchMembers": "搜索成员",
+      "noMembers": "没有匹配的成员",
+      "searchChannels": "搜索频道",
+      "noChannels": "没有匹配的频道",
+      "stickers": {
+        "gift": "礼物",
+        "party": "庆祝",
+        "sparkles": "闪亮",
+        "idea": "想法",
+        "rocket": "冲刺",
+        "tea": "休息",
+        "done": "完成",
+        "thanks": "感谢"
+      }
     },
     "actions": {
       "uploadAttachment": "上传附件",
@@ -448,6 +633,7 @@
       "ban": "封禁用户",
       "inviteMembers": "邀请成员",
       "notificationSettings": "通知设置",
+      "chatSettings": "聊天设置",
       "createChannel": "创建频道",
       "muteChannel": "静音频道",
       "unmuteChannel": "取消静音",
@@ -466,15 +652,57 @@
       "editMessage": "编辑消息",
       "deleteMessage": "删除消息"
     },
+    "empty": {
+      "noGroups": "你还没有加入任何群组",
+      "noChannels": "当前群组还没有可访问的文字频道"
+    },
+    "prompts": {
+      "channelName": "请输入频道名称",
+      "messageContent": "编辑消息内容",
+      "deleteChannel": "确认删除该频道？频道消息会保留在数据库中但不再展示。"
+    },
+    "dialogs": {
+      "createChannel": {
+        "title": "创建频道",
+        "description": "频道分类：{category}",
+        "nameLabel": "频道名称"
+      }
+    },
     "feedback": {
       "copied": "已复制到剪贴板",
       "sent": "消息已发送",
+      "sendFailed": "消息发送失败",
+      "loadFailed": "聊天加载失败",
+      "loadMessagesFailed": "消息加载失败",
       "deleted": "消息已删除",
+      "deleteFailed": "消息删除失败",
+      "messageUpdated": "消息已更新",
+      "updateMessageFailed": "消息更新失败",
       "pinned": "消息已置顶",
       "unpinned": "已取消置顶",
-      "createChannelWip": "创建频道功能开发中...",
+      "pinFailed": "置顶状态更新失败",
+      "reactionFailed": "表情反应更新失败",
+      "channelCreated": "频道已创建",
+      "createChannelFailed": "频道创建失败",
+      "channelUpdated": "频道已更新",
+      "updateChannelFailed": "频道更新失败",
+      "channelDeleted": "频道已删除",
+      "deleteChannelFailed": "频道删除失败",
       "channelMuted": "已静音该频道",
-      "channelUnmuted": "已取消静音"
+      "channelUnmuted": "已取消静音",
+      "muteFailed": "频道静音状态更新失败",
+      "voiceCallUnavailable": "语音通话后端尚未接入",
+      "videoCallUnavailable": "视频通话后端尚未接入",
+      "loadDirectMessagesFailed": "私聊记录加载失败",
+      "directMessageSent": "私信已发送",
+      "directMessageFailed": "私信发送失败",
+      "cannotMessageSelf": "不能给自己发送私信",
+      "searchUsersFailed": "搜索用户失败",
+      "inviteCreated": "邀请链接已创建并复制",
+      "memberInvited": "成员邀请已发送",
+      "inviteCopied": "邀请链接已复制",
+      "inviteFailed": "创建邀请失败",
+      "loadSettingsFailed": "聊天设置加载失败"
     },
     "mention": {
       "searchFailed": "搜索提及失败:",

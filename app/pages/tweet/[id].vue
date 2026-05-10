@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type {
   CommentVM,
   PostVM
@@ -13,13 +13,16 @@ import {
   v2LikeComment,
   v2LikePost,
   v2ListComments,
+  v2ListPostReplies,
   v2UnlikeComment,
   v2UnlikePost,
   v2UnbookmarkPost
 } from '@/services';
 import TweetCard from '@/components/TweetCard.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
+import TweetList from '@/components/TweetList.vue';
 import CommentSection from '@/components/CommentSection.vue';
+import { Button } from '@/components/ui/button';
 import { toast } from 'vue-sonner';
 import { useRoute } from 'vue-router';
 import { usePreferenceStore } from '~/stores/user';
@@ -29,12 +32,20 @@ const localePath = useLocalePath();
 const preferenceStore = usePreferenceStore();
 const { t } = useAppLocale();
 
+const currentPostId = computed(() => Number(route.params.id));
 const tweet = ref<PostVM | null>(null);
 const comments = ref<CommentVM[]>([]);
+const replyPosts = ref<PostVM[]>([]);
 const tweetPending = ref(false);
 const commentPending = ref(false);
+const repliesPending = ref(false);
 const tweetError = ref<string | null>(null);
 const commentError = ref<string | null>(null);
+const repliesError = ref<string | null>(null);
+const repliesPage = ref(1);
+const repliesPageSize = 10;
+const repliesTotal = ref(0);
+const repliesHasNext = ref(false);
 
 const isRetweetModalOpen = ref(false);
 const selectedTweetForRetweet = ref<PostVM | null>(null);
@@ -44,7 +55,7 @@ async function loadTweet() {
   tweetPending.value = true;
   tweetError.value = null;
   try {
-    tweet.value = await v2GetPost(Number(route.params.id));
+    tweet.value = await v2GetPost(currentPostId.value);
   } catch (error) {
     tweetError.value =
       error instanceof Error
@@ -60,7 +71,7 @@ async function loadComments() {
   commentError.value = null;
   try {
     const result = await v2ListComments(
-      Number(route.params.id),
+      currentPostId.value,
       {
         page: 1,
         pageSize: 100,
@@ -78,12 +89,97 @@ async function loadComments() {
   }
 }
 
-await Promise.all([loadTweet(), loadComments()]);
+async function loadReplyPosts(reset = true): Promise<void> {
+  if (reset) {
+    repliesPage.value = 1;
+    replyPosts.value = [];
+  }
+
+  repliesPending.value = true;
+  repliesError.value = null;
+
+  try {
+    const result = await v2ListPostReplies(currentPostId.value, {
+      page: repliesPage.value,
+      pageSize: repliesPageSize,
+      sort: 'oldest'
+    });
+    replyPosts.value = reset
+      ? result.items
+      : [...replyPosts.value, ...result.items];
+    repliesTotal.value = result.total;
+    repliesHasNext.value = result.hasNext;
+  } catch (error) {
+    repliesError.value =
+      error instanceof Error
+        ? error.message
+        : t('post.replies.loadFailed');
+    if (reset) replyPosts.value = [];
+    repliesTotal.value = reset ? 0 : repliesTotal.value;
+    repliesHasNext.value = false;
+  } finally {
+    repliesPending.value = false;
+  }
+}
+
+async function loadMoreReplyPosts(): Promise<void> {
+  if (repliesPending.value || !repliesHasNext.value) return;
+  repliesPage.value += 1;
+  await loadReplyPosts(false);
+}
+
+async function loadPageData(): Promise<void> {
+  await Promise.all([
+    loadTweet(),
+    loadComments(),
+    loadReplyPosts(true)
+  ]);
+}
+
+await loadPageData();
+
+watch(
+  () => route.params.id,
+  () => {
+    void loadPageData();
+  }
+);
+
+function patchTweetItem(
+  postId: number,
+  updater: (post: PostVM) => PostVM
+): void {
+  if (tweet.value?.id === postId) {
+    tweet.value = updater(tweet.value);
+  }
+
+  const replyIndex = replyPosts.value.findIndex(
+    item => item.id === postId
+  );
+  const reply = replyPosts.value[replyIndex];
+  if (replyIndex >= 0 && reply) {
+    replyPosts.value[replyIndex] = updater(reply);
+  }
+}
+
+function removeReplyPost(postId: number): void {
+  const originalCount = replyPosts.value.length;
+  replyPosts.value = replyPosts.value.filter(
+    item => item.id !== postId
+  );
+  if (replyPosts.value.length !== originalCount) {
+    repliesTotal.value = Math.max(repliesTotal.value - 1, 0);
+  }
+}
 
 async function handleDeleteTweet(tweetId: number) {
   try {
     await v2DeletePost(tweetId);
     toast.success(t('post.feedback.deleted'));
+    if (tweet.value?.id !== tweetId) {
+      removeReplyPost(tweetId);
+      return;
+    }
     const rootPath = localePath(
       `/tweet/home/${preferenceStore.preferences.user.id}`
     );
@@ -119,7 +215,7 @@ async function handleSubmitRetweet({
       visibility: 'public'
     });
     toast.success(t('post.feedback.retweeted'));
-    await loadTweet();
+    await Promise.all([loadTweet(), loadReplyPosts(true)]);
   } catch (error) {
     const message =
       error instanceof Error
@@ -141,19 +237,17 @@ async function handleLikeTweet(
       action === 'like'
         ? await v2LikePost(tweetItem.id)
         : await v2UnlikePost(tweetItem.id);
-    if (tweet.value && tweet.value.id === tweetItem.id) {
-      tweet.value = {
-        ...tweet.value,
-        viewer: {
-          ...tweet.value.viewer,
-          hasLiked: result.isLiked
-        },
-        counts: {
-          ...tweet.value.counts,
-          likes: result.likesCount
-        }
-      };
-    }
+    patchTweetItem(tweetItem.id, current => ({
+      ...current,
+      viewer: {
+        ...current.viewer,
+        hasLiked: result.isLiked
+      },
+      counts: {
+        ...current.counts,
+        likes: result.likesCount
+      }
+    }));
   } catch (error) {
     console.error('Failed to like/unlike tweet:', error);
   }
@@ -168,15 +262,13 @@ async function handleBookmarkTweet(
       action === 'mark'
         ? await v2BookmarkPost(tweetItem.id)
         : await v2UnbookmarkPost(tweetItem.id);
-    if (tweet.value && tweet.value.id === tweetItem.id) {
-      tweet.value = {
-        ...tweet.value,
-        viewer: {
-          ...tweet.value.viewer,
-          hasBookmarked: result.isBookmarked
-        }
-      };
-    }
+    patchTweetItem(tweetItem.id, current => ({
+      ...current,
+      viewer: {
+        ...current.viewer,
+        hasBookmarked: result.isBookmarked
+      }
+    }));
   } catch (error) {
     console.error(
       'Failed to bookmark/unbookmark tweet:',
@@ -286,6 +378,84 @@ const pending = computed(
         :is-submitting="isSubmittingRetweet"
         @submit-retweet="handleSubmitRetweet"
       />
+
+      <section class="mx-auto mt-6 max-w-2xl px-4 sm:px-0">
+        <div
+          class="mb-3 flex items-center justify-between gap-3"
+        >
+          <div>
+            <h2 class="text-lg font-semibold tracking-tight">
+              {{ t('post.replies.title') }}
+            </h2>
+            <p class="text-sm text-muted-foreground">
+              {{
+                t('post.replies.total', {
+                  count: repliesTotal
+                })
+              }}
+            </p>
+          </div>
+        </div>
+
+        <div
+          v-if="repliesPending && replyPosts.length === 0"
+          class="space-y-4"
+        >
+          <TweetCardSkeleton v-for="i in 2" :key="i" />
+        </div>
+
+        <div
+          v-else-if="repliesError && replyPosts.length === 0"
+          class="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive"
+        >
+          <p>{{ t('post.replies.loadFailed') }}</p>
+          <p class="mt-2 text-xs">{{ repliesError }}</p>
+        </div>
+
+        <TweetList
+          v-else-if="replyPosts.length > 0"
+          :tweets="replyPosts"
+          :show-relation-context="false"
+          @delete-tweet="handleDeleteTweet"
+          @reply-tweet="handleReplyTweet"
+          @retweet-tweet="handleRetweetTweet"
+          @like-tweet="handleLikeTweet"
+          @bookmark-tweet="handleBookmarkTweet"
+        />
+
+        <div
+          v-else
+          class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
+        >
+          {{ t('post.replies.empty') }}
+        </div>
+
+        <div
+          v-if="replyPosts.length > 0"
+          class="space-y-3 pt-2"
+        >
+          <p
+            v-if="repliesError"
+            class="text-center text-xs text-destructive"
+          >
+            {{ repliesError }}
+          </p>
+          <Button
+            v-if="repliesHasNext"
+            variant="outline"
+            class="mx-auto flex"
+            :disabled="repliesPending"
+            @click="loadMoreReplyPosts"
+          >
+            {{
+              repliesPending
+                ? t('post.replies.loading')
+                : t('post.replies.loadMore')
+            }}
+          </Button>
+        </div>
+      </section>
+
       <CommentSection
         :comments="comments"
         :post-id="tweet.id"

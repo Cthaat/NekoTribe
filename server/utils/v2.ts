@@ -113,7 +113,7 @@ export function v2Throw(
 ): never {
   throw createError({
     statusCode,
-    statusMessage: message,
+    message,
     data: {
       code,
       message,

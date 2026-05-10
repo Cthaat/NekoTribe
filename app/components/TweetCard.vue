@@ -43,6 +43,7 @@ import {
   BadgeCheck,
   BookmarkCheck,
   BookmarkPlus,
+  MessageSquareQuote,
   PlayCircle
 } from 'lucide-vue-next';
 import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
@@ -66,9 +67,15 @@ const emit = defineEmits([
 const currentUserId =
   preferenceStore.preferences.user.id;
 
-const props = defineProps<{
-  tweet: PostVM;
-}>();
+const props = withDefaults(
+  defineProps<{
+    tweet: PostVM;
+    showRelationContext?: boolean;
+  }>(),
+  {
+    showRelationContext: true
+  }
+);
 
 // 计算属性，判断这条推文是否属于当前登录用户
 const isOwnTweet = computed(
@@ -184,67 +191,114 @@ function openLightbox(index: number) {
   isLightboxOpen.value = true; // 打开灯箱
 }
 
-function toTweetDetail(tweetId: string) {
-  // 在这里实现导航到推文详情的逻辑
-  // 例如使用 Vue Router 的 push 方法
+function toTweetDetail(
+  tweetId: string,
+  selectedTweet: PostVM = props.tweet
+) {
   const detailPath = localePath(`/tweet/${tweetId}`);
-  tweetStore.setSelectedTweet(props.tweet);
+  tweetStore.setSelectedTweet(selectedTweet);
   navigateTo(detailPath);
 }
 
-// ------- 转推：原文信息懒加载（作者与摘要） -------
-const originalTweet = ref<PostVM | null>(null);
-const originalLoading = ref(false);
-const originalError = ref<string | null>(null);
+type RelatedTweetKind = 'reply' | 'quote' | 'repost';
 
-async function fetchOriginalTweet() {
-  if (
-    props.tweet.postType === 'repost' &&
-    props.tweet.repostOfPostId
-  ) {
-    originalLoading.value = true;
-    originalError.value = null;
-    try {
-      originalTweet.value = await v2GetPost(
-        props.tweet.repostOfPostId
-      );
-    } catch (e) {
-      originalError.value =
-        e instanceof Error
-          ? e.message
-          : t('post.repost.loadOriginalFailed');
-      originalTweet.value = null;
-    } finally {
-      originalLoading.value = false;
+const relatedTweetKind = computed<RelatedTweetKind | null>(() => {
+  if (props.tweet.replyToPostId) return 'reply';
+  if (props.tweet.quotedPostId) return 'quote';
+  if (props.tweet.repostOfPostId) return 'repost';
+  return null;
+});
+
+const relatedTweetId = computed(() => {
+  if (!props.showRelationContext) return null;
+
+  if (relatedTweetKind.value === 'reply') {
+    return props.tweet.replyToPostId;
+  }
+  if (relatedTweetKind.value === 'quote') {
+    return props.tweet.quotedPostId;
+  }
+  if (relatedTweetKind.value === 'repost') {
+    return props.tweet.repostOfPostId;
+  }
+  return null;
+});
+
+const relatedTweetIcon = computed(() => {
+  if (relatedTweetKind.value === 'reply') return MessageCircle;
+  if (relatedTweetKind.value === 'quote') {
+    return MessageSquareQuote;
+  }
+  return Repeat;
+});
+
+const relatedTweetLabel = computed(() => {
+  if (relatedTweetKind.value === 'reply') {
+    return t('post.relation.replyingTo');
+  }
+  if (relatedTweetKind.value === 'quote') {
+    return t('post.relation.quoting');
+  }
+  return t('post.relation.reposting');
+});
+
+const relatedTweet = ref<PostVM | null>(null);
+const relatedLoading = ref(false);
+const relatedError = ref<string | null>(null);
+
+async function fetchRelatedTweet() {
+  const postId = relatedTweetId.value;
+  if (!postId) {
+    relatedTweet.value = null;
+    relatedLoading.value = false;
+    relatedError.value = null;
+    return;
+  }
+
+  relatedLoading.value = true;
+  relatedError.value = null;
+  try {
+    const result = await v2GetPost(postId);
+    if (relatedTweetId.value === postId) {
+      relatedTweet.value = result;
     }
-  } else {
-    originalTweet.value = null;
-    originalLoading.value = false;
-    originalError.value = null;
+  } catch (e) {
+    if (relatedTweetId.value !== postId) return;
+    relatedError.value =
+      e instanceof Error
+        ? e.message
+        : t('post.relation.loadFailed');
+    relatedTweet.value = null;
+  } finally {
+    if (relatedTweetId.value === postId) {
+      relatedLoading.value = false;
+    }
   }
 }
 
 watch(
   () => [
     props.tweet.postType,
+    props.tweet.replyToPostId,
+    props.tweet.quotedPostId,
     props.tweet.repostOfPostId
   ],
-  () => fetchOriginalTweet(),
+  () => fetchRelatedTweet(),
   { immediate: true }
 );
 
-const originalAuthorHandle = computed(() => {
-  return originalTweet.value?.author.username
-    ? `@${originalTweet.value.author.username}`
+const relatedAuthorHandle = computed(() => {
+  return relatedTweet.value?.author.username
+    ? `@${relatedTweet.value.author.username}`
     : '';
 });
 
-const originalExcerpt = computed(() => {
-  const text: string = originalTweet.value?.content || '';
+const relatedExcerpt = computed(() => {
+  const text: string = relatedTweet.value?.content || '';
   const compact = text.replace(/\n+/g, ' ').trim();
   const max = 120;
   return compact.length > max
-    ? compact.slice(0, max) + '…'
+    ? compact.slice(0, max) + '...'
     : compact;
 });
 </script>
@@ -332,79 +386,90 @@ const originalExcerpt = computed(() => {
     </CardHeader>
 
     <CardContent class="px-4 pb-2">
-      <!-- 若为转发推文，展示“转推自 @xxx”与原文摘要预览 -->
       <div
-        v-if="tweet.postType === 'repost'"
-        class="mb-2 -mt-1 space-y-2"
+        v-if="relatedTweetId"
+        class="mb-3 -mt-1 space-y-2"
       >
         <div class="flex items-center gap-2 text-xs">
-          <Repeat class="h-4 w-4 text-green-600" />
+          <component
+            :is="relatedTweetIcon"
+            class="h-4 w-4 text-muted-foreground"
+          />
           <template
-            v-if="originalTweet && !originalLoading"
+            v-if="relatedTweet && !relatedLoading"
           >
-            <span class="text-muted-foreground"
-              >{{ t('post.repost.repostedFrom') }}</span
-            >
+            <span class="text-muted-foreground">
+              {{ relatedTweetLabel }}
+            </span>
             <NuxtLink
               :to="
                 localePath(
-                  `/user/${originalTweet.author.id}/profile`
+                  `/user/${relatedTweet.author.id}/profile`
                 )
               "
               @click.stop
-              class="text-blue-600 hover:underline"
+              class="font-medium text-primary hover:underline"
             >
               {{
-                originalAuthorHandle ||
-                t('post.repost.unknownUserHandle')
+                relatedAuthorHandle ||
+                t('post.relation.unknownUserHandle')
               }}
             </NuxtLink>
             <span class="text-muted-foreground">·</span>
             <NuxtLink
               :to="
                 localePath(
-                  `/tweet/${originalTweet.id}`
+                  `/tweet/${relatedTweet.id}`
                 )
               "
               @click.stop
-              class="text-blue-600 hover:underline"
-              >{{ t('post.repost.viewOriginal') }}</NuxtLink
+              class="text-primary hover:underline"
             >
+              {{ t('post.relation.viewOriginal') }}
+            </NuxtLink>
           </template>
-          <template v-else-if="originalLoading">
-            <span class="text-muted-foreground"
-              >{{ t('post.repost.loadingOriginal') }}</span
-            >
+          <template v-else-if="relatedLoading">
+            <span class="text-muted-foreground">
+              {{ t('post.relation.loadingOriginal') }}
+            </span>
           </template>
           <template v-else>
+            <span class="text-muted-foreground">
+              {{ relatedTweetLabel }}
+            </span>
             <NuxtLink
               :to="
                 localePath(
-                  `/tweet/${tweet.repostOfPostId}`
+                  `/tweet/${relatedTweetId}`
                 )
               "
               @click.stop
-              class="text-blue-600 hover:underline"
-              >{{ t('post.repost.viewOriginal') }}</NuxtLink
+              class="text-primary hover:underline"
             >
+              {{ t('post.relation.viewOriginal') }}
+            </NuxtLink>
           </template>
         </div>
 
-        <!-- 原文摘要预览卡片（点击跳转原文），失败时给出降级显示 -->
         <div
-          v-if="originalTweet && !originalLoading"
-          class="rounded-lg border p-3 bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
-          @click.stop="toTweetDetail(String(originalTweet.id))"
+          v-if="relatedTweet && !relatedLoading"
+          class="rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-muted/50"
+          @click.stop="
+            toTweetDetail(
+              String(relatedTweet.id),
+              relatedTweet
+            )
+          "
         >
           <div class="flex items-center gap-2 mb-1 text-sm">
             <Avatar class="h-6 w-6">
               <AvatarImage
-                :src="originalTweet.author.avatarUrl"
-                :alt="originalTweet.author.username"
+                :src="relatedTweet.author.avatarUrl"
+                :alt="relatedTweet.author.username"
               />
               <AvatarFallback>
                 {{
-                  (originalTweet.author.username || '')
+                  (relatedTweet.author.username || '')
                     .substring(0, 2)
                     .toUpperCase()
                 }}
@@ -412,35 +477,36 @@ const originalExcerpt = computed(() => {
             </Avatar>
             <span class="font-medium">
               {{
-                originalTweet.author.name ||
-                t('post.repost.unknownUser')
+                relatedTweet.author.name ||
+                t('post.relation.unknownUser')
               }}
             </span>
             <span class="text-muted-foreground">
               {{
-                originalAuthorHandle ||
-                t('post.repost.unknownUserHandle')
+                relatedAuthorHandle ||
+                t('post.relation.unknownUserHandle')
               }}
             </span>
           </div>
           <p class="text-sm text-foreground/90">
-            {{ originalExcerpt || t('post.repost.emptyContent') }}
+            {{ relatedExcerpt || t('post.relation.emptyContent') }}
           </p>
         </div>
 
         <div
-          v-else-if="originalError && !originalLoading"
+          v-else-if="relatedError && !relatedLoading"
           class="text-xs text-muted-foreground"
         >
-          {{ t('post.repost.originalUnavailable') }}
+          {{ t('post.relation.originalUnavailable') }}
           <NuxtLink
             :to="
-              localePath(`/tweet/${tweet.repostOfPostId}`)
+              localePath(`/tweet/${relatedTweetId}`)
             "
             @click.stop
-            class="text-blue-600 hover:underline"
-            >{{ t('post.repost.tryOpenOriginal') }}</NuxtLink
+            class="text-primary hover:underline"
           >
+            {{ t('post.relation.tryOpenOriginal') }}
+          </NuxtLink>
         </div>
       </div>
 

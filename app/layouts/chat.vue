@@ -10,10 +10,10 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
 </script>
 
 <template>
-  <SidebarProvider>
+  <SidebarProvider class="h-dvh min-h-0 overflow-hidden">
     <AppSidebar />
     <SidebarInset
-      class="flex flex-col h-screen overflow-hidden"
+      class="flex h-dvh min-h-0 max-h-dvh flex-col overflow-hidden md:h-[calc(100dvh_-_1rem)] md:max-h-[calc(100dvh_-_1rem)]"
     >
       <!-- 紧凑的顶部栏 -->
       <header
@@ -28,7 +28,7 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
         </div>
       </header>
       <!-- 内容区域 - 占据剩余全部空间 -->
-      <main class="flex-1 overflow-hidden">
+      <main class="min-h-0 flex-1 overflow-hidden">
         <slot />
       </main>
     </SidebarInset>

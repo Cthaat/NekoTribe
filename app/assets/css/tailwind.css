@@ -178,6 +178,46 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  html {
+    color-scheme: light;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 38%, transparent) transparent;
+    scrollbar-width: thin;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  * {
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 38%, transparent) transparent;
+    scrollbar-width: thin;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    min-height: 2rem;
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-color: color-mix(in oklch, var(--muted-foreground) 38%, transparent);
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklch, var(--muted-foreground) 56%, transparent);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 /*

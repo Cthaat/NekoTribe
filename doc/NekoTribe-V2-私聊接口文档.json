@@ -1,0 +1,942 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "NekoTribe API v2 私聊接口",
+    "version": "2.0.0",
+    "description": "NekoTribe V2 私聊 REST 接口文档，路径已包含 /api/v2 前缀，便于 Apifox 直接导入。启用前需要先执行 doc/NekoTribe-V2-私聊增量迁移.sql，创建 n_direct_conversations、n_direct_messages、n_direct_conversation_reads 等表。WebSocket 会推送 direct_message 事件，消息写入仍通过 REST 完成。"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "本地开发 Nuxt 服务"
+    },
+    {
+      "url": "https://api.nekotribe.com",
+      "description": "生产环境占位"
+    }
+  ],
+  "tags": [
+    {
+      "name": "私聊会话",
+      "description": "当前用户的一对一私聊会话"
+    },
+    {
+      "name": "私聊消息",
+      "description": "私聊会话内消息读取与发送"
+    },
+    {
+      "name": "WebSocket 实时协议",
+      "description": "私聊消息服务端推送事件说明"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    },
+    {
+      "accessTokenCookie": []
+    }
+  ],
+  "paths": {
+    "/api/v2/chat/direct-conversations": {
+      "get": {
+        "tags": ["私聊会话"],
+        "summary": "获取当前用户的私聊会话列表",
+        "description": "按最近消息时间倒序返回当前用户参与的一对一私聊会话。unread_count 只统计对方发送且当前用户未读的消息。",
+        "operationId": "listDirectConversations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2DirectConversationListResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "success",
+                  "data": [
+                    {
+                      "conversation_id": 1,
+                      "participant": {
+                        "user_id": 1021,
+                        "username": "nova",
+                        "display_name": "Nova",
+                        "avatar_url": "/storage/default-avatar.png",
+                        "bio": "",
+                        "location": "",
+                        "website": "",
+                        "is_verified": 0,
+                        "followers_count": 3,
+                        "following_count": 5,
+                        "posts_count": 8,
+                        "likes_count": 12,
+                        "relationship": {
+                          "is_self": false,
+                          "is_following": true,
+                          "is_blocked": false,
+                          "is_blocking": false,
+                          "relation": "mutual_follow"
+                        }
+                      },
+                      "unread_count": 2,
+                      "last_message": {
+                        "message_id": 6,
+                        "content": "今晚继续联调",
+                        "author_name": "Nova",
+                        "created_at": "2026-05-10T02:34:03.000Z"
+                      },
+                      "created_at": "2026-05-10T02:20:00.000Z",
+                      "updated_at": "2026-05-10T02:34:03.000Z"
+                    }
+                  ],
+                  "meta": {
+                    "page": 1,
+                    "page_size": 20,
+                    "total": 1,
+                    "has_next": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["私聊会话"],
+        "summary": "创建或获取与目标用户的私聊会话",
+        "description": "如果当前用户与 target_user_id 已有未删除会话，则直接返回已有会话；否则创建新会话。不能给自己创建私聊；屏蔽关系不能创建；当对方关闭陌生人私信时，只有互相关注、对方关注你或同群成员允许创建。",
+        "operationId": "createDirectConversation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2CreateDirectConversationPayload"
+              },
+              "example": {
+                "target_user_id": 1021
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "会话已存在或创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2DirectConversationResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "direct conversation ready",
+                  "data": {
+                    "conversation_id": 1,
+                    "participant": {
+                      "user_id": 1021,
+                      "username": "nova",
+                      "display_name": "Nova",
+                      "avatar_url": "/storage/default-avatar.png",
+                      "bio": "",
+                      "location": "",
+                      "website": "",
+                      "is_verified": 0,
+                      "followers_count": 3,
+                      "following_count": 5,
+                      "posts_count": 8,
+                      "likes_count": 12,
+                      "relationship": {
+                        "is_self": false,
+                        "is_following": true,
+                        "is_blocked": false,
+                        "is_blocking": false,
+                        "relation": "mutual_follow"
+                      }
+                    },
+                    "unread_count": 0,
+                    "last_message": null,
+                    "created_at": "2026-05-10T02:20:00.000Z",
+                    "updated_at": "2026-05-10T02:20:00.000Z"
+                  },
+                  "meta": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v2/chat/direct-conversations/{conversation_id}/messages": {
+      "get": {
+        "tags": ["私聊消息"],
+        "summary": "获取私聊消息列表",
+        "description": "分页获取指定私聊会话内的消息。返回结果按 created_at 升序排列。访问第 1 页且存在消息时，服务端会把当前用户的会话已读位置更新到本页最后一条消息。",
+        "operationId": "listDirectMessages",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2DirectMessageListResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "success",
+                  "data": [
+                    {
+                      "message_id": 5,
+                      "conversation_id": 1,
+                      "content": "接口我这边已经好了",
+                      "author": {
+                        "user_id": 1020,
+                        "username": "edge",
+                        "display_name": "Edge",
+                        "avatar_url": "/storage/default-avatar.png",
+                        "bio": "321",
+                        "location": "123",
+                        "website": "",
+                        "is_verified": 0,
+                        "followers_count": 0,
+                        "following_count": 0,
+                        "posts_count": 0,
+                        "likes_count": 0,
+                        "relationship": {
+                          "is_self": true,
+                          "is_following": false,
+                          "is_blocked": false,
+                          "is_blocking": false,
+                          "relation": "self"
+                        }
+                      },
+                      "is_deleted": false,
+                      "can_delete": true,
+                      "created_at": "2026-05-10T02:30:00.000Z",
+                      "updated_at": "2026-05-10T02:30:00.000Z",
+                      "edited_at": null,
+                      "deleted_at": null
+                    }
+                  ],
+                  "meta": {
+                    "page": 1,
+                    "page_size": 20,
+                    "total": 1,
+                    "has_next": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["私聊消息"],
+        "summary": "发送私聊消息",
+        "description": "向指定私聊会话发送文本消息。发送前会再次校验会话访问权限、屏蔽关系和对方私信隐私设置。成功后服务端通过 WebSocket 向会话双方推送 direct_message 事件。",
+        "operationId": "createDirectMessage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2CreateDirectMessagePayload"
+              },
+              "example": {
+                "content": "今晚继续联调"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "发送成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2DirectMessageResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "direct message created",
+                  "data": {
+                    "message_id": 6,
+                    "conversation_id": 1,
+                    "content": "今晚继续联调",
+                    "author": {
+                      "user_id": 1020,
+                      "username": "edge",
+                      "display_name": "Edge",
+                      "avatar_url": "/storage/default-avatar.png",
+                      "bio": "321",
+                      "location": "123",
+                      "website": "",
+                      "is_verified": 0,
+                      "followers_count": 0,
+                      "following_count": 0,
+                      "posts_count": 0,
+                      "likes_count": 0,
+                      "relationship": {
+                        "is_self": true,
+                        "is_following": false,
+                        "is_blocked": false,
+                        "is_blocking": false,
+                        "relation": "self"
+                      }
+                    },
+                    "is_deleted": false,
+                    "can_delete": true,
+                    "created_at": "2026-05-10T02:34:03.000Z",
+                    "updated_at": "2026-05-10T02:34:03.000Z",
+                    "edited_at": null,
+                    "deleted_at": null
+                  },
+                  "meta": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "accessTokenCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "access_token"
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "description": "页码，从 1 开始。"
+      },
+      "PageSize": {
+        "name": "page_size",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        },
+        "description": "每页数量。"
+      },
+      "ConversationId": {
+        "name": "conversation_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "description": "私聊会话 ID。"
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "请求参数错误",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            "example": {
+              "code": 40001,
+              "message": "content 不能为空",
+              "data": null,
+              "meta": null
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "未认证或 token 无效",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            "example": {
+              "code": 40101,
+              "message": "未认证或 token 无效",
+              "data": null,
+              "meta": null
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "权限不足、被屏蔽或对方不接收陌生人私信",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            "examples": {
+              "blocked": {
+                "summary": "屏蔽关系",
+                "value": {
+                  "code": 40301,
+                  "message": "无法向该用户发送私信",
+                  "data": null,
+                  "meta": null
+                }
+              },
+              "privacy": {
+                "summary": "对方关闭陌生人私信",
+                "value": {
+                  "code": 40301,
+                  "message": "对方不接收陌生人私信",
+                  "data": null,
+                  "meta": null
+                }
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "资源不存在",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            "example": {
+              "code": 40401,
+              "message": "私聊会话不存在",
+              "data": null,
+              "meta": null
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "服务器内部错误",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            "example": {
+              "code": 50001,
+              "message": "服务器内部错误",
+              "data": null,
+              "meta": null
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "V2ApiMeta": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "example": 20
+          },
+          "total": {
+            "type": "integer",
+            "example": 1
+          },
+          "has_next": {
+            "type": "boolean",
+            "example": false
+          }
+        }
+      },
+      "V2Relationship": {
+        "type": "object",
+        "required": [
+          "is_self",
+          "is_following",
+          "is_blocked",
+          "is_blocking",
+          "relation"
+        ],
+        "properties": {
+          "is_self": {
+            "type": "boolean"
+          },
+          "is_following": {
+            "type": "boolean"
+          },
+          "is_blocked": {
+            "type": "boolean"
+          },
+          "is_blocking": {
+            "type": "boolean"
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "self",
+              "blocking",
+              "blocked_by",
+              "mutual_follow",
+              "following",
+              "followed_by",
+              "none"
+            ]
+          }
+        }
+      },
+      "V2PublicUser": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "username",
+          "display_name",
+          "avatar_url",
+          "bio",
+          "location",
+          "website",
+          "is_verified",
+          "followers_count",
+          "following_count",
+          "posts_count",
+          "likes_count",
+          "relationship"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "example": 1021
+          },
+          "username": {
+            "type": "string",
+            "example": "nova"
+          },
+          "display_name": {
+            "type": "string",
+            "example": "Nova"
+          },
+          "avatar_url": {
+            "type": "string",
+            "example": "/storage/default-avatar.png"
+          },
+          "bio": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
+          },
+          "is_verified": {
+            "type": "integer",
+            "enum": [0, 1]
+          },
+          "followers_count": {
+            "type": "integer"
+          },
+          "following_count": {
+            "type": "integer"
+          },
+          "posts_count": {
+            "type": "integer"
+          },
+          "likes_count": {
+            "type": "integer"
+          },
+          "relationship": {
+            "$ref": "#/components/schemas/V2Relationship"
+          }
+        }
+      },
+      "V2DirectLastMessage": {
+        "type": "object",
+        "required": [
+          "message_id",
+          "content",
+          "author_name",
+          "created_at"
+        ],
+        "properties": {
+          "message_id": {
+            "type": "integer",
+            "example": 6
+          },
+          "content": {
+            "type": "string",
+            "example": "今晚继续联调"
+          },
+          "author_name": {
+            "type": "string",
+            "example": "Nova"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-10T02:34:03.000Z"
+          }
+        }
+      },
+      "V2DirectConversation": {
+        "type": "object",
+        "required": [
+          "conversation_id",
+          "participant",
+          "unread_count",
+          "last_message",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "conversation_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "participant": {
+            "$ref": "#/components/schemas/V2PublicUser"
+          },
+          "unread_count": {
+            "type": "integer",
+            "example": 0
+          },
+          "last_message": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V2DirectLastMessage"
+              }
+            ],
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "V2DirectMessage": {
+        "type": "object",
+        "required": [
+          "message_id",
+          "conversation_id",
+          "content",
+          "author",
+          "is_deleted",
+          "can_delete",
+          "created_at",
+          "updated_at",
+          "edited_at",
+          "deleted_at"
+        ],
+        "properties": {
+          "message_id": {
+            "type": "integer",
+            "example": 6
+          },
+          "conversation_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 4000,
+            "example": "今晚继续联调"
+          },
+          "author": {
+            "$ref": "#/components/schemas/V2PublicUser"
+          },
+          "is_deleted": {
+            "type": "boolean"
+          },
+          "can_delete": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "edited_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "V2CreateDirectConversationPayload": {
+        "type": "object",
+        "required": ["target_user_id"],
+        "properties": {
+          "target_user_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "目标用户 ID。"
+          }
+        }
+      },
+      "V2CreateDirectMessagePayload": {
+        "type": "object",
+        "required": ["content"],
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "私聊消息文本内容。"
+          }
+        }
+      },
+      "V2DirectConversationResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/V2DirectConversation"
+              }
+            }
+          }
+        ]
+      },
+      "V2DirectConversationListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2DirectConversation"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2DirectMessageResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/V2DirectMessage"
+              }
+            }
+          }
+        ]
+      },
+      "V2DirectMessageListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2DirectMessage"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2ResponseBase": {
+        "type": "object",
+        "required": ["code", "message", "data", "meta"],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {},
+          "meta": {
+            "$ref": "#/components/schemas/V2ApiMeta"
+          }
+        }
+      },
+      "V2ErrorResponse": {
+        "type": "object",
+        "required": ["code", "message", "data", "meta"],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 40301
+          },
+          "message": {
+            "type": "string",
+            "example": "权限不足"
+          },
+          "data": {
+            "nullable": true,
+            "example": null
+          },
+          "meta": {
+            "nullable": true,
+            "example": null
+          }
+        }
+      }
+    }
+  },
+  "x-websocket-events": {
+    "direct_message": {
+      "description": "发送私聊消息成功后，服务端向会话双方当前在线 WebSocket 连接推送。",
+      "example": {
+        "type": "direct_message",
+        "data": {
+          "conversation_id": 1,
+          "direct_message": {
+            "message_id": 6,
+            "conversation_id": 1,
+            "content": "今晚继续联调",
+            "author": {
+              "user_id": 1020,
+              "username": "edge",
+              "display_name": "Edge",
+              "avatar_url": "/storage/default-avatar.png",
+              "bio": "321",
+              "location": "123",
+              "website": "",
+              "is_verified": 0,
+              "followers_count": 0,
+              "following_count": 0,
+              "posts_count": 0,
+              "likes_count": 0,
+              "relationship": {
+                "is_self": true,
+                "is_following": false,
+                "is_blocked": false,
+                "is_blocking": false,
+                "relation": "self"
+              }
+            },
+            "is_deleted": false,
+            "can_delete": true,
+            "created_at": "2026-05-10T02:34:03.000Z",
+            "updated_at": "2026-05-10T02:34:03.000Z",
+            "edited_at": null,
+            "deleted_at": null
+          }
+        },
+        "timestamp": 1778376843000
+      }
+    }
+  }
+}

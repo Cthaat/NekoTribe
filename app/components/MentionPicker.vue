@@ -125,20 +125,20 @@ defineExpose({
 <template>
   <div
     v-if="show && mentionItems.length > 0"
-    class="fixed z-50 w-80 rounded-lg bg-black shadow-lg"
+    class="fixed z-50 w-80 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
     :style="{
       top: position?.top ? `${position.top}px` : 'auto',
       left: position?.left ? `${position.left}px` : 'auto'
     }"
   >
-    <div class="max-h-80 overflow-y-auto">
+    <div class="max-h-80 overflow-y-auto p-1">
       <div
         v-for="(item, index) in mentionItems"
         :key="`${item.type}-${item.id}`"
-        class="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors"
+        class="flex cursor-pointer items-center gap-3 rounded-sm px-3 py-2.5 transition-colors"
         :class="{
-          'bg-gray-800': index === selectedIndex,
-          'hover:bg-gray-800': index !== selectedIndex
+          'bg-accent text-accent-foreground': index === selectedIndex,
+          'hover:bg-accent hover:text-accent-foreground': index !== selectedIndex
         }"
         @click="selectItem(item)"
         @mouseenter="selectedIndex = index"
@@ -158,26 +158,26 @@ defineExpose({
         </Avatar>
         <div
           v-else
-          class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-800"
+          class="flex h-10 w-10 items-center justify-center rounded-full bg-muted"
         >
-          <FileText class="h-5 w-5 text-gray-400" />
+          <FileText class="h-5 w-5 text-muted-foreground" />
         </div>
 
         <!-- 信息 -->
         <div class="flex-1 min-w-0">
-          <div class="font-medium text-white truncate">
+          <div class="font-medium truncate">
             {{ item.displayName }}
           </div>
           <div
             v-if="item.subtitle"
-            class="text-sm text-gray-400 truncate"
+            class="text-sm text-muted-foreground truncate"
           >
             {{ item.subtitle }}
           </div>
         </div>
 
         <!-- 类型标识 -->
-        <div class="text-xs text-gray-500 uppercase">
+        <div class="text-xs text-muted-foreground uppercase">
           {{
             item.type === 'user'
               ? t('chat.mention.user')
@@ -188,7 +188,7 @@ defineExpose({
 
       <div
         v-if="isLoading"
-        class="px-4 py-3 text-center text-gray-400"
+        class="px-4 py-3 text-center text-muted-foreground"
       >
         {{ t('chat.mention.loading') }}
       </div>

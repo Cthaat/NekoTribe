@@ -128,8 +128,32 @@
       "mediaPreviewAlt": "Media preview",
       "mediaLimitTitle": "Media limit exceeded",
       "mediaLimitDescription": "You can upload {count} more files.",
+      "mediaTypeTitle": "Unsupported file type",
+      "mediaTypeDescription": "Post media currently supports images and videos.",
+      "removeMedia": "Remove media",
+      "dropHint": "Drop to upload images or videos",
+      "altTextPlaceholder": "Add media description (optional)",
       "replyPost": "Reply to post",
-      "quotePost": "Quote post"
+      "quotePost": "Quote post",
+      "addMention": "Mention user",
+      "replyingTo": "Replying to",
+      "quoting": "Quoting",
+      "clearContext": "Remove context",
+      "addTag": "Topic",
+      "tagLabel": "Add topic",
+      "tagPlaceholder": "Enter topic name",
+      "duplicateTag": "This topic is already added",
+      "tagLimitTitle": "Topic limit reached",
+      "tagLimitDescription": "You can add up to {count} topics.",
+      "addLocation": "Location",
+      "locationLabel": "Add location",
+      "locationPlaceholder": "City, place, or event",
+      "visibility": {
+        "public": "Public",
+        "followers": "Followers",
+        "mentioned": "Mentioned",
+        "private": "Only me"
+      }
     },
     "composePage": {
       "title": "Create Post",
@@ -167,6 +191,27 @@
       "emptyContent": "(No content)",
       "originalUnavailable": "Original post is unavailable or deleted.",
       "tryOpenOriginal": "Try opening original"
+    },
+    "relation": {
+      "replyingTo": "Replying to",
+      "quoting": "Quoting",
+      "reposting": "Reposted from",
+      "viewOriginal": "View original",
+      "loadingOriginal": "Loading original post...",
+      "loadFailed": "Failed to load original post",
+      "unknownUser": "Unknown",
+      "unknownUserHandle": "{'@'}unknown",
+      "emptyContent": "(No content)",
+      "originalUnavailable": "Original post is unavailable or deleted.",
+      "tryOpenOriginal": "Try opening original"
+    },
+    "replies": {
+      "title": "Reply posts",
+      "total": "{count} replies",
+      "empty": "This post has no reply posts yet.",
+      "loadFailed": "Failed to load reply posts",
+      "loadMore": "Load more replies",
+      "loading": "Loading..."
     },
     "media": {
       "thumbnailAlt": "Post media thumbnail"
@@ -283,9 +328,87 @@
       "emptyPosts": "No posts yet",
       "emptyMembers": "No members yet"
     },
+    "manage": {
+      "title": "Manage {name}",
+      "description": "Update group details, member permissions, invite links, and danger actions.",
+      "save": "Save settings",
+      "saving": "Saving...",
+      "never": "None",
+      "defaultMuteReason": "Group moderation mute",
+      "memberSearch": "Search members",
+      "pendingTitle": "Pending members ({count})",
+      "emptyMembers": "No matching members",
+      "tabs": {
+        "settings": "Settings",
+        "members": "Members",
+        "invites": "Invites",
+        "danger": "Danger"
+      },
+      "fields": {
+        "name": "Group name",
+        "description": "Group description",
+        "avatar": "Avatar URL",
+        "cover": "Cover URL",
+        "privacy": "Group type",
+        "joinApproval": "Join approval",
+        "joinApprovalHint": "When enabled, new members need approval before joining.",
+        "postPermission": "Post permission"
+      },
+      "postPermission": {
+        "all": "All members",
+        "moderator_up": "Moderators and up",
+        "admin_only": "Admins only"
+      },
+      "status": {
+        "active": "Active",
+        "pending": "Pending",
+        "muted": "Muted",
+        "banned": "Banned",
+        "unknown": "Unknown"
+      },
+      "actions": {
+        "approve": "Approve",
+        "reject": "Reject",
+        "transferOwnership": "Transfer ownership",
+        "copyInvite": "Copy invite link"
+      },
+      "invites": {
+        "maxUses": "Max uses",
+        "expireHours": "Valid hours",
+        "create": "Create invite",
+        "expiresAt": "Expires: {date}",
+        "empty": "No invite links yet"
+      },
+      "danger": {
+        "title": "Disband group",
+        "description": "The group will be soft-deleted and members will no longer be able to access it. Only the owner can do this.",
+        "confirmLabel": "Type {name} to confirm",
+        "delete": "Disband group"
+      },
+      "validation": {
+        "nameRequired": "Please enter a group name",
+        "deleteConfirm": "Type the full group name to confirm"
+      },
+      "feedback": {
+        "updated": "Group settings saved",
+        "updateFailed": "Failed to save group settings",
+        "deleted": "Group disbanded",
+        "deleteFailed": "Failed to disband group",
+        "memberUpdated": "Member permissions updated",
+        "memberApproved": "Join request approved",
+        "memberRejected": "Join request rejected",
+        "memberFailed": "Member operation failed",
+        "ownershipTransferred": "Ownership transferred",
+        "inviteCreated": "Invite created and copied",
+        "loadMembersFailed": "Failed to load members",
+        "loadInvitesFailed": "Failed to load invites"
+      }
+    },
     "member": {
       "roles": {
+        "owner": "Owner",
         "admin": "Admin",
+        "moderator": "Moderator",
         "member": "Member"
       },
       "joinedAt": "Joined {date}",
@@ -427,14 +550,76 @@
       "noOnline": "No online members",
       "noOffline": "No offline members"
     },
+    "notifications": {
+      "title": "Channel notifications",
+      "muteLabel": "Mute this channel",
+      "muteDescription": "When enabled, new messages in this channel will not count toward alerts.",
+      "groupTitle": "Chat notification settings",
+      "groupDescription": "Manage notification state for each channel in {group}.",
+      "noChannels": "This group has no channels to configure yet.",
+      "channelMuted": "Muted. New messages will not count toward alerts.",
+      "channelUnmuted": "Alerts enabled. New messages count toward unread items."
+    },
+    "invite": {
+      "title": "Invite members",
+      "description": "Invite users to join {group}, or create a shareable invite link.",
+      "searchLabel": "Search users",
+      "searchPlaceholder": "Enter username or display name",
+      "searchHint": "Selecting a user creates a targeted invite; leaving it blank creates a general invite link.",
+      "searching": "Searching users...",
+      "noResults": "No users available to invite",
+      "emptySearch": "Enter at least 2 characters to search.",
+      "selected": "Selected",
+      "clearSelection": "Clear",
+      "linkTitle": "Invite link",
+      "linkDescription": "When no specific user is selected, a shareable invite link is created.",
+      "maxUses": "Max uses",
+      "expireHours": "Valid hours",
+      "messageLabel": "Invite message",
+      "messagePlaceholder": "Add an optional invite note",
+      "createdTitle": "Invite created",
+      "targetedCreated": "A targeted invite was sent to this user.",
+      "sendInvite": "Send invite",
+      "createLink": "Create invite link"
+    },
+    "calls": {
+      "voiceTitle": "Voice call",
+      "voiceDescription": "Voice rooms and realtime call signaling are not connected to the backend yet.",
+      "videoTitle": "Video call",
+      "videoDescription": "Video rooms and realtime call signaling are not connected to the backend yet."
+    },
+    "directMessage": {
+      "title": "Direct message",
+      "placeholder": "Message {user}...",
+      "loading": "Loading direct messages...",
+      "emptyTitle": "No direct messages yet",
+      "emptyDescription": "Send the first message to start the conversation."
+    },
     "message": {
       "pinned": "Pinned",
       "edited": "(edited)",
+      "attachmentPreview": "[Attachment]",
       "pinnedMessages": "Pinned messages",
       "noPinnedMessages": "No pinned messages",
       "emptyTitle": "Welcome to #{channel}!",
       "emptyDescription": "This is the start of the channel. Send the first message.",
       "newMessages": "New messages"
+    },
+    "composer": {
+      "searchMembers": "Search members",
+      "noMembers": "No matching members",
+      "searchChannels": "Search channels",
+      "noChannels": "No matching channels",
+      "stickers": {
+        "gift": "Gift",
+        "party": "Party",
+        "sparkles": "Sparkle",
+        "idea": "Idea",
+        "rocket": "Launch",
+        "tea": "Break",
+        "done": "Done",
+        "thanks": "Thanks"
+      }
     },
     "actions": {
       "uploadAttachment": "Upload attachment",
@@ -448,6 +633,7 @@
       "ban": "Ban user",
       "inviteMembers": "Invite members",
       "notificationSettings": "Notification settings",
+      "chatSettings": "Chat settings",
       "createChannel": "Create channel",
       "muteChannel": "Mute channel",
       "unmuteChannel": "Unmute channel",
@@ -466,15 +652,57 @@
       "editMessage": "Edit message",
       "deleteMessage": "Delete message"
     },
+    "empty": {
+      "noGroups": "You have not joined any groups yet",
+      "noChannels": "This group has no accessible text channels"
+    },
+    "prompts": {
+      "channelName": "Enter a channel name",
+      "messageContent": "Edit message content",
+      "deleteChannel": "Delete this channel? Messages stay in the database but will no longer be shown."
+    },
+    "dialogs": {
+      "createChannel": {
+        "title": "Create channel",
+        "description": "Category: {category}",
+        "nameLabel": "Channel name"
+      }
+    },
     "feedback": {
       "copied": "Copied to clipboard",
       "sent": "Message sent",
+      "sendFailed": "Failed to send message",
+      "loadFailed": "Failed to load chat",
+      "loadMessagesFailed": "Failed to load messages",
       "deleted": "Message deleted",
+      "deleteFailed": "Failed to delete message",
+      "messageUpdated": "Message updated",
+      "updateMessageFailed": "Failed to update message",
       "pinned": "Message pinned",
       "unpinned": "Message unpinned",
-      "createChannelWip": "Channel creation is in development...",
+      "pinFailed": "Failed to update pin status",
+      "reactionFailed": "Failed to update reaction",
+      "channelCreated": "Channel created",
+      "createChannelFailed": "Failed to create channel",
+      "channelUpdated": "Channel updated",
+      "updateChannelFailed": "Failed to update channel",
+      "channelDeleted": "Channel deleted",
+      "deleteChannelFailed": "Failed to delete channel",
       "channelMuted": "Channel muted",
-      "channelUnmuted": "Channel unmuted"
+      "channelUnmuted": "Channel unmuted",
+      "muteFailed": "Failed to update channel mute status",
+      "voiceCallUnavailable": "Voice call backend is not connected yet",
+      "videoCallUnavailable": "Video call backend is not connected yet",
+      "loadDirectMessagesFailed": "Failed to load direct messages",
+      "directMessageSent": "Direct message sent",
+      "directMessageFailed": "Failed to send direct message",
+      "cannotMessageSelf": "You cannot send a direct message to yourself",
+      "searchUsersFailed": "Failed to search users",
+      "inviteCreated": "Invite link created and copied",
+      "memberInvited": "Member invite sent",
+      "inviteCopied": "Invite link copied",
+      "inviteFailed": "Failed to create invite",
+      "loadSettingsFailed": "Failed to load chat settings"
     },
     "mention": {
       "searchFailed": "Failed to search mentions:",

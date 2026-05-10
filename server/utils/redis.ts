@@ -53,6 +53,62 @@ function createRedisConfig() {
   return resolveRedisOptions();
 }
 
+function waitForRedisReady(
+  client: Redis,
+  label: string,
+  timeoutMs = 1500
+): Promise<boolean> {
+  if (client.status === 'ready') {
+    return Promise.resolve(true);
+  }
+
+  return new Promise(resolve => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      client.off('ready', onReady);
+      client.off('connect', onReady);
+      client.off('end', onUnavailable);
+      client.off('close', onUnavailable);
+      client.off('error', onError);
+    };
+    const settle = (ready: boolean) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(ready);
+    };
+    const onReady = () => {
+      redisAvailable = true;
+      settle(true);
+    };
+    const onUnavailable = () => {
+      settle(false);
+    };
+    const onError = (error: Error) => {
+      console.error(`${label} 连接失败:`, error.message);
+      settle(false);
+    };
+
+    timer = setTimeout(() => {
+      console.error(`${label} 连接超时，跳过本次 Redis 操作`);
+      settle(false);
+    }, timeoutMs);
+
+    client.once('ready', onReady);
+    client.once('connect', onReady);
+    client.once('end', onUnavailable);
+    client.once('close', onUnavailable);
+    client.once('error', onError);
+
+    if (client.status === 'ready' || client.status === 'connect') {
+      onReady();
+    }
+  });
+}
+
 /**
  * 获取 Redis 客户端实例（用于一般操作）
  * @returns Redis 实例或 null（当 Redis 不可用时）
@@ -132,6 +188,7 @@ export function getRedisSubscriber(): Redis | null {
       // 订阅者连接成功事件
       redisSubscriber.on('connect', () => {
         console.log('Redis 订阅者连接成功');
+        redisAvailable = true;
       });
 
       // 订阅者连接关闭事件
@@ -209,6 +266,7 @@ export const REDIS_CHANNELS = {
   BROADCAST: 'ws:broadcast', // 全局广播频道 - 向所有连接的用户发送消息
   USER_MESSAGE: 'ws:user:', // 用户私信频道前缀 (完整格式: ws:user:{userId})
   ROOM_MESSAGE: 'ws:room:', // 房间消息频道前缀 (完整格式: ws:room:{roomId})
+  CHAT_CHANNEL: 'ws:chat:channel:', // 群组聊天频道前缀 (完整格式: ws:chat:channel:{channelId})
   SYSTEM_NOTIFICATION: 'ws:system' // 系统通知频道 - 系统级别的通知消息
 } as const;
 
@@ -227,11 +285,19 @@ export interface WSMessage {
     | 'broadcast'
     | 'user_message'
     | 'room_message'
+    | 'chat_message'
+    | 'chat_message_deleted'
+    | 'chat_message_updated'
+    | 'chat_reaction_updated'
+    | 'chat_channel_updated'
+    | 'direct_message'
+    | 'pong'
+    | 'error'
     | 'system_notification'; // 消息类型
   from?: string; // 发送者标识（可选）
   to?: string; // 接收者标识（可选，用于私信）
   room?: string; // 房间标识（可选，用于房间消息）
-  data: any; // 消息数据，可以是任何类型
+  data: unknown; // 消息数据
   timestamp: number; // 时间戳，用于消息排序和过期处理
 }
 
@@ -270,6 +336,17 @@ export async function publishMessage(
   }
 
   try {
+    const ready = await waitForRedisReady(
+      publisher,
+      'Redis 发布者'
+    );
+    if (!ready) {
+      console.log(
+        `Redis 发布者未就绪，跳过发布消息到频道 ${channel}`
+      );
+      return;
+    }
+
     // 将消息对象转换为 JSON 字符串并发布到指定频道
     await publisher.publish(
       channel,
@@ -293,11 +370,11 @@ export async function publishMessage(
 export async function subscribeToChannel(
   channel: string,
   callback: (message: WSMessage) => void
-) {
+): Promise<boolean> {
   // 如果 Redis 不可用，记录日志并直接返回
   if (!redisAvailable) {
     console.log(`Redis 不可用，跳过订阅频道 ${channel}`);
-    return;
+    return false;
   }
 
   // 获取 Redis 订阅者实例
@@ -306,20 +383,38 @@ export async function subscribeToChannel(
     console.log(
       `Redis 订阅者不可用，跳过订阅频道 ${channel}`
     );
-    return;
+    return false;
   }
 
   // 订阅指定频道
   // subscribe 方法是异步的，第二个参数是回调函数
-  subscriber.subscribe(channel, (error, count) => {
-    if (error) {
-      console.error(`订阅频道 ${channel} 失败:`, error);
-    } else {
-      console.log(
-        `成功订阅频道 ${channel}，当前订阅数量: ${count}`
-      );
-    }
-  });
+  const ready = await waitForRedisReady(
+    subscriber,
+    'Redis 订阅者'
+  );
+  if (!ready) {
+    console.log(`Redis 订阅者未就绪，跳过订阅频道 ${channel}`);
+    return false;
+  }
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      subscriber.subscribe(channel, (error, count) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        console.log(
+          `成功订阅频道 ${channel}，当前订阅数量: ${count}`
+        );
+        resolve();
+      });
+    });
+  } catch (error) {
+    console.error(`订阅频道 ${channel} 失败:`, error);
+    return false;
+  }
 
   // 监听消息事件
   // 当有消息发布到我们订阅的频道时，这个事件会被触发
@@ -341,4 +436,5 @@ export async function subscribeToChannel(
       }
     }
   });
+  return true;
 }

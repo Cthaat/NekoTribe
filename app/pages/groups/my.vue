@@ -4,6 +4,7 @@ import { toast } from 'vue-sonner';
 import GroupList from '@/components/GroupList.vue';
 import GroupDetailModal from '@/components/GroupDetailModal.vue';
 import CreateGroupModal from '@/components/CreateGroupModal.vue';
+import GroupManageModal from '@/components/GroupManageModal.vue';
 import type {
   CreateGroupData,
   Group,
@@ -28,6 +29,8 @@ const groups = groupList.groups;
 const loading = groupList.loading;
 const detailModalOpen = groupDetail.open;
 const createModalOpen = ref(false);
+const manageModalOpen = ref(false);
+const manageGroup = ref<Group | null>(null);
 const selectedGroup = groupDetail.selectedGroup;
 const members = groupDetail.members;
 const posts = groupDetail.posts;
@@ -65,8 +68,13 @@ async function handleViewDetail(group: Group): Promise<void> {
   await groupDetail.openGroup(group);
 }
 
-function handleSettings(_id: number): void {
-  toast.info(t('groups.feedback.settingsWip'));
+function handleSettings(id: number): void {
+  const group =
+    groups.value.find(item => item.id === id) ??
+    (selectedGroup.value?.id === id ? selectedGroup.value : null);
+  if (!group) return;
+  manageGroup.value = group;
+  manageModalOpen.value = true;
 }
 
 async function handleRefresh(): Promise<void> {
@@ -119,6 +127,25 @@ async function handleInvite(id: number): Promise<void> {
     });
   }
 }
+
+function handleGroupUpdated(group: Group): void {
+  groupList.patchGroup(group.id, () => group);
+  if (selectedGroup.value?.id === group.id) {
+    selectedGroup.value = group;
+  }
+  if (manageGroup.value?.id === group.id) {
+    manageGroup.value = group;
+  }
+}
+
+async function handleGroupDeleted(groupId: number): Promise<void> {
+  manageModalOpen.value = false;
+  manageGroup.value = null;
+  if (selectedGroup.value?.id === groupId) {
+    detailModalOpen.value = false;
+  }
+  await groupList.refresh();
+}
 </script>
 
 <template>
@@ -151,6 +178,13 @@ async function handleInvite(id: number): Promise<void> {
     <CreateGroupModal
       v-model:open="createModalOpen"
       @create="handleCreateSubmit"
+    />
+
+    <GroupManageModal
+      v-model:open="manageModalOpen"
+      :group="manageGroup"
+      @updated="handleGroupUpdated"
+      @deleted="handleGroupDeleted"
     />
   </div>
 </template>

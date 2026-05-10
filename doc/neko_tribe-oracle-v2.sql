@@ -156,6 +156,11 @@ CREATE SEQUENCE seq_group_invite_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
 CREATE SEQUENCE seq_group_audit_log_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
 CREATE SEQUENCE seq_group_post_like_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
 CREATE SEQUENCE seq_group_comment_like_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE seq_chat_channel_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE seq_chat_message_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE seq_chat_message_media_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE seq_direct_conversation_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE seq_direct_message_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
 
 -- ==========================================
 -- 4. 核心业务表
@@ -456,7 +461,7 @@ COMMENT ON COLUMN n_post_stats.updated_at IS '更新时间';
 CREATE TABLE n_media_assets (
     media_id               NUMBER(15)      PRIMARY KEY,
     owner_user_id          NUMBER(10)      NOT NULL,
-    media_type             VARCHAR2(20)    NOT NULL CHECK (media_type IN ('image', 'video', 'audio', 'gif')),
+    media_type             VARCHAR2(20)    NOT NULL CHECK (media_type IN ('image', 'video', 'audio', 'gif', 'file')),
     file_name              VARCHAR2(255)   NOT NULL,
     storage_key            VARCHAR2(500)   NOT NULL,
     public_url             VARCHAR2(500)   NOT NULL,
@@ -483,7 +488,7 @@ CREATE TABLE n_media_assets (
 COMMENT ON TABLE n_media_assets IS '媒体资源表';
 COMMENT ON COLUMN n_media_assets.media_id IS '媒体ID';
 COMMENT ON COLUMN n_media_assets.owner_user_id IS '归属用户ID';
-COMMENT ON COLUMN n_media_assets.media_type IS '媒体类型';
+COMMENT ON COLUMN n_media_assets.media_type IS '媒体类型：image-图片，video-视频，audio-音频，gif-动图，file-普通附件';
 COMMENT ON COLUMN n_media_assets.file_name IS '文件名';
 COMMENT ON COLUMN n_media_assets.storage_key IS '存储键';
 COMMENT ON COLUMN n_media_assets.public_url IS '公开访问地址';
@@ -1103,6 +1108,242 @@ COMMENT ON COLUMN n_group_comment_likes.user_id IS '用户ID';
 COMMENT ON COLUMN n_group_comment_likes.created_at IS '创建时间';
 
 
+CREATE TABLE n_chat_channels (
+    channel_id               NUMBER(19)      PRIMARY KEY,
+    group_id                 NUMBER(19)      NOT NULL,
+    name                     VARCHAR2(100)   NOT NULL,
+    channel_type             VARCHAR2(20)    DEFAULT 'text' NOT NULL,
+    category                 VARCHAR2(50)    DEFAULT '文字频道' NOT NULL,
+    position                 NUMBER(10)      DEFAULT 0 NOT NULL,
+    is_private               NUMBER(1)       DEFAULT 0 NOT NULL,
+    is_deleted               NUMBER(1)       DEFAULT 0 NOT NULL,
+    created_by               NUMBER(10)      NOT NULL,
+    last_message_id          NUMBER(19),
+    last_message_at          TIMESTAMP,
+    message_count            NUMBER(10)      DEFAULT 0 NOT NULL,
+    created_at               TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    updated_at               TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT fk_chat_channels_group FOREIGN KEY (group_id)
+        REFERENCES n_groups(group_id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_channels_creator FOREIGN KEY (created_by)
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT chk_chat_channel_type CHECK (channel_type IN ('text', 'announcement', 'voice', 'video')),
+    CONSTRAINT chk_chat_channel_flags CHECK (is_private IN (0, 1) AND is_deleted IN (0, 1)),
+    CONSTRAINT chk_chat_channel_counts CHECK (message_count >= 0)
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_chat_channels IS '群组聊天频道表';
+COMMENT ON COLUMN n_chat_channels.channel_id IS '频道ID';
+COMMENT ON COLUMN n_chat_channels.group_id IS '群组ID';
+COMMENT ON COLUMN n_chat_channels.name IS '频道名称';
+COMMENT ON COLUMN n_chat_channels.channel_type IS '频道类型（text/announcement/voice/video）';
+COMMENT ON COLUMN n_chat_channels.category IS '频道分组名称';
+COMMENT ON COLUMN n_chat_channels.position IS '频道排序值';
+COMMENT ON COLUMN n_chat_channels.is_private IS '是否私密频道';
+COMMENT ON COLUMN n_chat_channels.is_deleted IS '是否删除';
+COMMENT ON COLUMN n_chat_channels.created_by IS '创建人用户ID';
+COMMENT ON COLUMN n_chat_channels.last_message_id IS '最后消息ID';
+COMMENT ON COLUMN n_chat_channels.last_message_at IS '最后消息时间';
+COMMENT ON COLUMN n_chat_channels.message_count IS '消息数量';
+COMMENT ON COLUMN n_chat_channels.created_at IS '创建时间';
+COMMENT ON COLUMN n_chat_channels.updated_at IS '更新时间';
+
+
+CREATE TABLE n_chat_messages (
+    message_id               NUMBER(19)      PRIMARY KEY,
+    channel_id               NUMBER(19)      NOT NULL,
+    group_id                 NUMBER(19)      NOT NULL,
+    author_id                NUMBER(10)      NOT NULL,
+    message_type             VARCHAR2(20)    DEFAULT 'text' NOT NULL,
+    content                  VARCHAR2(4000),
+    reply_to_message_id      NUMBER(19),
+    is_pinned                NUMBER(1)       DEFAULT 0 NOT NULL,
+    is_deleted               NUMBER(1)       DEFAULT 0 NOT NULL,
+    deleted_by               NUMBER(10),
+    created_at               TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    updated_at               TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    edited_at                TIMESTAMP,
+    deleted_at               TIMESTAMP,
+    CONSTRAINT fk_chat_messages_channel FOREIGN KEY (channel_id)
+        REFERENCES n_chat_channels(channel_id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_messages_group FOREIGN KEY (group_id)
+        REFERENCES n_groups(group_id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_messages_author FOREIGN KEY (author_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_messages_reply FOREIGN KEY (reply_to_message_id)
+        REFERENCES n_chat_messages(message_id) ON DELETE SET NULL,
+    CONSTRAINT fk_chat_messages_deleter FOREIGN KEY (deleted_by)
+        REFERENCES n_users(user_id) ON DELETE SET NULL,
+    CONSTRAINT chk_chat_message_type CHECK (message_type IN ('text', 'system')),
+    CONSTRAINT chk_chat_message_flags CHECK (is_pinned IN (0, 1) AND is_deleted IN (0, 1))
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_chat_messages IS '群组聊天消息表';
+COMMENT ON COLUMN n_chat_messages.message_id IS '消息ID';
+COMMENT ON COLUMN n_chat_messages.channel_id IS '频道ID';
+COMMENT ON COLUMN n_chat_messages.group_id IS '群组ID';
+COMMENT ON COLUMN n_chat_messages.author_id IS '作者用户ID';
+COMMENT ON COLUMN n_chat_messages.message_type IS '消息类型（text/system）';
+COMMENT ON COLUMN n_chat_messages.content IS '消息文本内容';
+COMMENT ON COLUMN n_chat_messages.reply_to_message_id IS '回复目标消息ID';
+COMMENT ON COLUMN n_chat_messages.is_pinned IS '是否置顶';
+COMMENT ON COLUMN n_chat_messages.is_deleted IS '是否删除';
+COMMENT ON COLUMN n_chat_messages.deleted_by IS '删除操作人用户ID';
+COMMENT ON COLUMN n_chat_messages.created_at IS '创建时间';
+COMMENT ON COLUMN n_chat_messages.updated_at IS '更新时间';
+COMMENT ON COLUMN n_chat_messages.edited_at IS '编辑时间';
+COMMENT ON COLUMN n_chat_messages.deleted_at IS '删除时间';
+
+
+CREATE TABLE n_chat_message_media (
+    chat_message_media_id    NUMBER(19)      PRIMARY KEY,
+    message_id               NUMBER(19)      NOT NULL,
+    media_id                 NUMBER(19)      NOT NULL,
+    position                 NUMBER(10)      DEFAULT 1 NOT NULL,
+    created_at               TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT fk_chat_msg_media_message FOREIGN KEY (message_id)
+        REFERENCES n_chat_messages(message_id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_msg_media_asset FOREIGN KEY (media_id)
+        REFERENCES n_media_assets(media_id) ON DELETE CASCADE,
+    CONSTRAINT uk_chat_msg_media UNIQUE (message_id, media_id)
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_chat_message_media IS '聊天消息媒体附件关联表';
+COMMENT ON COLUMN n_chat_message_media.chat_message_media_id IS '关联ID';
+COMMENT ON COLUMN n_chat_message_media.message_id IS '消息ID';
+COMMENT ON COLUMN n_chat_message_media.media_id IS '媒体ID';
+COMMENT ON COLUMN n_chat_message_media.position IS '附件排序值';
+COMMENT ON COLUMN n_chat_message_media.created_at IS '创建时间';
+
+
+CREATE TABLE n_chat_message_reactions (
+    message_id               NUMBER(19)      NOT NULL,
+    user_id                  NUMBER(10)      NOT NULL,
+    emoji                    VARCHAR2(32)    NOT NULL,
+    created_at               TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT pk_chat_message_reactions PRIMARY KEY (message_id, user_id, emoji),
+    CONSTRAINT fk_chat_reactions_message FOREIGN KEY (message_id)
+        REFERENCES n_chat_messages(message_id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_reactions_user FOREIGN KEY (user_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_chat_message_reactions IS '聊天消息表情反应表';
+COMMENT ON COLUMN n_chat_message_reactions.message_id IS '消息ID';
+COMMENT ON COLUMN n_chat_message_reactions.user_id IS '用户ID';
+COMMENT ON COLUMN n_chat_message_reactions.emoji IS '表情';
+COMMENT ON COLUMN n_chat_message_reactions.created_at IS '创建时间';
+
+
+CREATE TABLE n_chat_channel_reads (
+    channel_id               NUMBER(19)      NOT NULL,
+    user_id                  NUMBER(10)      NOT NULL,
+    last_read_message_id     NUMBER(19),
+    last_read_at             TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT pk_chat_channel_reads PRIMARY KEY (channel_id, user_id),
+    CONSTRAINT fk_chat_reads_channel FOREIGN KEY (channel_id)
+        REFERENCES n_chat_channels(channel_id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_reads_user FOREIGN KEY (user_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_reads_message FOREIGN KEY (last_read_message_id)
+        REFERENCES n_chat_messages(message_id) ON DELETE SET NULL
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_chat_channel_reads IS '聊天频道已读状态表';
+COMMENT ON COLUMN n_chat_channel_reads.channel_id IS '频道ID';
+COMMENT ON COLUMN n_chat_channel_reads.user_id IS '用户ID';
+COMMENT ON COLUMN n_chat_channel_reads.last_read_message_id IS '最后已读消息ID';
+COMMENT ON COLUMN n_chat_channel_reads.last_read_at IS '最后已读时间';
+
+
+CREATE TABLE n_chat_channel_mutes (
+    channel_id               NUMBER(19)      NOT NULL,
+    user_id                  NUMBER(10)      NOT NULL,
+    created_at               TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT pk_chat_channel_mutes PRIMARY KEY (channel_id, user_id),
+    CONSTRAINT fk_chat_mutes_channel FOREIGN KEY (channel_id)
+        REFERENCES n_chat_channels(channel_id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_mutes_user FOREIGN KEY (user_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_chat_channel_mutes IS '聊天频道静音表';
+COMMENT ON COLUMN n_chat_channel_mutes.channel_id IS '频道ID';
+COMMENT ON COLUMN n_chat_channel_mutes.user_id IS '用户ID';
+COMMENT ON COLUMN n_chat_channel_mutes.created_at IS '创建时间';
+
+CREATE TABLE n_direct_conversations (
+    conversation_id          NUMBER(19)      PRIMARY KEY,
+    user_low_id              NUMBER(19)      NOT NULL,
+    user_high_id             NUMBER(19)      NOT NULL,
+    created_by               NUMBER(19)      NOT NULL,
+    last_message_id          NUMBER(19),
+    last_message_at          TIMESTAMP,
+    message_count            NUMBER(10)      DEFAULT 0 NOT NULL,
+    is_deleted               NUMBER(1)       DEFAULT 0 NOT NULL,
+    created_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT fk_direct_conv_low_user FOREIGN KEY (user_low_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_direct_conv_high_user FOREIGN KEY (user_high_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_direct_conv_creator FOREIGN KEY (created_by)
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT uk_direct_conversation_pair UNIQUE (user_low_id, user_high_id),
+    CONSTRAINT chk_direct_conversation_pair CHECK (user_low_id < user_high_id),
+    CONSTRAINT chk_direct_conversation_flags CHECK (is_deleted IN (0, 1)),
+    CONSTRAINT chk_direct_conversation_counts CHECK (message_count >= 0)
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_direct_conversations IS '私聊会话表';
+COMMENT ON COLUMN n_direct_conversations.conversation_id IS '会话ID';
+COMMENT ON COLUMN n_direct_conversations.user_low_id IS '较小用户ID';
+COMMENT ON COLUMN n_direct_conversations.user_high_id IS '较大用户ID';
+COMMENT ON COLUMN n_direct_conversations.created_by IS '创建人用户ID';
+COMMENT ON COLUMN n_direct_conversations.last_message_id IS '最后消息ID';
+COMMENT ON COLUMN n_direct_conversations.last_message_at IS '最后消息时间';
+COMMENT ON COLUMN n_direct_conversations.message_count IS '消息数量';
+COMMENT ON COLUMN n_direct_conversations.is_deleted IS '是否删除';
+
+CREATE TABLE n_direct_messages (
+    message_id               NUMBER(19)      PRIMARY KEY,
+    conversation_id          NUMBER(19)      NOT NULL,
+    sender_id                NUMBER(19)      NOT NULL,
+    content                  VARCHAR2(4000)  NOT NULL,
+    is_deleted               NUMBER(1)       DEFAULT 0 NOT NULL,
+    deleted_by               NUMBER(19),
+    created_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    edited_at                TIMESTAMP,
+    deleted_at               TIMESTAMP,
+    CONSTRAINT fk_direct_messages_conversation FOREIGN KEY (conversation_id)
+        REFERENCES n_direct_conversations(conversation_id) ON DELETE CASCADE,
+    CONSTRAINT fk_direct_messages_sender FOREIGN KEY (sender_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_direct_messages_deleter FOREIGN KEY (deleted_by)
+        REFERENCES n_users(user_id) ON DELETE SET NULL,
+    CONSTRAINT chk_direct_message_flags CHECK (is_deleted IN (0, 1))
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_direct_messages IS '私聊消息表';
+COMMENT ON COLUMN n_direct_messages.message_id IS '消息ID';
+COMMENT ON COLUMN n_direct_messages.conversation_id IS '会话ID';
+COMMENT ON COLUMN n_direct_messages.sender_id IS '发送者用户ID';
+COMMENT ON COLUMN n_direct_messages.content IS '消息文本内容';
+COMMENT ON COLUMN n_direct_messages.is_deleted IS '是否删除';
+
+CREATE TABLE n_direct_conversation_reads (
+    conversation_id          NUMBER(19)      NOT NULL,
+    user_id                  NUMBER(19)      NOT NULL,
+    last_read_message_id     NUMBER(19),
+    last_read_at             TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT pk_direct_conversation_reads PRIMARY KEY (conversation_id, user_id),
+    CONSTRAINT fk_direct_reads_conversation FOREIGN KEY (conversation_id)
+        REFERENCES n_direct_conversations(conversation_id) ON DELETE CASCADE,
+    CONSTRAINT fk_direct_reads_user FOREIGN KEY (user_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_direct_reads_message FOREIGN KEY (last_read_message_id)
+        REFERENCES n_direct_messages(message_id) ON DELETE SET NULL
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_direct_conversation_reads IS '私聊会话已读状态表';
+COMMENT ON COLUMN n_direct_conversation_reads.conversation_id IS '会话ID';
+COMMENT ON COLUMN n_direct_conversation_reads.user_id IS '用户ID';
+COMMENT ON COLUMN n_direct_conversation_reads.last_read_message_id IS '最后已读消息ID';
+COMMENT ON COLUMN n_direct_conversation_reads.last_read_at IS '最后已读时间';
+
+
 -- 用户头像媒体外键，放在媒体表创建后定义，避免循环依赖
 ALTER TABLE n_users
 ADD CONSTRAINT fk_users_avatar_media
@@ -1201,6 +1442,25 @@ CREATE INDEX idx_group_post_likes_post_id ON n_group_post_likes(post_id) TABLESP
 CREATE INDEX idx_group_post_likes_user_id ON n_group_post_likes(user_id) TABLESPACE neko_index;
 CREATE INDEX idx_group_comment_likes_comment_id ON n_group_comment_likes(comment_id) TABLESPACE neko_index;
 CREATE INDEX idx_group_comment_likes_user_id ON n_group_comment_likes(user_id) TABLESPACE neko_index;
+
+-- 群组聊天索引
+CREATE INDEX idx_chat_channels_group ON n_chat_channels(group_id, is_deleted, position) TABLESPACE neko_index;
+CREATE INDEX idx_chat_channels_last_message ON n_chat_channels(last_message_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_chat_messages_channel_time ON n_chat_messages(channel_id, is_deleted, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_chat_messages_group_time ON n_chat_messages(group_id, is_deleted, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_chat_messages_author ON n_chat_messages(author_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_chat_messages_reply ON n_chat_messages(reply_to_message_id) TABLESPACE neko_index;
+CREATE INDEX idx_chat_messages_pinned ON n_chat_messages(channel_id, is_pinned DESC, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_chat_msg_media_message ON n_chat_message_media(message_id, position) TABLESPACE neko_index;
+CREATE INDEX idx_chat_msg_media_asset ON n_chat_message_media(media_id) TABLESPACE neko_index;
+CREATE INDEX idx_chat_reactions_user ON n_chat_message_reactions(user_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_chat_reads_user ON n_chat_channel_reads(user_id, last_read_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_chat_mutes_user ON n_chat_channel_mutes(user_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_direct_conv_low_user ON n_direct_conversations(user_low_id, updated_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_direct_conv_high_user ON n_direct_conversations(user_high_id, updated_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_direct_messages_conv_time ON n_direct_messages(conversation_id, is_deleted, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_direct_messages_sender ON n_direct_messages(sender_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_direct_reads_user ON n_direct_conversation_reads(user_id, last_read_at DESC) TABLESPACE neko_index;
 
 -- ==========================================
 -- 7. 函数
@@ -2593,6 +2853,56 @@ BEGIN
 END;
 /
 
+CREATE OR REPLACE TRIGGER trg_chat_channels_id
+BEFORE INSERT ON n_chat_channels
+FOR EACH ROW
+BEGIN
+    IF :NEW.channel_id IS NULL THEN
+        :NEW.channel_id := seq_chat_channel_id.NEXTVAL;
+    END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_chat_messages_id
+BEFORE INSERT ON n_chat_messages
+FOR EACH ROW
+BEGIN
+    IF :NEW.message_id IS NULL THEN
+        :NEW.message_id := seq_chat_message_id.NEXTVAL;
+    END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_chat_message_media_id
+BEFORE INSERT ON n_chat_message_media
+FOR EACH ROW
+BEGIN
+    IF :NEW.chat_message_media_id IS NULL THEN
+        :NEW.chat_message_media_id := seq_chat_message_media_id.NEXTVAL;
+    END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_direct_conversations_id
+BEFORE INSERT ON n_direct_conversations
+FOR EACH ROW
+BEGIN
+    IF :NEW.conversation_id IS NULL THEN
+        :NEW.conversation_id := seq_direct_conversation_id.NEXTVAL;
+    END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_direct_messages_id
+BEFORE INSERT ON n_direct_messages
+FOR EACH ROW
+BEGIN
+    IF :NEW.message_id IS NULL THEN
+        :NEW.message_id := seq_direct_message_id.NEXTVAL;
+    END IF;
+END;
+/
+
 -- 8.9 群组更新时间触发器
 CREATE OR REPLACE TRIGGER trg_groups_updated_at
 BEFORE UPDATE ON n_groups
@@ -2620,6 +2930,38 @@ END;
 
 CREATE OR REPLACE TRIGGER trg_group_comments_updated_at
 BEFORE UPDATE ON n_group_comments
+FOR EACH ROW
+BEGIN
+    :NEW.updated_at := SYSTIMESTAMP;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_chat_channels_updated_at
+BEFORE UPDATE ON n_chat_channels
+FOR EACH ROW
+BEGIN
+    :NEW.updated_at := SYSTIMESTAMP;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_chat_messages_updated_at
+BEFORE UPDATE ON n_chat_messages
+FOR EACH ROW
+BEGIN
+    :NEW.updated_at := SYSTIMESTAMP;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_direct_conversations_updated_at
+BEFORE UPDATE ON n_direct_conversations
+FOR EACH ROW
+BEGIN
+    :NEW.updated_at := SYSTIMESTAMP;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_direct_messages_updated_at
+BEFORE UPDATE ON n_direct_messages
 FOR EACH ROW
 BEGIN
     :NEW.updated_at := SYSTIMESTAMP;
@@ -5088,6 +5430,15 @@ GRANT SELECT ON n_group_invites TO neko_readonly;
 GRANT SELECT ON n_group_audit_logs TO neko_readonly;
 GRANT SELECT ON n_group_post_likes TO neko_readonly;
 GRANT SELECT ON n_group_comment_likes TO neko_readonly;
+GRANT SELECT ON n_chat_channels TO neko_readonly;
+GRANT SELECT ON n_chat_messages TO neko_readonly;
+GRANT SELECT ON n_chat_message_media TO neko_readonly;
+GRANT SELECT ON n_chat_message_reactions TO neko_readonly;
+GRANT SELECT ON n_chat_channel_reads TO neko_readonly;
+GRANT SELECT ON n_chat_channel_mutes TO neko_readonly;
+GRANT SELECT ON n_direct_conversations TO neko_readonly;
+GRANT SELECT ON n_direct_messages TO neko_readonly;
+GRANT SELECT ON n_direct_conversation_reads TO neko_readonly;
 
 -- 安全边界:
 --   neko_readonly 不直接授权 n_auth_sessions / n_auth_otp_events 等认证秘密表。
@@ -5773,6 +6124,15 @@ BEGIN
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_AUDIT_LOGS');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_POST_LIKES');
     DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_GROUP_COMMENT_LIKES');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_CHAT_CHANNELS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_CHAT_MESSAGES');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_CHAT_MESSAGE_MEDIA');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_CHAT_MESSAGE_REACTIONS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_CHAT_CHANNEL_READS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_CHAT_CHANNEL_MUTES');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_DIRECT_CONVERSATIONS');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_DIRECT_MESSAGES');
+    DBMS_STATS.GATHER_TABLE_STATS('NEKO_APP', 'N_DIRECT_CONVERSATION_READS');
 END;
 /
 
@@ -5872,7 +6232,7 @@ END;
 -- ==========================================
 SELECT
     'NekoTribe V2 数据库创建完成' AS status,
-    '已包含社交主线、通知、设置、账户状态、群组、测试数据、统计信息和物化视图' AS summary
+    '已包含社交主线、通知、设置、账户状态、群组聊天、测试数据、统计信息和物化视图' AS summary
 FROM dual;
 
 

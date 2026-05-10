@@ -64,6 +64,11 @@ export type V2GroupPostListType =
   | 'all'
   | 'pinned'
   | 'announcement';
+export type V2ChatChannelType =
+  | 'text'
+  | 'announcement'
+  | 'voice'
+  | 'video';
 
 export interface V2Relationship {
   is_self: boolean;
@@ -483,7 +488,21 @@ export interface V2GroupMember {
   role_desc: string;
   status: string;
   nickname: string | null;
+  mute_until?: string | null;
   joined_at: string;
+}
+
+export interface V2GroupMemberStatusData {
+  member_id?: number;
+  user_id?: number;
+  status?: string;
+  role?: V2GroupRole;
+  mute_until?: string | null;
+}
+
+export interface V2TransferGroupOwnershipData {
+  group_id: number;
+  owner_id: number;
 }
 
 export interface V2GroupPost {
@@ -570,6 +589,7 @@ export interface V2InviteResponseData {
 }
 
 export interface V2PageQuery {
+  [key: string]: V2Primitive | undefined;
   page?: number;
   page_size?: number;
 }
@@ -606,6 +626,7 @@ export interface V2GroupListQuery extends V2PageQuery {
 }
 
 export interface V2PopularGroupsQuery {
+  [key: string]: V2Primitive | undefined;
   limit?: number;
 }
 
@@ -618,6 +639,162 @@ export interface V2GroupPostListQuery extends V2PageQuery {
 
 export interface V2GroupInviteListQuery extends V2PageQuery {
   status?: string;
+}
+
+export interface V2ChatGroup {
+  group_id: number;
+  name: string;
+  avatar_url: string | null;
+  member_count: number;
+  channel_count: number;
+  unread_count: number;
+  membership: V2GroupMembership & {
+    can_manage: boolean;
+  };
+}
+
+export interface V2ChatChannelLastMessage {
+  message_id: number;
+  content: string;
+  author_name: string;
+  created_at: string;
+}
+
+export interface V2ChatChannel {
+  channel_id: number;
+  group_id: number;
+  name: string;
+  type: V2ChatChannelType;
+  category: string;
+  position: number;
+  is_private: boolean;
+  is_muted_by_me: boolean;
+  unread_count: number;
+  last_message: V2ChatChannelLastMessage | null;
+  created_at: string;
+  updated_at: string;
+  can_manage: boolean;
+}
+
+export interface V2ChatMember {
+  user_id: number;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  role: V2GroupRole;
+  status: string;
+  online_status: 'online' | 'offline';
+}
+
+export interface V2ChatReactionSummary {
+  emoji: string;
+  count: number;
+  reacted_by_me: boolean;
+}
+
+export interface V2ChatMessageReply {
+  message_id: number;
+  content: string;
+  author_name: string;
+}
+
+export interface V2ChatMessage {
+  message_id: number;
+  channel_id: number;
+  group_id: number;
+  message_type: 'text' | 'system';
+  content: string;
+  author: V2PublicUser;
+  reply_to: V2ChatMessageReply | null;
+  media: V2MediaAsset[];
+  reactions: V2ChatReactionSummary[];
+  is_pinned: boolean;
+  is_deleted: boolean;
+  can_delete: boolean;
+  can_pin: boolean;
+  created_at: string;
+  updated_at: string;
+  edited_at: string | null;
+  deleted_at: string | null;
+}
+
+export interface V2CreateChatChannelPayload {
+  name: string;
+  type?: V2ChatChannelType;
+  category?: string;
+  is_private?: boolean;
+}
+
+export interface V2UpdateChatChannelPayload {
+  name?: string;
+  category?: string;
+  is_private?: boolean;
+}
+
+export interface V2CreateChatMessagePayload {
+  content?: string;
+  reply_to_message_id?: number | null;
+  media_ids?: number[];
+}
+
+export interface V2UpdateChatMessagePayload {
+  content: string;
+}
+
+export interface V2ChatReactionPayload {
+  emoji: string;
+}
+
+export interface V2ChatMessagePinPayload {
+  is_pinned: boolean;
+}
+
+export interface V2ChatReadStatusData {
+  channel_id: number;
+  last_read_message_id: number | null;
+  unread_count: number;
+}
+
+export interface V2ChatChannelMuteData {
+  channel_id: number;
+  is_muted: boolean;
+}
+
+export interface V2DirectLastMessage {
+  message_id: number;
+  content: string;
+  author_name: string;
+  created_at: string;
+}
+
+export interface V2DirectConversation {
+  conversation_id: number;
+  participant: V2PublicUser;
+  unread_count: number;
+  last_message: V2DirectLastMessage | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface V2DirectMessage {
+  message_id: number;
+  conversation_id: number;
+  content: string;
+  author: V2PublicUser;
+  is_deleted: boolean;
+  can_delete: boolean;
+  created_at: string;
+  updated_at: string;
+  edited_at: string | null;
+  deleted_at: string | null;
+}
+
+export interface V2CreateDirectConversationPayload {
+  target_user_id: number;
+}
+
+export interface V2CreateDirectMessagePayload {
+  content: string;
 }
 
 export interface V2FollowUserData {
@@ -789,10 +966,15 @@ export type V2CreateGroupResponse = V2ApiResponse<V2Group>;
 export type V2GetGroupResponse = V2ApiResponse<V2Group>;
 export type V2PatchGroupRequest = V2UpdateGroupPayload;
 export type V2PatchGroupResponse = V2ApiResponse<V2Group>;
+export type V2DeleteGroupResponse = V2ApiResponse<null>;
 export type V2JoinGroupRequest = V2JoinGroupPayload;
 export type V2JoinGroupResponse =
   V2ApiResponse<V2JoinGroupData>;
 export type V2LeaveGroupResponse = V2ApiResponse<null>;
+export type V2GroupMemberStatusResponse =
+  V2ApiResponse<V2GroupMemberStatusData>;
+export type V2TransferGroupOwnershipResponse =
+  V2ApiResponse<V2TransferGroupOwnershipData>;
 export type V2ListGroupMembersRequest =
   V2GroupMemberListQuery;
 export type V2ListGroupMembersResponse = V2ApiResponse<
@@ -820,3 +1002,42 @@ export type V2RespondGroupInviteRequest =
   V2InviteResponsePayload;
 export type V2RespondGroupInviteResponse =
   V2ApiResponse<V2InviteResponseData>;
+export type V2ListChatGroupsResponse = V2ApiResponse<
+  V2ChatGroup[]
+>;
+export type V2ListChatChannelsResponse = V2ApiResponse<
+  V2ChatChannel[]
+>;
+export type V2CreateChatChannelResponse =
+  V2ApiResponse<V2ChatChannel>;
+export type V2UpdateChatChannelResponse =
+  V2ApiResponse<V2ChatChannel>;
+export type V2ListChatMembersResponse = V2ApiResponse<
+  V2ChatMember[]
+>;
+export type V2ListChatMessagesResponse = V2ApiResponse<
+  V2ChatMessage[]
+>;
+export type V2CreateChatMessageResponse =
+  V2ApiResponse<V2ChatMessage>;
+export type V2UpdateChatMessageResponse =
+  V2ApiResponse<V2ChatMessage>;
+export type V2DeleteChatMessageResponse = V2ApiResponse<null>;
+export type V2ChatReactionResponse =
+  V2ApiResponse<V2ChatMessage>;
+export type V2ChatMessagePinResponse =
+  V2ApiResponse<V2ChatMessage>;
+export type V2ChatReadStatusResponse =
+  V2ApiResponse<V2ChatReadStatusData>;
+export type V2ChatChannelMuteResponse =
+  V2ApiResponse<V2ChatChannelMuteData>;
+export type V2ListDirectConversationsResponse = V2ApiResponse<
+  V2DirectConversation[]
+>;
+export type V2CreateDirectConversationResponse =
+  V2ApiResponse<V2DirectConversation>;
+export type V2ListDirectMessagesResponse = V2ApiResponse<
+  V2DirectMessage[]
+>;
+export type V2CreateDirectMessageResponse =
+  V2ApiResponse<V2DirectMessage>;

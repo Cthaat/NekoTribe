@@ -1,0 +1,2541 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "NekoTribe API v2 群组聊天接口",
+    "version": "2.0.0",
+    "description": "由 doc/NekoTribe-V2-群组聊天接口文档.md 转换而来。REST 接口路径已包含 /api/v2 前缀，便于 Apifox 直接导入；消息写入、编辑、删除、置顶、反应变更通过 REST 完成；WebSocket 只负责频道订阅和事件推送。"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "本地开发 Nuxt 服务"
+    },
+    {
+      "url": "https://api.nekotribe.com",
+      "description": "生产环境占位"
+    }
+  ],
+  "tags": [
+    {
+      "name": "群组聊天",
+      "description": "聊天群组、频道和成员接口"
+    },
+    {
+      "name": "频道消息",
+      "description": "频道消息、已读、静音、置顶和表情反应接口"
+    },
+    {
+      "name": "媒体附件",
+      "description": "发送聊天附件前复用的 v2 媒体上传接口"
+    },
+    {
+      "name": "WebSocket 实时协议",
+      "description": "频道订阅和服务端事件推送协议说明"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    },
+    {
+      "accessTokenCookie": []
+    }
+  ],
+  "paths": {
+    "/api/v2/chat/groups": {
+      "get": {
+        "tags": [
+          "群组聊天"
+        ],
+        "summary": "获取当前用户可访问的聊天群组列表",
+        "description": "服务端会为每个没有聊天频道的群组懒创建默认频道：公告板 和 综合讨论。",
+        "operationId": "listChatGroups",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatGroupListResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "success",
+                  "data": [
+                    {
+                      "group_id": 1,
+                      "name": "V2 Core Team",
+                      "avatar_url": "/storage/groups/core.png",
+                      "member_count": 12,
+                      "channel_count": 2,
+                      "unread_count": 5,
+                      "membership": {
+                        "is_member": true,
+                        "role": "owner",
+                        "status": "active",
+                        "joined_at": "2026-05-09T02:00:00.000Z",
+                        "can_manage": true
+                      }
+                    }
+                  ],
+                  "meta": {
+                    "page": 1,
+                    "page_size": 20,
+                    "total": 1,
+                    "has_next": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v2/chat/groups/{id}/channels": {
+      "get": {
+        "tags": [
+          "群组聊天"
+        ],
+        "summary": "获取指定群组的频道列表",
+        "operationId": "listChatChannels",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatChannelListResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "success",
+                  "data": [
+                    {
+                      "channel_id": 1,
+                      "group_id": 1,
+                      "name": "公告板",
+                      "type": "announcement",
+                      "category": "公告",
+                      "position": 10,
+                      "is_private": false,
+                      "is_muted_by_me": false,
+                      "unread_count": 0,
+                      "last_message": null,
+                      "created_at": "2026-05-09T02:00:00.000Z",
+                      "updated_at": "2026-05-09T02:00:00.000Z",
+                      "can_manage": true
+                    }
+                  ],
+                  "meta": null
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "群组聊天"
+        ],
+        "summary": "创建聊天频道",
+        "description": "需要群组 owner、admin 或 moderator 权限。",
+        "operationId": "createChatChannel",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2CreateChatChannelPayload"
+              },
+              "example": {
+                "name": "技术交流",
+                "type": "text",
+                "category": "文字频道",
+                "is_private": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "data 为 V2ChatChannel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatChannelResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        }
+      }
+    },
+    "/api/v2/chat/channels/{channel_id}": {
+      "patch": {
+        "tags": [
+          "群组聊天"
+        ],
+        "summary": "编辑聊天频道",
+        "description": "需要群组 owner、admin 或 moderator 权限。",
+        "operationId": "updateChatChannel",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ChannelId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2UpdateChatChannelPayload"
+              },
+              "example": {
+                "name": "技术讨论",
+                "category": "文字频道",
+                "is_private": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "data 为 V2ChatChannel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatChannelResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "群组聊天"
+        ],
+        "summary": "删除聊天频道",
+        "description": "当前实现为软删除，频道不再展示。需要群组 owner、admin 或 moderator 权限。",
+        "operationId": "deleteChatChannel",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ChannelId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "频道已删除",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2NullResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "chat channel deleted",
+                  "data": null,
+                  "meta": null
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v2/chat/groups/{id}/members": {
+      "get": {
+        "tags": [
+          "群组聊天"
+        ],
+        "summary": "获取群组聊天成员列表",
+        "operationId": "listChatMembers",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatMemberListResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "success",
+                  "data": [
+                    {
+                      "user_id": 1001,
+                      "username": "neko",
+                      "display_name": "Neko",
+                      "avatar_url": "/storage/default-avatar.png",
+                      "role": "owner",
+                      "status": "active",
+                      "online_status": "online"
+                    }
+                  ],
+                  "meta": null
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v2/chat/channels/{channel_id}/messages": {
+      "get": {
+        "tags": [
+          "频道消息"
+        ],
+        "summary": "分页获取频道消息",
+        "description": "第一页加载成功且存在消息时，服务端会自动把最后一条消息标记为已读。",
+        "operationId": "listChatMessages",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ChannelId"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "按消息内容模糊搜索",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatMessageListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "频道消息"
+        ],
+        "summary": "发送频道消息",
+        "description": "用户必须是该群组 active 成员。announcement 频道仅管理角色可发。voice / video 频道第一版不支持发送文字消息。成功后频道内订阅用户会收到 chat_message。",
+        "operationId": "createChatMessage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ChannelId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2CreateChatMessagePayload"
+              },
+              "example": {
+                "content": "今晚继续联调",
+                "reply_to_message_id": null
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "data 为 V2ChatMessage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        }
+      }
+    },
+    "/api/v2/chat/messages/{message_id}": {
+      "patch": {
+        "tags": [
+          "频道消息"
+        ],
+        "summary": "编辑消息内容",
+        "description": "仅消息作者本人，且当前群组成员状态必须为 active。成功后频道内订阅用户会收到 chat_message_updated。",
+        "operationId": "updateChatMessage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MessageId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2UpdateChatMessagePayload"
+              },
+              "example": {
+                "content": "今晚 9 点继续联调"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "data 为更新后的 V2ChatMessage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "频道消息"
+        ],
+        "summary": "删除消息",
+        "description": "当前实现为软删除。消息作者本人或群组管理角色可删除。成功后频道内订阅用户会收到 chat_message_deleted。",
+        "operationId": "deleteChatMessage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MessageId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "消息已删除",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2NullResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "chat message deleted",
+                  "data": null,
+                  "meta": null
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v2/chat/messages/{message_id}/pin-status": {
+      "put": {
+        "tags": [
+          "频道消息"
+        ],
+        "summary": "设置消息置顶状态",
+        "description": "仅群组 owner、admin、moderator 可操作。成功后频道内订阅用户会收到 chat_message_updated。",
+        "operationId": "setChatMessagePinStatus",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MessageId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2ChatMessagePinPayload"
+              },
+              "example": {
+                "is_pinned": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "data 为更新后的 V2ChatMessage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatMessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v2/chat/messages/{message_id}/reactions": {
+      "post": {
+        "tags": [
+          "频道消息"
+        ],
+        "summary": "添加消息表情反应",
+        "description": "同一用户对同一消息同一表情只保留一条记录。成功后频道内订阅用户会收到 chat_reaction_updated。",
+        "operationId": "createChatReaction",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MessageId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2ChatReactionPayload"
+              },
+              "example": {
+                "emoji": "👍"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "data 为更新后的 V2ChatMessage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "频道消息"
+        ],
+        "summary": "删除消息表情反应",
+        "description": "该接口使用 DELETE 请求体传递 emoji。如果客户端或代理不支持 DELETE body，需要在客户端层做兼容处理。成功后频道内订阅用户会收到 chat_reaction_updated。",
+        "operationId": "deleteChatReaction",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MessageId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2ChatReactionPayload"
+              },
+              "example": {
+                "emoji": "👍"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "data 为更新后的 V2ChatMessage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v2/chat/channels/{channel_id}/read-status": {
+      "put": {
+        "tags": [
+          "频道消息"
+        ],
+        "summary": "设置频道已读状态",
+        "operationId": "setChatChannelReadStatus",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ChannelId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2ChatReadStatusPayload"
+              },
+              "example": {
+                "last_read_message_id": null
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已读状态已更新",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatReadStatusResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "chat read status updated",
+                  "data": {
+                    "channel_id": 1,
+                    "last_read_message_id": 4,
+                    "unread_count": 0
+                  },
+                  "meta": null
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v2/chat/channels/{channel_id}/mute-status": {
+      "put": {
+        "tags": [
+          "频道消息"
+        ],
+        "summary": "设置当前用户对频道的静音状态",
+        "operationId": "setChatChannelMuteStatus",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ChannelId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2ChatChannelMutePayload"
+              },
+              "example": {
+                "is_muted": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "静音状态已更新",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ChatChannelMuteResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "chat channel mute status updated",
+                  "data": {
+                    "channel_id": 1,
+                    "is_muted": true
+                  },
+                  "meta": null
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/media": {
+      "post": {
+        "tags": [
+          "媒体附件"
+        ],
+        "summary": "上传媒体附件",
+        "description": "聊天消息附件复用既有 POST /api/v2/media 上传接口，发送消息时传入返回的 media_id。支持 multipart/form-data 任意格式文件上传，也支持 JSON 方式登记已有媒体地址。",
+        "operationId": "uploadMedia",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/V2UploadMediaMultipartPayload"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2CreateJsonMediaPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "媒体已上传",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2MediaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/_ws": {
+      "get": {
+        "tags": [
+          "WebSocket 实时协议"
+        ],
+        "summary": "WebSocket 聊天实时协议说明",
+        "description": "实际路径为站点根路径 /_ws，不在 /api/v2 下。OpenAPI 无法完整表达 WebSocket 帧，此接口用于导入 Apifox 后保留协议说明。浏览器同源连接可自动携带 access_token Cookie，也支持 query token 或 Authorization: Bearer <access_token>。",
+        "operationId": "chatWebSocketProtocol",
+        "servers": [
+          {
+            "url": "ws://localhost:3000",
+            "description": "本地 WebSocket"
+          },
+          {
+            "url": "/",
+            "description": "当前站点根路径"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "description": "可选 access_token",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "协议升级成功，后续按 WebSocket 帧通信"
+          },
+          "401": {
+            "description": "WebSocket 未认证",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WsErrorEvent"
+                },
+                "example": {
+                  "type": "error",
+                  "data": {
+                    "message": "WebSocket 未认证"
+                  },
+                  "timestamp": 1760000000000
+                }
+              }
+            }
+          }
+        },
+        "x-websocket-client-events": [
+          {
+            "name": "chat_join_channel",
+            "schema": {
+              "$ref": "#/components/schemas/WsJoinChannelPayload"
+            }
+          },
+          {
+            "name": "chat_leave_channel",
+            "schema": {
+              "$ref": "#/components/schemas/WsLeaveChannelPayload"
+            }
+          },
+          {
+            "name": "ping",
+            "schema": {
+              "$ref": "#/components/schemas/WsPingPayload"
+            }
+          }
+        ],
+        "x-websocket-server-events": [
+          "system_notification",
+          "pong",
+          "chat_message",
+          "chat_message_updated",
+          "chat_message_deleted",
+          "chat_reaction_updated"
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Authorization: Bearer <access_token>"
+      },
+      "accessTokenCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "access_token",
+        "description": "登录后由浏览器携带的 access_token Cookie"
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "页码",
+        "schema": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "PageSize": {
+        "name": "page_size",
+        "in": "query",
+        "required": false,
+        "description": "每页数量，最大 100",
+        "schema": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "GroupId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "群组 ID",
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "example": 1
+        }
+      },
+      "ChannelId": {
+        "name": "channel_id",
+        "in": "path",
+        "required": true,
+        "description": "频道 ID",
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "example": 1
+        }
+      },
+      "MessageId": {
+        "name": "message_id",
+        "in": "path",
+        "required": true,
+        "description": "消息 ID",
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "example": 100
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "请求参数错误",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            "example": {
+              "code": 40001,
+              "message": "请求参数错误",
+              "data": null,
+              "meta": null
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "未认证或 token 无效",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            "example": {
+              "code": 40101,
+              "message": "未认证或 token 无效",
+              "data": null,
+              "meta": null
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "权限不足",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            "example": {
+              "code": 40301,
+              "message": "权限不足",
+              "data": null,
+              "meta": null
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "资源不存在",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            "example": {
+              "code": 40401,
+              "message": "资源不存在",
+              "data": null,
+              "meta": null
+            }
+          }
+        }
+      },
+      "Unprocessable": {
+        "description": "业务规则不允许",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            "example": {
+              "code": 42201,
+              "message": "业务规则不允许",
+              "data": null,
+              "meta": null
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "服务器内部错误",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            "example": {
+              "code": 50001,
+              "message": "服务器内部错误",
+              "data": null,
+              "meta": null
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "V2PaginationMeta": {
+        "type": "object",
+        "required": [
+          "page",
+          "page_size",
+          "total",
+          "has_next"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "example": 20
+          },
+          "total": {
+            "type": "integer",
+            "example": 1
+          },
+          "has_next": {
+            "type": "boolean",
+            "example": false
+          }
+        }
+      },
+      "V2ErrorResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "enum": [
+              40001,
+              40101,
+              40301,
+              40401,
+              40901,
+              42201,
+              50001
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "nullable": true
+          },
+          "meta": {
+            "nullable": true
+          }
+        }
+      },
+      "V2NullResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "nullable": true
+          },
+          "meta": {
+            "nullable": true
+          }
+        }
+      },
+      "V2GroupRole": {
+        "type": "string",
+        "enum": [
+          "owner",
+          "admin",
+          "moderator",
+          "member"
+        ]
+      },
+      "V2ChatChannelType": {
+        "type": "string",
+        "description": "第一版只有 text 和 announcement 支持文字消息",
+        "enum": [
+          "text",
+          "announcement",
+          "voice",
+          "video"
+        ]
+      },
+      "V2ChatMembership": {
+        "type": "object",
+        "required": [
+          "is_member",
+          "role",
+          "status",
+          "joined_at",
+          "can_manage"
+        ],
+        "properties": {
+          "is_member": {
+            "type": "boolean",
+            "example": true
+          },
+          "role": {
+            "$ref": "#/components/schemas/V2GroupRole"
+          },
+          "status": {
+            "type": "string",
+            "example": "active"
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2026-05-09T02:00:00.000Z"
+          },
+          "can_manage": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "V2ChatGroup": {
+        "type": "object",
+        "required": [
+          "group_id",
+          "name",
+          "avatar_url",
+          "member_count",
+          "channel_count",
+          "unread_count",
+          "membership"
+        ],
+        "properties": {
+          "group_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "V2 Core Team"
+          },
+          "avatar_url": {
+            "type": "string",
+            "nullable": true,
+            "example": "/storage/groups/core.png"
+          },
+          "member_count": {
+            "type": "integer",
+            "example": 12
+          },
+          "channel_count": {
+            "type": "integer",
+            "example": 2
+          },
+          "unread_count": {
+            "type": "integer",
+            "example": 5
+          },
+          "membership": {
+            "$ref": "#/components/schemas/V2ChatMembership"
+          }
+        }
+      },
+      "V2ChatChannelLastMessage": {
+        "type": "object",
+        "required": [
+          "message_id",
+          "content",
+          "author_name",
+          "created_at"
+        ],
+        "properties": {
+          "message_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 100
+          },
+          "content": {
+            "type": "string",
+            "example": "今晚继续联调"
+          },
+          "author_name": {
+            "type": "string",
+            "example": "Neko"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-09T02:30:00.000Z"
+          }
+        }
+      },
+      "V2ChatChannel": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "group_id",
+          "name",
+          "type",
+          "category",
+          "position",
+          "is_private",
+          "is_muted_by_me",
+          "unread_count",
+          "last_message",
+          "created_at",
+          "updated_at",
+          "can_manage"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "group_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "综合讨论"
+          },
+          "type": {
+            "$ref": "#/components/schemas/V2ChatChannelType"
+          },
+          "category": {
+            "type": "string",
+            "example": "文字频道"
+          },
+          "position": {
+            "type": "integer",
+            "example": 20
+          },
+          "is_private": {
+            "type": "boolean",
+            "example": false
+          },
+          "is_muted_by_me": {
+            "type": "boolean",
+            "example": false
+          },
+          "unread_count": {
+            "type": "integer",
+            "example": 3
+          },
+          "last_message": {
+            "nullable": true,
+            "$ref": "#/components/schemas/V2ChatChannelLastMessage"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-09T02:00:00.000Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-09T02:30:00.000Z"
+          },
+          "can_manage": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "V2ChatMember": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "username",
+          "display_name",
+          "avatar_url",
+          "role",
+          "status",
+          "online_status"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1001
+          },
+          "username": {
+            "type": "string",
+            "example": "neko"
+          },
+          "display_name": {
+            "type": "string",
+            "example": "Neko"
+          },
+          "avatar_url": {
+            "type": "string",
+            "nullable": true,
+            "example": "/storage/default-avatar.png"
+          },
+          "role": {
+            "$ref": "#/components/schemas/V2GroupRole"
+          },
+          "status": {
+            "type": "string",
+            "example": "active"
+          },
+          "online_status": {
+            "type": "string",
+            "enum": [
+              "online",
+              "offline"
+            ],
+            "example": "online"
+          }
+        }
+      },
+      "V2Relationship": {
+        "type": "object",
+        "required": [
+          "is_self",
+          "is_following",
+          "is_blocked",
+          "is_blocking",
+          "relation"
+        ],
+        "properties": {
+          "is_self": {
+            "type": "boolean",
+            "example": true
+          },
+          "is_following": {
+            "type": "boolean",
+            "example": false
+          },
+          "is_blocked": {
+            "type": "boolean",
+            "example": false
+          },
+          "is_blocking": {
+            "type": "boolean",
+            "example": false
+          },
+          "relation": {
+            "type": "string",
+            "example": "self"
+          }
+        }
+      },
+      "V2PublicUser": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "username",
+          "display_name",
+          "avatar_url",
+          "bio",
+          "location",
+          "website",
+          "is_verified",
+          "followers_count",
+          "following_count",
+          "posts_count",
+          "likes_count",
+          "relationship"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1001
+          },
+          "username": {
+            "type": "string",
+            "example": "neko"
+          },
+          "display_name": {
+            "type": "string",
+            "example": "Neko"
+          },
+          "avatar_url": {
+            "type": "string",
+            "example": "/storage/default-avatar.png"
+          },
+          "bio": {
+            "type": "string",
+            "example": ""
+          },
+          "location": {
+            "type": "string",
+            "example": ""
+          },
+          "website": {
+            "type": "string",
+            "example": ""
+          },
+          "is_verified": {
+            "type": "integer",
+            "example": 0
+          },
+          "followers_count": {
+            "type": "integer",
+            "example": 0
+          },
+          "following_count": {
+            "type": "integer",
+            "example": 0
+          },
+          "posts_count": {
+            "type": "integer",
+            "example": 0
+          },
+          "likes_count": {
+            "type": "integer",
+            "example": 0
+          },
+          "relationship": {
+            "$ref": "#/components/schemas/V2Relationship"
+          }
+        }
+      },
+      "V2MediaAsset": {
+        "type": "object",
+        "required": [
+          "media_id",
+          "media_type",
+          "file_name",
+          "public_url",
+          "file_size",
+          "mime_type",
+          "width",
+          "height",
+          "duration",
+          "thumbnail_url",
+          "alt_text",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "media_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 600001
+          },
+          "media_type": {
+            "type": "string",
+            "enum": [
+              "image",
+              "gif",
+              "video",
+              "audio",
+              "file"
+            ],
+            "example": "image"
+          },
+          "file_name": {
+            "type": "string",
+            "example": "screenshot.png"
+          },
+          "public_url": {
+            "type": "string",
+            "example": "/storage/media/screenshot.png"
+          },
+          "file_size": {
+            "type": "integer",
+            "example": 102400
+          },
+          "mime_type": {
+            "type": "string",
+            "example": "image/png"
+          },
+          "width": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1280
+          },
+          "height": {
+            "type": "integer",
+            "nullable": true,
+            "example": 720
+          },
+          "duration": {
+            "type": "number",
+            "nullable": true,
+            "example": null
+          },
+          "thumbnail_url": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "alt_text": {
+            "type": "string",
+            "nullable": true,
+            "example": "截图"
+          },
+          "status": {
+            "type": "string",
+            "example": "ready"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-09T02:30:00.000Z"
+          }
+        }
+      },
+      "V2ChatReactionSummary": {
+        "type": "object",
+        "required": [
+          "emoji",
+          "count",
+          "reacted_by_me"
+        ],
+        "properties": {
+          "emoji": {
+            "type": "string",
+            "example": "👍"
+          },
+          "count": {
+            "type": "integer",
+            "example": 2
+          },
+          "reacted_by_me": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "V2ChatMessageReply": {
+        "type": "object",
+        "required": [
+          "message_id",
+          "content",
+          "author_name"
+        ],
+        "properties": {
+          "message_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 99
+          },
+          "content": {
+            "type": "string",
+            "example": "上一条消息"
+          },
+          "author_name": {
+            "type": "string",
+            "example": "Neko"
+          }
+        }
+      },
+      "V2ChatMessage": {
+        "type": "object",
+        "required": [
+          "message_id",
+          "channel_id",
+          "group_id",
+          "message_type",
+          "content",
+          "author",
+          "reply_to",
+          "media",
+          "reactions",
+          "is_pinned",
+          "is_deleted",
+          "can_delete",
+          "can_pin",
+          "created_at",
+          "updated_at",
+          "edited_at",
+          "deleted_at"
+        ],
+        "properties": {
+          "message_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 100
+          },
+          "channel_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "group_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "message_type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "system"
+            ],
+            "example": "text"
+          },
+          "content": {
+            "type": "string",
+            "example": "今晚继续联调"
+          },
+          "author": {
+            "$ref": "#/components/schemas/V2PublicUser"
+          },
+          "reply_to": {
+            "nullable": true,
+            "$ref": "#/components/schemas/V2ChatMessageReply"
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2MediaAsset"
+            }
+          },
+          "reactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ChatReactionSummary"
+            }
+          },
+          "is_pinned": {
+            "type": "boolean",
+            "example": false
+          },
+          "is_deleted": {
+            "type": "boolean",
+            "example": false
+          },
+          "can_delete": {
+            "type": "boolean",
+            "example": true
+          },
+          "can_pin": {
+            "type": "boolean",
+            "example": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-09T02:30:00.000Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-09T02:30:00.000Z"
+          },
+          "edited_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "example": null
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "example": null
+          }
+        }
+      },
+      "V2CreateChatChannelPayload": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "频道名称",
+            "example": "技术交流"
+          },
+          "type": {
+            "$ref": "#/components/schemas/V2ChatChannelType"
+          },
+          "category": {
+            "type": "string",
+            "default": "文字频道",
+            "example": "文字频道"
+          },
+          "is_private": {
+            "type": "boolean",
+            "default": false,
+            "example": false
+          }
+        }
+      },
+      "V2UpdateChatChannelPayload": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "新频道名称",
+            "example": "技术讨论"
+          },
+          "category": {
+            "type": "string",
+            "description": "新频道分类",
+            "example": "文字频道"
+          },
+          "is_private": {
+            "type": "boolean",
+            "description": "是否私密",
+            "example": true
+          }
+        }
+      },
+      "V2CreateChatMessagePayload": {
+        "type": "object",
+        "description": "content 与 media_ids 至少需要提供其一。media_ids 必须来自当前用户先调用 POST /api/v2/media 上传或登记后返回的 ready 媒体。",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "消息文本；当无附件时必填",
+            "example": "今晚继续联调"
+          },
+          "reply_to_message_id": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "回复目标消息 ID，必须属于同一频道",
+            "example": null
+          },
+          "media_ids": {
+            "type": "array",
+            "description": "附件媒体 ID，必须先调用 POST /api/v2/media 上传或登记媒体，并使用返回的、属于当前用户且状态为 ready 的 media_id",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "example": [
+              123
+            ]
+          }
+        }
+      },
+      "V2UpdateChatMessagePayload": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "example": "今晚 9 点继续联调"
+          }
+        }
+      },
+      "V2ChatMessagePinPayload": {
+        "type": "object",
+        "required": [
+          "is_pinned"
+        ],
+        "properties": {
+          "is_pinned": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "V2ChatReactionPayload": {
+        "type": "object",
+        "required": [
+          "emoji"
+        ],
+        "properties": {
+          "emoji": {
+            "type": "string",
+            "example": "👍"
+          }
+        }
+      },
+      "V2ChatReadStatusPayload": {
+        "type": "object",
+        "properties": {
+          "last_read_message_id": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "为空时服务端取当前频道最新未删除消息；传值时必须是当前频道内存在且未删除的消息 ID",
+            "example": null
+          }
+        }
+      },
+      "V2ChatReadStatusData": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "last_read_message_id",
+          "unread_count"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "last_read_message_id": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "example": 4
+          },
+          "unread_count": {
+            "type": "integer",
+            "example": 0
+          }
+        }
+      },
+      "V2ChatChannelMutePayload": {
+        "type": "object",
+        "required": [
+          "is_muted"
+        ],
+        "properties": {
+          "is_muted": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "V2ChatChannelMuteData": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "is_muted"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "is_muted": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "V2UploadMediaMultipartPayload": {
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "上传文件，支持任意格式附件。后端也兼容字段名 media。"
+          },
+          "alt_text": {
+            "type": "string",
+            "description": "替代文本",
+            "example": "聊天截图"
+          }
+        }
+      },
+      "V2CreateJsonMediaPayload": {
+        "type": "object",
+        "required": [
+          "file_name",
+          "public_url"
+        ],
+        "properties": {
+          "media_type": {
+            "type": "string",
+            "enum": [
+              "image",
+              "gif",
+              "video",
+              "audio",
+              "file"
+            ],
+            "default": "image",
+            "example": "image"
+          },
+          "file_name": {
+            "type": "string",
+            "example": "screenshot.png"
+          },
+          "storage_key": {
+            "type": "string",
+            "example": "media/1001/screenshot.png"
+          },
+          "public_url": {
+            "type": "string",
+            "example": "/storage/media/screenshot.png"
+          },
+          "file_size": {
+            "type": "integer",
+            "example": 102400
+          },
+          "mime_type": {
+            "type": "string",
+            "default": "application/octet-stream",
+            "example": "image/png"
+          },
+          "width": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1280
+          },
+          "height": {
+            "type": "integer",
+            "nullable": true,
+            "example": 720
+          },
+          "duration": {
+            "type": "number",
+            "nullable": true,
+            "example": null
+          },
+          "thumbnail_url": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "alt_text": {
+            "type": "string",
+            "nullable": true,
+            "example": "截图"
+          },
+          "status": {
+            "type": "string",
+            "default": "ready",
+            "example": "ready"
+          }
+        }
+      },
+      "V2ChatGroupListResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ChatGroup"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/V2PaginationMeta"
+          }
+        }
+      },
+      "V2ChatChannelListResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ChatChannel"
+            }
+          },
+          "meta": {
+            "nullable": true
+          }
+        }
+      },
+      "V2ChatChannelResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "$ref": "#/components/schemas/V2ChatChannel"
+          },
+          "meta": {
+            "nullable": true
+          }
+        }
+      },
+      "V2ChatMemberListResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ChatMember"
+            }
+          },
+          "meta": {
+            "nullable": true
+          }
+        }
+      },
+      "V2ChatMessageListResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ChatMessage"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/V2PaginationMeta"
+          }
+        }
+      },
+      "V2ChatMessageResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "$ref": "#/components/schemas/V2ChatMessage"
+          },
+          "meta": {
+            "nullable": true
+          }
+        }
+      },
+      "V2ChatReadStatusResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "chat read status updated"
+          },
+          "data": {
+            "$ref": "#/components/schemas/V2ChatReadStatusData"
+          },
+          "meta": {
+            "nullable": true
+          }
+        }
+      },
+      "V2ChatChannelMuteResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "chat channel mute status updated"
+          },
+          "data": {
+            "$ref": "#/components/schemas/V2ChatChannelMuteData"
+          },
+          "meta": {
+            "nullable": true
+          }
+        }
+      },
+      "V2MediaResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "media uploaded"
+          },
+          "data": {
+            "$ref": "#/components/schemas/V2MediaAsset"
+          },
+          "meta": {
+            "nullable": true
+          }
+        }
+      },
+      "WsSystemNotificationEvent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "system_notification"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "example": "WebSocket connected"
+              },
+              "session_id": {
+                "type": "string",
+                "example": "ws_1760000000000_xxxxxx"
+              },
+              "user_id": {
+                "type": "integer",
+                "format": "int64",
+                "example": 1001
+              },
+              "channel_id": {
+                "type": "integer",
+                "format": "int64",
+                "example": 1
+              },
+              "room": {
+                "type": "string",
+                "example": "chat:channel:1"
+              }
+            }
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1760000000000
+          }
+        }
+      },
+      "WsErrorEvent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "error"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "example": "WebSocket 未认证"
+              }
+            }
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1760000000000
+          }
+        }
+      },
+      "WsJoinChannelPayload": {
+        "type": "object",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "chat_join_channel"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "channelId"
+            ],
+            "properties": {
+              "channelId": {
+                "type": "integer",
+                "format": "int64",
+                "example": 1
+              }
+            }
+          }
+        }
+      },
+      "WsLeaveChannelPayload": {
+        "type": "object",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "chat_leave_channel"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "channelId"
+            ],
+            "properties": {
+              "channelId": {
+                "type": "integer",
+                "format": "int64",
+                "example": 1
+              }
+            }
+          }
+        }
+      },
+      "WsPingPayload": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "ping"
+            ]
+          }
+        }
+      },
+      "WsPongEvent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "pong"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "integer",
+                "format": "int64",
+                "example": 1760000000000
+              }
+            }
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1760000000000
+          }
+        }
+      },
+      "WsChatMessageEvent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "chat_message",
+              "chat_message_updated",
+              "chat_reaction_updated"
+            ]
+          },
+          "room": {
+            "type": "string",
+            "example": "chat:channel:1"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "channel_id",
+              "server_id",
+              "message"
+            ],
+            "properties": {
+              "channel_id": {
+                "type": "integer",
+                "format": "int64",
+                "example": 1
+              },
+              "server_id": {
+                "type": "string",
+                "example": "ws_server_xxx"
+              },
+              "message": {
+                "$ref": "#/components/schemas/V2ChatMessage"
+              }
+            }
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1760000000000
+          }
+        }
+      },
+      "WsChatMessageDeletedEvent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "chat_message_deleted"
+            ]
+          },
+          "room": {
+            "type": "string",
+            "example": "chat:channel:1"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "channel_id",
+              "server_id",
+              "message_id"
+            ],
+            "properties": {
+              "channel_id": {
+                "type": "integer",
+                "format": "int64",
+                "example": 1
+              },
+              "server_id": {
+                "type": "string",
+                "example": "ws_server_xxx"
+              },
+              "message_id": {
+                "type": "integer",
+                "format": "int64",
+                "example": 100
+              }
+            }
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1760000000000
+          }
+        }
+      }
+    }
+  }
+}

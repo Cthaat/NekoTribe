@@ -47,7 +47,11 @@ export function normalizeAppLocale(
     return 'zh';
   }
 
-  return 'en';
+  if (locale === 'en' || locale?.startsWith('en')) {
+    return 'en';
+  }
+
+  return 'zh';
 }
 
 function readI18nLocale(

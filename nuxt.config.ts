@@ -55,6 +55,7 @@ export default defineNuxtConfig({
   },
 
   i18n: {
+    strategy: 'prefix',
     locales: [
       {
         code: 'en',
@@ -69,14 +70,14 @@ export default defineNuxtConfig({
         file: 'zh.json'
       }
     ],
-    defaultLocale: 'en',
+    defaultLocale: 'zh',
     lazy: true,
     langDir: 'locales',
     detectBrowserLanguage: {
       useCookie: true,
       cookieKey: 'nekotribe_locale',
       redirectOn: 'root',
-      fallbackLocale: 'en'
+      fallbackLocale: 'zh'
     }
   },
 

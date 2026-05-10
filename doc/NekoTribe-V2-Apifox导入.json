@@ -11286,7 +11286,7 @@
           "Media"
         ],
         "summary": "上传媒体资源",
-        "description": "上传媒体资源",
+        "description": "上传媒体资源，支持图片、视频、音频和任意格式普通附件。",
         "operationId": "post_media",
         "deprecated": false,
         "parameters": [],
@@ -11315,6 +11315,13 @@
                         },
                         "media_type": {
                           "type": "string",
+                          "enum": [
+                            "image",
+                            "gif",
+                            "video",
+                            "audio",
+                            "file"
+                          ],
                           "example": "image"
                         },
                         "file_name": {
@@ -11427,7 +11434,7 @@
                   "file": {
                     "type": "string",
                     "format": "binary",
-                    "description": "媒体文件，图片最多 10MB"
+                    "description": "上传文件，支持任意格式附件，最大 500MB"
                   },
                   "alt_text": {
                     "type": "string",

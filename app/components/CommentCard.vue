@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import AppSendButton from '@/components/app/AppSendButton.vue';
 import { Heart, MessageSquare } from 'lucide-vue-next';
 
 const { t, locale } = useAppLocale();
@@ -208,14 +209,16 @@ function handleReplyBlur() {
                 variant="ghost"
                 size="sm"
                 @click="toggleReplyBox"
-                >{{ t('common.cancel') }}</Button
               >
-              <Button
+                {{ t('common.cancel') }}
+              </Button>
+              <AppSendButton
                 size="sm"
                 @click="handleSubmitReply"
                 :disabled="!replyContent.trim()"
-                >{{ t('comment.submitReply') }}</Button
               >
+                {{ t('comment.submitReply') }}
+              </AppSendButton>
             </div>
           </Transition>
         </div>

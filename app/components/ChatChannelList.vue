@@ -14,7 +14,8 @@ import {
   BellOff,
   Edit3,
   Trash2,
-  Users
+  Users,
+  Check
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -58,21 +59,33 @@ export interface ChannelCategory {
   isCollapsed?: boolean;
 }
 
+export interface ChannelListGroup {
+  id: number;
+  name: string;
+  unreadCount?: number;
+}
+
 const props = defineProps<{
   categories: ChannelCategory[];
   activeChannelId?: number;
   groupName?: string;
   groupAvatar?: string;
   canManage?: boolean;
+  currentUserName?: string;
+  groups?: ChannelListGroup[];
+  activeGroupId?: number;
 }>();
 
 const emit = defineEmits<{
   (e: 'select', channel: Channel): void;
+  (e: 'select-group', groupId: number): void;
   (e: 'create-channel', categoryId: number): void;
   (e: 'edit-channel', channel: Channel): void;
   (e: 'delete-channel', channelId: number): void;
   (e: 'toggle-mute', channelId: number): void;
   (e: 'toggle-category', categoryId: number): void;
+  (e: 'invite-members'): void;
+  (e: 'notification-settings'): void;
   (e: 'settings'): void;
 }>();
 
@@ -119,13 +132,18 @@ const selectChannel = (channel: Channel) => {
     emit('select', channel);
   }
 };
+
+const currentUserInitials = computed(() => {
+  const name = props.currentUserName || t('chat.currentUser.name');
+  return name.slice(0, 2);
+});
 </script>
 
 <template>
-  <div class="flex flex-col h-full bg-muted/30">
+  <div class="flex h-full min-h-0 flex-col overflow-hidden bg-muted/30">
     <!-- 群组头部 -->
     <div
-      class="p-3 border-b bg-background/50 backdrop-blur-sm"
+      class="shrink-0 border-b bg-background/50 p-3 backdrop-blur-sm"
     >
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
@@ -142,7 +160,35 @@ const selectChannel = (channel: Channel) => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent class="w-56" align="start">
-          <DropdownMenuItem>
+          <template v-if="groups?.length">
+            <DropdownMenuItem
+              v-for="group in groups"
+              :key="group.id"
+              @click="emit('select-group', group.id)"
+            >
+              <Check
+                class="mr-2 h-4 w-4"
+                :class="{
+                  'opacity-100': group.id === activeGroupId,
+                  'opacity-0': group.id !== activeGroupId
+                }"
+              />
+              <span class="flex-1 truncate">{{ group.name }}</span>
+              <Badge
+                v-if="group.unreadCount"
+                variant="destructive"
+                class="ml-2 h-5 min-w-[20px] px-1.5 text-xs"
+              >
+                {{
+                  group.unreadCount > 99
+                    ? '99+'
+                    : group.unreadCount
+                }}
+              </Badge>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </template>
+          <DropdownMenuItem @click="emit('invite-members')">
             <Users class="mr-2 h-4 w-4" />
             {{ t('chat.actions.inviteMembers') }}
           </DropdownMenuItem>
@@ -151,10 +197,10 @@ const selectChannel = (channel: Channel) => {
             @click="emit('settings')"
           >
             <Settings class="mr-2 h-4 w-4" />
-            {{ t('groups.actions.settings') }}
+            {{ t('chat.actions.chatSettings') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>
+          <DropdownMenuItem @click="emit('notification-settings')">
             <Bell class="mr-2 h-4 w-4" />
             {{ t('chat.actions.notificationSettings') }}
           </DropdownMenuItem>
@@ -163,7 +209,7 @@ const selectChannel = (channel: Channel) => {
     </div>
 
     <!-- 频道列表 -->
-    <div class="flex-1 overflow-y-auto py-2">
+    <div class="min-h-0 flex-1 overflow-y-auto py-2">
       <div
         v-for="category in categories"
         :key="category.id"
@@ -336,7 +382,7 @@ const selectChannel = (channel: Channel) => {
 
     <!-- 用户信息栏 -->
     <div
-      class="p-2 border-t bg-background/50 backdrop-blur-sm"
+      class="shrink-0 border-t bg-background/50 p-2 backdrop-blur-sm"
     >
       <div
         class="flex items-center gap-2 p-2 rounded-md hover:bg-muted transition-colors cursor-pointer"
@@ -345,7 +391,7 @@ const selectChannel = (channel: Channel) => {
           <div
             class="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center"
           >
-            <span class="text-sm font-medium">{{ t('chat.currentUser.short') }}</span>
+            <span class="text-sm font-medium">{{ currentUserInitials }}</span>
           </div>
           <div
             class="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-background"
@@ -353,7 +399,7 @@ const selectChannel = (channel: Channel) => {
         </div>
         <div class="flex-1 min-w-0">
           <div class="text-sm font-medium truncate">
-            {{ t('chat.currentUser.name') }}
+            {{ currentUserName || t('chat.currentUser.name') }}
           </div>
           <div class="text-xs text-muted-foreground">
             {{ t('chat.status.online') }}
