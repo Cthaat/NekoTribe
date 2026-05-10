@@ -1046,6 +1046,313 @@ onBeforeUnmount(() => {
       </DialogContent>
     </Dialog>
 
+    <Dialog v-model:open="inviteDialogOpen">
+      <DialogContent class="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2">
+            <UserPlus class="h-5 w-5" />
+            {{ t('chat.invite.title') }}
+          </DialogTitle>
+          <DialogDescription>
+            {{
+              t('chat.invite.description', {
+                group: activeGroup?.name || t('chat.groupFallbackName')
+              })
+            }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="grid gap-5 md:grid-cols-[1.15fr_0.85fr]">
+          <div class="space-y-4">
+            <div class="space-y-2">
+              <Label for="chat-invite-search">
+                {{ t('chat.invite.searchLabel') }}
+              </Label>
+              <div class="relative">
+                <Search
+                  class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  id="chat-invite-search"
+                  v-model="inviteSearchQuery"
+                  class="pl-9"
+                  :placeholder="t('chat.invite.searchPlaceholder')"
+                  autocomplete="off"
+                  @input="handleInviteSearchInput"
+                />
+              </div>
+              <p class="text-xs text-muted-foreground">
+                {{ t('chat.invite.searchHint') }}
+              </p>
+            </div>
+
+            <div
+              v-if="selectedInvitee"
+              class="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3"
+            >
+              <div class="flex min-w-0 items-center gap-3">
+                <Avatar class="h-9 w-9">
+                  <AvatarImage
+                    :src="selectedInvitee.avatarUrl"
+                    :alt="selectedInvitee.name"
+                  />
+                  <AvatarFallback>
+                    {{ selectedInvitee.name.slice(0, 2) }}
+                  </AvatarFallback>
+                </Avatar>
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-medium">
+                    {{ selectedInvitee.name }}
+                  </div>
+                  <div class="truncate text-xs text-muted-foreground">
+                    @{{ selectedInvitee.username }}
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                @click="selectedInvitee = null"
+              >
+                {{ t('common.clear') }}
+              </Button>
+            </div>
+
+            <ScrollArea class="h-64 rounded-lg border">
+              <div class="p-2">
+                <div
+                  v-if="isSearchingInviteUsers"
+                  class="p-6 text-center text-sm text-muted-foreground"
+                >
+                  {{ t('chat.invite.searching') }}
+                </div>
+                <div
+                  v-else-if="
+                    inviteSearchQuery.trim().length >= 2 &&
+                    inviteCandidates.length === 0
+                  "
+                  class="p-6 text-center text-sm text-muted-foreground"
+                >
+                  {{ t('chat.invite.noResults') }}
+                </div>
+                <div
+                  v-else-if="inviteSearchQuery.trim().length < 2"
+                  class="p-6 text-center text-sm text-muted-foreground"
+                >
+                  {{ t('chat.invite.emptySearch') }}
+                </div>
+                <button
+                  v-for="user in inviteCandidates"
+                  :key="user.id"
+                  type="button"
+                  class="flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors hover:bg-muted"
+                  :class="{
+                    'bg-muted': selectedInvitee?.id === user.id
+                  }"
+                  @click="selectInvitee(user)"
+                >
+                  <Avatar class="h-9 w-9">
+                    <AvatarImage
+                      :src="user.avatarUrl"
+                      :alt="user.name"
+                    />
+                    <AvatarFallback>
+                      {{ user.name.slice(0, 2) }}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-sm font-medium">
+                      {{ user.name }}
+                    </div>
+                    <div class="truncate text-xs text-muted-foreground">
+                      @{{ user.username }}
+                    </div>
+                  </div>
+                  <Badge
+                    v-if="selectedInvitee?.id === user.id"
+                    variant="secondary"
+                  >
+                    {{ t('chat.invite.selected') }}
+                  </Badge>
+                </button>
+              </div>
+            </ScrollArea>
+          </div>
+
+          <div class="space-y-4">
+            <div class="rounded-lg border p-4">
+              <div class="flex items-center gap-2 font-medium">
+                <Link class="h-4 w-4" />
+                {{ t('chat.invite.linkTitle') }}
+              </div>
+              <p class="mt-2 text-sm text-muted-foreground">
+                {{ t('chat.invite.linkDescription') }}
+              </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-2">
+                <Label for="chat-invite-max-uses">
+                  {{ t('chat.invite.maxUses') }}
+                </Label>
+                <Input
+                  id="chat-invite-max-uses"
+                  v-model.number="inviteMaxUses"
+                  type="number"
+                  min="1"
+                  :disabled="!!selectedInvitee"
+                />
+              </div>
+              <div class="space-y-2">
+                <Label for="chat-invite-expire-hours">
+                  {{ t('chat.invite.expireHours') }}
+                </Label>
+                <Input
+                  id="chat-invite-expire-hours"
+                  v-model.number="inviteExpireHours"
+                  type="number"
+                  min="1"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <Label for="chat-invite-message">
+                {{ t('chat.invite.messageLabel') }}
+              </Label>
+              <Textarea
+                id="chat-invite-message"
+                v-model="inviteMessage"
+                class="min-h-24 resize-none"
+                :placeholder="t('chat.invite.messagePlaceholder')"
+                maxlength="200"
+              />
+            </div>
+
+            <div
+              v-if="createdInvite"
+              class="rounded-lg border bg-muted/30 p-3"
+            >
+              <div class="text-sm font-medium">
+                {{ t('chat.invite.createdTitle') }}
+              </div>
+              <div
+                v-if="inviteUrl(createdInvite)"
+                class="mt-2 flex items-center gap-2"
+              >
+                <Input
+                  :model-value="inviteUrl(createdInvite) || ''"
+                  readonly
+                  class="h-8 text-xs"
+                />
+                <Button
+                  size="icon"
+                  variant="outline"
+                  @click="copyCreatedInvite"
+                >
+                  <Copy class="h-4 w-4" />
+                </Button>
+              </div>
+              <p v-else class="mt-2 text-sm text-muted-foreground">
+                {{ t('chat.invite.targetedCreated') }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            :disabled="isCreatingInvite"
+            @click="inviteDialogOpen = false"
+          >
+            {{ t('common.cancel') }}
+          </Button>
+          <Button
+            type="button"
+            :disabled="isCreatingInvite || !activeGroup"
+            @click="submitInvite"
+          >
+            {{
+              isCreatingInvite
+                ? t('common.processing')
+                : selectedInvitee
+                  ? t('chat.invite.sendInvite')
+                  : t('chat.invite.createLink')
+            }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="notificationSettingsOpen">
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2">
+            <Bell class="h-5 w-5" />
+            {{ t('chat.notifications.groupTitle') }}
+          </DialogTitle>
+          <DialogDescription>
+            {{
+              t('chat.notifications.groupDescription', {
+                group: activeGroup?.name || t('chat.groupFallbackName')
+              })
+            }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <ScrollArea class="max-h-[56vh] pr-4">
+          <div class="space-y-3">
+            <div
+              v-if="chatChannels.length === 0"
+              class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
+            >
+              {{ t('chat.notifications.noChannels') }}
+            </div>
+            <div
+              v-for="channel in chatChannels"
+              :key="channel.id"
+              class="flex items-center justify-between gap-4 rounded-lg border p-3"
+            >
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <component
+                    :is="channel.isMuted ? BellOff : Bell"
+                    class="h-4 w-4 text-muted-foreground"
+                  />
+                  <span class="truncate text-sm font-medium">
+                    # {{ channel.name }}
+                  </span>
+                </div>
+                <p class="mt-1 text-xs text-muted-foreground">
+                  {{
+                    channel.isMuted
+                      ? t('chat.notifications.channelMuted')
+                      : t('chat.notifications.channelUnmuted')
+                  }}
+                </p>
+              </div>
+              <Switch
+                :model-value="!!channel.isMuted"
+                @update:model-value="
+                  () => handleToggleChannelMute(channel.id)
+                "
+              />
+            </div>
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+
+    <GroupManageModal
+      v-if="groupSettingsModel"
+      v-model:open="groupSettingsOpen"
+      :group="groupSettingsModel"
+      @updated="handleGroupSettingsUpdated"
+      @deleted="handleGroupDeleted"
+    />
+
     <div class="h-full min-h-0 flex-1 min-w-0 overflow-hidden">
       <div
         v-if="isLoading"
