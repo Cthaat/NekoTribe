@@ -120,6 +120,20 @@ const searchQuery = ref('');
 const createChannelDialogOpen = ref(false);
 const createChannelCategoryId = ref<number | null>(null);
 const createChannelName = ref('');
+const inviteDialogOpen = ref(false);
+const inviteSearchQuery = ref('');
+const inviteMessage = ref('');
+const inviteMaxUses = ref(25);
+const inviteExpireHours = ref(168);
+const inviteUsers = ref<PublicUserVM[]>([]);
+const selectedInvitee = ref<PublicUserVM | null>(null);
+const createdInvite = ref<V2CreateGroupInviteData | null>(null);
+const isSearchingInviteUsers = ref(false);
+const isCreatingInvite = ref(false);
+const notificationSettingsOpen = ref(false);
+const groupSettingsOpen = ref(false);
+const groupSettingsModel = ref<Group | null>(null);
+const isLoadingGroupSettings = ref(false);
 const directConversationId = ref<number | null>(null);
 const directMessageTargetId = ref<number | null>(null);
 const directMessages = ref<V2DirectMessage[]>([]);
@@ -139,6 +153,16 @@ const canManage = computed(
   () => activeGroup.value?.canManage ?? false
 );
 const chatChannels = computed(() => allChannels());
+const existingMemberIds = computed(
+  () => new Set(members.value.map(member => member.id))
+);
+const inviteCandidates = computed(() =>
+  inviteUsers.value.filter(
+    user =>
+      user.id !== currentUserId.value &&
+      !existingMemberIds.value.has(user.id)
+  )
+);
 const pinnedMessages = computed(() =>
   messages.value.filter(message => message.isPinned)
 );
@@ -160,6 +184,8 @@ let ws: WebSocket | null = null;
 let shouldReconnectWs = true;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
+let inviteSearchTimer: ReturnType<typeof setTimeout> | null =
+  null;
 
 function allChannels(): Channel[] {
   return channelCategories.value.flatMap(
