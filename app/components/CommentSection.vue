@@ -9,7 +9,7 @@ import { toast } from 'vue-sonner';
 import { MessageSquare } from 'lucide-vue-next';
 import CommentCard from './CommentCard.vue';
 import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
+import AppSendButton from '@/components/app/AppSendButton.vue';
 
 const { t } = useAppLocale();
 
@@ -188,12 +188,11 @@ function handleCommentInputBlur() {
               })
             }}
           </span>
-          <Button
+          <AppSendButton
             @click="handleSubmitTweetReply"
             :disabled="
               isSubmitting || !newCommentContent.trim()
             "
-            class="shadow-md hover:shadow-lg transition-all duration-200"
             size="sm"
           >
             {{
@@ -201,7 +200,7 @@ function handleCommentInputBlur() {
                 ? t('comment.submitting')
                 : t('comment.submit')
             }}
-          </Button>
+          </AppSendButton>
         </div>
       </Transition>
     </div>

@@ -7,7 +7,7 @@ import type {
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import AppButton from '@/components/app/AppButton.vue';
+import AppSendButton from '@/components/app/AppSendButton.vue';
 import { toast } from 'vue-sonner';
 import {
   Tooltip,
@@ -15,7 +15,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
-import { ImageUp, Send, X } from 'lucide-vue-next';
+import { ImageUp, X } from 'lucide-vue-next';
 
 import TweetPreviewCard from './TweetPreviewCard.vue';
 import MentionPicker from './MentionPicker.vue';
@@ -138,7 +138,9 @@ function removeMedia(index: number) {
     index,
     1
   );
-  URL.revokeObjectURL(removedPreview);
+  if (removedPreview) {
+    URL.revokeObjectURL(removedPreview);
+  }
   mediaFiles.value.splice(index, 1);
 }
 
@@ -464,16 +466,13 @@ function handleKeyDown(event: KeyboardEvent) {
           </div>
 
           <!-- 提交按钮 -->
-          <AppButton
+          <AppSendButton
             @click="handleSubmit"
             :disabled="isTweetDisabled"
-            class="h-10 px-5 font-bold"
+            class="h-10 px-5 font-semibold"
           >
-            <span class="inline-flex items-center gap-2">
-              <Send class="h-4 w-4 shrink-0" />
-              <span>{{ t('post.composer.publish') }}</span>
-            </span>
-          </AppButton>
+            {{ t('post.composer.publish') }}
+          </AppSendButton>
         </div>
       </div>
     </div>

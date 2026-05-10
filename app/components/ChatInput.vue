@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue';
 import {
-  Send,
   Smile,
   Paperclip,
   Image as ImageIcon,
@@ -12,6 +11,7 @@ import {
   Gift
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import AppSendButton from '@/components/app/AppSendButton.vue';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Popover,
@@ -343,7 +343,7 @@ const handleCancelReply = () => {
     <!-- 输入区域 -->
     <div class="flex items-end gap-2">
       <!-- 工具按钮 -->
-      <div class="flex items-center gap-1 pb-2">
+      <div class="flex h-11 items-center gap-1">
         <TooltipProvider>
           <!-- 上传附件 -->
           <Tooltip>
@@ -610,7 +610,7 @@ const handleCancelReply = () => {
             })
           "
           :disabled="disabled"
-          class="min-h-[44px] max-h-32 resize-none pr-12"
+          class="min-h-11 max-h-32 resize-none px-3 py-2.5 leading-5"
           rows="1"
           @keydown="handleKeydown"
           @input="handleInput"
@@ -618,15 +618,13 @@ const handleCancelReply = () => {
       </div>
 
       <!-- 发送按钮 -->
-      <div class="pb-2">
-        <Button
-          size="sm"
-          class="h-8 w-8 p-0"
+      <div class="flex h-11 shrink-0 items-center">
+        <AppSendButton
+          icon-only
+          :aria-label="t('chat.actions.sendMessage')"
           :disabled="!canSend || disabled"
           @click="handleSend"
-        >
-          <Send class="h-4 w-4" />
-        </Button>
+        />
       </div>
     </div>
   </div>

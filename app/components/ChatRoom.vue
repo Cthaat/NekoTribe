@@ -16,8 +16,7 @@ import {
   Video,
   PanelRightClose,
   PanelRightOpen,
-  ArrowDown,
-  Send
+  ArrowDown
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +53,7 @@ import {
 import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
 import ChatMemberList from './ChatMemberList.vue';
+import AppSendButton from '@/components/app/AppSendButton.vue';
 import type { ChatMessageType } from './ChatMessage.vue';
 import type { ChatMember } from './ChatMemberList.vue';
 import type { Channel } from './ChatChannelList.vue';
@@ -727,8 +727,9 @@ onMounted(() => {
               "
               class="min-h-24 resize-none"
             />
-            <Button
-              class="w-full gap-2"
+            <AppSendButton
+              class="w-full"
+              :loading="isSendingDirectMessage"
               :disabled="
                 isLoadingDirectMessages ||
                 isSendingDirectMessage ||
@@ -736,13 +737,12 @@ onMounted(() => {
               "
               @click="submitDirectMessage"
             >
-              <Send class="h-4 w-4" />
               {{
                 isSendingDirectMessage
                   ? t('common.processing')
                   : t('chat.actions.sendMessage')
               }}
-            </Button>
+            </AppSendButton>
           </div>
         </div>
       </SheetContent>
