@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import {
+  type ComponentPublicInstance,
   ref,
   computed,
   onMounted,
+  onBeforeUnmount,
   nextTick,
   watch
 } from 'vue';
@@ -24,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Avatar,
   AvatarFallback,
@@ -111,6 +114,8 @@ const directMessageTarget = ref<ChatMember | null>(null);
 const directMessageContent = ref('');
 const searchQuery = ref('');
 const replyTo = ref<ChatMessageType | null>(null);
+const messagesScrollAreaRef =
+  ref<ComponentPublicInstance | null>(null);
 const messagesContainerRef = ref<HTMLElement | null>(null);
 const isAtBottom = ref(true);
 const hasNewMessages = ref(false);
@@ -165,6 +170,14 @@ const handleStartCall = () => {
       : t('chat.feedback.videoCallUnavailable')
   );
 };
+
+function getMessagesViewport(): HTMLElement | null {
+  const root = messagesScrollAreaRef.value?.$el;
+  if (!(root instanceof HTMLElement)) return null;
+  return root.querySelector<HTMLElement>(
+    '[data-slot="scroll-area-viewport"]'
+  );
+}
 
 const openDirectMessage = (member: ChatMember) => {
   if (member.id === props.currentUserId) {
@@ -256,8 +269,22 @@ watch(
 );
 
 // 初始滚动到底部
-onMounted(() => {
+onMounted(async () => {
+  await nextTick();
+  messagesContainerRef.value = getMessagesViewport();
+  messagesContainerRef.value?.addEventListener(
+    'scroll',
+    handleScroll,
+    { passive: true }
+  );
   scrollToBottom(false);
+});
+
+onBeforeUnmount(() => {
+  messagesContainerRef.value?.removeEventListener(
+    'scroll',
+    handleScroll
+  );
 });
 </script>
 
@@ -503,59 +530,62 @@ onMounted(() => {
       </div>
 
       <!-- 消息区域 -->
-      <div
-        ref="messagesContainerRef"
-        class="relative min-h-0 flex-1 overflow-y-auto"
-        @scroll="handleScroll"
-      >
-        <!-- 加载中 -->
-        <div
-          v-if="isLoading"
-          class="flex justify-center py-4"
+      <div class="relative min-h-0 flex-1">
+        <ScrollArea
+          ref="messagesScrollAreaRef"
+          class="h-full"
         >
-          <div
-            class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"
-          />
-        </div>
+          <div class="min-h-full">
+            <!-- 加载中 -->
+            <div
+              v-if="isLoading"
+              class="flex justify-center py-4"
+            >
+              <div
+                class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"
+              />
+            </div>
 
-        <!-- 消息列表 -->
-        <div class="py-4">
-          <ChatMessage
-            v-for="(message, index) in messages"
-            :key="message.id"
-            :message="message"
-            :is-own="isOwnMessage(message)"
-            :show-avatar="shouldShowAvatar(index)"
-            :is-first-in-group="isFirstInGroup(index)"
-            @reply="handleReply"
-            @edit="emit('edit', $event)"
-            @delete="emit('delete', $event)"
-            @pin="emit('pin', $event)"
-            @react="
-              (id: number, emoji: string) =>
-                emit('react', id, emoji)
-            "
-            @copy="handleCopy"
-          />
-        </div>
+            <!-- 消息列表 -->
+            <div class="py-4">
+              <ChatMessage
+                v-for="(message, index) in messages"
+                :key="message.id"
+                :message="message"
+                :is-own="isOwnMessage(message)"
+                :show-avatar="shouldShowAvatar(index)"
+                :is-first-in-group="isFirstInGroup(index)"
+                @reply="handleReply"
+                @edit="emit('edit', $event)"
+                @delete="emit('delete', $event)"
+                @pin="emit('pin', $event)"
+                @react="
+                  (id: number, emoji: string) =>
+                    emit('react', id, emoji)
+                "
+                @copy="handleCopy"
+              />
+            </div>
 
-        <!-- 空状态 -->
-        <div
-          v-if="messages.length === 0 && !isLoading"
-          class="flex flex-col items-center justify-center h-full text-muted-foreground"
-        >
-          <Hash class="h-16 w-16 mb-4 opacity-50" />
-          <h3 class="text-lg font-semibold mb-1">
-            {{
-              t('chat.message.emptyTitle', {
-                channel: channel.name
-              })
-            }}
-          </h3>
-          <p class="text-sm">
-            {{ t('chat.message.emptyDescription') }}
-          </p>
-        </div>
+            <!-- 空状态 -->
+            <div
+              v-if="messages.length === 0 && !isLoading"
+              class="flex min-h-[calc(100vh-14rem)] flex-col items-center justify-center text-muted-foreground"
+            >
+              <Hash class="h-16 w-16 mb-4 opacity-50" />
+              <h3 class="text-lg font-semibold mb-1">
+                {{
+                  t('chat.message.emptyTitle', {
+                    channel: channel.name
+                  })
+                }}
+              </h3>
+              <p class="text-sm">
+                {{ t('chat.message.emptyDescription') }}
+              </p>
+            </div>
+          </div>
+        </ScrollArea>
 
         <!-- 新消息提示 -->
         <div
