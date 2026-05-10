@@ -72,7 +72,11 @@ function normalizeStoredLanguage(
     return 'zh';
   }
 
-  return 'en';
+  if (language === 'en' || language?.startsWith('en')) {
+    return 'en';
+  }
+
+  return 'zh';
 }
 
 // --- 默认状态 ---
@@ -81,7 +85,7 @@ const defaultPreferences: UserPreference = {
   // 主题相关
   theme_mode: 'system',
   font_size: 'normal',
-  language: 'en',
+  language: 'zh',
   // 隐私和安全
   show_online_status: true,
   allow_dm_from_strangers: false,

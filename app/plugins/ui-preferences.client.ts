@@ -18,7 +18,7 @@ import {
 export default defineNuxtPlugin(() => {
   if (process.server) return;
   const pref = usePreferenceStore();
-  const { locale, setAppLocale } = useAppLocaleController();
+  const { locale } = useAppLocaleController();
 
   // html 根节点，用于挂载 class 与 data- 属性
   const html = document.documentElement;
@@ -85,9 +85,11 @@ export default defineNuxtPlugin(() => {
   };
 
   const applyLanguage = () => {
-    const lang = normalizeAppLocale(pref.preferences.language);
-    if (locale.value !== lang) {
-      void setAppLocale(lang);
+    const lang = normalizeAppLocale(locale.value);
+    if (
+      normalizeAppLocale(pref.preferences.language) !== lang
+    ) {
+      pref.updatePreference('language', lang);
     }
     html.setAttribute('lang', lang);
   };
@@ -104,8 +106,7 @@ export default defineNuxtPlugin(() => {
     () => [
       pref.preferences.theme_mode,
       pref.preferences.font_size,
-      pref.preferences.compact_mode,
-      pref.preferences.language
+      pref.preferences.compact_mode
     ],
     () => {
       applyTheme();
@@ -115,4 +116,8 @@ export default defineNuxtPlugin(() => {
     },
     { deep: false }
   );
+
+  watch(locale, () => {
+    applyLanguage();
+  });
 });
