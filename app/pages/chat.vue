@@ -983,6 +983,9 @@ onBeforeUnmount(() => {
         @edit-channel="handleEditChannel"
         @delete-channel="handleDeleteChannel"
         @toggle-mute="handleToggleChannelMute"
+        @invite-members="openInviteDialog"
+        @notification-settings="openNotificationSettings"
+        @settings="openGroupSettings"
       />
     </div>
 
