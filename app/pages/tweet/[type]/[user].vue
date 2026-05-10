@@ -2,6 +2,12 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import type { PostVM } from '@/types/posts';
 import {
+  AtSign,
+  Bookmark,
+  Compass,
+  Sparkles
+} from 'lucide-vue-next';
+import {
   v2BookmarkPost,
   v2CreateRetweet,
   v2DeletePost,
@@ -37,6 +43,46 @@ const hasMounted = ref(false);
 const timelineType = computed(() =>
   normalizePostTimelineType(String(route.params.type || 'home'))
 );
+const emptyStateMeta = computed(() => {
+  if (timelineType.value === 'mention') {
+    return {
+      icon: AtSign,
+      title: t('post.feed.emptyMentionTitle', '暂时没有提及你的内容'),
+      description:
+        t(
+          'post.feed.emptyMentionDescription',
+          '当有人在推文中提到你时，这里会自动显示。你可以先去首页看看最新动态。'
+        ),
+      accent: 'from-sky-500/20 via-cyan-500/10 to-transparent',
+      actionLabel: t('post.feed.emptyGoHome', '回到首页'),
+      actionTo: localePath(`/tweet/home/${requestedUserId.value}`)
+    };
+  }
+
+  if (timelineType.value === 'bookmark') {
+    return {
+      icon: Bookmark,
+      title: t('post.feed.emptyBookmarkTitle', '书签还是空的'),
+      description:
+        t(
+          'post.feed.emptyBookmarkDescription',
+          '把喜欢的内容加入书签后，它们会集中出现在这里，方便你随时回看。'
+        ),
+      accent: 'from-amber-500/20 via-orange-500/10 to-transparent',
+      actionLabel: t('post.feed.emptyExplore', '去逛逛首页'),
+      actionTo: localePath(`/tweet/home/${requestedUserId.value}`)
+    };
+  }
+
+  return {
+    icon: Sparkles,
+    title: t('post.feed.emptyTitle'),
+    description: t('post.feed.emptyDescription'),
+    accent: 'from-zinc-500/20 via-transparent to-transparent',
+    actionLabel: t('post.feed.emptyExplore', '去逛逛首页'),
+    actionTo: localePath(`/tweet/home/${requestedUserId.value}`)
+  };
+});
 const requestedUserId = computed(() =>
   Number(route.params.user || 0)
 );
@@ -205,9 +251,28 @@ async function handleBookmarkTweet(
 
       <AppEmptyState
         v-else
-        :title="t('post.feed.emptyTitle')"
-        :description="t('post.feed.emptyDescription')"
-      />
+        :title="emptyStateMeta.title"
+        :description="emptyStateMeta.description"
+        :icon="emptyStateMeta.icon"
+        class="border-border/60 bg-gradient-to-b from-background to-muted/20 shadow-sm"
+      >
+        <div class="mt-4 flex flex-col items-center gap-3">
+          <div class="rounded-full border border-dashed border-border/70 bg-background/80 px-4 py-2 text-xs text-muted-foreground">
+            {{
+              timelineType === 'mention'
+                ? t('post.feed.emptyMentionHint', '提及会在有人 @你 时自动出现')
+                : t('post.feed.emptyBookmarkHint', '书签会保存你手动收藏的内容')
+            }}
+          </div>
+          <NuxtLink
+            :to="emptyStateMeta.actionTo"
+            class="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-transform hover:-translate-y-0.5"
+          >
+            <Compass class="h-4 w-4" />
+            {{ emptyStateMeta.actionLabel }}
+          </NuxtLink>
+        </div>
+      </AppEmptyState>
 
       <RetweetModal
         v-if="selectedTweetForRetweet"
