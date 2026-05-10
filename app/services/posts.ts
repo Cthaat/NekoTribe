@@ -41,6 +41,7 @@ import {
   v2ListComments as apiListComments,
   v2ListMyBookmarkedPosts as apiListMyBookmarkedPosts,
   v2ListMyPosts as apiListMyPosts,
+  v2ListPostReplies as apiListPostReplies,
   v2ListPosts as apiListPosts,
   v2ListTrendingPosts as apiListTrendingPosts,
   v2ListUserPosts as apiListUserPosts,
@@ -336,6 +337,21 @@ export async function v2ListMyBookmarkedPosts(query: {
   sort?: 'newest' | 'oldest' | 'popular';
 } = {}): Promise<PostPageVM> {
   return mapPostPage(await apiListMyBookmarkedPosts({
+    page: query.page,
+    page_size: query.pageSize,
+    sort: query.sort
+  }));
+}
+
+export async function v2ListPostReplies(
+  postId: number,
+  query: {
+    page?: number;
+    pageSize?: number;
+    sort?: 'newest' | 'oldest' | 'popular';
+  } = {}
+): Promise<PostPageVM> {
+  return mapPostPage(await apiListPostReplies(postId, {
     page: query.page,
     page_size: query.pageSize,
     sort: query.sort

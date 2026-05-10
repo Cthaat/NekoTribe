@@ -205,6 +205,14 @@
       "originalUnavailable": "Original post is unavailable or deleted.",
       "tryOpenOriginal": "Try opening original"
     },
+    "replies": {
+      "title": "Reply posts",
+      "total": "{count} replies",
+      "empty": "This post has no reply posts yet.",
+      "loadFailed": "Failed to load reply posts",
+      "loadMore": "Load more replies",
+      "loading": "Loading..."
+    },
     "media": {
       "thumbnailAlt": "Post media thumbnail"
     },

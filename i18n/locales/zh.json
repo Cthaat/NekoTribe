@@ -205,6 +205,14 @@
       "originalUnavailable": "原文不可用或已删除。",
       "tryOpenOriginal": "尝试打开原文"
     },
+    "replies": {
+      "title": "回复文章",
+      "total": "共 {count} 条回复",
+      "empty": "这篇文章还没有回复。",
+      "loadFailed": "加载回复文章失败",
+      "loadMore": "加载更多回复",
+      "loading": "正在加载..."
+    },
     "media": {
       "thumbnailAlt": "推文媒体缩略图"
     },
