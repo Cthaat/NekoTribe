@@ -709,3 +709,40 @@ interface V2ChatChannelMuteData {
   channel_id: number;
   is_muted: boolean;
 }
+
+interface V2DirectLastMessage {
+  message_id: number;
+  content: string;
+  author_name: string;
+  created_at: string;
+}
+
+interface V2DirectConversation {
+  conversation_id: number;
+  participant: V2PublicUser;
+  unread_count: number;
+  last_message: V2DirectLastMessage | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface V2DirectMessage {
+  message_id: number;
+  conversation_id: number;
+  content: string;
+  author: V2PublicUser;
+  is_deleted: boolean;
+  can_delete: boolean;
+  created_at: string;
+  updated_at: string;
+  edited_at: string | null;
+  deleted_at: string | null;
+}
+
+interface V2CreateDirectConversationPayload {
+  target_user_id: number;
+}
+
+interface V2CreateDirectMessagePayload {
+  content: string;
+}

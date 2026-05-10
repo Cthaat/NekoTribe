@@ -11,6 +11,7 @@ import {
   WS_SERVER_ID,
   sendWsToAll,
   sendWsToRoom,
+  sendWsToUser,
   sessionManager,
   type WSSessionAuthPayload
 } from '~/server/utils/wsSession';
@@ -40,6 +41,10 @@ function chatRoomId(channelId: number): string {
 
 function chatRedisChannel(channelId: number): string {
   return `${REDIS_CHANNELS.CHAT_CHANNEL}${channelId}`;
+}
+
+function userRedisChannel(userId: number): string {
+  return `${REDIS_CHANNELS.USER_MESSAGE}${userId}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -190,6 +195,7 @@ function sendPeer(
 }
 
 const subscribedChatChannels = new Set<number>();
+const subscribedUsers = new Set<number>();
 let redisSubscriptionsInitialized = false;
 
 function initializeRedisSubscriptions(): void {
@@ -220,6 +226,22 @@ async function ensureChatRedisSubscription(
       const data = isRecord(message.data) ? message.data : {};
       if (data.server_id === WS_SERVER_ID) return;
       sendWsToRoom(chatRoomId(channelId), message);
+    }
+  );
+}
+
+async function ensureUserRedisSubscription(
+  userId: number
+): Promise<void> {
+  if (subscribedUsers.has(userId)) return;
+  subscribedUsers.add(userId);
+
+  await subscribeToChannel(
+    userRedisChannel(userId),
+    (message: WSMessage) => {
+      const data = isRecord(message.data) ? message.data : {};
+      if (data.server_id === WS_SERVER_ID) return;
+      sendWsToUser(userId, message);
     }
   );
 }
@@ -298,6 +320,7 @@ export default defineWebSocketHandler({
     extendedPeer.sessionId = sessionId;
     initializeRedisSubscriptions();
     sessionManager.addSession(sessionId, peer, auth);
+    await ensureUserRedisSubscription(auth.userId);
     sendPeer(peer, 'system_notification', {
       message: 'WebSocket connected',
       session_id: sessionId,

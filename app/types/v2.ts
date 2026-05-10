@@ -744,6 +744,43 @@ export interface V2ChatChannelMuteData {
   is_muted: boolean;
 }
 
+export interface V2DirectLastMessage {
+  message_id: number;
+  content: string;
+  author_name: string;
+  created_at: string;
+}
+
+export interface V2DirectConversation {
+  conversation_id: number;
+  participant: V2PublicUser;
+  unread_count: number;
+  last_message: V2DirectLastMessage | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface V2DirectMessage {
+  message_id: number;
+  conversation_id: number;
+  content: string;
+  author: V2PublicUser;
+  is_deleted: boolean;
+  can_delete: boolean;
+  created_at: string;
+  updated_at: string;
+  edited_at: string | null;
+  deleted_at: string | null;
+}
+
+export interface V2CreateDirectConversationPayload {
+  target_user_id: number;
+}
+
+export interface V2CreateDirectMessagePayload {
+  content: string;
+}
+
 export interface V2FollowUserData {
   target_user_id: number;
   relationship: string;
@@ -973,3 +1010,13 @@ export type V2ChatReadStatusResponse =
   V2ApiResponse<V2ChatReadStatusData>;
 export type V2ChatChannelMuteResponse =
   V2ApiResponse<V2ChatChannelMuteData>;
+export type V2ListDirectConversationsResponse = V2ApiResponse<
+  V2DirectConversation[]
+>;
+export type V2CreateDirectConversationResponse =
+  V2ApiResponse<V2DirectConversation>;
+export type V2ListDirectMessagesResponse = V2ApiResponse<
+  V2DirectMessage[]
+>;
+export type V2CreateDirectMessageResponse =
+  V2ApiResponse<V2DirectMessage>;

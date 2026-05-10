@@ -13,6 +13,11 @@ import type {
   V2ChatReactionSummary,
   V2ChatReadStatusData,
   V2CreateChatChannelPayload,
+  V2CreateDirectConversationPayload,
+  V2CreateDirectMessagePayload,
+  V2DirectConversation,
+  V2DirectLastMessage,
+  V2DirectMessage,
   V2GroupRole,
   V2MediaAsset
 } from '../../../app/types/v2';
@@ -23,7 +28,8 @@ import {
 } from '~/server/utils/redis';
 import {
   WS_SERVER_ID,
-  sendWsToRoom
+  sendWsToRoom,
+  sendWsToUser
 } from '~/server/utils/wsSession';
 import {
   v2Auth,
@@ -409,6 +415,328 @@ async function v2PublishChatEvent(
 
   sendWsToRoom(v2ChatRoomId(channelId), message);
   await publishMessage(v2ChatRedisChannel(channelId), message);
+}
+
+interface DirectConversationAccess {
+  conversationId: number;
+  participantUserId: number;
+  userLowId: number;
+  userHighId: number;
+}
+
+function v2DirectRedisChannel(userId: number): string {
+  return `${REDIS_CHANNELS.USER_MESSAGE}${userId}`;
+}
+
+function v2DirectLastMessage(
+  row: V2DbRecord
+): V2DirectLastMessage | null {
+  const messageId = v2Number(row.LAST_MESSAGE_ID);
+  if (!messageId) return null;
+  return {
+    message_id: messageId,
+    content: v2String(row.LAST_MESSAGE_CONTENT),
+    author_name: v2String(row.LAST_MESSAGE_AUTHOR),
+    created_at: v2DateString(row.LAST_MESSAGE_AT) || ''
+  };
+}
+
+function v2MapDirectConversation(
+  row: V2DbRecord
+): V2DirectConversation {
+  return {
+    conversation_id: v2Number(row.CONVERSATION_ID),
+    participant: v2MapPublicUser(row),
+    unread_count: v2Number(row.UNREAD_COUNT),
+    last_message: v2DirectLastMessage(row),
+    created_at: v2DateString(row.CREATED_AT) || '',
+    updated_at: v2DateString(row.UPDATED_AT) || ''
+  };
+}
+
+function v2MapDirectMessage(
+  row: V2DbRecord,
+  viewerId: number
+): V2DirectMessage {
+  const authorId = v2Number(row.USER_ID);
+  return {
+    message_id: v2Number(row.MESSAGE_ID),
+    conversation_id: v2Number(row.CONVERSATION_ID),
+    content: v2String(row.CONTENT),
+    author: v2MapPublicUser(row),
+    is_deleted: v2Boolean(row.IS_DELETED),
+    can_delete: authorId === viewerId,
+    created_at: v2DateString(row.CREATED_AT) || '',
+    updated_at: v2DateString(row.UPDATED_AT) || '',
+    edited_at: v2DateString(row.EDITED_AT),
+    deleted_at: v2DateString(row.DELETED_AT)
+  };
+}
+
+async function v2PublishDirectEvent(
+  userIds: number[],
+  type: WSMessage['type'],
+  data: Record<string, unknown>
+): Promise<void> {
+  const message: WSMessage = {
+    type,
+    data: {
+      ...data,
+      server_id: WS_SERVER_ID
+    },
+    timestamp: Date.now()
+  };
+
+  await Promise.all(
+    Array.from(new Set(userIds)).map(async userId => {
+      sendWsToUser(userId, message);
+      await publishMessage(v2DirectRedisChannel(userId), message);
+    })
+  );
+}
+
+async function v2AssertDirectTargetCanReceive(
+  connection: oracledb.Connection,
+  senderId: number,
+  targetUserId: number
+): Promise<void> {
+  if (senderId === targetUserId) v2BadRequest('不能给自己发送私信');
+
+  const row = await v2One(
+    connection,
+    `
+    SELECT
+      u.user_id,
+      NVL(us.allow_dm_from_strangers, 0) AS allow_dm_from_strangers,
+      fn_get_user_relationship(:sender_id, u.user_id) AS relation,
+      (
+        SELECT COUNT(*)
+        FROM n_group_members gm_sender
+        JOIN n_group_members gm_target
+          ON gm_target.group_id = gm_sender.group_id
+        JOIN n_groups g
+          ON g.group_id = gm_sender.group_id
+        WHERE gm_sender.user_id = :sender_id
+          AND gm_target.user_id = u.user_id
+          AND gm_sender.status IN ('active', 'muted')
+          AND gm_target.status IN ('active', 'muted')
+          AND g.is_active = 1
+          AND g.is_deleted = 0
+      ) AS shared_group_count
+    FROM n_users u
+    LEFT JOIN n_user_settings us ON us.user_id = u.user_id
+    WHERE u.user_id = :target_user_id
+      AND u.is_active = 1
+    `,
+    {
+      sender_id: senderId,
+      target_user_id: targetUserId
+    }
+  );
+  if (!row) v2NotFound('用户不存在');
+
+  const relation = v2String(row.RELATION, 'none');
+  if (['blocking', 'blocked_by'].includes(relation)) {
+    v2Forbidden('无法向该用户发送私信');
+  }
+
+  const acceptsStrangers = v2Boolean(
+    row.ALLOW_DM_FROM_STRANGERS
+  );
+  const isTrusted =
+    ['mutual_follow', 'followed_by'].includes(relation) ||
+    v2Number(row.SHARED_GROUP_COUNT) > 0;
+  if (!acceptsStrangers && !isTrusted) {
+    v2Forbidden('对方不接收陌生人私信');
+  }
+}
+
+async function v2RequireDirectConversationAccess(
+  connection: oracledb.Connection,
+  userId: number,
+  conversationId: number
+): Promise<DirectConversationAccess> {
+  const row = await v2One(
+    connection,
+    `
+    SELECT conversation_id, user_low_id, user_high_id
+    FROM n_direct_conversations
+    WHERE conversation_id = :conversation_id
+      AND is_deleted = 0
+      AND (user_low_id = :user_id OR user_high_id = :user_id)
+    `,
+    {
+      conversation_id: conversationId,
+      user_id: userId
+    }
+  );
+  if (!row) v2Forbidden('无权访问该私聊会话');
+
+  const userLowId = v2Number(row.USER_LOW_ID);
+  const userHighId = v2Number(row.USER_HIGH_ID);
+  return {
+    conversationId,
+    participantUserId: userLowId === userId ? userHighId : userLowId,
+    userLowId,
+    userHighId
+  };
+}
+
+async function v2GetDirectConversation(
+  connection: oracledb.Connection,
+  viewerId: number,
+  conversationId: number
+): Promise<V2DirectConversation> {
+  const row = await v2One(
+    connection,
+    `
+    SELECT
+      c.conversation_id,
+      c.created_at,
+      c.updated_at,
+      p.user_id,
+      p.username,
+      p.avatar_url,
+      p.display_name,
+      p.bio,
+      p.location,
+      p.website,
+      p.is_verified,
+      p.followers_count,
+      p.following_count,
+      p.posts_count,
+      p.likes_count,
+      fn_get_user_relationship(:viewer_id, p.user_id) AS relation,
+      lm.message_id AS last_message_id,
+      lm.content AS last_message_content,
+      COALESCE(lu.display_name, lu.username) AS last_message_author,
+      lm.created_at AS last_message_at,
+      (
+        SELECT COUNT(*)
+        FROM n_direct_messages dm
+        LEFT JOIN n_direct_conversation_reads r
+          ON r.conversation_id = dm.conversation_id
+         AND r.user_id = :viewer_id
+        WHERE dm.conversation_id = c.conversation_id
+          AND dm.sender_id <> :viewer_id
+          AND dm.is_deleted = 0
+          AND dm.message_id > NVL(r.last_read_message_id, 0)
+      ) AS unread_count
+    FROM n_direct_conversations c
+    JOIN v_user_profile_public p
+      ON p.user_id = CASE
+        WHEN c.user_low_id = :viewer_id THEN c.user_high_id
+        ELSE c.user_low_id
+      END
+    LEFT JOIN n_direct_messages lm
+      ON lm.message_id = c.last_message_id
+     AND lm.is_deleted = 0
+    LEFT JOIN n_users lu ON lu.user_id = lm.sender_id
+    WHERE c.conversation_id = :conversation_id
+      AND c.is_deleted = 0
+      AND (c.user_low_id = :viewer_id OR c.user_high_id = :viewer_id)
+    `,
+    {
+      viewer_id: viewerId,
+      conversation_id: conversationId
+    }
+  );
+  if (!row) v2NotFound('私聊会话不存在');
+  return v2MapDirectConversation(row);
+}
+
+async function v2MarkDirectConversationRead(
+  connection: oracledb.Connection,
+  userId: number,
+  conversationId: number,
+  lastReadMessageId: number | null
+): Promise<void> {
+  await v2Execute(
+    connection,
+    `
+    MERGE INTO n_direct_conversation_reads r
+    USING (
+      SELECT
+        :conversation_id AS conversation_id,
+        :user_id AS user_id,
+        :last_read_message_id AS last_read_message_id
+      FROM dual
+    ) src
+    ON (
+      r.conversation_id = src.conversation_id
+      AND r.user_id = src.user_id
+    )
+    WHEN MATCHED THEN
+      UPDATE SET
+        r.last_read_message_id = src.last_read_message_id,
+        r.last_read_at = CURRENT_TIMESTAMP
+    WHEN NOT MATCHED THEN
+      INSERT (
+        conversation_id,
+        user_id,
+        last_read_message_id,
+        last_read_at
+      ) VALUES (
+        src.conversation_id,
+        src.user_id,
+        src.last_read_message_id,
+        CURRENT_TIMESTAMP
+      )
+    `,
+    {
+      conversation_id: conversationId,
+      user_id: userId,
+      last_read_message_id: lastReadMessageId
+    }
+  );
+}
+
+async function v2GetDirectMessage(
+  connection: oracledb.Connection,
+  viewerId: number,
+  messageId: number
+): Promise<V2DirectMessage> {
+  const row = await v2One(
+    connection,
+    `
+    SELECT
+      dm.message_id,
+      dm.conversation_id,
+      dm.sender_id AS user_id,
+      dm.content,
+      dm.is_deleted,
+      dm.created_at,
+      dm.updated_at,
+      dm.edited_at,
+      dm.deleted_at,
+      u.username,
+      u.avatar_url,
+      u.display_name,
+      u.bio,
+      u.location,
+      u.website,
+      u.is_verified,
+      u.followers_count,
+      u.following_count,
+      u.posts_count,
+      u.likes_count,
+      fn_get_user_relationship(:viewer_id, u.user_id) AS relation
+    FROM n_direct_messages dm
+    JOIN v_user_profile_public u ON u.user_id = dm.sender_id
+    JOIN n_direct_conversations c
+      ON c.conversation_id = dm.conversation_id
+    WHERE dm.message_id = :message_id
+      AND dm.is_deleted = 0
+      AND c.is_deleted = 0
+      AND (c.user_low_id = :viewer_id OR c.user_high_id = :viewer_id)
+    `,
+    {
+      viewer_id: viewerId,
+      message_id: messageId
+    }
+  );
+  if (!row) v2NotFound('私聊消息不存在');
+  return v2MapDirectMessage(row, viewerId);
 }
 
 async function v2ChatMessageMediaMap(
@@ -1827,4 +2155,359 @@ export async function v2SetChatChannelMuteStatus(
     },
     'chat channel mute status updated'
   );
+}
+
+export async function v2ListDirectConversations(
+  event: H3Event,
+  connection: oracledb.Connection
+): Promise<V2Response<V2DirectConversation[]>> {
+  const auth = v2Auth(event);
+  const page = v2Page(event);
+
+  const total = await v2Count(
+    connection,
+    `
+    SELECT COUNT(*) AS total
+    FROM n_direct_conversations
+    WHERE is_deleted = 0
+      AND (user_low_id = :viewer_id OR user_high_id = :viewer_id)
+    `,
+    { viewer_id: auth.userId }
+  );
+
+  const rows = await v2Rows(
+    connection,
+    `
+    SELECT *
+    FROM (
+      SELECT
+        inner_rows.*,
+        ROW_NUMBER() OVER (
+          ORDER BY NVL(inner_rows.last_message_at, inner_rows.updated_at) DESC,
+                   inner_rows.conversation_id DESC
+        ) AS rn
+      FROM (
+        SELECT
+          c.conversation_id,
+          c.created_at,
+          c.updated_at,
+          p.user_id,
+          p.username,
+          p.avatar_url,
+          p.display_name,
+          p.bio,
+          p.location,
+          p.website,
+          p.is_verified,
+          p.followers_count,
+          p.following_count,
+          p.posts_count,
+          p.likes_count,
+          fn_get_user_relationship(:viewer_id, p.user_id) AS relation,
+          lm.message_id AS last_message_id,
+          lm.content AS last_message_content,
+          COALESCE(lu.display_name, lu.username) AS last_message_author,
+          lm.created_at AS last_message_at,
+          (
+            SELECT COUNT(*)
+            FROM n_direct_messages dm
+            LEFT JOIN n_direct_conversation_reads r
+              ON r.conversation_id = dm.conversation_id
+             AND r.user_id = :viewer_id
+            WHERE dm.conversation_id = c.conversation_id
+              AND dm.sender_id <> :viewer_id
+              AND dm.is_deleted = 0
+              AND dm.message_id > NVL(r.last_read_message_id, 0)
+          ) AS unread_count
+        FROM n_direct_conversations c
+        JOIN v_user_profile_public p
+          ON p.user_id = CASE
+            WHEN c.user_low_id = :viewer_id THEN c.user_high_id
+            ELSE c.user_low_id
+          END
+        LEFT JOIN n_direct_messages lm
+          ON lm.message_id = c.last_message_id
+         AND lm.is_deleted = 0
+        LEFT JOIN n_users lu ON lu.user_id = lm.sender_id
+        WHERE c.is_deleted = 0
+          AND (c.user_low_id = :viewer_id OR c.user_high_id = :viewer_id)
+      ) inner_rows
+    )
+    WHERE rn BETWEEN :start_row AND :end_row
+    `,
+    {
+      viewer_id: auth.userId,
+      start_row: page.start,
+      end_row: page.end
+    }
+  );
+
+  return v2Ok(
+    rows.map(v2MapDirectConversation),
+    'success',
+    v2PageMeta(page.page, page.page_size, total)
+  );
+}
+
+export async function v2CreateDirectConversation(
+  event: H3Event,
+  connection: oracledb.Connection
+): Promise<V2Response<V2DirectConversation>> {
+  const auth = v2Auth(event);
+  const body =
+    (await v2Body(event)) as Partial<V2CreateDirectConversationPayload>;
+  const targetUserId = v2RequiredNumber(
+    body.target_user_id,
+    'target_user_id'
+  );
+  await v2AssertDirectTargetCanReceive(
+    connection,
+    auth.userId,
+    targetUserId
+  );
+
+  const userLowId = Math.min(auth.userId, targetUserId);
+  const userHighId = Math.max(auth.userId, targetUserId);
+  const existing = await v2One(
+    connection,
+    `
+    SELECT conversation_id
+    FROM n_direct_conversations
+    WHERE user_low_id = :user_low_id
+      AND user_high_id = :user_high_id
+      AND is_deleted = 0
+    `,
+    {
+      user_low_id: userLowId,
+      user_high_id: userHighId
+    }
+  );
+
+  let conversationId = v2Number(existing?.CONVERSATION_ID);
+  if (!conversationId) {
+    conversationId = await v2NextId(
+      connection,
+      'seq_direct_conversation_id'
+    );
+    await v2Execute(
+      connection,
+      `
+      INSERT INTO n_direct_conversations (
+        conversation_id,
+        user_low_id,
+        user_high_id,
+        created_by
+      ) VALUES (
+        :conversation_id,
+        :user_low_id,
+        :user_high_id,
+        :created_by
+      )
+      `,
+      {
+        conversation_id: conversationId,
+        user_low_id: userLowId,
+        user_high_id: userHighId,
+        created_by: auth.userId
+      }
+    );
+  }
+
+  return v2Ok(
+    await v2GetDirectConversation(
+      connection,
+      auth.userId,
+      conversationId
+    ),
+    'direct conversation ready'
+  );
+}
+
+export async function v2ListDirectMessages(
+  event: H3Event,
+  connection: oracledb.Connection,
+  conversationId: number
+): Promise<V2Response<V2DirectMessage[]>> {
+  const auth = v2Auth(event);
+  await v2RequireDirectConversationAccess(
+    connection,
+    auth.userId,
+    conversationId
+  );
+  const page = v2Page(event);
+
+  const total = await v2Count(
+    connection,
+    `
+    SELECT COUNT(*) AS total
+    FROM n_direct_messages
+    WHERE conversation_id = :conversation_id
+      AND is_deleted = 0
+    `,
+    { conversation_id: conversationId }
+  );
+
+  const rows = await v2Rows(
+    connection,
+    `
+    SELECT *
+    FROM (
+      SELECT
+        inner_rows.*,
+        ROW_NUMBER() OVER (
+          ORDER BY inner_rows.created_at DESC, inner_rows.message_id DESC
+        ) AS rn
+      FROM (
+        SELECT
+          dm.message_id,
+          dm.conversation_id,
+          dm.sender_id AS user_id,
+          dm.content,
+          dm.is_deleted,
+          dm.created_at,
+          dm.updated_at,
+          dm.edited_at,
+          dm.deleted_at,
+          u.username,
+          u.avatar_url,
+          u.display_name,
+          u.bio,
+          u.location,
+          u.website,
+          u.is_verified,
+          u.followers_count,
+          u.following_count,
+          u.posts_count,
+          u.likes_count,
+          fn_get_user_relationship(:viewer_id, u.user_id) AS relation
+        FROM n_direct_messages dm
+        JOIN v_user_profile_public u ON u.user_id = dm.sender_id
+        WHERE dm.conversation_id = :conversation_id
+          AND dm.is_deleted = 0
+      ) inner_rows
+    )
+    WHERE rn BETWEEN :start_row AND :end_row
+    ORDER BY created_at ASC, message_id ASC
+    `,
+    {
+      viewer_id: auth.userId,
+      conversation_id: conversationId,
+      start_row: page.start,
+      end_row: page.end
+    }
+  );
+  const messages = rows.map(row =>
+    v2MapDirectMessage(row, auth.userId)
+  );
+
+  if (page.page === 1 && messages.length > 0) {
+    await v2MarkDirectConversationRead(
+      connection,
+      auth.userId,
+      conversationId,
+      messages[messages.length - 1]?.message_id ?? null
+    );
+  }
+
+  return v2Ok(
+    messages,
+    'success',
+    v2PageMeta(page.page, page.page_size, total)
+  );
+}
+
+export async function v2CreateDirectMessage(
+  event: H3Event,
+  connection: oracledb.Connection,
+  conversationId: number
+): Promise<V2Response<V2DirectMessage>> {
+  const auth = v2Auth(event);
+  const access = await v2RequireDirectConversationAccess(
+    connection,
+    auth.userId,
+    conversationId
+  );
+  await v2AssertDirectTargetCanReceive(
+    connection,
+    auth.userId,
+    access.participantUserId
+  );
+
+  const body =
+    (await v2Body(event)) as Partial<V2CreateDirectMessagePayload>;
+  const content = v2RequiredString(body, 'content');
+  const messageId = await v2NextId(
+    connection,
+    'seq_direct_message_id'
+  );
+
+  try {
+    await v2Execute(
+      connection,
+      `
+      INSERT INTO n_direct_messages (
+        message_id,
+        conversation_id,
+        sender_id,
+        content
+      ) VALUES (
+        :message_id,
+        :conversation_id,
+        :sender_id,
+        :content
+      )
+      `,
+      {
+        message_id: messageId,
+        conversation_id: conversationId,
+        sender_id: auth.userId,
+        content
+      },
+      false
+    );
+
+    await v2Execute(
+      connection,
+      `
+      UPDATE n_direct_conversations
+      SET last_message_id = :message_id,
+          last_message_at = CURRENT_TIMESTAMP,
+          message_count = message_count + 1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE conversation_id = :conversation_id
+      `,
+      {
+        message_id: messageId,
+        conversation_id: conversationId
+      },
+      false
+    );
+
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  }
+
+  await v2MarkDirectConversationRead(
+    connection,
+    auth.userId,
+    conversationId,
+    messageId
+  );
+
+  const message = await v2GetDirectMessage(
+    connection,
+    auth.userId,
+    messageId
+  );
+  await v2PublishDirectEvent(
+    [auth.userId, access.participantUserId],
+    'direct_message',
+    {
+      conversation_id: conversationId,
+      direct_message: message
+    }
+  );
+  return v2Ok(message, 'direct message created');
 }

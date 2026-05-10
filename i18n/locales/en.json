@@ -428,6 +428,24 @@
       "noOnline": "No online members",
       "noOffline": "No offline members"
     },
+    "notifications": {
+      "title": "Channel notifications",
+      "muteLabel": "Mute this channel",
+      "muteDescription": "When enabled, new messages in this channel will not count toward alerts."
+    },
+    "calls": {
+      "voiceTitle": "Voice call",
+      "voiceDescription": "Voice rooms and realtime call signaling are not connected to the backend yet.",
+      "videoTitle": "Video call",
+      "videoDescription": "Video rooms and realtime call signaling are not connected to the backend yet."
+    },
+    "directMessage": {
+      "title": "Direct message",
+      "placeholder": "Message {user}...",
+      "loading": "Loading direct messages...",
+      "emptyTitle": "No direct messages yet",
+      "emptyDescription": "Send the first message to start the conversation."
+    },
     "message": {
       "pinned": "Pinned",
       "edited": "(edited)",
@@ -506,7 +524,13 @@
       "deleteChannelFailed": "Failed to delete channel",
       "channelMuted": "Channel muted",
       "channelUnmuted": "Channel unmuted",
-      "muteFailed": "Failed to update channel mute status"
+      "muteFailed": "Failed to update channel mute status",
+      "voiceCallUnavailable": "Voice call backend is not connected yet",
+      "videoCallUnavailable": "Video call backend is not connected yet",
+      "loadDirectMessagesFailed": "Failed to load direct messages",
+      "directMessageSent": "Direct message sent",
+      "directMessageFailed": "Failed to send direct message",
+      "cannotMessageSelf": "You cannot send a direct message to yourself"
     },
     "mention": {
       "searchFailed": "Failed to search mentions:",

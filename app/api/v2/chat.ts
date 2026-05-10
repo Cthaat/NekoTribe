@@ -15,6 +15,10 @@ import type {
   V2ChatReactionPayload,
   V2CreateChatChannelPayload,
   V2CreateChatMessagePayload,
+  V2CreateDirectConversationPayload,
+  V2CreateDirectMessagePayload,
+  V2DirectConversation,
+  V2DirectMessage,
   V2PagedResult,
   V2UpdateChatChannelPayload,
   V2UpdateChatMessagePayload
@@ -210,4 +214,64 @@ export async function v2SetChatChannelMuteStatus(
     method: 'PUT',
     body: { is_muted: isMuted }
   });
+}
+
+export async function v2ListDirectConversations(
+  query: V2ChatPageQuery = {}
+): Promise<V2PagedResult<V2DirectConversation>> {
+  const response = await v2Request<
+    V2DirectConversation[],
+    undefined,
+    V2ChatPageQuery
+  >('/api/v2/chat/direct-conversations', {
+    method: 'GET',
+    query
+  });
+  return toV2PagedResult(response);
+}
+
+export async function v2CreateDirectConversation(
+  payload: V2CreateDirectConversationPayload
+): Promise<V2DirectConversation> {
+  return await v2RequestData<
+    V2DirectConversation,
+    V2CreateDirectConversationPayload
+  >('/api/v2/chat/direct-conversations', {
+    method: 'POST',
+    body: payload
+  });
+}
+
+export async function v2ListDirectMessages(
+  conversationId: number,
+  query: V2ChatPageQuery = {}
+): Promise<V2PagedResult<V2DirectMessage>> {
+  const response = await v2Request<
+    V2DirectMessage[],
+    undefined,
+    V2ChatPageQuery
+  >(
+    `/api/v2/chat/direct-conversations/${conversationId}/messages`,
+    {
+      method: 'GET',
+      query
+    }
+  );
+  return toV2PagedResult(response);
+}
+
+export async function v2CreateDirectMessage(
+  conversationId: number,
+  payload: V2CreateDirectMessagePayload
+): Promise<V2DirectMessage> {
+  return await v2RequestData<
+    V2DirectMessage,
+    V2CreateDirectMessagePayload
+  >(
+    `/api/v2/chat/direct-conversations/${conversationId}/messages`,
+    {
+      method: 'POST',
+      body: payload
+    }
+  );
 }

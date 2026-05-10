@@ -28,6 +28,8 @@ import type { ChatMember } from '@/components/ChatMemberList.vue';
 import {
   v2CreateChatChannel,
   v2CreateChatMessage,
+  v2CreateDirectConversation,
+  v2CreateDirectMessage,
   v2CreateChatReaction,
   v2DeleteChatChannel,
   v2DeleteChatMessage,
@@ -36,6 +38,7 @@ import {
   v2ListChatGroups,
   v2ListChatMembers,
   v2ListChatMessages,
+  v2ListDirectMessages,
   v2SetChatChannelMuteStatus,
   v2SetChatMessagePinStatus,
   v2UpdateChatChannel,
@@ -51,7 +54,10 @@ import {
   type ChatGroupVM
 } from '@/services/chat';
 import { usePreferenceStore } from '@/stores/user';
-import type { V2ChatMessage } from '@/types/v2';
+import type {
+  V2ChatMessage,
+  V2DirectMessage
+} from '@/types/v2';
 
 const { t } = useAppLocale();
 
@@ -63,8 +69,10 @@ interface ChatWsEvent {
   type: string;
   data?: {
     channel_id?: number;
+    conversation_id?: number;
     message_id?: number;
     message?: V2ChatMessage;
+    direct_message?: V2DirectMessage;
   };
 }
 
@@ -86,6 +94,11 @@ const searchQuery = ref('');
 const createChannelDialogOpen = ref(false);
 const createChannelCategoryId = ref<number | null>(null);
 const createChannelName = ref('');
+const directConversationId = ref<number | null>(null);
+const directMessageTargetId = ref<number | null>(null);
+const directMessages = ref<V2DirectMessage[]>([]);
+const isLoadingDirectMessages = ref(false);
+const isSendingDirectMessage = ref(false);
 
 const currentUserId = computed(
   () => preferenceStore.preferences.user.id
@@ -159,6 +172,24 @@ function upsertMessage(message: ChatMessageType): void {
   messages.value = replaceChatMessage(messages.value, message);
 }
 
+function upsertDirectMessage(message: V2DirectMessage): void {
+  const index = directMessages.value.findIndex(
+    item => item.message_id === message.message_id
+  );
+  if (index === -1) {
+    directMessages.value = [...directMessages.value, message].sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() -
+        new Date(b.created_at).getTime()
+    );
+    return;
+  }
+
+  const updated = [...directMessages.value];
+  updated[index] = message;
+  directMessages.value = updated;
+}
+
 function updateChannelPreview(
   rawMessage: V2ChatMessage,
   isActiveChannel: boolean
@@ -213,6 +244,15 @@ function handleWsMessage(event: MessageEvent<string>): void {
     if (payload.type === 'chat_message') {
       updateChannelPreview(payload.data.message, isActiveChannel);
     }
+    return;
+  }
+
+  if (
+    payload.type === 'direct_message' &&
+    payload.data?.direct_message &&
+    payload.data.conversation_id === directConversationId.value
+  ) {
+    upsertDirectMessage(payload.data.direct_message);
     return;
   }
 
@@ -605,6 +645,67 @@ function handleLoadMore(): void {
   void loadMessages(activeChannel.value.id, false);
 }
 
+async function handleOpenDirectMessage(
+  member: ChatMember
+): Promise<void> {
+  directMessageTargetId.value = member.id;
+  directConversationId.value = null;
+  directMessages.value = [];
+  isLoadingDirectMessages.value = true;
+
+  try {
+    const conversation = await v2CreateDirectConversation({
+      target_user_id: member.id
+    });
+    directConversationId.value = conversation.conversation_id;
+    const result = await v2ListDirectMessages(
+      conversation.conversation_id,
+      {
+        page: 1,
+        page_size: 50
+      }
+    );
+    directMessages.value = result.items;
+  } catch {
+    toast.error(t('chat.feedback.loadDirectMessagesFailed'));
+  } finally {
+    isLoadingDirectMessages.value = false;
+  }
+}
+
+async function handleSendDirectMessage(
+  targetUserId: number,
+  content: string
+): Promise<void> {
+  if (isSendingDirectMessage.value) return;
+  isSendingDirectMessage.value = true;
+
+  try {
+    let conversationId = directConversationId.value;
+    if (
+      !conversationId ||
+      directMessageTargetId.value !== targetUserId
+    ) {
+      const conversation = await v2CreateDirectConversation({
+        target_user_id: targetUserId
+      });
+      conversationId = conversation.conversation_id;
+      directConversationId.value = conversationId;
+      directMessageTargetId.value = targetUserId;
+    }
+
+    const created = await v2CreateDirectMessage(conversationId, {
+      content
+    });
+    upsertDirectMessage(created);
+    toast.success(t('chat.feedback.directMessageSent'));
+  } catch {
+    toast.error(t('chat.feedback.directMessageFailed'));
+  } finally {
+    isSendingDirectMessage.value = false;
+  }
+}
+
 onMounted(() => {
   void loadChat();
 });
@@ -741,6 +842,9 @@ onBeforeUnmount(() => {
         :is-loading="isLoadingMessages"
         :is-sending="isSending"
         :current-user-id="currentUserId"
+        :direct-messages="directMessages"
+        :is-loading-direct-messages="isLoadingDirectMessages"
+        :is-sending-direct-message="isSendingDirectMessage"
         @send="handleSendMessage"
         @load-more="handleLoadMore"
         @react="handleReact"
@@ -749,6 +853,8 @@ onBeforeUnmount(() => {
         @pin="handlePinMessage"
         @toggle-mute="() => handleToggleChannelMute()"
         @search="handleSearch"
+        @open-direct-message="handleOpenDirectMessage"
+        @send-direct-message="handleSendDirectMessage"
       />
     </div>
   </div>

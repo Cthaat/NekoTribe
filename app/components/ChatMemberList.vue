@@ -57,6 +57,7 @@ export interface ChatMember {
 const props = defineProps<{
   members: ChatMember[];
   canManage?: boolean;
+  currentUserId?: number;
 }>();
 
 const emit = defineEmits<{
@@ -268,6 +269,7 @@ const getRoleColor = (role: ChatMember['role']) => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
+                      :disabled="member.id === currentUserId"
                       @click.stop="emit('message', member)"
                     >
                       <MessageSquare class="mr-2 h-4 w-4" />
@@ -378,6 +380,7 @@ const getRoleColor = (role: ChatMember['role']) => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
+                      :disabled="member.id === currentUserId"
                       @click.stop="emit('message', member)"
                     >
                       <MessageSquare class="mr-2 h-4 w-4" />

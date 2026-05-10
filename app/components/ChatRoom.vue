@@ -8,22 +8,28 @@ import {
 } from 'vue';
 import {
   Hash,
-  Users,
   Pin,
   Bell,
   BellOff,
-  Settings,
   Search,
   Phone,
   Video,
   PanelRightClose,
   PanelRightOpen,
-  ArrowDown
+  ArrowDown,
+  Send
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage
+} from '@/components/ui/avatar';
 import {
   Tooltip,
   TooltipContent,
@@ -37,12 +43,21 @@ import {
   SheetTitle,
   SheetTrigger
 } from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
 import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
 import ChatMemberList from './ChatMemberList.vue';
 import type { ChatMessageType } from './ChatMessage.vue';
 import type { ChatMember } from './ChatMemberList.vue';
 import type { Channel } from './ChatChannelList.vue';
+import type { V2DirectMessage } from '@/types/v2';
 import { toast } from 'vue-sonner';
 const { t } = useAppLocale();
 
@@ -55,6 +70,9 @@ const props = defineProps<{
   isLoading?: boolean;
   isSending?: boolean;
   currentUserId?: number;
+  directMessages?: V2DirectMessage[];
+  isLoadingDirectMessages?: boolean;
+  isSendingDirectMessage?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -72,12 +90,24 @@ const emit = defineEmits<{
   (e: 'pin', messageId: number): void;
   (e: 'toggle-mute'): void;
   (e: 'search', query: string): void;
+  (e: 'open-direct-message', member: ChatMember): void;
+  (
+    e: 'send-direct-message',
+    targetUserId: number,
+    content: string
+  ): void;
 }>();
 
 // 状态
 const showMemberList = ref(true);
 const showPinnedMessages = ref(false);
 const showSearch = ref(false);
+const notificationSettingsOpen = ref(false);
+const callDialogOpen = ref(false);
+const callDialogType = ref<'voice' | 'video'>('voice');
+const directMessageOpen = ref(false);
+const directMessageTarget = ref<ChatMember | null>(null);
+const directMessageContent = ref('');
 const searchQuery = ref('');
 const replyTo = ref<ChatMessageType | null>(null);
 const messagesContainerRef = ref<HTMLElement | null>(null);
@@ -120,6 +150,38 @@ const isOwnMessage = (message: ChatMessageType) => {
     props.currentUserId !== undefined &&
     message.author.id === props.currentUserId
   );
+};
+
+const openCallDialog = (type: 'voice' | 'video') => {
+  callDialogType.value = type;
+  callDialogOpen.value = true;
+};
+
+const handleStartCall = () => {
+  toast.info(
+    callDialogType.value === 'voice'
+      ? t('chat.feedback.voiceCallUnavailable')
+      : t('chat.feedback.videoCallUnavailable')
+  );
+};
+
+const openDirectMessage = (member: ChatMember) => {
+  if (member.id === props.currentUserId) {
+    toast.info(t('chat.feedback.cannotMessageSelf'));
+    return;
+  }
+  directMessageTarget.value = member;
+  directMessageContent.value = '';
+  directMessageOpen.value = true;
+  emit('open-direct-message', member);
+};
+
+const submitDirectMessage = () => {
+  const target = directMessageTarget.value;
+  const content = directMessageContent.value.trim();
+  if (!target || !content) return;
+  emit('send-direct-message', target.id, content);
+  directMessageContent.value = '';
 };
 
 // 滚动到底部
@@ -231,6 +293,7 @@ onMounted(() => {
                   variant="ghost"
                   size="sm"
                   class="h-8 w-8 p-0"
+                  @click="openCallDialog('voice')"
                 >
                   <Phone class="h-4 w-4" />
                 </Button>
@@ -247,6 +310,7 @@ onMounted(() => {
                   variant="ghost"
                   size="sm"
                   class="h-8 w-8 p-0"
+                  @click="openCallDialog('video')"
                 >
                   <Video class="h-4 w-4" />
                 </Button>
@@ -320,30 +384,52 @@ onMounted(() => {
             </Sheet>
 
             <!-- 通知设置 -->
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="h-8 w-8 p-0"
-                  @click="emit('toggle-mute')"
-                >
-                  <component
-                    :is="channel.isMuted ? BellOff : Bell"
-                    class="h-4 w-4"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>
-                  {{
-                    channel.isMuted
-                      ? t('chat.actions.unmuteChannel')
-                      : t('chat.actions.muteChannel')
-                  }}
-                </p>
-              </TooltipContent>
-            </Tooltip>
+            <Sheet v-model:open="notificationSettingsOpen">
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <SheetTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      class="h-8 w-8 p-0"
+                    >
+                      <component
+                        :is="channel.isMuted ? BellOff : Bell"
+                        class="h-4 w-4"
+                      />
+                    </Button>
+                  </SheetTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{{ t('chat.actions.notificationSettings') }}</p>
+                </TooltipContent>
+              </Tooltip>
+              <SheetContent side="right" class="w-full p-6 sm:w-80">
+                <SheetHeader>
+                  <SheetTitle>
+                    {{ t('chat.notifications.title') }}
+                  </SheetTitle>
+                </SheetHeader>
+                <div class="mt-6 space-y-4">
+                  <div
+                    class="flex items-center justify-between gap-4 rounded-md border p-3"
+                  >
+                    <div class="space-y-1">
+                      <Label>
+                        {{ t('chat.notifications.muteLabel') }}
+                      </Label>
+                      <p class="text-sm text-muted-foreground">
+                        {{ t('chat.notifications.muteDescription') }}
+                      </p>
+                    </div>
+                    <Switch
+                      :model-value="channel.isMuted"
+                      @update:model-value="emit('toggle-mute')"
+                    />
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
 
             <!-- 搜索 -->
             <Tooltip>
@@ -501,7 +587,162 @@ onMounted(() => {
       v-if="showMemberList"
       :members="members"
       :can-manage="canManage"
+      :current-user-id="currentUserId"
       class="hidden lg:flex"
+      @message="openDirectMessage"
     />
+
+    <Dialog v-model:open="callDialogOpen">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {{
+              callDialogType === 'voice'
+                ? t('chat.calls.voiceTitle')
+                : t('chat.calls.videoTitle')
+            }}
+          </DialogTitle>
+          <DialogDescription>
+            {{
+              callDialogType === 'voice'
+                ? t('chat.calls.voiceDescription')
+                : t('chat.calls.videoDescription')
+            }}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" @click="callDialogOpen = false">
+            {{ t('common.cancel') }}
+          </Button>
+          <Button @click="handleStartCall">
+            {{
+              callDialogType === 'voice'
+                ? t('chat.actions.startVoiceCall')
+                : t('chat.actions.startVideoCall')
+            }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Sheet v-model:open="directMessageOpen">
+      <SheetContent side="right" class="flex w-full flex-col p-6 sm:w-96">
+        <SheetHeader>
+          <SheetTitle>
+            {{ t('chat.directMessage.title') }}
+          </SheetTitle>
+        </SheetHeader>
+        <div
+          v-if="directMessageTarget"
+          class="mt-6 flex min-h-0 flex-1 flex-col gap-4"
+        >
+          <div class="flex items-center gap-3 rounded-md border p-3">
+            <Avatar class="h-10 w-10">
+              <AvatarImage
+                :src="directMessageTarget.avatar"
+                :alt="directMessageTarget.nickname"
+              />
+              <AvatarFallback>
+                {{ directMessageTarget.nickname.slice(0, 2) }}
+              </AvatarFallback>
+            </Avatar>
+            <div class="min-w-0">
+              <div class="truncate font-medium">
+                {{ directMessageTarget.nickname }}
+              </div>
+              <div class="truncate text-sm text-muted-foreground">
+                @{{ directMessageTarget.username }}
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="min-h-40 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-3"
+          >
+            <div
+              v-if="isLoadingDirectMessages"
+              class="flex h-full min-h-40 items-center justify-center text-sm text-muted-foreground"
+            >
+              {{ t('chat.directMessage.loading') }}
+            </div>
+            <div
+              v-else-if="!directMessages?.length"
+              class="flex h-full min-h-40 flex-col items-center justify-center text-center text-sm text-muted-foreground"
+            >
+              <div class="font-medium text-foreground">
+                {{ t('chat.directMessage.emptyTitle') }}
+              </div>
+              <div class="mt-1">
+                {{ t('chat.directMessage.emptyDescription') }}
+              </div>
+            </div>
+            <div v-else class="space-y-3">
+              <div
+                v-for="message in directMessages"
+                :key="message.message_id"
+                class="flex"
+                :class="{
+                  'justify-end':
+                    message.author.user_id === currentUserId
+                }"
+              >
+                <div
+                  class="max-w-[82%] rounded-md px-3 py-2 text-sm shadow-sm"
+                  :class="
+                    message.author.user_id === currentUserId
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background'
+                  "
+                >
+                  <div class="whitespace-pre-wrap break-words">
+                    {{ message.content }}
+                  </div>
+                  <div
+                    class="mt-1 text-[11px] opacity-70"
+                  >
+                    {{
+                      new Date(
+                        message.created_at
+                      ).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <Textarea
+              v-model="directMessageContent"
+              :placeholder="
+                t('chat.directMessage.placeholder', {
+                  user: directMessageTarget.nickname
+                })
+              "
+              class="min-h-24 resize-none"
+            />
+            <Button
+              class="w-full gap-2"
+              :disabled="
+                isLoadingDirectMessages ||
+                isSendingDirectMessage ||
+                !directMessageContent.trim()
+              "
+              @click="submitDirectMessage"
+            >
+              <Send class="h-4 w-4" />
+              {{
+                isSendingDirectMessage
+                  ? t('common.processing')
+                  : t('chat.actions.sendMessage')
+              }}
+            </Button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   </div>
 </template>

@@ -233,6 +233,7 @@ export interface WSMessage {
     | 'chat_message_updated'
     | 'chat_reaction_updated'
     | 'chat_channel_updated'
+    | 'direct_message'
     | 'pong'
     | 'error'
     | 'system_notification'; // 消息类型

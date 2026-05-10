@@ -428,6 +428,24 @@
       "noOnline": "暂无在线成员",
       "noOffline": "暂无离线成员"
     },
+    "notifications": {
+      "title": "频道通知",
+      "muteLabel": "静音此频道",
+      "muteDescription": "开启后，此频道的新消息不会计入提醒。"
+    },
+    "calls": {
+      "voiceTitle": "语音通话",
+      "voiceDescription": "语音房间和实时通话信令尚未接入后端。",
+      "videoTitle": "视频通话",
+      "videoDescription": "视频房间和实时通话信令尚未接入后端。"
+    },
+    "directMessage": {
+      "title": "私聊",
+      "placeholder": "给 {user} 发送私信...",
+      "loading": "正在加载私聊记录...",
+      "emptyTitle": "还没有私聊记录",
+      "emptyDescription": "发送第一条私信开始对话。"
+    },
     "message": {
       "pinned": "已置顶",
       "edited": "（已编辑）",
@@ -506,7 +524,13 @@
       "deleteChannelFailed": "频道删除失败",
       "channelMuted": "已静音该频道",
       "channelUnmuted": "已取消静音",
-      "muteFailed": "频道静音状态更新失败"
+      "muteFailed": "频道静音状态更新失败",
+      "voiceCallUnavailable": "语音通话后端尚未接入",
+      "videoCallUnavailable": "视频通话后端尚未接入",
+      "loadDirectMessagesFailed": "私聊记录加载失败",
+      "directMessageSent": "私信已发送",
+      "directMessageFailed": "私信发送失败",
+      "cannotMessageSelf": "不能给自己发送私信"
     },
     "mention": {
       "searchFailed": "搜索提及失败:",

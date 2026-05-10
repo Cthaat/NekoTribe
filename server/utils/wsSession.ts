@@ -172,6 +172,18 @@ class WSSessionManager {
     return sessions; // 返回房间内所有会话的数组
   }
 
+  getUserSessions(userId: number): WSSession[] {
+    const sessions: WSSession[] = [];
+
+    for (const session of this.sessions.values()) {
+      if (session.auth.userId === userId) {
+        sessions.push(session);
+      }
+    }
+
+    return sessions;
+  }
+
   /**
    * 更新指定会话的最后活动时间
    * @param sessionId 会话ID
@@ -256,6 +268,19 @@ export function sendWsToRoom(
       session.peer.send(JSON.stringify(message));
     } catch (error) {
       console.error(`向房间 ${roomId} 发送消息失败:`, error);
+    }
+  });
+}
+
+export function sendWsToUser(
+  userId: number,
+  message: unknown
+): void {
+  sessionManager.getUserSessions(userId).forEach(session => {
+    try {
+      session.peer.send(JSON.stringify(message));
+    } catch (error) {
+      console.error(`向用户 ${userId} 发送消息失败:`, error);
     }
   });
 }
