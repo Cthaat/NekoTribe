@@ -6,8 +6,24 @@ import {
   ref
 } from 'vue';
 import { toast } from 'vue-sonner';
+import {
+  Bell,
+  BellOff,
+  Copy,
+  Link,
+  Search,
+  Settings,
+  UserPlus
+} from 'lucide-vue-next';
 import ChatChannelList from '@/components/ChatChannelList.vue';
 import ChatRoom from '@/components/ChatRoom.vue';
+import GroupManageModal from '@/components/GroupManageModal.vue';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage
+} from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -19,6 +35,10 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import type {
   Channel,
   ChannelCategory
@@ -31,6 +51,7 @@ import {
   v2CreateDirectConversation,
   v2CreateDirectMessage,
   v2CreateChatReaction,
+  v2CreateGroupInvite,
   v2DeleteChatChannel,
   v2DeleteChatMessage,
   v2DeleteChatReaction,
@@ -45,6 +66,7 @@ import {
   v2UpdateChatMessage,
   v2UploadMedia
 } from '@/api/v2';
+import { getGroup } from '@/services/groups';
 import {
   buildChatChannelCategories,
   mapV2ChatGroup,
@@ -53,11 +75,15 @@ import {
   replaceChatMessage,
   type ChatGroupVM
 } from '@/services/chat';
+import { v2SearchUsers } from '@/services/users';
 import { usePreferenceStore } from '@/stores/user';
+import type { Group } from '@/types/groups';
 import type {
+  V2CreateGroupInviteData,
   V2ChatMessage,
   V2DirectMessage
 } from '@/types/v2';
+import type { PublicUserVM } from '@/types/users';
 
 const { t } = useAppLocale();
 
