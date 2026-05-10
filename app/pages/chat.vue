@@ -1498,19 +1498,20 @@ onBeforeUnmount(() => {
             </ScrollArea>
           </div>
 
-          <div class="border-t bg-background p-3">
-            <div class="flex items-center gap-3 rounded-full border bg-card/80 px-3 py-2 shadow-sm">
+          <div class="relative z-20 border-t bg-background p-3">
+            <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-full border bg-card/80 px-3 py-2 shadow-sm">
               <Input
                 v-model="directMessageContent"
                 :placeholder="t('chat.directMessage.placeholder', { user: directMessageStandaloneTarget.nickname })"
-                class="h-11 flex-1 border-0 bg-transparent px-1 py-0 leading-none shadow-none focus-visible:ring-0"
+                class="h-11 min-w-0 border-0 bg-transparent px-1 py-0 leading-none shadow-none focus-visible:ring-0"
                 @keydown="handleSendDirectMessageKeydown"
               />
               <AppSendButton
                 :loading="isSendingDirectMessage"
                 :disabled="isLoadingDirectMessages || isSendingDirectMessage || !directMessageContent.trim()"
-                class="h-11 shrink-0 rounded-full px-4"
-                @click="submitDirectMessage"
+                type="button"
+                class="relative z-30 h-11 shrink-0 rounded-full px-4 pointer-events-auto"
+                @click="submitStandaloneDirectMessage"
               >
                 {{ isSendingDirectMessage ? t('common.processing') : t('chat.actions.sendMessage') }}
               </AppSendButton>
