@@ -553,7 +553,34 @@
     "notifications": {
       "title": "频道通知",
       "muteLabel": "静音此频道",
-      "muteDescription": "开启后，此频道的新消息不会计入提醒。"
+      "muteDescription": "开启后，此频道的新消息不会计入提醒。",
+      "groupTitle": "聊天通知设置",
+      "groupDescription": "管理 {group} 中每个频道的通知状态。",
+      "noChannels": "当前群组还没有可设置的频道。",
+      "channelMuted": "已静音，新消息不会计入提醒。",
+      "channelUnmuted": "正常提醒，新消息会计入未读。"
+    },
+    "invite": {
+      "title": "邀请成员",
+      "description": "邀请用户加入 {group}，或创建可分享的邀请链接。",
+      "searchLabel": "搜索用户",
+      "searchPlaceholder": "输入用户名或昵称",
+      "searchHint": "选择用户会创建定向邀请；不选择用户则创建通用邀请链接。",
+      "searching": "正在搜索用户...",
+      "noResults": "没有找到可邀请的用户",
+      "emptySearch": "输入至少 2 个字符开始搜索。",
+      "selected": "已选择",
+      "clearSelection": "清除",
+      "linkTitle": "邀请链接",
+      "linkDescription": "未选择具体用户时，会创建一个可复制分享的邀请链接。",
+      "maxUses": "最大使用次数",
+      "expireHours": "有效小时数",
+      "messageLabel": "邀请留言",
+      "messagePlaceholder": "写一句邀请说明（可选）",
+      "createdTitle": "邀请已创建",
+      "targetedCreated": "定向邀请已发送给该用户。",
+      "sendInvite": "发送邀请",
+      "createLink": "创建邀请链接"
     },
     "calls": {
       "voiceTitle": "语音通话",
@@ -606,6 +633,7 @@
       "ban": "封禁用户",
       "inviteMembers": "邀请成员",
       "notificationSettings": "通知设置",
+      "chatSettings": "聊天设置",
       "createChannel": "创建频道",
       "muteChannel": "静音频道",
       "unmuteChannel": "取消静音",
@@ -668,7 +696,13 @@
       "loadDirectMessagesFailed": "私聊记录加载失败",
       "directMessageSent": "私信已发送",
       "directMessageFailed": "私信发送失败",
-      "cannotMessageSelf": "不能给自己发送私信"
+      "cannotMessageSelf": "不能给自己发送私信",
+      "searchUsersFailed": "搜索用户失败",
+      "inviteCreated": "邀请链接已创建并复制",
+      "memberInvited": "成员邀请已发送",
+      "inviteCopied": "邀请链接已复制",
+      "inviteFailed": "创建邀请失败",
+      "loadSettingsFailed": "聊天设置加载失败"
     },
     "mention": {
       "searchFailed": "搜索提及失败:",

@@ -12,7 +12,6 @@ import {
   Copy,
   Link,
   Search,
-  Settings,
   UserPlus
 } from 'lucide-vue-next';
 import ChatChannelList from '@/components/ChatChannelList.vue';
@@ -36,7 +35,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import type {
@@ -133,7 +131,6 @@ const isCreatingInvite = ref(false);
 const notificationSettingsOpen = ref(false);
 const groupSettingsOpen = ref(false);
 const groupSettingsModel = ref<Group | null>(null);
-const isLoadingGroupSettings = ref(false);
 const directConversationId = ref<number | null>(null);
 const directMessageTargetId = ref<number | null>(null);
 const directMessages = ref<V2DirectMessage[]>([]);
@@ -254,7 +251,6 @@ function openNotificationSettings(): void {
 async function openGroupSettings(): Promise<void> {
   if (!activeGroup.value) return;
   groupSettingsOpen.value = true;
-  isLoadingGroupSettings.value = true;
   try {
     groupSettingsModel.value = await getGroup(activeGroup.value.id);
   } catch (error) {
@@ -263,8 +259,6 @@ async function openGroupSettings(): Promise<void> {
         error instanceof Error ? error.message : undefined
     });
     groupSettingsOpen.value = false;
-  } finally {
-    isLoadingGroupSettings.value = false;
   }
 }
 
@@ -1114,7 +1108,7 @@ onBeforeUnmount(() => {
                 size="sm"
                 @click="selectedInvitee = null"
               >
-                {{ t('common.clear') }}
+                {{ t('chat.invite.clearSelection') }}
               </Button>
             </div>
 
