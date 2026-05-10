@@ -1,28 +1,15 @@
 <script setup lang="ts">
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/components/ui/tabs';
-import AvatarUploader from '@/components/AvatarUploader.vue'; // 导入你的新组件
-// 1. 导入所有这个组件需要的依赖项
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage
-} from '@/components/ui/avatar';
-import { Progress } from '@/components/ui/progress';
-import {
   computed,
   ref,
   watch
 } from 'vue';
+import AvatarUploader from '@/components/AvatarUploader.vue'; // 导入你的新组件
+// 1. 导入所有这个组件需要的依赖项
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import {
-  ArrowUp,
-  ArrowDown,
   User,
   Mail,
   MapPin,
@@ -116,6 +103,26 @@ const normalizedScore = computed(() => {
 });
 
 const tabValue = defineModel<string>();
+const route = useRoute();
+
+function normalizePath(path: string): string {
+  return path.replace(/\/+$/, '') || '/';
+}
+
+function isTabActive(tab: TabItem): boolean {
+  return normalizePath(route.path) === normalizePath(tab.to);
+}
+
+function syncActiveTabFromRoute(): void {
+  const active = props.accountTabs.find(isTabActive);
+  if (active) {
+    tabValue.value = active.name;
+  }
+}
+
+function selectTab(tab: TabItem): void {
+  tabValue.value = tab.name;
+}
 
 const isFollowing = ref(props.user.follow === 'follow');
 const showFollowAction = computed(() => {
@@ -128,6 +135,12 @@ watch(
   newValue => {
     isFollowing.value = newValue === 'follow';
   }
+);
+
+watch(
+  () => [route.path, props.accountTabs] as const,
+  syncActiveTabFromRoute,
+  { immediate: true }
 );
 
 function followUser() {
@@ -280,29 +293,30 @@ function followUser() {
       </div>
     </CardContent>
   </Card>
-  <!-- b. 选项卡导航，作为 Card 的直接子元素，以实现正确的边框样式 -->
-  <div
-    class="inline-flex h-10 items-center justify-center rounded-full bg-muted p-1 text-muted-foreground"
+  <!-- b. 账户子页面导航 -->
+  <nav
     v-if="accountTabs.length > 0"
+    class="w-full overflow-x-auto"
+    :aria-label="t('account.title')"
   >
-    <Tabs default-value="overview" class="w-full">
-      <TabsList>
-        <TabsTrigger
-          v-for="tab in accountTabs"
-          :value="tab.name"
-          class="inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          active-class="bg-background text-foreground shadow-sm"
-        >
-          <NuxtLink
-            :key="tab.name"
-            :to="tab.to"
-            :onclick="() => (tabValue = tab.name)"
-          >
-            {{ tab.name }}
-          </NuxtLink>
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
-  </div>
+    <div
+      class="inline-flex min-w-full items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground sm:min-w-0"
+    >
+      <NuxtLink
+        v-for="tab in accountTabs"
+        :key="tab.to"
+        :to="tab.to"
+        class="inline-flex h-8 flex-none items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-[color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        :class="
+          isTabActive(tab)
+            ? 'bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30 dark:text-foreground'
+            : 'hover:bg-background/60 hover:text-foreground'
+        "
+        @click="selectTab(tab)"
+      >
+        {{ tab.name }}
+      </NuxtLink>
+    </div>
+  </nav>
 </template>
 
