@@ -456,6 +456,22 @@
       "emptyDescription": "This is the start of the channel. Send the first message.",
       "newMessages": "New messages"
     },
+    "composer": {
+      "searchMembers": "Search members",
+      "noMembers": "No matching members",
+      "searchChannels": "Search channels",
+      "noChannels": "No matching channels",
+      "stickers": {
+        "gift": "Gift",
+        "party": "Party",
+        "sparkles": "Sparkle",
+        "idea": "Idea",
+        "rocket": "Launch",
+        "tea": "Break",
+        "done": "Done",
+        "thanks": "Thanks"
+      }
+    },
     "actions": {
       "uploadAttachment": "Upload attachment",
       "uploadImage": "Upload image",

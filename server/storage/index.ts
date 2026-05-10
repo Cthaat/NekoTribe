@@ -29,13 +29,19 @@ const AVATAR_MIME_TYPES = new Set([
   'image/png'
 ]);
 
-const MEDIA_MIME_TYPES = new Set([
-  'audio/mpeg',
-  'audio/ogg',
-  'audio/wav',
+const IMAGE_MEDIA_MIME_TYPES = new Set([
+  'image/avif',
   'image/gif',
   'image/jpeg',
   'image/png',
+  'image/svg+xml',
+  'image/webp'
+]);
+
+const RICH_MEDIA_MIME_TYPES = new Set([
+  'audio/mpeg',
+  'audio/ogg',
+  'audio/wav',
   'video/mp4',
   'video/ogg',
   'video/webm'
@@ -43,6 +49,7 @@ const MEDIA_MIME_TYPES = new Set([
 
 const AVATAR_MAX_SIZE = 10 * 1024 * 1024;
 const MEDIA_MAX_SIZE = 500 * 1024 * 1024;
+const FALLBACK_FILE_EXTENSION = '.bin';
 
 export const STORAGE_AVATAR_MAX_SIZE = AVATAR_MAX_SIZE;
 export const STORAGE_MEDIA_MAX_SIZE = MEDIA_MAX_SIZE;
@@ -98,7 +105,7 @@ function pickDetectedExtension(
     return fallbackExt;
   }
 
-  throw new StorageHttpError(400, '无法识别文件扩展名');
+  return FALLBACK_FILE_EXTENSION;
 }
 
 function inferManagedMediaType(
@@ -108,7 +115,7 @@ function inferManagedMediaType(
     return 'gif';
   }
 
-  if (mimeType.startsWith('image/')) {
+  if (IMAGE_MEDIA_MIME_TYPES.has(mimeType)) {
     return 'image';
   }
 
@@ -116,7 +123,11 @@ function inferManagedMediaType(
     return 'video';
   }
 
-  return 'audio';
+  if (mimeType.startsWith('audio/')) {
+    return 'audio';
+  }
+
+  return 'file';
 }
 
 function buildDateSegments(date: Date): string[] {
@@ -150,7 +161,9 @@ function buildPostMediaStorageKey(
       ? 'videos'
       : mediaType === 'audio'
         ? 'audio'
-        : 'images';
+        : mediaType === 'file'
+          ? 'files'
+          : 'images';
 
   return normalizeStorageKey(
     path.posix.join(
@@ -268,6 +281,34 @@ async function readRichMediaMetadata(
       ? Math.round(Number.parseFloat(rawDuration))
       : null
   };
+}
+
+function emptyFileMetadata(): FileMetadata {
+  return {
+    width: null,
+    height: null,
+    duration: null
+  };
+}
+
+async function readManagedMediaMetadata(
+  filePath: string,
+  mediaType: ManagedMediaType,
+  mimeType: string
+): Promise<FileMetadata> {
+  try {
+    if (mediaType === 'image' || mediaType === 'gif') {
+      return await readImageMetadata(filePath);
+    }
+
+    if (RICH_MEDIA_MIME_TYPES.has(mimeType)) {
+      return await readRichMediaMetadata(filePath);
+    }
+  } catch {
+    return emptyFileMetadata();
+  }
+
+  return emptyFileMetadata();
 }
 
 async function removeTempFile(filePath: string): Promise<void> {
@@ -437,25 +478,19 @@ export async function validateMediaFile(
 ): Promise<ValidatedMediaFile> {
   const detected = await detectUploadedFile(file);
 
-  if (!MEDIA_MIME_TYPES.has(detected.mimeType)) {
-    throw new StorageHttpError(
-      400,
-      '仅支持图片、视频和音频文件上传'
-    );
-  }
-
   if ((file.size || 0) > MEDIA_MAX_SIZE) {
     throw new StorageHttpError(
       400,
-      '媒体文件不能超过 500MB'
+      '文件不能超过 500MB'
     );
   }
 
   const mediaType = inferManagedMediaType(detected.mimeType);
-  const metadata =
-    mediaType === 'image' || mediaType === 'gif'
-      ? await readImageMetadata(file.filepath)
-      : await readRichMediaMetadata(file.filepath);
+  const metadata = await readManagedMediaMetadata(
+    file.filepath,
+    mediaType,
+    detected.mimeType
+  );
 
   return {
     originalName: detected.originalName,

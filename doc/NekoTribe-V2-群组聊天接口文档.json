@@ -820,7 +820,7 @@
           "媒体附件"
         ],
         "summary": "上传媒体附件",
-        "description": "聊天消息附件复用既有 POST /api/v2/media 上传接口，发送消息时传入返回的 media_id。支持 multipart/form-data 文件上传，也支持 JSON 方式登记已有媒体地址。",
+        "description": "聊天消息附件复用既有 POST /api/v2/media 上传接口，发送消息时传入返回的 media_id。支持 multipart/form-data 任意格式文件上传，也支持 JSON 方式登记已有媒体地址。",
         "operationId": "uploadMedia",
         "requestBody": {
           "required": true,
@@ -1571,6 +1571,13 @@
           },
           "media_type": {
             "type": "string",
+            "enum": [
+              "image",
+              "gif",
+              "video",
+              "audio",
+              "file"
+            ],
             "example": "image"
           },
           "file_name": {
@@ -1965,7 +1972,7 @@
           "file": {
             "type": "string",
             "format": "binary",
-            "description": "上传文件。后端也兼容字段名 media。"
+            "description": "上传文件，支持任意格式附件。后端也兼容字段名 media。"
           },
           "alt_text": {
             "type": "string",
@@ -1983,6 +1990,13 @@
         "properties": {
           "media_type": {
             "type": "string",
+            "enum": [
+              "image",
+              "gif",
+              "video",
+              "audio",
+              "file"
+            ],
             "default": "image",
             "example": "image"
           },

@@ -456,6 +456,22 @@
       "emptyDescription": "这是频道的开始，发送第一条消息吧！",
       "newMessages": "新消息"
     },
+    "composer": {
+      "searchMembers": "搜索成员",
+      "noMembers": "没有匹配的成员",
+      "searchChannels": "搜索频道",
+      "noChannels": "没有匹配的频道",
+      "stickers": {
+        "gift": "礼物",
+        "party": "庆祝",
+        "sparkles": "闪亮",
+        "idea": "想法",
+        "rocket": "冲刺",
+        "tea": "休息",
+        "done": "完成",
+        "thanks": "感谢"
+      }
+    },
     "actions": {
       "uploadAttachment": "上传附件",
       "uploadImage": "上传图片",

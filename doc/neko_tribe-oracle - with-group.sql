@@ -392,7 +392,8 @@ CREATE TABLE n_media (
             'image',
             'video',
             'audio',
-            'gif'
+            'gif',
+            'file'
         )
     ),
     file_name VARCHAR2 (255) NOT NULL,
@@ -419,7 +420,7 @@ COMMENT ON COLUMN n_media.tweet_id IS '关联推文ID，外键关联t_tweets表�
 
 COMMENT ON COLUMN n_media.user_id IS '上传用户ID，外键关联t_users表';
 
-COMMENT ON COLUMN n_media.media_type IS '媒体类型：image-图片，video-视频，audio-音频，gif-动图';
+COMMENT ON COLUMN n_media.media_type IS '媒体类型：image-图片，video-视频，audio-音频，gif-动图，file-普通附件';
 
 COMMENT ON COLUMN n_media.file_name IS '原始文件名';
 

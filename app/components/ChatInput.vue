@@ -24,13 +24,27 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
+import { Input } from '@/components/ui/input';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage
+} from '@/components/ui/avatar';
 import type { ChatMessageType } from './ChatMessage.vue';
+import type { ChatMember } from './ChatMemberList.vue';
+import type { Channel } from './ChatChannelList.vue';
 const { t } = useAppLocale();
+
+type TextareaRef =
+  | HTMLTextAreaElement
+  | { $el?: HTMLTextAreaElement };
 
 const props = defineProps<{
   channelName?: string;
   replyTo?: ChatMessageType | null;
   disabled?: boolean;
+  members?: ChatMember[];
+  channels?: Channel[];
 }>();
 
 const emit = defineEmits<{
@@ -40,9 +54,14 @@ const emit = defineEmits<{
 }>();
 
 const message = ref('');
-const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const textareaRef = ref<TextareaRef | null>(null);
 const attachments = ref<File[]>([]);
 const isEmojiPickerOpen = ref(false);
+const isMentionPickerOpen = ref(false);
+const isChannelPickerOpen = ref(false);
+const isStickerPickerOpen = ref(false);
+const mentionSearch = ref('');
+const channelSearch = ref('');
 
 // 常用表情
 const emojis = [
@@ -55,6 +74,17 @@ const emojis = [
   ['👍', '👎', '👏', '🙌', '🤝', '❤️', '🔥', '✨']
 ];
 
+const stickers = [
+  { value: '🎁', labelKey: 'chat.composer.stickers.gift' },
+  { value: '🎉', labelKey: 'chat.composer.stickers.party' },
+  { value: '✨', labelKey: 'chat.composer.stickers.sparkles' },
+  { value: '💡', labelKey: 'chat.composer.stickers.idea' },
+  { value: '🚀', labelKey: 'chat.composer.stickers.rocket' },
+  { value: '🍵', labelKey: 'chat.composer.stickers.tea' },
+  { value: '✅', labelKey: 'chat.composer.stickers.done' },
+  { value: '🙏', labelKey: 'chat.composer.stickers.thanks' }
+];
+
 // 计算是否可发送
 const canSend = computed(() => {
   return (
@@ -62,6 +92,66 @@ const canSend = computed(() => {
     attachments.value.length > 0
   );
 });
+
+const filteredMembers = computed(() => {
+  const query = mentionSearch.value.trim().toLowerCase();
+  const members = props.members ?? [];
+  if (!query) return members.slice(0, 8);
+  return members
+    .filter(
+      member =>
+        member.username.toLowerCase().includes(query) ||
+        member.nickname.toLowerCase().includes(query)
+    )
+    .slice(0, 8);
+});
+
+const filteredChannels = computed(() => {
+  const query = channelSearch.value.trim().toLowerCase();
+  const channels = (props.channels ?? []).filter(
+    channel =>
+      channel.type === 'text' ||
+      channel.type === 'announcement'
+  );
+  if (!query) return channels.slice(0, 8);
+  return channels
+    .filter(channel =>
+      channel.name.toLowerCase().includes(query)
+    )
+    .slice(0, 8);
+});
+
+const getTextareaElement = (): HTMLTextAreaElement | null => {
+  const target = textareaRef.value;
+  if (!target) return null;
+  if (target instanceof HTMLTextAreaElement) return target;
+  return target.$el ?? null;
+};
+
+const focusTextarea = () => {
+  getTextareaElement()?.focus();
+};
+
+const insertText = (text: string) => {
+  const textarea = getTextareaElement();
+  if (!textarea) {
+    message.value += text;
+    return;
+  }
+
+  const start = textarea.selectionStart ?? message.value.length;
+  const end = textarea.selectionEnd ?? message.value.length;
+  message.value =
+    message.value.slice(0, start) +
+    text +
+    message.value.slice(end);
+
+  nextTick(() => {
+    const nextPosition = start + text.length;
+    textarea.focus();
+    textarea.setSelectionRange(nextPosition, nextPosition);
+  });
+};
 
 // 发送消息
 const handleSend = () => {
@@ -79,15 +169,32 @@ const handleSend = () => {
 
   // 重新聚焦输入框
   nextTick(() => {
-    textareaRef.value?.focus();
+    focusTextarea();
   });
 };
 
 // 插入表情
 const insertEmoji = (emoji: string) => {
-  message.value += emoji;
+  insertText(emoji);
   isEmojiPickerOpen.value = false;
-  textareaRef.value?.focus();
+  focusTextarea();
+};
+
+const insertMention = (member: ChatMember) => {
+  insertText(`@${member.username} `);
+  mentionSearch.value = '';
+  isMentionPickerOpen.value = false;
+};
+
+const insertChannel = (channel: Channel) => {
+  insertText(`#${channel.name} `);
+  channelSearch.value = '';
+  isChannelPickerOpen.value = false;
+};
+
+const insertSticker = (sticker: string) => {
+  insertText(`${sticker} `);
+  isStickerPickerOpen.value = false;
 };
 
 // 处理键盘事件
@@ -330,52 +437,165 @@ const handleCancelReply = () => {
           </Popover>
 
           <!-- 提及用户 -->
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-8 w-8 p-0"
-              >
-                <AtSign class="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <p>{{ t('chat.actions.mentionUser') }}</p>
-            </TooltipContent>
-          </Tooltip>
+          <Popover v-model:open="isMentionPickerOpen">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <PopoverTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-8 w-8 p-0"
+                  >
+                    <AtSign class="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>{{ t('chat.actions.mentionUser') }}</p>
+              </TooltipContent>
+            </Tooltip>
+            <PopoverContent
+              class="w-72 p-2"
+              side="top"
+              align="start"
+            >
+              <div class="space-y-2">
+                <Input
+                  v-model="mentionSearch"
+                  :placeholder="t('chat.composer.searchMembers')"
+                  class="h-8"
+                />
+                <div class="max-h-64 overflow-y-auto">
+                  <Button
+                    v-for="member in filteredMembers"
+                    :key="member.id"
+                    variant="ghost"
+                    class="h-auto w-full justify-start gap-2 px-2 py-2"
+                    @click="insertMention(member)"
+                  >
+                    <Avatar class="h-7 w-7">
+                      <AvatarImage
+                        :src="member.avatar"
+                        :alt="member.nickname"
+                      />
+                      <AvatarFallback>
+                        {{ member.nickname.slice(0, 2) }}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span class="min-w-0 text-left">
+                      <span class="block truncate text-sm">
+                        {{ member.nickname }}
+                      </span>
+                      <span
+                        class="block truncate text-xs text-muted-foreground"
+                      >
+                        @{{ member.username }}
+                      </span>
+                    </span>
+                  </Button>
+                  <div
+                    v-if="filteredMembers.length === 0"
+                    class="px-2 py-6 text-center text-sm text-muted-foreground"
+                  >
+                    {{ t('chat.composer.noMembers') }}
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <!-- 频道链接 -->
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-8 w-8 p-0"
-              >
-                <Hash class="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <p>{{ t('chat.actions.quoteChannel') }}</p>
-            </TooltipContent>
-          </Tooltip>
+          <Popover v-model:open="isChannelPickerOpen">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <PopoverTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-8 w-8 p-0"
+                  >
+                    <Hash class="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>{{ t('chat.actions.quoteChannel') }}</p>
+              </TooltipContent>
+            </Tooltip>
+            <PopoverContent
+              class="w-64 p-2"
+              side="top"
+              align="start"
+            >
+              <div class="space-y-2">
+                <Input
+                  v-model="channelSearch"
+                  :placeholder="t('chat.composer.searchChannels')"
+                  class="h-8"
+                />
+                <div class="max-h-64 overflow-y-auto">
+                  <Button
+                    v-for="channel in filteredChannels"
+                    :key="channel.id"
+                    variant="ghost"
+                    class="h-9 w-full justify-start gap-2 px-2"
+                    @click="insertChannel(channel)"
+                  >
+                    <Hash class="h-4 w-4 text-muted-foreground" />
+                    <span class="truncate text-sm">
+                      {{ channel.name }}
+                    </span>
+                  </Button>
+                  <div
+                    v-if="filteredChannels.length === 0"
+                    class="px-2 py-6 text-center text-sm text-muted-foreground"
+                  >
+                    {{ t('chat.composer.noChannels') }}
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <!-- 礼物/贴纸 -->
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-8 w-8 p-0"
-              >
-                <Gift class="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <p>{{ t('chat.actions.sendSticker') }}</p>
-            </TooltipContent>
-          </Tooltip>
+          <Popover v-model:open="isStickerPickerOpen">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <PopoverTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-8 w-8 p-0"
+                  >
+                    <Gift class="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>{{ t('chat.actions.sendSticker') }}</p>
+              </TooltipContent>
+            </Tooltip>
+            <PopoverContent
+              class="w-56 p-2"
+              side="top"
+              align="start"
+            >
+              <div class="grid grid-cols-4 gap-1">
+                <Button
+                  v-for="sticker in stickers"
+                  :key="sticker.value"
+                  variant="ghost"
+                  class="h-12 flex-col gap-1 p-1"
+                  @click="insertSticker(sticker.value)"
+                >
+                  <span class="text-lg">{{ sticker.value }}</span>
+                  <span class="text-[10px] leading-none">
+                    {{ t(sticker.labelKey) }}
+                  </span>
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
         </TooltipProvider>
       </div>
 

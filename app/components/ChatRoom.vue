@@ -73,6 +73,7 @@ const props = defineProps<{
   directMessages?: V2DirectMessage[];
   isLoadingDirectMessages?: boolean;
   isSendingDirectMessage?: boolean;
+  channels?: Channel[];
 }>();
 
 const emit = defineEmits<{
@@ -577,6 +578,8 @@ onMounted(() => {
         :channel-name="channel.name"
         :reply-to="replyTo"
         :disabled="isSending"
+        :members="members"
+        :channels="channels"
         @send="handleSend"
         @cancel-reply="cancelReply"
       />

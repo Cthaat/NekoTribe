@@ -112,6 +112,7 @@ const currentUserName = computed(
 const canManage = computed(
   () => activeGroup.value?.canManage ?? false
 );
+const chatChannels = computed(() => allChannels());
 const pinnedMessages = computed(() =>
   messages.value.filter(message => message.isPinned)
 );
@@ -845,6 +846,7 @@ onBeforeUnmount(() => {
         :direct-messages="directMessages"
         :is-loading-direct-messages="isLoadingDirectMessages"
         :is-sending-direct-message="isSendingDirectMessage"
+        :channels="chatChannels"
         @send="handleSendMessage"
         @load-more="handleLoadMore"
         @react="handleReact"

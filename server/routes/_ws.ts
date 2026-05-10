@@ -196,31 +196,46 @@ function sendPeer(
 
 const subscribedChatChannels = new Set<number>();
 const subscribedUsers = new Set<number>();
-let redisSubscriptionsInitialized = false;
+const subscribedGlobalChannels = new Set<string>();
 
-function initializeRedisSubscriptions(): void {
-  if (redisSubscriptionsInitialized) return;
-  redisSubscriptionsInitialized = true;
-
-  void subscribeToChannel(REDIS_CHANNELS.BROADCAST, message => {
-    sendWsToAll(message);
-  });
-
-  void subscribeToChannel(
-    REDIS_CHANNELS.SYSTEM_NOTIFICATION,
-    message => {
-      sendWsToAll(message);
+async function initializeRedisSubscriptions(): Promise<void> {
+  if (!subscribedGlobalChannels.has(REDIS_CHANNELS.BROADCAST)) {
+    const subscribed = await subscribeToChannel(
+      REDIS_CHANNELS.BROADCAST,
+      message => {
+        sendWsToAll(message);
+      }
+    );
+    if (subscribed) {
+      subscribedGlobalChannels.add(REDIS_CHANNELS.BROADCAST);
     }
-  );
+  }
+
+  if (
+    !subscribedGlobalChannels.has(
+      REDIS_CHANNELS.SYSTEM_NOTIFICATION
+    )
+  ) {
+    const subscribed = await subscribeToChannel(
+      REDIS_CHANNELS.SYSTEM_NOTIFICATION,
+      message => {
+        sendWsToAll(message);
+      }
+    );
+    if (subscribed) {
+      subscribedGlobalChannels.add(
+        REDIS_CHANNELS.SYSTEM_NOTIFICATION
+      );
+    }
+  }
 }
 
 async function ensureChatRedisSubscription(
   channelId: number
 ): Promise<void> {
   if (subscribedChatChannels.has(channelId)) return;
-  subscribedChatChannels.add(channelId);
 
-  await subscribeToChannel(
+  const subscribed = await subscribeToChannel(
     chatRedisChannel(channelId),
     (message: WSMessage) => {
       const data = isRecord(message.data) ? message.data : {};
@@ -228,15 +243,17 @@ async function ensureChatRedisSubscription(
       sendWsToRoom(chatRoomId(channelId), message);
     }
   );
+  if (subscribed) {
+    subscribedChatChannels.add(channelId);
+  }
 }
 
 async function ensureUserRedisSubscription(
   userId: number
 ): Promise<void> {
   if (subscribedUsers.has(userId)) return;
-  subscribedUsers.add(userId);
 
-  await subscribeToChannel(
+  const subscribed = await subscribeToChannel(
     userRedisChannel(userId),
     (message: WSMessage) => {
       const data = isRecord(message.data) ? message.data : {};
@@ -244,6 +261,9 @@ async function ensureUserRedisSubscription(
       sendWsToUser(userId, message);
     }
   );
+  if (subscribed) {
+    subscribedUsers.add(userId);
+  }
 }
 
 async function handleJoinChatChannel(
@@ -318,7 +338,7 @@ export default defineWebSocketHandler({
 
     const sessionId = generateSessionId();
     extendedPeer.sessionId = sessionId;
-    initializeRedisSubscriptions();
+    await initializeRedisSubscriptions();
     sessionManager.addSession(sessionId, peer, auth);
     await ensureUserRedisSubscription(auth.userId);
     sendPeer(peer, 'system_notification', {

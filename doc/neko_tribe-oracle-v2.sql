@@ -461,7 +461,7 @@ COMMENT ON COLUMN n_post_stats.updated_at IS '更新时间';
 CREATE TABLE n_media_assets (
     media_id               NUMBER(15)      PRIMARY KEY,
     owner_user_id          NUMBER(10)      NOT NULL,
-    media_type             VARCHAR2(20)    NOT NULL CHECK (media_type IN ('image', 'video', 'audio', 'gif')),
+    media_type             VARCHAR2(20)    NOT NULL CHECK (media_type IN ('image', 'video', 'audio', 'gif', 'file')),
     file_name              VARCHAR2(255)   NOT NULL,
     storage_key            VARCHAR2(500)   NOT NULL,
     public_url             VARCHAR2(500)   NOT NULL,
@@ -488,7 +488,7 @@ CREATE TABLE n_media_assets (
 COMMENT ON TABLE n_media_assets IS '媒体资源表';
 COMMENT ON COLUMN n_media_assets.media_id IS '媒体ID';
 COMMENT ON COLUMN n_media_assets.owner_user_id IS '归属用户ID';
-COMMENT ON COLUMN n_media_assets.media_type IS '媒体类型';
+COMMENT ON COLUMN n_media_assets.media_type IS '媒体类型：image-图片，video-视频，audio-音频，gif-动图，file-普通附件';
 COMMENT ON COLUMN n_media_assets.file_name IS '文件名';
 COMMENT ON COLUMN n_media_assets.storage_key IS '存储键';
 COMMENT ON COLUMN n_media_assets.public_url IS '公开访问地址';

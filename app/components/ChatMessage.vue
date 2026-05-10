@@ -283,9 +283,14 @@ const handleCopy = () => {
         >
           <div class="p-2 bg-background rounded">📄</div>
           <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium truncate">
+            <a
+              :href="attachment.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="block text-sm font-medium truncate hover:underline"
+            >
               {{ attachment.name }}
-            </div>
+            </a>
             <div class="text-xs text-muted-foreground">
               {{
                 attachment.size

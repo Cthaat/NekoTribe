@@ -405,7 +405,7 @@ interface UploadedFileInfo {
     | 'gif'
     | 'video'
     | 'audio'
-    | 'unknown';
+    | 'file';
   width?: number;
   height?: number;
   duration?: number;

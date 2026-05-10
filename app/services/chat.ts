@@ -89,7 +89,7 @@ function mapChatAttachment(media: V2MediaAsset): NonNullable<
 >[number] {
   const isImage =
     media.media_type === 'image' ||
-    media.mime_type.startsWith('image/');
+    media.media_type === 'gif';
   return {
     id: media.media_id,
     name: media.file_name,
