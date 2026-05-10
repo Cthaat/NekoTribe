@@ -712,14 +712,14 @@
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/V2ChatReadStatusPayload"
               },
               "example": {
-                "last_read_message_id": 100
+                "last_read_message_id": null
               }
             }
           }
@@ -737,7 +737,7 @@
                   "message": "chat read status updated",
                   "data": {
                     "channel_id": 1,
-                    "last_read_message_id": 100,
+                    "last_read_message_id": 4,
                     "unread_count": 0
                   },
                   "meta": null
@@ -1896,8 +1896,8 @@
             "type": "integer",
             "format": "int64",
             "nullable": true,
-            "description": "为空时服务端取当前频道最新未删除消息",
-            "example": 100
+            "description": "为空时服务端取当前频道最新未删除消息；传值时必须是当前频道内存在且未删除的消息 ID",
+            "example": null
           }
         }
       },
@@ -1918,7 +1918,7 @@
             "type": "integer",
             "format": "int64",
             "nullable": true,
-            "example": 100
+            "example": 4
           },
           "unread_count": {
             "type": "integer",

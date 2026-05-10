@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3';
+import { readBody } from 'h3';
 import type oracledb from 'oracledb';
 import type {
   V2ApiResponse as V2Response,
@@ -172,6 +173,22 @@ function v2InPlaceholders(
       return `:${key}`;
     })
     .join(', ');
+}
+
+async function v2OptionalBody(
+  event: H3Event
+): Promise<Record<string, unknown>> {
+  const body = await readBody<unknown>(event);
+  if (body === undefined || body === null || body === '') {
+    return {};
+  }
+  if (
+    typeof body === 'object' &&
+    !Array.isArray(body)
+  ) {
+    return body as Record<string, unknown>;
+  }
+  v2BadRequest('请求体必须是 JSON 对象');
 }
 
 async function v2ChatMembership(
@@ -617,22 +634,39 @@ async function v2MarkChannelRead(
   channelId: number,
   lastReadMessageId: number | null
 ): Promise<V2ChatReadStatusData> {
-  const targetMessageId =
-    lastReadMessageId ??
-    v2Number(
-      (
-        await v2One(
-          connection,
-          `
-          SELECT MAX(message_id) AS message_id
-          FROM n_chat_messages
-          WHERE channel_id = :channel_id
-            AND is_deleted = 0
-          `,
-          { channel_id: channelId }
-        )
-      )?.MESSAGE_ID
+  let targetMessageId: number | null = null;
+  if (lastReadMessageId !== null) {
+    const row = await v2One(
+      connection,
+      `
+      SELECT message_id
+      FROM n_chat_messages
+      WHERE channel_id = :channel_id
+        AND message_id = :message_id
+        AND is_deleted = 0
+      `,
+      {
+        channel_id: channelId,
+        message_id: lastReadMessageId
+      }
     );
+    if (!row) {
+      v2BadRequest('已读消息不存在或不属于该频道');
+    }
+    targetMessageId = v2Number(row.MESSAGE_ID);
+  } else {
+    const row = await v2One(
+      connection,
+      `
+      SELECT MAX(message_id) AS message_id
+      FROM n_chat_messages
+      WHERE channel_id = :channel_id
+        AND is_deleted = 0
+      `,
+      { channel_id: channelId }
+    );
+    targetMessageId = v2Number(row?.MESSAGE_ID) || null;
+  }
 
   await v2Execute(
     connection,
@@ -669,7 +703,7 @@ async function v2MarkChannelRead(
     {
       channel_id: channelId,
       user_id: userId,
-      last_read_message_id: targetMessageId || null
+      last_read_message_id: targetMessageId
     }
   );
 
@@ -684,13 +718,13 @@ async function v2MarkChannelRead(
     `,
     {
       channel_id: channelId,
-      last_read_message_id: targetMessageId || null
+      last_read_message_id: targetMessageId
     }
   );
 
   return {
     channel_id: channelId,
-    last_read_message_id: targetMessageId || null,
+    last_read_message_id: targetMessageId,
     unread_count: unread
   };
 }
@@ -1713,7 +1747,7 @@ export async function v2SetChatReadStatus(
     auth.userId,
     channelId
   );
-  const body = await v2Body(event);
+  const body = await v2OptionalBody(event);
   const lastReadMessageId =
     body.last_read_message_id === undefined ||
     body.last_read_message_id === null

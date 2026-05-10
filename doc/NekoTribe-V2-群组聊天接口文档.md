@@ -649,11 +649,11 @@ Path：
 | --- | --- | --- | --- |
 | `channel_id` | number | 是 | 频道 ID |
 
-请求体：
+请求体可省略；省略或传 `null` 时服务端会标记到当前频道最新未删除消息：
 
 ```json
 {
-  "last_read_message_id": 100
+  "last_read_message_id": null
 }
 ```
 
@@ -661,7 +661,7 @@ Path：
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `last_read_message_id` | number / null | 否 | 为空时服务端取当前频道最新未删除消息 |
+| `last_read_message_id` | number / null | 否 | 为空时服务端取当前频道最新未删除消息；传值时必须是当前频道内存在且未删除的消息 ID |
 
 成功响应：
 
@@ -671,7 +671,7 @@ Path：
   "message": "chat read status updated",
   "data": {
     "channel_id": 1,
-    "last_read_message_id": 100,
+    "last_read_message_id": 4,
     "unread_count": 0
   },
   "meta": null
