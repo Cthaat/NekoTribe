@@ -43,6 +43,7 @@ import {
   BadgeCheck,
   BookmarkCheck,
   BookmarkPlus,
+  MessageSquareQuote,
   PlayCircle
 } from 'lucide-vue-next';
 import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
@@ -184,67 +185,108 @@ function openLightbox(index: number) {
   isLightboxOpen.value = true; // 打开灯箱
 }
 
-function toTweetDetail(tweetId: string) {
+function toTweetDetail(
+  tweetId: string,
+  selectedTweet: PostVM = props.tweet
+) {
   // 在这里实现导航到推文详情的逻辑
   // 例如使用 Vue Router 的 push 方法
   const detailPath = localePath(`/tweet/${tweetId}`);
-  tweetStore.setSelectedTweet(props.tweet);
+  tweetStore.setSelectedTweet(selectedTweet);
   navigateTo(detailPath);
 }
 
-// ------- 转推：原文信息懒加载（作者与摘要） -------
-const originalTweet = ref<PostVM | null>(null);
-const originalLoading = ref(false);
-const originalError = ref<string | null>(null);
+type RelatedTweetKind = 'reply' | 'quote' | 'repost';
 
-async function fetchOriginalTweet() {
-  if (
-    props.tweet.postType === 'repost' &&
-    props.tweet.repostOfPostId
-  ) {
-    originalLoading.value = true;
-    originalError.value = null;
-    try {
-      originalTweet.value = await v2GetPost(
-        props.tweet.repostOfPostId
-      );
-    } catch (e) {
-      originalError.value =
-        e instanceof Error
-          ? e.message
-          : t('post.repost.loadOriginalFailed');
-      originalTweet.value = null;
-    } finally {
-      originalLoading.value = false;
-    }
-  } else {
-    originalTweet.value = null;
-    originalLoading.value = false;
-    originalError.value = null;
+const relatedTweetKind = computed<RelatedTweetKind | null>(() => {
+  if (props.tweet.replyToPostId) return 'reply';
+  if (props.tweet.quotedPostId) return 'quote';
+  if (props.tweet.repostOfPostId) return 'repost';
+  return null;
+});
+
+const relatedTweetId = computed(() => {
+  if (relatedTweetKind.value === 'reply') {
+    return props.tweet.replyToPostId;
+  }
+  if (relatedTweetKind.value === 'quote') {
+    return props.tweet.quotedPostId;
+  }
+  if (relatedTweetKind.value === 'repost') {
+    return props.tweet.repostOfPostId;
+  }
+  return null;
+});
+
+const relatedTweetIcon = computed(() => {
+  if (relatedTweetKind.value === 'reply') return MessageCircle;
+  if (relatedTweetKind.value === 'quote') {
+    return MessageSquareQuote;
+  }
+  return Repeat;
+});
+
+const relatedTweetLabel = computed(() => {
+  if (relatedTweetKind.value === 'reply') {
+    return t('post.relation.replyingTo');
+  }
+  if (relatedTweetKind.value === 'quote') {
+    return t('post.relation.quoting');
+  }
+  return t('post.relation.reposting');
+});
+
+const relatedTweet = ref<PostVM | null>(null);
+const relatedLoading = ref(false);
+const relatedError = ref<string | null>(null);
+
+async function fetchRelatedTweet() {
+  const postId = relatedTweetId.value;
+  if (!postId) {
+    relatedTweet.value = null;
+    relatedLoading.value = false;
+    relatedError.value = null;
+    return;
+  }
+
+  relatedLoading.value = true;
+  relatedError.value = null;
+  try {
+    relatedTweet.value = await v2GetPost(postId);
+  } catch (e) {
+    relatedError.value =
+      e instanceof Error
+        ? e.message
+        : t('post.relation.loadFailed');
+    relatedTweet.value = null;
+  } finally {
+    relatedLoading.value = false;
   }
 }
 
 watch(
   () => [
     props.tweet.postType,
+    props.tweet.replyToPostId,
+    props.tweet.quotedPostId,
     props.tweet.repostOfPostId
   ],
-  () => fetchOriginalTweet(),
+  () => fetchRelatedTweet(),
   { immediate: true }
 );
 
-const originalAuthorHandle = computed(() => {
-  return originalTweet.value?.author.username
-    ? `@${originalTweet.value.author.username}`
+const relatedAuthorHandle = computed(() => {
+  return relatedTweet.value?.author.username
+    ? `@${relatedTweet.value.author.username}`
     : '';
 });
 
-const originalExcerpt = computed(() => {
-  const text: string = originalTweet.value?.content || '';
+const relatedExcerpt = computed(() => {
+  const text: string = relatedTweet.value?.content || '';
   const compact = text.replace(/\n+/g, ' ').trim();
   const max = 120;
   return compact.length > max
-    ? compact.slice(0, max) + '…'
+    ? compact.slice(0, max) + '...'
     : compact;
 });
 </script>
