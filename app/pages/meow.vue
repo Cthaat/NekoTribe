@@ -51,7 +51,14 @@ function previewPostId(
   tweet: PreviewPostVM | undefined
 ): number | null {
   const id = tweet?.id;
-  return Number.isFinite(id) && id > 0 ? id : null;
+  if (
+    typeof id !== 'number' ||
+    !Number.isFinite(id) ||
+    id <= 0
+  ) {
+    return null;
+  }
+  return id;
 }
 
 async function loadSelectableTweets(): Promise<void> {

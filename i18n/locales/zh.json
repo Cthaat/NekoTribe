@@ -192,6 +192,19 @@
       "originalUnavailable": "原文不可用或已删除。",
       "tryOpenOriginal": "尝试打开原文"
     },
+    "relation": {
+      "replyingTo": "回复",
+      "quoting": "引用",
+      "reposting": "转推自",
+      "viewOriginal": "查看原文",
+      "loadingOriginal": "正在加载原文...",
+      "loadFailed": "加载原文失败",
+      "unknownUser": "未知",
+      "unknownUserHandle": "{'@'}未知用户",
+      "emptyContent": "（无内容）",
+      "originalUnavailable": "原文不可用或已删除。",
+      "tryOpenOriginal": "尝试打开原文"
+    },
     "media": {
       "thumbnailAlt": "推文媒体缩略图"
     },

@@ -192,6 +192,19 @@
       "originalUnavailable": "Original post is unavailable or deleted.",
       "tryOpenOriginal": "Try opening original"
     },
+    "relation": {
+      "replyingTo": "Replying to",
+      "quoting": "Quoting",
+      "reposting": "Reposted from",
+      "viewOriginal": "View original",
+      "loadingOriginal": "Loading original post...",
+      "loadFailed": "Failed to load original post",
+      "unknownUser": "Unknown",
+      "unknownUserHandle": "{'@'}unknown",
+      "emptyContent": "(No content)",
+      "originalUnavailable": "Original post is unavailable or deleted.",
+      "tryOpenOriginal": "Try opening original"
+    },
     "media": {
       "thumbnailAlt": "Post media thumbnail"
     },
