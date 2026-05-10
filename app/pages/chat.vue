@@ -201,6 +201,104 @@ function findCategoryName(categoryId: number): string {
   );
 }
 
+function absoluteUrl(pathOrUrl: string): string {
+  if (
+    /^https?:\/\//i.test(pathOrUrl) ||
+    typeof window === 'undefined'
+  ) {
+    return pathOrUrl;
+  }
+  return new URL(pathOrUrl, window.location.origin).toString();
+}
+
+function inviteUrl(
+  invite: V2CreateGroupInviteData | null
+): string | null {
+  if (!invite) return null;
+  if (invite.invite_url) {
+    return absoluteUrl(invite.invite_url);
+  }
+  if (invite.invite_code) {
+    return absoluteUrl(`/groups/invite/${invite.invite_code}`);
+  }
+  return null;
+}
+
+async function copyText(value: string): Promise<void> {
+  if (typeof navigator === 'undefined' || !navigator.clipboard) {
+    return;
+  }
+  await navigator.clipboard.writeText(value);
+}
+
+async function copyCreatedInvite(): Promise<void> {
+  const url = inviteUrl(createdInvite.value);
+  if (!url) return;
+  await copyText(url);
+  toast.success(t('chat.feedback.inviteCopied'));
+}
+
+function openInviteDialog(): void {
+  inviteDialogOpen.value = true;
+  inviteSearchQuery.value = '';
+  inviteMessage.value = '';
+  selectedInvitee.value = null;
+  createdInvite.value = null;
+  inviteUsers.value = [];
+}
+
+function openNotificationSettings(): void {
+  notificationSettingsOpen.value = true;
+}
+
+async function openGroupSettings(): Promise<void> {
+  if (!activeGroup.value) return;
+  groupSettingsOpen.value = true;
+  isLoadingGroupSettings.value = true;
+  try {
+    groupSettingsModel.value = await getGroup(activeGroup.value.id);
+  } catch (error) {
+    toast.error(t('chat.feedback.loadSettingsFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+    groupSettingsOpen.value = false;
+  } finally {
+    isLoadingGroupSettings.value = false;
+  }
+}
+
+function handleGroupSettingsUpdated(group: Group): void {
+  groupSettingsModel.value = group;
+  const target = groups.value.find(item => item.id === group.id);
+  if (target) {
+    target.name = group.name;
+    target.avatar = group.avatar;
+  }
+  if (activeGroup.value?.id === group.id) {
+    activeGroup.value = {
+      ...activeGroup.value,
+      name: group.name,
+      avatar: group.avatar
+    };
+  }
+}
+
+function handleGroupDeleted(groupId: number): void {
+  groups.value = groups.value.filter(group => group.id !== groupId);
+  groupSettingsOpen.value = false;
+  groupSettingsModel.value = null;
+  if (activeGroup.value?.id !== groupId) return;
+  activeGroup.value = null;
+  activeChannel.value = null;
+  channelCategories.value = [];
+  messages.value = [];
+  const next = groups.value[0];
+  if (next) {
+    void loadGroup(next);
+  }
+}
+
 function sendWs(payload: Record<string, unknown>): void {
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(payload));
