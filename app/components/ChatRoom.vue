@@ -689,63 +689,65 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div
-            class="min-h-40 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-3"
+          <ScrollArea
+            class="min-h-40 flex-1 rounded-md border bg-muted/20"
           >
-            <div
-              v-if="isLoadingDirectMessages"
-              class="flex h-full min-h-40 items-center justify-center text-sm text-muted-foreground"
-            >
-              {{ t('chat.directMessage.loading') }}
-            </div>
-            <div
-              v-else-if="!directMessages?.length"
-              class="flex h-full min-h-40 flex-col items-center justify-center text-center text-sm text-muted-foreground"
-            >
-              <div class="font-medium text-foreground">
-                {{ t('chat.directMessage.emptyTitle') }}
-              </div>
-              <div class="mt-1">
-                {{ t('chat.directMessage.emptyDescription') }}
-              </div>
-            </div>
-            <div v-else class="space-y-3">
+            <div class="min-h-40 p-3">
               <div
-                v-for="message in directMessages"
-                :key="message.message_id"
-                class="flex"
-                :class="{
-                  'justify-end':
-                    message.author.user_id === currentUserId
-                }"
+                v-if="isLoadingDirectMessages"
+                class="flex h-full min-h-40 items-center justify-center text-sm text-muted-foreground"
               >
+                {{ t('chat.directMessage.loading') }}
+              </div>
+              <div
+                v-else-if="!directMessages?.length"
+                class="flex h-full min-h-40 flex-col items-center justify-center text-center text-sm text-muted-foreground"
+              >
+                <div class="font-medium text-foreground">
+                  {{ t('chat.directMessage.emptyTitle') }}
+                </div>
+                <div class="mt-1">
+                  {{ t('chat.directMessage.emptyDescription') }}
+                </div>
+              </div>
+              <div v-else class="space-y-3">
                 <div
-                  class="max-w-[82%] rounded-md px-3 py-2 text-sm shadow-sm"
-                  :class="
-                    message.author.user_id === currentUserId
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-background'
-                  "
+                  v-for="message in directMessages"
+                  :key="message.message_id"
+                  class="flex"
+                  :class="{
+                    'justify-end':
+                      message.author.user_id === currentUserId
+                  }"
                 >
-                  <div class="whitespace-pre-wrap break-words">
-                    {{ message.content }}
-                  </div>
                   <div
-                    class="mt-1 text-[11px] opacity-70"
+                    class="max-w-[82%] rounded-md px-3 py-2 text-sm shadow-sm"
+                    :class="
+                      message.author.user_id === currentUserId
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background'
+                    "
                   >
-                    {{
-                      new Date(
-                        message.created_at
-                      ).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })
-                    }}
+                    <div class="whitespace-pre-wrap break-words">
+                      {{ message.content }}
+                    </div>
+                    <div
+                      class="mt-1 text-[11px] opacity-70"
+                    >
+                      {{
+                        new Date(
+                          message.created_at
+                        ).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      }}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          </ScrollArea>
 
           <div class="space-y-3">
             <Textarea
