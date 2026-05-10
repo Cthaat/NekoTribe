@@ -553,7 +553,34 @@
     "notifications": {
       "title": "Channel notifications",
       "muteLabel": "Mute this channel",
-      "muteDescription": "When enabled, new messages in this channel will not count toward alerts."
+      "muteDescription": "When enabled, new messages in this channel will not count toward alerts.",
+      "groupTitle": "Chat notification settings",
+      "groupDescription": "Manage notification state for each channel in {group}.",
+      "noChannels": "This group has no channels to configure yet.",
+      "channelMuted": "Muted. New messages will not count toward alerts.",
+      "channelUnmuted": "Alerts enabled. New messages count toward unread items."
+    },
+    "invite": {
+      "title": "Invite members",
+      "description": "Invite users to join {group}, or create a shareable invite link.",
+      "searchLabel": "Search users",
+      "searchPlaceholder": "Enter username or display name",
+      "searchHint": "Selecting a user creates a targeted invite; leaving it blank creates a general invite link.",
+      "searching": "Searching users...",
+      "noResults": "No users available to invite",
+      "emptySearch": "Enter at least 2 characters to search.",
+      "selected": "Selected",
+      "clearSelection": "Clear",
+      "linkTitle": "Invite link",
+      "linkDescription": "When no specific user is selected, a shareable invite link is created.",
+      "maxUses": "Max uses",
+      "expireHours": "Valid hours",
+      "messageLabel": "Invite message",
+      "messagePlaceholder": "Add an optional invite note",
+      "createdTitle": "Invite created",
+      "targetedCreated": "A targeted invite was sent to this user.",
+      "sendInvite": "Send invite",
+      "createLink": "Create invite link"
     },
     "calls": {
       "voiceTitle": "Voice call",
@@ -606,6 +633,7 @@
       "ban": "Ban user",
       "inviteMembers": "Invite members",
       "notificationSettings": "Notification settings",
+      "chatSettings": "Chat settings",
       "createChannel": "Create channel",
       "muteChannel": "Mute channel",
       "unmuteChannel": "Unmute channel",
@@ -668,7 +696,13 @@
       "loadDirectMessagesFailed": "Failed to load direct messages",
       "directMessageSent": "Direct message sent",
       "directMessageFailed": "Failed to send direct message",
-      "cannotMessageSelf": "You cannot send a direct message to yourself"
+      "cannotMessageSelf": "You cannot send a direct message to yourself",
+      "searchUsersFailed": "Failed to search users",
+      "inviteCreated": "Invite link created and copied",
+      "memberInvited": "Member invite sent",
+      "inviteCopied": "Invite link copied",
+      "inviteFailed": "Failed to create invite",
+      "loadSettingsFailed": "Failed to load chat settings"
     },
     "mention": {
       "searchFailed": "Failed to search mentions:",
