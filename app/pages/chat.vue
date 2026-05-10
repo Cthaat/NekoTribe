@@ -791,6 +791,96 @@ function handleSearch(query: string): void {
   }, 300);
 }
 
+function handleInviteSearchInput(): void {
+  if (inviteSearchTimer) clearTimeout(inviteSearchTimer);
+  inviteSearchTimer = setTimeout(() => {
+    void searchInviteUsers();
+  }, 300);
+}
+
+async function searchInviteUsers(): Promise<void> {
+  const q = inviteSearchQuery.value.trim();
+  selectedInvitee.value = null;
+  createdInvite.value = null;
+
+  if (q.length < 2) {
+    inviteUsers.value = [];
+    return;
+  }
+
+  isSearchingInviteUsers.value = true;
+  try {
+    const result = await v2SearchUsers({
+      q,
+      page: 1,
+      pageSize: 12,
+      sort: 'popular'
+    });
+    inviteUsers.value = result.items;
+  } catch (error) {
+    toast.error(t('chat.feedback.searchUsersFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    isSearchingInviteUsers.value = false;
+  }
+}
+
+function selectInvitee(user: PublicUserVM): void {
+  selectedInvitee.value = user;
+  createdInvite.value = null;
+}
+
+function normalizedPositiveInteger(
+  value: number,
+  fallback: number
+): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(Math.trunc(value), 1);
+}
+
+async function submitInvite(): Promise<void> {
+  const group = activeGroup.value;
+  if (!group || isCreatingInvite.value) return;
+
+  isCreatingInvite.value = true;
+  try {
+    inviteMaxUses.value = normalizedPositiveInteger(
+      inviteMaxUses.value,
+      25
+    );
+    inviteExpireHours.value = normalizedPositiveInteger(
+      inviteExpireHours.value,
+      168
+    );
+    const invite = await v2CreateGroupInvite(group.id, {
+      invitee_id: selectedInvitee.value?.id ?? null,
+      max_uses: selectedInvitee.value ? 1 : inviteMaxUses.value,
+      expire_hours: inviteExpireHours.value,
+      message: inviteMessage.value.trim() || undefined
+    });
+    createdInvite.value = invite;
+
+    const url = inviteUrl(invite);
+    if (url) {
+      await copyText(url);
+    }
+    toast.success(
+      selectedInvitee.value
+        ? t('chat.feedback.memberInvited')
+        : t('chat.feedback.inviteCreated')
+    );
+  } catch (error) {
+    toast.error(t('chat.feedback.inviteFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    isCreatingInvite.value = false;
+  }
+}
+
 function handleLoadMore(): void {
   if (!activeChannel.value || !hasMoreMessages.value) return;
   void loadMessages(activeChannel.value.id, false);
@@ -865,6 +955,7 @@ onBeforeUnmount(() => {
   shouldReconnectWs = false;
   if (reconnectTimer) clearTimeout(reconnectTimer);
   if (searchTimer) clearTimeout(searchTimer);
+  if (inviteSearchTimer) clearTimeout(inviteSearchTimer);
   if (activeChannel.value) {
     leaveWsChannel(activeChannel.value.id);
   }
