@@ -659,50 +659,41 @@ onBeforeUnmount(() => {
     </Dialog>
 
     <Sheet v-model:open="directMessageOpen">
-      <SheetContent side="right" class="flex w-full flex-col p-6 sm:w-96">
-        <SheetHeader>
-          <SheetTitle>
-            {{ t('chat.directMessage.title') }}
-          </SheetTitle>
-        </SheetHeader>
-        <div
-          v-if="directMessageTarget"
-          class="mt-6 flex min-h-0 flex-1 flex-col gap-4"
-        >
-          <div class="flex items-center gap-3 rounded-md border p-3">
-            <Avatar class="h-10 w-10">
+      <SheetContent side="right" class="flex w-full flex-col p-0 sm:w-96">
+        <div class="border-b px-5 py-4">
+          <div class="flex items-start gap-3 pr-8">
+            <Avatar class="h-11 w-11 shrink-0 ring-1 ring-border">
               <AvatarImage
+                v-if="directMessageTarget"
                 :src="directMessageTarget.avatar"
-                :alt="directMessageTarget.nickname"
+                :alt="directMessageTarget?.nickname"
               />
-              <AvatarFallback>
+              <AvatarFallback v-if="directMessageTarget">
                 {{ directMessageTarget.nickname.slice(0, 2) }}
               </AvatarFallback>
             </Avatar>
-            <div class="min-w-0">
-              <div class="truncate font-medium">
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-base font-semibold leading-6" v-if="directMessageTarget">
                 {{ directMessageTarget.nickname }}
               </div>
-              <div class="truncate text-sm text-muted-foreground">
+              <div class="truncate text-sm text-muted-foreground" v-if="directMessageTarget">
                 @{{ directMessageTarget.username }}
+              </div>
+              <div class="mt-1 text-xs text-muted-foreground">
+                {{ t('chat.directMessage.title') }}
               </div>
             </div>
           </div>
+        </div>
 
-          <ScrollArea
-            class="min-h-40 flex-1 rounded-md border bg-muted/20"
-          >
-            <div class="min-h-40 p-3">
-              <div
-                v-if="isLoadingDirectMessages"
-                class="flex h-full min-h-40 items-center justify-center text-sm text-muted-foreground"
-              >
+        <div v-if="directMessageTarget" class="flex min-h-0 flex-1 flex-col px-4 py-4 gap-4">
+          <ScrollArea class="flex-1 rounded-2xl border bg-muted/20 p-4 shadow-sm">
+            <div class="flex min-h-full flex-col justify-end gap-3">
+              <div v-if="isLoadingDirectMessages" class="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
                 {{ t('chat.directMessage.loading') }}
               </div>
-              <div
-                v-else-if="!directMessages?.length"
-                class="flex h-full min-h-40 flex-col items-center justify-center text-center text-sm text-muted-foreground"
-              >
+
+              <div v-else-if="!directMessages?.length" class="flex min-h-40 flex-col items-center justify-center text-center text-sm text-muted-foreground">
                 <div class="font-medium text-foreground">
                   {{ t('chat.directMessage.emptyTitle') }}
                 </div>
@@ -710,38 +701,26 @@ onBeforeUnmount(() => {
                   {{ t('chat.directMessage.emptyDescription') }}
                 </div>
               </div>
-              <div v-else class="space-y-3">
+
+              <div v-else class="flex flex-col gap-3">
                 <div
                   v-for="message in directMessages"
                   :key="message.message_id"
                   class="flex"
-                  :class="{
-                    'justify-end':
-                      message.author.user_id === currentUserId
-                  }"
+                  :class="{ 'justify-end': message.author.user_id === currentUserId }"
                 >
-                  <div
-                    class="max-w-[82%] rounded-md px-3 py-2 text-sm shadow-sm"
-                    :class="
-                      message.author.user_id === currentUserId
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-background'
-                    "
-                  >
-                    <div class="whitespace-pre-wrap break-words">
-                      {{ message.content }}
+                  <div class="max-w-[84%]">
+                    <div
+                      class="rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm"
+                      :class="message.author.user_id === currentUserId ? 'ml-auto bg-primary text-primary-foreground' : 'bg-background text-foreground border border-border/80'"
+                    >
+                      <div class="whitespace-pre-wrap break-words">{{ message.content }}</div>
                     </div>
                     <div
-                      class="mt-1 text-[11px] opacity-70"
+                      class="mt-1 px-1 text-[11px] text-muted-foreground"
+                      :class="message.author.user_id === currentUserId ? 'text-right' : 'text-left'"
                     >
-                      {{
-                        new Date(
-                          message.created_at
-                        ).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
-                      }}
+                      {{ new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
                     </div>
                   </div>
                 </div>
@@ -749,32 +728,22 @@ onBeforeUnmount(() => {
             </div>
           </ScrollArea>
 
-          <div class="space-y-3">
-            <Textarea
-              v-model="directMessageContent"
-              :placeholder="
-                t('chat.directMessage.placeholder', {
-                  user: directMessageTarget.nickname
-                })
-              "
-              class="min-h-24 resize-none"
-            />
-            <AppSendButton
-              class="w-full"
-              :loading="isSendingDirectMessage"
-              :disabled="
-                isLoadingDirectMessages ||
-                isSendingDirectMessage ||
-                !directMessageContent.trim()
-              "
-              @click="submitDirectMessage"
-            >
-              {{
-                isSendingDirectMessage
-                  ? t('common.processing')
-                  : t('chat.actions.sendMessage')
-              }}
-            </AppSendButton>
+          <div class="rounded-2xl border bg-card p-3 shadow-sm">
+            <div class="flex items-end gap-3">
+              <Textarea
+                v-model="directMessageContent"
+                :placeholder="t('chat.directMessage.placeholder', { user: directMessageTarget.nickname })"
+                class="min-h-12 flex-1 resize-none rounded-xl border-0 bg-transparent px-1 py-2 shadow-none focus-visible:ring-0"
+              />
+              <AppSendButton
+                :loading="isSendingDirectMessage"
+                :disabled="isLoadingDirectMessages || isSendingDirectMessage || !directMessageContent.trim()"
+                class="h-11 shrink-0 rounded-xl px-4"
+                @click="submitDirectMessage"
+              >
+                {{ isSendingDirectMessage ? t('common.processing') : t('chat.actions.sendMessage') }}
+              </AppSendButton>
+            </div>
           </div>
         </div>
       </SheetContent>
