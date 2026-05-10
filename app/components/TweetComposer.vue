@@ -225,7 +225,11 @@ const selectedVisibility = computed(
   () =>
     visibilityOptions.find(
       option => option.value === visibility.value
-    ) ?? visibilityOptions[0]
+    ) ?? {
+      value: 'public' as const,
+      labelKey: 'post.composer.visibility.public',
+      icon: Globe
+    }
 );
 
 const contextPost = computed(() => props.replyTo ?? props.quoteTo);
@@ -404,6 +408,19 @@ function insertAtCursor(value: string): void {
     const nextPosition = start + value.length;
     textarea?.setSelectionRange(nextPosition, nextPosition);
     textarea?.focus();
+  });
+}
+
+function startMention(): void {
+  insertAtCursor('@');
+  void nextTick(() => {
+    const textarea = textareaEl.value;
+    if (!textarea) return;
+    updateMentionPicker(
+      tweetContent.value,
+      textarea.selectionStart,
+      textarea
+    );
   });
 }
 
@@ -812,6 +829,22 @@ defineExpose({
             </TooltipTrigger>
             <TooltipContent>
               {{ t('post.composer.quotePost') }}
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                :aria-label="t('post.composer.addMention')"
+                @click="startMention"
+              >
+                <AtSign class="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {{ t('post.composer.addMention') }}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

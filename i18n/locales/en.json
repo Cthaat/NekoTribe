@@ -135,6 +135,7 @@
       "altTextPlaceholder": "Add media description (optional)",
       "replyPost": "Reply to post",
       "quotePost": "Quote post",
+      "addMention": "Mention user",
       "replyingTo": "Replying to",
       "quoting": "Quoting",
       "clearContext": "Remove context",
