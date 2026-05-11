@@ -5,6 +5,14 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
 import type { ChartConfig } from '@/components/ui/chart';
 import {
   ChartContainer,
@@ -32,6 +40,7 @@ import {
   Heart,
   MessageSquare,
   PieChart,
+  Table2 as TableIcon,
   Send,
   Sparkles,
   ThumbsUp,
@@ -141,8 +150,51 @@ const dailyInteraction = (row: UserDailyAnalyticsVM): number =>
   row.commentsReceived +
   row.retweetsReceived;
 
-const chartData = computed<DailyChartPoint[]>(() =>
-  props.dailyAnalytics.map(row => ({
+const hasAggregateData = computed(() =>
+  [
+    props.userAnalytics.totalTweets,
+    props.userAnalytics.tweetsThisWeek,
+    props.userAnalytics.totalLikesReceived,
+    props.userAnalytics.totalLikesGiven,
+    props.userAnalytics.totalCommentsMade,
+    props.userAnalytics.engagementScore
+  ].some(value => value > 0)
+);
+
+const normalizedDailyAnalytics = computed(() =>
+  props.dailyAnalytics.filter(row => row.day)
+);
+
+const fallbackChartData = computed<DailyChartPoint[]>(() => {
+  if (!hasAggregateData.value) return [];
+  const today = new Date().toISOString().slice(0, 10);
+  return [
+    {
+      day: today,
+      date: new Date(`${today}T00:00:00`).getTime(),
+      posts:
+        props.userAnalytics.tweetsThisWeek ||
+        props.userAnalytics.totalTweets,
+      likes: props.userAnalytics.totalLikesReceived,
+      comments: 0,
+      retweets: 0,
+      interaction: props.userAnalytics.totalLikesReceived,
+      givenLikes: props.userAnalytics.totalLikesGiven,
+      madeComments: props.userAnalytics.totalCommentsMade,
+      outgoing:
+        props.userAnalytics.totalLikesGiven +
+        props.userAnalytics.totalCommentsMade,
+      score: props.userAnalytics.engagementScore
+    }
+  ];
+});
+
+const chartData = computed<DailyChartPoint[]>(() => {
+  if (normalizedDailyAnalytics.value.length === 0) {
+    return fallbackChartData.value;
+  }
+
+  return normalizedDailyAnalytics.value.map(row => ({
     day: row.day,
     date: new Date(`${row.day}T00:00:00`).getTime(),
     posts: row.postsCount,
@@ -154,8 +206,8 @@ const chartData = computed<DailyChartPoint[]>(() =>
     madeComments: row.commentsMade,
     outgoing: row.likesGiven + row.commentsMade,
     score: row.engagementScore
-  }))
-);
+  }));
+});
 
 const totalPostsInRange = computed(() =>
   chartData.value.reduce((total, point) => total + point.posts, 0)
@@ -418,6 +470,10 @@ const compositionValue = (item: CompositionPoint): number =>
   item.value;
 const compositionColor = (item: CompositionPoint): string =>
   item.color;
+
+const tableRows = computed(() =>
+  [...chartData.value].sort((a, b) => b.date - a.date)
+);
 </script>
 
 <template>
@@ -974,6 +1030,91 @@ const compositionColor = (item: CompositionPoint): string =>
               </div>
             </div>
           </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card class="overflow-hidden md:col-span-2 lg:col-span-3">
+      <CardHeader
+        class="flex flex-row items-start justify-between space-y-0"
+      >
+        <div class="space-y-1">
+          <CardTitle class="flex items-center gap-2 text-base">
+            <TableIcon class="h-4 w-4 text-primary" />
+            {{ t('account.overview.overallPanel.dataTableTitle') }}
+          </CardTitle>
+          <p class="text-sm text-muted-foreground">
+            {{
+              t(
+                'account.overview.overallPanel.dataTableDescription'
+              )
+            }}
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div
+          v-if="!hasChartData"
+          class="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
+        >
+          {{ t('account.overview.overallPanel.noTrendData') }}
+        </div>
+        <div v-else class="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  {{ t('account.overview.overallPanel.tableDate') }}
+                </TableHead>
+                <TableHead class="text-right">
+                  {{ t('account.overview.overallPanel.tablePosts') }}
+                </TableHead>
+                <TableHead class="text-right">
+                  {{ t('account.overview.overallPanel.tableLikes') }}
+                </TableHead>
+                <TableHead class="text-right">
+                  {{ t('account.overview.overallPanel.tableComments') }}
+                </TableHead>
+                <TableHead class="text-right">
+                  {{ t('account.overview.overallPanel.tableRetweets') }}
+                </TableHead>
+                <TableHead class="text-right">
+                  {{ t('account.overview.overallPanel.tableOutgoing') }}
+                </TableHead>
+                <TableHead class="text-right">
+                  {{ t('account.overview.overallPanel.tableScore') }}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow
+                v-for="row in tableRows"
+                :key="row.day"
+              >
+                <TableCell class="font-medium">
+                  {{ formatChartDay(row.date) }}
+                </TableCell>
+                <TableCell class="text-right">
+                  {{ formatNumber(row.posts) }}
+                </TableCell>
+                <TableCell class="text-right">
+                  {{ formatNumber(row.likes) }}
+                </TableCell>
+                <TableCell class="text-right">
+                  {{ formatNumber(row.comments) }}
+                </TableCell>
+                <TableCell class="text-right">
+                  {{ formatNumber(row.retweets) }}
+                </TableCell>
+                <TableCell class="text-right">
+                  {{ formatNumber(row.outgoing) }}
+                </TableCell>
+                <TableCell class="text-right">
+                  {{ formatNumber(row.score) }}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
         </div>
       </CardContent>
     </Card>
