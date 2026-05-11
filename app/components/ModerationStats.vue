@@ -112,30 +112,30 @@ const statsCards = computed(() => [
 
 <template>
   <div
-    class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4"
+    class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
   >
     <Card
       v-for="stat in statsCards"
       :key="stat.title"
-      class="hover:shadow-md transition-shadow"
+      class="border-border/70 bg-card/70 shadow-sm transition-colors hover:bg-muted/30"
     >
       <CardHeader
-        class="flex flex-row items-center justify-between space-y-0 pb-2"
+        class="flex flex-row items-center justify-between space-y-0 px-4 pb-2 pt-4"
       >
         <CardTitle
           class="text-sm font-medium text-muted-foreground"
         >
           {{ stat.title }}
         </CardTitle>
-        <div :class="[stat.bgColor, 'p-2 rounded-lg']">
+        <div :class="[stat.bgColor, 'rounded-md p-2']">
           <component
             :is="stat.icon"
             :class="['h-4 w-4', stat.color]"
           />
         </div>
       </CardHeader>
-      <CardContent>
-        <div class="text-2xl font-bold">
+      <CardContent class="px-4 pb-4">
+        <div class="truncate text-2xl font-semibold tracking-normal">
           {{
             stat.isText
               ? stat.value

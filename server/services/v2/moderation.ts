@@ -1001,7 +1001,7 @@ export async function v2ModeratePost(
     V2ModerationReportStatus
   > = {
     approve: 'dismissed',
-    reject: 'resolved',
+    reject: 'dismissed',
     flag: 'in_review',
     remove: 'resolved',
     restore: 'resolved',
@@ -1009,7 +1009,7 @@ export async function v2ModeratePost(
     release: 'pending'
   };
 
-  if (action === 'reject' || action === 'remove') {
+  if (action === 'remove') {
     await v2Execute(
       connection,
       `
@@ -1022,7 +1022,11 @@ export async function v2ModeratePost(
       { post_id: postId },
       false
     );
-  } else if (action === 'restore') {
+  } else if (
+    action === 'approve' ||
+    action === 'reject' ||
+    action === 'restore'
+  ) {
     await v2Execute(
       connection,
       `
@@ -1208,7 +1212,7 @@ export async function v2BulkModeratePosts(
     V2ModerationReportStatus
   > = {
     approve: 'dismissed',
-    reject: 'resolved',
+    reject: 'dismissed',
     flag: 'in_review',
     remove: 'resolved',
     restore: 'resolved'
@@ -1223,7 +1227,7 @@ export async function v2BulkModeratePosts(
       postId
     );
 
-    if (action === 'reject' || action === 'remove') {
+    if (action === 'remove') {
       await v2Execute(
         connection,
         `
@@ -1236,7 +1240,11 @@ export async function v2BulkModeratePosts(
         { post_id: postId },
         false
       );
-    } else if (action === 'restore') {
+    } else if (
+      action === 'approve' ||
+      action === 'reject' ||
+      action === 'restore'
+    ) {
       await v2Execute(
         connection,
         `
