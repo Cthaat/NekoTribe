@@ -19,6 +19,14 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -302,133 +310,145 @@ onMounted(load);
           </div>
         </div>
 
-        <!-- 列表 -->
-        <div class="mt-4 divide-y rounded-md border">
-          <template v-if="loading && !items.length">
-            <div
-              v-for="index in 3"
-              :key="index"
-              class="space-y-3 p-4"
-            >
-              <Skeleton class="h-5 w-32" />
-              <Skeleton class="h-4 w-2/3" />
-              <Skeleton class="h-4 w-full" />
-            </div>
-          </template>
-          <template v-else-if="items.length">
-            <!-- 列表项 -->
-            <div
-              v-for="it in items"
-              :key="it.id"
-              class="flex flex-col gap-2 p-4 md:flex-row md:items-start md:justify-between"
-            >
-              <!-- 左侧信息 -->
-              <div class="flex-1 space-y-1">
-                <div class="flex items-center gap-2">
-                  <!-- 类型徽章，颜色按类型切换 -->
+        <div class="mt-4 overflow-hidden rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  {{ t('account.statements.filters.type') }}
+                </TableHead>
+                <TableHead>
+                  {{ t('account.statements.title') }}
+                </TableHead>
+                <TableHead>
+                  {{ t('account.statements.filters.status') }}
+                </TableHead>
+                <TableHead class="text-right">
+                  {{ t('account.statements.actions.appeal') }}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <template v-if="loading && !items.length">
+                <TableRow v-for="index in 3" :key="index">
+                  <TableCell colspan="4">
+                    <div class="space-y-3 py-2">
+                      <Skeleton class="h-5 w-32" />
+                      <Skeleton class="h-4 w-2/3" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              </template>
+              <TableRow v-else-if="!items.length">
+                <TableCell colspan="4">
+                  <AppEmptyState
+                    class="m-4"
+                    :title="t('common.empty')"
+                    :description="t('account.statements.description')"
+                  />
+                </TableCell>
+              </TableRow>
+              <template v-else>
+              <TableRow
+                v-for="it in items"
+                :key="it.id"
+                class="align-top"
+              >
+                <TableCell>
                   <Badge
                     :variant="getStatementBadgeVariant(it.type)"
                   >
-                    {{
-                      getStatementLabel(it.type)
-                    }}
+                    {{ getStatementLabel(it.type) }}
                   </Badge>
-                  <!-- 创建时间 -->
-                  <span
-                    class="text-xs text-muted-foreground"
-                    >{{
-                      new Date(
-                        it.createdAt
-                      ).toLocaleString()
-                    }}</span
+                </TableCell>
+                <TableCell>
+                  <div class="space-y-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="font-medium">{{ it.title }}</span>
+                      <span class="text-xs text-muted-foreground">
+                        {{ new Date(it.createdAt).toLocaleString() }}
+                      </span>
+                      <span
+                        v-if="it.policy"
+                        class="text-xs text-muted-foreground"
+                      >
+                        · {{ it.policy }}
+                      </span>
+                    </div>
+                    <p class="text-sm text-muted-foreground">
+                      {{ it.message }}
+                    </p>
+                    <div
+                      v-if="it.appeal"
+                      class="text-xs text-amber-600 dark:text-amber-400"
+                    >
+                      {{
+                        t('account.statements.appealStatus')
+                      }}: {{ it.appeal.status }}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">
+                    {{ it.status }}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div
+                    class="flex flex-wrap justify-end gap-2"
                   >
-                  <!-- 对应策略编号（可选） -->
-                  <span
-                    v-if="it.policy"
-                    class="text-xs text-muted-foreground"
-                    >· {{ it.policy }}</span
-                  >
-                </div>
-                <!-- 标题与内容 -->
-                <div class="font-medium">
-                  {{ it.title }}
-                </div>
-                <p class="text-sm text-muted-foreground">
-                  {{ it.message }}
-                </p>
-                <!-- 申诉状态提示（存在申诉时） -->
-                <div
-                  v-if="it.appeal"
-                  class="text-xs text-amber-600 dark:text-amber-400"
-                >
-                  {{
-                    t('account.statements.appealStatus')
-                  }}: {{ it.appeal.status }}
-                </div>
-              </div>
-              <!-- 右侧操作按钮组 -->
-              <div
-                class="flex shrink-0 flex-wrap items-center gap-2 pt-2 md:pt-0"
-              >
-                <AppButton
-                  size="sm"
-                  variant="ghost"
-                  :disabled="loading"
-                  @click="
-                    actMark(
-                      it.id,
-                      it.status === 'unread'
-                        ? 'mark_read'
-                        : 'mark_unread'
-                    )
-                  "
-                >
-                  {{
-                    it.status === 'unread'
-                      ? t(
-                          'account.statements.actions.markRead'
+                    <AppButton
+                      size="sm"
+                      variant="ghost"
+                      :disabled="loading"
+                      @click="
+                        actMark(
+                          it.id,
+                          it.status === 'unread'
+                            ? 'mark_read'
+                            : 'mark_unread'
                         )
-                      : t(
-                          'account.statements.actions.markUnread'
-                        )
-                  }}
-                </AppButton>
-                <AppButton
-                  size="sm"
-                  variant="outline"
-                  :disabled="loading"
-                  @click="actMark(it.id, 'resolve')"
-                  >{{
-                    t('account.statements.actions.resolve')
-                  }}</AppButton
-                >
-                <AppButton
-                  size="sm"
-                  variant="outline"
-                  :disabled="loading"
-                  @click="actMark(it.id, 'dismiss')"
-                  >{{
-                    t('account.statements.actions.dismiss')
-                  }}</AppButton
-                >
-                <AppButton
-                  size="sm"
-                  :disabled="loading"
-                  @click="showAppeal = it.id"
-                  >{{
-                    t('account.statements.actions.appeal')
-                  }}</AppButton
-                >
-              </div>
-            </div>
-          </template>
-          <!-- 空状态 -->
-          <AppEmptyState
-            v-else
-            class="m-4"
-            :title="t('common.empty')"
-            :description="t('account.statements.description')"
-          />
+                      "
+                    >
+                      {{
+                        it.status === 'unread'
+                          ? t(
+                              'account.statements.actions.markRead'
+                            )
+                          : t(
+                              'account.statements.actions.markUnread'
+                            )
+                      }}
+                    </AppButton>
+                    <AppButton
+                      size="sm"
+                      variant="outline"
+                      :disabled="loading"
+                      @click="actMark(it.id, 'resolve')"
+                    >
+                      {{ t('account.statements.actions.resolve') }}
+                    </AppButton>
+                    <AppButton
+                      size="sm"
+                      variant="outline"
+                      :disabled="loading"
+                      @click="actMark(it.id, 'dismiss')"
+                    >
+                      {{ t('account.statements.actions.dismiss') }}
+                    </AppButton>
+                    <AppButton
+                      size="sm"
+                      :disabled="loading"
+                      @click="showAppeal = it.id"
+                    >
+                      {{ t('account.statements.actions.appeal') }}
+                    </AppButton>
+                  </div>
+                </TableCell>
+              </TableRow>
+              </template>
+            </TableBody>
+          </Table>
         </div>
 
         <!-- 分页 -->
