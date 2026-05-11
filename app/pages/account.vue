@@ -86,6 +86,10 @@ const baseAccountTabs = [
     to: 'account-profile'
   },
   {
+    labelKey: 'account.tabs.posts',
+    to: 'account-posts'
+  },
+  {
     labelKey: 'account.tabs.appearance',
     to: 'account-appearance'
   },
