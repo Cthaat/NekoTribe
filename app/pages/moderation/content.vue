@@ -23,7 +23,9 @@ const statsData = ref<ModerationStatsData>({
   rejected: 0,
   flagged: 0,
   todayProcessed: 0,
-  avgProcessTime: ''
+  avgProcessTime: '',
+  openReports: 0,
+  appealSuccessRate: 0
 });
 
 const rawStats = ref<ModerationStatsVM>({
@@ -69,7 +71,9 @@ async function loadStats(): Promise<void> {
     rejected: rawStats.value.rejected,
     flagged: rawStats.value.flagged,
     todayProcessed: rawStats.value.todayProcessed,
-    avgProcessTime: ''
+    avgProcessTime: '',
+    openReports: rawStats.value.openReports,
+    appealSuccessRate: rawStats.value.appealSuccessRate
   };
 }
 
