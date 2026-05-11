@@ -832,8 +832,8 @@
       "viewDetail": "View details",
       "approve": "Approve",
       "approveFull": "Approve content",
-      "reject": "Reject",
-      "rejectPost": "Reject post",
+      "reject": "Dismiss",
+      "rejectPost": "Dismiss report",
       "flag": "Flag for review",
       "refresh": "Refresh",
       "refreshList": "Refresh list",
@@ -841,7 +841,7 @@
     },
     "feedback": {
       "approved": "Post approved",
-      "rejected": "Post rejected",
+      "rejected": "Report dismissed and the post remains visible",
       "flagged": "Post flagged for further review",
       "refreshed": "List refreshed",
       "noMore": "No more content",
@@ -879,7 +879,7 @@
       "appealSuccessRate": "Appeal success"
     },
     "list": {
-      "count": "{count} items pending review",
+      "count": "{count} items in this view",
       "emptyTitle": "No content pending review",
       "emptyDescription": "There are no posts waiting for moderation. New reports will appear here."
     },
