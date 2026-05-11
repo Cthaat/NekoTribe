@@ -22,7 +22,13 @@ import TweetCard from '@/components/TweetCard.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import TweetList from '@/components/TweetList.vue';
 import CommentSection from '@/components/CommentSection.vue';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle
+} from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'vue-sonner';
 import { useRoute } from 'vue-router';
 import { usePreferenceStore } from '~/stores/user';
@@ -404,13 +410,13 @@ const pending = computed(
           <TweetCardSkeleton v-for="i in 2" :key="i" />
         </div>
 
-        <div
+        <Alert
           v-else-if="repliesError && replyPosts.length === 0"
-          class="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive"
+          variant="destructive"
         >
-          <p>{{ t('post.replies.loadFailed') }}</p>
-          <p class="mt-2 text-xs">{{ repliesError }}</p>
-        </div>
+          <AlertTitle>{{ t('post.replies.loadFailed') }}</AlertTitle>
+          <AlertDescription>{{ repliesError }}</AlertDescription>
+        </Alert>
 
         <TweetList
           v-else-if="replyPosts.length > 0"
@@ -423,12 +429,14 @@ const pending = computed(
           @bookmark-tweet="handleBookmarkTweet"
         />
 
-        <div
+        <Card
           v-else
-          class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
+          class="gap-0 border-dashed py-0"
         >
-          {{ t('post.replies.empty') }}
-        </div>
+          <CardContent class="p-8 text-center text-sm text-muted-foreground">
+            {{ t('post.replies.empty') }}
+          </CardContent>
+        </Card>
 
         <div
           v-if="replyPosts.length > 0"
