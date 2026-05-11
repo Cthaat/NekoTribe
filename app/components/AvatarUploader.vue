@@ -1,17 +1,39 @@
 <script setup lang="ts">
-import { ref, computed, type PropType } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  ref,
+  watch,
+  type CSSProperties,
+  type PropType
+} from 'vue';
 import { toast } from 'vue-sonner';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
-import { Loader2 } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import {
+  Loader2,
+  Minus,
+  Plus,
+  RotateCcw
+} from 'lucide-vue-next';
 import { v2UpdateAvatar } from '@/services';
-import { usePreferenceStore } from '~/stores/user'; // 导入 store
+import { usePreferenceStore } from '~/stores/user';
+
 const { t } = useAppLocale();
 
-// --- Props & Emits ---
 const props = defineProps({
   user: {
     type: Object as PropType<{
@@ -22,29 +44,117 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['update:avatar']);
+const emit = defineEmits<{
+  (event: 'update:avatar', value: string): void;
+}>();
 
-// --- Refs for State Management ---
+const CROP_OUTPUT_SIZE = 512;
+const DEFAULT_CROP_FRAME_SIZE = 288;
+const CROP_MASK_INSET = 24;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 3;
+
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const cropFrameRef = ref<HTMLDivElement | null>(null);
+const cropImageRef = ref<HTMLImageElement | null>(null);
 const isUploading = ref(false);
 const previewUrl = ref<string | null>(null);
+const sourceImageUrl = ref<string | null>(null);
+const selectedFileName = ref('avatar.jpg');
+const cropDialogOpen = ref(false);
+const imageLoaded = ref(false);
+const imageNaturalWidth = ref(0);
+const imageNaturalHeight = ref(0);
+const cropZoom = ref(1);
+const cropOffset = ref({ x: 0, y: 0 });
+const isDragging = ref(false);
 
-// --- Computed Property for Display ---
-// 优先显示本地预览的 URL，否则显示来自 props 的头像 URL
+let dragStartX = 0;
+let dragStartY = 0;
+let dragStartOffsetX = 0;
+let dragStartOffsetY = 0;
+
 const displayAvatarUrl = computed(() => {
   return previewUrl.value || props.user.avatar;
 });
 
-// --- Methods ---
+const cropImageStyle = computed<CSSProperties>(() => {
+  if (!imageLoaded.value) {
+    return {};
+  }
 
-// 触发隐藏的文件输入框
-const triggerFileUpload = () => {
-  if (isUploading.value) return; // 如果正在上传，则阻止再次点击
+  const scale = getDisplayScale();
+  return {
+    width: `${imageNaturalWidth.value * scale}px`,
+    height: `${imageNaturalHeight.value * scale}px`,
+    transform: `translate(calc(-50% + ${cropOffset.value.x}px), calc(-50% + ${cropOffset.value.y}px))`
+  };
+});
+
+const zoomValue = computed<number[]>({
+  get: () => [cropZoom.value],
+  set: value => {
+    setZoom(value?.[0] ?? cropZoom.value);
+  }
+});
+
+const zoomPercent = computed(() => {
+  return `${Math.round(cropZoom.value * 100)}%`;
+});
+
+const cropMaskStyle = computed<CSSProperties>(() => ({
+  inset: `${CROP_MASK_INSET}px`
+}));
+
+function triggerFileUpload(): void {
+  if (isUploading.value || cropDialogOpen.value) return;
   fileInputRef.value?.click();
-};
+}
 
-// 当用户选择文件后触发
-const onFileSelected = (event: Event) => {
+function revokeObjectUrl(url: string | null): void {
+  if (url) {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function resetFileInput(): void {
+  if (fileInputRef.value) {
+    fileInputRef.value.value = '';
+  }
+}
+
+function resetCropState(): void {
+  imageLoaded.value = false;
+  imageNaturalWidth.value = 0;
+  imageNaturalHeight.value = 0;
+  cropZoom.value = 1;
+  cropOffset.value = { x: 0, y: 0 };
+  isDragging.value = false;
+}
+
+function clearCropSource(): void {
+  revokeObjectUrl(sourceImageUrl.value);
+  sourceImageUrl.value = null;
+  resetCropState();
+}
+
+function setPreviewUrl(url: string | null): void {
+  revokeObjectUrl(previewUrl.value);
+  previewUrl.value = url;
+}
+
+function openCropDialog(file: File): void {
+  clearCropSource();
+  selectedFileName.value = file.name || 'avatar.jpg';
+  sourceImageUrl.value = URL.createObjectURL(file);
+  cropDialogOpen.value = true;
+}
+
+function closeCropDialog(): void {
+  cropDialogOpen.value = false;
+}
+
+function onFileSelected(event: Event): void {
   const target = event.target as HTMLInputElement;
   const file = target.files?.[0];
 
@@ -52,40 +162,255 @@ const onFileSelected = (event: Event) => {
     return;
   }
 
-  // 文件验证（大小和类型）
   const maxSizeInMB = 5;
   if (file.size > maxSizeInMB * 1024 * 1024) {
-    toast.error(t('avatar.validation.maxSize', { size: maxSizeInMB }));
+    toast.error(
+      t('avatar.validation.maxSize', { size: maxSizeInMB })
+    );
+    resetFileInput();
     return;
   }
 
-  // 创建本地预览 URL
-  previewUrl.value = URL.createObjectURL(file);
+  openCropDialog(file);
+  resetFileInput();
+}
 
-  // 开始上传
-  uploadAvatar(file);
-};
+function getCropBoxSize(): number {
+  const frameSize =
+    cropFrameRef.value?.clientWidth ?? DEFAULT_CROP_FRAME_SIZE;
+  return Math.max(1, frameSize - CROP_MASK_INSET * 2);
+}
 
-// 执行上传操作
-const uploadAvatar = async (file: File) => {
+function getCropBoxInset(): number {
+  const frameSize =
+    cropFrameRef.value?.clientWidth ?? DEFAULT_CROP_FRAME_SIZE;
+  return Math.max(0, (frameSize - getCropBoxSize()) / 2);
+}
+
+function getCropFrameCenter(): number {
+  return (
+    (cropFrameRef.value?.clientWidth ?? DEFAULT_CROP_FRAME_SIZE) /
+    2
+  );
+}
+
+function getBaseScale(): number {
+  if (
+    !imageNaturalWidth.value ||
+    !imageNaturalHeight.value
+  ) {
+    return 1;
+  }
+
+  const cropBoxSize = getCropBoxSize();
+  return Math.max(
+    cropBoxSize / imageNaturalWidth.value,
+    cropBoxSize / imageNaturalHeight.value
+  );
+}
+
+function getDisplayScale(): number {
+  return getBaseScale() * cropZoom.value;
+}
+
+function clamp(
+  value: number,
+  min: number,
+  max: number
+): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function clampCropOffset(
+  nextOffset = cropOffset.value
+): { x: number; y: number } {
+  const cropBoxSize = getCropBoxSize();
+  const scale = getDisplayScale();
+  const displayWidth = imageNaturalWidth.value * scale;
+  const displayHeight = imageNaturalHeight.value * scale;
+  const maxX = Math.max(0, (displayWidth - cropBoxSize) / 2);
+  const maxY = Math.max(
+    0,
+    (displayHeight - cropBoxSize) / 2
+  );
+  const clampedOffset = {
+    x: clamp(nextOffset.x, -maxX, maxX),
+    y: clamp(nextOffset.y, -maxY, maxY)
+  };
+  cropOffset.value = clampedOffset;
+  return clampedOffset;
+}
+
+function handleImageLoad(event: Event): void {
+  const image = event.target as HTMLImageElement;
+  imageNaturalWidth.value = image.naturalWidth;
+  imageNaturalHeight.value = image.naturalHeight;
+  imageLoaded.value = true;
+  cropZoom.value = 1;
+  cropOffset.value = { x: 0, y: 0 };
+  requestAnimationFrame(() => clampCropOffset());
+}
+
+function handleImageError(): void {
+  toast.error(t('avatar.feedback.uploadFailed'));
+  closeCropDialog();
+}
+
+function startDrag(event: PointerEvent): void {
+  if (!imageLoaded.value || isUploading.value) return;
+  isDragging.value = true;
+  dragStartX = event.clientX;
+  dragStartY = event.clientY;
+  dragStartOffsetX = cropOffset.value.x;
+  dragStartOffsetY = cropOffset.value.y;
+  (event.currentTarget as HTMLElement).setPointerCapture(
+    event.pointerId
+  );
+  event.preventDefault();
+}
+
+function dragCrop(event: PointerEvent): void {
+  if (!isDragging.value) return;
+  clampCropOffset({
+    x: dragStartOffsetX + event.clientX - dragStartX,
+    y: dragStartOffsetY + event.clientY - dragStartY
+  });
+}
+
+function stopDrag(event: PointerEvent): void {
+  if (!isDragging.value) return;
+  isDragging.value = false;
+  const target = event.currentTarget as HTMLElement;
+  if (target.hasPointerCapture(event.pointerId)) {
+    target.releasePointerCapture(event.pointerId);
+  }
+}
+
+function setZoom(value: number): void {
+  cropZoom.value = clamp(value, MIN_ZOOM, MAX_ZOOM);
+  clampCropOffset();
+}
+
+function stepZoom(direction: -1 | 1): void {
+  setZoom(cropZoom.value + direction * 0.12);
+}
+
+function resetCropTransform(): void {
+  if (!imageLoaded.value || isUploading.value) return;
+  cropZoom.value = MIN_ZOOM;
+  cropOffset.value = { x: 0, y: 0 };
+  requestAnimationFrame(() => clampCropOffset());
+}
+
+function handleWheelZoom(event: WheelEvent): void {
+  if (!imageLoaded.value || isUploading.value) return;
+  const delta = event.deltaY < 0 ? 0.08 : -0.08;
+  setZoom(cropZoom.value + delta);
+}
+
+function createCroppedAvatarBlob(): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const image = cropImageRef.value;
+    if (!image || !imageLoaded.value) {
+      reject(new Error('Image is not ready.'));
+      return;
+    }
+
+    const cropFrameCenter = getCropFrameCenter();
+    const cropBoxSize = getCropBoxSize();
+    const cropBoxInset = getCropBoxInset();
+    const scale = getDisplayScale();
+    const displayWidth = imageNaturalWidth.value * scale;
+    const displayHeight = imageNaturalHeight.value * scale;
+    const imageLeft =
+      cropFrameCenter + cropOffset.value.x - displayWidth / 2;
+    const imageTop =
+      cropFrameCenter + cropOffset.value.y - displayHeight / 2;
+    const sourceSize = cropBoxSize / scale;
+    const sourceX = clamp(
+      (cropBoxInset - imageLeft) / scale,
+      0,
+      Math.max(0, imageNaturalWidth.value - sourceSize)
+    );
+    const sourceY = clamp(
+      (cropBoxInset - imageTop) / scale,
+      0,
+      Math.max(0, imageNaturalHeight.value - sourceSize)
+    );
+
+    const canvas = document.createElement('canvas');
+    canvas.width = CROP_OUTPUT_SIZE;
+    canvas.height = CROP_OUTPUT_SIZE;
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      reject(new Error('Canvas is not available.'));
+      return;
+    }
+
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceSize,
+      sourceSize,
+      0,
+      0,
+      CROP_OUTPUT_SIZE,
+      CROP_OUTPUT_SIZE
+    );
+
+    canvas.toBlob(
+      blob => {
+        if (blob) {
+          resolve(blob);
+          return;
+        }
+        reject(new Error('Failed to crop avatar.'));
+      },
+      'image/jpeg',
+      0.92
+    );
+  });
+}
+
+function buildCroppedFile(blob: Blob): File {
+  const rawName =
+    selectedFileName.value.replace(/\.[^.]+$/, '') ||
+    'avatar';
+  return new File([blob], `${rawName}-cropped.jpg`, {
+    type: 'image/jpeg'
+  });
+}
+
+async function applyCrop(): Promise<void> {
+  try {
+    const blob = await createCroppedAvatarBlob();
+    const croppedFile = buildCroppedFile(blob);
+    closeCropDialog();
+    setPreviewUrl(URL.createObjectURL(croppedFile));
+    await uploadAvatar(croppedFile);
+  } catch (error) {
+    console.error(t('avatar.feedback.uploadFailed'), error);
+    toast.error(t('avatar.feedback.uploadFailed'));
+  }
+}
+
+async function uploadAvatar(file: File): Promise<void> {
   isUploading.value = true;
 
-  // FormData 是专门用于发送文件和其他表单数据的对象
   const formData = new FormData();
-  formData.append('avatar', file); // 'avatar' 这个键名需要和后端约定好
+  formData.append('avatar', file);
 
   try {
     const response = await v2UpdateAvatar(formData);
     if (response.avatarUrl) {
-      // 上传成功，通知父组件更新头像
       emit('update:avatar', response.avatarUrl);
       const preferenceStore = usePreferenceStore();
-      // 更新 store 中的用户头像
       preferenceStore.updatePreference('user', {
         ...preferenceStore.preferences.user,
         avatarUrl: response.avatarUrl
       });
-      // 刷新页面
       if (process.client) {
         window.location.reload();
       }
@@ -98,16 +423,22 @@ const uploadAvatar = async (file: File) => {
   } catch (error) {
     console.error(t('avatar.feedback.uploadFailed'), error);
     toast.error(t('avatar.feedback.uploadFailed'));
-    // 上传失败，清除本地预览，恢复到旧头像
-    previewUrl.value = null;
+    setPreviewUrl(null);
   } finally {
     isUploading.value = false;
-    // 清除 input 的值，确保下次选择相同文件也能触发 change 事件
-    if (fileInputRef.value) {
-      fileInputRef.value.value = '';
-    }
   }
-};
+}
+
+watch(cropDialogOpen, open => {
+  if (!open) {
+    clearCropSource();
+  }
+});
+
+onBeforeUnmount(() => {
+  clearCropSource();
+  setPreviewUrl(null);
+});
 </script>
 
 <template>
@@ -115,11 +446,7 @@ const uploadAvatar = async (file: File) => {
     class="relative cursor-pointer"
     @click="triggerFileUpload"
   >
-    <!-- 
-      使用一个 div 作为容器，并设置相对定位，
-      以便我们可以在它上面覆盖一个加载指示器。
-    -->
-    <Avatar class="w-24 h-24 border">
+    <Avatar class="h-24 w-24 border">
       <AvatarImage
         :src="displayAvatarUrl"
         :alt="user.name"
@@ -129,20 +456,13 @@ const uploadAvatar = async (file: File) => {
       }}</AvatarFallback>
     </Avatar>
 
-    <!-- 加载状态遮罩层 -->
     <div
       v-if="isUploading"
-      class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full"
+      class="absolute inset-0 flex items-center justify-center rounded-full bg-black/50"
     >
-      <Loader2 class="size-8 text-white animate-spin" />
+      <Loader2 class="size-8 animate-spin text-white" />
     </div>
 
-    <!-- 
-      隐藏的文件输入框。我们通过 JS 来触发它的点击事件。
-      - `ref`: 让我们可以在 script 中引用这个元素。
-      - `accept`: 限制用户只能选择图片文件。
-      - `@change`: 当用户选择了文件后，触发 onFileSelected 方法。
-    -->
     <input
       ref="fileInputRef"
       type="file"
@@ -151,5 +471,146 @@ const uploadAvatar = async (file: File) => {
       @change="onFileSelected"
     />
   </div>
-</template>
 
+  <Dialog v-model:open="cropDialogOpen">
+    <DialogContent class="sm:max-w-xl">
+      <DialogHeader>
+        <DialogTitle>{{ t('avatar.crop.title') }}</DialogTitle>
+      </DialogHeader>
+
+      <div class="space-y-5">
+        <div
+          ref="cropFrameRef"
+          class="relative mx-auto aspect-square w-full max-w-80 touch-none select-none overflow-hidden rounded-md border border-border bg-muted/40 shadow-inner"
+          :class="
+            imageLoaded && !isUploading
+              ? isDragging
+                ? 'cursor-grabbing'
+                : 'cursor-grab'
+              : 'cursor-default'
+          "
+          @pointerdown="startDrag"
+          @pointermove="dragCrop"
+          @pointerup="stopDrag"
+          @pointercancel="stopDrag"
+          @lostpointercapture="isDragging = false"
+          @wheel.prevent="handleWheelZoom"
+        >
+          <img
+            v-if="sourceImageUrl"
+            ref="cropImageRef"
+            :src="sourceImageUrl"
+            :alt="user.name"
+            class="absolute left-1/2 top-1/2 max-w-none select-none"
+            :style="cropImageStyle"
+            draggable="false"
+            @load="handleImageLoad"
+            @error="handleImageError"
+          />
+          <div
+            v-if="!imageLoaded"
+            class="absolute inset-0 flex items-center justify-center"
+          >
+            <Loader2
+              class="size-6 animate-spin text-muted-foreground"
+            />
+          </div>
+          <div
+            class="pointer-events-none absolute rounded-full border-2 border-background/95 shadow-[0_0_0_999px_rgba(0,0,0,0.42)]"
+            :style="cropMaskStyle"
+          />
+          <div
+            class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-border/70"
+          />
+        </div>
+
+        <div
+          class="space-y-3 rounded-md border bg-card/60 p-3 shadow-xs"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <Label for="avatar-crop-zoom">
+              {{ t('avatar.crop.zoom') }}
+            </Label>
+            <span
+              class="rounded-md border bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground"
+            >
+              {{ zoomPercent }}
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              class="size-8"
+              :disabled="!imageLoaded || isUploading"
+              @click.stop="stepZoom(-1)"
+            >
+              <Minus class="size-4" />
+              <span class="sr-only">{{
+                t('avatar.crop.zoomOut')
+              }}</span>
+            </Button>
+            <Slider
+              id="avatar-crop-zoom"
+              v-model="zoomValue"
+              class="flex-1"
+              :min="MIN_ZOOM"
+              :max="MAX_ZOOM"
+              :step="0.01"
+              :disabled="!imageLoaded || isUploading"
+              :aria-label="t('avatar.crop.zoom')"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              class="size-8"
+              :disabled="!imageLoaded || isUploading"
+              @click.stop="stepZoom(1)"
+            >
+              <Plus class="size-4" />
+              <span class="sr-only">{{
+                t('avatar.crop.zoomIn')
+              }}</span>
+            </Button>
+          </div>
+          <div class="flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              :disabled="!imageLoaded || isUploading"
+              @click="resetCropTransform"
+            >
+              <RotateCcw class="size-4" />
+              {{ t('avatar.crop.reset') }}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          :disabled="isUploading"
+          @click="closeCropDialog"
+        >
+          {{ t('common.cancel') }}
+        </Button>
+        <Button
+          type="button"
+          :disabled="!imageLoaded || isUploading"
+          @click="applyCrop"
+        >
+          <Loader2
+            v-if="isUploading"
+            class="size-4 animate-spin"
+          />
+          {{ t('avatar.crop.apply') }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+</template>

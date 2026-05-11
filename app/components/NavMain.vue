@@ -17,6 +17,8 @@ import {
   SidebarMenuSubItem,
 } from '@/components/ui/sidebar'
 
+const localePath = useLocalePath()
+
 defineProps<{
   items: {
     title: string
@@ -40,10 +42,10 @@ const { t } = useAppLocale()
       <Collapsible v-for="item in items" :key="item.title" as-child :default-open="item.isActive">
         <SidebarMenuItem>
           <SidebarMenuButton as-child :tooltip="item.title">
-            <a :href="item.url">
+            <NuxtLink :to="item.url">
               <component :is="item.icon" />
               <span>{{ item.title }}</span>
-            </a>
+            </NuxtLink>
           </SidebarMenuButton>
           <template v-if="item.items?.length">
             <CollapsibleTrigger as-child>
@@ -56,9 +58,9 @@ const { t } = useAppLocale()
               <SidebarMenuSub>
                 <SidebarMenuSubItem v-for="subItem in item.items" :key="subItem.title">
                   <SidebarMenuSubButton as-child>
-                    <a :href="subItem.url">
+                    <NuxtLink :to="subItem.url">
                       <span>{{ subItem.title }}</span>
-                    </a>
+                    </NuxtLink>
                   </SidebarMenuSubButton>
                 </SidebarMenuSubItem>
               </SidebarMenuSub>

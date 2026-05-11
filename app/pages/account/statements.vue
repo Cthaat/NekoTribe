@@ -72,6 +72,25 @@ function getStatementTypeLabel(type: StatementType): string {
   return t(statementTypeLabelKeys[type]);
 }
 
+function isStatementType(type: string): type is StatementType {
+  return type in statementTypeLabelKeys;
+}
+
+function getStatementLabel(type: string): string {
+  return isStatementType(type)
+    ? getStatementTypeLabel(type)
+    : type;
+}
+
+function getStatementBadgeVariant(
+  type: string
+): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (type === 'info') return 'secondary';
+  if (type === 'warning') return 'default';
+  if (type === 'strike') return 'destructive';
+  return 'outline';
+}
+
 // 总页数计算
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(total.value / pageSize.value))
@@ -131,7 +150,7 @@ const appealDialogOpen = computed({
   get: () => showAppeal.value !== null,
   set: (open: boolean) => {
     if (!open) {
-      showAppeal.value = null;
+      closeAppealDialog();
     }
   }
 });
@@ -139,6 +158,11 @@ const appealDialogOpen = computed({
 function reloadFromFirstPage(): void {
   page.value = 1;
   load();
+}
+
+function closeAppealDialog(): void {
+  showAppeal.value = null;
+  appealMsg.value = '';
 }
 
 // 提交申诉
@@ -157,8 +181,7 @@ async function submitAppeal(id: string): Promise<void> {
     });
     // 成功后重置输入并刷新
     toast.success(t('account.statements.appealSubmitted'));
-    showAppeal.value = null;
-    appealMsg.value = '';
+    closeAppealDialog();
     await load();
   } catch (e) {
     toast.error(t('account.statements.appealFailed'));
@@ -178,9 +201,9 @@ onMounted(load);
   <!-- 外层卡片容器 -->
   <Card>
     <!-- 卡片内容区域 -->
-    <CardContent>
+    <CardContent class="p-0">
       <!-- 页面主体：桌面端内边距更大 -->
-      <div class="hidden space-y-6 p-10 pb-16 md:block">
+      <div class="space-y-6 p-4 pb-8 sm:p-6 lg:p-10 lg:pb-16">
         <!-- 标题与描述 -->
         <div class="space-y-0.5">
           <h2 class="text-2xl font-bold tracking-tight">
@@ -304,18 +327,10 @@ onMounted(load);
                 <div class="flex items-center gap-2">
                   <!-- 类型徽章，颜色按类型切换 -->
                   <Badge
-                    :variant="
-                      it.type === 'info'
-                        ? 'secondary'
-                        : it.type === 'warning'
-                          ? 'default'
-                          : it.type === 'strike'
-                            ? 'destructive'
-                            : 'outline'
-                    "
+                    :variant="getStatementBadgeVariant(it.type)"
                   >
                     {{
-                      getStatementTypeLabel(it.type)
+                      getStatementLabel(it.type)
                     }}
                   </Badge>
                   <!-- 创建时间 -->
@@ -451,7 +466,10 @@ onMounted(load);
           </div>
         </div>
 
-        <Dialog v-model:open="appealDialogOpen">
+        <Dialog
+          v-if="showAppeal !== null"
+          v-model:open="appealDialogOpen"
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
@@ -478,7 +496,7 @@ onMounted(load);
             <DialogFooter>
               <AppButton
                 variant="ghost"
-                @click="showAppeal = null"
+                @click="closeAppealDialog"
                 >{{ t('common.cancel') }}</AppButton
               >
               <AppButton

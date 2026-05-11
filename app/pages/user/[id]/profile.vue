@@ -175,15 +175,19 @@ async function loadTweets() {
 }
 
 watch(page, () => {
-  loadTweets();
+  void loadTweets();
 });
 
-onMounted(async () => {
+async function refreshProfilePage(): Promise<void> {
   await Promise.all([
     loadUserProfile(),
     loadUserAnalytics(),
     loadTweets()
   ]);
+}
+
+onMounted(() => {
+  void refreshProfilePage();
 });
 
 async function handleDeleteTweet(tweetId: number) {
@@ -314,6 +318,7 @@ async function followUser(targetUser: AccountHeaderUser, active: string) {
       :account-tabs="localizedAccountTabs"
       v-model="activeTab"
       @follow="followUser"
+      @refresh="refreshProfilePage"
     />
 
     <Card>

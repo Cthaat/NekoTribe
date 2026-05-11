@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import {
   Heart,
   MessageCircle,
@@ -7,7 +7,8 @@ import {
   Pin,
   Trash2,
   Flag,
-  Share2
+  Share2,
+  Users
 } from 'lucide-vue-next';
 import {
   Card,
@@ -53,6 +54,21 @@ const emit = defineEmits<{
 
 const isLiked = ref(props.post.isLiked || false);
 const likeCount = ref(props.post.likeCount);
+const groupContext = computed(() => props.post.group);
+
+watch(
+  () => props.post.isLiked,
+  value => {
+    isLiked.value = !!value;
+  }
+);
+
+watch(
+  () => props.post.likeCount,
+  value => {
+    likeCount.value = value;
+  }
+);
 
 // 格式化时间
 const formatTime = (dateStr: string) => {
@@ -141,98 +157,135 @@ const handleShare = () => {
       'border-primary/50 bg-primary/5': post.isPinned
     }"
   >
-    <CardHeader
-      class="flex flex-row items-start justify-between space-y-0 pb-2"
-    >
-      <!-- 作者信息 -->
-      <div class="flex items-center gap-3">
-        <Avatar class="h-10 w-10">
-          <AvatarImage
-            :src="post.author.avatar"
-            :alt="post.author.nickname"
-          />
-          <AvatarFallback>{{
-            post.author.nickname.charAt(0)
-          }}</AvatarFallback>
-        </Avatar>
-        <div class="flex flex-col">
-          <div class="flex items-center gap-2">
-            <span class="font-semibold text-sm">{{
-              post.author.nickname
-            }}</span>
-            <Badge
-              v-if="getRoleBadge(post.author.role)"
-              :variant="
-                getRoleBadge(post.author.role)?.variant
-              "
-              class="text-xs"
+    <CardHeader class="space-y-3 pb-2">
+      <div
+        v-if="groupContext"
+        class="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2"
+      >
+        <div class="flex min-w-0 items-center gap-2">
+          <Avatar class="h-7 w-7">
+            <AvatarImage
+              :src="groupContext.avatar"
+              :alt="groupContext.name"
+            />
+            <AvatarFallback>{{
+              groupContext.name.charAt(0)
+            }}</AvatarFallback>
+          </Avatar>
+          <div class="min-w-0">
+            <div
+              class="truncate text-sm font-medium leading-none"
             >
-              {{ getRoleBadge(post.author.role)?.text }}
-            </Badge>
-            <Badge
-              v-if="post.isPinned"
-              variant="outline"
-              class="gap-1 text-xs"
+              {{ groupContext.name }}
+            </div>
+            <div
+              class="mt-1 flex items-center gap-1 text-xs text-muted-foreground"
             >
-              <Pin class="h-3 w-3" />
-              {{ t('groups.post.pinned') }}
-            </Badge>
+              <Users class="h-3 w-3" />
+              <span>{{ t('groups.posts.groupContext') }}</span>
+            </div>
           </div>
-          <span class="text-xs text-muted-foreground">
-            @{{ post.author.username }} ·
-            {{ formatTime(post.createdAt) }}
-          </span>
         </div>
+        <Badge
+          v-if="groupContext.canManage"
+          variant="outline"
+          class="text-xs"
+        >
+          {{ t('groups.posts.manageable') }}
+        </Badge>
       </div>
 
-      <!-- 操作菜单 -->
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-8 w-8"
-          >
-            <MoreHorizontal class="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem @click="handleShare">
-            <Share2 class="h-4 w-4 mr-2" />
-            {{ t('groups.post.actions.share') }}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator
-            v-if="canManage || isAuthor"
-          />
-          <DropdownMenuItem
-            v-if="canManage"
-            @click="handlePin"
-          >
-            <Pin class="h-4 w-4 mr-2" />
-            {{
-              post.isPinned
-                ? t('groups.post.actions.unpin')
-                : t('groups.post.actions.pin')
-            }}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            v-if="canManage || isAuthor"
-            class="text-destructive"
-            @click="handleDelete"
-          >
-            <Trash2 class="h-4 w-4 mr-2" />
-            {{ t('groups.post.actions.delete') }}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator v-if="!isAuthor" />
-          <DropdownMenuItem
-            v-if="!isAuthor"
-            @click="handleReport"
-          >
-            <Flag class="h-4 w-4 mr-2" />
-            {{ t('groups.post.actions.report') }}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div class="flex items-start justify-between gap-3">
+        <!-- 作者信息 -->
+        <div class="flex items-center gap-3">
+          <Avatar class="h-10 w-10">
+            <AvatarImage
+              :src="post.author.avatar"
+              :alt="post.author.nickname"
+            />
+            <AvatarFallback>{{
+              post.author.nickname.charAt(0)
+            }}</AvatarFallback>
+          </Avatar>
+          <div class="flex flex-col">
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-sm">{{
+                post.author.nickname
+              }}</span>
+              <Badge
+                v-if="getRoleBadge(post.author.role)"
+                :variant="
+                  getRoleBadge(post.author.role)?.variant
+                "
+                class="text-xs"
+              >
+                {{ getRoleBadge(post.author.role)?.text }}
+              </Badge>
+              <Badge
+                v-if="post.isPinned"
+                variant="outline"
+                class="gap-1 text-xs"
+              >
+                <Pin class="h-3 w-3" />
+                {{ t('groups.post.pinned') }}
+              </Badge>
+            </div>
+            <span class="text-xs text-muted-foreground">
+              @{{ post.author.username }} ·
+              {{ formatTime(post.createdAt) }}
+            </span>
+          </div>
+        </div>
+
+        <!-- 操作菜单 -->
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-8 w-8"
+            >
+              <MoreHorizontal class="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem @click="handleShare">
+              <Share2 class="h-4 w-4 mr-2" />
+              {{ t('groups.post.actions.share') }}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator
+              v-if="canManage || isAuthor"
+            />
+            <DropdownMenuItem
+              v-if="canManage"
+              @click="handlePin"
+            >
+              <Pin class="h-4 w-4 mr-2" />
+              {{
+                post.isPinned
+                  ? t('groups.post.actions.unpin')
+                  : t('groups.post.actions.pin')
+              }}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              v-if="canManage || isAuthor"
+              class="text-destructive"
+              @click="handleDelete"
+            >
+              <Trash2 class="h-4 w-4 mr-2" />
+              {{ t('groups.post.actions.delete') }}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator v-if="!isAuthor" />
+            <DropdownMenuItem
+              v-if="!isAuthor"
+              @click="handleReport"
+            >
+              <Flag class="h-4 w-4 mr-2" />
+              {{ t('groups.post.actions.report') }}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </CardHeader>
 
     <CardContent class="pb-3">

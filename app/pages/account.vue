@@ -3,14 +3,42 @@
 import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import {
+  createGroup,
   v2GetMe,
   v2GetUserAnalytics
 } from '@/services';
+import type { CreateGroupData } from '@/types/groups';
+import {
+  ChevronDown,
+  FileText,
+  ListFilter,
+  Plus,
+  Settings,
+  Shield,
+  UserRound,
+  Users
+} from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 
 const { t } = useAppLocale();
 
 const localePath = useLocalePath();
+const filterDialogOpen = ref(false);
+const createGroupOpen = ref(false);
 
 interface AccountHeaderUser {
   id: number;
@@ -81,7 +109,7 @@ const localizedAccountTabs = computed(() => {
 
 const activeTab = ref(t('account.tabs.overview'));
 
-onMounted(async () => {
+async function loadAccount(): Promise<void> {
   try {
     const me = await v2GetMe();
     user.value.id = me.id;
@@ -99,6 +127,39 @@ onMounted(async () => {
     console.error(t('account.errors.loadUser'), error);
     toast.error(t('account.errors.loadUser'));
   }
+}
+
+function goToAccountTab(path: string, name: string): void {
+  activeTab.value = name;
+  filterDialogOpen.value = false;
+  void navigateTo(path);
+}
+
+function createPost(): void {
+  void navigateTo(localePath('/meow'));
+}
+
+function openCreateGroup(): void {
+  createGroupOpen.value = true;
+}
+
+async function handleCreateGroup(
+  data: CreateGroupData
+): Promise<void> {
+  try {
+    await createGroup(data);
+    toast.success(t('groups.feedback.created'));
+    void navigateTo(localePath('/groups/my'));
+  } catch (error) {
+    toast.error(t('groups.feedback.createFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  }
+}
+
+onMounted(() => {
+  void loadAccount();
 });
 </script>
 
@@ -115,8 +176,40 @@ onMounted(async () => {
         </p>
       </div>
       <div class="flex items-center space-x-2">
-        <Button variant="outline">{{ t('common.filter') }}</Button>
-        <Button>{{ t('common.create') }}</Button>
+        <Button
+          variant="outline"
+          class="gap-2"
+          @click="filterDialogOpen = true"
+        >
+          <ListFilter class="h-4 w-4" />
+          {{ t('common.filter') }}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button class="gap-2">
+              <Plus class="h-4 w-4" />
+              {{ t('common.create') }}
+              <ChevronDown class="h-4 w-4 opacity-70" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="w-48">
+            <DropdownMenuItem @click="createPost">
+              <FileText class="h-4 w-4" />
+              {{ t('account.actions.createPost') }}
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="openCreateGroup">
+              <Users class="h-4 w-4" />
+              {{ t('account.actions.createGroup') }}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              @click="goToAccountTab(localePath('account-profile'), t('account.tabs.profile'))"
+            >
+              <UserRound class="h-4 w-4" />
+              {{ t('account.actions.editProfile') }}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
 
@@ -124,6 +217,51 @@ onMounted(async () => {
       :user="user"
       :account-tabs="localizedAccountTabs"
       v-model="activeTab"
+      @refresh="loadAccount"
+    />
+
+    <Dialog
+      :open="filterDialogOpen"
+      @update:open="filterDialogOpen = $event"
+    >
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {{ t('account.actions.filterTitle') }}
+          </DialogTitle>
+          <DialogDescription>
+            {{ t('account.actions.filterDescription') }}
+          </DialogDescription>
+        </DialogHeader>
+        <div class="grid gap-2 sm:grid-cols-2">
+          <button
+            v-for="tab in localizedAccountTabs"
+            :key="tab.to"
+            type="button"
+            class="flex items-center gap-3 rounded-lg border bg-card px-3 py-3 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            @click="goToAccountTab(tab.to, tab.name)"
+          >
+            <Settings
+              v-if="tab.to.includes('/settings')"
+              class="h-4 w-4 text-muted-foreground"
+            />
+            <Shield
+              v-else-if="tab.to.includes('/security')"
+              class="h-4 w-4 text-muted-foreground"
+            />
+            <UserRound
+              v-else
+              class="h-4 w-4 text-muted-foreground"
+            />
+            <span class="font-medium">{{ tab.name }}</span>
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    <CreateGroupModal
+      v-model:open="createGroupOpen"
+      @create="handleCreateGroup"
     />
 
     <!-- 4. 子页面渲染出口 -->

@@ -38,6 +38,7 @@ const props = withDefaults(defineProps<SidebarProps>(), {
 });
 
 const localePath = useLocalePath();
+const route = useRoute();
 const { t } = useAppLocale();
 
 const preferenceStore = usePreferenceStore();
@@ -102,6 +103,10 @@ const baseNavData = computed(() => ({
           url: '/groups/discover'
         },
         { title: t('nav.main.myGroups'), url: '/groups/my' },
+        {
+          title: t('nav.main.groupPosts'),
+          url: '/groups/posts'
+        },
         { title: t('nav.main.invites'), url: '/groups/invites' }
       ]
     },
@@ -198,6 +203,22 @@ const localizedNav = computed(() => {
     }))
   };
 });
+
+const navMainWithActiveState = computed(() => {
+  const currentPath = route.path;
+
+  return localizedNav.value.navMain.map(mainItem => {
+    const selfActive = currentPath === mainItem.url;
+    const childActive = mainItem.items?.some(
+      subItem => currentPath === subItem.url
+    );
+
+    return {
+      ...mainItem,
+      isActive: selfActive || childActive
+    };
+  });
+});
 </script>
 
 <template>
@@ -230,7 +251,7 @@ const localizedNav = computed(() => {
       </SidebarMenu>
     </SidebarHeader>
     <SidebarContent>
-      <NavMain :items="localizedNav.navMain" />
+      <NavMain :items="navMainWithActiveState" />
       <!-- TODO： 后续可以开发新功能 -->
       <!-- <NavProjects :projects="localizedNav.projects" /> -->
       <NavSecondary

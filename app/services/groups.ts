@@ -3,7 +3,9 @@ import {
   v2ChangeGroupMemberRole,
   v2CreateGroup,
   v2CreateGroupInvite,
+  v2CreateGroupPost,
   v2DeleteGroup,
+  v2DeleteGroupPost,
   v2GetGroupById,
   v2JoinGroup,
   v2LeaveGroup,
@@ -16,16 +18,21 @@ import {
   v2PatchGroup,
   v2RemoveGroupMember,
   v2RespondGroupInvite,
+  v2SetGroupPostLikeStatus,
+  v2SetGroupPostPinStatus,
   v2TransferGroupOwnership,
   v2UnmuteGroupMember
 } from '@/api/v2/groups';
 import type {
   V2CreateGroupInviteData,
+  V2CreateGroupPostPayload,
   V2CreateGroupPayload,
   V2Group,
   V2GroupInvite,
+  V2GroupPostLikeData,
   V2GroupMember,
   V2GroupPost,
+  V2GroupPostListType,
   V2GroupPrivacy,
   V2GroupRole,
   V2PublicUser
@@ -40,6 +47,9 @@ import type {
   GroupMember,
   GroupOwner,
   GroupPost,
+  GroupPostFeedOptions,
+  GroupPostFeedResult,
+  GroupPostGroup,
   GroupStatsData,
   UpdateGroupData
 } from '@/types/groups';
@@ -155,11 +165,44 @@ function mapV2PostToGroupPost(
       };
     }),
     isPinned: post.is_pinned,
+    isAnnouncement: post.is_announcement,
     likeCount: post.likes_count,
     commentCount: post.comments_count,
     isLiked: post.is_liked_by_me,
     createdAt: post.created_at
   };
+}
+
+function mapGroupToPostGroup(group: Group): GroupPostGroup {
+  return {
+    id: group.id,
+    name: group.name,
+    avatar: group.avatar,
+    privacy: group.privacy,
+    isMember: group.isMember,
+    canManage: !!(group.isOwner || group.isAdmin)
+  };
+}
+
+function matchesGroupPostType(
+  post: GroupPost,
+  type: V2GroupPostListType
+): boolean {
+  if (type === 'pinned') return !!post.isPinned;
+  if (type === 'announcement') return !!post.isAnnouncement;
+  return true;
+}
+
+function sortGroupPosts(posts: GroupPost[]): GroupPost[] {
+  return [...posts].sort((a, b) => {
+    const pinnedDiff =
+      Number(!!b.isPinned) - Number(!!a.isPinned);
+    if (pinnedDiff !== 0) return pinnedDiff;
+    return (
+      new Date(b.createdAt).getTime() -
+      new Date(a.createdAt).getTime()
+    );
+  });
 }
 
 function applyLocalGroupFilters(
@@ -385,6 +428,170 @@ export async function loadGroupDetail(
         ? postsResult.value.items.map(mapV2PostToGroupPost)
         : []
   };
+}
+
+export async function listGroupPosts(
+  groupId: number,
+  page: number,
+  pageSize: number,
+  type: V2GroupPostListType = 'all'
+): Promise<{
+  posts: GroupPost[];
+  total: number;
+  hasNext: boolean;
+}> {
+  const result = await v2ListGroupPosts(groupId, {
+    type,
+    page,
+    page_size: pageSize
+  });
+  const posts = result.items
+    .map(mapV2PostToGroupPost)
+    .filter(post => matchesGroupPostType(post, type));
+  return {
+    posts,
+    total: result.meta?.total ?? posts.length,
+    hasNext: !!result.meta?.has_next
+  };
+}
+
+async function listJoinedGroupPostsForAllGroups(
+  groups: Group[],
+  type: V2GroupPostListType,
+  page: number,
+  pageSize: number
+): Promise<GroupPostFeedResult> {
+  const requestedSize = Math.max(page * pageSize, pageSize);
+  const settled = await Promise.allSettled(
+    groups.map(async group => {
+      const result = await listGroupPosts(
+        group.id,
+        1,
+        requestedSize,
+        type
+      );
+      const groupContext = mapGroupToPostGroup(group);
+      return {
+        hasNext: result.hasNext,
+        posts: result.posts.map(post => ({
+          ...post,
+          group: groupContext
+        }))
+      };
+    })
+  );
+  const fulfilled = settled.flatMap(result =>
+    result.status === 'fulfilled' ? [result.value] : []
+  );
+  const allPosts = sortGroupPosts(
+    fulfilled.flatMap(result => result.posts)
+  );
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize;
+  return {
+    groups,
+    posts: allPosts.slice(start, end),
+    total: allPosts.length,
+    hasNext:
+      allPosts.length > end ||
+      fulfilled.some(result => result.hasNext)
+  };
+}
+
+export async function listJoinedGroupPostFeed(
+  options: GroupPostFeedOptions
+): Promise<GroupPostFeedResult> {
+  const groupsResult = await v2ListMyGroups({
+    page: 1,
+    page_size: 100
+  });
+  const groups = applyLocalGroupFilters(
+    groupsResult.items.map(mapV2GroupToGroup),
+    {
+      search: '',
+      privacy: 'all',
+      category: 'all',
+      sortBy: 'active'
+    }
+  );
+  const type = options.type ?? 'all';
+
+  if (options.groupId) {
+    const group = groups.find(
+      item => item.id === options.groupId
+    );
+    if (!group) {
+      return {
+        groups,
+        posts: [],
+        total: 0,
+        hasNext: false
+      };
+    }
+    const result = await listGroupPosts(
+      group.id,
+      options.page,
+      options.pageSize,
+      type
+    );
+    const groupContext = mapGroupToPostGroup(group);
+    return {
+      groups,
+      posts: result.posts.map(post => ({
+        ...post,
+        group: groupContext
+      })),
+      total: result.total,
+      hasNext: result.hasNext
+    };
+  }
+
+  return await listJoinedGroupPostsForAllGroups(
+    groups,
+    type,
+    options.page,
+    options.pageSize
+  );
+}
+
+export async function createGroupPost(
+  groupId: number,
+  payload: V2CreateGroupPostPayload
+): Promise<GroupPost> {
+  return mapV2PostToGroupPost(
+    await v2CreateGroupPost(groupId, payload)
+  );
+}
+
+export async function deleteGroupPost(
+  groupId: number,
+  postId: number
+): Promise<void> {
+  await v2DeleteGroupPost(groupId, postId);
+}
+
+export async function setGroupPostPinStatus(
+  groupId: number,
+  postId: number,
+  isPinned: boolean
+): Promise<void> {
+  await v2SetGroupPostPinStatus(
+    groupId,
+    postId,
+    isPinned
+  );
+}
+
+export async function setGroupPostLikeStatus(
+  groupId: number,
+  postId: number,
+  liked: boolean
+): Promise<V2GroupPostLikeData> {
+  return await v2SetGroupPostLikeStatus(
+    groupId,
+    postId,
+    liked
+  );
 }
 
 export async function listGroupMembers(

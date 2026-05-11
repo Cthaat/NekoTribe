@@ -190,6 +190,42 @@ export async function v2GetUserAnalytics(
   );
 }
 
+export async function v2ListUserFollowers(
+  userId: number,
+  query: {
+    page?: number;
+    page_size?: number;
+  } = {}
+): Promise<V2PagedResult<V2PublicUser>> {
+  const response = await v2Request<
+    V2PublicUser[],
+    undefined,
+    typeof query
+  >(`/api/v2/users/${userId}/followers`, {
+    method: 'GET',
+    query
+  });
+  return toV2PagedResult(response);
+}
+
+export async function v2ListUserFollowing(
+  userId: number,
+  query: {
+    page?: number;
+    page_size?: number;
+  } = {}
+): Promise<V2PagedResult<V2PublicUser>> {
+  const response = await v2Request<
+    V2PublicUser[],
+    undefined,
+    typeof query
+  >(`/api/v2/users/${userId}/following`, {
+    method: 'GET',
+    query
+  });
+  return toV2PagedResult(response);
+}
+
 export async function v2FollowUser(
   userId: number
 ): Promise<V2FollowUserData> {

@@ -1,39 +1,65 @@
 <script setup lang="ts">
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/components/ui/tabs';
+  computed,
+  ref,
+  watch
+} from 'vue';
 import AvatarUploader from '@/components/AvatarUploader.vue'; // 导入你的新组件
 // 1. 导入所有这个组件需要的依赖项
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import {
   Avatar,
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
-  computed,
-  ref,
-  watch
-} from 'vue';
-import {
-  ArrowUp,
-  ArrowDown,
-  User,
+  Copy,
+  ExternalLink,
+  Heart,
   Mail,
   MapPin,
-  MoreHorizontal
+  MoreHorizontal,
+  RefreshCw,
+  Settings,
+  Shield,
+  User,
+  UserRound
 } from 'lucide-vue-next';
 import type { PropType } from 'vue';
 import { toast } from 'vue-sonner';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
+import {
+  v2GetUserAnalytics,
+  v2ListUserFollowers,
+  v2ListUserFollowing
+} from '@/services';
+import type {
+  PublicUserVM,
+  UserAnalyticsVM
+} from '@/types/users';
 
 const preferenceStore = usePreferenceStore();
-const { t } = useAppLocale();
+const { t, locale } = useAppLocale();
+const localePath = useLocalePath();
 
 // 2. 为 props 定义清晰的 TypeScript 类型
 interface UserData {
@@ -70,7 +96,32 @@ const props = defineProps({
 });
 
 // 3.定义 emits，声明该组件会触发 'update:user' 事件
-const emit = defineEmits(['update:user', 'follow']);
+const emit = defineEmits<{
+  (e: 'update:user', user: UserData): void;
+  (
+    e: 'follow',
+    user: UserData,
+    action: 'follow' | 'unfollow'
+  ): void;
+  (e: 'refresh'): void;
+}>();
+
+type StatsDialogType = 'followers' | 'following' | 'likes';
+
+const STATS_PAGE_SIZE = 20;
+
+const statsDialogOpen = ref(false);
+const activeStatsType =
+  ref<StatsDialogType>('followers');
+const relationshipUsers = ref<PublicUserVM[]>([]);
+const relationshipTotal = ref(0);
+const relationshipPage = ref(1);
+const relationshipHasNext = ref(false);
+const relationshipLoading = ref(false);
+const relationshipError = ref<string | null>(null);
+const likesAnalytics = ref<UserAnalyticsVM | null>(null);
+const likesLoading = ref(false);
+const likesError = ref<string | null>(null);
 
 // 4. 处理头像更新的正确方式
 const handleAvatarUpdate = (
@@ -116,11 +167,230 @@ const normalizedScore = computed(() => {
 });
 
 const tabValue = defineModel<string>();
+const route = useRoute();
+
+const currentUserId = computed(
+  () => preferenceStore.preferences.user.id
+);
+
+const isSelfProfile = computed(() => {
+  return props.user.id > 0 && props.user.id === currentUserId.value;
+});
+
+const statsDialogTitle = computed(() => {
+  if (activeStatsType.value === 'followers') {
+    return t('account.stats.followersTitle');
+  }
+  if (activeStatsType.value === 'following') {
+    return t('account.stats.followingTitle');
+  }
+  return t('account.stats.likesTitle');
+});
+
+const statsDialogDescription = computed(() => {
+  if (activeStatsType.value === 'followers') {
+    return t('account.stats.followersDescription');
+  }
+  if (activeStatsType.value === 'following') {
+    return t('account.stats.followingDescription');
+  }
+  return t('account.stats.likesDescription');
+});
+
+const likesStatItems = computed(() => {
+  const analytics = likesAnalytics.value;
+
+  return [
+    {
+      label: t('account.stats.totalLikesReceived'),
+      value: formatNumber(
+        analytics?.totalLikesReceived ??
+          props.user.stats.likesCount
+      )
+    },
+    {
+      label: t('account.stats.avgLikesPerPost'),
+      value: formatDecimal(analytics?.avgLikesPerPost ?? 0)
+    },
+    {
+      label: t('account.stats.totalLikesGiven'),
+      value: formatNumber(analytics?.totalLikesGiven ?? 0)
+    },
+    {
+      label: t('account.stats.totalCommentsMade'),
+      value: formatNumber(analytics?.totalCommentsMade ?? 0)
+    },
+    {
+      label: t('account.stats.postsCount'),
+      value: formatNumber(analytics?.totalPosts ?? 0)
+    },
+    {
+      label: t('account.stats.engagementScore'),
+      value: formatNumber(
+        analytics?.engagementScore ?? props.user.point
+      )
+    }
+  ];
+});
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat(
+    locale.value === 'en' ? 'en-US' : 'zh-CN'
+  ).format(value);
+}
+
+function formatDecimal(value: number): string {
+  return new Intl.NumberFormat(
+    locale.value === 'en' ? 'en-US' : 'zh-CN',
+    {
+      maximumFractionDigits: 1
+    }
+  ).format(value);
+}
+
+function getUserInitials(user: PublicUserVM): string {
+  return (
+    user.name ||
+    user.username ||
+    '?'
+  )
+    .trim()
+    .slice(0, 1)
+    .toUpperCase();
+}
+
+function getProfilePath(userId: number): string {
+  return localePath(`/user/${userId}/profile`);
+}
+
+function openUserProfile(userId: number): void {
+  if (userId <= 0) return;
+  void navigateTo(getProfilePath(userId));
+}
+
+function openPublicProfile(): void {
+  openUserProfile(props.user.id);
+}
+
+async function copyProfileLink(): Promise<void> {
+  if (!process.client || props.user.id <= 0) return;
+
+  try {
+    const url = new URL(
+      getProfilePath(props.user.id),
+      window.location.origin
+    ).toString();
+    await navigator.clipboard.writeText(url);
+    toast.success(t('account.actions.copied'));
+  } catch (error) {
+    console.error(t('common.operationFailed'), error);
+    toast.error(t('common.operationFailed'));
+  }
+}
+
+function refreshProfile(): void {
+  emit('refresh');
+}
+
+function goToAccountSettings(): void {
+  void navigateTo(localePath('account-settings'));
+}
+
+function goToAccountSecurity(): void {
+  void navigateTo(localePath('account-security'));
+}
+
+async function loadRelationshipUsers(
+  reset = true
+): Promise<void> {
+  if (props.user.id <= 0 || relationshipLoading.value) return;
+
+  relationshipLoading.value = true;
+  relationshipError.value = null;
+
+  try {
+    const nextPage = reset
+      ? 1
+      : relationshipPage.value + 1;
+    const result =
+      activeStatsType.value === 'followers'
+        ? await v2ListUserFollowers(props.user.id, {
+            page: nextPage,
+            pageSize: STATS_PAGE_SIZE
+          })
+        : await v2ListUserFollowing(props.user.id, {
+            page: nextPage,
+            pageSize: STATS_PAGE_SIZE
+          });
+
+    relationshipUsers.value = reset
+      ? result.items
+      : [...relationshipUsers.value, ...result.items];
+    relationshipTotal.value = result.total;
+    relationshipPage.value = result.page;
+    relationshipHasNext.value = result.hasNext;
+  } catch (error) {
+    console.error(t('account.stats.loadFailed'), error);
+    relationshipError.value = t('account.stats.loadFailed');
+  } finally {
+    relationshipLoading.value = false;
+  }
+}
+
+async function loadLikesAnalytics(): Promise<void> {
+  if (props.user.id <= 0 || likesLoading.value) return;
+
+  likesLoading.value = true;
+  likesError.value = null;
+
+  try {
+    likesAnalytics.value = await v2GetUserAnalytics(props.user.id);
+  } catch (error) {
+    console.error(t('account.stats.loadFailed'), error);
+    likesError.value = t('account.stats.loadFailed');
+  } finally {
+    likesLoading.value = false;
+  }
+}
+
+function openStatsDialog(type: StatsDialogType): void {
+  activeStatsType.value = type;
+  statsDialogOpen.value = true;
+
+  if (type === 'likes') {
+    void loadLikesAnalytics();
+    return;
+  }
+
+  relationshipUsers.value = [];
+  relationshipTotal.value = 0;
+  relationshipPage.value = 1;
+  relationshipHasNext.value = false;
+  void loadRelationshipUsers(true);
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/\/+$/, '') || '/';
+}
+
+function isTabActive(tab: TabItem): boolean {
+  return normalizePath(route.path) === normalizePath(tab.to);
+}
+
+function syncActiveTabFromRoute(): void {
+  const active = props.accountTabs.find(isTabActive);
+  if (active) {
+    tabValue.value = active.name;
+  }
+}
+
+function selectTab(tab: TabItem): void {
+  tabValue.value = tab.name;
+}
 
 const isFollowing = ref(props.user.follow === 'follow');
 const showFollowAction = computed(() => {
-  const currentUserId = preferenceStore.preferences.user.id;
-  return props.user.id > 0 && props.user.id !== currentUserId;
+  return props.user.id > 0 && props.user.id !== currentUserId.value;
 });
 
 watch(
@@ -128,6 +398,12 @@ watch(
   newValue => {
     isFollowing.value = newValue === 'follow';
   }
+);
+
+watch(
+  () => [route.path, props.accountTabs] as const,
+  syncActiveTabFromRoute,
+  { immediate: true }
 );
 
 function followUser() {
@@ -209,12 +485,45 @@ function followUser() {
               >
                 {{ t('account.header.unfollow') }}
               </Button>
-              <Button variant="ghost" size="icon">
-                <MoreHorizontal class="w-4 h-4" />
-                <span class="sr-only">{{
-                  t('account.header.moreActions')
-                }}</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <Button variant="ghost" size="icon">
+                    <MoreHorizontal class="w-4 h-4" />
+                    <span class="sr-only">{{
+                      t('account.header.moreActions')
+                    }}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" class="w-52">
+                  <DropdownMenuItem @click="openPublicProfile">
+                    <ExternalLink class="h-4 w-4" />
+                    {{ t('account.actions.openPublicProfile') }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem @click="copyProfileLink">
+                    <Copy class="h-4 w-4" />
+                    {{ t('account.actions.copyProfileLink') }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem @click="refreshProfile">
+                    <RefreshCw class="h-4 w-4" />
+                    {{ t('account.actions.refreshProfile') }}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator v-if="isSelfProfile" />
+                  <DropdownMenuItem
+                    v-if="isSelfProfile"
+                    @click="goToAccountSettings"
+                  >
+                    <Settings class="h-4 w-4" />
+                    {{ t('account.actions.accountSettings') }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    v-if="isSelfProfile"
+                    @click="goToAccountSecurity"
+                  >
+                    <Shield class="h-4 w-4" />
+                    {{ t('account.actions.securitySettings') }}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -226,38 +535,48 @@ function followUser() {
             class="flex flex-col sm:flex-row items-center gap-4"
           >
             <div class="flex-1 grid grid-cols-3 gap-4">
-              <div class="text-center">
+              <button
+                type="button"
+                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                @click="openStatsDialog('followers')"
+              >
                 <p
                   class="flex items-center justify-center gap-1 text-lg font-bold"
                 >
-                  {{
-                    user.stats.followersCount.toLocaleString()
-                  }}
+                  {{ formatNumber(user.stats.followersCount) }}
                 </p>
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.followers') }}
                 </p>
-              </div>
-              <div class="text-center">
+              </button>
+              <button
+                type="button"
+                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                @click="openStatsDialog('following')"
+              >
                 <p
                   class="flex items-center justify-center gap-1 text-lg font-bold"
                 >
-                  {{ user.stats.followingCount }}
+                  {{ formatNumber(user.stats.followingCount) }}
                 </p>
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.following') }}
                 </p>
-              </div>
-              <div class="text-center">
+              </button>
+              <button
+                type="button"
+                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                @click="openStatsDialog('likes')"
+              >
                 <p
                   class="flex items-center justify-center gap-1 text-lg font-bold"
                 >
-                  {{ user.stats.likesCount }}
+                  {{ formatNumber(user.stats.likesCount) }}
                 </p>
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.likes') }}
                 </p>
-              </div>
+              </button>
             </div>
             <div class="w-full sm:w-1/3">
               <label
@@ -280,29 +599,195 @@ function followUser() {
       </div>
     </CardContent>
   </Card>
-  <!-- b. 选项卡导航，作为 Card 的直接子元素，以实现正确的边框样式 -->
-  <div
-    class="inline-flex h-10 items-center justify-center rounded-full bg-muted p-1 text-muted-foreground"
+  <!-- b. 账户子页面导航 -->
+  <nav
     v-if="accountTabs.length > 0"
+    class="w-full overflow-x-auto"
+    :aria-label="t('account.title')"
   >
-    <Tabs default-value="overview" class="w-full">
-      <TabsList>
-        <TabsTrigger
-          v-for="tab in accountTabs"
-          :value="tab.name"
-          class="inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          active-class="bg-background text-foreground shadow-sm"
+    <div
+      class="inline-flex min-w-full items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground sm:min-w-0"
+    >
+      <NuxtLink
+        v-for="tab in accountTabs"
+        :key="tab.to"
+        :to="tab.to"
+        class="inline-flex h-8 flex-none items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-[color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        :class="
+          isTabActive(tab)
+            ? 'bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30 dark:text-foreground'
+            : 'hover:bg-background/60 hover:text-foreground'
+        "
+        @click="selectTab(tab)"
+      >
+        {{ tab.name }}
+      </NuxtLink>
+    </div>
+  </nav>
+
+  <Dialog
+    :open="statsDialogOpen"
+    @update:open="statsDialogOpen = $event"
+  >
+    <DialogContent class="sm:max-w-xl">
+      <DialogHeader>
+        <DialogTitle>{{ statsDialogTitle }}</DialogTitle>
+        <DialogDescription>
+          {{ statsDialogDescription }}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div v-if="activeStatsType === 'likes'" class="space-y-4">
+        <div
+          v-if="likesLoading"
+          class="grid gap-3 sm:grid-cols-2"
         >
-          <NuxtLink
-            :key="tab.name"
-            :to="tab.to"
-            :onclick="() => (tabValue = tab.name)"
+          <Skeleton
+            v-for="item in 6"
+            :key="item"
+            class="h-20 rounded-lg"
+          />
+        </div>
+        <div
+          v-else-if="likesError"
+          class="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
+        >
+          {{ likesError }}
+        </div>
+        <div v-else class="grid gap-3 sm:grid-cols-2">
+          <div
+            v-for="item in likesStatItems"
+            :key="item.label"
+            class="rounded-lg border bg-card p-4"
           >
-            {{ tab.name }}
-          </NuxtLink>
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
-  </div>
+            <div
+              class="flex items-center gap-2 text-sm text-muted-foreground"
+            >
+              <Heart class="h-4 w-4" />
+              {{ item.label }}
+            </div>
+            <div class="mt-2 text-2xl font-semibold">
+              {{ item.value }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="space-y-4">
+        <div
+          class="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm"
+        >
+          <span class="text-muted-foreground">
+            {{
+              t('account.stats.total', {
+                count: formatNumber(relationshipTotal)
+              })
+            }}
+          </span>
+          <Badge variant="secondary">
+            {{
+              activeStatsType === 'followers'
+                ? t('account.header.followers')
+                : t('account.header.following')
+            }}
+          </Badge>
+        </div>
+
+        <ScrollArea class="h-[360px] rounded-lg border">
+          <div class="space-y-1 p-2">
+            <template
+              v-if="relationshipLoading && relationshipUsers.length === 0"
+            >
+              <div
+                v-for="item in 6"
+                :key="item"
+                class="flex items-center gap-3 rounded-lg p-2"
+              >
+                <Skeleton class="h-10 w-10 rounded-full" />
+                <div class="flex-1 space-y-2">
+                  <Skeleton class="h-4 w-32" />
+                  <Skeleton class="h-3 w-20" />
+                </div>
+              </div>
+            </template>
+
+            <div
+              v-else-if="relationshipError"
+              class="p-6 text-center text-sm text-destructive"
+            >
+              {{ relationshipError }}
+            </div>
+
+            <div
+              v-else-if="relationshipUsers.length === 0"
+              class="p-8 text-center text-sm text-muted-foreground"
+            >
+              {{
+                activeStatsType === 'followers'
+                  ? t('account.stats.emptyFollowers')
+                  : t('account.stats.emptyFollowing')
+              }}
+            </div>
+
+            <template v-else>
+              <button
+                v-for="item in relationshipUsers"
+                :key="item.id"
+                type="button"
+                class="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                @click="openUserProfile(item.id)"
+              >
+                <Avatar class="h-10 w-10">
+                  <AvatarImage :src="item.avatarUrl" />
+                  <AvatarFallback>
+                    {{ getUserInitials(item) }}
+                  </AvatarFallback>
+                </Avatar>
+                <div class="min-w-0 flex-1">
+                  <div
+                    class="truncate text-sm font-medium text-foreground"
+                  >
+                    {{ item.name || item.username }}
+                  </div>
+                  <div
+                    class="truncate text-xs text-muted-foreground"
+                  >
+                    @{{ item.username }}
+                  </div>
+                </div>
+                <Badge
+                  v-if="item.relationship.isFollowing"
+                  variant="secondary"
+                >
+                  {{ t('account.stats.followingBadge') }}
+                </Badge>
+                <UserRound
+                  v-else
+                  class="h-4 w-4 text-muted-foreground"
+                />
+              </button>
+            </template>
+          </div>
+        </ScrollArea>
+
+        <div
+          v-if="relationshipHasNext"
+          class="flex justify-center"
+        >
+          <Button
+            variant="outline"
+            :disabled="relationshipLoading"
+            @click="loadRelationshipUsers(false)"
+          >
+            {{
+              relationshipLoading
+                ? t('common.loading')
+                : t('common.loadMore')
+            }}
+          </Button>
+        </div>
+      </div>
+    </DialogContent>
+  </Dialog>
 </template>
 

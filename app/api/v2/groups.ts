@@ -6,6 +6,7 @@ import {
 import type {
   V2CreateGroupInviteData,
   V2CreateGroupInvitePayload,
+  V2CreateGroupPostPayload,
   V2CreateGroupPayload,
   V2Group,
   V2GroupInvite,
@@ -15,7 +16,9 @@ import type {
   V2GroupMemberStatusData,
   V2GroupMemberListQuery,
   V2GroupPost,
+  V2GroupPostLikeData,
   V2GroupPostListQuery,
+  V2GroupPostPinStatusData,
   V2JoinGroupData,
   V2JoinGroupPayload,
   V2PagedResult,
@@ -261,6 +264,60 @@ export async function v2ListGroupPosts(
     query
   });
   return toV2PagedResult(response);
+}
+
+export async function v2CreateGroupPost(
+  groupId: number,
+  payload: V2CreateGroupPostPayload
+): Promise<V2GroupPost> {
+  return await v2RequestData<
+    V2GroupPost,
+    V2CreateGroupPostPayload
+  >(`/api/v2/groups/${groupId}/posts`, {
+    method: 'POST',
+    body: payload
+  });
+}
+
+export async function v2DeleteGroupPost(
+  groupId: number,
+  postId: number,
+  reason: string | null = null
+): Promise<void> {
+  await v2RequestData<null, { reason: string | null }>(
+    `/api/v2/groups/${groupId}/posts/${postId}`,
+    {
+      method: 'DELETE',
+      body: { reason }
+    }
+  );
+}
+
+export async function v2SetGroupPostPinStatus(
+  groupId: number,
+  postId: number,
+  isPinned: boolean
+): Promise<V2GroupPostPinStatusData> {
+  return await v2RequestData<
+    V2GroupPostPinStatusData,
+    { is_pinned: boolean }
+  >(`/api/v2/groups/${groupId}/posts/${postId}/pin-status`, {
+    method: 'PUT',
+    body: { is_pinned: isPinned }
+  });
+}
+
+export async function v2SetGroupPostLikeStatus(
+  groupId: number,
+  postId: number,
+  liked: boolean
+): Promise<V2GroupPostLikeData> {
+  return await v2RequestData<V2GroupPostLikeData>(
+    `/api/v2/groups/${groupId}/posts/${postId}/likes`,
+    {
+      method: liked ? 'POST' : 'DELETE'
+    }
+  );
 }
 
 export async function v2CreateGroupInvite(

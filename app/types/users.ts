@@ -99,6 +99,11 @@ export interface UserSearchRequestVM {
   pageSize?: number;
 }
 
+export interface UserRelationshipListRequestVM {
+  page?: number;
+  pageSize?: number;
+}
+
 export interface UpdateUserSettingsFormVM {
   twoFactorEnabled?: boolean;
   loginAlerts?: boolean;
@@ -110,3 +115,5 @@ export interface UpdateUserSettingsFormVM {
 }
 
 export type UserSearchPageVM = PageViewModel<PublicUserVM>;
+export type UserRelationshipPageVM =
+  PageViewModel<PublicUserVM>;

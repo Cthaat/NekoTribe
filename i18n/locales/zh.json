@@ -64,6 +64,7 @@
       "groups": "群组",
       "discoverGroups": "发现",
       "myGroups": "我的群组",
+      "groupPosts": "群组帖子",
       "invites": "邀请",
       "chat": "聊天",
       "account": "账户",
@@ -250,6 +251,7 @@
     "tabs": {
       "discover": "发现群组",
       "my": "我的群组",
+      "posts": "群组帖子",
       "invites": "群组邀请"
     },
     "actions": {
@@ -444,6 +446,31 @@
         "reported": "举报已提交"
       }
     },
+    "posts": {
+      "title": "群组帖子",
+      "description": "集中查看你已加入群组的最新帖子。",
+      "total": "共 {count} 条帖子",
+      "allGroups": "全部群组",
+      "groupPlaceholder": "选择群组",
+      "typePlaceholder": "帖子类型",
+      "groupContext": "来自群组",
+      "manageable": "可管理",
+      "refreshed": "群组帖子已刷新",
+      "loadFailed": "加载群组帖子失败",
+      "likeFailed": "点赞群组帖子失败",
+      "pinFailed": "更新置顶状态失败",
+      "deleteFailed": "删除群组帖子失败",
+      "shareCopied": "群组帖子链接已复制",
+      "noGroupsTitle": "你还没有加入群组",
+      "noGroupsDescription": "加入群组后，这里会展示这些群组里的帖子。",
+      "emptyTitle": "暂无群组帖子",
+      "emptyDescription": "当前筛选下还没有可以展示的群组帖子。",
+      "types": {
+        "all": "全部帖子",
+        "pinned": "置顶帖子",
+        "announcement": "公告"
+      }
+    },
     "notifications": {
       "enabled": "已开启通知",
       "disabled": "已关闭通知"
@@ -518,6 +545,14 @@
   "avatar": {
     "validation": {
       "maxSize": "文件大小不能超过 {size}MB"
+    },
+    "crop": {
+      "title": "裁剪头像",
+      "zoom": "缩放",
+      "zoomOut": "缩小",
+      "zoomIn": "放大",
+      "reset": "重置",
+      "apply": "使用此头像"
     },
     "feedback": {
       "updated": "头像更新成功！",
@@ -1229,6 +1264,38 @@
       "success": "已关注 {name}。",
       "unfollowSuccess": "已取消关注 {name}。",
       "failed": "关注状态更新失败。"
+    },
+    "actions": {
+      "filterTitle": "账户筛选",
+      "filterDescription": "切换账户模块，快速查看对应内容。",
+      "createPost": "发布推文",
+      "createGroup": "创建群组",
+      "editProfile": "编辑资料",
+      "openPublicProfile": "查看公开主页",
+      "copyProfileLink": "复制主页链接",
+      "refreshProfile": "刷新资料",
+      "accountSettings": "账户设置",
+      "securitySettings": "安全设置",
+      "copied": "链接已复制"
+    },
+    "stats": {
+      "followersTitle": "粉丝详情",
+      "followersDescription": "查看正在关注该用户的人。",
+      "followingTitle": "关注详情",
+      "followingDescription": "查看该用户正在关注的人。",
+      "likesTitle": "获赞详情",
+      "likesDescription": "查看该用户收到的赞与互动统计。",
+      "total": "共 {count} 人",
+      "emptyFollowers": "暂无粉丝",
+      "emptyFollowing": "暂无关注",
+      "loadFailed": "加载数据失败",
+      "followingBadge": "已关注",
+      "totalLikesReceived": "收到的赞",
+      "avgLikesPerPost": "平均每条推文获赞",
+      "totalLikesGiven": "送出赞",
+      "totalCommentsMade": "发表评论",
+      "postsCount": "推文数",
+      "engagementScore": "互动分数"
     },
     "tabs": {
       "overview": "概览",

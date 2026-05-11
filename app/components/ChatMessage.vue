@@ -172,27 +172,22 @@ const handleCopy = () => {
   <!-- 普通消息 -->
   <div
     v-else
-    class="group flex gap-3 px-4 py-1 hover:bg-muted/50 transition-colors relative"
-    :class="{ 'mt-4': isFirstInGroup }"
+    class="group px-4 py-1 transition-colors relative"
+    :class="{ 'mt-4': isFirstInGroup, 'flex justify-end': isOwn, 'flex': !isOwn }"
   >
     <!-- 头像区域 -->
-    <div class="w-10 flex-shrink-0">
-      <Avatar
-        v-if="showAvatar"
-        class="h-10 w-10 cursor-pointer hover:opacity-80"
-      >
+    <div v-if="showAvatar && !isOwn" class="w-10 flex-shrink-0">
+      <Avatar class="h-10 w-10 cursor-pointer hover:opacity-80">
         <AvatarImage
           :src="message.author.avatar"
           :alt="message.author.nickname"
         />
-        <AvatarFallback>{{
-          message.author.nickname.slice(0, 2)
-        }}</AvatarFallback>
+        <AvatarFallback>{{ message.author.nickname.slice(0, 2) }}</AvatarFallback>
       </Avatar>
     </div>
 
     <!-- 消息内容区域 -->
-    <div class="flex-1 min-w-0">
+    <div class="flex-1 min-w-0 flex flex-col">
       <!-- 用户名和时间 -->
       <div
         v-if="isFirstInGroup"
@@ -238,32 +233,27 @@ const handleCopy = () => {
         }}</span>
       </div>
 
-      <!-- 消息文本 -->
-      <div class="text-sm whitespace-pre-wrap break-words">
-        {{ message.content }}
-        <span
-          v-if="message.editedAt"
-          class="text-xs text-muted-foreground ml-1"
-        >
-          {{ t('chat.message.edited') }}
-        </span>
+      <!-- 气泡容器 -->
+      <div class="mt-0">
+        <div :class="[
+          'inline-block text-sm whitespace-pre-wrap break-words',
+          isOwn
+            ? 'ml-auto text-right rounded-2xl px-4 py-2 shadow-md bg-gradient-to-r from-primary to-primary/80 text-white'
+            : 'rounded-2xl px-4 py-2 bg-card text-foreground border'
+        ]">
+          {{ message.content }}
+          <span v-if="message.editedAt" class="text-xs text-muted-foreground ml-1">{{ t('chat.message.edited') }}</span>
+        </div>
       </div>
 
       <!-- 图片附件 -->
-      <div
-        v-if="
-          message.attachments?.some(a => a.type === 'image')
-        "
-        class="mt-2 flex flex-wrap gap-2"
-      >
+      <div v-if="message.attachments?.some(a => a.type === 'image')" class="mt-2 flex flex-wrap gap-2">
         <img
-          v-for="attachment in message.attachments.filter(
-            a => a.type === 'image'
-          )"
+          v-for="attachment in message.attachments.filter(a => a.type === 'image')"
           :key="attachment.id"
           :src="attachment.url"
           :alt="attachment.name"
-          class="max-w-xs max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+          class="max-w-xs max-h-64 rounded-2xl cursor-pointer hover:opacity-90 transition-opacity border"
         />
       </div>
 
@@ -303,33 +293,24 @@ const handleCopy = () => {
       </div>
 
       <!-- 表情反应 -->
-      <div
-        v-if="message.reactions?.length"
-        class="mt-2 flex flex-wrap gap-1"
-      >
+      <div v-if="message.reactions?.length" class="mt-2 flex flex-wrap gap-1">
         <Button
           v-for="reaction in message.reactions"
           :key="reaction.emoji"
           variant="outline"
           size="sm"
           class="h-6 px-2 text-xs gap-1"
-          :class="{
-            'bg-primary/10 border-primary': reaction.reacted
-          }"
+          :class="{ 'bg-primary/10 border-primary': reaction.reacted }"
           @click="handleReaction(reaction.emoji)"
         >
           {{ reaction.emoji }}
-          <span class="text-muted-foreground">{{
-            reaction.count
-          }}</span>
+          <span class="text-muted-foreground">{{ reaction.count }}</span>
         </Button>
       </div>
     </div>
 
     <!-- 操作按钮（悬浮显示） -->
-    <div
-      class="absolute right-4 top-0 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-background border rounded-lg shadow-sm p-0.5"
-    >
+    <div class="absolute right-4 top-0 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-background border rounded-lg shadow-sm p-0.5">
       <TooltipProvider>
         <!-- 快速表情 -->
         <Tooltip

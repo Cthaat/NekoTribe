@@ -4,6 +4,8 @@ import {
   v2GetMe as apiGetMe,
   v2GetUserAnalytics as apiGetUserAnalytics,
   v2GetUserById as apiGetUserById,
+  v2ListUserFollowers as apiListUserFollowers,
+  v2ListUserFollowing as apiListUserFollowing,
   v2PatchMe as apiPatchMe,
   v2SearchUsers as apiSearchUsers,
   v2UnfollowUser as apiUnfollowUser,
@@ -30,6 +32,8 @@ import type {
   PublicUserVM,
   UpdateUserProfileFormVM,
   UserAnalyticsVM,
+  UserRelationshipListRequestVM,
+  UserRelationshipPageVM,
   UserSearchRequestVM,
   UserSearchPageVM
 } from '@/types/users';
@@ -192,6 +196,34 @@ export async function v2GetUserAnalytics(
   userId: number
 ): Promise<UserAnalyticsVM> {
   return mapAnalytics(await apiGetUserAnalytics(userId));
+}
+
+export async function v2ListUserFollowers(
+  userId: number,
+  request: UserRelationshipListRequestVM = {}
+): Promise<UserRelationshipPageVM> {
+  const result = await apiListUserFollowers(userId, {
+    page: request.page,
+    page_size: request.pageSize
+  });
+  return mapPageMeta(
+    result,
+    result.items.map(mapPublicUser)
+  );
+}
+
+export async function v2ListUserFollowing(
+  userId: number,
+  request: UserRelationshipListRequestVM = {}
+): Promise<UserRelationshipPageVM> {
+  const result = await apiListUserFollowing(userId, {
+    page: request.page,
+    page_size: request.pageSize
+  });
+  return mapPageMeta(
+    result,
+    result.items.map(mapPublicUser)
+  );
 }
 
 export async function v2FollowUser(

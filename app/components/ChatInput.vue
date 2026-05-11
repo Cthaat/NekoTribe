@@ -257,7 +257,7 @@ const handleCancelReply = () => {
 </script>
 
 <template>
-  <div class="border-t bg-background p-4">
+  <div class="border-t bg-background p-3">
     <!-- 回复预览 -->
     <div
       v-if="replyTo"
@@ -604,13 +604,9 @@ const handleCancelReply = () => {
         <Textarea
           ref="textareaRef"
           v-model="message"
-          :placeholder="
-            t('chat.input.placeholder', {
-              channel: channelName || t('chat.fallbackChannel')
-            })
-          "
+          :placeholder="t('chat.input.placeholder', { channel: channelName || t('chat.fallbackChannel') })"
           :disabled="disabled"
-          class="min-h-11 max-h-32 resize-none px-3 py-2.5 leading-5"
+          class="min-h-11 max-h-32 resize-none px-4 py-2.5 leading-5 rounded-xl bg-card border"
           rows="1"
           @keydown="handleKeydown"
           @input="handleInput"
@@ -618,13 +614,15 @@ const handleCancelReply = () => {
       </div>
 
       <!-- 发送按钮 -->
-      <div class="flex h-11 shrink-0 items-center">
+      <div class="flex items-center">
         <AppSendButton
-          icon-only
           :aria-label="t('chat.actions.sendMessage')"
           :disabled="!canSend || disabled"
+          class="h-10 px-4 rounded-lg"
           @click="handleSend"
-        />
+        >
+          {{ t('chat.actions.sendMessage') }}
+        </AppSendButton>
       </div>
     </div>
   </div>
