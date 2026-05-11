@@ -54,7 +54,7 @@ const handleViewDetail = (tweet: ModerationTweet) => {
 
 <template>
   <div
-    class="rounded-lg border bg-card/70 p-4 shadow-sm"
+    class="overflow-hidden rounded-lg border bg-card/70 p-4 shadow-sm"
   >
     <!-- 列表头部 -->
     <div class="mb-4 flex items-center justify-between gap-3">
@@ -120,9 +120,9 @@ const handleViewDetail = (tweet: ModerationTweet) => {
     <!-- 推文列表 -->
     <ScrollArea
       v-else
-      class="max-h-[calc(100dvh-24rem)] min-h-[420px] pr-3"
+      class="max-h-[calc(100dvh-24rem)] min-h-[420px] w-full rounded-md"
     >
-      <div class="space-y-3">
+      <div class="space-y-3 pr-3">
         <ModerationCard
           v-for="tweet in tweets"
           :key="tweet.id"
