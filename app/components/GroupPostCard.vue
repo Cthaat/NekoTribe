@@ -21,6 +21,11 @@ import {
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle
+} from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -158,12 +163,13 @@ const handleShare = () => {
     }"
   >
     <CardHeader class="space-y-3 pb-2">
-      <div
+      <Alert
         v-if="groupContext"
-        class="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2"
+        class="bg-muted/30"
       >
-        <div class="flex min-w-0 items-center gap-2">
-          <Avatar class="h-7 w-7">
+        <Users class="h-4 w-4" />
+        <AlertTitle class="flex min-w-0 items-center gap-2">
+          <Avatar class="h-6 w-6">
             <AvatarImage
               :src="groupContext.avatar"
               :alt="groupContext.name"
@@ -172,28 +178,19 @@ const handleShare = () => {
               groupContext.name.charAt(0)
             }}</AvatarFallback>
           </Avatar>
-          <div class="min-w-0">
-            <div
-              class="truncate text-sm font-medium leading-none"
-            >
-              {{ groupContext.name }}
-            </div>
-            <div
-              class="mt-1 flex items-center gap-1 text-xs text-muted-foreground"
-            >
-              <Users class="h-3 w-3" />
-              <span>{{ t('groups.posts.groupContext') }}</span>
-            </div>
-          </div>
-        </div>
-        <Badge
-          v-if="groupContext.canManage"
-          variant="outline"
-          class="text-xs"
-        >
-          {{ t('groups.posts.manageable') }}
-        </Badge>
-      </div>
+          <span class="truncate">{{ groupContext.name }}</span>
+          <Badge
+            v-if="groupContext.canManage"
+            variant="outline"
+            class="ml-auto text-xs"
+          >
+            {{ t('groups.posts.manageable') }}
+          </Badge>
+        </AlertTitle>
+        <AlertDescription>
+          {{ t('groups.posts.groupContext') }}
+        </AlertDescription>
+      </Alert>
 
       <div class="flex items-start justify-between gap-3">
         <!-- 作者信息 -->
