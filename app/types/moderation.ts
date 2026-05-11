@@ -126,9 +126,24 @@ export interface ModerationSettingVM {
   updatedAt: string;
 }
 
+export interface ModerationAppealVM {
+  id: number;
+  statementId: number;
+  userId: number;
+  userName: string;
+  username: string;
+  message: string;
+  status: 'pending' | 'approved' | 'rejected';
+  adminResponse: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ModerationContentPageVM =
   PageViewModel<ModerationTweetVM>;
 export type ModerationReportPageVM =
   PageViewModel<ModerationReportVM>;
 export type ModerationUserPageVM =
   PageViewModel<ModerationUserVM>;
+export type ModerationAppealPageVM =
+  PageViewModel<ModerationAppealVM>;

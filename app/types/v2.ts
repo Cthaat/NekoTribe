@@ -444,6 +444,22 @@ export interface V2ModerationSetting {
   updated_at: string;
 }
 
+export interface V2ModerationAppeal {
+  appeal_id: number;
+  statement_id: number;
+  user: V2PublicUser;
+  appeal_message: string;
+  appeal_status: 'pending' | 'approved' | 'rejected';
+  admin_response: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface V2ModerationAppealPayload {
+  appeal_status: 'approved' | 'rejected';
+  admin_response?: string;
+}
+
 export interface V2ModerationSettingsPayload {
   settings: Array<{
     key: string;

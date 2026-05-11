@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3';
 import type oracledb from 'oracledb';
 import type {
+  V2ModerationAppeal,
   V2ModerationContentItem,
   V2ModerationPriority,
   V2ModerationReport,
@@ -1863,5 +1864,168 @@ export async function v2PatchModerationSettings(
   }
   await connection.commit();
   return await v2GetModerationSettings(event, connection);
+}
+
+async function mapAppeal(
+  connection: oracledb.Connection,
+  viewerId: number,
+  row: V2DbRecord
+): Promise<V2ModerationAppeal> {
+  const userRow = await v2One(
+    connection,
+    `
+    SELECT
+      u.user_id,
+      u.username,
+      u.avatar_url,
+      u.display_name,
+      u.bio,
+      u.location,
+      u.website,
+      u.is_verified,
+      NVL(us.followers_count, 0) AS followers_count,
+      NVL(us.following_count, 0) AS following_count,
+      NVL(us.posts_count, 0) AS posts_count,
+      NVL(us.likes_count, 0) AS likes_count,
+      fn_get_user_relationship(:viewer_id, u.user_id) AS relation
+    FROM n_users u
+    LEFT JOIN n_user_stats us ON us.user_id = u.user_id
+    WHERE u.user_id = :user_id
+    `,
+    {
+      viewer_id: viewerId,
+      user_id: v2Number(row.USER_ID)
+    }
+  );
+  if (!userRow) v2NotFound('用户不存在');
+  return {
+    appeal_id: v2Number(row.APPEAL_ID),
+    statement_id: v2Number(row.STATEMENT_ID),
+    user: mapUserFromRow(userRow),
+    appeal_message: v2String(row.APPEAL_MESSAGE),
+    appeal_status: ensureValue(
+      ['pending', 'approved', 'rejected'] as const,
+      v2String(row.APPEAL_STATUS),
+      'pending'
+    ),
+    admin_response: v2String(row.ADMIN_RESPONSE),
+    created_at: v2DateString(row.CREATED_AT) || '',
+    updated_at: v2DateString(row.UPDATED_AT) || ''
+  };
+}
+
+export async function v2ListModerationAppeals(
+  event: H3Event,
+  connection: oracledb.Connection
+): Promise<V2ServiceResponse<V2ModerationAppeal[]>> {
+  const auth = v2Auth(event);
+  const page = v2Page(event);
+  const status = v2QueryString(event, 'status', 'all');
+  const binds: Record<string, string | number> = {};
+  const where: string[] = ['1 = 1'];
+  if (status !== 'all') {
+    where.push('appeal_status = :status');
+    binds.status = ensureValue(
+      ['pending', 'approved', 'rejected'] as const,
+      status,
+      'pending'
+    );
+  }
+  const whereSql = where.join('\nAND ');
+  const total = await v2Count(
+    connection,
+    `SELECT COUNT(*) AS total FROM n_statement_appeals WHERE ${whereSql}`,
+    binds
+  );
+  const rows = await v2Rows(
+    connection,
+    `
+    SELECT *
+    FROM (
+      SELECT a.*, ROW_NUMBER() OVER (ORDER BY a.created_at DESC) AS rn
+      FROM n_statement_appeals a
+      WHERE ${whereSql}
+    )
+    WHERE rn BETWEEN :start_row AND :end_row
+    `,
+    {
+      ...binds,
+      start_row: page.start,
+      end_row: page.end
+    }
+  );
+  const appeals = await Promise.all(
+    rows.map(row => mapAppeal(connection, auth.userId, row))
+  );
+  return v2Ok(
+    appeals,
+    'moderation appeals listed',
+    v2PageMeta(page.page, page.page_size, total)
+  );
+}
+
+export async function v2PatchModerationAppeal(
+  event: H3Event,
+  connection: oracledb.Connection,
+  appealId: number
+): Promise<V2ServiceResponse<V2ModerationAppeal>> {
+  const auth = v2Auth(event);
+  const body = await v2Body(event);
+  const status = ensureValue(
+    ['approved', 'rejected'] as const,
+    v2String(body.appeal_status),
+    'rejected'
+  );
+  const adminResponse = v2String(body.admin_response);
+  const existing = await v2One(
+    connection,
+    `
+    SELECT user_id
+    FROM n_statement_appeals
+    WHERE appeal_id = :appeal_id
+    `,
+    { appeal_id: appealId }
+  );
+  if (!existing) v2NotFound('申诉不存在');
+  await v2Execute(
+    connection,
+    `
+    UPDATE n_statement_appeals
+    SET appeal_status = :appeal_status,
+        admin_response = :admin_response,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE appeal_id = :appeal_id
+    `,
+    {
+      appeal_status: status,
+      admin_response: adminResponse,
+      appeal_id: appealId
+    },
+    false
+  );
+  await recordAction(connection, {
+    caseId: null,
+    targetType: 'user',
+    targetId: v2Number(existing.USER_ID),
+    action: `appeal_${status}`,
+    moderatorUserId: auth.userId,
+    note: adminResponse
+  });
+  await connection.commit();
+
+  const row = await v2One(
+    connection,
+    `
+    SELECT *
+    FROM n_statement_appeals
+    WHERE appeal_id = :appeal_id
+    `,
+    { appeal_id: appealId }
+  );
+  if (!row) v2NotFound('申诉不存在');
+  return v2Ok(
+    await mapAppeal(connection, auth.userId, row),
+    'appeal updated'
+  );
 }
 

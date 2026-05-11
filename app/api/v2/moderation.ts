@@ -6,6 +6,8 @@ import {
 } from './client';
 import type {
   V2CreateReportPayload,
+  V2ModerationAppeal,
+  V2ModerationAppealPayload,
   V2ModerationActionPayload,
   V2ModerationContentItem,
   V2ModerationReport,
@@ -42,6 +44,13 @@ export interface V2ModerationUsersQuery
   q?: string;
   status?: string;
   sort?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface V2ModerationAppealsQuery
+  extends Record<string, V2QueryValue> {
+  status?: string;
   page?: number;
   page_size?: number;
 }
@@ -136,6 +145,33 @@ export async function v2ListModerationUsers(
     query
   });
   return toV2PagedResult(response);
+}
+
+export async function v2ListModerationAppeals(
+  query: V2ModerationAppealsQuery = {}
+): Promise<V2PagedResult<V2ModerationAppeal>> {
+  const response = await v2Request<
+    V2ModerationAppeal[],
+    undefined,
+    V2ModerationAppealsQuery
+  >('/api/v2/moderation/appeals', {
+    method: 'GET',
+    query
+  });
+  return toV2PagedResult(response);
+}
+
+export async function v2PatchModerationAppeal(
+  appealId: number,
+  payload: V2ModerationAppealPayload
+): Promise<V2ModerationAppeal> {
+  return await v2RequestData<
+    V2ModerationAppeal,
+    V2ModerationAppealPayload
+  >(`/api/v2/moderation/appeals/${appealId}`, {
+    method: 'PATCH',
+    body: payload
+  });
 }
 
 export async function v2ModerateUser(
