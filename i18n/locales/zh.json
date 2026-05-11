@@ -1508,6 +1508,11 @@
       "emptyDescription": "发布第一条推文后，你可以在这里管理内容和查看数据。",
       "emptyContent": "（无正文内容）",
       "loadingAnalytics": "正在刷新详细数据...",
+      "table": {
+        "post": "推文",
+        "createdAt": "发布时间",
+        "metrics": "数据"
+      },
       "sort": {
         "newest": "最新发布",
         "oldest": "最早发布",
