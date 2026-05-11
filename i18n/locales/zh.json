@@ -830,9 +830,9 @@
     },
     "actions": {
       "viewDetail": "查看详情",
-      "approve": "通过",
-      "approveFull": "通过审核",
-      "reject": "驳回",
+      "approve": "通过举报",
+      "approveFull": "通过举报并下架",
+      "reject": "驳回举报",
       "rejectPost": "驳回举报",
       "flag": "标记审查",
       "refresh": "刷新",
@@ -840,7 +840,7 @@
       "loadMore": "加载更多"
     },
     "feedback": {
-      "approved": "推文已通过审核",
+      "approved": "举报已通过，文章已下架",
       "rejected": "举报已驳回，文章将继续展示",
       "flagged": "推文已标记待进一步审查",
       "refreshed": "列表已刷新",
@@ -853,8 +853,8 @@
     "status": {
       "all": "全部状态",
       "pending": "待审核",
-      "approved": "已通过",
-      "rejected": "已拒绝",
+      "approved": "举报通过",
+      "rejected": "举报驳回",
       "flagged": "已标记",
       "removed": "已下架",
       "restored": "已恢复",
@@ -868,8 +868,8 @@
     },
     "stats": {
       "pending": "待审核",
-      "approved": "已通过",
-      "rejected": "已拒绝",
+      "approved": "举报通过",
+      "rejected": "举报驳回",
       "flagged": "已标记",
       "todayProcessed": "今日处理",
       "avgProcessTime": "平均处理时间",
