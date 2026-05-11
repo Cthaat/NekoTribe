@@ -624,5 +624,170 @@ function followUser() {
       </NuxtLink>
     </div>
   </nav>
+
+  <Dialog
+    :open="statsDialogOpen"
+    @update:open="statsDialogOpen = $event"
+  >
+    <DialogContent class="sm:max-w-xl">
+      <DialogHeader>
+        <DialogTitle>{{ statsDialogTitle }}</DialogTitle>
+        <DialogDescription>
+          {{ statsDialogDescription }}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div v-if="activeStatsType === 'likes'" class="space-y-4">
+        <div
+          v-if="likesLoading"
+          class="grid gap-3 sm:grid-cols-2"
+        >
+          <Skeleton
+            v-for="item in 6"
+            :key="item"
+            class="h-20 rounded-lg"
+          />
+        </div>
+        <div
+          v-else-if="likesError"
+          class="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
+        >
+          {{ likesError }}
+        </div>
+        <div v-else class="grid gap-3 sm:grid-cols-2">
+          <div
+            v-for="item in likesStatItems"
+            :key="item.label"
+            class="rounded-lg border bg-card p-4"
+          >
+            <div
+              class="flex items-center gap-2 text-sm text-muted-foreground"
+            >
+              <Heart class="h-4 w-4" />
+              {{ item.label }}
+            </div>
+            <div class="mt-2 text-2xl font-semibold">
+              {{ item.value }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="space-y-4">
+        <div
+          class="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm"
+        >
+          <span class="text-muted-foreground">
+            {{
+              t('account.stats.total', {
+                count: formatNumber(relationshipTotal)
+              })
+            }}
+          </span>
+          <Badge variant="secondary">
+            {{
+              activeStatsType === 'followers'
+                ? t('account.header.followers')
+                : t('account.header.following')
+            }}
+          </Badge>
+        </div>
+
+        <ScrollArea class="h-[360px] rounded-lg border">
+          <div class="space-y-1 p-2">
+            <template
+              v-if="relationshipLoading && relationshipUsers.length === 0"
+            >
+              <div
+                v-for="item in 6"
+                :key="item"
+                class="flex items-center gap-3 rounded-lg p-2"
+              >
+                <Skeleton class="h-10 w-10 rounded-full" />
+                <div class="flex-1 space-y-2">
+                  <Skeleton class="h-4 w-32" />
+                  <Skeleton class="h-3 w-20" />
+                </div>
+              </div>
+            </template>
+
+            <div
+              v-else-if="relationshipError"
+              class="p-6 text-center text-sm text-destructive"
+            >
+              {{ relationshipError }}
+            </div>
+
+            <div
+              v-else-if="relationshipUsers.length === 0"
+              class="p-8 text-center text-sm text-muted-foreground"
+            >
+              {{
+                activeStatsType === 'followers'
+                  ? t('account.stats.emptyFollowers')
+                  : t('account.stats.emptyFollowing')
+              }}
+            </div>
+
+            <template v-else>
+              <button
+                v-for="item in relationshipUsers"
+                :key="item.id"
+                type="button"
+                class="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                @click="openUserProfile(item.id)"
+              >
+                <Avatar class="h-10 w-10">
+                  <AvatarImage :src="item.avatarUrl" />
+                  <AvatarFallback>
+                    {{ getUserInitials(item) }}
+                  </AvatarFallback>
+                </Avatar>
+                <div class="min-w-0 flex-1">
+                  <div
+                    class="truncate text-sm font-medium text-foreground"
+                  >
+                    {{ item.name || item.username }}
+                  </div>
+                  <div
+                    class="truncate text-xs text-muted-foreground"
+                  >
+                    @{{ item.username }}
+                  </div>
+                </div>
+                <Badge
+                  v-if="item.relationship.isFollowing"
+                  variant="secondary"
+                >
+                  {{ t('account.stats.followingBadge') }}
+                </Badge>
+                <UserRound
+                  v-else
+                  class="h-4 w-4 text-muted-foreground"
+                />
+              </button>
+            </template>
+          </div>
+        </ScrollArea>
+
+        <div
+          v-if="relationshipHasNext"
+          class="flex justify-center"
+        >
+          <Button
+            variant="outline"
+            :disabled="relationshipLoading"
+            @click="loadRelationshipUsers(false)"
+          >
+            {{
+              relationshipLoading
+                ? t('common.loading')
+                : t('common.loadMore')
+            }}
+          </Button>
+        </div>
+      </div>
+    </DialogContent>
+  </Dialog>
 </template>
 
