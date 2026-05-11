@@ -40,6 +40,7 @@ import type { GroupPost } from '@/types/groups';
 
 export type { GroupPost } from '@/types/groups';
 const { t, locale } = useAppLocale();
+const localePath = useLocalePath();
 
 const props = defineProps<{
   post: GroupPost;
@@ -154,6 +155,13 @@ const handleReport = () => {
 const handleShare = () => {
   emit('share', props.post.id);
 };
+
+const openAuthorProfile = () => {
+  if (!Number.isFinite(props.post.author.id) || props.post.author.id <= 0) {
+    return;
+  }
+  void navigateTo(localePath(`/user/${props.post.author.id}/profile`));
+};
 </script>
 
 <template>
@@ -194,7 +202,12 @@ const handleShare = () => {
 
       <div class="flex items-start justify-between gap-3">
         <!-- 作者信息 -->
-        <div class="flex items-center gap-3">
+        <Button
+          type="button"
+          variant="ghost"
+          class="h-auto min-w-0 justify-start gap-3 px-2 py-2 text-left"
+          @click="openAuthorProfile"
+        >
           <Avatar class="h-10 w-10">
             <AvatarImage
               :src="post.author.avatar"
@@ -232,7 +245,7 @@ const handleShare = () => {
               {{ formatTime(post.createdAt) }}
             </span>
           </div>
-        </div>
+        </Button>
 
         <!-- 操作菜单 -->
         <DropdownMenu>
