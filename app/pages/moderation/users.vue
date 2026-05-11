@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -146,13 +147,17 @@ onMounted(() => {
 
     <div v-if="loading && users.length === 0" class="space-y-3">
       <Card v-for="item in 4" :key="item">
-        <CardContent class="h-24 animate-pulse bg-muted/50" />
+        <CardContent class="p-0">
+          <Skeleton class="h-24 rounded-lg" />
+        </CardContent>
       </Card>
     </div>
 
-    <div v-else-if="users.length === 0" class="rounded-lg border p-10 text-center text-sm text-muted-foreground">
-      {{ t('moderation.users.empty') }}
-    </div>
+    <Card v-else-if="users.length === 0" class="gap-0 py-0">
+      <CardContent class="p-10 text-center text-sm text-muted-foreground">
+        {{ t('moderation.users.empty') }}
+      </CardContent>
+    </Card>
 
     <template v-else>
       <Card v-for="user in users" :key="user.id">
