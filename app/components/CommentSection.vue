@@ -8,6 +8,8 @@ import type {
 import { toast } from 'vue-sonner';
 import { MessageSquare } from 'lucide-vue-next';
 import CommentCard from './CommentCard.vue';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import AppSendButton from '@/components/app/AppSendButton.vue';
 
@@ -145,65 +147,65 @@ function handleCommentInputBlur() {
       >
         {{ t('comment.title') }}
       </h2>
-      <span
-        class="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full"
-      >
+      <Badge variant="secondary">
         {{ t('comment.count', { count: comments.length }) }}
-      </span>
+      </Badge>
     </div>
 
     <!-- 发表顶级评论的表单 -->
-    <div
-      class="mb-8 p-4 rounded-xl border-2 transition-all duration-300"
+    <Card
+      class="mb-8 gap-0 py-0 transition-all duration-300"
       :class="
         isCommentInputFocused
           ? 'border-primary bg-accent/5 shadow-lg shadow-primary/10'
-          : 'border-border bg-card'
+          : 'border-border'
       "
     >
-      <Textarea
-        v-model="newCommentContent"
-        :placeholder="t('comment.placeholder')"
-        class="mb-2 border-none focus-visible:ring-0 resize-none min-h-[80px] text-base bg-transparent"
-        @focus="isCommentInputFocused = true"
-        @blur="handleCommentInputBlur"
-      />
-      <Transition
-        enter-active-class="transition-all duration-300 ease-out"
-        enter-from-class="opacity-0 transform translate-y-2"
-        enter-to-class="opacity-100 transform translate-y-0"
-        leave-active-class="transition-all duration-200 ease-in"
-        leave-from-class="opacity-100 transform translate-y-0"
-        leave-to-class="opacity-0 transform translate-y-2"
-      >
-        <div
-          v-if="isCommentInputFocused"
-          class="flex justify-between items-center mt-3"
+      <CardContent class="p-4">
+        <Textarea
+          v-model="newCommentContent"
+          :placeholder="t('comment.placeholder')"
+          class="mb-2 border-none bg-transparent text-base focus-visible:ring-0 min-h-[80px] resize-none"
+          @focus="isCommentInputFocused = true"
+          @blur="handleCommentInputBlur"
+        />
+        <Transition
+          enter-active-class="transition-all duration-300 ease-out"
+          enter-from-class="opacity-0 transform translate-y-2"
+          enter-to-class="opacity-100 transform translate-y-0"
+          leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="opacity-100 transform translate-y-0"
+          leave-to-class="opacity-0 transform translate-y-2"
         >
-          <span class="text-xs text-muted-foreground ml-2">
-            {{
-              t('comment.characterCount', {
-                count: newCommentContent.length,
-                max: 500
-              })
-            }}
-          </span>
-          <AppSendButton
-            @click="handleSubmitTweetReply"
-            :disabled="
-              isSubmitting || !newCommentContent.trim()
-            "
-            size="sm"
+          <div
+            v-if="isCommentInputFocused"
+            class="mt-3 flex items-center justify-between"
           >
-            {{
-              isSubmitting
-                ? t('comment.submitting')
-                : t('comment.submit')
-            }}
-          </AppSendButton>
-        </div>
-      </Transition>
-    </div>
+            <span class="ml-2 text-xs text-muted-foreground">
+              {{
+                t('comment.characterCount', {
+                  count: newCommentContent.length,
+                  max: 500
+                })
+              }}
+            </span>
+            <AppSendButton
+              @click="handleSubmitTweetReply"
+              :disabled="
+                isSubmitting || !newCommentContent.trim()
+              "
+              size="sm"
+            >
+              {{
+                isSubmitting
+                  ? t('comment.submitting')
+                  : t('comment.submit')
+              }}
+            </AppSendButton>
+          </div>
+        </Transition>
+      </CardContent>
+    </Card>
 
     <!-- 评论列表的渲染从此开始 -->
     <div v-if="nestedComments.length > 0" class="space-y-3">
@@ -216,21 +218,23 @@ function handleCommentInputBlur() {
         @submit-reply="handleSubmitReply"
       />
     </div>
-    <div v-else class="text-center py-16 px-4">
-      <div
-        class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4"
-      >
-        <MessageSquare
-          class="w-8 h-8 text-muted-foreground"
-        />
-      </div>
-      <p class="text-lg font-medium text-foreground mb-2">
-        {{ t('comment.emptyTitle') }}
-      </p>
-      <p class="text-sm text-muted-foreground">
-        {{ t('comment.emptyDescription') }}
-      </p>
-    </div>
+    <Card v-else class="gap-0 border-dashed py-0">
+      <CardContent class="px-4 py-16 text-center">
+        <div
+          class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted"
+        >
+          <MessageSquare
+            class="h-8 w-8 text-muted-foreground"
+          />
+        </div>
+        <p class="mb-2 text-lg font-medium text-foreground">
+          {{ t('comment.emptyTitle') }}
+        </p>
+        <p class="text-sm text-muted-foreground">
+          {{ t('comment.emptyDescription') }}
+        </p>
+      </CardContent>
+    </Card>
   </div>
 </template>
 
