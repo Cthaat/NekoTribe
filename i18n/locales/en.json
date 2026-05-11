@@ -1508,6 +1508,11 @@
       "emptyDescription": "After you publish your first post, you can manage content and inspect analytics here.",
       "emptyContent": "(No body content)",
       "loadingAnalytics": "Refreshing detailed metrics...",
+      "table": {
+        "post": "Post",
+        "createdAt": "Published",
+        "metrics": "Metrics"
+      },
       "sort": {
         "newest": "Newest",
         "oldest": "Oldest",
