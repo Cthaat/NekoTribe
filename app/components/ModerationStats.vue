@@ -22,6 +22,8 @@ export interface ModerationStatsData {
   flagged: number;
   todayProcessed: number;
   avgProcessTime: string;
+  openReports?: number;
+  appealSuccessRate?: number;
 }
 
 const props = withDefaults(
@@ -35,7 +37,9 @@ const props = withDefaults(
       rejected: 0,
       flagged: 0,
       todayProcessed: 0,
-      avgProcessTime: ''
+      avgProcessTime: '',
+      openReports: 0,
+      appealSuccessRate: 0
     })
   }
 );
@@ -87,13 +91,28 @@ const statsCards = computed(() => [
     color: 'text-purple-500',
     bgColor: 'bg-purple-500/10',
     isText: true
+  },
+  {
+    title: t('moderation.stats.openReports'),
+    value: props.stats.openReports ?? 0,
+    icon: AlertTriangle,
+    color: 'text-red-500',
+    bgColor: 'bg-red-500/10'
+  },
+  {
+    title: t('moderation.stats.appealSuccessRate'),
+    value: `${props.stats.appealSuccessRate ?? 0}%`,
+    icon: TrendingUp,
+    color: 'text-cyan-500',
+    bgColor: 'bg-cyan-500/10',
+    isText: true
   }
 ]);
 </script>
 
 <template>
   <div
-    class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4"
+    class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4"
   >
     <Card
       v-for="stat in statsCards"
