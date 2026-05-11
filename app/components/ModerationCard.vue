@@ -23,6 +23,11 @@ import {
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle
+} from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -282,59 +287,51 @@ const handleViewDetail = () => {
           </div>
         </div>
 
-        <div
-          class="space-y-3 rounded-lg border bg-muted/30 p-3"
-        >
+        <Alert variant="destructive">
           <!-- 举报信息 -->
-          <div class="flex items-start gap-2">
-            <div
-              class="rounded-md bg-destructive/10 p-2 text-destructive"
-            >
-              <AlertTriangle class="h-4 w-4" />
+          <AlertTriangle class="h-4 w-4" />
+          <AlertTitle>
+            {{
+              t('moderation.card.reportCount', {
+                count: tweet.reportCount
+              })
+            }}
+          </AlertTitle>
+          <AlertDescription class="space-y-3">
+            <div class="flex flex-wrap gap-1">
+              <Badge
+                v-for="reason in tweet.reportReasons"
+                :key="reason"
+                variant="outline"
+                class="text-xs"
+              >
+                {{ getReasonLabel(reason) }}
+              </Badge>
             </div>
-            <div class="min-w-0 flex-1">
-              <div class="text-sm font-medium">
-                {{
-                  t('moderation.card.reportCount', {
-                    count: tweet.reportCount
-                  })
-                }}
-              </div>
-              <div class="mt-2 flex flex-wrap gap-1">
-                <Badge
-                  v-for="reason in tweet.reportReasons"
-                  :key="reason"
-                  variant="outline"
-                  class="text-xs"
-                >
-                  {{ getReasonLabel(reason) }}
-                </Badge>
-              </div>
-            </div>
-          </div>
 
-          <!-- 时间信息 -->
-          <div
-            class="space-y-2 border-t pt-3 text-xs text-muted-foreground"
-          >
-            <div class="flex items-center gap-2">
-              <Clock class="h-3 w-3" />
-              <span>{{
-                t('moderation.card.publishedAt', {
-                  time: formatTime(tweet.createdAt)
-                })
-              }}</span>
+            <!-- 时间信息 -->
+            <div
+              class="space-y-2 border-t pt-3 text-xs"
+            >
+              <div class="flex items-center gap-2">
+                <Clock class="h-3 w-3" />
+                <span>{{
+                  t('moderation.card.publishedAt', {
+                    time: formatTime(tweet.createdAt)
+                  })
+                }}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <Flag class="h-3 w-3" />
+                <span>{{
+                  t('moderation.card.reportedAt', {
+                    time: formatTime(tweet.reportedAt)
+                  })
+                }}</span>
+              </div>
             </div>
-            <div class="flex items-center gap-2">
-              <Flag class="h-3 w-3" />
-              <span>{{
-                t('moderation.card.reportedAt', {
-                  time: formatTime(tweet.reportedAt)
-                })
-              }}</span>
-            </div>
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
       </div>
     </CardContent>
 
