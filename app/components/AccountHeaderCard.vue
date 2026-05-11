@@ -8,19 +8,58 @@ import AvatarUploader from '@/components/AvatarUploader.vue'; // 导入你的新
 // 1. 导入所有这个组件需要的依赖项
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import {
-  User,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage
+} from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Copy,
+  ExternalLink,
+  Heart,
   Mail,
   MapPin,
-  MoreHorizontal
+  MoreHorizontal,
+  RefreshCw,
+  Settings,
+  Shield,
+  User,
+  UserRound
 } from 'lucide-vue-next';
 import type { PropType } from 'vue';
 import { toast } from 'vue-sonner';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
+import {
+  v2GetUserAnalytics,
+  v2ListUserFollowers,
+  v2ListUserFollowing
+} from '@/services';
+import type {
+  PublicUserVM,
+  UserAnalyticsVM
+} from '@/types/users';
 
 const preferenceStore = usePreferenceStore();
-const { t } = useAppLocale();
+const { t, locale } = useAppLocale();
+const localePath = useLocalePath();
 
 // 2. 为 props 定义清晰的 TypeScript 类型
 interface UserData {
@@ -57,7 +96,32 @@ const props = defineProps({
 });
 
 // 3.定义 emits，声明该组件会触发 'update:user' 事件
-const emit = defineEmits(['update:user', 'follow']);
+const emit = defineEmits<{
+  (e: 'update:user', user: UserData): void;
+  (
+    e: 'follow',
+    user: UserData,
+    action: 'follow' | 'unfollow'
+  ): void;
+  (e: 'refresh'): void;
+}>();
+
+type StatsDialogType = 'followers' | 'following' | 'likes';
+
+const STATS_PAGE_SIZE = 20;
+
+const statsDialogOpen = ref(false);
+const activeStatsType =
+  ref<StatsDialogType>('followers');
+const relationshipUsers = ref<PublicUserVM[]>([]);
+const relationshipTotal = ref(0);
+const relationshipPage = ref(1);
+const relationshipHasNext = ref(false);
+const relationshipLoading = ref(false);
+const relationshipError = ref<string | null>(null);
+const likesAnalytics = ref<UserAnalyticsVM | null>(null);
+const likesLoading = ref(false);
+const likesError = ref<string | null>(null);
 
 // 4. 处理头像更新的正确方式
 const handleAvatarUpdate = (
@@ -105,6 +169,206 @@ const normalizedScore = computed(() => {
 const tabValue = defineModel<string>();
 const route = useRoute();
 
+const currentUserId = computed(
+  () => preferenceStore.preferences.user.id
+);
+
+const isSelfProfile = computed(() => {
+  return props.user.id > 0 && props.user.id === currentUserId.value;
+});
+
+const statsDialogTitle = computed(() => {
+  if (activeStatsType.value === 'followers') {
+    return t('account.stats.followersTitle');
+  }
+  if (activeStatsType.value === 'following') {
+    return t('account.stats.followingTitle');
+  }
+  return t('account.stats.likesTitle');
+});
+
+const statsDialogDescription = computed(() => {
+  if (activeStatsType.value === 'followers') {
+    return t('account.stats.followersDescription');
+  }
+  if (activeStatsType.value === 'following') {
+    return t('account.stats.followingDescription');
+  }
+  return t('account.stats.likesDescription');
+});
+
+const likesStatItems = computed(() => {
+  const analytics = likesAnalytics.value;
+
+  return [
+    {
+      label: t('account.stats.totalLikesReceived'),
+      value: formatNumber(
+        analytics?.totalLikesReceived ??
+          props.user.stats.likesCount
+      )
+    },
+    {
+      label: t('account.stats.avgLikesPerPost'),
+      value: formatDecimal(analytics?.avgLikesPerPost ?? 0)
+    },
+    {
+      label: t('account.stats.totalLikesGiven'),
+      value: formatNumber(analytics?.totalLikesGiven ?? 0)
+    },
+    {
+      label: t('account.stats.totalCommentsMade'),
+      value: formatNumber(analytics?.totalCommentsMade ?? 0)
+    },
+    {
+      label: t('account.stats.postsCount'),
+      value: formatNumber(analytics?.totalPosts ?? 0)
+    },
+    {
+      label: t('account.stats.engagementScore'),
+      value: formatNumber(
+        analytics?.engagementScore ?? props.user.point
+      )
+    }
+  ];
+});
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat(
+    locale.value === 'en' ? 'en-US' : 'zh-CN'
+  ).format(value);
+}
+
+function formatDecimal(value: number): string {
+  return new Intl.NumberFormat(
+    locale.value === 'en' ? 'en-US' : 'zh-CN',
+    {
+      maximumFractionDigits: 1
+    }
+  ).format(value);
+}
+
+function getUserInitials(user: PublicUserVM): string {
+  return (
+    user.name ||
+    user.username ||
+    '?'
+  )
+    .trim()
+    .slice(0, 1)
+    .toUpperCase();
+}
+
+function getProfilePath(userId: number): string {
+  return localePath(`/user/${userId}/profile`);
+}
+
+function openUserProfile(userId: number): void {
+  if (userId <= 0) return;
+  void navigateTo(getProfilePath(userId));
+}
+
+function openPublicProfile(): void {
+  openUserProfile(props.user.id);
+}
+
+async function copyProfileLink(): Promise<void> {
+  if (!process.client || props.user.id <= 0) return;
+
+  try {
+    const url = new URL(
+      getProfilePath(props.user.id),
+      window.location.origin
+    ).toString();
+    await navigator.clipboard.writeText(url);
+    toast.success(t('account.actions.copied'));
+  } catch (error) {
+    console.error(t('common.operationFailed'), error);
+    toast.error(t('common.operationFailed'));
+  }
+}
+
+function refreshProfile(): void {
+  emit('refresh');
+}
+
+function goToAccountSettings(): void {
+  void navigateTo(localePath('account-settings'));
+}
+
+function goToAccountSecurity(): void {
+  void navigateTo(localePath('account-security'));
+}
+
+async function loadRelationshipUsers(
+  reset = true
+): Promise<void> {
+  if (props.user.id <= 0 || relationshipLoading.value) return;
+
+  relationshipLoading.value = true;
+  relationshipError.value = null;
+
+  try {
+    const nextPage = reset
+      ? 1
+      : relationshipPage.value + 1;
+    const result =
+      activeStatsType.value === 'followers'
+        ? await v2ListUserFollowers(props.user.id, {
+            page: nextPage,
+            pageSize: STATS_PAGE_SIZE
+          })
+        : await v2ListUserFollowing(props.user.id, {
+            page: nextPage,
+            pageSize: STATS_PAGE_SIZE
+          });
+
+    relationshipUsers.value = reset
+      ? result.items
+      : [...relationshipUsers.value, ...result.items];
+    relationshipTotal.value = result.total;
+    relationshipPage.value = result.page;
+    relationshipHasNext.value = result.hasNext;
+  } catch (error) {
+    console.error(t('account.stats.loadFailed'), error);
+    relationshipError.value = t('account.stats.loadFailed');
+  } finally {
+    relationshipLoading.value = false;
+  }
+}
+
+async function loadLikesAnalytics(): Promise<void> {
+  if (props.user.id <= 0 || likesLoading.value) return;
+
+  likesLoading.value = true;
+  likesError.value = null;
+
+  try {
+    likesAnalytics.value = await v2GetUserAnalytics(props.user.id);
+  } catch (error) {
+    console.error(t('account.stats.loadFailed'), error);
+    likesError.value = t('account.stats.loadFailed');
+  } finally {
+    likesLoading.value = false;
+  }
+}
+
+function openStatsDialog(type: StatsDialogType): void {
+  activeStatsType.value = type;
+  statsDialogOpen.value = true;
+
+  if (type === 'likes') {
+    void loadLikesAnalytics();
+    return;
+  }
+
+  relationshipUsers.value = [];
+  relationshipTotal.value = 0;
+  relationshipPage.value = 1;
+  relationshipHasNext.value = false;
+  void loadRelationshipUsers(true);
+}
+
 function normalizePath(path: string): string {
   return path.replace(/\/+$/, '') || '/';
 }
@@ -126,8 +390,7 @@ function selectTab(tab: TabItem): void {
 
 const isFollowing = ref(props.user.follow === 'follow');
 const showFollowAction = computed(() => {
-  const currentUserId = preferenceStore.preferences.user.id;
-  return props.user.id > 0 && props.user.id !== currentUserId;
+  return props.user.id > 0 && props.user.id !== currentUserId.value;
 });
 
 watch(
@@ -222,12 +485,45 @@ function followUser() {
               >
                 {{ t('account.header.unfollow') }}
               </Button>
-              <Button variant="ghost" size="icon">
-                <MoreHorizontal class="w-4 h-4" />
-                <span class="sr-only">{{
-                  t('account.header.moreActions')
-                }}</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <Button variant="ghost" size="icon">
+                    <MoreHorizontal class="w-4 h-4" />
+                    <span class="sr-only">{{
+                      t('account.header.moreActions')
+                    }}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" class="w-52">
+                  <DropdownMenuItem @click="openPublicProfile">
+                    <ExternalLink class="h-4 w-4" />
+                    {{ t('account.actions.openPublicProfile') }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem @click="copyProfileLink">
+                    <Copy class="h-4 w-4" />
+                    {{ t('account.actions.copyProfileLink') }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem @click="refreshProfile">
+                    <RefreshCw class="h-4 w-4" />
+                    {{ t('account.actions.refreshProfile') }}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator v-if="isSelfProfile" />
+                  <DropdownMenuItem
+                    v-if="isSelfProfile"
+                    @click="goToAccountSettings"
+                  >
+                    <Settings class="h-4 w-4" />
+                    {{ t('account.actions.accountSettings') }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    v-if="isSelfProfile"
+                    @click="goToAccountSecurity"
+                  >
+                    <Shield class="h-4 w-4" />
+                    {{ t('account.actions.securitySettings') }}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -239,38 +535,48 @@ function followUser() {
             class="flex flex-col sm:flex-row items-center gap-4"
           >
             <div class="flex-1 grid grid-cols-3 gap-4">
-              <div class="text-center">
+              <button
+                type="button"
+                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                @click="openStatsDialog('followers')"
+              >
                 <p
                   class="flex items-center justify-center gap-1 text-lg font-bold"
                 >
-                  {{
-                    user.stats.followersCount.toLocaleString()
-                  }}
+                  {{ formatNumber(user.stats.followersCount) }}
                 </p>
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.followers') }}
                 </p>
-              </div>
-              <div class="text-center">
+              </button>
+              <button
+                type="button"
+                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                @click="openStatsDialog('following')"
+              >
                 <p
                   class="flex items-center justify-center gap-1 text-lg font-bold"
                 >
-                  {{ user.stats.followingCount }}
+                  {{ formatNumber(user.stats.followingCount) }}
                 </p>
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.following') }}
                 </p>
-              </div>
-              <div class="text-center">
+              </button>
+              <button
+                type="button"
+                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                @click="openStatsDialog('likes')"
+              >
                 <p
                   class="flex items-center justify-center gap-1 text-lg font-bold"
                 >
-                  {{ user.stats.likesCount }}
+                  {{ formatNumber(user.stats.likesCount) }}
                 </p>
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.likes') }}
                 </p>
-              </div>
+              </button>
             </div>
             <div class="w-full sm:w-1/3">
               <label
