@@ -1172,11 +1172,11 @@ onBeforeUnmount(() => {
                 >
                   {{ t('chat.invite.emptySearch') }}
                 </div>
-                <button
+                <Button
                   v-for="user in inviteCandidates"
                   :key="user.id"
-                  type="button"
-                  class="flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors hover:bg-muted"
+                  variant="ghost"
+                  class="h-auto w-full justify-start gap-3 p-2 text-left"
                   :class="{
                     'bg-muted': selectedInvitee?.id === user.id
                   }"
@@ -1205,7 +1205,7 @@ onBeforeUnmount(() => {
                   >
                     {{ t('chat.invite.selected') }}
                   </Badge>
-                </button>
+                </Button>
               </div>
             </ScrollArea>
           </div>
@@ -1396,12 +1396,13 @@ onBeforeUnmount(() => {
         class="h-full flex flex-col items-center justify-center gap-3 text-muted-foreground"
       >
         <p>{{ errorMessage }}</p>
-        <button
-          class="text-sm text-primary hover:underline"
+        <Button
+          variant="link"
+          class="h-auto p-0"
           @click="loadChat"
         >
           {{ t('common.refresh') }}
-        </button>
+        </Button>
       </div>
       <div
         v-else-if="!activeGroup"
