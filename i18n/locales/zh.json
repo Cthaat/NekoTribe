@@ -958,7 +958,25 @@
       "title": "审核设置",
       "description": "配置自动审核阈值、流程约束和处罚默认值。",
       "saved": "审核设置已保存",
-      "saveFailed": "保存审核设置失败"
+      "saveFailed": "保存审核设置失败",
+      "definitions": {
+        "auto_hide_report_threshold": {
+          "label": "自动隐藏阈值",
+          "description": "当举报数达到该值时，内容会被自动标记为高优先级。"
+        },
+        "require_note_on_reject": {
+          "label": "拒绝时要求备注",
+          "description": "审核员拒绝或下架内容时应填写处理说明。"
+        },
+        "allow_moderator_claim": {
+          "label": "允许领取审核任务",
+          "description": "审核员可以领取或释放审核队列中的记录。"
+        },
+        "default_mute_hours": {
+          "label": "默认禁言时长",
+          "description": "用户禁言操作默认持续的小时数。"
+        }
+      }
     },
     "reportDetails": {
       "spam": {

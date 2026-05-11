@@ -26,6 +26,14 @@ function updateBool(setting: ModerationSettingVM, value: boolean): void {
   setting.value = value ? 'true' : 'false';
 }
 
+function settingLabel(setting: ModerationSettingVM): string {
+  return t(`moderation.settings.definitions.${setting.key}.label`);
+}
+
+function settingDescription(setting: ModerationSettingVM): string {
+  return t(`moderation.settings.definitions.${setting.key}.description`);
+}
+
 async function loadSettings(): Promise<void> {
   loading.value = true;
   try {
@@ -84,8 +92,8 @@ onMounted(() => {
     <div v-else class="grid gap-4 md:grid-cols-2">
       <Card v-for="setting in settings" :key="setting.key">
         <CardHeader>
-          <CardTitle class="text-base">{{ setting.label }}</CardTitle>
-          <CardDescription>{{ setting.description }}</CardDescription>
+          <CardTitle class="text-base">{{ settingLabel(setting) }}</CardTitle>
+          <CardDescription>{{ settingDescription(setting) }}</CardDescription>
         </CardHeader>
         <CardContent>
           <div v-if="setting.valueType === 'boolean'" class="flex items-center justify-between">
