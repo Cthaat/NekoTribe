@@ -120,7 +120,7 @@ const handleViewDetail = (tweet: ModerationTweet) => {
     <!-- 推文列表 -->
     <ScrollArea
       v-else
-      class="max-h-[calc(100dvh-24rem)] min-h-[420px] w-full rounded-md"
+      class="h-[calc(100dvh-24rem)] max-h-[46rem] min-h-[420px] w-full rounded-md"
     >
       <div class="space-y-3 pr-3">
         <ModerationCard
