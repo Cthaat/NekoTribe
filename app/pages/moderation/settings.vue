@@ -5,6 +5,7 @@ import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import {
   getModerationSettings,
@@ -85,7 +86,9 @@ onMounted(() => {
 
     <div v-if="loading" class="grid gap-4 md:grid-cols-2">
       <Card v-for="item in 4" :key="item">
-        <CardContent class="h-32 animate-pulse bg-muted/50" />
+        <CardContent class="p-0">
+          <Skeleton class="h-32 rounded-lg" />
+        </CardContent>
       </Card>
     </div>
 
