@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Component, HTMLAttributes } from 'vue';
+import { computed, type Component, type HTMLAttributes } from 'vue';
 import { Inbox } from 'lucide-vue-next';
 
 interface Props {
@@ -9,9 +9,8 @@ interface Props {
   class?: HTMLAttributes['class'];
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  icon: Inbox
-});
+const props = defineProps<Props>();
+const emptyIcon = computed(() => props.icon ?? Inbox);
 </script>
 
 <template>
@@ -22,7 +21,7 @@ const props = withDefaults(defineProps<Props>(), {
     ]"
   >
     <component
-      :is="props.icon"
+      :is="emptyIcon"
       class="mb-3 h-9 w-9 text-muted-foreground"
       aria-hidden="true"
     />
