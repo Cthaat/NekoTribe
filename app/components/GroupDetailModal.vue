@@ -48,6 +48,7 @@ import type {
   GroupPost
 } from '@/types/groups';
 const { t, locale } = useAppLocale();
+const localePath = useLocalePath();
 
 const props = defineProps<{
   open: boolean;
@@ -156,6 +157,12 @@ const closeDialog = () => {
   emit('update:open', false);
 };
 
+const openMemberProfile = (userId: number) => {
+  if (!Number.isFinite(userId) || userId <= 0) return;
+  closeDialog();
+  void navigateTo(localePath(`/user/${userId}/profile`));
+};
+
 // 切换标签
 const handleTabChange = (value: string | number) => {
   activeTab.value = String(value);
@@ -178,16 +185,6 @@ const handleTabChange = (value: string | number) => {
             :alt="group.name"
             class="w-full h-full object-cover"
           />
-          <!-- 关闭按钮 -->
-          <Button
-            variant="secondary"
-            size="icon"
-            class="absolute top-2 right-2 rounded-full"
-            @click="closeDialog"
-          >
-            <span class="sr-only">{{ t('common.close') }}</span>
-            ×
-          </Button>
         </div>
 
         <!-- 头部信息 -->
@@ -340,7 +337,12 @@ const handleTabChange = (value: string | number) => {
               <!-- 群主信息 -->
               <div>
                 <h3 class="font-medium mb-3">{{ t('groups.detail.owner') }}</h3>
-                <div class="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  class="h-auto max-w-full justify-start gap-3 px-2 py-2 text-left"
+                  @click="openMemberProfile(group.owner.id)"
+                >
                   <Avatar class="h-10 w-10">
                     <AvatarImage
                       :src="group.owner.avatar"
@@ -367,7 +369,7 @@ const handleTabChange = (value: string | number) => {
                       >@{{ group.owner.username }}</span
                     >
                   </div>
-                </div>
+                </Button>
               </div>
 
               <!-- 分类和标签 -->
@@ -432,6 +434,7 @@ const handleTabChange = (value: string | number) => {
                   :can-manage="
                     group.isOwner || group.isAdmin
                   "
+                  @view-profile="openMemberProfile"
                 />
               </div>
             </TabsContent>
