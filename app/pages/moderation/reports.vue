@@ -258,37 +258,38 @@ onMounted(() => {
         >
           {{ t('moderation.appeals.empty') }}
         </div>
-        <div
-          v-for="appeal in appeals"
-          v-else
-          :key="appeal.id"
-          class="rounded-lg border p-4"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <div class="font-medium">
-                {{ appeal.userName }} · #{{ appeal.statementId }}
+        <template v-else>
+          <div
+            v-for="appeal in appeals"
+            :key="appeal.id"
+            class="rounded-lg border p-4"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="font-medium">
+                  {{ appeal.userName }} · #{{ appeal.statementId }}
+                </div>
+                <div class="text-sm text-muted-foreground">
+                  @{{ appeal.username }} · {{ appeal.status }}
+                </div>
               </div>
-              <div class="text-sm text-muted-foreground">
-                @{{ appeal.username }} · {{ appeal.status }}
-              </div>
+              <Badge variant="outline">{{ appeal.status }}</Badge>
             </div>
-            <Badge variant="outline">{{ appeal.status }}</Badge>
+            <p class="mt-3 text-sm">{{ appeal.message }}</p>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" @click="setAppealStatus(appeal, 'approved')">
+                {{ t('moderation.appeals.approve') }}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                @click="setAppealStatus(appeal, 'rejected')"
+              >
+                {{ t('moderation.appeals.reject') }}
+              </Button>
+            </div>
           </div>
-          <p class="mt-3 text-sm">{{ appeal.message }}</p>
-          <div class="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" @click="setAppealStatus(appeal, 'approved')">
-              {{ t('moderation.appeals.approve') }}
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              @click="setAppealStatus(appeal, 'rejected')"
-            >
-              {{ t('moderation.appeals.reject') }}
-            </Button>
-          </div>
-        </div>
+        </template>
       </CardContent>
     </Card>
   </div>
