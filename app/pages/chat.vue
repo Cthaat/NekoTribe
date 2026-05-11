@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -1211,15 +1212,17 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="space-y-4">
-            <div class="rounded-lg border p-4">
-              <div class="flex items-center gap-2 font-medium">
-                <Link class="h-4 w-4" />
-                {{ t('chat.invite.linkTitle') }}
-              </div>
-              <p class="mt-2 text-sm text-muted-foreground">
-                {{ t('chat.invite.linkDescription') }}
-              </p>
-            </div>
+            <Card class="gap-0 py-0">
+              <CardContent class="p-4">
+                <div class="flex items-center gap-2 font-medium">
+                  <Link class="h-4 w-4" />
+                  {{ t('chat.invite.linkTitle') }}
+                </div>
+                <p class="mt-2 text-sm text-muted-foreground">
+                  {{ t('chat.invite.linkDescription') }}
+                </p>
+              </CardContent>
+            </Card>
 
             <div class="grid grid-cols-2 gap-3">
               <div class="space-y-2">
@@ -1260,34 +1263,36 @@ onBeforeUnmount(() => {
               />
             </div>
 
-            <div
+            <Card
               v-if="createdInvite"
-              class="rounded-lg border bg-muted/30 p-3"
+              class="gap-0 bg-muted/30 py-0"
             >
-              <div class="text-sm font-medium">
-                {{ t('chat.invite.createdTitle') }}
-              </div>
-              <div
-                v-if="inviteUrl(createdInvite)"
-                class="mt-2 flex items-center gap-2"
-              >
-                <Input
-                  :model-value="inviteUrl(createdInvite) || ''"
-                  readonly
-                  class="h-8 text-xs"
-                />
-                <Button
-                  size="icon"
-                  variant="outline"
-                  @click="copyCreatedInvite"
+              <CardContent class="p-3">
+                <div class="text-sm font-medium">
+                  {{ t('chat.invite.createdTitle') }}
+                </div>
+                <div
+                  v-if="inviteUrl(createdInvite)"
+                  class="mt-2 flex items-center gap-2"
                 >
-                  <Copy class="h-4 w-4" />
-                </Button>
-              </div>
-              <p v-else class="mt-2 text-sm text-muted-foreground">
-                {{ t('chat.invite.targetedCreated') }}
-              </p>
-            </div>
+                  <Input
+                    :model-value="inviteUrl(createdInvite) || ''"
+                    readonly
+                    class="h-8 text-xs"
+                  />
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    @click="copyCreatedInvite"
+                  >
+                    <Copy class="h-4 w-4" />
+                  </Button>
+                </div>
+                <p v-else class="mt-2 text-sm text-muted-foreground">
+                  {{ t('chat.invite.targetedCreated') }}
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
 
@@ -1335,42 +1340,50 @@ onBeforeUnmount(() => {
 
         <ScrollArea class="max-h-[56vh] pr-4">
           <div class="space-y-3">
-            <div
+            <Card
               v-if="chatChannels.length === 0"
-              class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
+              class="gap-0 border-dashed py-0"
             >
-              {{ t('chat.notifications.noChannels') }}
-            </div>
-            <div
+              <CardContent
+                class="p-8 text-center text-sm text-muted-foreground"
+              >
+                {{ t('chat.notifications.noChannels') }}
+              </CardContent>
+            </Card>
+            <Card
               v-for="channel in chatChannels"
               :key="channel.id"
-              class="flex items-center justify-between gap-4 rounded-lg border p-3"
+              class="gap-0 py-0"
             >
-              <div class="min-w-0">
-                <div class="flex items-center gap-2">
-                  <component
-                    :is="channel.isMuted ? BellOff : Bell"
-                    class="h-4 w-4 text-muted-foreground"
-                  />
-                  <span class="truncate text-sm font-medium">
-                    # {{ channel.name }}
-                  </span>
+              <CardContent
+                class="flex items-center justify-between gap-4 p-3"
+              >
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <component
+                      :is="channel.isMuted ? BellOff : Bell"
+                      class="h-4 w-4 text-muted-foreground"
+                    />
+                    <span class="truncate text-sm font-medium">
+                      # {{ channel.name }}
+                    </span>
+                  </div>
+                  <p class="mt-1 text-xs text-muted-foreground">
+                    {{
+                      channel.isMuted
+                        ? t('chat.notifications.channelMuted')
+                        : t('chat.notifications.channelUnmuted')
+                    }}
+                  </p>
                 </div>
-                <p class="mt-1 text-xs text-muted-foreground">
-                  {{
-                    channel.isMuted
-                      ? t('chat.notifications.channelMuted')
-                      : t('chat.notifications.channelUnmuted')
-                  }}
-                </p>
-              </div>
-              <Switch
-                :model-value="!!channel.isMuted"
-                @update:model-value="
-                  () => handleToggleChannelMute(channel.id)
-                "
-              />
-            </div>
+                <Switch
+                  :model-value="!!channel.isMuted"
+                  @update:model-value="
+                    () => handleToggleChannelMute(channel.id)
+                  "
+                />
+              </CardContent>
+            </Card>
           </div>
         </ScrollArea>
       </DialogContent>
