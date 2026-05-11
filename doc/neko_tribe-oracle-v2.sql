@@ -2443,6 +2443,42 @@ BEGIN
 END;
 /
 
+CREATE OR REPLACE TRIGGER trg_moderation_reports_pk
+BEFORE INSERT ON n_moderation_reports
+FOR EACH ROW
+WHEN (NEW.report_id IS NULL)
+BEGIN
+    SELECT seq_moderation_report_id.NEXTVAL INTO :NEW.report_id FROM dual;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_moderation_cases_pk
+BEFORE INSERT ON n_moderation_cases
+FOR EACH ROW
+WHEN (NEW.case_id IS NULL)
+BEGIN
+    SELECT seq_moderation_case_id.NEXTVAL INTO :NEW.case_id FROM dual;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_moderation_actions_pk
+BEFORE INSERT ON n_moderation_actions
+FOR EACH ROW
+WHEN (NEW.action_id IS NULL)
+BEGIN
+    SELECT seq_moderation_action_id.NEXTVAL INTO :NEW.action_id FROM dual;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_moderation_restrictions_pk
+BEFORE INSERT ON n_moderation_user_restrictions
+FOR EACH ROW
+WHEN (NEW.restriction_id IS NULL)
+BEGIN
+    SELECT seq_moderation_restriction_id.NEXTVAL INTO :NEW.restriction_id FROM dual;
+END;
+/
+
 -- 8.2 用户与会话触发器
 CREATE OR REPLACE TRIGGER trg_users_audit
 BEFORE INSERT OR UPDATE ON n_users
@@ -2940,6 +2976,30 @@ END;
 
 CREATE OR REPLACE TRIGGER trg_statement_appeals_updated_at
 BEFORE UPDATE ON n_statement_appeals
+FOR EACH ROW
+BEGIN
+    :NEW.updated_at := CURRENT_TIMESTAMP;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_moderation_reports_updated_at
+BEFORE UPDATE ON n_moderation_reports
+FOR EACH ROW
+BEGIN
+    :NEW.updated_at := CURRENT_TIMESTAMP;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_moderation_cases_updated_at
+BEFORE UPDATE ON n_moderation_cases
+FOR EACH ROW
+BEGIN
+    :NEW.updated_at := CURRENT_TIMESTAMP;
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_moderation_settings_updated_at
+BEFORE UPDATE ON n_moderation_settings
 FOR EACH ROW
 BEGIN
     :NEW.updated_at := CURRENT_TIMESTAMP;
