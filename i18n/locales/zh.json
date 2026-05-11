@@ -1385,6 +1385,7 @@
       "overview": "概览",
       "settings": "设置",
       "profile": "个人资料",
+      "posts": "推文管理",
       "appearance": "外观",
       "security": "安全",
       "active": "活跃设备",
@@ -1490,6 +1491,65 @@
       "appealStatus": "申诉状态",
       "actionSuccess": "操作成功。",
       "actionFailed": "操作失败。"
+    },
+    "posts": {
+      "title": "推文管理",
+      "description": "管理你发布的所有推文，调整可见范围、语言、位置和话题，并查看单条推文的数据表现。",
+      "create": "发布新推文",
+      "save": "保存更改",
+      "open": "打开详情",
+      "searchPlaceholder": "搜索自己的推文内容...",
+      "listTitle": "当前列表 {count} 条推文",
+      "detailTitle": "推文设置与数据",
+      "detailDescription": "选择左侧推文后编辑设置或查看详细指标。",
+      "noSelection": "请选择一条推文进行管理。",
+      "emptyTitle": "还没有可管理的推文",
+      "emptyDescription": "发布第一条推文后，你可以在这里管理内容和查看数据。",
+      "emptyContent": "（无正文内容）",
+      "loadingAnalytics": "正在刷新详细数据...",
+      "sort": {
+        "newest": "最新发布",
+        "oldest": "最早发布",
+        "popular": "互动最高"
+      },
+      "visibility": {
+        "all": "全部可见范围"
+      },
+      "language": {
+        "zh": "中文",
+        "en": "英文",
+        "ja": "日文",
+        "ko": "韩文"
+      },
+      "stats": {
+        "total": "全部推文",
+        "visible": "当前展示",
+        "views": "当前页浏览",
+        "interactions": "当前页互动"
+      },
+      "metrics": {
+        "views": "浏览",
+        "likes": "点赞",
+        "comments": "评论",
+        "replies": "回复",
+        "retweets": "转发",
+        "engagement": "互动分",
+        "likeRate": "点赞率"
+      },
+      "form": {
+        "content": "正文内容",
+        "visibility": "可见范围",
+        "language": "语言",
+        "location": "位置",
+        "tags": "话题",
+        "tagsPlaceholder": "用逗号分隔，例如 Oracle, Nuxt, V2"
+      },
+      "feedback": {
+        "loadFailed": "加载推文管理数据失败",
+        "analyticsFailed": "加载推文详细数据失败",
+        "saved": "推文设置已保存",
+        "saveFailed": "保存推文设置失败"
+      }
     },
     "overview": {
       "title": "账号概览",
