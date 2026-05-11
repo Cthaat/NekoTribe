@@ -154,8 +154,9 @@ onMounted(() => {
       {{ t('moderation.users.empty') }}
     </div>
 
-    <Card v-for="user in users" v-else :key="user.id">
-      <CardHeader class="flex flex-row items-start justify-between space-y-0">
+    <template v-else>
+      <Card v-for="user in users" :key="user.id">
+        <CardHeader class="flex flex-row items-start justify-between space-y-0">
         <div class="flex items-center gap-3">
           <Avatar class="h-11 w-11">
             <AvatarImage :src="user.avatarUrl" />
@@ -179,8 +180,8 @@ onMounted(() => {
             {{ user.activeRestriction }}
           </Badge>
         </div>
-      </CardHeader>
-      <CardContent class="space-y-4">
+        </CardHeader>
+        <CardContent class="space-y-4">
         <div class="grid gap-3 text-sm sm:grid-cols-4">
           <div>
             <div class="text-muted-foreground">{{ t('account.header.followers') }}</div>
@@ -239,8 +240,9 @@ onMounted(() => {
             {{ t('moderation.users.unmute') }}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </template>
 
     <div v-if="hasNext" class="flex justify-center">
       <Button variant="outline" :disabled="loading" @click="loadUsers(false)">
