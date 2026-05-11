@@ -12,13 +12,6 @@ import {
   TabsList,
   TabsTrigger
 } from '@/components/ui/tabs';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
 
 const { t } = useAppLocale();
 const localePath = useLocalePath();
@@ -95,46 +88,50 @@ watch(currentPath, newPath => {
 </script>
 
 <template>
-  <div class="container mx-auto py-6 px-4 max-w-7xl">
-    <!-- 页面标题 -->
-    <div class="flex items-center gap-3 mb-6">
-      <div class="p-2 bg-primary/10 rounded-lg">
-        <Shield class="h-6 w-6 text-primary" />
-      </div>
-      <div>
-        <h1 class="text-2xl font-bold">
-          {{ t('moderation.title') }}
-        </h1>
-        <p class="text-sm text-muted-foreground">
-          {{ t('moderation.description') }}
-        </p>
-      </div>
-    </div>
-
-    <!-- 标签导航 -->
-    <Tabs
-      :model-value="activeTab"
-      @update:model-value="handleTabChange"
-      class="mb-6"
-    >
-      <TabsList
-        class="grid w-full grid-cols-4 lg:w-auto lg:inline-grid"
+  <div
+    class="min-h-[calc(100dvh-4rem)] overflow-y-auto px-4 py-5"
+  >
+    <div class="mx-auto max-w-7xl space-y-5">
+      <!-- 页面标题 -->
+      <div
+        class="flex flex-col gap-4 rounded-lg border bg-card/70 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
       >
-        <TabsTrigger
-          v-for="tab in tabs"
-          :key="tab.value"
-          :value="tab.value"
-          class="gap-2"
-        >
-          <component :is="tab.icon" class="h-4 w-4" />
-          <span class="hidden sm:inline">{{
-            t(tab.labelKey)
-          }}</span>
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
+        <div class="flex items-center gap-3">
+          <div class="rounded-md bg-primary/10 p-2">
+            <Shield class="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 class="text-xl font-semibold tracking-normal">
+              {{ t('moderation.title') }}
+            </h1>
+            <p class="text-sm text-muted-foreground">
+              {{ t('moderation.description') }}
+            </p>
+          </div>
+        </div>
 
-    <!-- 子页面内容 -->
-    <NuxtPage />
+        <!-- 标签导航 -->
+        <Tabs
+          :model-value="activeTab"
+          @update:model-value="handleTabChange"
+          class="overflow-x-auto"
+        >
+          <TabsList class="w-full sm:w-auto">
+            <TabsTrigger
+              v-for="tab in tabs"
+              :key="tab.value"
+              :value="tab.value"
+              class="gap-2"
+            >
+              <component :is="tab.icon" class="h-4 w-4" />
+              <span>{{ t(tab.labelKey) }}</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      <!-- 子页面内容 -->
+      <NuxtPage />
+    </div>
   </div>
 </template>

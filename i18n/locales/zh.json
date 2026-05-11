@@ -832,8 +832,8 @@
       "viewDetail": "查看详情",
       "approve": "通过",
       "approveFull": "通过审核",
-      "reject": "拒绝",
-      "rejectPost": "拒绝推文",
+      "reject": "驳回",
+      "rejectPost": "驳回举报",
       "flag": "标记审查",
       "refresh": "刷新",
       "refreshList": "刷新列表",
@@ -841,7 +841,7 @@
     },
     "feedback": {
       "approved": "推文已通过审核",
-      "rejected": "推文已拒绝",
+      "rejected": "举报已驳回，文章将继续展示",
       "flagged": "推文已标记待进一步审查",
       "refreshed": "列表已刷新",
       "noMore": "没有更多内容了",
@@ -879,7 +879,7 @@
       "appealSuccessRate": "申诉成功率"
     },
     "list": {
-      "count": "共 {count} 条待审核内容",
+      "count": "当前列表 {count} 条内容",
       "emptyTitle": "没有待审核的内容",
       "emptyDescription": "当前没有需要审核的推文。新的举报内容将会显示在这里。"
     },
