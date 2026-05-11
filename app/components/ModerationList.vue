@@ -2,7 +2,9 @@
 import { ref } from 'vue';
 import { Inbox, RefreshCw } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import ModerationCard from './ModerationCard.vue';
 import type { ModerationTweet } from './ModerationCard.vue';
 
@@ -53,9 +55,8 @@ const handleViewDetail = (tweet: ModerationTweet) => {
 </script>
 
 <template>
-  <div
-    class="overflow-hidden rounded-lg border bg-card/70 p-4 shadow-sm"
-  >
+  <Card class="gap-0 overflow-hidden bg-card/70 py-0">
+    <CardContent class="p-4">
     <!-- 列表头部 -->
     <div class="mb-4 flex items-center justify-between gap-3">
       <div>
@@ -88,9 +89,7 @@ const handleViewDetail = (tweet: ModerationTweet) => {
 
     <!-- 加载状态 -->
     <div v-if="loading" class="space-y-3">
-      <div v-for="i in 3" :key="i" class="animate-pulse">
-        <div class="h-44 rounded-lg bg-muted"></div>
-      </div>
+      <Skeleton v-for="i in 3" :key="i" class="h-44 rounded-lg" />
     </div>
 
     <!-- 空状态 -->
@@ -144,5 +143,6 @@ const handleViewDetail = (tweet: ModerationTweet) => {
         </div>
       </div>
     </ScrollArea>
-  </div>
+    </CardContent>
+  </Card>
 </template>
