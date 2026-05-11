@@ -146,13 +146,15 @@ const handleViewDetail = () => {
 </script>
 
 <template>
-  <Card class="hover:bg-muted/50 transition-colors">
+  <Card
+    class="overflow-hidden border-border/70 bg-background shadow-sm transition-colors hover:bg-muted/20"
+  >
     <CardHeader
-      class="flex flex-row items-start justify-between space-y-0 pb-2"
+      class="flex flex-row items-start justify-between gap-4 space-y-0 border-b bg-muted/20 px-4 py-3"
     >
       <!-- 用户信息 -->
-      <div class="flex items-center gap-3">
-        <Avatar class="h-10 w-10">
+      <div class="flex min-w-0 items-center gap-3">
+        <Avatar class="h-10 w-10 shrink-0">
           <AvatarImage
             :src="tweet.author.avatar"
             :alt="tweet.author.nickname"
@@ -161,9 +163,9 @@ const handleViewDetail = () => {
             tweet.author.nickname.charAt(0)
           }}</AvatarFallback>
         </Avatar>
-        <div class="flex flex-col">
-          <div class="flex items-center gap-1">
-            <span class="font-semibold text-sm">{{
+        <div class="min-w-0">
+          <div class="flex min-w-0 items-center gap-1">
+            <span class="truncate text-sm font-semibold">{{
               tweet.author.nickname
             }}</span>
             <span
@@ -180,7 +182,10 @@ const handleViewDetail = () => {
       </div>
 
       <!-- 状态和操作 -->
-      <div class="flex items-center gap-2">
+      <div class="flex shrink-0 items-center gap-2">
+        <Badge variant="outline" class="capitalize">
+          {{ tweet.priority }}
+        </Badge>
         <Badge :variant="statusBadgeVariant">
           {{ statusText }}
         </Badge>
@@ -226,104 +231,112 @@ const handleViewDetail = () => {
       </div>
     </CardHeader>
 
-    <CardContent class="pb-3">
-      <!-- 推文内容 -->
-      <p class="text-sm whitespace-pre-wrap mb-3">
-        {{ tweet.content }}
-      </p>
+    <CardContent class="p-4">
+      <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div class="min-w-0 space-y-3">
+          <!-- 推文内容 -->
+          <p class="whitespace-pre-wrap text-sm leading-6">
+            {{ tweet.content }}
+          </p>
 
-      <!-- 媒体预览 -->
-      <div
-        v-if="tweet.media && tweet.media.length > 0"
-        class="grid gap-2 mb-3"
-        :class="{
-          'grid-cols-1': tweet.media.length === 1,
-          'grid-cols-2': tweet.media.length >= 2
-        }"
-      >
-        <div
-          v-for="(media, index) in tweet.media.slice(0, 4)"
-          :key="index"
-          class="relative aspect-video rounded-lg overflow-hidden bg-muted"
-        >
-          <img
-            :src="media.thumbnail || media.url"
-            :alt="
-              t('moderation.card.mediaAlt', {
-                index: index + 1
-              })
-            "
-            class="w-full h-full object-cover"
-          />
+          <!-- 媒体预览 -->
           <div
-            v-if="media.type === 'video'"
-            class="absolute inset-0 flex items-center justify-center bg-black/30"
+            v-if="tweet.media && tweet.media.length > 0"
+            class="grid gap-2"
+            :class="{
+              'grid-cols-1': tweet.media.length === 1,
+              'grid-cols-2': tweet.media.length >= 2
+            }"
           >
             <div
-              class="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center"
+              v-for="(media, index) in tweet.media.slice(0, 4)"
+              :key="index"
+              class="relative aspect-video overflow-hidden rounded-md bg-muted"
             >
+              <img
+                :src="media.thumbnail || media.url"
+                :alt="
+                  t('moderation.card.mediaAlt', {
+                    index: index + 1
+                  })
+                "
+                class="h-full w-full object-cover"
+              />
               <div
-                class="w-0 h-0 border-t-6 border-b-6 border-l-10 border-transparent border-l-gray-800 ml-1"
-              ></div>
+                v-if="media.type === 'video'"
+                class="absolute inset-0 flex items-center justify-center bg-black/30"
+              >
+                <div
+                  class="flex h-12 w-12 items-center justify-center rounded-full bg-white/80"
+                >
+                  <div
+                    class="ml-1 h-0 w-0 border-y-[6px] border-l-[10px] border-y-transparent border-l-gray-800"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="space-y-3 rounded-lg border bg-muted/20 p-3"
+        >
+          <!-- 举报信息 -->
+          <div class="flex items-start gap-2">
+            <div
+              class="rounded-md bg-destructive/10 p-2 text-destructive"
+            >
+              <AlertTriangle class="h-4 w-4" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-medium">
+                {{
+                  t('moderation.card.reportCount', {
+                    count: tweet.reportCount
+                  })
+                }}
+              </div>
+              <div class="mt-2 flex flex-wrap gap-1">
+                <Badge
+                  v-for="reason in tweet.reportReasons"
+                  :key="reason"
+                  variant="outline"
+                  class="text-xs"
+                >
+                  {{ getReasonLabel(reason) }}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          <!-- 时间信息 -->
+          <div
+            class="space-y-2 border-t pt-3 text-xs text-muted-foreground"
+          >
+            <div class="flex items-center gap-2">
+              <Clock class="h-3 w-3" />
+              <span>{{
+                t('moderation.card.publishedAt', {
+                  time: formatTime(tweet.createdAt)
+                })
+              }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <Flag class="h-3 w-3" />
+              <span>{{
+                t('moderation.card.reportedAt', {
+                  time: formatTime(tweet.reportedAt)
+                })
+              }}</span>
             </div>
           </div>
         </div>
       </div>
-
-      <!-- 举报信息 -->
-      <div
-        class="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg"
-      >
-        <AlertTriangle class="h-4 w-4 text-destructive" />
-        <div class="flex-1">
-          <span class="text-sm font-medium text-destructive"
-            >{{
-              t('moderation.card.reportCount', {
-                count: tweet.reportCount
-              })
-            }}</span
-          >
-          <div class="flex flex-wrap gap-1 mt-1">
-            <Badge
-              v-for="reason in tweet.reportReasons"
-              :key="reason"
-              variant="outline"
-              class="text-xs"
-            >
-              {{ getReasonLabel(reason) }}
-            </Badge>
-          </div>
-        </div>
-      </div>
-
-      <!-- 时间信息 -->
-      <div
-        class="flex items-center gap-4 mt-3 text-xs text-muted-foreground"
-      >
-        <div class="flex items-center gap-1">
-          <Clock class="h-3 w-3" />
-          <span
-            >{{
-              t('moderation.card.publishedAt', {
-                time: formatTime(tweet.createdAt)
-              })
-            }}</span
-          >
-        </div>
-        <div class="flex items-center gap-1">
-          <Flag class="h-3 w-3" />
-          <span
-            >{{
-              t('moderation.card.reportedAt', {
-                time: formatTime(tweet.reportedAt)
-              })
-            }}</span
-          >
-        </div>
-      </div>
     </CardContent>
 
-    <CardFooter class="flex justify-between border-t pt-3">
+    <CardFooter
+      class="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/10 px-4 py-3"
+    >
       <!-- 互动数据 -->
       <div
         class="flex items-center gap-4 text-muted-foreground"
@@ -343,11 +356,11 @@ const handleViewDetail = () => {
       </div>
 
       <!-- 快速操作按钮 -->
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <Button
           variant="outline"
           size="sm"
-          class="text-green-600 hover:text-green-700 hover:bg-green-50"
+          class="border-green-600/30 text-green-600 hover:bg-green-600/10 hover:text-green-700"
           @click="handleApprove"
         >
           <CheckCircle class="h-4 w-4 mr-1" />
@@ -356,7 +369,7 @@ const handleViewDetail = () => {
         <Button
           variant="outline"
           size="sm"
-          class="text-destructive hover:bg-destructive/10"
+          class="border-destructive/30 text-destructive hover:bg-destructive/10"
           @click="handleReject"
         >
           <XCircle class="h-4 w-4 mr-1" />
