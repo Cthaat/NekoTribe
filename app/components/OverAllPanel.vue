@@ -16,15 +16,23 @@ import {
 } from '@/components/ui/chart';
 import {
   VisAxis,
+  VisArea,
+  VisDonut,
+  VisGroupedBar,
   VisLine,
+  VisSingleContainer,
+  VisStackedBar,
   VisXYContainer
 } from '@unovis/vue';
 import {
   Activity,
+  BarChart3,
   CalendarDays,
   FileText,
   Heart,
   MessageSquare,
+  PieChart,
+  Repeat,
   Send,
   Sparkles,
   ThumbsUp,
@@ -111,7 +119,12 @@ interface DailyChartPoint {
   posts: number;
   likes: number;
   comments: number;
+  retweets: number;
   interaction: number;
+  givenLikes: number;
+  madeComments: number;
+  outgoing: number;
+  score: number;
 }
 
 const dailyInteraction = (row: UserDailyAnalyticsVM): number =>
@@ -126,9 +139,36 @@ const chartData = computed<DailyChartPoint[]>(() =>
     posts: row.postsCount,
     likes: row.likesReceived,
     comments: row.commentsReceived,
-    interaction: dailyInteraction(row)
+    retweets: row.retweetsReceived,
+    interaction: dailyInteraction(row),
+    givenLikes: row.likesGiven,
+    madeComments: row.commentsMade,
+    outgoing: row.likesGiven + row.commentsMade,
+    score: row.engagementScore
   }))
 );
+
+const totalPostsInRange = computed(() =>
+  chartData.value.reduce((total, point) => total + point.posts, 0)
+);
+const totalReceivedInRange = computed(() =>
+  chartData.value.reduce(
+    (total, point) =>
+      total + point.likes + point.comments + point.retweets,
+    0
+  )
+);
+const totalOutgoingInRange = computed(() =>
+  chartData.value.reduce(
+    (total, point) =>
+      total + point.givenLikes + point.madeComments,
+    0
+  )
+);
+const totalScoreInRange = computed(() =>
+  chartData.value.reduce((total, point) => total + point.score, 0)
+);
+const hasChartData = computed(() => chartData.value.length > 0);
 
 const chartConfig = {
   posts: {
@@ -143,10 +183,51 @@ const chartConfig = {
     label: t('account.overview.overallPanel.chartComments'),
     color: 'var(--chart-3)'
   },
+  retweets: {
+    label: t('account.overview.overallPanel.chartRetweets'),
+    color: 'var(--chart-5)'
+  },
   interaction: {
     label: t('account.overview.overallPanel.chartInteraction'),
     color: 'var(--chart-4)'
   }
+} satisfies ChartConfig;
+
+const receivedChartConfig = {
+  likes: chartConfig.likes,
+  comments: chartConfig.comments,
+  retweets: chartConfig.retweets
+} satisfies ChartConfig;
+
+const outgoingChartConfig = {
+  givenLikes: {
+    label: t('account.overview.overallPanel.chartGivenLikes'),
+    color: 'var(--chart-2)'
+  },
+  madeComments: {
+    label: t('account.overview.overallPanel.chartMadeComments'),
+    color: 'var(--chart-4)'
+  }
+} satisfies ChartConfig;
+
+const scoreChartConfig = {
+  score: {
+    label: t('account.overview.overallPanel.chartScore'),
+    color: 'var(--chart-1)'
+  }
+} satisfies ChartConfig;
+
+const compositionChartConfig = {
+  posts: chartConfig.posts,
+  received: {
+    label: t('account.overview.overallPanel.chartReceived'),
+    color: 'var(--chart-2)'
+  },
+  outgoing: {
+    label: t('account.overview.overallPanel.chartOutgoing'),
+    color: 'var(--chart-4)'
+  },
+  score: scoreChartConfig.score
 } satisfies ChartConfig;
 
 const chartColors = [
@@ -163,6 +244,26 @@ const chartY = [
   (point: DailyChartPoint) => point.comments,
   (point: DailyChartPoint) => point.interaction
 ];
+const receivedChartY = [
+  (point: DailyChartPoint) => point.likes,
+  (point: DailyChartPoint) => point.comments,
+  (point: DailyChartPoint) => point.retweets
+];
+const outgoingChartY = [
+  (point: DailyChartPoint) => point.givenLikes,
+  (point: DailyChartPoint) => point.madeComments
+];
+const scoreChartY = (point: DailyChartPoint): number => point.score;
+
+const receivedChartColors = [
+  receivedChartConfig.likes.color,
+  receivedChartConfig.comments.color,
+  receivedChartConfig.retweets.color
+];
+const outgoingChartColors = [
+  outgoingChartConfig.givenLikes.color,
+  outgoingChartConfig.madeComments.color
+];
 
 const formatChartDay = (value: number | Date): string =>
   new Intl.DateTimeFormat(locale.value, {
@@ -177,6 +278,76 @@ const chartTooltipTemplate = componentToString(
     labelFormatter: formatChartDay
   }
 );
+const receivedTooltipTemplate = componentToString(
+  receivedChartConfig,
+  ChartTooltipContent,
+  {
+    labelFormatter: formatChartDay
+  }
+);
+const outgoingTooltipTemplate = componentToString(
+  outgoingChartConfig,
+  ChartTooltipContent,
+  {
+    labelFormatter: formatChartDay
+  }
+);
+const scoreTooltipTemplate = componentToString(
+  scoreChartConfig,
+  ChartTooltipContent,
+  {
+    labelFormatter: formatChartDay
+  }
+);
+
+interface CompositionPoint {
+  key: keyof typeof compositionChartConfig;
+  label: string;
+  value: number;
+  color: string;
+}
+
+const compositionData = computed<CompositionPoint[]>(() => [
+  {
+    key: 'posts',
+    label: String(compositionChartConfig.posts.label),
+    value: totalPostsInRange.value,
+    color: String(compositionChartConfig.posts.color)
+  },
+  {
+    key: 'received',
+    label: String(compositionChartConfig.received.label),
+    value: totalReceivedInRange.value,
+    color: String(compositionChartConfig.received.color)
+  },
+  {
+    key: 'outgoing',
+    label: String(compositionChartConfig.outgoing.label),
+    value: totalOutgoingInRange.value,
+    color: String(compositionChartConfig.outgoing.color)
+  },
+  {
+    key: 'score',
+    label: String(compositionChartConfig.score.label),
+    value: totalScoreInRange.value,
+    color: String(compositionChartConfig.score.color)
+  }
+]);
+
+const compositionTotal = computed(() =>
+  compositionData.value.reduce(
+    (total, item) => total + item.value,
+    0
+  )
+);
+const hasCompositionData = computed(
+  () => compositionTotal.value > 0
+);
+
+const formatShare = (value: number): string => {
+  if (!compositionTotal.value) return '0%';
+  return `${Math.round((value / compositionTotal.value) * 100)}%`;
+};
 </script>
 
 <template>
