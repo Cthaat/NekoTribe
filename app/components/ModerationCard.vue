@@ -207,14 +207,14 @@ const handleViewDetail = () => {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               @click="handleApprove"
-              class="text-green-600"
+              class="text-destructive focus:text-destructive"
             >
               <CheckCircle class="h-4 w-4 mr-2" />
               {{ t('moderation.actions.approveFull') }}
             </DropdownMenuItem>
             <DropdownMenuItem
               @click="handleReject"
-              class="text-destructive"
+              class="text-foreground"
             >
               <XCircle class="h-4 w-4 mr-2" />
               {{ t('moderation.actions.rejectPost') }}
@@ -232,26 +232,22 @@ const handleViewDetail = () => {
     </CardHeader>
 
     <CardContent class="p-4">
-      <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_16rem]">
         <div class="min-w-0 space-y-3">
           <!-- 推文内容 -->
-          <p class="whitespace-pre-wrap text-sm leading-6">
+          <p class="whitespace-pre-wrap text-sm leading-6 text-foreground">
             {{ tweet.content }}
           </p>
 
           <!-- 媒体预览 -->
           <div
             v-if="tweet.media && tweet.media.length > 0"
-            class="grid gap-2"
-            :class="{
-              'grid-cols-1': tweet.media.length === 1,
-              'grid-cols-2': tweet.media.length >= 2
-            }"
+            class="flex max-w-full gap-2 overflow-hidden rounded-md border bg-muted/30 p-2"
           >
             <div
-              v-for="(media, index) in tweet.media.slice(0, 4)"
+              v-for="(media, index) in tweet.media.slice(0, 3)"
               :key="index"
-              class="relative aspect-video overflow-hidden rounded-md bg-muted"
+              class="relative h-24 w-32 shrink-0 overflow-hidden rounded border bg-background"
             >
               <img
                 :src="media.thumbnail || media.url"
@@ -274,12 +270,18 @@ const handleViewDetail = () => {
                   ></div>
                 </div>
               </div>
+              <div
+                v-if="index === 2 && tweet.media.length > 3"
+                class="absolute inset-0 flex items-center justify-center bg-background/80 text-sm font-medium"
+              >
+                +{{ tweet.media.length - 3 }}
+              </div>
             </div>
           </div>
         </div>
 
         <div
-          class="space-y-3 rounded-lg border bg-muted/20 p-3"
+          class="space-y-3 rounded-lg border bg-muted/30 p-3"
         >
           <!-- 举报信息 -->
           <div class="flex items-start gap-2">
@@ -358,9 +360,8 @@ const handleViewDetail = () => {
       <!-- 快速操作按钮 -->
       <div class="flex flex-wrap items-center gap-2">
         <Button
-          variant="outline"
+          variant="destructive"
           size="sm"
-          class="border-green-600/30 text-green-600 hover:bg-green-600/10 hover:text-green-700"
           @click="handleApprove"
         >
           <CheckCircle class="h-4 w-4 mr-1" />
@@ -369,7 +370,6 @@ const handleViewDetail = () => {
         <Button
           variant="outline"
           size="sm"
-          class="border-destructive/30 text-destructive hover:bg-destructive/10"
           @click="handleReject"
         >
           <XCircle class="h-4 w-4 mr-1" />
