@@ -57,14 +57,25 @@ export interface GroupPostMedia {
   thumbnail?: string;
 }
 
+export interface GroupPostGroup {
+  id: number;
+  name: string;
+  avatar: string;
+  privacy: GroupPrivacy;
+  isMember?: boolean;
+  canManage?: boolean;
+}
+
 export interface GroupPost {
   id: number;
   content: string;
   author: GroupOwner & {
     role: GroupRole;
   };
+  group?: GroupPostGroup;
   media?: GroupPostMedia[];
   isPinned?: boolean;
+  isAnnouncement?: boolean;
   likeCount: number;
   commentCount: number;
   isLiked?: boolean;
@@ -130,4 +141,18 @@ export interface GroupListResult {
 export interface GroupDetailResult {
   members: GroupMember[];
   posts: GroupPost[];
+}
+
+export interface GroupPostFeedOptions {
+  groupId?: number;
+  type?: 'all' | 'pinned' | 'announcement';
+  page: number;
+  pageSize: number;
+}
+
+export interface GroupPostFeedResult {
+  groups: Group[];
+  posts: GroupPost[];
+  total: number;
+  hasNext: boolean;
 }

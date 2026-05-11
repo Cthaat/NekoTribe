@@ -526,6 +526,17 @@ export interface V2CreateGroupPostPayload {
   media_urls?: string[];
 }
 
+export interface V2GroupPostPinStatusData {
+  post_id: number;
+  is_pinned: boolean;
+}
+
+export interface V2GroupPostLikeData {
+  post_id: number;
+  is_liked: boolean;
+  likes_count: number;
+}
+
 export interface V2GroupComment {
   comment_id: number;
   post_id: number;
