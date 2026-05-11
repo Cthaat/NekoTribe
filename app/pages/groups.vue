@@ -5,7 +5,7 @@ import {
   Compass,
   UserCheck,
   Bell,
-  Plus
+  FileText
 } from 'lucide-vue-next';
 import {
   Tabs,
@@ -37,6 +37,12 @@ const tabs = [
     labelKey: 'groups.tabs.my',
     icon: UserCheck,
     path: '/groups/my'
+  },
+  {
+    value: 'posts',
+    labelKey: 'groups.tabs.posts',
+    icon: FileText,
+    path: '/groups/posts'
   },
   {
     value: 'invites',
@@ -105,7 +111,7 @@ watch(currentPath, newPath => {
       @update:model-value="handleTabChange"
     >
       <TabsList
-        class="grid w-full grid-cols-3 lg:w-auto lg:inline-grid"
+        class="grid w-full grid-cols-4 lg:w-auto lg:inline-grid"
       >
         <TabsTrigger
           v-for="tab in tabs"
