@@ -5,6 +5,20 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
+import type { ChartConfig } from '@/components/ui/chart';
+import {
+  ChartContainer,
+  ChartCrosshair,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  componentToString
+} from '@/components/ui/chart';
+import {
+  VisAxis,
+  VisLine,
+  VisXYContainer
+} from '@unovis/vue';
 import {
   Activity,
   CalendarDays,
@@ -19,7 +33,7 @@ import {
 import { useAnimatedNumber } from '~/composables/useAnimatedNumber';
 import type { UserDailyAnalyticsVM } from '@/types/users';
 
-const { t } = useAppLocale();
+const { t, locale } = useAppLocale();
 
 interface UserAnalyticsData {
   totalTweets: number;
@@ -91,86 +105,78 @@ const formatNumber = (num: number) => {
   return num.toString();
 };
 
-const chartWidth = 640;
-const chartHeight = 220;
-const chartPadding = {
-  left: 34,
-  right: 18,
-  top: 18,
-  bottom: 34
-};
+interface DailyChartPoint {
+  day: string;
+  date: number;
+  posts: number;
+  likes: number;
+  comments: number;
+  interaction: number;
+}
 
-const dailyRows = computed(() => props.dailyAnalytics);
-
-const dailyInteraction = (
-  row: UserDailyAnalyticsVM
-): number =>
+const dailyInteraction = (row: UserDailyAnalyticsVM): number =>
   row.likesReceived +
   row.commentsReceived +
   row.retweetsReceived;
 
-const dailyMaxValue = computed(() =>
-  Math.max(
-    1,
-    ...dailyRows.value.flatMap(row => [
-      row.postsCount,
-      row.likesReceived,
-      row.commentsReceived,
-      dailyInteraction(row)
-    ])
-  )
+const chartData = computed<DailyChartPoint[]>(() =>
+  props.dailyAnalytics.map(row => ({
+    day: row.day,
+    date: new Date(`${row.day}T00:00:00`).getTime(),
+    posts: row.postsCount,
+    likes: row.likesReceived,
+    comments: row.commentsReceived,
+    interaction: dailyInteraction(row)
+  }))
 );
 
-const chartX = (index: number): number => {
-  const count = dailyRows.value.length;
-  if (count <= 1) return chartPadding.left;
-  return (
-    chartPadding.left +
-    (index *
-      (chartWidth - chartPadding.left - chartPadding.right)) /
-      (count - 1)
-  );
-};
+const chartConfig = {
+  posts: {
+    label: t('account.overview.overallPanel.chartPosts'),
+    color: 'var(--chart-1)'
+  },
+  likes: {
+    label: t('account.overview.overallPanel.chartLikes'),
+    color: 'var(--chart-2)'
+  },
+  comments: {
+    label: t('account.overview.overallPanel.chartComments'),
+    color: 'var(--chart-3)'
+  },
+  interaction: {
+    label: t('account.overview.overallPanel.chartInteraction'),
+    color: 'var(--chart-4)'
+  }
+} satisfies ChartConfig;
 
-const chartY = (value: number): number => {
-  const usableHeight =
-    chartHeight - chartPadding.top - chartPadding.bottom;
-  return (
-    chartPadding.top +
-    usableHeight * (1 - value / dailyMaxValue.value)
-  );
-};
+const chartColors = [
+  chartConfig.posts.color,
+  chartConfig.likes.color,
+  chartConfig.comments.color,
+  chartConfig.interaction.color
+];
 
-const chartPoints = (
-  selector: (row: UserDailyAnalyticsVM) => number
-): string =>
-  dailyRows.value
-    .map((row, index) =>
-      [chartX(index), chartY(selector(row))].join(',')
-    )
-    .join(' ');
+const chartX = (point: DailyChartPoint): number => point.date;
+const chartY = [
+  (point: DailyChartPoint) => point.posts,
+  (point: DailyChartPoint) => point.likes,
+  (point: DailyChartPoint) => point.comments,
+  (point: DailyChartPoint) => point.interaction
+];
 
-const postsPoints = computed(() =>
-  chartPoints(row => row.postsCount)
-);
-const likesPoints = computed(() =>
-  chartPoints(row => row.likesReceived)
-);
-const commentsPoints = computed(() =>
-  chartPoints(row => row.commentsReceived)
-);
-const interactionPoints = computed(() =>
-  chartPoints(dailyInteraction)
-);
+const formatChartDay = (value: number | Date): string =>
+  new Intl.DateTimeFormat(locale.value, {
+    month: '2-digit',
+    day: '2-digit'
+  }).format(value instanceof Date ? value : new Date(value));
 
-const labelStep = computed(() =>
-  Math.max(1, Math.ceil(dailyRows.value.length / 6))
+const chartTooltipTemplate = componentToString(
+  chartConfig,
+  ChartTooltipContent,
+  {
+    labelFormatter: formatChartDay
+  }
 );
-
-const formatChartDay = (value: string): string => {
-  const [, month = '', day = ''] = value.split('-');
-  return `${month}/${day}`;
-};
 </script>
 
 <template>
@@ -384,133 +390,61 @@ const formatChartDay = (value: string): string => {
             }}
           </p>
         </div>
-        <div
-          class="hidden flex-wrap items-center gap-3 text-xs text-muted-foreground sm:flex"
-        >
-          <span class="flex items-center gap-1">
-            <span class="h-2 w-2 rounded-full bg-chart-1" />
-            {{ t('account.overview.overallPanel.chartPosts') }}
-          </span>
-          <span class="flex items-center gap-1">
-            <span class="h-2 w-2 rounded-full bg-chart-2" />
-            {{ t('account.overview.overallPanel.chartLikes') }}
-          </span>
-          <span class="flex items-center gap-1">
-            <span class="h-2 w-2 rounded-full bg-chart-3" />
-            {{ t('account.overview.overallPanel.chartComments') }}
-          </span>
-          <span class="flex items-center gap-1">
-            <span class="h-2 w-2 rounded-full bg-chart-4" />
-            {{ t('account.overview.overallPanel.chartInteraction') }}
-          </span>
-        </div>
       </CardHeader>
       <CardContent>
         <div
-          v-if="dailyRows.length === 0"
+          v-if="chartData.length === 0"
           class="flex h-56 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
         >
           {{ t('account.overview.overallPanel.noTrendData') }}
         </div>
-        <div v-else class="overflow-hidden rounded-lg border bg-muted/20 p-3">
-          <svg
-            class="h-64 w-full"
-            :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
-            role="img"
-            :aria-label="t('account.overview.overallPanel.dailyTrend')"
+        <div
+          v-else
+          class="overflow-hidden rounded-lg border bg-muted/20 p-3"
+        >
+          <ChartContainer
+            :config="chartConfig"
+            :cursor="true"
+            class="h-72 w-full"
           >
-            <line
-              v-for="tick in [0, 0.25, 0.5, 0.75, 1]"
-              :key="tick"
-              :x1="chartPadding.left"
-              :x2="chartWidth - chartPadding.right"
-              :y1="chartPadding.top + (chartHeight - chartPadding.top - chartPadding.bottom) * tick"
-              :y2="chartPadding.top + (chartHeight - chartPadding.top - chartPadding.bottom) * tick"
-              class="stroke-border"
-              stroke-width="1"
-            />
-
-            <polyline
-              :points="interactionPoints"
-              fill="none"
-              stroke="var(--chart-4)"
-              stroke-width="3"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              opacity="0.9"
-            />
-            <polyline
-              :points="likesPoints"
-              fill="none"
-              stroke="var(--chart-2)"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <polyline
-              :points="commentsPoints"
-              fill="none"
-              stroke="var(--chart-3)"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <polyline
-              :points="postsPoints"
-              fill="none"
-              stroke="var(--chart-1)"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-
-            <g
-              v-for="(row, index) in dailyRows"
-              :key="row.day"
+            <VisXYContainer
+              :data="chartData"
+              :y-domain="[0, undefined]"
             >
-              <circle
-                :cx="chartX(index)"
-                :cy="chartY(dailyInteraction(row))"
-                r="3"
-                fill="var(--chart-4)"
+              <VisLine
+                :x="chartX"
+                :y="chartY"
+                :color="chartColors"
+                :line-width="2.5"
               />
-              <text
-                v-if="
-                  index === 0 ||
-                  index === dailyRows.length - 1 ||
-                  index % labelStep === 0
-                "
-                :x="chartX(index)"
-                :y="chartHeight - 8"
-                text-anchor="middle"
-                class="fill-muted-foreground text-[10px]"
-              >
-                {{ formatChartDay(row.day) }}
-              </text>
-            </g>
-
-            <text
-              :x="chartPadding.left - 8"
-              :y="chartY(dailyMaxValue)"
-              text-anchor="end"
-              dominant-baseline="middle"
-              class="fill-muted-foreground text-[10px]"
-            >
-              {{ dailyMaxValue }}
-            </text>
-            <text
-              :x="chartPadding.left - 8"
-              :y="chartY(0)"
-              text-anchor="end"
-              dominant-baseline="middle"
-              class="fill-muted-foreground text-[10px]"
-            >
-              0
-            </text>
-          </svg>
-
-          <div
-            class="mt-3 grid gap-2 text-xs text-muted-foreground sm:hidden"
+              <VisAxis
+                type="x"
+                :num-ticks="Math.min(6, chartData.length)"
+                :tick-format="formatChartDay"
+                :tick-line="false"
+                :domain-line="false"
+              />
+              <VisAxis
+                type="y"
+                :grid-line="true"
+                :tick-line="false"
+                :domain-line="false"
+              />
+              <ChartTooltip />
+              <ChartCrosshair
+                :template="chartTooltipTemplate"
+                :color="chartColors"
+              />
+            </VisXYContainer>
+            <ChartLegendContent
+              class="flex-wrap text-xs text-muted-foreground"
+            />
+          </ChartContainer>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+</template>
           >
             <div class="grid grid-cols-2 gap-2">
               <span class="flex items-center gap-1">
