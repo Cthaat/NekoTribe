@@ -830,6 +830,167 @@ COMMENT ON COLUMN n_statement_appeals.created_at IS '创建时间';
 COMMENT ON COLUMN n_statement_appeals.updated_at IS '更新时间';
 
 
+-- 4.25 审核举报表
+CREATE TABLE n_moderation_reports (
+    report_id                NUMBER(15)      PRIMARY KEY,
+    target_type              VARCHAR2(20)    NOT NULL,
+    target_id                NUMBER(15)      NOT NULL,
+    reporter_user_id         NUMBER(10),
+    reason                   VARCHAR2(30)    NOT NULL,
+    description              VARCHAR2(1000),
+    evidence_url             VARCHAR2(1000),
+    status                   VARCHAR2(20)    DEFAULT 'pending' NOT NULL,
+    priority                 VARCHAR2(20)    DEFAULT 'normal' NOT NULL,
+    handled_by               NUMBER(10),
+    created_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    resolved_at              TIMESTAMP,
+    CONSTRAINT ck_mod_reports_target CHECK (target_type IN ('post', 'comment', 'user')),
+    CONSTRAINT ck_mod_reports_reason CHECK (reason IN ('spam', 'harassment', 'hate', 'violence', 'adult', 'misinformation', 'copyright', 'other')),
+    CONSTRAINT ck_mod_reports_status CHECK (status IN ('pending', 'in_review', 'resolved', 'dismissed')),
+    CONSTRAINT ck_mod_reports_priority CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+    CONSTRAINT fk_mod_reports_reporter FOREIGN KEY (reporter_user_id)
+        REFERENCES n_users(user_id),
+    CONSTRAINT fk_mod_reports_handler FOREIGN KEY (handled_by)
+        REFERENCES n_users(user_id)
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_moderation_reports IS '内容举报记录表';
+COMMENT ON COLUMN n_moderation_reports.report_id IS '举报ID';
+COMMENT ON COLUMN n_moderation_reports.target_type IS '举报目标类型（post/comment/user）';
+COMMENT ON COLUMN n_moderation_reports.target_id IS '举报目标ID';
+COMMENT ON COLUMN n_moderation_reports.reporter_user_id IS '举报人用户ID';
+COMMENT ON COLUMN n_moderation_reports.reason IS '举报原因';
+COMMENT ON COLUMN n_moderation_reports.description IS '举报补充说明';
+COMMENT ON COLUMN n_moderation_reports.evidence_url IS '证据链接';
+COMMENT ON COLUMN n_moderation_reports.status IS '举报状态（pending/in_review/resolved/dismissed）';
+COMMENT ON COLUMN n_moderation_reports.priority IS '优先级（low/normal/high/urgent）';
+COMMENT ON COLUMN n_moderation_reports.handled_by IS '处理人用户ID';
+COMMENT ON COLUMN n_moderation_reports.created_at IS '创建时间';
+COMMENT ON COLUMN n_moderation_reports.updated_at IS '更新时间';
+COMMENT ON COLUMN n_moderation_reports.resolved_at IS '处理完成时间';
+
+
+-- 4.26 审核案件表
+CREATE TABLE n_moderation_cases (
+    case_id                  NUMBER(15)      PRIMARY KEY,
+    target_type              VARCHAR2(20)    NOT NULL,
+    target_id                NUMBER(15)      NOT NULL,
+    status                   VARCHAR2(20)    DEFAULT 'pending' NOT NULL,
+    priority                 VARCHAR2(20)    DEFAULT 'normal' NOT NULL,
+    assigned_to              NUMBER(10),
+    report_count             NUMBER(10)      DEFAULT 0 NOT NULL,
+    latest_reported_at       TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    resolved_at              TIMESTAMP,
+    CONSTRAINT uk_mod_cases_target UNIQUE (target_type, target_id),
+    CONSTRAINT ck_mod_cases_target CHECK (target_type IN ('post', 'comment', 'user')),
+    CONSTRAINT ck_mod_cases_status CHECK (status IN ('pending', 'approved', 'rejected', 'flagged', 'removed', 'restored')),
+    CONSTRAINT ck_mod_cases_priority CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+    CONSTRAINT fk_mod_cases_assignee FOREIGN KEY (assigned_to)
+        REFERENCES n_users(user_id)
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_moderation_cases IS '审核案件队列表';
+COMMENT ON COLUMN n_moderation_cases.case_id IS '审核案件ID';
+COMMENT ON COLUMN n_moderation_cases.target_type IS '审核目标类型（post/comment/user）';
+COMMENT ON COLUMN n_moderation_cases.target_id IS '审核目标ID';
+COMMENT ON COLUMN n_moderation_cases.status IS '案件状态（pending/approved/rejected/flagged/removed/restored）';
+COMMENT ON COLUMN n_moderation_cases.priority IS '优先级（low/normal/high/urgent）';
+COMMENT ON COLUMN n_moderation_cases.assigned_to IS '领取/分配的审核员用户ID';
+COMMENT ON COLUMN n_moderation_cases.report_count IS '关联举报数量';
+COMMENT ON COLUMN n_moderation_cases.latest_reported_at IS '最近举报时间';
+COMMENT ON COLUMN n_moderation_cases.created_at IS '创建时间';
+COMMENT ON COLUMN n_moderation_cases.updated_at IS '更新时间';
+COMMENT ON COLUMN n_moderation_cases.resolved_at IS '处理完成时间';
+
+
+-- 4.27 审核操作日志表
+CREATE TABLE n_moderation_actions (
+    action_id                NUMBER(15)      PRIMARY KEY,
+    case_id                  NUMBER(15),
+    target_type              VARCHAR2(20)    NOT NULL,
+    target_id                NUMBER(15)      NOT NULL,
+    action                   VARCHAR2(30)    NOT NULL,
+    moderator_user_id        NUMBER(10)      NOT NULL,
+    reason                   VARCHAR2(200),
+    note                     CLOB,
+    duration_hours           NUMBER(10),
+    created_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT fk_mod_actions_case FOREIGN KEY (case_id)
+        REFERENCES n_moderation_cases(case_id),
+    CONSTRAINT fk_mod_actions_user FOREIGN KEY (moderator_user_id)
+        REFERENCES n_users(user_id)
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_moderation_actions IS '审核操作留痕表';
+COMMENT ON COLUMN n_moderation_actions.action_id IS '审核操作ID';
+COMMENT ON COLUMN n_moderation_actions.case_id IS '关联审核案件ID';
+COMMENT ON COLUMN n_moderation_actions.target_type IS '操作目标类型（post/comment/user）';
+COMMENT ON COLUMN n_moderation_actions.target_id IS '操作目标ID';
+COMMENT ON COLUMN n_moderation_actions.action IS '审核动作';
+COMMENT ON COLUMN n_moderation_actions.moderator_user_id IS '审核员用户ID';
+COMMENT ON COLUMN n_moderation_actions.reason IS '动作原因';
+COMMENT ON COLUMN n_moderation_actions.note IS '审核备注';
+COMMENT ON COLUMN n_moderation_actions.duration_hours IS '处罚持续小时数';
+COMMENT ON COLUMN n_moderation_actions.created_at IS '创建时间';
+
+
+-- 4.28 用户处罚/限制表
+CREATE TABLE n_moderation_user_restrictions (
+    restriction_id           NUMBER(15)      PRIMARY KEY,
+    user_id                  NUMBER(10)      NOT NULL,
+    restriction_type         VARCHAR2(20)    NOT NULL,
+    status                   VARCHAR2(20)    DEFAULT 'active' NOT NULL,
+    reason                   VARCHAR2(200),
+    starts_at                TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    ends_at                  TIMESTAMP,
+    created_by               NUMBER(10)      NOT NULL,
+    revoked_by               NUMBER(10),
+    revoked_at               TIMESTAMP,
+    CONSTRAINT ck_mod_restriction_type CHECK (restriction_type IN ('ban', 'mute')),
+    CONSTRAINT ck_mod_restriction_status CHECK (status IN ('active', 'revoked', 'expired')),
+    CONSTRAINT fk_mod_restriction_user FOREIGN KEY (user_id)
+        REFERENCES n_users(user_id),
+    CONSTRAINT fk_mod_restriction_created FOREIGN KEY (created_by)
+        REFERENCES n_users(user_id),
+    CONSTRAINT fk_mod_restriction_revoked FOREIGN KEY (revoked_by)
+        REFERENCES n_users(user_id)
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_moderation_user_restrictions IS '用户处罚与限制表';
+COMMENT ON COLUMN n_moderation_user_restrictions.restriction_id IS '处罚/限制ID';
+COMMENT ON COLUMN n_moderation_user_restrictions.user_id IS '被处罚用户ID';
+COMMENT ON COLUMN n_moderation_user_restrictions.restriction_type IS '限制类型（ban/mute）';
+COMMENT ON COLUMN n_moderation_user_restrictions.status IS '限制状态（active/revoked/expired）';
+COMMENT ON COLUMN n_moderation_user_restrictions.reason IS '限制原因';
+COMMENT ON COLUMN n_moderation_user_restrictions.starts_at IS '开始时间';
+COMMENT ON COLUMN n_moderation_user_restrictions.ends_at IS '结束时间';
+COMMENT ON COLUMN n_moderation_user_restrictions.created_by IS '创建人用户ID';
+COMMENT ON COLUMN n_moderation_user_restrictions.revoked_by IS '撤销人用户ID';
+COMMENT ON COLUMN n_moderation_user_restrictions.revoked_at IS '撤销时间';
+
+
+-- 4.29 审核设置表
+CREATE TABLE n_moderation_settings (
+    setting_key              VARCHAR2(80)    PRIMARY KEY,
+    setting_value            VARCHAR2(1000)  NOT NULL,
+    value_type               VARCHAR2(20)    DEFAULT 'string' NOT NULL,
+    label                    VARCHAR2(120)   NOT NULL,
+    description              VARCHAR2(500),
+    updated_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by               NUMBER(10),
+    CONSTRAINT ck_mod_settings_type CHECK (value_type IN ('boolean', 'number', 'string')),
+    CONSTRAINT fk_mod_settings_user FOREIGN KEY (updated_by)
+        REFERENCES n_users(user_id)
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_moderation_settings IS '审核中心配置表';
+COMMENT ON COLUMN n_moderation_settings.setting_key IS '配置键';
+COMMENT ON COLUMN n_moderation_settings.setting_value IS '配置值';
+COMMENT ON COLUMN n_moderation_settings.value_type IS '值类型（boolean/number/string）';
+COMMENT ON COLUMN n_moderation_settings.label IS '配置名称';
+COMMENT ON COLUMN n_moderation_settings.description IS '配置说明';
+COMMENT ON COLUMN n_moderation_settings.updated_at IS '更新时间';
+COMMENT ON COLUMN n_moderation_settings.updated_by IS '更新人用户ID';
+
+
 -- ==========================================
 -- 5. 群组模块表（沿用 with-group 设计，作为 V2 正式群组模型）
 -- ==========================================
