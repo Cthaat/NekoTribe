@@ -242,7 +242,7 @@ const handleViewDetail = () => {
           <!-- 媒体预览 -->
           <div
             v-if="tweet.media && tweet.media.length > 0"
-            class="flex max-w-full gap-2 overflow-hidden rounded-md border bg-muted/30 p-2"
+            class="flex max-w-[26rem] flex-wrap gap-2 rounded-md border bg-muted/30 p-2"
           >
             <div
               v-for="(media, index) in tweet.media.slice(0, 3)"
