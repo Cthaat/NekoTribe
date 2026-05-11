@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
@@ -405,20 +406,22 @@ const closeDialog = () => {
               }}
             </h4>
             <div class="space-y-2">
-              <div
+              <Card
                 v-for="reason in tweet.reportReasons"
                 :key="reason"
-                class="rounded-lg border bg-destructive/5 p-3"
+                class="gap-0 bg-destructive/5 py-0"
               >
-                <div class="font-medium text-sm">
-                  {{ getReportReasonTitle(reason) }}
-                </div>
-                <div
-                  class="text-xs text-muted-foreground mt-1"
-                >
-                  {{ getReportReasonDescription(reason) }}
-                </div>
-              </div>
+                <CardContent class="p-3">
+                  <div class="text-sm font-medium">
+                    {{ getReportReasonTitle(reason) }}
+                  </div>
+                  <div
+                    class="mt-1 text-xs text-muted-foreground"
+                  >
+                    {{ getReportReasonDescription(reason) }}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
 
@@ -427,39 +430,41 @@ const closeDialog = () => {
             <h4 class="text-sm font-medium mb-2">
               {{ t('moderation.detail.engagement') }}
             </h4>
-            <div
-              class="flex flex-wrap items-center gap-6 rounded-lg border p-4"
-            >
-              <div class="flex items-center gap-2">
-                <Heart class="h-5 w-5 text-pink-500" />
-                <span class="font-medium">{{
-                  tweet.likes
-                }}</span>
-                <span class="text-sm text-muted-foreground"
-                  >{{ t('moderation.detail.likes') }}</span
-                >
-              </div>
-              <div class="flex items-center gap-2">
-                <Repeat class="h-5 w-5 text-green-500" />
-                <span class="font-medium">{{
-                  tweet.retweets
-                }}</span>
-                <span class="text-sm text-muted-foreground"
-                  >{{ t('moderation.detail.retweets') }}</span
-                >
-              </div>
-              <div class="flex items-center gap-2">
-                <MessageCircle
-                  class="h-5 w-5 text-blue-500"
-                />
-                <span class="font-medium">{{
-                  tweet.replies
-                }}</span>
-                <span class="text-sm text-muted-foreground"
-                  >{{ t('moderation.detail.replies') }}</span
-                >
-              </div>
-            </div>
+            <Card class="gap-0 py-0">
+              <CardContent
+                class="flex flex-wrap items-center gap-6 p-4"
+              >
+                <div class="flex items-center gap-2">
+                  <Heart class="h-5 w-5 text-pink-500" />
+                  <span class="font-medium">{{
+                    tweet.likes
+                  }}</span>
+                  <span class="text-sm text-muted-foreground"
+                    >{{ t('moderation.detail.likes') }}</span
+                  >
+                </div>
+                <div class="flex items-center gap-2">
+                  <Repeat class="h-5 w-5 text-green-500" />
+                  <span class="font-medium">{{
+                    tweet.retweets
+                  }}</span>
+                  <span class="text-sm text-muted-foreground"
+                    >{{ t('moderation.detail.retweets') }}</span
+                  >
+                </div>
+                <div class="flex items-center gap-2">
+                  <MessageCircle
+                    class="h-5 w-5 text-blue-500"
+                  />
+                  <span class="font-medium">{{
+                    tweet.replies
+                  }}</span>
+                  <span class="text-sm text-muted-foreground"
+                    >{{ t('moderation.detail.replies') }}</span
+                  >
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <Separator />
