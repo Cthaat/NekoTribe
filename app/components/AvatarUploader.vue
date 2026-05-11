@@ -22,7 +22,13 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-vue-next';
+import { Slider } from '@/components/ui/slider';
+import {
+  Loader2,
+  Minus,
+  Plus,
+  RotateCcw
+} from 'lucide-vue-next';
 import { v2UpdateAvatar } from '@/services';
 import { usePreferenceStore } from '~/stores/user';
 
@@ -82,6 +88,17 @@ const cropImageStyle = computed<CSSProperties>(() => {
     height: `${imageNaturalHeight.value * scale}px`,
     transform: `translate(calc(-50% + ${cropOffset.value.x}px), calc(-50% + ${cropOffset.value.y}px))`
   };
+});
+
+const zoomValue = computed<number[]>({
+  get: () => [cropZoom.value],
+  set: value => {
+    setZoom(value?.[0] ?? cropZoom.value);
+  }
+});
+
+const zoomPercent = computed(() => {
+  return `${Math.round(cropZoom.value * 100)}%`;
 });
 
 function triggerFileUpload(): void {
@@ -251,13 +268,26 @@ function stopDrag(event: PointerEvent): void {
   }
 }
 
-function onZoomInput(): void {
-  cropZoom.value = clamp(
-    Number(cropZoom.value),
-    MIN_ZOOM,
-    MAX_ZOOM
-  );
+function setZoom(value: number): void {
+  cropZoom.value = clamp(value, MIN_ZOOM, MAX_ZOOM);
   clampCropOffset();
+}
+
+function stepZoom(direction: -1 | 1): void {
+  setZoom(cropZoom.value + direction * 0.12);
+}
+
+function resetCropTransform(): void {
+  if (!imageLoaded.value || isUploading.value) return;
+  cropZoom.value = MIN_ZOOM;
+  cropOffset.value = { x: 0, y: 0 };
+  requestAnimationFrame(() => clampCropOffset());
+}
+
+function handleWheelZoom(event: WheelEvent): void {
+  if (!imageLoaded.value || isUploading.value) return;
+  const delta = event.deltaY < 0 ? 0.08 : -0.08;
+  setZoom(cropZoom.value + delta);
 }
 
 function createCroppedAvatarBlob(): Promise<Blob> {
@@ -420,10 +450,10 @@ onBeforeUnmount(() => {
         <DialogTitle>{{ t('avatar.crop.title') }}</DialogTitle>
       </DialogHeader>
 
-      <div class="space-y-4">
+      <div class="space-y-5">
         <div
           ref="cropFrameRef"
-          class="relative mx-auto aspect-square w-full max-w-80 touch-none select-none overflow-hidden rounded-lg border bg-muted"
+          class="relative mx-auto aspect-square w-full max-w-80 touch-none select-none overflow-hidden rounded-md border border-border bg-muted/40 shadow-inner"
           :class="
             imageLoaded && !isUploading
               ? isDragging
@@ -436,6 +466,7 @@ onBeforeUnmount(() => {
           @pointerup="stopDrag"
           @pointercancel="stopDrag"
           @lostpointercapture="isDragging = false"
+          @wheel.prevent="handleWheelZoom"
         >
           <img
             v-if="sourceImageUrl"
@@ -460,30 +491,73 @@ onBeforeUnmount(() => {
             class="pointer-events-none absolute inset-6 rounded-full border-2 border-background/95 shadow-[0_0_0_999px_rgba(0,0,0,0.42)]"
           />
           <div
-            class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-border"
+            class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-border/70"
           />
         </div>
 
-        <div class="space-y-2">
+        <div
+          class="space-y-3 rounded-md border bg-card/60 p-3 shadow-xs"
+        >
           <div class="flex items-center justify-between gap-3">
             <Label for="avatar-crop-zoom">
               {{ t('avatar.crop.zoom') }}
             </Label>
-            <span class="text-xs text-muted-foreground">
-              {{ Math.round(cropZoom * 100) }}%
+            <span
+              class="rounded-md border bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground"
+            >
+              {{ zoomPercent }}
             </span>
           </div>
-          <input
-            id="avatar-crop-zoom"
-            v-model.number="cropZoom"
-            type="range"
-            :min="MIN_ZOOM"
-            :max="MAX_ZOOM"
-            step="0.01"
-            class="h-2 w-full cursor-pointer accent-primary"
-            :disabled="!imageLoaded || isUploading"
-            @input="onZoomInput"
-          />
+          <div class="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              class="size-8"
+              :disabled="!imageLoaded || isUploading"
+              @click.stop="stepZoom(-1)"
+            >
+              <Minus class="size-4" />
+              <span class="sr-only">{{
+                t('avatar.crop.zoomOut')
+              }}</span>
+            </Button>
+            <Slider
+              id="avatar-crop-zoom"
+              v-model="zoomValue"
+              class="flex-1"
+              :min="MIN_ZOOM"
+              :max="MAX_ZOOM"
+              :step="0.01"
+              :disabled="!imageLoaded || isUploading"
+              :aria-label="t('avatar.crop.zoom')"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              class="size-8"
+              :disabled="!imageLoaded || isUploading"
+              @click.stop="stepZoom(1)"
+            >
+              <Plus class="size-4" />
+              <span class="sr-only">{{
+                t('avatar.crop.zoomIn')
+              }}</span>
+            </Button>
+          </div>
+          <div class="flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              :disabled="!imageLoaded || isUploading"
+              @click="resetCropTransform"
+            >
+              <RotateCcw class="size-4" />
+              {{ t('avatar.crop.reset') }}
+            </Button>
+          </div>
         </div>
       </div>
 

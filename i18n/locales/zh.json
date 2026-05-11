@@ -522,6 +522,9 @@
     "crop": {
       "title": "裁剪头像",
       "zoom": "缩放",
+      "zoomOut": "缩小",
+      "zoomIn": "放大",
+      "reset": "重置",
       "apply": "使用此头像"
     },
     "feedback": {

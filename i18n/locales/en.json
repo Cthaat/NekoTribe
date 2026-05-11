@@ -522,6 +522,9 @@
     "crop": {
       "title": "Crop avatar",
       "zoom": "Zoom",
+      "zoomOut": "Zoom out",
+      "zoomIn": "Zoom in",
+      "reset": "Reset",
       "apply": "Use this avatar"
     },
     "feedback": {
