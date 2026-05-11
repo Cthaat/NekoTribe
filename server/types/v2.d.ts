@@ -273,6 +273,150 @@ interface V2Post {
   updated_at: string;
 }
 
+type V2ModerationReportReason =
+  | 'spam'
+  | 'harassment'
+  | 'hate'
+  | 'violence'
+  | 'adult'
+  | 'misinformation'
+  | 'copyright'
+  | 'other';
+
+type V2ModerationStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'flagged'
+  | 'removed'
+  | 'restored';
+
+type V2ModerationReportStatus =
+  | 'pending'
+  | 'in_review'
+  | 'resolved'
+  | 'dismissed';
+
+type V2ModerationPriority =
+  | 'low'
+  | 'normal'
+  | 'high'
+  | 'urgent';
+
+type V2ModerationTargetType = 'post' | 'comment' | 'user';
+
+interface V2ModerationReport {
+  report_id: number;
+  target_type: V2ModerationTargetType;
+  target_id: number;
+  reporter: V2PublicUser | null;
+  reason: V2ModerationReportReason;
+  description: string;
+  evidence_url: string | null;
+  status: V2ModerationReportStatus;
+  priority: V2ModerationPriority;
+  handled_by: V2PublicUser | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+}
+
+interface V2ModerationContentItem {
+  case_id: number;
+  post_id: number;
+  content: string;
+  author: V2PublicUser;
+  media: V2MediaAsset[];
+  report_count: number;
+  report_reasons: V2ModerationReportReason[];
+  reports: V2ModerationReport[];
+  status: V2ModerationStatus;
+  priority: V2ModerationPriority;
+  assigned_to: V2PublicUser | null;
+  created_at: string;
+  updated_at: string;
+  reported_at: string;
+  likes_count: number;
+  retweets_count: number;
+  replies_count: number;
+}
+
+interface V2ModerationStats {
+  pending: number;
+  approved: number;
+  rejected: number;
+  flagged: number;
+  today_processed: number;
+  avg_process_minutes: number;
+  open_reports: number;
+  appeal_success_rate: number;
+}
+
+interface V2ModerationActionPayload {
+  action:
+    | 'approve'
+    | 'reject'
+    | 'flag'
+    | 'remove'
+    | 'restore'
+    | 'claim'
+    | 'release';
+  note?: string;
+  reason?: string;
+  duration_hours?: number;
+}
+
+interface V2ModerationUserItem {
+  user_id: number;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  email: string;
+  status: string;
+  is_active: number;
+  is_verified: number;
+  followers_count: number;
+  posts_count: number;
+  likes_count: number;
+  report_count: number;
+  active_restriction: string | null;
+  restriction_until: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface V2ModerationUserActionPayload {
+  action: 'ban' | 'unban' | 'mute' | 'unmute' | 'note';
+  reason?: string;
+  note?: string;
+  duration_hours?: number;
+}
+
+interface V2ModerationSetting {
+  key: string;
+  value: string;
+  value_type: 'boolean' | 'number' | 'string';
+  label: string;
+  description: string;
+  updated_at: string;
+}
+
+interface V2ModerationSettingsPayload {
+  settings: Array<{
+    key: string;
+    value: string;
+  }>;
+}
+
+interface V2CreateReportPayload {
+  target_type: V2ModerationTargetType;
+  target_id: number;
+  reason: V2ModerationReportReason;
+  description?: string;
+  evidence_url?: string;
+  priority?: V2ModerationPriority;
+}
+
 interface V2CreatePostPayload {
   content?: string;
   visibility?:
