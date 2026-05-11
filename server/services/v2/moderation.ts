@@ -114,7 +114,9 @@ function ensureValue<T extends readonly string[]>(
   value: string,
   fallback: T[number]
 ): T[number] {
-  return values.includes(value) ? value : fallback;
+  return (values as readonly string[]).includes(value)
+    ? (value as T[number])
+    : fallback;
 }
 
 function moderationReason(
