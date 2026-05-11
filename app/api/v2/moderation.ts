@@ -82,6 +82,21 @@ export async function v2ModeratePost(
   });
 }
 
+export async function v2BulkModeratePosts(payload: {
+  post_ids: number[];
+  action: 'approve' | 'reject' | 'flag' | 'remove' | 'restore';
+  note?: string;
+  reason?: string;
+}): Promise<{ processed_count: number }> {
+  return await v2RequestData<
+    { processed_count: number },
+    typeof payload
+  >('/api/v2/moderation/content/bulk-actions', {
+    method: 'POST',
+    body: payload
+  });
+}
+
 export async function v2ListModerationReports(
   query: V2ModerationReportsQuery = {}
 ): Promise<V2PagedResult<V2ModerationReport>> {
