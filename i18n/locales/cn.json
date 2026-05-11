@@ -337,6 +337,15 @@
         "compositionTitle": "总体占比",
         "compositionDescription": "汇总近 14 天发帖、收获互动、发出互动和互动分。",
         "compositionTotal": "总量",
+        "dataTableTitle": "数据明细",
+        "dataTableDescription": "按日期查看发帖、互动和活跃分数据。",
+        "tableDate": "日期",
+        "tablePosts": "发帖",
+        "tableLikes": "获赞",
+        "tableComments": "评论",
+        "tableRetweets": "转发",
+        "tableOutgoing": "发出互动",
+        "tableScore": "互动分",
         "noTrendData": "暂无每日变化数据"
       }
     },
