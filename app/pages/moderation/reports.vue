@@ -5,6 +5,7 @@ import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -183,13 +184,17 @@ onMounted(() => {
 
     <div v-if="loading && reports.length === 0" class="space-y-3">
       <Card v-for="item in 4" :key="item">
-        <CardContent class="h-24 animate-pulse bg-muted/50" />
+        <CardContent class="p-0">
+          <Skeleton class="h-24 rounded-lg" />
+        </CardContent>
       </Card>
     </div>
 
-    <div v-else-if="reports.length === 0" class="rounded-lg border p-10 text-center text-sm text-muted-foreground">
-      {{ t('moderation.reports.empty') }}
-    </div>
+    <Card v-else-if="reports.length === 0" class="gap-0 py-0">
+      <CardContent class="p-10 text-center text-sm text-muted-foreground">
+        {{ t('moderation.reports.empty') }}
+      </CardContent>
+    </Card>
 
     <template v-else>
       <Card v-for="report in reports" :key="report.id">
@@ -213,16 +218,18 @@ onMounted(() => {
         <p class="text-sm">
           {{ report.description || t('moderation.detail.reportFallback') }}
         </p>
-        <a
+        <Button
           v-if="report.evidenceUrl"
+          as="a"
           :href="report.evidenceUrl"
           target="_blank"
           rel="noreferrer"
-          class="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          variant="link"
+          class="h-auto justify-start p-0"
         >
           <ExternalLink class="h-4 w-4" />
           {{ t('moderation.reports.evidence') }}
-        </a>
+        </Button>
         <div class="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" @click="setReportStatus(report, 'in_review')">
             {{ t('moderation.reportStatus.inReview') }}
@@ -252,12 +259,14 @@ onMounted(() => {
         <CardTitle>{{ t('moderation.appeals.title') }}</CardTitle>
       </CardHeader>
       <CardContent class="space-y-3">
-        <div
+        <Card
           v-if="appeals.length === 0"
-          class="rounded-lg border p-6 text-center text-sm text-muted-foreground"
+          class="gap-0 py-0"
         >
-          {{ t('moderation.appeals.empty') }}
-        </div>
+          <CardContent class="p-6 text-center text-sm text-muted-foreground">
+            {{ t('moderation.appeals.empty') }}
+          </CardContent>
+        </Card>
         <template v-else>
           <div
             v-for="appeal in appeals"
