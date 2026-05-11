@@ -13,10 +13,13 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import {
+  listModerationAppeals,
   listModerationReports,
+  updateModerationAppeal,
   updateModerationReportStatus
 } from '@/services';
 import type {
+  ModerationAppealVM,
   ModerationReportStatusVM,
   ModerationReportVM
 } from '@/types/moderation';
@@ -24,6 +27,7 @@ import type {
 const { t } = useAppLocale();
 
 const reports = ref<ModerationReportVM[]>([]);
+const appeals = ref<ModerationAppealVM[]>([]);
 const loading = ref(false);
 const page = ref(1);
 const hasNext = ref(false);
@@ -60,6 +64,22 @@ async function loadReports(reset = true): Promise<void> {
   }
 }
 
+async function loadAppeals(): Promise<void> {
+  try {
+    const result = await listModerationAppeals({
+      status: 'all',
+      page: 1,
+      pageSize: 10
+    });
+    appeals.value = result.items;
+  } catch (error) {
+    toast.error(t('moderation.feedback.loadFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  }
+}
+
 async function setReportStatus(
   report: ModerationReportVM,
   status: ModerationReportStatusVM
@@ -68,6 +88,27 @@ async function setReportStatus(
     const updated = await updateModerationReportStatus(report.id, status);
     const index = reports.value.findIndex(item => item.id === report.id);
     if (index >= 0) reports.value[index] = updated;
+    toast.success(t('moderation.feedback.actionSuccess'));
+  } catch (error) {
+    toast.error(t('moderation.feedback.actionFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  }
+}
+
+async function setAppealStatus(
+  appeal: ModerationAppealVM,
+  status: 'approved' | 'rejected'
+): Promise<void> {
+  try {
+    const updated = await updateModerationAppeal(
+      appeal.id,
+      status,
+      t('moderation.appeals.defaultResponse')
+    );
+    const index = appeals.value.findIndex(item => item.id === appeal.id);
+    if (index >= 0) appeals.value[index] = updated;
     toast.success(t('moderation.feedback.actionSuccess'));
   } catch (error) {
     toast.error(t('moderation.feedback.actionFailed'), {
@@ -87,6 +128,7 @@ watch(
 
 onMounted(() => {
   void loadReports(true);
+  void loadAppeals();
 });
 </script>
 
@@ -204,5 +246,50 @@ onMounted(() => {
         {{ loading ? t('common.loading') : t('common.loadMore') }}
       </Button>
     </div>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>{{ t('moderation.appeals.title') }}</CardTitle>
+      </CardHeader>
+      <CardContent class="space-y-3">
+        <div
+          v-if="appeals.length === 0"
+          class="rounded-lg border p-6 text-center text-sm text-muted-foreground"
+        >
+          {{ t('moderation.appeals.empty') }}
+        </div>
+        <div
+          v-for="appeal in appeals"
+          v-else
+          :key="appeal.id"
+          class="rounded-lg border p-4"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="font-medium">
+                {{ appeal.userName }} · #{{ appeal.statementId }}
+              </div>
+              <div class="text-sm text-muted-foreground">
+                @{{ appeal.username }} · {{ appeal.status }}
+              </div>
+            </div>
+            <Badge variant="outline">{{ appeal.status }}</Badge>
+          </div>
+          <p class="mt-3 text-sm">{{ appeal.message }}</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" @click="setAppealStatus(appeal, 'approved')">
+              {{ t('moderation.appeals.approve') }}
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              @click="setAppealStatus(appeal, 'rejected')"
+            >
+              {{ t('moderation.appeals.reject') }}
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   </div>
 </template>
