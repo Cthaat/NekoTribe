@@ -1,5 +1,18 @@
 import type { H3Event } from 'h3';
 import type oracledb from 'oracledb';
+import type {
+  V2ModerationContentItem,
+  V2ModerationPriority,
+  V2ModerationReport,
+  V2ModerationReportReason,
+  V2ModerationReportStatus,
+  V2ModerationSetting,
+  V2ModerationStats,
+  V2ModerationStatus,
+  V2ModerationTargetType,
+  V2ModerationUserItem,
+  V2PublicUser
+} from '~/app/types/v2';
 import {
   v2Auth,
   v2BadRequest,
@@ -27,6 +40,19 @@ import {
   v2MapPublicUser,
   v2RequirePublicUser
 } from '~/server/models/v2';
+
+interface V2ServiceResponse<T> {
+  code: number;
+  message: string;
+  data: T;
+  meta: {
+    page?: number;
+    page_size?: number;
+    total?: number;
+    has_next?: boolean;
+    limit?: number;
+  } | null;
+}
 
 const REPORT_REASONS = [
   'spam',
