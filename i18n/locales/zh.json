@@ -99,7 +99,8 @@
     "actions": {
       "addBookmark": "加入书签",
       "removeBookmark": "删除书签",
-      "delete": "删除推文"
+      "delete": "删除推文",
+      "report": "举报文章"
     },
     "feedback": {
       "liked": "已点赞此推文",
@@ -108,7 +109,9 @@
       "deleted": "推文已删除",
       "deleteFailed": "删除推文失败",
       "retweeted": "转发成功",
-      "retweetFailed": "转发失败"
+      "retweetFailed": "转发失败",
+      "reported": "举报已提交",
+      "reportFailed": "提交举报失败"
     },
     "feed": {
       "loadFailed": "加载推文失败",
@@ -220,6 +223,17 @@
     "delete": {
       "title": "删除这条推文？",
       "description": "删除后这条推文将从时间线中移除，此操作不可撤销。"
+    },
+    "report": {
+      "title": "举报这篇文章",
+      "description": "请选择举报原因并补充必要说明，审核团队会根据规则处理。",
+      "reasonLabel": "举报原因",
+      "reasonPlaceholder": "选择举报原因",
+      "descriptionLabel": "补充说明",
+      "descriptionPlaceholder": "描述你看到的问题、涉及位置或上下文（可选）",
+      "descriptionHint": "{count}/1000 字",
+      "submit": "提交举报",
+      "submitting": "正在提交..."
     }
   },
   "comment": {
