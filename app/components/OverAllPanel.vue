@@ -445,32 +445,3 @@ const chartTooltipTemplate = componentToString(
     </Card>
   </div>
 </template>
-          >
-            <div class="grid grid-cols-2 gap-2">
-              <span class="flex items-center gap-1">
-                <span class="h-2 w-2 rounded-full bg-chart-1" />
-                {{ t('account.overview.overallPanel.chartPosts') }}
-              </span>
-              <span class="flex items-center gap-1">
-                <span class="h-2 w-2 rounded-full bg-chart-2" />
-                {{ t('account.overview.overallPanel.chartLikes') }}
-              </span>
-              <span class="flex items-center gap-1">
-                <span class="h-2 w-2 rounded-full bg-chart-3" />
-                {{ t('account.overview.overallPanel.chartComments') }}
-              </span>
-              <span class="flex items-center gap-1">
-                <span class="h-2 w-2 rounded-full bg-chart-4" />
-                {{
-                  t(
-                    'account.overview.overallPanel.chartInteraction'
-                  )
-                }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  </div>
-</template>
