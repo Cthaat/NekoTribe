@@ -149,8 +149,9 @@ onMounted(() => {
       {{ t('moderation.reports.empty') }}
     </div>
 
-    <Card v-for="report in reports" v-else :key="report.id">
-      <CardHeader class="flex flex-row items-start justify-between space-y-0">
+    <template v-else>
+      <Card v-for="report in reports" :key="report.id">
+        <CardHeader class="flex flex-row items-start justify-between space-y-0">
         <div>
           <CardTitle class="flex items-center gap-2 text-base">
             <Flag class="h-4 w-4 text-destructive" />
@@ -165,8 +166,8 @@ onMounted(() => {
           <Badge variant="outline">{{ report.priority }}</Badge>
           <Badge>{{ report.status }}</Badge>
         </div>
-      </CardHeader>
-      <CardContent class="space-y-4">
+        </CardHeader>
+        <CardContent class="space-y-4">
         <p class="text-sm">
           {{ report.description || t('moderation.detail.reportFallback') }}
         </p>
@@ -194,8 +195,9 @@ onMounted(() => {
             {{ t('moderation.reportStatus.pending') }}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </template>
 
     <div v-if="hasNext" class="flex justify-center">
       <Button variant="outline" :disabled="loading" @click="loadReports(false)">
