@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import {
   Heart,
   MessageCircle,
@@ -7,7 +7,8 @@ import {
   Pin,
   Trash2,
   Flag,
-  Share2
+  Share2,
+  Users
 } from 'lucide-vue-next';
 import {
   Card,
@@ -53,6 +54,21 @@ const emit = defineEmits<{
 
 const isLiked = ref(props.post.isLiked || false);
 const likeCount = ref(props.post.likeCount);
+const groupContext = computed(() => props.post.group);
+
+watch(
+  () => props.post.isLiked,
+  value => {
+    isLiked.value = !!value;
+  }
+);
+
+watch(
+  () => props.post.likeCount,
+  value => {
+    likeCount.value = value;
+  }
+);
 
 // 格式化时间
 const formatTime = (dateStr: string) => {
