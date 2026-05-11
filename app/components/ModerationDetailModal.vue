@@ -108,6 +108,18 @@ const getStatusInfo = (status: string) => {
         variant: 'outline' as const,
         color: 'text-orange-500'
       };
+    case 'removed':
+      return {
+        text: t('moderation.status.removed'),
+        variant: 'destructive' as const,
+        color: 'text-destructive'
+      };
+    case 'restored':
+      return {
+        text: t('moderation.status.restored'),
+        variant: 'default' as const,
+        color: 'text-green-500'
+      };
     default:
       return {
         text: t('moderation.status.unknown'),
