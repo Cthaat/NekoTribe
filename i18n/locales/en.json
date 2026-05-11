@@ -64,6 +64,7 @@
       "groups": "Groups",
       "discoverGroups": "Discover",
       "myGroups": "My Groups",
+      "groupPosts": "Group Posts",
       "invites": "Invites",
       "chat": "Chat",
       "account": "Account",
@@ -250,6 +251,7 @@
     "tabs": {
       "discover": "Discover Groups",
       "my": "My Groups",
+      "posts": "Group Posts",
       "invites": "Group Invites"
     },
     "actions": {
@@ -442,6 +444,31 @@
         "unpinned": "Post unpinned",
         "deleted": "Post deleted",
         "reported": "Report submitted"
+      }
+    },
+    "posts": {
+      "title": "Group Posts",
+      "description": "Read the latest posts from groups you have joined.",
+      "total": "{count} posts",
+      "allGroups": "All groups",
+      "groupPlaceholder": "Select group",
+      "typePlaceholder": "Post type",
+      "groupContext": "From group",
+      "manageable": "Manageable",
+      "refreshed": "Group posts refreshed",
+      "loadFailed": "Failed to load group posts",
+      "likeFailed": "Failed to like group post",
+      "pinFailed": "Failed to update pin status",
+      "deleteFailed": "Failed to delete group post",
+      "shareCopied": "Group post link copied",
+      "noGroupsTitle": "You have not joined any groups",
+      "noGroupsDescription": "Posts from joined groups will appear here.",
+      "emptyTitle": "No group posts yet",
+      "emptyDescription": "There are no group posts for the current filters.",
+      "types": {
+        "all": "All posts",
+        "pinned": "Pinned posts",
+        "announcement": "Announcements"
       }
     },
     "notifications": {

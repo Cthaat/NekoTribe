@@ -64,6 +64,7 @@
       "groups": "群组",
       "discoverGroups": "发现",
       "myGroups": "我的群组",
+      "groupPosts": "群组帖子",
       "invites": "邀请",
       "chat": "聊天",
       "account": "账户",
@@ -250,6 +251,7 @@
     "tabs": {
       "discover": "发现群组",
       "my": "我的群组",
+      "posts": "群组帖子",
       "invites": "群组邀请"
     },
     "actions": {
@@ -442,6 +444,31 @@
         "unpinned": "已取消置顶",
         "deleted": "帖子已删除",
         "reported": "举报已提交"
+      }
+    },
+    "posts": {
+      "title": "群组帖子",
+      "description": "集中查看你已加入群组的最新帖子。",
+      "total": "共 {count} 条帖子",
+      "allGroups": "全部群组",
+      "groupPlaceholder": "选择群组",
+      "typePlaceholder": "帖子类型",
+      "groupContext": "来自群组",
+      "manageable": "可管理",
+      "refreshed": "群组帖子已刷新",
+      "loadFailed": "加载群组帖子失败",
+      "likeFailed": "点赞群组帖子失败",
+      "pinFailed": "更新置顶状态失败",
+      "deleteFailed": "删除群组帖子失败",
+      "shareCopied": "群组帖子链接已复制",
+      "noGroupsTitle": "你还没有加入群组",
+      "noGroupsDescription": "加入群组后，这里会展示这些群组里的帖子。",
+      "emptyTitle": "暂无群组帖子",
+      "emptyDescription": "当前筛选下还没有可以展示的群组帖子。",
+      "types": {
+        "all": "全部帖子",
+        "pinned": "置顶帖子",
+        "announcement": "公告"
       }
     },
     "notifications": {
