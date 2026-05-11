@@ -1572,6 +1572,11 @@ CREATE INDEX idx_notifications_actor ON n_notifications(actor_id, created_at DES
 CREATE INDEX idx_account_statements_user_status ON n_account_statements(user_id, status, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_statement_appeals_statement ON n_statement_appeals(statement_id, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_statement_appeals_user ON n_statement_appeals(user_id, appeal_status, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_mod_reports_target ON n_moderation_reports(target_type, target_id) TABLESPACE neko_index;
+CREATE INDEX idx_mod_reports_status ON n_moderation_reports(status, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_mod_cases_status ON n_moderation_cases(status, latest_reported_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_mod_actions_target ON n_moderation_actions(target_type, target_id, created_at DESC) TABLESPACE neko_index;
+CREATE INDEX idx_mod_restrictions_user ON n_moderation_user_restrictions(user_id, status) TABLESPACE neko_index;
 
 -- 群组索引（保留高频访问路径）
 CREATE INDEX idx_groups_owner_id ON n_groups(owner_id) TABLESPACE neko_index;
