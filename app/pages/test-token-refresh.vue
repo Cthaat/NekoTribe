@@ -8,9 +8,8 @@
 
     <div class="space-y-4">
       <!-- Token 信息显示 -->
-      <div
-        class="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg"
-      >
+      <Card class="gap-0 py-0">
+        <CardContent class="p-4">
         <h2 class="text-xl font-semibold mb-2">
           {{ t('diagnostics.token.infoTitle') }}
         </h2>
@@ -56,7 +55,8 @@
             </span>
           </div>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <!-- 操作按钮 -->
       <div class="space-y-2">
@@ -107,9 +107,8 @@
       </div>
 
       <!-- 日志显示 -->
-      <div
-        class="p-4 bg-gray-900 text-green-400 rounded-lg"
-      >
+      <Card class="gap-0 bg-gray-900 py-0 text-green-400">
+        <CardContent class="p-4">
         <div class="flex justify-between items-center mb-2">
           <h2 class="text-xl font-semibold">
             {{ t('diagnostics.token.logsTitle') }}
@@ -122,9 +121,8 @@
             {{ t('diagnostics.token.clearLogs') }}
           </AppButton>
         </div>
-        <div
-          class="h-64 overflow-y-auto font-mono text-xs space-y-1"
-        >
+        <ScrollArea class="h-64 font-mono text-xs">
+          <div class="space-y-1">
           <div
             v-if="logs.length === 0"
             class="text-gray-500"
@@ -137,13 +135,14 @@
             }}</span>
             - {{ log.message }}
           </div>
-        </div>
-      </div>
+          </div>
+        </ScrollArea>
+        </CardContent>
+      </Card>
 
       <!-- 说明 -->
-      <div
-        class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg"
-      >
+      <Card class="gap-0 bg-blue-50 py-0 dark:bg-blue-900/20">
+        <CardContent class="p-4">
         <h2 class="text-xl font-semibold mb-2">
           {{ t('diagnostics.token.instructionsTitle') }}
         </h2>
@@ -173,15 +172,16 @@
             >{{ t('diagnostics.token.instructionsClear') }}
           </li>
         </ul>
-        <div
-          class="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded"
-        >
+        <Card class="mt-4 gap-0 bg-yellow-50 py-0 dark:bg-yellow-900/20">
+          <CardContent class="p-3">
           <strong>{{
             t('diagnostics.token.tipTitle')
           }}</strong
           >{{ t('diagnostics.token.tip') }}
-        </div>
-      </div>
+          </CardContent>
+        </Card>
+        </CardContent>
+      </Card>
     </div>
   </div>
 </template>
@@ -191,6 +191,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { usePreferenceStore } from '~/stores/user';
 import { v2ListNotifications } from '@/services';
 import AppButton from '@/components/app/AppButton.vue';
+import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const { t, locale } = useAppLocale();
 const preferenceStore = usePreferenceStore();
