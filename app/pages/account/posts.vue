@@ -367,134 +367,148 @@ onMounted(() => {
 
 <template>
   <div class="space-y-5">
-    <div
-      class="flex flex-col gap-4 rounded-lg border bg-card/70 p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between"
-    >
-      <div>
-        <h2 class="text-2xl font-semibold tracking-tight">
-          {{ t('account.posts.title') }}
-        </h2>
-        <p class="text-sm text-muted-foreground">
-          {{ t('account.posts.description') }}
-        </p>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          class="gap-2"
-          :disabled="loading"
-          @click="loadPosts(true)"
-        >
-          <RefreshCw
-            class="h-4 w-4"
-            :class="{ 'animate-spin': loading }"
-          />
-          {{ t('common.refresh') }}
-        </Button>
-        <Button class="gap-2" @click="createPost">
-          <Plus class="h-4 w-4" />
-          {{ t('account.posts.create') }}
-        </Button>
-      </div>
-    </div>
+    <Card>
+      <CardContent
+        class="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between"
+      >
+        <div>
+          <h2 class="text-2xl font-semibold tracking-tight">
+            {{ t('account.posts.title') }}
+          </h2>
+          <p class="text-sm text-muted-foreground">
+            {{ t('account.posts.description') }}
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            class="gap-2"
+            :disabled="loading"
+            @click="loadPosts(true)"
+          >
+            <RefreshCw
+              class="h-4 w-4"
+              :class="{ 'animate-spin': loading }"
+            />
+            {{ t('common.refresh') }}
+          </Button>
+          <Button class="gap-2" @click="createPost">
+            <Plus class="h-4 w-4" />
+            {{ t('account.posts.create') }}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
 
     <div class="grid gap-3 md:grid-cols-4">
-      <div class="rounded-lg border bg-card p-4">
-        <div class="text-xs text-muted-foreground">
-          {{ t('account.posts.stats.total') }}
-        </div>
-        <div class="mt-1 text-2xl font-semibold">
-          {{ pageSummary.totalPosts }}
-        </div>
-      </div>
-      <div class="rounded-lg border bg-card p-4">
-        <div class="text-xs text-muted-foreground">
-          {{ t('account.posts.stats.visible') }}
-        </div>
-        <div class="mt-1 text-2xl font-semibold">
-          {{ pageSummary.visiblePosts }}
-        </div>
-      </div>
-      <div class="rounded-lg border bg-card p-4">
-        <div class="text-xs text-muted-foreground">
-          {{ t('account.posts.stats.views') }}
-        </div>
-        <div class="mt-1 text-2xl font-semibold">
-          {{ pageSummary.views }}
-        </div>
-      </div>
-      <div class="rounded-lg border bg-card p-4">
-        <div class="text-xs text-muted-foreground">
-          {{ t('account.posts.stats.interactions') }}
-        </div>
-        <div class="mt-1 text-2xl font-semibold">
-          {{ pageSummary.interactions }}
-        </div>
-      </div>
+      <Card>
+        <CardContent class="p-4">
+          <div class="text-xs text-muted-foreground">
+            {{ t('account.posts.stats.total') }}
+          </div>
+          <div class="mt-1 text-2xl font-semibold">
+            {{ pageSummary.totalPosts }}
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent class="p-4">
+          <div class="text-xs text-muted-foreground">
+            {{ t('account.posts.stats.visible') }}
+          </div>
+          <div class="mt-1 text-2xl font-semibold">
+            {{ pageSummary.visiblePosts }}
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent class="p-4">
+          <div class="text-xs text-muted-foreground">
+            {{ t('account.posts.stats.views') }}
+          </div>
+          <div class="mt-1 text-2xl font-semibold">
+            {{ pageSummary.views }}
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent class="p-4">
+          <div class="text-xs text-muted-foreground">
+            {{ t('account.posts.stats.interactions') }}
+          </div>
+          <div class="mt-1 text-2xl font-semibold">
+            {{ pageSummary.interactions }}
+          </div>
+        </CardContent>
+      </Card>
     </div>
 
-    <div
-      class="grid gap-3 rounded-lg border bg-card/70 p-3 lg:grid-cols-[minmax(0,1fr)_220px_180px_180px]"
-    >
-      <div class="relative">
-        <Search
-          class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          v-model="search"
-          class="pl-9"
-          :placeholder="t('account.posts.searchPlaceholder')"
-          @keyup.enter="loadPosts(true)"
-        />
-      </div>
-      <Select v-model="sort" @update:model-value="loadPosts(true)">
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="newest">
-            {{ t('account.posts.sort.newest') }}
-          </SelectItem>
-          <SelectItem value="oldest">
-            {{ t('account.posts.sort.oldest') }}
-          </SelectItem>
-          <SelectItem value="popular">
-            {{ t('account.posts.sort.popular') }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-      <Select v-model="visibilityFilter">
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">
-            {{ t('account.posts.visibility.all') }}
-          </SelectItem>
-          <SelectItem
-            v-for="option in visibilityOptions"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ t(option.labelKey) }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-      <Button variant="secondary" @click="loadPosts(true)">
-        {{ t('common.search') }}
-      </Button>
-    </div>
+    <Card>
+      <CardContent
+        class="grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_220px_180px_180px]"
+      >
+        <div class="relative">
+          <Search
+            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            v-model="search"
+            class="pl-9"
+            :placeholder="t('account.posts.searchPlaceholder')"
+            @keyup.enter="loadPosts(true)"
+          />
+        </div>
+        <Select v-model="sort" @update:model-value="loadPosts(true)">
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">
+              {{ t('account.posts.sort.newest') }}
+            </SelectItem>
+            <SelectItem value="oldest">
+              {{ t('account.posts.sort.oldest') }}
+            </SelectItem>
+            <SelectItem value="popular">
+              {{ t('account.posts.sort.popular') }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <Select v-model="visibilityFilter">
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">
+              {{ t('account.posts.visibility.all') }}
+            </SelectItem>
+            <SelectItem
+              v-for="option in visibilityOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ t(option.labelKey) }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="secondary" @click="loadPosts(true)">
+          {{ t('common.search') }}
+        </Button>
+      </CardContent>
+    </Card>
 
     <div class="grid min-h-[620px] gap-5 xl:grid-cols-[minmax(0,1fr)_28rem]">
-      <div class="min-w-0 rounded-lg border bg-card/60 p-3">
-        <div class="mb-3 flex items-center justify-between">
-          <div class="text-sm font-medium">
+      <Card class="min-w-0 gap-0 overflow-hidden py-0">
+        <CardHeader
+          class="flex flex-row items-center justify-between border-b px-4 py-3 !pb-3"
+        >
+          <CardTitle class="text-sm font-medium">
             {{
               t('account.posts.listTitle', {
                 count: filteredPosts.length
               })
             }}
-          </div>
+          </CardTitle>
           <Badge variant="outline">
             {{ t('common.pagination', {
               page,
@@ -502,132 +516,163 @@ onMounted(() => {
               total
             }) }}
           </Badge>
-        </div>
+        </CardHeader>
 
-        <div
-          v-if="loading && posts.length === 0"
-          class="grid gap-3"
-        >
+        <CardContent class="p-3">
           <div
-            v-for="index in 4"
-            :key="index"
-            class="h-36 animate-pulse rounded-lg bg-muted"
-          />
-        </div>
-
-        <div
-          v-else-if="filteredPosts.length === 0"
-          class="flex min-h-[360px] flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 px-6 text-center"
-        >
-          <BarChart3 class="mb-3 h-9 w-9 text-muted-foreground" />
-          <div class="font-medium">
-            {{ t('account.posts.emptyTitle') }}
+            v-if="loading && posts.length === 0"
+            class="grid gap-3"
+          >
+            <Skeleton
+              v-for="index in 4"
+              :key="index"
+              class="h-36 rounded-lg"
+            />
           </div>
-          <p class="mt-1 max-w-sm text-sm text-muted-foreground">
-            {{ t('account.posts.emptyDescription') }}
-          </p>
-          <Button class="mt-4 gap-2" @click="createPost">
-            <Plus class="h-4 w-4" />
-            {{ t('account.posts.create') }}
-          </Button>
-        </div>
 
-        <ScrollArea v-else class="h-[640px] rounded-md">
-          <div class="space-y-3 pr-3">
-            <button
-              v-for="post in filteredPosts"
-              :key="post.id"
-              type="button"
-              class="w-full rounded-lg border bg-background p-4 text-left transition-colors hover:bg-muted/40"
-              :class="
-                selectedPost?.id === post.id
-                  ? 'border-primary/60 ring-1 ring-primary/20'
-                  : 'border-border'
-              "
-              @click="selectPost(post)"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary">
-                      {{ post.postType }}
-                    </Badge>
-                    <Badge variant="outline">
-                      {{ visibilityLabel(post.visibility) }}
-                    </Badge>
-                    <span class="text-xs text-muted-foreground">
-                      {{ formatDate(post.createdAt) }}
-                    </span>
-                  </div>
-                  <p class="mt-3 line-clamp-3 text-sm leading-6">
-                    {{
-                      post.content ||
-                      t('account.posts.emptyContent')
-                    }}
-                  </p>
-                </div>
-                <div
-                  v-if="post.media.length > 0"
-                  class="hidden h-20 w-24 shrink-0 overflow-hidden rounded-md border bg-muted sm:block"
-                >
-                  <img
-                    :src="post.media[0]?.thumbnailUrl || ''"
-                    :alt="t('post.media.thumbnailAlt')"
-                    class="h-full w-full object-cover"
-                  />
-                </div>
-              </div>
-
-              <div
-                v-if="post.tags.length > 0"
-                class="mt-3 flex flex-wrap gap-1"
-              >
-                <Badge
-                  v-for="tag in post.tags"
-                  :key="tag"
-                  variant="outline"
-                >
-                  #{{ tag }}
-                </Badge>
-              </div>
-
-              <div
-                class="mt-4 grid grid-cols-5 gap-2 text-xs text-muted-foreground"
-              >
-                <span class="flex items-center gap-1">
-                  <Eye class="h-3.5 w-3.5" />
-                  {{ post.counts.views }}
-                </span>
-                <span class="flex items-center gap-1">
-                  <Heart class="h-3.5 w-3.5" />
-                  {{ post.counts.likes }}
-                </span>
-                <span class="flex items-center gap-1">
-                  <MessageCircle class="h-3.5 w-3.5" />
-                  {{ post.counts.comments + post.counts.replies }}
-                </span>
-                <span class="flex items-center gap-1">
-                  <Repeat class="h-3.5 w-3.5" />
-                  {{ post.counts.retweets }}
-                </span>
-                <span class="text-right">
-                  {{ post.counts.engagementScore }}
-                </span>
-              </div>
-            </button>
-
-            <div v-if="hasNext" class="flex justify-center pt-2">
-              <Button
-                variant="outline"
-                :disabled="loading"
-                @click="loadPosts(false)"
-              >
-                {{ t('common.loadMore') }}
-              </Button>
+          <div
+            v-else-if="filteredPosts.length === 0"
+            class="flex min-h-[360px] flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 px-6 text-center"
+          >
+            <BarChart3 class="mb-3 h-9 w-9 text-muted-foreground" />
+            <div class="font-medium">
+              {{ t('account.posts.emptyTitle') }}
             </div>
+            <p class="mt-1 max-w-sm text-sm text-muted-foreground">
+              {{ t('account.posts.emptyDescription') }}
+            </p>
+            <Button class="mt-4 gap-2" @click="createPost">
+              <Plus class="h-4 w-4" />
+              {{ t('account.posts.create') }}
+            </Button>
           </div>
-        </ScrollArea>
-      </div>
+
+          <ScrollArea v-else class="h-[640px] rounded-md">
+            <div class="pr-3">
+              <Table class="min-w-[760px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead class="w-[42%]">
+                      {{ t('account.posts.table.post') }}
+                    </TableHead>
+                    <TableHead>
+                      {{ t('account.posts.form.visibility') }}
+                    </TableHead>
+                    <TableHead>
+                      {{ t('account.posts.table.createdAt') }}
+                    </TableHead>
+                    <TableHead class="text-right">
+                      {{ t('account.posts.table.metrics') }}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow
+                    v-for="post in filteredPosts"
+                    :key="post.id"
+                    role="button"
+                    tabindex="0"
+                    class="cursor-pointer align-top"
+                    :data-state="
+                      selectedPost?.id === post.id
+                        ? 'selected'
+                        : undefined
+                    "
+                    @click="selectPost(post)"
+                    @keyup.enter="selectPost(post)"
+                    @keyup.space="selectPost(post)"
+                  >
+                    <TableCell>
+                      <div class="flex items-start gap-3">
+                        <div
+                          v-if="post.media.length > 0"
+                          class="hidden h-16 w-20 shrink-0 overflow-hidden rounded-md border bg-muted sm:block"
+                        >
+                          <img
+                            :src="post.media[0]?.thumbnailUrl || ''"
+                            :alt="t('post.media.thumbnailAlt')"
+                            class="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div class="min-w-0">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <Badge variant="secondary">
+                              {{ post.postType }}
+                            </Badge>
+                            <Badge variant="outline">
+                              #{{ post.id }}
+                            </Badge>
+                          </div>
+                          <p class="mt-2 line-clamp-2 leading-6">
+                            {{
+                              post.content ||
+                              t('account.posts.emptyContent')
+                            }}
+                          </p>
+                          <div
+                            v-if="post.tags.length > 0"
+                            class="mt-2 flex flex-wrap gap-1"
+                          >
+                            <Badge
+                              v-for="tag in post.tags"
+                              :key="tag"
+                              variant="outline"
+                            >
+                              #{{ tag }}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {{ visibilityLabel(post.visibility) }}
+                      </Badge>
+                    </TableCell>
+                    <TableCell class="text-muted-foreground">
+                      {{ formatDate(post.createdAt) }}
+                    </TableCell>
+                    <TableCell>
+                      <div
+                        class="grid min-w-44 grid-cols-2 gap-2 text-xs text-muted-foreground"
+                      >
+                        <span class="flex items-center gap-1">
+                          <Eye class="h-3.5 w-3.5" />
+                          {{ post.counts.views }}
+                        </span>
+                        <span class="flex items-center gap-1">
+                          <Heart class="h-3.5 w-3.5" />
+                          {{ post.counts.likes }}
+                        </span>
+                        <span class="flex items-center gap-1">
+                          <MessageCircle class="h-3.5 w-3.5" />
+                          {{
+                            post.counts.comments + post.counts.replies
+                          }}
+                        </span>
+                        <span class="flex items-center gap-1">
+                          <Repeat class="h-3.5 w-3.5" />
+                          {{ post.counts.retweets }}
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+
+              <div v-if="hasNext" class="flex justify-center pt-4">
+                <Button
+                  variant="outline"
+                  :disabled="loading"
+                  @click="loadPosts(false)"
+                >
+                  {{ t('common.loadMore') }}
+                </Button>
+              </div>
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
 
       <Card class="min-w-0 gap-0 overflow-hidden py-0">
         <CardHeader class="border-b px-5 py-4 !pb-4">
