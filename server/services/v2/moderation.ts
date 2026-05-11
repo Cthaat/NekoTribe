@@ -1344,7 +1344,7 @@ export async function v2ListModerationUsers(
   }
   const orderBy =
     sort === 'reports'
-      ? 'report_count DESC, u.created_at DESC'
+      ? 'u.report_count DESC, u.created_at DESC'
       : sort === 'oldest'
         ? 'u.created_at ASC'
         : 'u.created_at DESC';
