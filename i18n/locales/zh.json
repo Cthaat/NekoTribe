@@ -831,7 +831,10 @@
       "flagged": "推文已标记待进一步审查",
       "refreshed": "列表已刷新",
       "noMore": "没有更多内容了",
-      "filtersReset": "过滤器已重置"
+      "filtersReset": "过滤器已重置",
+      "loadFailed": "加载审核数据失败",
+      "actionSuccess": "审核操作已完成",
+      "actionFailed": "审核操作失败"
     },
     "status": {
       "all": "全部状态",
@@ -839,7 +842,15 @@
       "approved": "已通过",
       "rejected": "已拒绝",
       "flagged": "已标记",
+      "removed": "已下架",
+      "restored": "已恢复",
       "unknown": "未知"
+    },
+    "reportStatus": {
+      "pending": "待处理",
+      "inReview": "处理中",
+      "resolved": "已解决",
+      "dismissed": "已驳回"
     },
     "stats": {
       "pending": "待审核",
@@ -914,6 +925,38 @@
       "replies": "回复",
       "note": "审核备注 (可选)",
       "notePlaceholder": "输入审核备注..."
+    },
+    "users": {
+      "searchPlaceholder": "搜索用户名、邮箱或显示名称...",
+      "status": "用户状态",
+      "active": "正常",
+      "suspended": "封禁",
+      "disabled": "停用",
+      "pending": "待激活",
+      "mostReported": "举报最多",
+      "empty": "暂无用户数据",
+      "reportCount": "关联举报",
+      "ban": "封禁",
+      "unban": "解封",
+      "mute": "禁言 24 小时",
+      "unmute": "解除禁言",
+      "defaultReason": "审核中心手动处理"
+    },
+    "reports": {
+      "status": "举报状态",
+      "targetType": "目标类型",
+      "targetPost": "帖子",
+      "targetComment": "评论",
+      "targetUser": "用户",
+      "empty": "暂无举报记录",
+      "anonymous": "匿名用户",
+      "evidence": "查看证据"
+    },
+    "settings": {
+      "title": "审核设置",
+      "description": "配置自动审核阈值、流程约束和处罚默认值。",
+      "saved": "审核设置已保存",
+      "saveFailed": "保存审核设置失败"
     },
     "reportDetails": {
       "spam": {
