@@ -5768,6 +5768,64 @@ WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2
 DELETE FROM n_groups
 WHERE slug IN ('v2-core-team', 'v2-design-lab');
 
+DELETE FROM n_moderation_actions
+WHERE moderator_user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   OR (target_type = 'user' AND target_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm')))
+   OR (target_type = 'post' AND target_id IN (
+        SELECT post_id FROM n_posts
+        WHERE author_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   ))
+   OR (target_type = 'comment' AND target_id IN (
+        SELECT comment_id FROM n_comments
+        WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   ))
+   OR case_id IN (
+        SELECT case_id FROM n_moderation_cases
+        WHERE assigned_to IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+           OR (target_type = 'user' AND target_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm')))
+           OR (target_type = 'post' AND target_id IN (
+                SELECT post_id FROM n_posts
+                WHERE author_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+           ))
+           OR (target_type = 'comment' AND target_id IN (
+                SELECT comment_id FROM n_comments
+                WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+           ))
+   );
+
+DELETE FROM n_moderation_user_restrictions
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   OR created_by IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   OR revoked_by IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_moderation_reports
+WHERE reporter_user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   OR handled_by IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   OR (target_type = 'user' AND target_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm')))
+   OR (target_type = 'post' AND target_id IN (
+        SELECT post_id FROM n_posts
+        WHERE author_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   ))
+   OR (target_type = 'comment' AND target_id IN (
+        SELECT comment_id FROM n_comments
+        WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   ));
+
+DELETE FROM n_moderation_cases
+WHERE assigned_to IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   OR (target_type = 'user' AND target_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm')))
+   OR (target_type = 'post' AND target_id IN (
+        SELECT post_id FROM n_posts
+        WHERE author_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   ))
+   OR (target_type = 'comment' AND target_id IN (
+        SELECT comment_id FROM n_comments
+        WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
+   ));
+
+DELETE FROM n_moderation_settings
+WHERE setting_key IN ('auto_hide_report_threshold', 'require_note_on_reject', 'allow_moderator_claim', 'default_mute_hours');
+
 DELETE FROM n_statement_appeals
 WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
 
@@ -6205,7 +6263,20 @@ VALUES (
     'pending'
 );
 
--- 13.11 群组
+-- 13.11 审核配置
+INSERT INTO n_moderation_settings (setting_key, setting_value, value_type, label, description)
+VALUES ('auto_hide_report_threshold', '10', 'number', 'Auto-hide threshold', 'Automatically flags content when report count reaches this number.');
+
+INSERT INTO n_moderation_settings (setting_key, setting_value, value_type, label, description)
+VALUES ('require_note_on_reject', 'true', 'boolean', 'Require rejection note', 'Moderators should leave a note when rejecting or removing content.');
+
+INSERT INTO n_moderation_settings (setting_key, setting_value, value_type, label, description)
+VALUES ('allow_moderator_claim', 'true', 'boolean', 'Allow queue claiming', 'Moderators can claim and release moderation cases.');
+
+INSERT INTO n_moderation_settings (setting_key, setting_value, value_type, label, description)
+VALUES ('default_mute_hours', '24', 'number', 'Default mute duration', 'Default number of hours for user mute actions.');
+
+-- 13.12 群组
 DECLARE
     v_admin_id NUMBER;
     v_group_id NUMBER;
