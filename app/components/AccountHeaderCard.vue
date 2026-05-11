@@ -28,6 +28,7 @@ import {
   AvatarImage
 } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -535,9 +536,10 @@ function followUser() {
             class="flex flex-col sm:flex-row items-center gap-4"
           >
             <div class="flex-1 grid grid-cols-3 gap-4">
-              <button
+              <Button
                 type="button"
-                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                variant="ghost"
+                class="h-auto flex-col gap-0 rounded-lg px-3 py-2 text-center"
                 @click="openStatsDialog('followers')"
               >
                 <p
@@ -548,10 +550,11 @@ function followUser() {
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.followers') }}
                 </p>
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                variant="ghost"
+                class="h-auto flex-col gap-0 rounded-lg px-3 py-2 text-center"
                 @click="openStatsDialog('following')"
               >
                 <p
@@ -562,10 +565,11 @@ function followUser() {
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.following') }}
                 </p>
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                variant="ghost"
+                class="h-auto flex-col gap-0 rounded-lg px-3 py-2 text-center"
                 @click="openStatsDialog('likes')"
               >
                 <p
@@ -576,14 +580,15 @@ function followUser() {
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.likes') }}
                 </p>
-              </button>
+              </Button>
             </div>
             <div class="w-full sm:w-1/3">
-              <label
+              <Label
                 for="completion"
                 class="text-sm font-medium"
-                >{{ t('account.header.activeScore') }}</label
               >
+                {{ t('account.header.activeScore') }}
+              </Label>
               <div class="flex items-center gap-2">
                 <Progress
                   :model-value="normalizedScore"
@@ -730,11 +735,12 @@ function followUser() {
             </div>
 
             <template v-else>
-              <button
+              <Button
                 v-for="item in relationshipUsers"
                 :key="item.id"
                 type="button"
-                class="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                variant="ghost"
+                class="h-auto w-full justify-start gap-3 rounded-lg p-2 text-left"
                 @click="openUserProfile(item.id)"
               >
                 <Avatar class="h-10 w-10">
@@ -765,7 +771,7 @@ function followUser() {
                   v-else
                   class="h-4 w-4 text-muted-foreground"
                 />
-              </button>
+              </Button>
             </template>
           </div>
         </ScrollArea>
