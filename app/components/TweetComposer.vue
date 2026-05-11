@@ -734,14 +734,16 @@ defineExpose({
         >
           <Hash class="h-3 w-3" />
           {{ tag }}
-          <button
+          <Button
             v-if="manualTags.includes(tag)"
             type="button"
-            class="ml-1 rounded-full text-muted-foreground hover:text-foreground"
+            variant="ghost"
+            size="icon"
+            class="ml-1 size-4 rounded-full text-muted-foreground hover:text-foreground"
             @click="removeManualTag(tag)"
           >
             <X class="h-3 w-3" />
-          </button>
+          </Button>
         </Badge>
         <Badge
           v-for="mention in activeMentions"
@@ -751,13 +753,15 @@ defineExpose({
         >
           <AtSign class="h-3 w-3" />
           {{ mention.displayName }}
-          <button
+          <Button
             type="button"
-            class="ml-1 rounded-full text-muted-foreground hover:text-foreground"
+            variant="ghost"
+            size="icon"
+            class="ml-1 size-4 rounded-full text-muted-foreground hover:text-foreground"
             @click="removeMention(mention.username)"
           >
             <X class="h-3 w-3" />
-          </button>
+          </Button>
         </Badge>
         <Badge
           v-if="location.trim()"
@@ -766,13 +770,15 @@ defineExpose({
         >
           <MapPin class="h-3 w-3" />
           {{ location.trim() }}
-          <button
+          <Button
             type="button"
-            class="ml-1 rounded-full text-muted-foreground hover:text-foreground"
+            variant="ghost"
+            size="icon"
+            class="ml-1 size-4 rounded-full text-muted-foreground hover:text-foreground"
             @click="location = ''"
           >
             <X class="h-3 w-3" />
-          </button>
+          </Button>
         </Badge>
       </div>
     </div>
