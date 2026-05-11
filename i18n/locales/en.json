@@ -27,6 +27,17 @@
     "processing": "Processing...",
     "pagination": "Page {page} / {totalPages} · Total {total}"
   },
+  "globalSearch": {
+    "placeholder": "Search posts or users",
+    "usersTitle": "Users",
+    "postsAction": "Posts",
+    "enterHint": "Enter for posts",
+    "minHint": "Type at least 2 characters to search users.",
+    "loading": "Searching users...",
+    "empty": "No matching users found.",
+    "failed": "Failed to search users",
+    "followers": "{count} followers"
+  },
   "app": {
     "brand": {
       "name": "NekoTribe",
