@@ -9,6 +9,17 @@
     "networkError": "网络错误",
     "pagination": "第 {page} / {totalPages} 页 · 共 {total} 条"
   },
+  "globalSearch": {
+    "placeholder": "搜索推文或用户",
+    "usersTitle": "用户",
+    "postsAction": "搜推文",
+    "enterHint": "Enter 搜推文",
+    "minHint": "输入至少 2 个字符搜索用户。",
+    "loading": "正在搜索用户...",
+    "empty": "没有找到相关用户。",
+    "failed": "搜索用户失败",
+    "followers": "{count} 位粉丝"
+  },
   "middleware": {
     "login": {
       "redirecting": "用户未登录，正在跳转到登录页面"
