@@ -48,6 +48,17 @@ export interface UserAnalyticsVM {
   engagementScore: number;
 }
 
+export interface UserDailyAnalyticsVM {
+  day: string;
+  postsCount: number;
+  likesReceived: number;
+  commentsReceived: number;
+  retweetsReceived: number;
+  likesGiven: number;
+  commentsMade: number;
+  engagementScore: number;
+}
+
 export interface FollowUserVM {
   targetUserId: number;
   relationship: string;
