@@ -801,9 +801,7 @@ export async function v2ListModerationContent(
   await ensureModerationSchema(connection);
 
   const page = v2Page(event);
-  const binds: Record<string, string | number | null> = {
-    viewer_id: auth.userId
-  };
+  const binds: Record<string, string | number | null> = {};
   const where = contentWhere(event, binds);
   const fromSql = `
     FROM n_moderation_cases c
@@ -869,6 +867,7 @@ export async function v2ListModerationContent(
     `,
     {
       ...binds,
+      viewer_id: auth.userId,
       start_row: page.start,
       end_row: page.end
     }
@@ -898,10 +897,10 @@ export async function v2GetModerationStats(
     connection,
     `
     SELECT
-      SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
-      SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved,
-      SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected,
-      SUM(CASE WHEN status = 'flagged' THEN 1 ELSE 0 END) AS flagged,
+      (SELECT COUNT(*) FROM n_moderation_cases WHERE status = 'pending') AS pending,
+      (SELECT COUNT(*) FROM n_moderation_cases WHERE status = 'approved') AS approved,
+      (SELECT COUNT(*) FROM n_moderation_cases WHERE status = 'rejected') AS rejected,
+      (SELECT COUNT(*) FROM n_moderation_cases WHERE status = 'flagged') AS flagged,
       (
         SELECT COUNT(*)
         FROM n_moderation_actions
@@ -918,7 +917,20 @@ export async function v2GetModerationStats(
         FROM n_moderation_reports
         WHERE status IN ('pending', 'in_review')
       ) AS open_reports
-    FROM n_moderation_cases
+      ,
+      (
+        SELECT NVL(
+          ROUND(
+            SUM(CASE WHEN appeal_status = 'approved' THEN 1 ELSE 0 END)
+            * 100
+            / NULLIF(COUNT(*), 0)
+          ),
+          0
+        )
+        FROM n_statement_appeals
+        WHERE appeal_status IN ('approved', 'rejected')
+      ) AS appeal_success_rate
+    FROM dual
     `
   );
 
@@ -932,7 +944,7 @@ export async function v2GetModerationStats(
       row?.AVG_PROCESS_MINUTES
     ),
     open_reports: v2Number(row?.OPEN_REPORTS),
-    appeal_success_rate: 0
+    appeal_success_rate: v2Number(row?.APPEAL_SUCCESS_RATE)
   });
 }
 
