@@ -757,7 +757,7 @@ async function mapContentItem(
     created_at: v2DateString(row.CREATED_AT) || '',
     updated_at: v2DateString(row.UPDATED_AT) || '',
     reported_at: v2DateString(row.REPORTED_AT) || '',
-    likes_count: v2Number(row.LIKES_COUNT),
+    likes_count: v2Number(row.LIKES_COUNT_POST),
     retweets_count: v2Number(row.RETWEETS_COUNT),
     replies_count: v2Number(row.REPLIES_COUNT)
   };
@@ -844,12 +844,8 @@ export async function v2ListModerationContent(
     }
   );
 
-  const mappedRows = rows.map(row => ({
-    ...row,
-    LIKES_COUNT: row.LIKES_COUNT_POST
-  }));
   const items = await Promise.all(
-    mappedRows.map(row =>
+    rows.map(row =>
       mapContentItem(connection, auth.userId, row)
     )
   );
@@ -1129,10 +1125,7 @@ export async function v2ModeratePost(
   );
   if (!fallbackRow) v2NotFound('审核记录不存在');
   return v2Ok(
-    await mapContentItem(connection, auth.userId, {
-      ...fallbackRow,
-      LIKES_COUNT: fallbackRow.LIKES_COUNT_POST
-    }),
+    await mapContentItem(connection, auth.userId, fallbackRow),
     'moderation action applied'
   );
 }
