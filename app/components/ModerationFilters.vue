@@ -133,7 +133,9 @@ const statusOptions: SelectOption[] = [
   { value: 'pending', labelKey: 'moderation.status.pending' },
   { value: 'approved', labelKey: 'moderation.status.approved' },
   { value: 'rejected', labelKey: 'moderation.status.rejected' },
-  { value: 'flagged', labelKey: 'moderation.status.flagged' }
+  { value: 'flagged', labelKey: 'moderation.status.flagged' },
+  { value: 'removed', labelKey: 'moderation.status.removed' },
+  { value: 'restored', labelKey: 'moderation.status.restored' }
 ];
 
 // 举报原因选项
