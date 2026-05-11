@@ -32,7 +32,6 @@ import {
   Heart,
   MessageSquare,
   PieChart,
-  Repeat,
   Send,
   Sparkles,
   ThumbsUp,
@@ -348,6 +347,10 @@ const formatShare = (value: number): string => {
   if (!compositionTotal.value) return '0%';
   return `${Math.round((value / compositionTotal.value) * 100)}%`;
 };
+const compositionValue = (item: CompositionPoint): number =>
+  item.value;
+const compositionColor = (item: CompositionPoint): string =>
+  item.color;
 </script>
 
 <template>
@@ -564,7 +567,7 @@ const formatShare = (value: number): string => {
       </CardHeader>
       <CardContent>
         <div
-          v-if="chartData.length === 0"
+          v-if="!hasChartData"
           class="flex h-56 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
         >
           {{ t('account.overview.overallPanel.noTrendData') }}
@@ -611,6 +614,299 @@ const formatShare = (value: number): string => {
               class="flex-wrap text-xs text-muted-foreground"
             />
           </ChartContainer>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card class="overflow-hidden md:col-span-2 xl:col-span-1">
+      <CardHeader
+        class="flex flex-row items-start justify-between space-y-0"
+      >
+        <div class="space-y-1">
+          <CardTitle class="flex items-center gap-2 text-base">
+            <BarChart3 class="h-4 w-4 text-primary" />
+            {{ t('account.overview.overallPanel.receivedBreakdown') }}
+          </CardTitle>
+          <p class="text-sm text-muted-foreground">
+            {{
+              t(
+                'account.overview.overallPanel.receivedBreakdownDescription'
+              )
+            }}
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div
+          v-if="!hasChartData"
+          class="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
+        >
+          {{ t('account.overview.overallPanel.noTrendData') }}
+        </div>
+        <div
+          v-else
+          class="overflow-hidden rounded-lg border bg-muted/20 p-3"
+        >
+          <ChartContainer
+            :config="receivedChartConfig"
+            :cursor="true"
+            class="h-64 w-full"
+          >
+            <VisXYContainer
+              :data="chartData"
+              :y-domain="[0, undefined]"
+            >
+              <VisStackedBar
+                :x="chartX"
+                :y="receivedChartY"
+                :color="receivedChartColors"
+                :bar-padding="0.12"
+                :rounded-corners="4"
+              />
+              <VisAxis
+                type="x"
+                :num-ticks="Math.min(5, chartData.length)"
+                :tick-format="formatChartDay"
+                :tick-line="false"
+                :domain-line="false"
+              />
+              <VisAxis
+                type="y"
+                :grid-line="true"
+                :tick-line="false"
+                :domain-line="false"
+              />
+              <ChartTooltip />
+              <ChartCrosshair
+                :template="receivedTooltipTemplate"
+                :color="receivedChartColors"
+              />
+            </VisXYContainer>
+            <ChartLegendContent
+              class="flex-wrap text-xs text-muted-foreground"
+            />
+          </ChartContainer>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card class="overflow-hidden md:col-span-2 xl:col-span-1">
+      <CardHeader
+        class="flex flex-row items-start justify-between space-y-0"
+      >
+        <div class="space-y-1">
+          <CardTitle class="flex items-center gap-2 text-base">
+            <Send class="h-4 w-4 text-primary" />
+            {{ t('account.overview.overallPanel.outgoingTrend') }}
+          </CardTitle>
+          <p class="text-sm text-muted-foreground">
+            {{
+              t(
+                'account.overview.overallPanel.outgoingTrendDescription'
+              )
+            }}
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div
+          v-if="!hasChartData"
+          class="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
+        >
+          {{ t('account.overview.overallPanel.noTrendData') }}
+        </div>
+        <div
+          v-else
+          class="overflow-hidden rounded-lg border bg-muted/20 p-3"
+        >
+          <ChartContainer
+            :config="outgoingChartConfig"
+            :cursor="true"
+            class="h-64 w-full"
+          >
+            <VisXYContainer
+              :data="chartData"
+              :y-domain="[0, undefined]"
+            >
+              <VisGroupedBar
+                :x="chartX"
+                :y="outgoingChartY"
+                :color="outgoingChartColors"
+                :group-padding="0.16"
+                :bar-padding="0.08"
+                :rounded-corners="4"
+              />
+              <VisAxis
+                type="x"
+                :num-ticks="Math.min(5, chartData.length)"
+                :tick-format="formatChartDay"
+                :tick-line="false"
+                :domain-line="false"
+              />
+              <VisAxis
+                type="y"
+                :grid-line="true"
+                :tick-line="false"
+                :domain-line="false"
+              />
+              <ChartTooltip />
+              <ChartCrosshair
+                :template="outgoingTooltipTemplate"
+                :color="outgoingChartColors"
+              />
+            </VisXYContainer>
+            <ChartLegendContent
+              class="flex-wrap text-xs text-muted-foreground"
+            />
+          </ChartContainer>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card class="overflow-hidden md:col-span-2 xl:col-span-1">
+      <CardHeader
+        class="flex flex-row items-start justify-between space-y-0"
+      >
+        <div class="space-y-1">
+          <CardTitle class="flex items-center gap-2 text-base">
+            <Activity class="h-4 w-4 text-primary" />
+            {{ t('account.overview.overallPanel.scoreTrend') }}
+          </CardTitle>
+          <p class="text-sm text-muted-foreground">
+            {{
+              t(
+                'account.overview.overallPanel.scoreTrendDescription'
+              )
+            }}
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div
+          v-if="!hasChartData"
+          class="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
+        >
+          {{ t('account.overview.overallPanel.noTrendData') }}
+        </div>
+        <div
+          v-else
+          class="overflow-hidden rounded-lg border bg-muted/20 p-3"
+        >
+          <ChartContainer
+            :config="scoreChartConfig"
+            :cursor="true"
+            class="h-64 w-full"
+          >
+            <VisXYContainer
+              :data="chartData"
+              :y-domain="[0, undefined]"
+            >
+              <VisArea
+                :x="chartX"
+                :y="scoreChartY"
+                :color="scoreChartConfig.score.color"
+                :line="true"
+                :line-color="scoreChartConfig.score.color"
+                :opacity="0.18"
+              />
+              <VisAxis
+                type="x"
+                :num-ticks="Math.min(5, chartData.length)"
+                :tick-format="formatChartDay"
+                :tick-line="false"
+                :domain-line="false"
+              />
+              <VisAxis
+                type="y"
+                :grid-line="true"
+                :tick-line="false"
+                :domain-line="false"
+              />
+              <ChartTooltip />
+              <ChartCrosshair
+                :template="scoreTooltipTemplate"
+                :color="scoreChartConfig.score.color"
+              />
+            </VisXYContainer>
+            <ChartLegendContent
+              class="flex-wrap text-xs text-muted-foreground"
+            />
+          </ChartContainer>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card class="overflow-hidden md:col-span-2 lg:col-span-3">
+      <CardHeader
+        class="flex flex-row items-start justify-between space-y-0"
+      >
+        <div class="space-y-1">
+          <CardTitle class="flex items-center gap-2 text-base">
+            <PieChart class="h-4 w-4 text-primary" />
+            {{ t('account.overview.overallPanel.compositionTitle') }}
+          </CardTitle>
+          <p class="text-sm text-muted-foreground">
+            {{
+              t(
+                'account.overview.overallPanel.compositionDescription'
+              )
+            }}
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div
+          v-if="!hasCompositionData"
+          class="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
+        >
+          {{ t('account.overview.overallPanel.noTrendData') }}
+        </div>
+        <div
+          v-else
+          class="grid gap-4 rounded-lg border bg-muted/20 p-4 lg:grid-cols-[minmax(18rem,24rem)_1fr]"
+        >
+          <ChartContainer
+            :config="compositionChartConfig"
+            class="h-72 w-full"
+          >
+            <VisSingleContainer :data="compositionData">
+              <VisDonut
+                :value="compositionValue"
+                :color="compositionColor"
+                :arc-width="32"
+                :corner-radius="6"
+                :pad-angle="0.025"
+                :central-label="formatNumber(compositionTotal)"
+                :central-sub-label="t('account.overview.overallPanel.compositionTotal')"
+              />
+            </VisSingleContainer>
+          </ChartContainer>
+
+          <div class="grid content-center gap-3 sm:grid-cols-2">
+            <div
+              v-for="item in compositionData"
+              :key="item.key"
+              class="rounded-md border bg-background/70 p-3"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-2">
+                  <span
+                    class="h-2.5 w-2.5 shrink-0 rounded-sm"
+                    :style="{ backgroundColor: item.color }"
+                  />
+                  <span class="truncate text-sm text-muted-foreground">
+                    {{ item.label }}
+                  </span>
+                </div>
+                <span class="text-xs text-muted-foreground">
+                  {{ formatShare(item.value) }}
+                </span>
+              </div>
+              <div class="mt-2 text-2xl font-semibold">
+                {{ formatNumber(item.value) }}
+              </div>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
