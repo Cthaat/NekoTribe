@@ -831,7 +831,10 @@
       "flagged": "Post flagged for further review",
       "refreshed": "List refreshed",
       "noMore": "No more content",
-      "filtersReset": "Filters reset"
+      "filtersReset": "Filters reset",
+      "loadFailed": "Failed to load moderation data",
+      "actionSuccess": "Moderation action completed",
+      "actionFailed": "Moderation action failed"
     },
     "status": {
       "all": "All statuses",
@@ -839,7 +842,15 @@
       "approved": "Approved",
       "rejected": "Rejected",
       "flagged": "Flagged",
+      "removed": "Removed",
+      "restored": "Restored",
       "unknown": "Unknown"
+    },
+    "reportStatus": {
+      "pending": "Pending",
+      "inReview": "In review",
+      "resolved": "Resolved",
+      "dismissed": "Dismissed"
     },
     "stats": {
       "pending": "Pending",
@@ -914,6 +925,38 @@
       "replies": "Replies",
       "note": "Moderation note (optional)",
       "notePlaceholder": "Enter moderation note..."
+    },
+    "users": {
+      "searchPlaceholder": "Search username, email, or display name...",
+      "status": "User status",
+      "active": "Active",
+      "suspended": "Suspended",
+      "disabled": "Disabled",
+      "pending": "Pending",
+      "mostReported": "Most reported",
+      "empty": "No users found",
+      "reportCount": "Linked reports",
+      "ban": "Ban",
+      "unban": "Unban",
+      "mute": "Mute 24h",
+      "unmute": "Unmute",
+      "defaultReason": "Manual moderation center action"
+    },
+    "reports": {
+      "status": "Report status",
+      "targetType": "Target type",
+      "targetPost": "Post",
+      "targetComment": "Comment",
+      "targetUser": "User",
+      "empty": "No reports found",
+      "anonymous": "Anonymous user",
+      "evidence": "View evidence"
+    },
+    "settings": {
+      "title": "Moderation Settings",
+      "description": "Configure automation thresholds, workflow constraints, and default penalties.",
+      "saved": "Moderation settings saved",
+      "saveFailed": "Failed to save moderation settings"
     },
     "reportDetails": {
       "spam": {
