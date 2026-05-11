@@ -38,6 +38,8 @@
     "@pinia/nuxt": "^0.11.1",
     "@tailwindcss/vite": "^4.1.11",
     "@types/bcrypt": "^5.0.2",
+    "@unovis/ts": "^1.6.5",
+    "@unovis/vue": "^1.6.5",
     "@vee-validate/zod": "^4.15.1",
     "@vueuse/core": "^13.5.0",
     "bcrypt": "^6.0.0",
