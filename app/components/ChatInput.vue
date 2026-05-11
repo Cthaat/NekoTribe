@@ -355,7 +355,7 @@ const handleCancelReply = () => {
                 as="label"
               >
                 <Paperclip class="h-4 w-4" />
-                <input
+                <Input
                   type="file"
                   multiple
                   class="hidden"
@@ -378,7 +378,7 @@ const handleCancelReply = () => {
                 as="label"
               >
                 <ImageIcon class="h-4 w-4" />
-                <input
+                <Input
                   type="file"
                   accept="image/*"
                   multiple
