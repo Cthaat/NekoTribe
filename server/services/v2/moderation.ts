@@ -12,7 +12,7 @@ import type {
   V2ModerationTargetType,
   V2ModerationUserItem,
   V2PublicUser
-} from '~/app/types/v2';
+} from '../../../app/types/v2';
 import {
   v2Auth,
   v2BadRequest,
