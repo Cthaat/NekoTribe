@@ -71,9 +71,9 @@ const statusBadgeVariant = computed(() => {
     case 'pending':
       return 'secondary';
     case 'approved':
-      return 'default';
-    case 'rejected':
       return 'destructive';
+    case 'rejected':
+      return 'outline';
     case 'flagged':
       return 'outline';
     case 'removed':
