@@ -1,5 +1,5 @@
 -- ==========================================
--- NekoTribe Oracle 数据库 V2 设计方案（含群组）
+-- NekoTribe Oracle 数据库 V2 设计方案（含群组与审核）
 -- 基于文件:
 --   1. doc/neko_tribe-oracle - with-group.sql
 --   2. doc/NekoTribe-V2接口与Oracle重构总设计.md
