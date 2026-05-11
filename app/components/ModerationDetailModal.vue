@@ -35,7 +35,6 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { toast } from 'vue-sonner';
 import type {
   ModerationReportReason,
   ModerationTweet
@@ -191,7 +190,6 @@ const handleApprove = () => {
   if (props.tweet) {
     emit('approve', props.tweet.id, moderationNote.value);
     emit('update:open', false);
-    toast.success(t('moderation.feedback.approved'));
   }
 };
 
@@ -199,7 +197,6 @@ const handleReject = () => {
   if (props.tweet) {
     emit('reject', props.tweet.id, moderationNote.value);
     emit('update:open', false);
-    toast.success(t('moderation.feedback.rejected'));
   }
 };
 
@@ -207,7 +204,6 @@ const handleFlag = () => {
   if (props.tweet) {
     emit('flag', props.tweet.id, moderationNote.value);
     emit('update:open', false);
-    toast.info(t('moderation.feedback.flagged'));
   }
 };
 
