@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -706,25 +707,27 @@ async function deleteCurrentGroup(): Promise<void> {
               </div>
 
               <div class="grid gap-4 md:grid-cols-2">
-                <div
-                  class="flex items-center justify-between rounded-lg border p-4"
-                >
-                  <div class="space-y-1">
-                    <Label>
-                      {{ t('groups.manage.fields.joinApproval') }}
-                    </Label>
-                    <p class="text-sm text-muted-foreground">
-                      {{ t('groups.manage.fields.joinApprovalHint') }}
-                    </p>
-                  </div>
-                  <Switch
-                    :model-value="form.joinApproval"
-                    :disabled="!canEditSettings"
-                    @update:model-value="
-                      form.joinApproval = Boolean($event)
-                    "
-                  />
-                </div>
+                <Card class="gap-0 py-0">
+                  <CardContent
+                    class="flex items-center justify-between gap-4 p-4"
+                  >
+                    <div class="space-y-1">
+                      <Label>
+                        {{ t('groups.manage.fields.joinApproval') }}
+                      </Label>
+                      <p class="text-sm text-muted-foreground">
+                        {{ t('groups.manage.fields.joinApprovalHint') }}
+                      </p>
+                    </div>
+                    <Switch
+                      :model-value="form.joinApproval"
+                      :disabled="!canEditSettings"
+                      @update:model-value="
+                        form.joinApproval = Boolean($event)
+                      "
+                    />
+                  </CardContent>
+                </Card>
 
                 <div class="space-y-2">
                   <Label>
@@ -755,7 +758,7 @@ async function deleteCurrentGroup(): Promise<void> {
             <TabsContent value="members" class="mt-0 space-y-5">
               <div
                 v-if="pendingMembers.length > 0"
-                class="space-y-3 rounded-lg border p-4"
+                class="space-y-3"
               >
                 <div class="flex items-center gap-2">
                   <Clock class="h-4 w-4 text-muted-foreground" />
@@ -764,50 +767,54 @@ async function deleteCurrentGroup(): Promise<void> {
                   </h3>
                 </div>
                 <div class="space-y-2">
-                  <div
+                  <Card
                     v-for="member in pendingMembers"
                     :key="member.id"
-                    class="flex items-center justify-between gap-3 rounded-md border bg-muted/20 p-3"
+                    class="gap-0 bg-muted/20 py-0 shadow-xs"
                   >
-                    <div class="flex min-w-0 items-center gap-3">
-                      <Avatar class="h-9 w-9">
-                        <AvatarImage
-                          :src="member.avatar"
-                          :alt="member.nickname"
-                        />
-                        <AvatarFallback>
-                          {{ member.nickname.slice(0, 1) }}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div class="min-w-0">
-                        <div class="truncate text-sm font-medium">
-                          {{ member.nickname }}
-                        </div>
-                        <div class="truncate text-xs text-muted-foreground">
-                          @{{ member.username }}
+                    <CardContent
+                      class="flex items-center justify-between gap-3 p-3"
+                    >
+                      <div class="flex min-w-0 items-center gap-3">
+                        <Avatar class="h-9 w-9">
+                          <AvatarImage
+                            :src="member.avatar"
+                            :alt="member.nickname"
+                          />
+                          <AvatarFallback>
+                            {{ member.nickname.slice(0, 1) }}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div class="min-w-0">
+                          <div class="truncate text-sm font-medium">
+                            {{ member.nickname }}
+                          </div>
+                          <div class="truncate text-xs text-muted-foreground">
+                            @{{ member.username }}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div class="flex shrink-0 gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        :disabled="!canModerateMembers || !!actionKey"
-                        @click="approveMember(member, false)"
-                      >
-                        <X class="mr-2 h-4 w-4" />
-                        {{ t('groups.manage.actions.reject') }}
-                      </Button>
-                      <Button
-                        size="sm"
-                        :disabled="!canModerateMembers || !!actionKey"
-                        @click="approveMember(member, true)"
-                      >
-                        <Check class="mr-2 h-4 w-4" />
-                        {{ t('groups.manage.actions.approve') }}
-                      </Button>
-                    </div>
-                  </div>
+                      <div class="flex shrink-0 gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          :disabled="!canModerateMembers || !!actionKey"
+                          @click="approveMember(member, false)"
+                        >
+                          <X class="mr-2 h-4 w-4" />
+                          {{ t('groups.manage.actions.reject') }}
+                        </Button>
+                        <Button
+                          size="sm"
+                          :disabled="!canModerateMembers || !!actionKey"
+                          @click="approveMember(member, true)"
+                        >
+                          <Check class="mr-2 h-4 w-4" />
+                          {{ t('groups.manage.actions.approve') }}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
 
@@ -838,12 +845,15 @@ async function deleteCurrentGroup(): Promise<void> {
               </div>
 
               <div class="space-y-2">
-                <div
+                <Card
                   v-for="member in managedMembers"
                   :key="member.id"
-                  class="grid gap-3 rounded-lg border p-3 md:grid-cols-[minmax(0,1fr)_160px_auto]"
+                  class="gap-0 py-0"
                 >
-                  <div class="flex min-w-0 items-center gap-3">
+                  <CardContent
+                    class="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_160px_auto]"
+                  >
+                    <div class="flex min-w-0 items-center gap-3">
                     <Avatar class="h-10 w-10">
                       <AvatarImage
                         :src="member.avatar"
@@ -868,9 +878,9 @@ async function deleteCurrentGroup(): Promise<void> {
                         @{{ member.username }} · {{ t('groups.member.joinedAt', { date: formatDate(member.joinedAt) }) }}
                       </div>
                     </div>
-                  </div>
+                    </div>
 
-                  <Select
+                    <Select
                     :model-value="member.role"
                     :disabled="
                       !canEditSettings ||
@@ -902,9 +912,9 @@ async function deleteCurrentGroup(): Promise<void> {
                         </SelectItem>
                       </template>
                     </SelectContent>
-                  </Select>
+                    </Select>
 
-                  <TooltipProvider>
+                    <TooltipProvider>
                     <div class="flex justify-end gap-2">
                       <Tooltip v-if="member.role !== 'owner'">
                         <TooltipTrigger as-child>
@@ -966,155 +976,174 @@ async function deleteCurrentGroup(): Promise<void> {
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                  </TooltipProvider>
-                </div>
+                    </TooltipProvider>
+                  </CardContent>
+                </Card>
 
-                <div
+                <Card
                   v-if="!loadingMembers && managedMembers.length === 0"
-                  class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
+                  class="gap-0 border-dashed py-0"
                 >
-                  {{ t('groups.manage.emptyMembers') }}
-                </div>
+                  <CardContent
+                    class="p-8 text-center text-sm text-muted-foreground"
+                  >
+                    {{ t('groups.manage.emptyMembers') }}
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
 
             <TabsContent value="invites" class="mt-0 space-y-5">
-              <div class="grid gap-4 rounded-lg border p-4 md:grid-cols-[1fr_1fr_auto]">
-                <div class="space-y-2">
-                  <Label for="invite-max-uses">
-                    {{ t('groups.manage.invites.maxUses') }}
-                  </Label>
-                  <Input
-                    id="invite-max-uses"
-                    v-model.number="inviteMaxUses"
-                    type="number"
-                    min="1"
-                  />
-                </div>
-                <div class="space-y-2">
-                  <Label for="invite-expire-hours">
-                    {{ t('groups.manage.invites.expireHours') }}
-                  </Label>
-                  <Input
-                    id="invite-expire-hours"
-                    v-model.number="inviteExpireHours"
-                    type="number"
-                    min="1"
-                  />
-                </div>
-                <div class="flex items-end">
-                  <Button
-                    class="w-full"
-                    :disabled="
-                      !canModerateMembers || creatingInvite
-                    "
-                    @click="createInvite"
-                  >
-                    <Link class="mr-2 h-4 w-4" />
-                    {{ t('groups.manage.invites.create') }}
-                  </Button>
-                </div>
-              </div>
+              <Card class="gap-0 py-0">
+                <CardContent
+                  class="grid gap-4 p-4 md:grid-cols-[1fr_1fr_auto]"
+                >
+                  <div class="space-y-2">
+                    <Label for="invite-max-uses">
+                      {{ t('groups.manage.invites.maxUses') }}
+                    </Label>
+                    <Input
+                      id="invite-max-uses"
+                      v-model.number="inviteMaxUses"
+                      type="number"
+                      min="1"
+                    />
+                  </div>
+                  <div class="space-y-2">
+                    <Label for="invite-expire-hours">
+                      {{ t('groups.manage.invites.expireHours') }}
+                    </Label>
+                    <Input
+                      id="invite-expire-hours"
+                      v-model.number="inviteExpireHours"
+                      type="number"
+                      min="1"
+                    />
+                  </div>
+                  <div class="flex items-end">
+                    <Button
+                      class="w-full"
+                      :disabled="
+                        !canModerateMembers || creatingInvite
+                      "
+                      @click="createInvite"
+                    >
+                      <Link class="mr-2 h-4 w-4" />
+                      {{ t('groups.manage.invites.create') }}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
 
               <div class="space-y-2">
-                <div
+                <Card
                   v-for="invite in invites"
                   :key="invite.invite_id"
-                  class="grid gap-3 rounded-lg border p-3 md:grid-cols-[minmax(0,1fr)_120px_120px_auto]"
+                  class="gap-0 py-0"
                 >
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="font-mono text-sm">
-                        {{ invite.invite_code || '-' }}
-                      </span>
-                      <Badge
-                        :variant="
-                          invite.is_valid ? 'secondary' : 'outline'
-                        "
-                      >
-                        {{ invite.status }}
-                      </Badge>
-                    </div>
-                    <p class="truncate text-xs text-muted-foreground">
-                      {{ t('groups.manage.invites.expiresAt', { date: formatDate(invite.expires_at) }) }}
-                    </p>
-                  </div>
-                  <div class="text-sm text-muted-foreground">
-                    {{ invite.used_count }} / {{ invite.max_uses ?? '-' }}
-                  </div>
-                  <div class="text-sm text-muted-foreground">
-                    {{ invite.inviter.display_name || invite.inviter.username }}
-                  </div>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger as-child>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          :aria-label="
-                            t('groups.manage.actions.copyInvite')
+                  <CardContent
+                    class="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_120px_120px_auto]"
+                  >
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span class="font-mono text-sm">
+                          {{ invite.invite_code || '-' }}
+                        </span>
+                        <Badge
+                          :variant="
+                            invite.is_valid ? 'secondary' : 'outline'
                           "
-                          :disabled="!invite.invite_code"
-                          @click="copyInvite(invite)"
                         >
-                          <Copy class="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {{ t('groups.manage.actions.copyInvite') }}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
+                          {{ invite.status }}
+                        </Badge>
+                      </div>
+                      <p class="truncate text-xs text-muted-foreground">
+                        {{ t('groups.manage.invites.expiresAt', { date: formatDate(invite.expires_at) }) }}
+                      </p>
+                    </div>
+                    <div class="text-sm text-muted-foreground">
+                      {{ invite.used_count }} / {{ invite.max_uses ?? '-' }}
+                    </div>
+                    <div class="text-sm text-muted-foreground">
+                      {{ invite.inviter.display_name || invite.inviter.username }}
+                    </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger as-child>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            :aria-label="
+                              t('groups.manage.actions.copyInvite')
+                            "
+                            :disabled="!invite.invite_code"
+                            @click="copyInvite(invite)"
+                          >
+                            <Copy class="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {{ t('groups.manage.actions.copyInvite') }}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </CardContent>
+                </Card>
 
-                <div
+                <Card
                   v-if="!loadingInvites && invites.length === 0"
-                  class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
+                  class="gap-0 border-dashed py-0"
                 >
-                  {{ t('groups.manage.invites.empty') }}
-                </div>
+                  <CardContent
+                    class="p-8 text-center text-sm text-muted-foreground"
+                  >
+                    {{ t('groups.manage.invites.empty') }}
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
 
             <TabsContent value="danger" class="mt-0 space-y-4">
-              <div class="rounded-lg border border-destructive/30 p-4">
-                <div class="flex items-start gap-3">
-                  <div class="rounded-md bg-destructive/10 p-2 text-destructive">
-                    <Trash2 class="h-5 w-5" />
+              <Card class="gap-0 border-destructive/30 py-0">
+                <CardContent class="p-4">
+                  <div class="flex items-start gap-3">
+                    <div class="rounded-md bg-destructive/10 p-2 text-destructive">
+                      <Trash2 class="h-5 w-5" />
+                    </div>
+                    <div class="space-y-2">
+                      <h3 class="font-medium">
+                        {{ t('groups.manage.danger.title') }}
+                      </h3>
+                      <p class="text-sm text-muted-foreground">
+                        {{ t('groups.manage.danger.description') }}
+                      </p>
+                    </div>
                   </div>
-                  <div class="space-y-2">
-                    <h3 class="font-medium">
-                      {{ t('groups.manage.danger.title') }}
-                    </h3>
-                    <p class="text-sm text-muted-foreground">
-                      {{ t('groups.manage.danger.description') }}
-                    </p>
+                  <div class="mt-4 space-y-3">
+                    <Label for="delete-confirm">
+                      {{ t('groups.manage.danger.confirmLabel', { name: group.name }) }}
+                    </Label>
+                    <Input
+                      id="delete-confirm"
+                      v-model="deleteConfirm"
+                      :disabled="!group.isOwner"
+                      :placeholder="group.name"
+                    />
+                    <Button
+                      variant="destructive"
+                      :disabled="
+                        !group.isOwner ||
+                        deleting ||
+                        deleteConfirm !== group.name
+                      "
+                      @click="deleteCurrentGroup"
+                    >
+                      <Trash2 class="mr-2 h-4 w-4" />
+                      {{ t('groups.manage.danger.delete') }}
+                    </Button>
                   </div>
-                </div>
-                <div class="mt-4 space-y-3">
-                  <Label for="delete-confirm">
-                    {{ t('groups.manage.danger.confirmLabel', { name: group.name }) }}
-                  </Label>
-                  <Input
-                    id="delete-confirm"
-                    v-model="deleteConfirm"
-                    :disabled="!group.isOwner"
-                    :placeholder="group.name"
-                  />
-                  <Button
-                    variant="destructive"
-                    :disabled="
-                      !group.isOwner ||
-                      deleting ||
-                      deleteConfirm !== group.name
-                    "
-                    @click="deleteCurrentGroup"
-                  >
-                    <Trash2 class="mr-2 h-4 w-4" />
-                    {{ t('groups.manage.danger.delete') }}
-                  </Button>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </ScrollArea>
         </Tabs>
