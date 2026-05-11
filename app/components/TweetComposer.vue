@@ -13,6 +13,7 @@ import type {
 import type { V2PostVisibility } from '@/types/v2';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -596,13 +597,13 @@ defineExpose({
 </script>
 
 <template>
-  <div
-    class="overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm"
+  <Card
+    class="gap-0 overflow-hidden py-0"
     @drop="handleDrop"
     @dragover.prevent="isDraggingMedia = true"
     @dragleave="isDraggingMedia = false"
   >
-    <div class="space-y-4 p-4 sm:p-5">
+    <CardContent class="space-y-4 p-4 sm:p-5">
       <div
         v-if="contextPost"
         class="relative rounded-lg border bg-muted/30 p-3"
@@ -781,11 +782,11 @@ defineExpose({
           </Button>
         </Badge>
       </div>
-    </div>
+    </CardContent>
 
     <Separator />
 
-    <div
+    <CardContent
       class="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between"
     >
       <div class="flex flex-wrap items-center gap-1.5">
@@ -1000,7 +1001,7 @@ defineExpose({
           }}
         </AppSendButton>
       </div>
-    </div>
+    </CardContent>
 
     <input
       ref="fileInputRef"
@@ -1010,5 +1011,5 @@ defineExpose({
       class="hidden"
       @change="handleFileSelect"
     />
-  </div>
+  </Card>
 </template>
