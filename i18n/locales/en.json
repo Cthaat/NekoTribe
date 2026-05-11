@@ -954,6 +954,13 @@
       "anonymous": "Anonymous user",
       "evidence": "View evidence"
     },
+    "appeals": {
+      "title": "Appeal Review",
+      "empty": "No appeals found",
+      "approve": "Approve appeal",
+      "reject": "Reject appeal",
+      "defaultResponse": "The moderation center has reviewed this appeal."
+    },
     "settings": {
       "title": "Moderation Settings",
       "description": "Configure automation thresholds, workflow constraints, and default penalties.",

@@ -954,6 +954,13 @@
       "anonymous": "匿名用户",
       "evidence": "查看证据"
     },
+    "appeals": {
+      "title": "申诉审核",
+      "empty": "暂无申诉记录",
+      "approve": "通过申诉",
+      "reject": "驳回申诉",
+      "defaultResponse": "审核中心已处理该申诉。"
+    },
     "settings": {
       "title": "审核设置",
       "description": "配置自动审核阈值、流程约束和处罚默认值。",
