@@ -12,6 +12,8 @@ import {
   TabsList,
   TabsTrigger
 } from '@/components/ui/tabs';
+import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const { t } = useAppLocale();
 const localePath = useLocalePath();
@@ -88,14 +90,13 @@ watch(currentPath, newPath => {
 </script>
 
 <template>
-  <div
-    class="min-h-[calc(100dvh-4rem)] overflow-y-auto px-4 py-5"
-  >
+  <ScrollArea class="h-[calc(100dvh-4rem)]">
     <div class="mx-auto max-w-7xl space-y-5">
       <!-- 页面标题 -->
-      <div
-        class="flex flex-col gap-4 rounded-lg border bg-card/70 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
-      >
+      <Card class="gap-0 bg-card/70 py-0">
+        <CardContent
+          class="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
         <div class="flex items-center gap-3">
           <div class="rounded-md bg-primary/10 p-2">
             <Shield class="h-5 w-5 text-primary" />
@@ -128,10 +129,11 @@ watch(currentPath, newPath => {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-      </div>
+        </CardContent>
+      </Card>
 
       <!-- 子页面内容 -->
       <NuxtPage />
     </div>
-  </div>
+  </ScrollArea>
 </template>
