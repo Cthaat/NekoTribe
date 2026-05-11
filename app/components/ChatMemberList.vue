@@ -19,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Collapsible,
   CollapsibleContent,
@@ -180,7 +181,8 @@ const getRoleColor = (role: ChatMember['role']) => {
     </div>
 
     <!-- 成员列表 -->
-    <div class="min-h-0 flex-1 overflow-y-auto py-2">
+    <ScrollArea class="min-h-0 flex-1">
+      <div class="py-2">
       <!-- 在线成员 -->
       <Collapsible
         v-model:open="isOnlineExpanded"
@@ -425,6 +427,7 @@ const getRoleColor = (role: ChatMember['role']) => {
           </div>
         </CollapsibleContent>
       </Collapsible>
-    </div>
+      </div>
+    </ScrollArea>
   </div>
 </template>
