@@ -111,6 +111,8 @@ ALTER SESSION SET CURRENT_SCHEMA = NEKO_APP;
 --   n_user_sessions    -> n_auth_sessions
 --   文件 settings      -> n_user_settings
 --   文件 statements    -> n_account_statements + n_statement_appeals
+--   内容审核           -> n_moderation_reports + n_moderation_cases + n_moderation_actions
+--                         + n_moderation_user_restrictions + n_moderation_settings
 --
 -- V2 正式保留:
 --   n_users
@@ -125,6 +127,8 @@ ALTER SESSION SET CURRENT_SCHEMA = NEKO_APP;
 --   /media/*
 --   /tags/*
 --   /notifications/*
+--   /reports/*
+--   /moderation/*
 -- ==========================================
 
 -- ==========================================
@@ -146,6 +150,10 @@ CREATE SEQUENCE seq_tag_id START WITH 700000 INCREMENT BY 1 NOMAXVALUE NOCYCLE C
 CREATE SEQUENCE seq_notification_id START WITH 800000 INCREMENT BY 1 NOMAXVALUE NOCYCLE CACHE 100;
 CREATE SEQUENCE seq_statement_id START WITH 900000 INCREMENT BY 1 NOMAXVALUE NOCYCLE CACHE 50;
 CREATE SEQUENCE seq_statement_appeal_id START WITH 1000000 INCREMENT BY 1 NOMAXVALUE NOCYCLE CACHE 50;
+CREATE SEQUENCE seq_moderation_report_id START WITH 1100000 INCREMENT BY 1 NOMAXVALUE NOCYCLE CACHE 50;
+CREATE SEQUENCE seq_moderation_case_id START WITH 1200000 INCREMENT BY 1 NOMAXVALUE NOCYCLE CACHE 50;
+CREATE SEQUENCE seq_moderation_action_id START WITH 1300000 INCREMENT BY 1 NOMAXVALUE NOCYCLE CACHE 50;
+CREATE SEQUENCE seq_moderation_restriction_id START WITH 1400000 INCREMENT BY 1 NOMAXVALUE NOCYCLE CACHE 50;
 
 -- 群组模块延续原有独立序列
 CREATE SEQUENCE seq_group_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
