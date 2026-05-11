@@ -499,6 +499,17 @@ interface V2UserAnalytics {
   engagement_score: number;
 }
 
+interface V2UserDailyAnalytics {
+  day: string;
+  posts_count: number;
+  likes_received: number;
+  comments_received: number;
+  retweets_received: number;
+  likes_given: number;
+  comments_made: number;
+  engagement_score: number;
+}
+
 interface V2PostAnalytics {
   post_id: number;
   views_count: number;
