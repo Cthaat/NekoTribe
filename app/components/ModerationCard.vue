@@ -147,10 +147,10 @@ const handleViewDetail = () => {
 
 <template>
   <Card
-    class="overflow-hidden border-border/70 bg-background shadow-sm transition-colors hover:bg-muted/20"
+    class="gap-0 overflow-hidden rounded-lg border-border/70 bg-background py-0 shadow-sm transition-colors hover:bg-muted/20"
   >
     <CardHeader
-      class="flex flex-row items-start justify-between gap-4 space-y-0 border-b bg-muted/20 px-4 py-3"
+      class="flex flex-col items-start justify-between gap-3 space-y-0 border-b bg-muted/20 px-4 py-3 !pb-3 sm:flex-row"
     >
       <!-- 用户信息 -->
       <div class="flex min-w-0 items-center gap-3">
@@ -182,7 +182,9 @@ const handleViewDetail = () => {
       </div>
 
       <!-- 状态和操作 -->
-      <div class="flex shrink-0 items-center gap-2">
+      <div
+        class="flex max-w-full shrink-0 flex-wrap items-center gap-2 sm:justify-end"
+      >
         <Badge variant="outline" class="capitalize">
           {{ tweet.priority }}
         </Badge>
@@ -337,7 +339,7 @@ const handleViewDetail = () => {
     </CardContent>
 
     <CardFooter
-      class="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/10 px-4 py-3"
+      class="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/10 px-4 py-3 !pt-3"
     >
       <!-- 互动数据 -->
       <div
