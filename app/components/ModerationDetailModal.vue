@@ -496,14 +496,11 @@ const closeDialog = () => {
           <Flag class="h-4 w-4 mr-2" />
           {{ t('moderation.actions.flag') }}
         </Button>
-        <Button variant="destructive" @click="handleReject">
+        <Button variant="outline" @click="handleReject">
           <XCircle class="h-4 w-4 mr-2" />
           {{ t('moderation.actions.reject') }}
         </Button>
-        <Button
-          class="bg-green-600 hover:bg-green-700"
-          @click="handleApprove"
-        >
+        <Button variant="destructive" @click="handleApprove">
           <CheckCircle class="h-4 w-4 mr-2" />
           {{ t('moderation.actions.approve') }}
         </Button>
