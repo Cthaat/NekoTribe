@@ -488,6 +488,16 @@ export interface V2CreatePostPayload {
   location?: string;
 }
 
+export interface V2UpdatePostPayload {
+  content?: string;
+  visibility?: V2PostVisibility;
+  language?: string;
+  location?: string | null;
+  media_ids?: number[];
+  tag_names?: string[];
+  mention_user_ids?: number[];
+}
+
 export interface V2RetweetPayload {
   content?: string;
   visibility?: V2PostVisibility;
@@ -502,6 +512,17 @@ export interface V2LikePostData {
 export interface V2BookmarkPostData {
   post_id: number;
   is_bookmarked: boolean;
+}
+
+export interface V2PostAnalytics {
+  post_id: number;
+  views_count: number;
+  likes_count: number;
+  comments_count: number;
+  replies_count: number;
+  retweets_count: number;
+  engagement_score: number;
+  like_rate: number;
 }
 
 export interface V2CommentStats {
@@ -1072,7 +1093,10 @@ export type V2ListUserPostsRequest = V2PageQuery & {
 };
 export type V2ListUserPostsResponse =
   V2ApiResponse<V2Post[]>;
-export type V2ListMyPostsRequest = V2PageQuery;
+export type V2ListMyPostsRequest = V2PageQuery & {
+  sort?: V2PostSort;
+  q?: string;
+};
 export type V2ListMyPostsResponse = V2ApiResponse<V2Post[]>;
 export type V2ListMyBookmarkedPostsRequest = V2PageQuery & {
   sort?: V2PostSort;
@@ -1081,8 +1105,12 @@ export type V2ListMyBookmarkedPostsResponse =
   V2ApiResponse<V2Post[]>;
 export type V2CreatePostRequest = V2CreatePostPayload;
 export type V2CreatePostResponse = V2ApiResponse<V2Post>;
+export type V2UpdatePostRequest = V2UpdatePostPayload;
+export type V2UpdatePostResponse = V2ApiResponse<V2Post>;
 export type V2GetPostResponse = V2ApiResponse<V2Post>;
 export type V2DeletePostResponse = V2ApiResponse<null>;
+export type V2GetPostAnalyticsResponse =
+  V2ApiResponse<V2PostAnalytics>;
 export type V2CreateRetweetRequest = V2RetweetPayload;
 export type V2CreateRetweetResponse = V2ApiResponse<V2Post>;
 export type V2LikePostResponse =
