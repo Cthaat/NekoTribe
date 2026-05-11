@@ -12,7 +12,6 @@ import {
   TabsList,
   TabsTrigger
 } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
 
 // 定义页面 meta
 definePageMeta({
