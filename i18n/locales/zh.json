@@ -860,7 +860,9 @@
       "todayProcessed": "今日处理",
       "avgProcessTime": "平均处理时间",
       "zeroMinutes": "0分钟",
-      "minutes": "{count}分钟"
+      "minutes": "{count}分钟",
+      "openReports": "待处理举报",
+      "appealSuccessRate": "申诉成功率"
     },
     "list": {
       "count": "共 {count} 条待审核内容",
