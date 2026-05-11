@@ -32,7 +32,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { toast } from 'vue-sonner';
 import type {
   ModerationReportReasonVM,
   ModerationTweetVM
@@ -131,17 +130,14 @@ const getReasonLabel = (
 // 处理审核操作
 const handleApprove = () => {
   emit('approve', props.tweet.id);
-  toast.success(t('moderation.feedback.approved'));
 };
 
 const handleReject = () => {
   emit('reject', props.tweet.id);
-  toast.success(t('moderation.feedback.rejected'));
 };
 
 const handleFlag = () => {
   emit('flag', props.tweet.id);
-  toast.info(t('moderation.feedback.flagged'));
 };
 
 const handleViewDetail = () => {
