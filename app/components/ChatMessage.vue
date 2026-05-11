@@ -86,6 +86,7 @@ const emit = defineEmits<{
   (e: 'pin', id: number): void;
   (e: 'react', id: number, emoji: string): void;
   (e: 'copy', content: string): void;
+  (e: 'view-profile', userId: number): void;
 }>();
 
 // 获取角色颜色
@@ -154,6 +155,10 @@ const handleReaction = (emoji: string) => {
 const handleCopy = () => {
   emit('copy', props.message.content);
 };
+
+const handleViewProfile = () => {
+  emit('view-profile', props.message.author.id);
+};
 </script>
 
 <template>
@@ -177,13 +182,20 @@ const handleCopy = () => {
   >
     <!-- 头像区域 -->
     <div v-if="showAvatar && !isOwn" class="w-10 flex-shrink-0">
-      <Avatar class="h-10 w-10 cursor-pointer hover:opacity-80">
-        <AvatarImage
-          :src="message.author.avatar"
-          :alt="message.author.nickname"
-        />
-        <AvatarFallback>{{ message.author.nickname.slice(0, 2) }}</AvatarFallback>
-      </Avatar>
+      <Button
+        type="button"
+        variant="ghost"
+        class="h-10 w-10 rounded-full p-0"
+        @click="handleViewProfile"
+      >
+        <Avatar class="h-10 w-10">
+          <AvatarImage
+            :src="message.author.avatar"
+            :alt="message.author.nickname"
+          />
+          <AvatarFallback>{{ message.author.nickname.slice(0, 2) }}</AvatarFallback>
+        </Avatar>
+      </Button>
     </div>
 
     <!-- 消息内容区域 -->
@@ -193,12 +205,15 @@ const handleCopy = () => {
         v-if="isFirstInGroup"
         class="flex items-center gap-2 mb-1"
       >
-        <span
-          class="font-medium cursor-pointer hover:underline"
+        <Button
+          type="button"
+          variant="link"
+          class="h-auto p-0 font-medium"
           :class="roleColor"
+          @click="handleViewProfile"
         >
           {{ message.author.nickname }}
-        </span>
+        </Button>
         <Badge
           v-if="roleBadge"
           :variant="roleBadge.variant"
