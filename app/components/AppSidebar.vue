@@ -79,6 +79,10 @@ const baseNavData = computed(() => ({
           url: `/tweet/my_tweets/${userId.value}`
         },
         {
+          title: t('nav.main.manageTweets'),
+          url: 'account-posts'
+        },
+        {
           title: t('nav.main.mention'),
           url: `/tweet/mention/${userId.value}`
         },
