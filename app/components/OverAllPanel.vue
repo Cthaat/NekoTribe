@@ -17,6 +17,7 @@ import {
   TrendingUp
 } from 'lucide-vue-next';
 import { useAnimatedNumber } from '~/composables/useAnimatedNumber';
+import type { UserDailyAnalyticsVM } from '@/types/users';
 
 const { t } = useAppLocale();
 
@@ -30,12 +31,15 @@ interface UserAnalyticsData {
   engagementScore: number;
 }
 
-const props = defineProps({
-  userAnalytics: {
-    type: Object as PropType<UserAnalyticsData>,
-    required: true
+const props = withDefaults(
+  defineProps<{
+    userAnalytics: UserAnalyticsData;
+    dailyAnalytics?: UserDailyAnalyticsVM[];
+  }>(),
+  {
+    dailyAnalytics: () => []
   }
-});
+);
 
 const totalTweets = computed(
   () => props.userAnalytics.totalTweets
@@ -85,6 +89,87 @@ const formatNumber = (num: number) => {
     return `${(num / 1000).toFixed(1)}k`;
   }
   return num.toString();
+};
+
+const chartWidth = 640;
+const chartHeight = 220;
+const chartPadding = {
+  left: 34,
+  right: 18,
+  top: 18,
+  bottom: 34
+};
+
+const dailyRows = computed(() => props.dailyAnalytics);
+
+const dailyInteraction = (
+  row: UserDailyAnalyticsVM
+): number =>
+  row.likesReceived +
+  row.commentsReceived +
+  row.retweetsReceived;
+
+const dailyMaxValue = computed(() =>
+  Math.max(
+    1,
+    ...dailyRows.value.flatMap(row => [
+      row.postsCount,
+      row.likesReceived,
+      row.commentsReceived,
+      dailyInteraction(row)
+    ])
+  )
+);
+
+const chartX = (index: number): number => {
+  const count = dailyRows.value.length;
+  if (count <= 1) return chartPadding.left;
+  return (
+    chartPadding.left +
+    (index *
+      (chartWidth - chartPadding.left - chartPadding.right)) /
+      (count - 1)
+  );
+};
+
+const chartY = (value: number): number => {
+  const usableHeight =
+    chartHeight - chartPadding.top - chartPadding.bottom;
+  return (
+    chartPadding.top +
+    usableHeight * (1 - value / dailyMaxValue.value)
+  );
+};
+
+const chartPoints = (
+  selector: (row: UserDailyAnalyticsVM) => number
+): string =>
+  dailyRows.value
+    .map((row, index) =>
+      [chartX(index), chartY(selector(row))].join(',')
+    )
+    .join(' ');
+
+const postsPoints = computed(() =>
+  chartPoints(row => row.postsCount)
+);
+const likesPoints = computed(() =>
+  chartPoints(row => row.likesReceived)
+);
+const commentsPoints = computed(() =>
+  chartPoints(row => row.commentsReceived)
+);
+const interactionPoints = computed(() =>
+  chartPoints(dailyInteraction)
+);
+
+const labelStep = computed(() =>
+  Math.max(1, Math.ceil(dailyRows.value.length / 6))
+);
+
+const formatChartDay = (value: string): string => {
+  const [, month = '', day = ''] = value.split('-');
+  return `${month}/${day}`;
 };
 </script>
 
@@ -276,6 +361,178 @@ const formatNumber = (num: number) => {
                   )
                 }}
               </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card class="overflow-hidden md:col-span-2 lg:col-span-3">
+      <CardHeader
+        class="flex flex-row items-start justify-between space-y-0"
+      >
+        <div class="space-y-1">
+          <CardTitle class="flex items-center gap-2 text-base">
+            <TrendingUp class="h-4 w-4 text-primary" />
+            {{ t('account.overview.overallPanel.dailyTrend') }}
+          </CardTitle>
+          <p class="text-sm text-muted-foreground">
+            {{
+              t(
+                'account.overview.overallPanel.dailyTrendDescription'
+              )
+            }}
+          </p>
+        </div>
+        <div
+          class="hidden flex-wrap items-center gap-3 text-xs text-muted-foreground sm:flex"
+        >
+          <span class="flex items-center gap-1">
+            <span class="h-2 w-2 rounded-full bg-chart-1" />
+            {{ t('account.overview.overallPanel.chartPosts') }}
+          </span>
+          <span class="flex items-center gap-1">
+            <span class="h-2 w-2 rounded-full bg-chart-2" />
+            {{ t('account.overview.overallPanel.chartLikes') }}
+          </span>
+          <span class="flex items-center gap-1">
+            <span class="h-2 w-2 rounded-full bg-chart-3" />
+            {{ t('account.overview.overallPanel.chartComments') }}
+          </span>
+          <span class="flex items-center gap-1">
+            <span class="h-2 w-2 rounded-full bg-chart-4" />
+            {{ t('account.overview.overallPanel.chartInteraction') }}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div
+          v-if="dailyRows.length === 0"
+          class="flex h-56 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
+        >
+          {{ t('account.overview.overallPanel.noTrendData') }}
+        </div>
+        <div v-else class="overflow-hidden rounded-lg border bg-muted/20 p-3">
+          <svg
+            class="h-64 w-full"
+            :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
+            role="img"
+            :aria-label="t('account.overview.overallPanel.dailyTrend')"
+          >
+            <line
+              v-for="tick in [0, 0.25, 0.5, 0.75, 1]"
+              :key="tick"
+              :x1="chartPadding.left"
+              :x2="chartWidth - chartPadding.right"
+              :y1="chartPadding.top + (chartHeight - chartPadding.top - chartPadding.bottom) * tick"
+              :y2="chartPadding.top + (chartHeight - chartPadding.top - chartPadding.bottom) * tick"
+              class="stroke-border"
+              stroke-width="1"
+            />
+
+            <polyline
+              :points="interactionPoints"
+              fill="none"
+              stroke="var(--chart-4)"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              opacity="0.9"
+            />
+            <polyline
+              :points="likesPoints"
+              fill="none"
+              stroke="var(--chart-2)"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <polyline
+              :points="commentsPoints"
+              fill="none"
+              stroke="var(--chart-3)"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <polyline
+              :points="postsPoints"
+              fill="none"
+              stroke="var(--chart-1)"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+
+            <g
+              v-for="(row, index) in dailyRows"
+              :key="row.day"
+            >
+              <circle
+                :cx="chartX(index)"
+                :cy="chartY(dailyInteraction(row))"
+                r="3"
+                fill="var(--chart-4)"
+              />
+              <text
+                v-if="
+                  index === 0 ||
+                  index === dailyRows.length - 1 ||
+                  index % labelStep === 0
+                "
+                :x="chartX(index)"
+                :y="chartHeight - 8"
+                text-anchor="middle"
+                class="fill-muted-foreground text-[10px]"
+              >
+                {{ formatChartDay(row.day) }}
+              </text>
+            </g>
+
+            <text
+              :x="chartPadding.left - 8"
+              :y="chartY(dailyMaxValue)"
+              text-anchor="end"
+              dominant-baseline="middle"
+              class="fill-muted-foreground text-[10px]"
+            >
+              {{ dailyMaxValue }}
+            </text>
+            <text
+              :x="chartPadding.left - 8"
+              :y="chartY(0)"
+              text-anchor="end"
+              dominant-baseline="middle"
+              class="fill-muted-foreground text-[10px]"
+            >
+              0
+            </text>
+          </svg>
+
+          <div
+            class="mt-3 grid gap-2 text-xs text-muted-foreground sm:hidden"
+          >
+            <div class="grid grid-cols-2 gap-2">
+              <span class="flex items-center gap-1">
+                <span class="h-2 w-2 rounded-full bg-chart-1" />
+                {{ t('account.overview.overallPanel.chartPosts') }}
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="h-2 w-2 rounded-full bg-chart-2" />
+                {{ t('account.overview.overallPanel.chartLikes') }}
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="h-2 w-2 rounded-full bg-chart-3" />
+                {{ t('account.overview.overallPanel.chartComments') }}
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="h-2 w-2 rounded-full bg-chart-4" />
+                {{
+                  t(
+                    'account.overview.overallPanel.chartInteraction'
+                  )
+                }}
+              </span>
             </div>
           </div>
         </div>
