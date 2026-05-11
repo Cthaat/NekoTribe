@@ -830,9 +830,9 @@
     },
     "actions": {
       "viewDetail": "View details",
-      "approve": "Approve",
-      "approveFull": "Approve content",
-      "reject": "Dismiss",
+      "approve": "Approve report",
+      "approveFull": "Approve report and remove",
+      "reject": "Dismiss report",
       "rejectPost": "Dismiss report",
       "flag": "Flag for review",
       "refresh": "Refresh",
@@ -840,7 +840,7 @@
       "loadMore": "Load more"
     },
     "feedback": {
-      "approved": "Post approved",
+      "approved": "Report approved and the post was removed",
       "rejected": "Report dismissed and the post remains visible",
       "flagged": "Post flagged for further review",
       "refreshed": "List refreshed",
@@ -853,8 +853,8 @@
     "status": {
       "all": "All statuses",
       "pending": "Pending",
-      "approved": "Approved",
-      "rejected": "Rejected",
+      "approved": "Report approved",
+      "rejected": "Report dismissed",
       "flagged": "Flagged",
       "removed": "Removed",
       "restored": "Restored",
@@ -868,8 +868,8 @@
     },
     "stats": {
       "pending": "Pending",
-      "approved": "Approved",
-      "rejected": "Rejected",
+      "approved": "Report approved",
+      "rejected": "Report dismissed",
       "flagged": "Flagged",
       "todayProcessed": "Processed today",
       "avgProcessTime": "Avg. processing time",
