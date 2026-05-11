@@ -1610,6 +1610,15 @@
         "compositionTitle": "Overall Mix",
         "compositionDescription": "Summary of posts, received engagement, outgoing engagement, and score over the last 14 days.",
         "compositionTotal": "Total",
+        "dataTableTitle": "Data Details",
+        "dataTableDescription": "Review posts, engagement, and activity score by date.",
+        "tableDate": "Date",
+        "tablePosts": "Posts",
+        "tableLikes": "Likes",
+        "tableComments": "Comments",
+        "tableRetweets": "Retweets",
+        "tableOutgoing": "Outgoing",
+        "tableScore": "Score",
         "noTrendData": "No daily trend data yet"
       }
     },
