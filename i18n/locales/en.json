@@ -958,7 +958,25 @@
       "title": "Moderation Settings",
       "description": "Configure automation thresholds, workflow constraints, and default penalties.",
       "saved": "Moderation settings saved",
-      "saveFailed": "Failed to save moderation settings"
+      "saveFailed": "Failed to save moderation settings",
+      "definitions": {
+        "auto_hide_report_threshold": {
+          "label": "Auto-hide threshold",
+          "description": "Content is automatically marked high priority when report count reaches this value."
+        },
+        "require_note_on_reject": {
+          "label": "Require rejection note",
+          "description": "Moderators should leave a note when rejecting or removing content."
+        },
+        "allow_moderator_claim": {
+          "label": "Allow queue claiming",
+          "description": "Moderators can claim and release records in the moderation queue."
+        },
+        "default_mute_hours": {
+          "label": "Default mute duration",
+          "description": "Default number of hours for user mute actions."
+        }
+      }
     },
     "reportDetails": {
       "spam": {
