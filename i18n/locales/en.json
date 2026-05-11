@@ -1572,7 +1572,14 @@
         "engagementScoreDescription": "Comprehensive assessment of user activity",
         "outgoingInteractions": "Outgoing Interactions",
         "likesGiven": "Likes Given",
-        "commentsMade": "Comments Made"
+        "commentsMade": "Comments Made",
+        "dailyTrend": "Daily Trend",
+        "dailyTrendDescription": "Posts, received likes, comments, and overall engagement over the last 14 days.",
+        "chartPosts": "Posts",
+        "chartLikes": "Likes",
+        "chartComments": "Comments",
+        "chartInteraction": "Engagement",
+        "noTrendData": "No daily trend data yet"
       }
     },
     "profile": {
