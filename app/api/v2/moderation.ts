@@ -1,7 +1,8 @@
 import {
   toV2PagedResult,
   v2Request,
-  v2RequestData
+  v2RequestData,
+  type V2QueryValue
 } from './client';
 import type {
   V2CreateReportPayload,
@@ -16,7 +17,8 @@ import type {
   V2PagedResult
 } from '@/types/v2';
 
-export interface V2ModerationContentQuery {
+export interface V2ModerationContentQuery
+  extends Record<string, V2QueryValue> {
   q?: string;
   status?: string;
   reason?: string;
@@ -26,7 +28,8 @@ export interface V2ModerationContentQuery {
   page_size?: number;
 }
 
-export interface V2ModerationReportsQuery {
+export interface V2ModerationReportsQuery
+  extends Record<string, V2QueryValue> {
   status?: string;
   reason?: string;
   target_type?: string;
@@ -34,7 +37,8 @@ export interface V2ModerationReportsQuery {
   page_size?: number;
 }
 
-export interface V2ModerationUsersQuery {
+export interface V2ModerationUsersQuery
+  extends Record<string, V2QueryValue> {
   q?: string;
   status?: string;
   sort?: string;
