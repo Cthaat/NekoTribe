@@ -1385,6 +1385,7 @@
       "overview": "Overview",
       "settings": "Settings",
       "profile": "Profile",
+      "posts": "Post Management",
       "appearance": "Appearance",
       "security": "Security",
       "active": "Active",
@@ -1490,6 +1491,65 @@
       "appealStatus": "Appeal status",
       "actionSuccess": "Operation succeeded.",
       "actionFailed": "Operation failed."
+    },
+    "posts": {
+      "title": "Post Management",
+      "description": "Manage every post you published, update visibility, language, location and tags, and review per-post metrics.",
+      "create": "Create Post",
+      "save": "Save Changes",
+      "open": "Open Detail",
+      "searchPlaceholder": "Search your posts...",
+      "listTitle": "{count} posts in this view",
+      "detailTitle": "Post Settings and Data",
+      "detailDescription": "Select a post on the left to edit settings or inspect metrics.",
+      "noSelection": "Select a post to manage.",
+      "emptyTitle": "No posts to manage",
+      "emptyDescription": "After you publish your first post, you can manage content and inspect analytics here.",
+      "emptyContent": "(No body content)",
+      "loadingAnalytics": "Refreshing detailed metrics...",
+      "sort": {
+        "newest": "Newest",
+        "oldest": "Oldest",
+        "popular": "Top engagement"
+      },
+      "visibility": {
+        "all": "All visibility"
+      },
+      "language": {
+        "zh": "Chinese",
+        "en": "English",
+        "ja": "Japanese",
+        "ko": "Korean"
+      },
+      "stats": {
+        "total": "All Posts",
+        "visible": "In View",
+        "views": "Page Views",
+        "interactions": "Page Interactions"
+      },
+      "metrics": {
+        "views": "Views",
+        "likes": "Likes",
+        "comments": "Comments",
+        "replies": "Replies",
+        "retweets": "Reposts",
+        "engagement": "Engagement",
+        "likeRate": "Like Rate"
+      },
+      "form": {
+        "content": "Content",
+        "visibility": "Visibility",
+        "language": "Language",
+        "location": "Location",
+        "tags": "Tags",
+        "tagsPlaceholder": "Comma-separated, for example Oracle, Nuxt, V2"
+      },
+      "feedback": {
+        "loadFailed": "Failed to load post management data",
+        "analyticsFailed": "Failed to load post metrics",
+        "saved": "Post settings saved",
+        "saveFailed": "Failed to save post settings"
+      }
     },
     "overview": {
       "title": "Overview",
