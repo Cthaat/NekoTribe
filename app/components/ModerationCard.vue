@@ -33,42 +33,14 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'vue-sonner';
+import type {
+  ModerationReportReasonVM,
+  ModerationTweetVM
+} from '@/types/moderation';
 
 export type ModerationReportReason =
-  | 'spam'
-  | 'harassment'
-  | 'hate'
-  | 'violence'
-  | 'adult'
-  | 'misinformation'
-  | 'copyright'
-  | 'other';
-
-// 审核推文类型定义
-export interface ModerationTweet {
-  id: number;
-  content: string;
-  author: {
-    id: number;
-    username: string;
-    nickname: string;
-    avatar: string;
-    isVerified?: boolean;
-  };
-  media?: {
-    type: 'image' | 'video';
-    url: string;
-    thumbnail?: string;
-  }[];
-  reportCount: number;
-  reportReasons: ModerationReportReason[];
-  status: 'pending' | 'approved' | 'rejected' | 'flagged';
-  createdAt: string;
-  reportedAt: string;
-  likes: number;
-  retweets: number;
-  replies: number;
-}
+  ModerationReportReasonVM;
+export type ModerationTweet = ModerationTweetVM;
 
 const props = defineProps<{
   tweet: ModerationTweet;
@@ -105,6 +77,10 @@ const statusBadgeVariant = computed(() => {
       return 'destructive';
     case 'flagged':
       return 'outline';
+    case 'removed':
+      return 'destructive';
+    case 'restored':
+      return 'default';
     default:
       return 'secondary';
   }
@@ -121,6 +97,10 @@ const statusText = computed(() => {
       return t('moderation.status.rejected');
     case 'flagged':
       return t('moderation.status.flagged');
+    case 'removed':
+      return t('moderation.status.removed');
+    case 'restored':
+      return t('moderation.status.restored');
     default:
       return t('moderation.status.unknown');
   }
