@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { Icon } from '@iconify/vue';
 import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
@@ -46,14 +46,13 @@ function handleClick(value: string) {
           :delay-duration="0"
         >
           <TooltipTrigger as-child>
-            <a
+            <Button
+              as="a"
               href="#"
+              :variant="link.variant"
+              size="icon"
               :class="
                 cn(
-                  buttonVariants({
-                    variant: link.variant,
-                    size: 'icon'
-                  }),
                   'h-9 w-9',
                   link.variant === 'default' &&
                     'dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white'
@@ -63,7 +62,7 @@ function handleClick(value: string) {
             >
               <Icon :icon="link.icon" class="size-4" />
               <span class="sr-only">{{ link.title }}</span>
-            </a>
+            </Button>
           </TooltipTrigger>
           <TooltipContent
             side="right"
@@ -79,16 +78,15 @@ function handleClick(value: string) {
           </TooltipContent>
         </Tooltip>
 
-        <a
+        <Button
           v-else
           :key="`2-${index}`"
+          as="a"
           href="#"
+          :variant="link.variant"
+          size="sm"
           :class="
             cn(
-              buttonVariants({
-                variant: link.variant,
-                size: 'sm'
-              }),
               link.variant === 'default' &&
                 'dark:bg-muted dark:text-white dark:hover:bg-muted dark:hover:text-white',
               'justify-start'
@@ -110,7 +108,7 @@ function handleClick(value: string) {
           >
             {{ link.label }}
           </span>
-        </a>
+        </Button>
       </template>
     </nav>
   </div>
