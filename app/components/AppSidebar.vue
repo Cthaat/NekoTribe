@@ -103,6 +103,10 @@ const baseNavData = computed(() => ({
           url: '/groups/discover'
         },
         { title: t('nav.main.myGroups'), url: '/groups/my' },
+        {
+          title: t('nav.main.groupPosts'),
+          url: '/groups/posts'
+        },
         { title: t('nav.main.invites'), url: '/groups/invites' }
       ]
     },
