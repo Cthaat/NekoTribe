@@ -24,6 +24,7 @@ import {
   v2NextId,
   v2NotFound,
   v2Number,
+  v2NumberArray,
   v2Ok,
   v2One,
   v2Page,
@@ -1155,6 +1156,137 @@ export async function v2ModeratePost(
   return v2Ok(
     await mapContentItem(connection, auth.userId, fallbackRow),
     'moderation action applied'
+  );
+}
+
+export async function v2BulkModeratePosts(
+  event: H3Event,
+  connection: oracledb.Connection
+): Promise<V2ServiceResponse<{ processed_count: number }>> {
+  const auth = v2Auth(event);
+  await ensureModerationSchema(connection);
+  const body = await v2Body(event);
+  const postIds = v2NumberArray(body.post_ids);
+  const action = v2String(body.action, 'flag');
+  const note = v2String(body.note);
+  const reason = v2String(body.reason);
+  if (postIds.length === 0) v2BadRequest('post_ids 不能为空');
+  if (!['approve', 'reject', 'flag', 'remove', 'restore'].includes(action)) {
+    v2BadRequest('action 参数错误');
+  }
+
+  const statusMap: Record<string, V2ModerationStatus> = {
+    approve: 'approved',
+    reject: 'rejected',
+    flag: 'flagged',
+    remove: 'removed',
+    restore: 'restored'
+  };
+  const reportStatusMap: Record<
+    string,
+    V2ModerationReportStatus
+  > = {
+    approve: 'dismissed',
+    reject: 'resolved',
+    flag: 'in_review',
+    remove: 'resolved',
+    restore: 'resolved'
+  };
+
+  let processedCount = 0;
+  for (const postId of postIds) {
+    await verifyTargetExists(connection, 'post', postId);
+    const caseId = await ensureCaseForTarget(
+      connection,
+      'post',
+      postId
+    );
+
+    if (action === 'reject' || action === 'remove') {
+      await v2Execute(
+        connection,
+        `
+        UPDATE n_posts
+        SET is_deleted = 1,
+            deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE post_id = :post_id
+        `,
+        { post_id: postId },
+        false
+      );
+    } else if (action === 'restore') {
+      await v2Execute(
+        connection,
+        `
+        UPDATE n_posts
+        SET is_deleted = 0,
+            deleted_at = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE post_id = :post_id
+        `,
+        { post_id: postId },
+        false
+      );
+    }
+
+    await v2Execute(
+      connection,
+      `
+      UPDATE n_moderation_cases
+      SET status = :status,
+          resolved_at = CASE
+            WHEN :status IN ('approved', 'rejected', 'removed', 'restored')
+            THEN CURRENT_TIMESTAMP
+            ELSE resolved_at
+          END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE case_id = :case_id
+      `,
+      {
+        status: statusMap[action],
+        case_id: caseId
+      },
+      false
+    );
+    await v2Execute(
+      connection,
+      `
+      UPDATE n_moderation_reports
+      SET status = :report_status,
+          handled_by = :moderator_user_id,
+          resolved_at = CASE
+            WHEN :report_status IN ('resolved', 'dismissed')
+            THEN CURRENT_TIMESTAMP
+            ELSE resolved_at
+          END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE target_type = 'post'
+        AND target_id = :post_id
+      `,
+      {
+        report_status: reportStatusMap[action],
+        moderator_user_id: auth.userId,
+        post_id: postId
+      },
+      false
+    );
+    await recordAction(connection, {
+      caseId,
+      targetType: 'post',
+      targetId: postId,
+      action,
+      moderatorUserId: auth.userId,
+      reason,
+      note
+    });
+    processedCount++;
+  }
+
+  await connection.commit();
+  return v2Ok(
+    { processed_count: processedCount },
+    'bulk moderation action applied'
   );
 }
 
