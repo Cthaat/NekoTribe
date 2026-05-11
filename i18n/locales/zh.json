@@ -1265,6 +1265,38 @@
       "unfollowSuccess": "已取消关注 {name}。",
       "failed": "关注状态更新失败。"
     },
+    "actions": {
+      "filterTitle": "账户筛选",
+      "filterDescription": "切换账户模块，快速查看对应内容。",
+      "createPost": "发布推文",
+      "createGroup": "创建群组",
+      "editProfile": "编辑资料",
+      "openPublicProfile": "查看公开主页",
+      "copyProfileLink": "复制主页链接",
+      "refreshProfile": "刷新资料",
+      "accountSettings": "账户设置",
+      "securitySettings": "安全设置",
+      "copied": "链接已复制"
+    },
+    "stats": {
+      "followersTitle": "粉丝详情",
+      "followersDescription": "查看正在关注该用户的人。",
+      "followingTitle": "关注详情",
+      "followingDescription": "查看该用户正在关注的人。",
+      "likesTitle": "获赞详情",
+      "likesDescription": "查看该用户收到的赞与互动统计。",
+      "total": "共 {count} 人",
+      "emptyFollowers": "暂无粉丝",
+      "emptyFollowing": "暂无关注",
+      "loadFailed": "加载数据失败",
+      "followingBadge": "已关注",
+      "totalLikesReceived": "收到的赞",
+      "avgLikesPerPost": "平均每条推文获赞",
+      "totalLikesGiven": "送出赞",
+      "totalCommentsMade": "发表评论",
+      "postsCount": "推文数",
+      "engagementScore": "互动分数"
+    },
     "tabs": {
       "overview": "概览",
       "settings": "设置",

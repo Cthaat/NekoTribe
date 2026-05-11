@@ -1265,6 +1265,38 @@
       "unfollowSuccess": "Unfollowed {name}.",
       "failed": "Failed to update follow state."
     },
+    "actions": {
+      "filterTitle": "Account Filter",
+      "filterDescription": "Switch account sections and jump directly to the content you need.",
+      "createPost": "Create Post",
+      "createGroup": "Create Group",
+      "editProfile": "Edit Profile",
+      "openPublicProfile": "Open Public Profile",
+      "copyProfileLink": "Copy Profile Link",
+      "refreshProfile": "Refresh Profile",
+      "accountSettings": "Account Settings",
+      "securitySettings": "Security Settings",
+      "copied": "Link copied"
+    },
+    "stats": {
+      "followersTitle": "Followers",
+      "followersDescription": "View the people following this user.",
+      "followingTitle": "Following",
+      "followingDescription": "View the people this user follows.",
+      "likesTitle": "Likes Detail",
+      "likesDescription": "View received likes and engagement statistics.",
+      "total": "{count} people",
+      "emptyFollowers": "No followers yet",
+      "emptyFollowing": "Not following anyone yet",
+      "loadFailed": "Failed to load data",
+      "followingBadge": "Following",
+      "totalLikesReceived": "Likes Received",
+      "avgLikesPerPost": "Avg Likes per Post",
+      "totalLikesGiven": "Likes Given",
+      "totalCommentsMade": "Comments Made",
+      "postsCount": "Posts",
+      "engagementScore": "Engagement Score"
+    },
     "tabs": {
       "overview": "Overview",
       "settings": "Settings",
