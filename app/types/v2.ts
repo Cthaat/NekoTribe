@@ -571,6 +571,17 @@ export interface V2UserAnalytics {
   engagement_score: number;
 }
 
+export interface V2UserDailyAnalytics {
+  day: string;
+  posts_count: number;
+  likes_received: number;
+  comments_received: number;
+  retweets_received: number;
+  likes_given: number;
+  comments_made: number;
+  engagement_score: number;
+}
+
 export interface V2Notification {
   notification_id: number;
   type: string;
@@ -1059,6 +1070,9 @@ export type V2GetUserByIdResponse =
   V2ApiResponse<V2PublicUser>;
 export type V2GetUserAnalyticsResponse =
   V2ApiResponse<V2UserAnalytics>;
+export type V2GetUserDailyAnalyticsResponse = V2ApiResponse<
+  V2UserDailyAnalytics[]
+>;
 export type V2FollowUserResponse =
   V2ApiResponse<V2FollowUserData>;
 export type V2UnfollowUserResponse =
