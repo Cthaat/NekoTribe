@@ -62,6 +62,16 @@ const props = withDefaults(
   }
 );
 
+function chartText(
+  key: string,
+  zhFallback: string,
+  enFallback: string
+): string {
+  const value = t(key);
+  if (value !== key) return value;
+  return locale.value === 'en' ? enFallback : zhFallback;
+}
+
 const totalTweets = computed(
   () => props.userAnalytics.totalTweets
 );
@@ -169,72 +179,112 @@ const totalScoreInRange = computed(() =>
 );
 const hasChartData = computed(() => chartData.value.length > 0);
 
-const chartConfig = {
+const chartConfig = computed<ChartConfig>(() => ({
   posts: {
-    label: t('account.overview.overallPanel.chartPosts'),
+    label: chartText(
+      'account.overview.overallPanel.chartPosts',
+      '发帖',
+      'Posts'
+    ),
     color: 'var(--chart-1)'
   },
   likes: {
-    label: t('account.overview.overallPanel.chartLikes'),
+    label: chartText(
+      'account.overview.overallPanel.chartLikes',
+      '获赞',
+      'Likes'
+    ),
     color: 'var(--chart-2)'
   },
   comments: {
-    label: t('account.overview.overallPanel.chartComments'),
+    label: chartText(
+      'account.overview.overallPanel.chartComments',
+      '评论',
+      'Comments'
+    ),
     color: 'var(--chart-3)'
   },
   retweets: {
-    label: t('account.overview.overallPanel.chartRetweets'),
+    label: chartText(
+      'account.overview.overallPanel.chartRetweets',
+      '转发',
+      'Retweets'
+    ),
     color: 'var(--chart-5)'
   },
   interaction: {
-    label: t('account.overview.overallPanel.chartInteraction'),
+    label: chartText(
+      'account.overview.overallPanel.chartInteraction',
+      '互动',
+      'Engagement'
+    ),
     color: 'var(--chart-4)'
   }
-} satisfies ChartConfig;
+}));
 
-const receivedChartConfig = {
-  likes: chartConfig.likes,
-  comments: chartConfig.comments,
-  retweets: chartConfig.retweets
-} satisfies ChartConfig;
+const receivedChartConfig = computed<ChartConfig>(() => ({
+  likes: chartConfig.value.likes,
+  comments: chartConfig.value.comments,
+  retweets: chartConfig.value.retweets
+}));
 
-const outgoingChartConfig = {
+const outgoingChartConfig = computed<ChartConfig>(() => ({
   givenLikes: {
-    label: t('account.overview.overallPanel.chartGivenLikes'),
+    label: chartText(
+      'account.overview.overallPanel.chartGivenLikes',
+      '送出赞',
+      'Likes Given'
+    ),
     color: 'var(--chart-2)'
   },
   madeComments: {
-    label: t('account.overview.overallPanel.chartMadeComments'),
+    label: chartText(
+      'account.overview.overallPanel.chartMadeComments',
+      '发出评论',
+      'Comments Made'
+    ),
     color: 'var(--chart-4)'
   }
-} satisfies ChartConfig;
+}));
 
-const scoreChartConfig = {
+const scoreChartConfig = computed<ChartConfig>(() => ({
   score: {
-    label: t('account.overview.overallPanel.chartScore'),
+    label: chartText(
+      'account.overview.overallPanel.chartScore',
+      '互动分',
+      'Score'
+    ),
     color: 'var(--chart-1)'
   }
-} satisfies ChartConfig;
+}));
 
-const compositionChartConfig = {
-  posts: chartConfig.posts,
+const compositionChartConfig = computed<ChartConfig>(() => ({
+  posts: chartConfig.value.posts,
   received: {
-    label: t('account.overview.overallPanel.chartReceived'),
+    label: chartText(
+      'account.overview.overallPanel.chartReceived',
+      '收获互动',
+      'Received'
+    ),
     color: 'var(--chart-2)'
   },
   outgoing: {
-    label: t('account.overview.overallPanel.chartOutgoing'),
+    label: chartText(
+      'account.overview.overallPanel.chartOutgoing',
+      '发出互动',
+      'Outgoing'
+    ),
     color: 'var(--chart-4)'
   },
-  score: scoreChartConfig.score
-} satisfies ChartConfig;
+  score: scoreChartConfig.value.score
+}));
 
-const chartColors = [
-  chartConfig.posts.color,
-  chartConfig.likes.color,
-  chartConfig.comments.color,
-  chartConfig.interaction.color
-];
+const chartColors = computed(() => [
+  chartConfig.value.posts.color,
+  chartConfig.value.likes.color,
+  chartConfig.value.comments.color,
+  chartConfig.value.interaction.color
+]);
 
 const chartX = (point: DailyChartPoint): number => point.date;
 const chartY = [
@@ -254,15 +304,15 @@ const outgoingChartY = [
 ];
 const scoreChartY = (point: DailyChartPoint): number => point.score;
 
-const receivedChartColors = [
-  receivedChartConfig.likes.color,
-  receivedChartConfig.comments.color,
-  receivedChartConfig.retweets.color
-];
-const outgoingChartColors = [
-  outgoingChartConfig.givenLikes.color,
-  outgoingChartConfig.madeComments.color
-];
+const receivedChartColors = computed(() => [
+  receivedChartConfig.value.likes.color,
+  receivedChartConfig.value.comments.color,
+  receivedChartConfig.value.retweets.color
+]);
+const outgoingChartColors = computed(() => [
+  outgoingChartConfig.value.givenLikes.color,
+  outgoingChartConfig.value.madeComments.color
+]);
 
 const formatChartDay = (value: number | Date): string =>
   new Intl.DateTimeFormat(locale.value, {
@@ -271,36 +321,38 @@ const formatChartDay = (value: number | Date): string =>
   }).format(value instanceof Date ? value : new Date(value));
 
 const chartTooltipTemplate = componentToString(
-  chartConfig,
+  chartConfig.value,
   ChartTooltipContent,
   {
     labelFormatter: formatChartDay
   }
 );
 const receivedTooltipTemplate = componentToString(
-  receivedChartConfig,
+  receivedChartConfig.value,
   ChartTooltipContent,
   {
     labelFormatter: formatChartDay
   }
 );
 const outgoingTooltipTemplate = componentToString(
-  outgoingChartConfig,
+  outgoingChartConfig.value,
   ChartTooltipContent,
   {
     labelFormatter: formatChartDay
   }
 );
 const scoreTooltipTemplate = componentToString(
-  scoreChartConfig,
+  scoreChartConfig.value,
   ChartTooltipContent,
   {
     labelFormatter: formatChartDay
   }
 );
 
+type CompositionKey = 'posts' | 'received' | 'outgoing' | 'score';
+
 interface CompositionPoint {
-  key: keyof typeof compositionChartConfig;
+  key: CompositionKey;
   label: string;
   value: number;
   color: string;
@@ -309,27 +361,27 @@ interface CompositionPoint {
 const compositionData = computed<CompositionPoint[]>(() => [
   {
     key: 'posts',
-    label: String(compositionChartConfig.posts.label),
+    label: String(compositionChartConfig.value.posts.label),
     value: totalPostsInRange.value,
-    color: String(compositionChartConfig.posts.color)
+    color: String(compositionChartConfig.value.posts.color)
   },
   {
     key: 'received',
-    label: String(compositionChartConfig.received.label),
+    label: String(compositionChartConfig.value.received.label),
     value: totalReceivedInRange.value,
-    color: String(compositionChartConfig.received.color)
+    color: String(compositionChartConfig.value.received.color)
   },
   {
     key: 'outgoing',
-    label: String(compositionChartConfig.outgoing.label),
+    label: String(compositionChartConfig.value.outgoing.label),
     value: totalOutgoingInRange.value,
-    color: String(compositionChartConfig.outgoing.color)
+    color: String(compositionChartConfig.value.outgoing.color)
   },
   {
     key: 'score',
-    label: String(compositionChartConfig.score.label),
+    label: String(compositionChartConfig.value.score.label),
     value: totalScoreInRange.value,
-    color: String(compositionChartConfig.score.color)
+    color: String(compositionChartConfig.value.score.color)
   }
 ]);
 
@@ -618,7 +670,7 @@ const compositionColor = (item: CompositionPoint): string =>
       </CardContent>
     </Card>
 
-    <Card class="overflow-hidden md:col-span-2 xl:col-span-1">
+    <Card class="overflow-hidden md:col-span-2 lg:col-span-2">
       <CardHeader
         class="flex flex-row items-start justify-between space-y-0"
       >
@@ -690,7 +742,7 @@ const compositionColor = (item: CompositionPoint): string =>
       </CardContent>
     </Card>
 
-    <Card class="overflow-hidden md:col-span-2 xl:col-span-1">
+    <Card class="overflow-hidden md:col-span-2 lg:col-span-1">
       <CardHeader
         class="flex flex-row items-start justify-between space-y-0"
       >
@@ -763,7 +815,7 @@ const compositionColor = (item: CompositionPoint): string =>
       </CardContent>
     </Card>
 
-    <Card class="overflow-hidden md:col-span-2 xl:col-span-1">
+    <Card class="overflow-hidden md:col-span-2 lg:col-span-3">
       <CardHeader
         class="flex flex-row items-start justify-between space-y-0"
       >
@@ -795,7 +847,7 @@ const compositionColor = (item: CompositionPoint): string =>
           <ChartContainer
             :config="scoreChartConfig"
             :cursor="true"
-            class="h-64 w-full"
+            class="h-56 w-full"
           >
             <VisXYContainer
               :data="chartData"
@@ -863,11 +915,11 @@ const compositionColor = (item: CompositionPoint): string =>
         </div>
         <div
           v-else
-          class="grid gap-4 rounded-lg border bg-muted/20 p-4 lg:grid-cols-[minmax(18rem,24rem)_1fr]"
+          class="grid gap-4 rounded-lg border bg-muted/20 p-4 lg:grid-cols-[minmax(14rem,18rem)_1fr]"
         >
           <ChartContainer
             :config="compositionChartConfig"
-            class="h-72 w-full"
+            class="h-56 w-full"
           >
             <VisSingleContainer :data="compositionData">
               <VisDonut
