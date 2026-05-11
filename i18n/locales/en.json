@@ -99,7 +99,8 @@
     "actions": {
       "addBookmark": "Add bookmark",
       "removeBookmark": "Remove bookmark",
-      "delete": "Delete post"
+      "delete": "Delete post",
+      "report": "Report post"
     },
     "feedback": {
       "liked": "Post liked",
@@ -108,7 +109,9 @@
       "deleted": "Post deleted",
       "deleteFailed": "Failed to delete post",
       "retweeted": "Reposted",
-      "retweetFailed": "Failed to repost"
+      "retweetFailed": "Failed to repost",
+      "reported": "Report submitted",
+      "reportFailed": "Failed to submit report"
     },
     "feed": {
       "loadFailed": "Failed to load posts",
@@ -220,6 +223,17 @@
     "delete": {
       "title": "Delete this post?",
       "description": "This post will be removed from the timeline. This action cannot be undone."
+    },
+    "report": {
+      "title": "Report this post",
+      "description": "Choose a reason and add any useful context. The moderation team will review it.",
+      "reasonLabel": "Reason",
+      "reasonPlaceholder": "Select a reason",
+      "descriptionLabel": "Details",
+      "descriptionPlaceholder": "Describe the issue, where it appears, or any relevant context (optional)",
+      "descriptionHint": "{count}/1000 characters",
+      "submit": "Submit report",
+      "submitting": "Submitting..."
     }
   },
   "comment": {
