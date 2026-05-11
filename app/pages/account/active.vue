@@ -18,6 +18,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 // 导入徽章 UI 组件
 import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
 // 导入通知/吐司组件
 import { toast } from 'vue-sonner';
 
@@ -125,76 +133,78 @@ onMounted(load);
           </div>
         </div>
 
-        <!-- 会话列表容器 -->
-        <div class="mt-4 divide-y rounded-md border">
-          <!-- 当存在会话时的展示 -->
-          <template v-if="sessions.length">
-            <!-- 单条会话行 -->
-            <div
-              v-for="s in sessions"
-              :key="s.id"
-              class="flex flex-col gap-2 p-4 md:flex-row md:items-start md:justify-between"
-            >
-              <!-- 左侧：会话详情 -->
-              <div class="space-y-1">
-                <!-- 顶部：设备标记与设备名 -->
-                <div class="flex items-center gap-2">
-                  <!-- 标记徽章：当前设备/其它设备 -->
+        <div class="mt-4 overflow-hidden rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  {{ t('account.active.thisDevice') }}
+                </TableHead>
+                <TableHead>
+                  {{ t('account.active.description') }}
+                </TableHead>
+                <TableHead>Session</TableHead>
+                <TableHead class="text-right">
+                  {{ t('account.active.revoke') }}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow v-if="!sessions.length">
+                <TableCell
+                  colspan="4"
+                  class="h-24 text-center text-muted-foreground"
+                >
+                  {{ t('common.empty') }}
+                </TableCell>
+              </TableRow>
+              <TableRow v-for="s in sessions" :key="s.id">
+                <TableCell>
                   <Badge
                     :variant="
-                      s.current
-                        ? 'secondary'
-                        : 'outline'
+                      s.current ? 'secondary' : 'outline'
                     "
                   >
-                    <!-- 根据是否为当前设备显示不同文案 -->
                     {{
                       s.current
                         ? t('account.active.thisDevice')
                         : t('account.active.otherDevice')
                     }}
                   </Badge>
-                  <!-- 设备名称 -->
-                  <span class="font-medium">{{
-                    s.deviceInfo
-                  }}</span>
-                </div>
-                <!-- 次行：IP、位置、最后访问时间 -->
-                <div class="text-xs text-muted-foreground">
-                  {{ s.ipAddress }} · — ·
-                  {{
-                    new Date(
-                      s.lastAccessedAt
-                    ).toLocaleString()
-                  }}
-                </div>
-                <!-- 第三行：UA 信息 -->
-                <div
-                  class="text-xs text-muted-foreground break-all"
-                >
-                  Session: {{ s.id }}
-                </div>
-              </div>
-              <!-- 右侧：操作按钮组 -->
-              <div class="flex shrink-0 items-center gap-2">
-                <!-- 注销该会话按钮：当前设备禁用 -->
-                <Button
-                  size="sm"
-                  variant="outline"
-                  :disabled="s.current || loading"
-                  @click="revoke(s.id)"
-                  >{{ t('account.active.revoke') }}</Button
-                >
-              </div>
-            </div>
-          </template>
-          <!-- 当没有会话时的空状态 -->
-          <div
-            v-else
-            class="p-6 text-center text-sm text-muted-foreground"
-          >
-            {{ t('common.empty') }}
-          </div>
+                </TableCell>
+                <TableCell>
+                  <div class="space-y-1">
+                    <div class="font-medium">
+                      {{ s.deviceInfo }}
+                    </div>
+                    <div class="text-xs text-muted-foreground">
+                      {{ s.ipAddress }} · —
+                    </div>
+                    <div class="text-xs text-muted-foreground">
+                      {{
+                        new Date(
+                          s.lastAccessedAt
+                        ).toLocaleString()
+                      }}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell class="max-w-[18rem] truncate font-mono text-xs">
+                  {{ s.id }}
+                </TableCell>
+                <TableCell class="text-right">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    :disabled="s.current || loading"
+                    @click="revoke(s.id)"
+                  >
+                    {{ t('account.active.revoke') }}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
         </div>
       </div>
     </CardContent>
