@@ -519,6 +519,11 @@
     "validation": {
       "maxSize": "File size must not exceed {size}MB"
     },
+    "crop": {
+      "title": "Crop avatar",
+      "zoom": "Zoom",
+      "apply": "Use this avatar"
+    },
     "feedback": {
       "updated": "Avatar updated.",
       "uploadFailed": "Upload failed. Please try again."

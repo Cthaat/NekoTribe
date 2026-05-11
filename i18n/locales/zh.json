@@ -519,6 +519,11 @@
     "validation": {
       "maxSize": "文件大小不能超过 {size}MB"
     },
+    "crop": {
+      "title": "裁剪头像",
+      "zoom": "缩放",
+      "apply": "使用此头像"
+    },
     "feedback": {
       "updated": "头像更新成功！",
       "uploadFailed": "上传失败，请重试。"
