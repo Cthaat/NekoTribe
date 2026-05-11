@@ -908,7 +908,16 @@ export async function v2GetModerationStats(
           AND action IN ('approve', 'reject', 'flag', 'remove', 'restore', 'ban', 'mute')
       ) AS today_processed,
       (
-        SELECT ROUND(AVG((CAST(resolved_at AS DATE) - CAST(created_at AS DATE)) * 24 * 60))
+        SELECT NVL(
+          ROUND(
+            AVG(
+              (CAST(resolved_at AS DATE) - CAST(created_at AS DATE))
+              * 24
+              * 60
+            )
+          ),
+          0
+        )
         FROM n_moderation_cases
         WHERE resolved_at IS NOT NULL
       ) AS avg_process_minutes,
@@ -916,8 +925,7 @@ export async function v2GetModerationStats(
         SELECT COUNT(*)
         FROM n_moderation_reports
         WHERE status IN ('pending', 'in_review')
-      ) AS open_reports
-      ,
+      ) AS open_reports,
       (
         SELECT NVL(
           ROUND(
