@@ -860,7 +860,9 @@
       "todayProcessed": "Processed today",
       "avgProcessTime": "Avg. processing time",
       "zeroMinutes": "0 min",
-      "minutes": "{count} min"
+      "minutes": "{count} min",
+      "openReports": "Open reports",
+      "appealSuccessRate": "Appeal success"
     },
     "list": {
       "count": "{count} items pending review",
