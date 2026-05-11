@@ -87,6 +87,7 @@ import type {
 import type { PublicUserVM } from '@/types/users';
 
 const { t } = useAppLocale();
+const localePath = useLocalePath();
 
 definePageMeta({
   layout: 'chat'
@@ -888,6 +889,11 @@ function handleLoadMore(): void {
   void loadMessages(activeChannel.value.id, false);
 }
 
+function openMemberProfile(userId: number): void {
+  if (!Number.isFinite(userId) || userId <= 0) return;
+  void navigateTo(localePath(`/user/${userId}/profile`));
+}
+
 async function handleOpenDirectMessage(
   member: ChatMember
 ): Promise<void> {
@@ -1555,6 +1561,7 @@ onBeforeUnmount(() => {
           @pin="handlePinMessage"
           @toggle-mute="() => handleToggleChannelMute()"
           @search="handleSearch"
+          @view-profile="openMemberProfile"
           @open-direct-message="handleOpenDirectMessage"
           @open-direct-message-standalone="handleOpenDirectMessageStandalone"
           @send-direct-message="handleSendDirectMessage"
