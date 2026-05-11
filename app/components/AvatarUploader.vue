@@ -49,7 +49,8 @@ const emit = defineEmits<{
 }>();
 
 const CROP_OUTPUT_SIZE = 512;
-const DEFAULT_CROP_BOX_SIZE = 288;
+const DEFAULT_CROP_FRAME_SIZE = 288;
+const CROP_MASK_INSET = 24;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 
@@ -100,6 +101,10 @@ const zoomValue = computed<number[]>({
 const zoomPercent = computed(() => {
   return `${Math.round(cropZoom.value * 100)}%`;
 });
+
+const cropMaskStyle = computed<CSSProperties>(() => ({
+  inset: `${CROP_MASK_INSET}px`
+}));
 
 function triggerFileUpload(): void {
   if (isUploading.value || cropDialogOpen.value) return;
@@ -171,8 +176,21 @@ function onFileSelected(event: Event): void {
 }
 
 function getCropBoxSize(): number {
+  const frameSize =
+    cropFrameRef.value?.clientWidth ?? DEFAULT_CROP_FRAME_SIZE;
+  return Math.max(1, frameSize - CROP_MASK_INSET * 2);
+}
+
+function getCropBoxInset(): number {
+  const frameSize =
+    cropFrameRef.value?.clientWidth ?? DEFAULT_CROP_FRAME_SIZE;
+  return Math.max(0, (frameSize - getCropBoxSize()) / 2);
+}
+
+function getCropFrameCenter(): number {
   return (
-    cropFrameRef.value?.clientWidth ?? DEFAULT_CROP_BOX_SIZE
+    (cropFrameRef.value?.clientWidth ?? DEFAULT_CROP_FRAME_SIZE) /
+    2
   );
 }
 
@@ -298,17 +316,27 @@ function createCroppedAvatarBlob(): Promise<Blob> {
       return;
     }
 
+    const cropFrameCenter = getCropFrameCenter();
     const cropBoxSize = getCropBoxSize();
+    const cropBoxInset = getCropBoxInset();
     const scale = getDisplayScale();
     const displayWidth = imageNaturalWidth.value * scale;
     const displayHeight = imageNaturalHeight.value * scale;
     const imageLeft =
-      cropBoxSize / 2 + cropOffset.value.x - displayWidth / 2;
+      cropFrameCenter + cropOffset.value.x - displayWidth / 2;
     const imageTop =
-      cropBoxSize / 2 + cropOffset.value.y - displayHeight / 2;
-    const sourceX = Math.max(0, -imageLeft / scale);
-    const sourceY = Math.max(0, -imageTop / scale);
+      cropFrameCenter + cropOffset.value.y - displayHeight / 2;
     const sourceSize = cropBoxSize / scale;
+    const sourceX = clamp(
+      (cropBoxInset - imageLeft) / scale,
+      0,
+      Math.max(0, imageNaturalWidth.value - sourceSize)
+    );
+    const sourceY = clamp(
+      (cropBoxInset - imageTop) / scale,
+      0,
+      Math.max(0, imageNaturalHeight.value - sourceSize)
+    );
 
     const canvas = document.createElement('canvas');
     canvas.width = CROP_OUTPUT_SIZE;
@@ -488,7 +516,8 @@ onBeforeUnmount(() => {
             />
           </div>
           <div
-            class="pointer-events-none absolute inset-6 rounded-full border-2 border-background/95 shadow-[0_0_0_999px_rgba(0,0,0,0.42)]"
+            class="pointer-events-none absolute rounded-full border-2 border-background/95 shadow-[0_0_0_999px_rgba(0,0,0,0.42)]"
+            :style="cropMaskStyle"
           />
           <div
             class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-border/70"
