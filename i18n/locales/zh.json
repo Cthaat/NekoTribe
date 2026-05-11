@@ -1572,7 +1572,14 @@
         "engagementScoreDescription": "综合评估用户活跃度",
         "outgoingInteractions": "发出的互动",
         "likesGiven": "送出赞",
-        "commentsMade": "发表评论"
+        "commentsMade": "发表评论",
+        "dailyTrend": "每日变化趋势",
+        "dailyTrendDescription": "近 14 天的发帖、获赞、评论和综合互动变化。",
+        "chartPosts": "发帖",
+        "chartLikes": "获赞",
+        "chartComments": "评论",
+        "chartInteraction": "互动",
+        "noTrendData": "暂无每日变化数据"
       }
     },
     "profile": {
