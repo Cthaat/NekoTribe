@@ -91,14 +91,14 @@ const getStatusInfo = (status: string) => {
     case 'approved':
       return {
         text: t('moderation.status.approved'),
-        variant: 'default' as const,
-        color: 'text-green-500'
+        variant: 'destructive' as const,
+        color: 'text-destructive'
       };
     case 'rejected':
       return {
         text: t('moderation.status.rejected'),
-        variant: 'destructive' as const,
-        color: 'text-destructive'
+        variant: 'outline' as const,
+        color: 'text-muted-foreground'
       };
     case 'flagged':
       return {
