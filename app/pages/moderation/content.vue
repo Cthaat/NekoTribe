@@ -214,6 +214,7 @@ onMounted(() => {
     <ModerationList
       :tweets="tweets"
       :loading="loading"
+      :has-next="hasNext"
       @approve="handleApprove"
       @reject="handleReject"
       @flag="handleFlag"
