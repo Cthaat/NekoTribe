@@ -20,6 +20,15 @@
     "failed": "搜索用户失败",
     "followers": "{count} 位粉丝"
   },
+  "app": {
+    "brand": {
+      "name": "NekoTribe",
+      "tagline": "社群广场"
+    },
+    "meta": {
+      "description": "社交媒体平台"
+    }
+  },
   "middleware": {
     "login": {
       "redirecting": "用户未登录，正在跳转到登录页面"
