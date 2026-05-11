@@ -1,6 +1,7 @@
 import type {
   V2ApiMeta,
   V2MediaAsset,
+  V2ModerationAppeal,
   V2ModerationContentItem,
   V2ModerationReport,
   V2ModerationSetting,
@@ -11,6 +12,8 @@ import type {
 import type {
   ModerationContentPageVM,
   ModerationContentRequestVM,
+  ModerationAppealPageVM,
+  ModerationAppealVM,
   ModerationReportPageVM,
   ModerationReportRequestVM,
   ModerationReportStatusVM,
@@ -27,10 +30,12 @@ import {
   v2GetModerationSettings as apiGetModerationSettings,
   v2GetModerationStats as apiGetModerationStats,
   v2ListModerationContent as apiListModerationContent,
+  v2ListModerationAppeals as apiListModerationAppeals,
   v2ListModerationReports as apiListModerationReports,
   v2ListModerationUsers as apiListModerationUsers,
   v2ModeratePost as apiModeratePost,
   v2ModerateUser as apiModerateUser,
+  v2PatchModerationAppeal as apiPatchModerationAppeal,
   v2PatchModerationReport as apiPatchModerationReport,
   v2PatchModerationSettings as apiPatchModerationSettings
 } from '@/api/v2/moderation';
@@ -179,6 +184,24 @@ function mapSetting(
   };
 }
 
+function mapAppeal(
+  appeal: V2ModerationAppeal
+): ModerationAppealVM {
+  return {
+    id: appeal.appeal_id,
+    statementId: appeal.statement_id,
+    userId: appeal.user.user_id,
+    userName:
+      appeal.user.display_name || appeal.user.username,
+    username: appeal.user.username,
+    message: appeal.appeal_message,
+    status: appeal.appeal_status,
+    adminResponse: appeal.admin_response,
+    createdAt: appeal.created_at,
+    updatedAt: appeal.updated_at
+  };
+}
+
 export async function listModerationContent(
   request: ModerationContentRequestVM = {}
 ): Promise<ModerationContentPageVM> {
@@ -251,6 +274,32 @@ export async function listModerationUsers(
     page_size: request.pageSize
   });
   return mapPageMeta(result, result.items.map(mapUser));
+}
+
+export async function listModerationAppeals(request: {
+  status?: string;
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<ModerationAppealPageVM> {
+  const result = await apiListModerationAppeals({
+    status: request.status,
+    page: request.page,
+    page_size: request.pageSize
+  });
+  return mapPageMeta(result, result.items.map(mapAppeal));
+}
+
+export async function updateModerationAppeal(
+  appealId: number,
+  status: 'approved' | 'rejected',
+  adminResponse = ''
+): Promise<ModerationAppealVM> {
+  return mapAppeal(
+    await apiPatchModerationAppeal(appealId, {
+      appeal_status: status,
+      admin_response: adminResponse
+    })
+  );
 }
 
 export async function moderateUser(
