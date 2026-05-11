@@ -96,6 +96,7 @@ const emit = defineEmits<{
   (e: 'pin', messageId: number): void;
   (e: 'toggle-mute'): void;
   (e: 'search', query: string): void;
+  (e: 'view-profile', userId: number): void;
   (e: 'open-direct-message', member: ChatMember): void;
   (e: 'open-direct-message-standalone', member: ChatMember): void;
   (
@@ -583,6 +584,7 @@ onBeforeUnmount(() => {
                     emit('react', id, emoji)
                 "
                 @copy="handleCopy"
+                @view-profile="emit('view-profile', $event)"
               />
             </div>
 
@@ -642,6 +644,7 @@ onBeforeUnmount(() => {
       :current-user-id="currentUserId"
       class="hidden lg:flex"
       @message="openDirectMessage"
+      @view-profile="member => emit('view-profile', member.id)"
     />
 
     <Dialog v-model:open="callDialogOpen">
