@@ -179,7 +179,9 @@ const totalScoreInRange = computed(() =>
 );
 const hasChartData = computed(() => chartData.value.length > 0);
 
-const chartConfig = computed<ChartConfig>(() => ({
+const chartConfig = computed(
+  () =>
+    ({
   posts: {
     label: chartText(
       'account.overview.overallPanel.chartPosts',
@@ -220,64 +222,77 @@ const chartConfig = computed<ChartConfig>(() => ({
     ),
     color: 'var(--chart-4)'
   }
-}));
+    }) satisfies ChartConfig
+);
 
-const receivedChartConfig = computed<ChartConfig>(() => ({
-  likes: chartConfig.value.likes,
-  comments: chartConfig.value.comments,
-  retweets: chartConfig.value.retweets
-}));
+const receivedChartConfig = computed(
+  () =>
+    ({
+      likes: chartConfig.value.likes,
+      comments: chartConfig.value.comments,
+      retweets: chartConfig.value.retweets
+    }) satisfies ChartConfig
+);
 
-const outgoingChartConfig = computed<ChartConfig>(() => ({
-  givenLikes: {
-    label: chartText(
-      'account.overview.overallPanel.chartGivenLikes',
-      '送出赞',
-      'Likes Given'
-    ),
-    color: 'var(--chart-2)'
-  },
-  madeComments: {
-    label: chartText(
-      'account.overview.overallPanel.chartMadeComments',
-      '发出评论',
-      'Comments Made'
-    ),
-    color: 'var(--chart-4)'
-  }
-}));
+const outgoingChartConfig = computed(
+  () =>
+    ({
+      givenLikes: {
+        label: chartText(
+          'account.overview.overallPanel.chartGivenLikes',
+          '送出赞',
+          'Likes Given'
+        ),
+        color: 'var(--chart-2)'
+      },
+      madeComments: {
+        label: chartText(
+          'account.overview.overallPanel.chartMadeComments',
+          '发出评论',
+          'Comments Made'
+        ),
+        color: 'var(--chart-4)'
+      }
+    }) satisfies ChartConfig
+);
 
-const scoreChartConfig = computed<ChartConfig>(() => ({
-  score: {
-    label: chartText(
-      'account.overview.overallPanel.chartScore',
-      '互动分',
-      'Score'
-    ),
-    color: 'var(--chart-1)'
-  }
-}));
+const scoreChartConfig = computed(
+  () =>
+    ({
+      score: {
+        label: chartText(
+          'account.overview.overallPanel.chartScore',
+          '互动分',
+          'Score'
+        ),
+        color: 'var(--chart-1)'
+      }
+    }) satisfies ChartConfig
+);
 
-const compositionChartConfig = computed<ChartConfig>(() => ({
-  posts: chartConfig.value.posts,
-  received: {
-    label: chartText(
-      'account.overview.overallPanel.chartReceived',
-      '收获互动',
-      'Received'
-    ),
-    color: 'var(--chart-2)'
-  },
-  outgoing: {
-    label: chartText(
-      'account.overview.overallPanel.chartOutgoing',
-      '发出互动',
-      'Outgoing'
-    ),
-    color: 'var(--chart-4)'
-  },
-  score: scoreChartConfig.value.score
-}));
+const compositionChartConfig = computed(
+  () =>
+    ({
+      posts: chartConfig.value.posts,
+      received: {
+        label: chartText(
+          'account.overview.overallPanel.chartReceived',
+          '收获互动',
+          'Received'
+        ),
+        color: 'var(--chart-2)'
+      },
+      outgoing: {
+        label: chartText(
+          'account.overview.overallPanel.chartOutgoing',
+          '发出互动',
+          'Outgoing'
+        ),
+        color: 'var(--chart-4)'
+      },
+      score: scoreChartConfig.value.score
+    }) satisfies ChartConfig
+);
 
 const chartColors = computed(() => [
   chartConfig.value.posts.color,
