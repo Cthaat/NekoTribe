@@ -11,6 +11,7 @@ import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import GroupPostCard from '@/components/GroupPostCard.vue';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -256,9 +257,10 @@ onMounted(() => {
 
 <template>
   <div class="space-y-5">
-    <div
-      class="flex flex-col gap-3 rounded-md border bg-card/60 p-3 shadow-xs lg:flex-row lg:items-center lg:justify-between"
-    >
+    <Card class="gap-0 bg-card/60 py-0">
+      <CardContent
+        class="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between"
+      >
       <div class="min-w-0">
         <div class="flex items-center gap-2">
           <FileText class="h-4 w-4 text-primary" />
@@ -323,7 +325,8 @@ onMounted(() => {
           {{ t('common.refresh') }}
         </Button>
       </div>
-    </div>
+      </CardContent>
+    </Card>
 
     <div
       class="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
@@ -339,20 +342,22 @@ onMounted(() => {
     </div>
 
     <div v-if="loading" class="space-y-4">
-      <div
+      <Card
         v-for="index in 3"
         :key="index"
-        class="rounded-md border bg-card p-4"
+        class="gap-0 py-0"
       >
-        <div class="flex items-center gap-3">
-          <Skeleton class="h-10 w-10 rounded-full" />
-          <div class="flex-1 space-y-2">
-            <Skeleton class="h-4 w-32" />
-            <Skeleton class="h-3 w-48" />
+        <CardContent class="p-4">
+          <div class="flex items-center gap-3">
+            <Skeleton class="h-10 w-10 rounded-full" />
+            <div class="flex-1 space-y-2">
+              <Skeleton class="h-4 w-32" />
+              <Skeleton class="h-3 w-48" />
+            </div>
           </div>
-        </div>
-        <Skeleton class="mt-4 h-20 w-full" />
-      </div>
+          <Skeleton class="mt-4 h-20 w-full" />
+        </CardContent>
+      </Card>
     </div>
 
     <AppEmptyState
