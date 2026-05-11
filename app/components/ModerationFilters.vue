@@ -8,6 +8,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -199,9 +200,8 @@ const getOptionLabel = (
 </script>
 
 <template>
-  <div
-    class="rounded-lg border bg-card/70 p-4 shadow-sm"
-  >
+  <Card class="gap-0 bg-card/70 py-0">
+    <CardContent class="p-4">
     <!-- 搜索和主要过滤器 -->
     <div class="flex flex-wrap items-center gap-3">
       <!-- 搜索框 -->
@@ -395,5 +395,6 @@ const getOptionLabel = (
         <X class="h-3 w-3" />
       </Badge>
     </div>
-  </div>
+    </CardContent>
+  </Card>
 </template>
