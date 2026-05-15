@@ -4,7 +4,7 @@ English | [中文](doc/README.md)
 
 NekoTribe is a full-stack social application built on Nuxt 4. It bundles a Vue frontend, Nitro Server API, Oracle data model, Redis realtime messaging, media uploads, notifications, account security flows, and parallel v1/v2 APIs.
 
-This repo is organized so a new developer can start quickly after clone: copy the env sample, start Docker dependencies, initialize Oracle, run the local dev server, then begin integration.
+This repo is organized so a new developer can start quickly after clone: copy the env sample, start Docker dependencies with Compose-driven Oracle initialization, run the local dev server, then begin integration.
 
 ## Highlights
 
@@ -52,7 +52,7 @@ The project is currently evolving in parallel from v1 to v2:
 - v1 keeps legacy endpoints and business paths for compatibility.
 - v2 is rebuilt with resource-oriented APIs, the Oracle v2 data model, and clearer service layering.
 - The frontend can migrate to v2 gradually, while the backend keeps v1/v2 in parallel to avoid risky big-bang switches.
-- Operations include `.env.example`, Docker Compose, Nginx config, and initialization scripts to reduce environment setup cost.
+- Operations include `.env.example`, Docker Compose, Nginx config, and Compose-driven database initialization to reduce environment setup cost.
 
 ## Core Capabilities
 
@@ -193,9 +193,9 @@ server/models/v2.ts
 #### Containerized Startup
 
 1. `Dockerfile` builds Nuxt production artifacts.
-2. `docker-compose.yml` orchestrates app, Redis, Oracle, and Nginx.
+2. `docker-compose.yml` orchestrates app, Redis, Oracle, one-shot database initialization, and Nginx.
 3. `.env` provides app, DB, cache, SMTP, and port configuration.
-4. `scripts/init-db.*` writes the v2 Oracle baseline into the target database.
+4. The `db-init` service writes the v2 Oracle baseline before the app starts.
 
 ## API and Data Model
 
@@ -263,8 +263,7 @@ For "frontend and Nitro dev servers run on the host, Oracle/Redis run in Docker"
 corepack enable
 yarn install --frozen-lockfile
 cp .env.example .env
-docker compose up -d redis oracle19c
-bash scripts/init-db.sh
+docker compose up -d redis oracle19c db-init
 yarn dev
 ```
 
@@ -281,8 +280,7 @@ PowerShell equivalent:
 corepack enable
 yarn install --frozen-lockfile
 Copy-Item .env.example .env
-docker compose up -d redis oracle19c
-.\scripts\init-db.ps1
+docker compose up -d redis oracle19c db-init
 yarn dev
 ```
 
@@ -292,15 +290,14 @@ For "app, Redis, Oracle, Nginx all run in Docker":
 
 ```bash
 cp .env.example .env
-docker compose up -d --build
-bash scripts/init-db.sh
+docker compose up -d
 ```
 
 PowerShell:
 
 ```powershell
-.\scripts\start.ps1
-.\scripts\init-db.ps1
+Copy-Item .env.example .env
+docker compose up -d
 ```
 
 Access:
@@ -318,7 +315,8 @@ Oracle usually needs a few minutes on first boot. If the Oracle image fails to p
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `scripts/dev.sh`              | If `.env` is missing, copy template, start Redis/Oracle containers, install dependencies, then run `yarn dev`. |
 | `scripts/start.sh`            | If `.env` is missing, copy template, then build and start full Docker stack.                                   |
-| `scripts/init-db.sh`          | Execute `doc/neko_tribe-oracle-v2.sql` in the running `oracle19c` container, or via local SQL\*Plus.           |
+| `scripts/init-db.sh`          | Manual fallback for executing `doc/neko_tribe-oracle-v2.sql` outside the default Compose flow.                 |
+| `scripts/docker-init-db.sh`   | Internal Compose entrypoint used by the `db-init` service.                                                     |
 | `scripts/dev.ps1`             | PowerShell equivalent of `scripts/dev.sh`.                                                                     |
 | `scripts/start.ps1`           | PowerShell equivalent of `scripts/start.sh`.                                                                   |
 | `scripts/init-db.ps1`         | PowerShell equivalent of `scripts/init-db.sh`.                                                                 |
@@ -326,10 +324,10 @@ Oracle usually needs a few minutes on first boot. If the Oracle image fails to p
 | `yarn build`                  | Build Nuxt production output.                                                                                  |
 | `yarn start` / `yarn preview` | Preview the built Nuxt output locally.                                                                         |
 | `yarn typecheck`              | Run Nuxt TypeScript type checking.                                                                             |
-| `yarn docker:up`              | Run `docker compose up -d --build`.                                                                            |
+| `yarn docker:up`              | Run `docker compose up -d`.                                                                                    |
 | `yarn docker:down`            | Stop the Docker Compose stack.                                                                                 |
 
-Database init scripts target fresh dev databases. The v2 SQL creates users, tablespaces, tables, sequences, triggers, views, and seed data. If the target schema already exists, review and adjust the SQL before running.
+The default Compose flow runs `db-init` once before `app` starts. It checks `NEKO_APP.N_USERS` first and skips initialization when the schema already exists. The v2 SQL creates users, tablespaces, tables, sequences, triggers, views, and seed data; manual `scripts/init-db.*` is kept for external Oracle instances or recovery work.
 
 ## Environment Variables
 
@@ -356,7 +354,8 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | `ORACLE_HOST_PORT`        | Docker      | `5501`                            | Oracle container `1521` mapped to host.                         |
 | `ORACLE_EM_PORT`          | Docker      | `5500`                            | Oracle EM Express mapped port.                                  |
 | `ORACLE_PWD`              | Docker/Init | Replace with a strong password    | SYS/SYSTEM password for the Oracle container and init scripts.  |
-| `ORACLE_SYS_SERVICE_NAME` | Init        | `ORCLCDB`                         | CDB service name used by `scripts/init-db.*`.                   |
+| `ORACLE_SYS_SERVICE_NAME` | Init        | `ORCLCDB`                         | CDB service name used by `db-init` and `scripts/init-db.*`.     |
+| `DB_INIT_CHECK_TABLE`     | Init        | `N_USERS`                         | App schema table used by `db-init` to detect an initialized DB. |
 | `DOCKER_ORACLE_HOST`      | Docker      | `oracle19c`                       | Oracle host inside the app container.                           |
 | `DOCKER_ORACLE_PORT`      | Docker      | `1521`                            | Oracle port inside the app container.                           |
 | `DOCKER_NODE_ENV`         | Docker      | `production`                      | App container runtime, fixed to production.                     |
@@ -380,14 +379,14 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 
 | Service             | Purpose                                                                            | Local Startup                                                                               | Configuration                                                                 |
 | ------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Oracle 19c          | Primary DB for users, posts, groups, notifications, auth sessions, media metadata. | `docker compose up -d oracle19c` then `bash scripts/init-db.sh` or `.\scripts\init-db.ps1`. | `ORACLE_*` in `.env`.                                                         |
+| Oracle 19c          | Primary DB for users, posts, groups, notifications, auth sessions, media metadata. | Included in `docker compose up -d`; `db-init` applies the v2 baseline before app startup. | `ORACLE_*` in `.env`.                                                         |
 | Redis 7             | v1 OTP storage, WebSocket pub/sub, realtime broadcasts.                            | `docker compose up -d redis`.                                                               | `REDIS_*` in `.env`.                                                          |
 | SMTP                | Send OTP, password reset, and account emails.                                      | Any SMTP-compatible provider.                                                               | `SMTP_*` in `.env`.                                                           |
-| Nginx               | Serve `/upload/` files and reverse proxy in Docker mode.                           | Included in `docker compose up -d --build`.                                                 | `nginx/nginx.compose.conf` for Docker; `nginx/nginx.conf` for host dev proxy. |
+| Nginx               | Serve `/upload/` files and reverse proxy in Docker mode.                           | Included in `docker compose up -d`.                                                         | `nginx/nginx.compose.conf` for Docker; `nginx/nginx.conf` for host dev proxy. |
 | File Upload Storage | Store user avatars and media files.                                                | Create under `upload/` as needed; git-ignored.                                              | Mount to `/usr/share/nginx/upload` in Nginx.                                  |
 | Media Toolchain     | Validate images/video/audio and generate legacy thumbnails.                        | Docker image includes `ffmpeg`; host legacy flow needs system `ffmpeg`.                     | `sharp`, `file-type`, `ffprobe-static`, optional system `ffmpeg`.             |
 
-Note: `doc/neko_tribe-oracle-v2.sql` is the current v2 dev baseline. Files under `data/oracle-init/` are kept as historical group-module scripts; the main compose no longer mounts them because these scripts are not a full DB baseline.
+Note: `doc/neko_tribe-oracle-v2.sql` is the current v2 dev baseline and is mounted into the `db-init` service. Files under `data/oracle-init/` are kept as historical group-module scripts because these scripts are not a full DB baseline.
 
 ## Documentation Index
 
@@ -462,7 +461,7 @@ Common checks:
 
 ```bash
 docker compose config --quiet
-bash -n scripts/dev.sh scripts/start.sh scripts/init-db.sh
+bash -n scripts/dev.sh scripts/start.sh scripts/init-db.sh scripts/docker-init-db.sh
 ```
 
 PowerShell script syntax check:
@@ -501,13 +500,13 @@ The bundled `docker-compose.yml` targets local dev and small test environments. 
 
 ### Oracle errors after app startup
 
-Confirm the Oracle container is healthy, then run `bash scripts/init-db.sh` or `.\scripts\init-db.ps1`. Also confirm host dev uses `ORACLE_HOST=localhost`, `ORACLE_PORT=5501`, while Docker app mode uses `DOCKER_ORACLE_HOST=oracle19c`, `DOCKER_ORACLE_PORT=1521`.
+Confirm the `db-init` service exited successfully with `docker compose logs db-init`. Also confirm host dev uses `ORACLE_HOST=localhost`, `ORACLE_PORT=5501`, while Docker app mode uses `DOCKER_ORACLE_HOST=oracle19c`, `DOCKER_ORACLE_PORT=1521`.
 
 ### Redis authentication failure
 
 Confirm `REDIS_PASSWORD` in `.env` matches the Redis container password. The built-in compose service reads the value from `.env`.
 
-### `docker compose up -d --build` shows `dependency failed to start`, but `app` later becomes `healthy`
+### `docker compose up -d` shows `dependency failed to start`, but `app` later becomes `healthy`
 
 This is usually not a real failure, but a cold-start phase exceeding the early health check window. Current config has been adjusted:
 
