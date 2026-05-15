@@ -485,8 +485,8 @@ function followUser() {
       >
         <AvatarUploader
           :user="avatarUploaderProps"
-          @update:avatar="handleAvatarUpdate"
           class="absolute bottom-0 right-0"
+          @update:avatar="handleAvatarUpdate"
         />
 
         <!-- 右侧的所有信息，使用 space-y-4 来创建垂直间距 -->
@@ -523,8 +523,8 @@ function followUser() {
                 class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1"
               >
                 <span
-                  class="flex items-center gap-1.5"
                   v-if="user.title"
+                  class="flex items-center gap-1.5"
                   ><User class="w-4 h-4" />{{
                     user.title
                   }}</span
@@ -535,8 +535,8 @@ function followUser() {
                   }}</span
                 >
                 <span
-                  class="flex items-center gap-1.5"
                   v-if="user.email"
+                  class="flex items-center gap-1.5"
                   ><Mail class="w-4 h-4" />{{
                     user.email
                   }}</span
@@ -601,7 +601,7 @@ function followUser() {
           </div>
 
           <!-- 分割线 -->
-          <div class="border-t"></div>
+          <div class="border-t" />
 
           <!-- 统计数据和进度条 -->
           <div
