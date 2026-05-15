@@ -89,14 +89,15 @@ class WSSessionManager {
    * 当客户端断开连接时调用此方法
    * 会自动清理相关资源
    */
-  removeSession(sessionId: string): void {
+  removeSession(sessionId: string): WSSession | null {
     // 获取要删除的会话
     const session = this.sessions.get(sessionId);
-    if (!session) return; // 如果会话不存在，直接返回
+    if (!session) return null; // 如果会话不存在，直接返回
 
     // 从会话管理器中删除该会话
     this.sessions.delete(sessionId);
     console.log(`会话 ${sessionId} 已移除`);
+    return session;
   }
 
   /**
@@ -182,6 +183,14 @@ class WSSessionManager {
     }
 
     return sessions;
+  }
+
+  getUserSessionCount(userId: number): number {
+    return this.getUserSessions(userId).length;
+  }
+
+  isUserOnline(userId: number): boolean {
+    return this.getUserSessionCount(userId) > 0;
   }
 
   /**
