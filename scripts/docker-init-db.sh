@@ -55,24 +55,46 @@ SQL
 }
 
 ensure_pdb_open() {
-  sqlplus -L -s "$SYS_CONNECT_STRING" <<SQL
-WHENEVER SQLERROR EXIT SQL.SQLCODE
-SET SERVEROUTPUT ON
-DECLARE
-  v_open_mode VARCHAR2(20);
-BEGIN
-  SELECT open_mode
-  INTO v_open_mode
-  FROM v\$pdbs
-  WHERE name = UPPER('${ORACLE_PDB_NAME}');
+  local attempt
+  local open_mode
+  local output
 
-  IF v_open_mode != 'READ WRITE' THEN
-    EXECUTE IMMEDIATE 'ALTER PLUGGABLE DATABASE ${ORACLE_PDB_NAME} OPEN';
-  END IF;
-END;
-/
+  for attempt in $(seq 1 90); do
+    if output=$(sqlplus -L -s "$SYS_CONNECT_STRING" <<SQL
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+SET PAGESIZE 0 FEEDBACK OFF VERIFY OFF HEADING OFF ECHO OFF
+SELECT COALESCE(MAX(open_mode), 'MISSING')
+FROM v\$pdbs
+WHERE name = UPPER('${ORACLE_PDB_NAME}');
 EXIT;
 SQL
+    ); then
+      open_mode=$(printf '%s\n' "$output" | tr -d '\r' | awk 'NF { print; exit }' | xargs)
+
+      if [ "$open_mode" = "READ WRITE" ]; then
+        echo "PDB ${ORACLE_PDB_NAME} is ready."
+        return 0
+      fi
+
+      if [ "$open_mode" != "MISSING" ] && [ -n "$open_mode" ]; then
+        if ! sqlplus -L -s "$SYS_CONNECT_STRING" <<SQL >/dev/null
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+ALTER PLUGGABLE DATABASE ${ORACLE_PDB_NAME} OPEN;
+ALTER PLUGGABLE DATABASE ${ORACLE_PDB_NAME} SAVE STATE;
+EXIT;
+SQL
+        then
+          echo "PDB ${ORACLE_PDB_NAME} exists with open mode ${open_mode}, but is not open yet."
+        fi
+      fi
+    fi
+
+    echo "Waiting for PDB ${ORACLE_PDB_NAME} ready ($attempt/90)..."
+    sleep 10
+  done
+
+  echo "PDB ${ORACLE_PDB_NAME} not ready in time." >&2
+  return 1
 }
 
 is_database_initialized() {
