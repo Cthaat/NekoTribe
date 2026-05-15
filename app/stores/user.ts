@@ -36,6 +36,8 @@ function createEmptyUser(): CurrentUserVM {
     followingCount: 0,
     postsCount: 0,
     likesCount: 0,
+    onlineStatus: 'hidden',
+    lastSeenAt: null,
     createdAt: '',
     updatedAt: '',
     relationship: {
