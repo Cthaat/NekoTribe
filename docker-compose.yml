@@ -53,8 +53,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      oracle19c:
-        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -107,6 +107,30 @@ services:
       - neko-network
     depends_on:
       app:
+        condition: service_healthy
+
+  db-init:
+    image: container-registry.oracle.com/database/enterprise:19.3.0.0
+    restart: 'no'
+    environment:
+      ORACLE_HOST: ${DOCKER_ORACLE_HOST:-oracle19c}
+      ORACLE_PORT: ${DOCKER_ORACLE_PORT:-1521}
+      ORACLE_PWD: ${ORACLE_PWD:-NekoRoot2026Local}
+      ORACLE_SYS_SERVICE_NAME: ${ORACLE_SYS_SERVICE_NAME:-ORCLCDB}
+      ORACLE_PDB_NAME: ${ORACLE_SERVICE_NAME:-ORCLPDB1}
+      DB_INIT_SCHEMA: ${ORACLE_USER:-neko_app}
+      DB_INIT_CHECK_TABLE: ${DB_INIT_CHECK_TABLE:-N_USERS}
+      SQL_FILE: /opt/oracle/init/neko_tribe-oracle-v2.sql
+    volumes:
+      - ./doc/neko_tribe-oracle-v2.sql:/opt/oracle/init/neko_tribe-oracle-v2.sql:ro
+      - ./scripts/docker-init-db.sh:/opt/oracle/init/docker-init-db.sh:ro
+    entrypoint:
+      - /bin/bash
+      - /opt/oracle/init/docker-init-db.sh
+    networks:
+      - neko-network
+    depends_on:
+      oracle19c:
         condition: service_healthy
 
   oracle19c:
