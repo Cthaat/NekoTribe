@@ -86,6 +86,8 @@ interface UserData {
     likesCount: number;
   };
   point: number;
+  onlineStatus: 'online' | 'offline' | 'hidden';
+  lastSeenAt: string | null;
 }
 
 interface TabItem {
@@ -271,6 +273,35 @@ function getUserInitials(user: PublicUserVM): string {
 
 function getProfilePath(userId: number): string {
   return localePath(`/user/${userId}/profile`);
+}
+
+function onlineStatusLabel(
+  status: UserData['onlineStatus']
+): string {
+  return status === 'online'
+    ? t('chat.status.online')
+    : t('chat.status.offline');
+}
+
+function onlineStatusClass(
+  status: UserData['onlineStatus']
+): string {
+  return status === 'online'
+    ? 'bg-emerald-500'
+    : 'bg-muted-foreground';
+}
+
+function formatLastSeen(value: string | null): string {
+  if (!value) return '';
+  return new Date(value).toLocaleString(
+    locale.value === 'en' ? 'en-US' : 'zh-CN',
+    {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }
+  );
 }
 
 function openUserProfile(userId: number): void {
@@ -463,9 +494,31 @@ function followUser() {
           <!-- 用户名和操作按钮 -->
           <div class="flex items-center justify-between">
             <div>
-              <h2 class="text-xl font-semibold">
-                {{ user.name }}
-              </h2>
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-xl font-semibold">
+                  {{ user.name }}
+                </h2>
+                <Badge
+                  variant="secondary"
+                  class="gap-1.5 rounded-full px-2 py-0.5 text-xs"
+                >
+                  <span
+                    class="h-2 w-2 rounded-full"
+                    :class="onlineStatusClass(user.onlineStatus)"
+                  />
+                  {{ onlineStatusLabel(user.onlineStatus) }}
+                </Badge>
+                <span
+                  v-if="user.onlineStatus !== 'online' && user.lastSeenAt"
+                  class="text-xs text-muted-foreground"
+                >
+                  {{
+                    t('account.header.lastSeen', {
+                      time: formatLastSeen(user.lastSeenAt)
+                    })
+                  }}
+                </span>
+              </div>
               <div
                 class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1"
               >
