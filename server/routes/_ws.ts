@@ -6,18 +6,18 @@ import {
   v2TouchAuthSession
 } from '~/server/services/v2/presence';
 import { getOracleConnection } from '~/server/utils/oracle';
+import type { WSMessage } from '~/server/utils/redis';
 import {
   REDIS_CHANNELS,
-  subscribeToChannel,
-  type WSMessage
+  subscribeToChannel
 } from '~/server/utils/redis';
+import type { WSSessionAuthPayload } from '~/server/utils/wsSession';
 import {
   WS_SERVER_ID,
   sendWsToAll,
   sendWsToRoom,
   sendWsToUser,
-  sessionManager,
-  type WSSessionAuthPayload
+  sessionManager
 } from '~/server/utils/wsSession';
 import { v2Execute, v2One } from '~/server/utils/v2';
 
