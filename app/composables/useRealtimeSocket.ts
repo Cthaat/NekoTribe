@@ -15,16 +15,58 @@ let shouldReconnect = true;
 
 const listeners = new Set<RealtimeListener>();
 
-function resolveRealtimeUrl(): string {
-  const config = useRuntimeConfig();
-  const configured = String(config.public.wsUrl || '').trim();
-  if (configured && !configured.includes('localhost:3000')) {
-    return configured;
-  }
-
+function browserRealtimeUrl(): string {
   const protocol =
     window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}/_ws`;
+}
+
+function browserReachableHostname(): string {
+  const hostname = window.location.hostname;
+  if (
+    !hostname ||
+    hostname === '0.0.0.0' ||
+    hostname === '::' ||
+    hostname === '[::]'
+  ) {
+    return 'localhost';
+  }
+  return hostname;
+}
+
+function normalizeConfiguredRealtimeUrl(
+  configured: string
+): string | null {
+  if (!configured || configured.includes('localhost:3000')) {
+    return null;
+  }
+
+  try {
+    const url = new URL(configured, window.location.origin);
+    if (url.protocol === 'http:') url.protocol = 'ws:';
+    if (url.protocol === 'https:') url.protocol = 'wss:';
+
+    if (
+      url.hostname === '0.0.0.0' ||
+      url.hostname === '::' ||
+      url.hostname === '[::]'
+    ) {
+      url.hostname = browserReachableHostname();
+    }
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function resolveRealtimeUrl(): string {
+  const config = useRuntimeConfig();
+  const configured = String(config.public.wsUrl || '').trim();
+  return (
+    normalizeConfiguredRealtimeUrl(configured) ||
+    browserRealtimeUrl()
+  );
 }
 
 function emitRealtimeMessage(message: RealtimeMessage): void {
