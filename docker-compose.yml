@@ -141,13 +141,14 @@ services:
       - '${ORACLE_EM_PORT:-5500}:5500'
     environment:
       ORACLE_PWD: ${ORACLE_PWD:-NekoRoot2026Local}
+      ORACLE_PDB: ${ORACLE_SERVICE_NAME:-ORCLPDB1}
     volumes:
       - ./data/oracle-data:/opt/oracle/oradata
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'lsnrctl status >/dev/null 2>&1 || exit 1'
+          'printf "%s\n" "SELECT ''NEKOTRIBE_PDB_READY'' FROM dual;" | sqlplus -L -s "sys/$${ORACLE_PWD}@//localhost:1521/${ORACLE_SERVICE_NAME:-ORCLPDB1} as sysdba" | grep -q NEKOTRIBE_PDB_READY'
         ]
       interval: 30s
       timeout: 10s
