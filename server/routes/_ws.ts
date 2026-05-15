@@ -1,6 +1,10 @@
 import type { Peer } from 'crossws';
 import { v2VerifyAccessToken } from '~/server/services/v2/auth';
 import { v2CanAccessChatChannel } from '~/server/services/v2/chat';
+import {
+  v2PublishUserPresence,
+  v2TouchAuthSession
+} from '~/server/services/v2/presence';
 import { getOracleConnection } from '~/server/utils/oracle';
 import {
   REDIS_CHANNELS,
@@ -197,6 +201,8 @@ function sendPeer(
 const subscribedChatChannels = new Set<number>();
 const subscribedUsers = new Set<number>();
 const subscribedGlobalChannels = new Set<string>();
+const presenceOfflineTimers = new Map<number, ReturnType<typeof setTimeout>>();
+const PRESENCE_OFFLINE_GRACE_MS = 95_000;
 
 async function initializeRedisSubscriptions(): Promise<void> {
   if (!subscribedGlobalChannels.has(REDIS_CHANNELS.BROADCAST)) {
@@ -226,6 +232,20 @@ async function initializeRedisSubscriptions(): Promise<void> {
       subscribedGlobalChannels.add(
         REDIS_CHANNELS.SYSTEM_NOTIFICATION
       );
+    }
+  }
+
+  if (!subscribedGlobalChannels.has(REDIS_CHANNELS.PRESENCE)) {
+    const subscribed = await subscribeToChannel(
+      REDIS_CHANNELS.PRESENCE,
+      message => {
+        const data = isRecord(message.data) ? message.data : {};
+        if (data.server_id === WS_SERVER_ID) return;
+        sendWsToAll(message);
+      }
+    );
+    if (subscribed) {
+      subscribedGlobalChannels.add(REDIS_CHANNELS.PRESENCE);
     }
   }
 }
@@ -321,6 +341,49 @@ function handleLeaveChatChannel(
   sessionManager.leaveRoom(sessionId, chatRoomId(channelId));
 }
 
+async function touchWsSession(sessionId: string): Promise<void> {
+  const session = sessionManager.getSession(sessionId);
+  const authSessionId = session?.auth.sessionId;
+  if (!authSessionId) return;
+
+  const connection = await getOracleConnection();
+  try {
+    await v2TouchAuthSession(connection, authSessionId);
+  } finally {
+    await connection.close();
+  }
+}
+
+function clearPresenceOfflineTimer(userId: number): void {
+  const timer = presenceOfflineTimers.get(userId);
+  if (!timer) return;
+  clearTimeout(timer);
+  presenceOfflineTimers.delete(userId);
+}
+
+function schedulePresenceOfflinePublish(userId: number): void {
+  clearPresenceOfflineTimer(userId);
+  presenceOfflineTimers.set(
+    userId,
+    setTimeout(async () => {
+      presenceOfflineTimers.delete(userId);
+      if (sessionManager.isUserOnline(userId)) return;
+
+      const connection = await getOracleConnection();
+      try {
+        await v2PublishUserPresence(connection, userId);
+      } catch (error) {
+        console.error('[ws] publish delayed presence failed', {
+          userId,
+          error
+        });
+      } finally {
+        await connection.close();
+      }
+    }, PRESENCE_OFFLINE_GRACE_MS)
+  );
+}
+
 export default defineWebSocketHandler({
   async open(peer) {
     const extendedPeer = peer as ExtendedPeer;
@@ -337,10 +400,20 @@ export default defineWebSocketHandler({
     }
 
     const sessionId = generateSessionId();
+    const wasOnline = sessionManager.isUserOnline(auth.userId);
     extendedPeer.sessionId = sessionId;
     await initializeRedisSubscriptions();
     sessionManager.addSession(sessionId, peer, auth);
     await ensureUserRedisSubscription(auth.userId);
+    clearPresenceOfflineTimer(auth.userId);
+    if (!wasOnline) {
+      const connection = await getOracleConnection();
+      try {
+        await v2PublishUserPresence(connection, auth.userId);
+      } finally {
+        await connection.close();
+      }
+    }
     sendPeer(peer, 'system_notification', {
       message: 'WebSocket connected',
       session_id: sessionId,
@@ -367,6 +440,7 @@ export default defineWebSocketHandler({
         handleLeaveChatChannel(sessionId, parsed.data);
         break;
       case 'ping':
+        await touchWsSession(sessionId);
         sendPeer(peer, 'pong', { timestamp: Date.now() });
         break;
       default:
@@ -377,10 +451,23 @@ export default defineWebSocketHandler({
     }
   },
 
-  close(peer) {
+  async close(peer) {
     const sessionId = (peer as ExtendedPeer).sessionId;
     if (sessionId) {
-      sessionManager.removeSession(sessionId);
+      const removedSession = sessionManager.removeSession(sessionId);
+      const userId = removedSession?.auth.userId;
+      const authSessionId = removedSession?.auth.sessionId;
+      if (userId && authSessionId) {
+        const connection = await getOracleConnection();
+        try {
+          await v2TouchAuthSession(connection, authSessionId);
+          if (!sessionManager.isUserOnline(userId)) {
+            schedulePresenceOfflinePublish(userId);
+          }
+        } finally {
+          await connection.close();
+        }
+      }
     }
   },
 
