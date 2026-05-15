@@ -599,7 +599,8 @@
       "online": "Online",
       "idle": "Idle",
       "dnd": "Do not disturb",
-      "offline": "Offline"
+      "offline": "Offline",
+      "lastSeen": "Last seen {time}"
     },
     "input": {
       "placeholder": "Message #{channel}..."
@@ -1354,7 +1355,8 @@
       "following": "Following",
       "likes": "Likes",
       "activeScore": "Active Score",
-      "moreActions": "More actions"
+      "moreActions": "More actions",
+      "lastSeen": "Last seen {time}"
     },
     "follow": {
       "success": "Followed {name}.",
