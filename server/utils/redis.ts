@@ -267,6 +267,7 @@ export const REDIS_CHANNELS = {
   USER_MESSAGE: 'ws:user:', // 用户私信频道前缀 (完整格式: ws:user:{userId})
   ROOM_MESSAGE: 'ws:room:', // 房间消息频道前缀 (完整格式: ws:room:{roomId})
   CHAT_CHANNEL: 'ws:chat:channel:', // 群组聊天频道前缀 (完整格式: ws:chat:channel:{channelId})
+  PRESENCE: 'ws:presence', // 在线状态频道
   SYSTEM_NOTIFICATION: 'ws:system' // 系统通知频道 - 系统级别的通知消息
 } as const;
 
@@ -291,6 +292,12 @@ export interface WSMessage {
     | 'chat_reaction_updated'
     | 'chat_channel_updated'
     | 'direct_message'
+    | 'notification_created'
+    | 'notification_read_status_updated'
+    | 'notifications_read_status_updated'
+    | 'notification_deleted'
+    | 'notification_restored'
+    | 'presence_update'
     | 'pong'
     | 'error'
     | 'system_notification'; // 消息类型
