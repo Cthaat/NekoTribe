@@ -9,7 +9,7 @@
     "preview": "nuxt preview",
     "start": "nuxt preview",
     "typecheck": "nuxi typecheck",
-    "docker:up": "docker compose up -d --build",
+    "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "postinstall": "nuxt prepare",
