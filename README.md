@@ -308,6 +308,7 @@ Access:
 - Oracle EM Express: `http://localhost:5500/em`
 
 Oracle usually needs a few minutes on first boot. If the Oracle image fails to pull, run `docker login container-registry.oracle.com`, accept the database image license in the Oracle Container Registry; or use an external Oracle instance and update `.env`.
+You can also switch `ORACLE_IMAGE` in `.env` to a domestic mirror, for example `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c`.
 
 ## Scripts
 
@@ -353,6 +354,7 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | `ORACLE_POOL_INCREMENT`   | No          | `1`                               | Oracle pool growth step.                                        |
 | `ORACLE_HOST_PORT`        | Docker      | `5501`                            | Oracle container `1521` mapped to host.                         |
 | `ORACLE_EM_PORT`          | Docker      | `5500`                            | Oracle EM Express mapped port.                                  |
+| `ORACLE_IMAGE`            | Docker      | `container-registry.oracle.com/database/enterprise:19.3.0.0` | Oracle image used by `oracle19c` and `db-init`.                 |
 | `ORACLE_PWD`              | Docker/Init | Replace with a strong password    | SYS/SYSTEM password for the Oracle container and init scripts.  |
 | `ORACLE_SYS_SERVICE_NAME` | Init        | `ORCLCDB`                         | CDB service name used by `db-init` and `scripts/init-db.*`.     |
 | `DB_INIT_CHECK_TABLE`     | Init        | `N_USERS`                         | App schema table used by `db-init` to detect an initialized DB. |
@@ -496,7 +498,7 @@ The bundled `docker-compose.yml` targets local dev and small test environments. 
 
 ### Docker cannot pull the Oracle image
 
-`container-registry.oracle.com/database/enterprise:19.3.0.0` requires Oracle Container Registry access and license acceptance. Run `docker login container-registry.oracle.com`, accept the license, then retry.
+Set `ORACLE_IMAGE` in `.env` to choose the Oracle source. The default official image requires Oracle Container Registry access and license acceptance. If you want a domestic mirror, set it to a reachable image such as `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c`.
 
 ### Oracle errors after app startup
 
