@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Collapsible,
@@ -32,12 +31,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@/components/ui/tooltip';
 
 const { t, locale } = useAppLocale();
 
@@ -63,10 +56,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'message', member: ChatMember): void;
-  (e: 'kick', memberId: number): void;
-  (e: 'ban', memberId: number): void;
-  (e: 'view-profile', member: ChatMember): void;
+  (e: 'message' | 'view-profile', member: ChatMember): void;
+  (e: 'kick' | 'ban', memberId: number): void;
 }>();
 
 // 搜索
@@ -116,22 +107,6 @@ const getStatusColor = (status: ChatMember['status']) => {
       return 'bg-gray-400';
     default:
       return 'bg-gray-400';
-  }
-};
-
-// 获取状态文本
-const getStatusText = (status: ChatMember['status']) => {
-  switch (status) {
-    case 'online':
-      return t('chat.status.online');
-    case 'idle':
-      return t('chat.status.idle');
-    case 'dnd':
-      return t('chat.status.dnd');
-    case 'offline':
-      return t('chat.status.offline');
-    default:
-      return t('chat.status.offline');
   }
 };
 
@@ -242,8 +217,8 @@ const getRoleColor = (role: ChatMember['role']) => {
                   <div class="flex items-center gap-1">
                     <!-- 角色图标 -->
                     <component
-                      v-if="getRoleIcon(member.role)"
                       :is="getRoleIcon(member.role)"
+                      v-if="getRoleIcon(member.role)"
                       class="h-3 w-3 flex-shrink-0"
                       :class="getRoleColor(member.role)"
                     />
@@ -377,8 +352,8 @@ const getRoleColor = (role: ChatMember['role']) => {
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-1">
                     <component
-                      v-if="getRoleIcon(member.role)"
                       :is="getRoleIcon(member.role)"
+                      v-if="getRoleIcon(member.role)"
                       class="h-3 w-3 flex-shrink-0"
                       :class="getRoleColor(member.role)"
                     />
