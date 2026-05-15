@@ -117,7 +117,7 @@ async function v2MapNotificationById(
       is_read,
       read_at,
       deleted_at,
-      metadata_json,
+      DBMS_LOB.SUBSTR(metadata_json, 4000, 1) AS metadata_json,
       created_at
     FROM n_notifications
     WHERE notification_id = :notification_id
@@ -313,7 +313,7 @@ export async function v2ListNotifications(
         is_read,
         read_at,
         deleted_at,
-        metadata_json,
+        DBMS_LOB.SUBSTR(metadata_json, 4000, 1) AS metadata_json,
         created_at,
         ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
       FROM n_notifications
