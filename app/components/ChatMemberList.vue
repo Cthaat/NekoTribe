@@ -39,7 +39,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip';
 
-const { t } = useAppLocale();
+const { t, locale } = useAppLocale();
 
 // 成员类型定义
 export interface ChatMember {
@@ -50,6 +50,7 @@ export interface ChatMember {
   role: 'owner' | 'admin' | 'moderator' | 'member';
   status: 'online' | 'idle' | 'dnd' | 'offline';
   statusText?: string;
+  lastSeenAt?: string | null;
   isInVoice?: boolean;
   isMuted?: boolean;
   isDeafened?: boolean;
@@ -132,6 +133,19 @@ const getStatusText = (status: ChatMember['status']) => {
     default:
       return t('chat.status.offline');
   }
+};
+
+const formatLastSeen = (value?: string | null): string => {
+  if (!value) return '';
+  return new Date(value).toLocaleString(
+    locale.value === 'en' ? 'en-US' : 'zh-CN',
+    {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }
+  );
 };
 
 // 获取角色图标
@@ -373,6 +387,16 @@ const getRoleColor = (role: ChatMember['role']) => {
                     >
                       {{ member.nickname }}
                     </span>
+                  </div>
+                  <div
+                    v-if="member.lastSeenAt"
+                    class="truncate text-xs text-muted-foreground"
+                  >
+                    {{
+                      t('chat.status.lastSeen', {
+                        time: formatLastSeen(member.lastSeenAt)
+                      })
+                    }}
                   </div>
                 </div>
               </Button>
