@@ -314,7 +314,7 @@ function openPublicProfile(): void {
 }
 
 async function copyProfileLink(): Promise<void> {
-  if (!process.client || props.user.id <= 0) return;
+  if (!import.meta.client || props.user.id <= 0) return;
 
   try {
     const url = new URL(
