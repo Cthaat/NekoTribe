@@ -73,9 +73,9 @@ import {
   mapV2ChatGroup,
   mapV2ChatMember,
   mapV2ChatMessage,
-  replaceChatMessage,
-  type ChatGroupVM
+  replaceChatMessage
 } from '@/services/chat';
+import type { ChatGroupVM } from '@/services/chat';
 import { v2SearchUsers } from '@/services/users';
 import { usePreferenceStore } from '@/stores/user';
 import type { Group } from '@/types/groups';
