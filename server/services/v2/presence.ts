@@ -1,8 +1,8 @@
 import type oracledb from 'oracledb';
+import type { WSMessage } from '~/server/utils/redis';
 import {
   REDIS_CHANNELS,
-  publishMessage,
-  type WSMessage
+  publishMessage
 } from '~/server/utils/redis';
 import {
   WS_SERVER_ID,
