@@ -37,6 +37,7 @@ import {
   v2RequirePostById,
   v2SortOrder
 } from '~/server/models/v2';
+import { v2CreateNotification } from './notifications';
 
 type V2PostListMode =
   | 'all'
@@ -63,6 +64,58 @@ interface V2UpdatePostPayload {
   media_ids?: number[];
   tag_names?: string[];
   mention_user_ids?: number[];
+}
+
+async function v2UserDisplayName(
+  connection: oracledb.Connection,
+  userId: number
+): Promise<string> {
+  const row = await v2One(
+    connection,
+    `
+    SELECT COALESCE(display_name, username) AS name
+    FROM n_users
+    WHERE user_id = :user_id
+    `,
+    { user_id: userId }
+  );
+  return v2String(row?.NAME, '有人');
+}
+
+async function v2PostAuthorId(
+  connection: oracledb.Connection,
+  postId: number | null | undefined
+): Promise<number | null> {
+  if (!postId) return null;
+  const row = await v2One(
+    connection,
+    `
+    SELECT author_id
+    FROM n_posts
+    WHERE post_id = :post_id
+      AND is_deleted = 0
+    `,
+    { post_id: postId }
+  );
+  return row ? v2Number(row.AUTHOR_ID) : null;
+}
+
+async function v2CommentAuthorId(
+  connection: oracledb.Connection,
+  commentId: number | null | undefined
+): Promise<number | null> {
+  if (!commentId) return null;
+  const row = await v2One(
+    connection,
+    `
+    SELECT user_id
+    FROM n_comments
+    WHERE comment_id = :comment_id
+      AND is_deleted = 0
+    `,
+    { comment_id: commentId }
+  );
+  return row ? v2Number(row.USER_ID) : null;
 }
 
 function v2PostVisibility(value: string): string {
@@ -418,6 +471,13 @@ async function v2CreatePostFromPayload(
     postId,
     payload.mention_user_ids ?? []
   );
+  await v2NotifyPostCreated(
+    connection,
+    auth.userId,
+    postId,
+    postType,
+    payload
+  );
 
   return v2Ok(
     await v2RequirePostById(
@@ -709,6 +769,195 @@ async function v2AttachPostMentions(
   }
 }
 
+async function v2NotifyPostCreated(
+  connection: oracledb.Connection,
+  actorId: number,
+  postId: number,
+  postType: string,
+  payload: V2CreatePostPayload
+): Promise<void> {
+  const actorName = await v2UserDisplayName(connection, actorId);
+
+  if (postType === 'reply') {
+    const targetUserId = await v2PostAuthorId(
+      connection,
+      payload.reply_to_post_id
+    );
+    if (targetUserId) {
+      await v2CreateNotification(connection, {
+        userId: targetUserId,
+        actorId,
+        type: 'comment',
+        title: `${actorName} 回复了你的推文`,
+        message: '你的推文收到了一条新回复。',
+        resourceType: 'post',
+        resourceId: postId,
+        metadata: {
+          source_post_id: payload.reply_to_post_id ?? null,
+          event: 'post_reply'
+        }
+      });
+    }
+  }
+
+  if (postType === 'repost') {
+    const targetUserId = await v2PostAuthorId(
+      connection,
+      payload.repost_of_post_id
+    );
+    if (targetUserId) {
+      await v2CreateNotification(connection, {
+        userId: targetUserId,
+        actorId,
+        type: 'retweet',
+        title: `${actorName} 转发了你的推文`,
+        message: '你的推文被转发了。',
+        resourceType: 'post',
+        resourceId: postId,
+        metadata: {
+          source_post_id: payload.repost_of_post_id ?? null,
+          event: 'post_repost'
+        }
+      });
+    }
+  }
+
+  if (postType === 'quote') {
+    const targetUserId = await v2PostAuthorId(
+      connection,
+      payload.quoted_post_id
+    );
+    if (targetUserId) {
+      await v2CreateNotification(connection, {
+        userId: targetUserId,
+        actorId,
+        type: 'retweet',
+        title: `${actorName} 引用了你的推文`,
+        message: '你的推文被引用了。',
+        resourceType: 'post',
+        resourceId: postId,
+        metadata: {
+          source_post_id: payload.quoted_post_id ?? null,
+          event: 'post_quote'
+        }
+      });
+    }
+  }
+
+  for (const mentionedUserId of [
+    ...new Set(payload.mention_user_ids ?? [])
+  ]) {
+    await v2CreateNotification(connection, {
+      userId: mentionedUserId,
+      actorId,
+      type: 'mention',
+      title: `${actorName} 提及了你`,
+      message: '你在一条推文中被提及。',
+      resourceType: 'post',
+      resourceId: postId,
+      metadata: {
+        event: 'post_mention'
+      }
+    });
+  }
+}
+
+async function v2NotifyCommentCreated(
+  connection: oracledb.Connection,
+  actorId: number,
+  postId: number,
+  commentId: number,
+  parentCommentId: number | null | undefined
+): Promise<void> {
+  const actorName = await v2UserDisplayName(connection, actorId);
+  const postAuthorId = await v2PostAuthorId(connection, postId);
+  if (postAuthorId) {
+    await v2CreateNotification(connection, {
+      userId: postAuthorId,
+      actorId,
+      type: 'comment',
+      title: `${actorName} 评论了你的推文`,
+      message: '你的推文收到了一条新评论。',
+      resourceType: 'comment',
+      resourceId: commentId,
+      metadata: {
+        post_id: postId,
+        event: 'comment_created'
+      }
+    });
+  }
+
+  const parentAuthorId = await v2CommentAuthorId(
+    connection,
+    parentCommentId
+  );
+  if (parentAuthorId && parentAuthorId !== postAuthorId) {
+    await v2CreateNotification(connection, {
+      userId: parentAuthorId,
+      actorId,
+      type: 'comment',
+      title: `${actorName} 回复了你的评论`,
+      message: '你的评论收到了一条新回复。',
+      resourceType: 'comment',
+      resourceId: commentId,
+      metadata: {
+        post_id: postId,
+        parent_comment_id: parentCommentId ?? null,
+        event: 'comment_reply'
+      }
+    });
+  }
+}
+
+async function v2NotifyPostLiked(
+  connection: oracledb.Connection,
+  actorId: number,
+  postId: number
+): Promise<void> {
+  const postAuthorId = await v2PostAuthorId(connection, postId);
+  if (!postAuthorId) return;
+
+  const actorName = await v2UserDisplayName(connection, actorId);
+  await v2CreateNotification(connection, {
+    userId: postAuthorId,
+    actorId,
+    type: 'like',
+    title: `${actorName} 赞了你的推文`,
+    message: '你的推文收到了一次点赞。',
+    resourceType: 'post',
+    resourceId: postId,
+    metadata: {
+      event: 'post_like'
+    }
+  });
+}
+
+async function v2NotifyCommentLiked(
+  connection: oracledb.Connection,
+  actorId: number,
+  commentId: number
+): Promise<void> {
+  const commentAuthorId = await v2CommentAuthorId(
+    connection,
+    commentId
+  );
+  if (!commentAuthorId) return;
+
+  const actorName = await v2UserDisplayName(connection, actorId);
+  await v2CreateNotification(connection, {
+    userId: commentAuthorId,
+    actorId,
+    type: 'like',
+    title: `${actorName} 赞了你的评论`,
+    message: '你的评论收到了一次点赞。',
+    resourceType: 'comment',
+    resourceId: commentId,
+    metadata: {
+      event: 'comment_like'
+    }
+  });
+}
+
 export async function v2GetPost(
   event: H3Event,
   connection: oracledb.Connection,
@@ -845,8 +1094,9 @@ export async function v2LikePost(
   liked: boolean
 ): Promise<V2Response<V2LikePostData>> {
   const auth = v2Auth(event);
+  let inserted = 0;
   if (liked) {
-    await v2Execute(
+    inserted = await v2Execute(
       connection,
       `
       INSERT INTO n_post_likes (post_id, user_id)
@@ -881,6 +1131,9 @@ export async function v2LikePost(
     `,
     { post_id: postId }
   );
+  if (liked && inserted > 0) {
+    await v2NotifyPostLiked(connection, auth.userId, postId);
+  }
   return v2Ok({
     post_id: postId,
     is_liked: liked,
@@ -1077,6 +1330,13 @@ export async function v2CreateComment(
     { comment_id: commentId }
   );
   if (!row) v2NotFound('评论不存在');
+  await v2NotifyCommentCreated(
+    connection,
+    auth.userId,
+    postId,
+    commentId,
+    payload.parent_comment_id
+  );
   return v2Ok(
     await v2MapComment(connection, auth.userId, row),
     'comment created'
@@ -1122,8 +1382,9 @@ export async function v2LikeComment(
   liked: boolean
 ): Promise<V2Response<V2LikeCommentData>> {
   const auth = v2Auth(event);
+  let inserted = 0;
   if (liked) {
-    await v2Execute(
+    inserted = await v2Execute(
       connection,
       `
       INSERT INTO n_comment_likes (comment_id, user_id)
@@ -1158,6 +1419,13 @@ export async function v2LikeComment(
     `,
     { comment_id: commentId }
   );
+  if (liked && inserted > 0) {
+    await v2NotifyCommentLiked(
+      connection,
+      auth.userId,
+      commentId
+    );
+  }
   return v2Ok({
     comment_id: commentId,
     is_liked: liked,
