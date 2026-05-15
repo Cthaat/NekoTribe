@@ -23,6 +23,8 @@ export interface PublicUserVM {
   postsCount: number;
   likesCount: number;
   relationship: UserRelationshipVM;
+  onlineStatus: 'online' | 'offline' | 'hidden';
+  lastSeenAt: string | null;
 }
 
 export interface CurrentUserVM extends PublicUserVM {
