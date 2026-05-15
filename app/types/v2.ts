@@ -92,6 +92,8 @@ export interface V2PublicUser {
   posts_count: number;
   likes_count: number;
   relationship: V2Relationship;
+  online_status: 'online' | 'offline' | 'hidden';
+  last_seen_at: string | null;
 }
 
 export interface V2SelfUser extends V2PublicUser {
@@ -889,7 +891,8 @@ export interface V2ChatMember {
   avatar_url: string | null;
   role: V2GroupRole;
   status: string;
-  online_status: 'online' | 'offline';
+  online_status: 'online' | 'offline' | 'hidden';
+  last_seen_at: string | null;
 }
 
 export interface V2ChatReactionSummary {
