@@ -110,7 +110,7 @@ services:
         condition: service_healthy
 
   db-init:
-    image: container-registry.oracle.com/database/enterprise:19.3.0.0
+    image: "${ORACLE_IMAGE:-container-registry.oracle.com/database/enterprise:19.3.0.0}"
     restart: 'no'
     environment:
       ORACLE_HOST: ${DOCKER_ORACLE_HOST:-oracle19c}
@@ -134,7 +134,7 @@ services:
         condition: service_healthy
 
   oracle19c:
-    image: container-registry.oracle.com/database/enterprise:19.3.0.0
+    image: "${ORACLE_IMAGE:-container-registry.oracle.com/database/enterprise:19.3.0.0}"
     container_name: oracle19c
     ports:
       - '${ORACLE_HOST_PORT:-5501}:1521'
