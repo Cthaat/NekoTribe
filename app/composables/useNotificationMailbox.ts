@@ -1,5 +1,6 @@
 import type { NotificationVM } from '@/types/notifications';
 import { v2ListNotifications } from '@/services/notifications';
+import { useRealtimeSocket } from '@/composables/useRealtimeSocket';
 
 interface NotificationMailboxFilters {
   type: Ref<string>;
@@ -19,6 +20,14 @@ export function useNotificationMailbox(
   const hasNext = ref(false);
   const seenIds = ref<Set<number>>(new Set());
   const lastQueryKey = ref('');
+  const realtimeEventTypes = new Set([
+    'notification_created',
+    'notification_read_status_updated',
+    'notifications_read_status_updated',
+    'notification_deleted',
+    'notification_restored'
+  ]);
+  let unsubscribeRealtime: (() => void) | null = null;
 
   function makeQueryKey(): string {
     return `${filters.type.value}|${filters.unreadOnly.value}|${filters.showDeleted.value}`;
@@ -76,6 +85,22 @@ export function useNotificationMailbox(
   function resetAndRefresh(): void {
     page.value = 1;
     refresh();
+  }
+
+  if (import.meta.client) {
+    onMounted(() => {
+      const realtime = useRealtimeSocket();
+      unsubscribeRealtime = realtime.subscribe(message => {
+        if (realtimeEventTypes.has(message.type)) {
+          resetAndRefresh();
+        }
+      });
+    });
+
+    onBeforeUnmount(() => {
+      unsubscribeRealtime?.();
+      unsubscribeRealtime = null;
+    });
   }
 
   return {
