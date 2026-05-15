@@ -21,16 +21,17 @@ import type {
   V2GroupRole,
   V2MediaAsset
 } from '../../../app/types/v2';
+import type { WSMessage } from '~/server/utils/redis';
 import {
   REDIS_CHANNELS,
-  publishMessage,
-  type WSMessage
+  publishMessage
 } from '~/server/utils/redis';
 import {
   WS_SERVER_ID,
   sendWsToRoom,
   sendWsToUser
 } from '~/server/utils/wsSession';
+import type { V2DbRecord } from '~/server/utils/v2';
 import {
   v2Auth,
   v2BadRequest,
@@ -54,8 +55,7 @@ import {
   v2RequiredNumber,
   v2RequiredString,
   v2Rows,
-  v2String,
-  type V2DbRecord
+  v2String
 } from '~/server/utils/v2';
 import { v2MapMedia, v2MapPublicUser } from '~/server/models/v2';
 import { v2CreateNotification } from './notifications';
@@ -71,21 +71,6 @@ interface ChatChannelAccess extends ChatMembership {
   channelId: number;
   channelType: V2ChatChannelType;
   isPrivate: boolean;
-}
-
-function v2RoleLevel(role: string | null): number {
-  switch (role) {
-    case 'owner':
-      return 4;
-    case 'admin':
-      return 3;
-    case 'moderator':
-      return 2;
-    case 'member':
-      return 1;
-    default:
-      return 0;
-  }
 }
 
 function v2NormalizeChatChannelType(
@@ -108,14 +93,6 @@ function v2ChatRoomId(channelId: number): string {
 
 function v2ChatRedisChannel(channelId: number): string {
   return `${REDIS_CHANNELS.CHAT_CHANNEL}${channelId}`;
-}
-
-function v2ChatAuthorName(row: V2DbRecord): string {
-  return (
-    v2String(row.DISPLAY_NAME) ||
-    v2String(row.USERNAME) ||
-    'unknown'
-  );
 }
 
 function v2ChatLastMessage(
