@@ -19,6 +19,7 @@ import type {
   V2UpdateStatementPayload,
   V2UpdateUserPayload,
   V2UserAnalytics,
+  V2UserDailyAnalytics,
   V2UserSearchQuery,
   V2UserSettings
 } from '@/types/v2';
@@ -186,6 +187,21 @@ export async function v2GetUserAnalytics(
     `/api/v2/users/${userId}/analytics`,
     {
       method: 'GET'
+    }
+  );
+}
+
+export async function v2GetUserDailyAnalytics(
+  userId: number,
+  query: {
+    days?: number;
+  } = {}
+): Promise<V2UserDailyAnalytics[]> {
+  return await v2RequestData<V2UserDailyAnalytics[]>(
+    `/api/v2/users/${userId}/analytics/daily`,
+    {
+      method: 'GET',
+      query
     }
   );
 }

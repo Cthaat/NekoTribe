@@ -1,3 +1,5 @@
+/// <reference path="../../types/v2.d.ts" />
+
 import type { H3Event } from 'h3';
 import type oracledb from 'oracledb';
 import {
@@ -53,6 +55,16 @@ interface V2PostListOptions {
   tag_name?: string;
 }
 
+interface V2UpdatePostPayload {
+  content?: string;
+  visibility?: V2CreatePostPayload['visibility'];
+  language?: string;
+  location?: string | null;
+  media_ids?: number[];
+  tag_names?: string[];
+  mention_user_ids?: number[];
+}
+
 function v2PostVisibility(value: string): string {
   if (
     value === 'public' ||
@@ -63,6 +75,15 @@ function v2PostVisibility(value: string): string {
     return value;
   }
   v2BadRequest('visibility 参数错误');
+}
+
+function v2PostLanguage(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return 'zh';
+  if (/^[a-z]{2}(-[a-z0-9]{2,7})?$/.test(normalized)) {
+    return normalized.slice(0, 10);
+  }
+  v2BadRequest('language 参数错误');
 }
 
 function v2PostType(payload: V2CreatePostPayload): string {
@@ -138,12 +159,74 @@ function v2BodyField(
     : body[fallbackKey];
 }
 
+function v2HasBodyField(
+  body: Record<string, unknown>,
+  primaryKey: string,
+  fallbackKey?: string
+): boolean {
+  return (
+    Object.prototype.hasOwnProperty.call(body, primaryKey) ||
+    (fallbackKey
+      ? Object.prototype.hasOwnProperty.call(body, fallbackKey)
+      : false)
+  );
+}
+
 function v2RequiredOptionalNumber(
   value: unknown
 ): number | null | undefined {
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
   return v2RequiredNumber(value);
+}
+
+async function v2ReadUpdatePostPayload(
+  event: H3Event
+): Promise<V2UpdatePostPayload> {
+  const body = await v2Body(event);
+  const payload: V2UpdatePostPayload = {};
+
+  if (v2HasBodyField(body, 'content')) {
+    payload.content = v2String(body.content);
+  }
+  if (v2HasBodyField(body, 'visibility')) {
+    payload.visibility = v2PostVisibility(
+      v2String(body.visibility)
+    ) as V2CreatePostPayload['visibility'];
+  }
+  if (v2HasBodyField(body, 'language')) {
+    payload.language = v2PostLanguage(v2String(body.language));
+  }
+  if (v2HasBodyField(body, 'location')) {
+    payload.location = v2String(body.location) || null;
+  }
+  if (v2HasBodyField(body, 'media_ids', 'mediaIds')) {
+    payload.media_ids = v2NumberArray(
+      v2BodyField(body, 'media_ids', 'mediaIds')
+    );
+  }
+  if (v2HasBodyField(body, 'tag_names', 'tagNames')) {
+    payload.tag_names = v2StringArray(
+      v2BodyField(body, 'tag_names', 'tagNames')
+    );
+  }
+  if (
+    v2HasBodyField(
+      body,
+      'mention_user_ids',
+      'mentionUserIds'
+    )
+  ) {
+    payload.mention_user_ids = v2NumberArray(
+      v2BodyField(
+        body,
+        'mention_user_ids',
+        'mentionUserIds'
+      )
+    );
+  }
+
+  return payload;
 }
 
 export async function v2ListPosts(
@@ -345,6 +428,183 @@ async function v2CreatePostFromPayload(
     postType === 'repost'
       ? 'retweet created'
       : 'post created'
+  );
+}
+
+export async function v2UpdatePost(
+  event: H3Event,
+  connection: oracledb.Connection,
+  postId: number
+): Promise<V2Response<V2Post>> {
+  const auth = v2Auth(event);
+  const payload = await v2ReadUpdatePostPayload(event);
+  const row = await v2One(
+    connection,
+    `
+    SELECT
+      author_id,
+      is_deleted,
+      post_type,
+      DBMS_LOB.SUBSTR(content, 4000, 1) AS content
+    FROM n_posts
+    WHERE post_id = :post_id
+    `,
+    { post_id: postId }
+  );
+  if (!row || v2Boolean(row.IS_DELETED))
+    v2NotFound('帖子不存在');
+  if (v2Number(row.AUTHOR_ID) !== auth.userId) {
+    v2Unprocessable('只能修改自己的帖子');
+  }
+
+  const currentContent = v2String(row.CONTENT);
+  const nextContent =
+    payload.content !== undefined
+      ? payload.content
+      : currentContent;
+  const nextMediaCount =
+    payload.media_ids !== undefined
+      ? [...new Set(payload.media_ids)].slice(0, 4).length
+      : await v2Count(
+          connection,
+          `
+          SELECT COUNT(*) AS total
+          FROM n_post_media
+          WHERE post_id = :post_id
+          `,
+          { post_id: postId }
+        );
+  if (
+    v2String(row.POST_TYPE) !== 'repost' &&
+    !nextContent.trim() &&
+    nextMediaCount === 0
+  ) {
+    v2BadRequest('content 不能为空');
+  }
+
+  const updateFields: string[] = [];
+  const binds: Record<string, string | number | null> = {
+    post_id: postId
+  };
+  if (payload.content !== undefined) {
+    updateFields.push('content = :content');
+    binds.content = payload.content || null;
+  }
+  if (payload.visibility !== undefined) {
+    updateFields.push('visibility = :visibility');
+    binds.visibility = payload.visibility;
+  }
+  if (payload.language !== undefined) {
+    updateFields.push('language = :language');
+    binds.language = payload.language;
+  }
+  if (payload.location !== undefined) {
+    updateFields.push('location = :location');
+    binds.location = payload.location || null;
+  }
+
+  const hasRelationChanges =
+    payload.media_ids !== undefined ||
+    payload.tag_names !== undefined ||
+    payload.mention_user_ids !== undefined;
+
+  if (updateFields.length > 0 || hasRelationChanges) {
+    await v2Execute(
+      connection,
+      `
+      UPDATE n_posts
+      SET ${[
+        ...updateFields,
+        'updated_at = CURRENT_TIMESTAMP'
+      ].join(',\n          ')}
+      WHERE post_id = :post_id
+      `,
+      binds
+    );
+  }
+
+  if (payload.media_ids !== undefined) {
+    const mediaIds = [...new Set(payload.media_ids)].slice(0, 4);
+    const usableMediaCount =
+      mediaIds.length === 0
+        ? 0
+        : await v2Count(
+            connection,
+            `
+            SELECT COUNT(*) AS total
+            FROM n_media_assets
+            WHERE owner_user_id = :user_id
+              AND status IN ('uploaded', 'processing', 'ready')
+              AND media_id IN (${mediaIds
+                .map((_, index) => `:media_id_${index}`)
+                .join(', ')})
+            `,
+            mediaIds.reduce<Record<string, number>>(
+              (mediaBinds, mediaId, index) => {
+                mediaBinds[`media_id_${index}`] = mediaId;
+                return mediaBinds;
+              },
+              { user_id: auth.userId }
+            )
+          );
+    if (usableMediaCount !== mediaIds.length) {
+      v2BadRequest('附件不存在或无权使用');
+    }
+    await v2Execute(
+      connection,
+      `
+      DELETE FROM n_post_media
+      WHERE post_id = :post_id
+      `,
+      { post_id: postId }
+    );
+    await v2AttachPostMedia(
+      connection,
+      postId,
+      auth.userId,
+      mediaIds
+    );
+  }
+
+  if (payload.tag_names !== undefined) {
+    await v2Execute(
+      connection,
+      `
+      DELETE FROM n_post_tags
+      WHERE post_id = :post_id
+      `,
+      { post_id: postId }
+    );
+    await v2AttachPostTags(
+      connection,
+      postId,
+      payload.tag_names
+    );
+  }
+
+  if (payload.mention_user_ids !== undefined) {
+    await v2Execute(
+      connection,
+      `
+      DELETE FROM n_post_mentions
+      WHERE post_id = :post_id
+      `,
+      { post_id: postId }
+    );
+    await v2AttachPostMentions(
+      connection,
+      postId,
+      payload.mention_user_ids
+    );
+  }
+
+  return v2Ok(
+    await v2RequirePostById(
+      connection,
+      auth.userId,
+      postId
+    ),
+    'post updated'
   );
 }
 
@@ -910,7 +1170,22 @@ export async function v2PostAnalytics(
   connection: oracledb.Connection,
   postId: number
 ): Promise<V2Response<V2PostAnalytics>> {
-  v2Auth(event);
+  const auth = v2Auth(event);
+  const postRow = await v2One(
+    connection,
+    `
+    SELECT author_id, is_deleted
+    FROM n_posts
+    WHERE post_id = :post_id
+    `,
+    { post_id: postId }
+  );
+  if (!postRow || v2Boolean(postRow.IS_DELETED)) {
+    v2NotFound('帖子不存在');
+  }
+  if (v2Number(postRow.AUTHOR_ID) !== auth.userId) {
+    v2Unprocessable('只能查看自己帖子的统计');
+  }
   const row = await v2One(
     connection,
     `

@@ -137,6 +137,16 @@ export interface CreatePostFormVM {
   location?: string;
 }
 
+export interface UpdatePostFormVM {
+  content?: string;
+  visibility?: V2PostVisibility;
+  language?: string;
+  location?: string | null;
+  mediaIds?: number[];
+  tagNames?: string[];
+  mentionUserIds?: number[];
+}
+
 export interface CreateRetweetFormVM {
   content?: string;
   visibility?: V2PostVisibility;
@@ -159,6 +169,17 @@ export interface PostLikeVM {
 export interface PostBookmarkVM {
   postId: number;
   isBookmarked: boolean;
+}
+
+export interface PostAnalyticsVM {
+  postId: number;
+  views: number;
+  likes: number;
+  comments: number;
+  replies: number;
+  retweets: number;
+  engagementScore: number;
+  likeRate: number;
 }
 
 export interface CommentLikeVM {

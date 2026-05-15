@@ -19,6 +19,7 @@ import {
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Collapsible,
   CollapsibleContent,
@@ -209,7 +210,8 @@ const currentUserInitials = computed(() => {
     </div>
 
     <!-- 频道列表 -->
-    <div class="min-h-0 flex-1 overflow-y-auto py-2">
+    <ScrollArea class="min-h-0 flex-1">
+      <div class="py-2">
       <div
         v-for="category in categories"
         :key="category.id"
@@ -378,7 +380,8 @@ const currentUserInitials = computed(() => {
           </CollapsibleContent>
         </Collapsible>
       </div>
-    </div>
+      </div>
+    </ScrollArea>
 
     <!-- 用户信息栏 -->
     <div

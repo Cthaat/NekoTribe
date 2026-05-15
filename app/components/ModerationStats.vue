@@ -22,6 +22,8 @@ export interface ModerationStatsData {
   flagged: number;
   todayProcessed: number;
   avgProcessTime: string;
+  openReports?: number;
+  appealSuccessRate?: number;
 }
 
 const props = withDefaults(
@@ -35,7 +37,9 @@ const props = withDefaults(
       rejected: 0,
       flagged: 0,
       todayProcessed: 0,
-      avgProcessTime: ''
+      avgProcessTime: '',
+      openReports: 0,
+      appealSuccessRate: 0
     })
   }
 );
@@ -87,36 +91,51 @@ const statsCards = computed(() => [
     color: 'text-purple-500',
     bgColor: 'bg-purple-500/10',
     isText: true
+  },
+  {
+    title: t('moderation.stats.openReports'),
+    value: props.stats.openReports ?? 0,
+    icon: AlertTriangle,
+    color: 'text-red-500',
+    bgColor: 'bg-red-500/10'
+  },
+  {
+    title: t('moderation.stats.appealSuccessRate'),
+    value: `${props.stats.appealSuccessRate ?? 0}%`,
+    icon: TrendingUp,
+    color: 'text-cyan-500',
+    bgColor: 'bg-cyan-500/10',
+    isText: true
   }
 ]);
 </script>
 
 <template>
   <div
-    class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4"
+    class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
   >
     <Card
       v-for="stat in statsCards"
       :key="stat.title"
-      class="hover:shadow-md transition-shadow"
+      class="border-border/70 bg-card/70 shadow-sm transition-colors hover:bg-muted/30"
     >
       <CardHeader
-        class="flex flex-row items-center justify-between space-y-0 pb-2"
+        class="flex flex-row items-center justify-between space-y-0 px-4 pb-2 pt-4"
       >
         <CardTitle
           class="text-sm font-medium text-muted-foreground"
         >
           {{ stat.title }}
         </CardTitle>
-        <div :class="[stat.bgColor, 'p-2 rounded-lg']">
+        <div :class="[stat.bgColor, 'rounded-md p-2']">
           <component
             :is="stat.icon"
             :class="['h-4 w-4', stat.color]"
           />
         </div>
       </CardHeader>
-      <CardContent>
-        <div class="text-2xl font-bold">
+      <CardContent class="px-4 pb-4">
+        <div class="truncate text-2xl font-semibold tracking-normal">
           {{
             stat.isText
               ? stat.value

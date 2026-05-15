@@ -128,11 +128,13 @@ const handleViewProfile = () => {
 
 <template>
   <div
-    class="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors"
+    class="flex items-center justify-between gap-3 rounded-lg p-1 transition-colors hover:bg-muted/50"
   >
     <!-- 用户信息 -->
-    <div
-      class="flex items-center gap-3 cursor-pointer"
+    <Button
+      type="button"
+      variant="ghost"
+      class="h-auto min-w-0 flex-1 justify-start gap-3 px-2 py-2 text-left"
       @click="handleViewProfile"
     >
       <div class="relative">
@@ -170,10 +172,10 @@ const handleViewProfile = () => {
           >@{{ member.username }}</span
         >
       </div>
-    </div>
+    </Button>
 
     <!-- 加入时间和操作 -->
-    <div class="flex items-center gap-2">
+    <div class="flex shrink-0 items-center gap-2">
       <span
         class="text-xs text-muted-foreground hidden sm:inline"
       >

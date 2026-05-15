@@ -3,11 +3,13 @@ import { Separator } from '@/components/ui/separator';
 import ProfileForm from '@/components/ProfileForm.vue';
 import {
   v2GetMe,
-  v2GetUserAnalytics
+  v2GetUserAnalytics,
+  v2GetUserDailyAnalytics
 } from '@/services';
 import { onMounted, ref } from 'vue';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'vue-sonner';
+import type { UserDailyAnalyticsVM } from '@/types/users';
 
 const { t } = useAppLocale();
 
@@ -30,11 +32,15 @@ const userAnalytics = ref<UserAnalyticsData>({
   totalCommentsMade: 0,
   engagementScore: 0
 });
+const dailyAnalytics = ref<UserDailyAnalyticsVM[]>([]);
 
 onMounted(async () => {
   try {
     const me = await v2GetMe();
-    const analytics = await v2GetUserAnalytics(me.id);
+    const [analytics, daily] = await Promise.all([
+      v2GetUserAnalytics(me.id),
+      v2GetUserDailyAnalytics(me.id, { days: 14 })
+    ]);
     userAnalytics.value.totalTweets = analytics.totalPosts;
     userAnalytics.value.tweetsThisWeek =
       analytics.postsThisWeek;
@@ -48,6 +54,7 @@ onMounted(async () => {
       analytics.totalCommentsMade;
     userAnalytics.value.engagementScore =
       analytics.engagementScore;
+    dailyAnalytics.value = daily;
   } catch (error) {
     console.error(t('account.errors.loadAnalytics'), error);
     toast.error(t('account.errors.loadAnalytics'));
@@ -68,7 +75,10 @@ onMounted(async () => {
           </p>
         </div>
         <Separator class="my-6" />
-        <OverAllPanel :userAnalytics="userAnalytics" />
+        <OverAllPanel
+          :userAnalytics="userAnalytics"
+          :dailyAnalytics="dailyAnalytics"
+        />
       </div>
     </CardContent>
   </Card>

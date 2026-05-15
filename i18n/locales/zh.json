@@ -27,10 +27,21 @@
     "processing": "正在处理中...",
     "pagination": "第 {page} / {totalPages} 页 · 共 {total} 条"
   },
+  "globalSearch": {
+    "placeholder": "搜索推文或用户",
+    "usersTitle": "用户",
+    "postsAction": "搜推文",
+    "enterHint": "Enter 搜推文",
+    "minHint": "输入至少 2 个字符搜索用户。",
+    "loading": "正在搜索用户...",
+    "empty": "没有找到相关用户。",
+    "failed": "搜索用户失败",
+    "followers": "{count} 位粉丝"
+  },
   "app": {
     "brand": {
       "name": "NekoTribe",
-      "tagline": "Edge Walker"
+      "tagline": "喵喵喵~"
     },
     "meta": {
       "description": "社交媒体平台"
@@ -58,6 +69,7 @@
       "tweet": "推文",
       "home": "首页",
       "myTweets": "我的推文",
+      "manageTweets": "推文管理",
       "mention": "提及",
       "bookmark": "书签",
       "meow": "喵窝",
@@ -99,7 +111,8 @@
     "actions": {
       "addBookmark": "加入书签",
       "removeBookmark": "删除书签",
-      "delete": "删除推文"
+      "delete": "删除推文",
+      "report": "举报文章"
     },
     "feedback": {
       "liked": "已点赞此推文",
@@ -108,7 +121,9 @@
       "deleted": "推文已删除",
       "deleteFailed": "删除推文失败",
       "retweeted": "转发成功",
-      "retweetFailed": "转发失败"
+      "retweetFailed": "转发失败",
+      "reported": "举报已提交",
+      "reportFailed": "提交举报失败"
     },
     "feed": {
       "loadFailed": "加载推文失败",
@@ -220,6 +235,17 @@
     "delete": {
       "title": "删除这条推文？",
       "description": "删除后这条推文将从时间线中移除，此操作不可撤销。"
+    },
+    "report": {
+      "title": "举报这篇文章",
+      "description": "请选择举报原因并补充必要说明，审核团队会根据规则处理。",
+      "reasonLabel": "举报原因",
+      "reasonPlaceholder": "选择举报原因",
+      "descriptionLabel": "补充说明",
+      "descriptionPlaceholder": "描述你看到的问题、涉及位置或上下文（可选）",
+      "descriptionHint": "{count}/1000 字",
+      "submit": "提交举报",
+      "submitting": "正在提交..."
     }
   },
   "comment": {
@@ -816,43 +842,56 @@
     },
     "actions": {
       "viewDetail": "查看详情",
-      "approve": "通过",
-      "approveFull": "通过审核",
-      "reject": "拒绝",
-      "rejectPost": "拒绝推文",
+      "approve": "通过举报",
+      "approveFull": "通过举报并下架",
+      "reject": "驳回举报",
+      "rejectPost": "驳回举报",
       "flag": "标记审查",
       "refresh": "刷新",
       "refreshList": "刷新列表",
       "loadMore": "加载更多"
     },
     "feedback": {
-      "approved": "推文已通过审核",
-      "rejected": "推文已拒绝",
+      "approved": "举报已通过，文章已下架",
+      "rejected": "举报已驳回，文章将继续展示",
       "flagged": "推文已标记待进一步审查",
       "refreshed": "列表已刷新",
       "noMore": "没有更多内容了",
-      "filtersReset": "过滤器已重置"
+      "filtersReset": "过滤器已重置",
+      "loadFailed": "加载审核数据失败",
+      "actionSuccess": "审核操作已完成",
+      "actionFailed": "审核操作失败"
     },
     "status": {
       "all": "全部状态",
       "pending": "待审核",
-      "approved": "已通过",
-      "rejected": "已拒绝",
+      "approved": "举报通过",
+      "rejected": "举报驳回",
       "flagged": "已标记",
+      "removed": "已下架",
+      "restored": "已恢复",
       "unknown": "未知"
+    },
+    "reportStatus": {
+      "pending": "待处理",
+      "inReview": "处理中",
+      "resolved": "已解决",
+      "dismissed": "已驳回"
     },
     "stats": {
       "pending": "待审核",
-      "approved": "已通过",
-      "rejected": "已拒绝",
+      "approved": "举报通过",
+      "rejected": "举报驳回",
       "flagged": "已标记",
       "todayProcessed": "今日处理",
       "avgProcessTime": "平均处理时间",
       "zeroMinutes": "0分钟",
-      "minutes": "{count}分钟"
+      "minutes": "{count}分钟",
+      "openReports": "待处理举报",
+      "appealSuccessRate": "申诉成功率"
     },
     "list": {
-      "count": "共 {count} 条待审核内容",
+      "count": "当前列表 {count} 条内容",
       "emptyTitle": "没有待审核的内容",
       "emptyDescription": "当前没有需要审核的推文。新的举报内容将会显示在这里。"
     },
@@ -914,6 +953,63 @@
       "replies": "回复",
       "note": "审核备注 (可选)",
       "notePlaceholder": "输入审核备注..."
+    },
+    "users": {
+      "searchPlaceholder": "搜索用户名、邮箱或显示名称...",
+      "status": "用户状态",
+      "active": "正常",
+      "suspended": "封禁",
+      "disabled": "停用",
+      "pending": "待激活",
+      "mostReported": "举报最多",
+      "empty": "暂无用户数据",
+      "reportCount": "关联举报",
+      "ban": "封禁",
+      "unban": "解封",
+      "mute": "禁言 24 小时",
+      "unmute": "解除禁言",
+      "defaultReason": "审核中心手动处理"
+    },
+    "reports": {
+      "status": "举报状态",
+      "targetType": "目标类型",
+      "targetPost": "帖子",
+      "targetComment": "评论",
+      "targetUser": "用户",
+      "empty": "暂无举报记录",
+      "anonymous": "匿名用户",
+      "evidence": "查看证据"
+    },
+    "appeals": {
+      "title": "申诉审核",
+      "empty": "暂无申诉记录",
+      "approve": "通过申诉",
+      "reject": "驳回申诉",
+      "defaultResponse": "审核中心已处理该申诉。"
+    },
+    "settings": {
+      "title": "审核设置",
+      "description": "配置自动审核阈值、流程约束和处罚默认值。",
+      "saved": "审核设置已保存",
+      "saveFailed": "保存审核设置失败",
+      "definitions": {
+        "auto_hide_report_threshold": {
+          "label": "自动隐藏阈值",
+          "description": "当举报数达到该值时，内容会被自动标记为高优先级。"
+        },
+        "require_note_on_reject": {
+          "label": "拒绝时要求备注",
+          "description": "审核员拒绝或下架内容时应填写处理说明。"
+        },
+        "allow_moderator_claim": {
+          "label": "允许领取审核任务",
+          "description": "审核员可以领取或释放审核队列中的记录。"
+        },
+        "default_mute_hours": {
+          "label": "默认禁言时长",
+          "description": "用户禁言操作默认持续的小时数。"
+        }
+      }
     },
     "reportDetails": {
       "spam": {
@@ -1301,6 +1397,7 @@
       "overview": "概览",
       "settings": "设置",
       "profile": "个人资料",
+      "posts": "推文管理",
       "appearance": "外观",
       "security": "安全",
       "active": "活跃设备",
@@ -1407,6 +1504,70 @@
       "actionSuccess": "操作成功。",
       "actionFailed": "操作失败。"
     },
+    "posts": {
+      "title": "推文管理",
+      "description": "管理你发布的所有推文，调整可见范围、语言、位置和话题，并查看单条推文的数据表现。",
+      "create": "发布新推文",
+      "save": "保存更改",
+      "open": "打开详情",
+      "searchPlaceholder": "搜索自己的推文内容...",
+      "listTitle": "当前列表 {count} 条推文",
+      "detailTitle": "推文设置与数据",
+      "detailDescription": "选择左侧推文后编辑设置或查看详细指标。",
+      "noSelection": "请选择一条推文进行管理。",
+      "emptyTitle": "还没有可管理的推文",
+      "emptyDescription": "发布第一条推文后，你可以在这里管理内容和查看数据。",
+      "emptyContent": "（无正文内容）",
+      "loadingAnalytics": "正在刷新详细数据...",
+      "table": {
+        "post": "推文",
+        "createdAt": "发布时间",
+        "metrics": "数据"
+      },
+      "sort": {
+        "newest": "最新发布",
+        "oldest": "最早发布",
+        "popular": "互动最高"
+      },
+      "visibility": {
+        "all": "全部可见范围"
+      },
+      "language": {
+        "zh": "中文",
+        "en": "英文",
+        "ja": "日文",
+        "ko": "韩文"
+      },
+      "stats": {
+        "total": "全部推文",
+        "visible": "当前展示",
+        "views": "当前页浏览",
+        "interactions": "当前页互动"
+      },
+      "metrics": {
+        "views": "浏览",
+        "likes": "点赞",
+        "comments": "评论",
+        "replies": "回复",
+        "retweets": "转发",
+        "engagement": "互动分",
+        "likeRate": "点赞率"
+      },
+      "form": {
+        "content": "正文内容",
+        "visibility": "可见范围",
+        "language": "语言",
+        "location": "位置",
+        "tags": "话题",
+        "tagsPlaceholder": "用逗号分隔，例如 Oracle, Nuxt, V2"
+      },
+      "feedback": {
+        "loadFailed": "加载推文管理数据失败",
+        "analyticsFailed": "加载推文详细数据失败",
+        "saved": "推文设置已保存",
+        "saveFailed": "保存推文设置失败"
+      }
+    },
     "overview": {
       "title": "账号概览",
       "description": "在这里查看您的账号信息和统计。",
@@ -1427,7 +1588,38 @@
         "engagementScoreDescription": "综合评估用户活跃度",
         "outgoingInteractions": "发出的互动",
         "likesGiven": "送出赞",
-        "commentsMade": "发表评论"
+        "commentsMade": "发表评论",
+        "dailyTrend": "每日变化趋势",
+        "dailyTrendDescription": "近 14 天的发帖、获赞、评论和综合互动变化。",
+        "chartPosts": "发帖",
+        "chartLikes": "获赞",
+        "chartComments": "评论",
+        "chartRetweets": "转发",
+        "chartInteraction": "互动",
+        "chartGivenLikes": "送出赞",
+        "chartMadeComments": "发出评论",
+        "chartScore": "互动分",
+        "chartReceived": "收获互动",
+        "chartOutgoing": "发出互动",
+        "receivedBreakdown": "收获互动构成",
+        "receivedBreakdownDescription": "按天查看获赞、评论和转发的堆叠变化。",
+        "outgoingTrend": "发出互动趋势",
+        "outgoingTrendDescription": "对比每天送出的赞和发出的评论。",
+        "scoreTrend": "互动分走势",
+        "scoreTrendDescription": "观察账号综合活跃分在近 14 天的波动。",
+        "compositionTitle": "总体占比",
+        "compositionDescription": "汇总近 14 天发帖、收获互动、发出互动和互动分。",
+        "compositionTotal": "总量",
+        "dataTableTitle": "数据明细",
+        "dataTableDescription": "按日期查看发帖、互动和活跃分数据。",
+        "tableDate": "日期",
+        "tablePosts": "发帖",
+        "tableLikes": "获赞",
+        "tableComments": "评论",
+        "tableRetweets": "转发",
+        "tableOutgoing": "发出互动",
+        "tableScore": "互动分",
+        "noTrendData": "暂无每日变化数据"
       }
     },
     "profile": {

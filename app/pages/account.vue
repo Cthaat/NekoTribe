@@ -86,6 +86,10 @@ const baseAccountTabs = [
     to: 'account-profile'
   },
   {
+    labelKey: 'account.tabs.posts',
+    to: 'account-posts'
+  },
+  {
     labelKey: 'account.tabs.appearance',
     to: 'account-appearance'
   },
@@ -234,11 +238,12 @@ onMounted(() => {
           </DialogDescription>
         </DialogHeader>
         <div class="grid gap-2 sm:grid-cols-2">
-          <button
+          <Button
             v-for="tab in localizedAccountTabs"
             :key="tab.to"
             type="button"
-            class="flex items-center gap-3 rounded-lg border bg-card px-3 py-3 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            variant="outline"
+            class="h-auto justify-start gap-3 rounded-lg px-3 py-3 text-left"
             @click="goToAccountTab(tab.to, tab.name)"
           >
             <Settings
@@ -254,7 +259,7 @@ onMounted(() => {
               class="h-4 w-4 text-muted-foreground"
             />
             <span class="font-medium">{{ tab.name }}</span>
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

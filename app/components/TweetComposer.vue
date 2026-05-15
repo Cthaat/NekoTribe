@@ -13,6 +13,7 @@ import type {
 import type { V2PostVisibility } from '@/types/v2';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -596,13 +597,13 @@ defineExpose({
 </script>
 
 <template>
-  <div
-    class="overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm"
+  <Card
+    class="gap-0 overflow-hidden py-0"
     @drop="handleDrop"
     @dragover.prevent="isDraggingMedia = true"
     @dragleave="isDraggingMedia = false"
   >
-    <div class="space-y-4 p-4 sm:p-5">
+    <CardContent class="space-y-4 p-4 sm:p-5">
       <div
         v-if="contextPost"
         class="relative rounded-lg border bg-muted/30 p-3"
@@ -734,14 +735,16 @@ defineExpose({
         >
           <Hash class="h-3 w-3" />
           {{ tag }}
-          <button
+          <Button
             v-if="manualTags.includes(tag)"
             type="button"
-            class="ml-1 rounded-full text-muted-foreground hover:text-foreground"
+            variant="ghost"
+            size="icon"
+            class="ml-1 size-4 rounded-full text-muted-foreground hover:text-foreground"
             @click="removeManualTag(tag)"
           >
             <X class="h-3 w-3" />
-          </button>
+          </Button>
         </Badge>
         <Badge
           v-for="mention in activeMentions"
@@ -751,13 +754,15 @@ defineExpose({
         >
           <AtSign class="h-3 w-3" />
           {{ mention.displayName }}
-          <button
+          <Button
             type="button"
-            class="ml-1 rounded-full text-muted-foreground hover:text-foreground"
+            variant="ghost"
+            size="icon"
+            class="ml-1 size-4 rounded-full text-muted-foreground hover:text-foreground"
             @click="removeMention(mention.username)"
           >
             <X class="h-3 w-3" />
-          </button>
+          </Button>
         </Badge>
         <Badge
           v-if="location.trim()"
@@ -766,20 +771,22 @@ defineExpose({
         >
           <MapPin class="h-3 w-3" />
           {{ location.trim() }}
-          <button
+          <Button
             type="button"
-            class="ml-1 rounded-full text-muted-foreground hover:text-foreground"
+            variant="ghost"
+            size="icon"
+            class="ml-1 size-4 rounded-full text-muted-foreground hover:text-foreground"
             @click="location = ''"
           >
             <X class="h-3 w-3" />
-          </button>
+          </Button>
         </Badge>
       </div>
-    </div>
+    </CardContent>
 
     <Separator />
 
-    <div
+    <CardContent
       class="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between"
     >
       <div class="flex flex-wrap items-center gap-1.5">
@@ -994,7 +1001,7 @@ defineExpose({
           }}
         </AppSendButton>
       </div>
-    </div>
+    </CardContent>
 
     <input
       ref="fileInputRef"
@@ -1004,5 +1011,5 @@ defineExpose({
       class="hidden"
       @change="handleFileSelect"
     />
-  </div>
+  </Card>
 </template>

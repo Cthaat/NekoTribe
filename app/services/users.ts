@@ -3,6 +3,7 @@ import {
   v2FollowUser as apiFollowUser,
   v2GetMe as apiGetMe,
   v2GetUserAnalytics as apiGetUserAnalytics,
+  v2GetUserDailyAnalytics as apiGetUserDailyAnalytics,
   v2GetUserById as apiGetUserById,
   v2ListUserFollowers as apiListUserFollowers,
   v2ListUserFollowing as apiListUserFollowing,
@@ -21,7 +22,8 @@ import type {
   V2PublicUser,
   V2SelfUser,
   V2UpdateUserPayload,
-  V2UserAnalytics
+  V2UserAnalytics,
+  V2UserDailyAnalytics
 } from '@/types/v2';
 import type {
   AvatarVM,
@@ -32,6 +34,7 @@ import type {
   PublicUserVM,
   UpdateUserProfileFormVM,
   UserAnalyticsVM,
+  UserDailyAnalyticsVM,
   UserRelationshipListRequestVM,
   UserRelationshipPageVM,
   UserSearchRequestVM,
@@ -102,6 +105,21 @@ function mapAnalytics(dto: V2UserAnalytics): UserAnalyticsVM {
     avgLikesPerPost: dto.avg_likes_per_post,
     totalLikesGiven: dto.total_likes_given,
     totalCommentsMade: dto.total_comments_made,
+    engagementScore: dto.engagement_score
+  };
+}
+
+function mapDailyAnalytics(
+  dto: V2UserDailyAnalytics
+): UserDailyAnalyticsVM {
+  return {
+    day: dto.day,
+    postsCount: dto.posts_count,
+    likesReceived: dto.likes_received,
+    commentsReceived: dto.comments_received,
+    retweetsReceived: dto.retweets_received,
+    likesGiven: dto.likes_given,
+    commentsMade: dto.comments_made,
     engagementScore: dto.engagement_score
   };
 }
@@ -196,6 +214,17 @@ export async function v2GetUserAnalytics(
   userId: number
 ): Promise<UserAnalyticsVM> {
   return mapAnalytics(await apiGetUserAnalytics(userId));
+}
+
+export async function v2GetUserDailyAnalytics(
+  userId: number,
+  query: {
+    days?: number;
+  } = {}
+): Promise<UserDailyAnalyticsVM[]> {
+  return (
+    await apiGetUserDailyAnalytics(userId, query)
+  ).map(mapDailyAnalytics);
 }
 
 export async function v2ListUserFollowers(

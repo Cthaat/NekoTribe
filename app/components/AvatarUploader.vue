@@ -14,6 +14,7 @@ import {
   AvatarImage
 } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -524,9 +525,8 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <div
-          class="space-y-3 rounded-md border bg-card/60 p-3 shadow-xs"
-        >
+        <Card class="gap-0 bg-card/60 py-0 shadow-xs">
+          <CardContent class="space-y-3 p-3">
           <div class="flex items-center justify-between gap-3">
             <Label for="avatar-crop-zoom">
               {{ t('avatar.crop.zoom') }}
@@ -587,7 +587,8 @@ onBeforeUnmount(() => {
               {{ t('avatar.crop.reset') }}
             </Button>
           </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       <DialogFooter>

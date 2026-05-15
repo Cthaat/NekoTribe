@@ -15,6 +15,7 @@ import {
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
+import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 
@@ -88,32 +89,34 @@ watch(internalOpen, isOpen => {
         />
 
         <!-- 显示被转发的原始推文（简化版预览） -->
-        <div class="mt-2 rounded-xl border p-3">
-          <div class="flex items-center gap-2">
-            <Avatar class="h-6 w-6">
-              <AvatarImage
-                :src="tweet.author.avatarUrl"
-                :alt="tweet.author.username"
-              />
-              <AvatarFallback>{{
-                tweet.author.username
-                  ?.substring(0, 2)
-                  .toUpperCase()
-              }}</AvatarFallback>
-            </Avatar>
-            <span class="font-bold text-sm">{{
-              tweet.author.name
-            }}</span>
-            <span class="text-muted-foreground text-sm"
-              >@{{ tweet.author.username }}</span
+        <Card class="mt-2 gap-0 py-0">
+          <CardContent class="p-3">
+            <div class="flex items-center gap-2">
+              <Avatar class="h-6 w-6">
+                <AvatarImage
+                  :src="tweet.author.avatarUrl"
+                  :alt="tweet.author.username"
+                />
+                <AvatarFallback>{{
+                  tweet.author.username
+                    ?.substring(0, 2)
+                    .toUpperCase()
+                }}</AvatarFallback>
+              </Avatar>
+              <span class="text-sm font-bold">{{
+                tweet.author.name
+              }}</span>
+              <span class="text-sm text-muted-foreground"
+                >@{{ tweet.author.username }}</span
+              >
+            </div>
+            <p
+              class="mt-2 line-clamp-3 text-sm text-muted-foreground"
             >
-          </div>
-          <p
-            class="mt-2 text-sm text-muted-foreground line-clamp-3"
-          >
-            {{ tweet.content }}
-          </p>
-        </div>
+              {{ tweet.content }}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <DialogFooter>

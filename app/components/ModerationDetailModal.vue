@@ -9,10 +9,8 @@ import {
   XCircle,
   Clock,
   AlertTriangle,
-  User,
   Calendar,
   Eye,
-  ExternalLink,
   ChevronLeft,
   ChevronRight
 } from 'lucide-vue-next';
@@ -31,11 +29,11 @@ import {
 } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { toast } from 'vue-sonner';
 import type {
   ModerationReportReason,
   ModerationTweet
@@ -94,20 +92,32 @@ const getStatusInfo = (status: string) => {
     case 'approved':
       return {
         text: t('moderation.status.approved'),
-        variant: 'default' as const,
-        color: 'text-green-500'
+        variant: 'destructive' as const,
+        color: 'text-destructive'
       };
     case 'rejected':
       return {
         text: t('moderation.status.rejected'),
-        variant: 'destructive' as const,
-        color: 'text-destructive'
+        variant: 'outline' as const,
+        color: 'text-muted-foreground'
       };
     case 'flagged':
       return {
         text: t('moderation.status.flagged'),
         variant: 'outline' as const,
         color: 'text-orange-500'
+      };
+    case 'removed':
+      return {
+        text: t('moderation.status.removed'),
+        variant: 'destructive' as const,
+        color: 'text-destructive'
+      };
+    case 'restored':
+      return {
+        text: t('moderation.status.restored'),
+        variant: 'default' as const,
+        color: 'text-green-500'
       };
     default:
       return {
@@ -191,7 +201,6 @@ const handleApprove = () => {
   if (props.tweet) {
     emit('approve', props.tweet.id, moderationNote.value);
     emit('update:open', false);
-    toast.success(t('moderation.feedback.approved'));
   }
 };
 
@@ -199,7 +208,6 @@ const handleReject = () => {
   if (props.tweet) {
     emit('reject', props.tweet.id, moderationNote.value);
     emit('update:open', false);
-    toast.success(t('moderation.feedback.rejected'));
   }
 };
 
@@ -207,7 +215,6 @@ const handleFlag = () => {
   if (props.tweet) {
     emit('flag', props.tweet.id, moderationNote.value);
     emit('update:open', false);
-    toast.info(t('moderation.feedback.flagged'));
   }
 };
 
@@ -219,9 +226,9 @@ const closeDialog = () => {
 <template>
   <Dialog :open="open" @update:open="closeDialog">
     <DialogContent
-      class="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+      class="grid max-h-[92dvh] max-w-5xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0"
     >
-      <DialogHeader>
+      <DialogHeader class="border-b px-6 py-4">
         <DialogTitle class="flex items-center gap-2">
           <Eye class="h-5 w-5" />
           {{ t('moderation.detail.title') }}
@@ -231,11 +238,11 @@ const closeDialog = () => {
         </DialogDescription>
       </DialogHeader>
 
-      <ScrollArea v-if="tweet" class="flex-1 pr-4">
-        <div class="space-y-6">
+      <ScrollArea v-if="tweet" class="min-h-0 px-6 py-4">
+        <div class="space-y-5 pr-4">
           <!-- 用户信息区域 -->
           <div
-            class="flex items-start gap-4 p-4 bg-muted/50 rounded-lg"
+            class="flex items-start gap-4 rounded-lg border bg-muted/30 p-4"
           >
             <Avatar class="h-14 w-14">
               <AvatarImage
@@ -246,8 +253,8 @@ const closeDialog = () => {
                 tweet.author.nickname.charAt(0)
               }}</AvatarFallback>
             </Avatar>
-            <div class="flex-1">
-              <div class="flex items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
                 <span class="font-semibold">{{
                   tweet.author.nickname
                 }}</span>
@@ -269,7 +276,7 @@ const closeDialog = () => {
                 >@{{ tweet.author.username }}</span
               >
               <div
-                class="flex items-center gap-4 mt-2 text-xs text-muted-foreground"
+                class="mt-2 flex flex-wrap items-center gap-4 text-xs text-muted-foreground"
               >
                 <div class="flex items-center gap-1">
                   <Calendar class="h-3 w-3" />
@@ -300,10 +307,8 @@ const closeDialog = () => {
             <h4 class="text-sm font-medium mb-2">
               {{ t('moderation.detail.postContent') }}
             </h4>
-            <div
-              class="p-4 border rounded-lg bg-background"
-            >
-              <p class="whitespace-pre-wrap">
+            <div class="rounded-lg border bg-background p-4">
+              <p class="whitespace-pre-wrap leading-7">
                 {{ tweet.content }}
               </p>
             </div>
@@ -321,7 +326,7 @@ const closeDialog = () => {
             </h4>
             <div class="relative">
               <div
-                class="aspect-video rounded-lg overflow-hidden bg-muted"
+                class="aspect-video overflow-hidden rounded-lg border bg-muted"
               >
                 <img
                   v-if="selectedMedia"
@@ -362,13 +367,13 @@ const closeDialog = () => {
               <!-- 缩略图导航 -->
               <div
                 v-if="tweet.media.length > 1"
-                class="flex gap-2 mt-2 justify-center"
+                class="mt-2 flex justify-center gap-2 overflow-x-auto pb-1"
               >
                 <Button
                   v-for="(media, index) in tweet.media"
                   :key="index"
                   variant="ghost"
-                  class="w-16 h-12 rounded overflow-hidden border-2 transition-colors"
+                  class="h-12 w-16 shrink-0 overflow-hidden rounded border-2 transition-colors"
                   :class="
                     selectedImageIndex === index
                       ? 'border-primary'
@@ -401,20 +406,22 @@ const closeDialog = () => {
               }}
             </h4>
             <div class="space-y-2">
-              <div
+              <Card
                 v-for="reason in tweet.reportReasons"
                 :key="reason"
-                class="p-3 border rounded-lg bg-destructive/5"
+                class="gap-0 bg-destructive/5 py-0"
               >
-                <div class="font-medium text-sm">
-                  {{ getReportReasonTitle(reason) }}
-                </div>
-                <div
-                  class="text-xs text-muted-foreground mt-1"
-                >
-                  {{ getReportReasonDescription(reason) }}
-                </div>
-              </div>
+                <CardContent class="p-3">
+                  <div class="text-sm font-medium">
+                    {{ getReportReasonTitle(reason) }}
+                  </div>
+                  <div
+                    class="mt-1 text-xs text-muted-foreground"
+                  >
+                    {{ getReportReasonDescription(reason) }}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
 
@@ -423,39 +430,41 @@ const closeDialog = () => {
             <h4 class="text-sm font-medium mb-2">
               {{ t('moderation.detail.engagement') }}
             </h4>
-            <div
-              class="flex items-center gap-6 p-4 border rounded-lg"
-            >
-              <div class="flex items-center gap-2">
-                <Heart class="h-5 w-5 text-pink-500" />
-                <span class="font-medium">{{
-                  tweet.likes
-                }}</span>
-                <span class="text-sm text-muted-foreground"
-                  >{{ t('moderation.detail.likes') }}</span
-                >
-              </div>
-              <div class="flex items-center gap-2">
-                <Repeat class="h-5 w-5 text-green-500" />
-                <span class="font-medium">{{
-                  tweet.retweets
-                }}</span>
-                <span class="text-sm text-muted-foreground"
-                  >{{ t('moderation.detail.retweets') }}</span
-                >
-              </div>
-              <div class="flex items-center gap-2">
-                <MessageCircle
-                  class="h-5 w-5 text-blue-500"
-                />
-                <span class="font-medium">{{
-                  tweet.replies
-                }}</span>
-                <span class="text-sm text-muted-foreground"
-                  >{{ t('moderation.detail.replies') }}</span
-                >
-              </div>
-            </div>
+            <Card class="gap-0 py-0">
+              <CardContent
+                class="flex flex-wrap items-center gap-6 p-4"
+              >
+                <div class="flex items-center gap-2">
+                  <Heart class="h-5 w-5 text-pink-500" />
+                  <span class="font-medium">{{
+                    tweet.likes
+                  }}</span>
+                  <span class="text-sm text-muted-foreground"
+                    >{{ t('moderation.detail.likes') }}</span
+                  >
+                </div>
+                <div class="flex items-center gap-2">
+                  <Repeat class="h-5 w-5 text-green-500" />
+                  <span class="font-medium">{{
+                    tweet.retweets
+                  }}</span>
+                  <span class="text-sm text-muted-foreground"
+                    >{{ t('moderation.detail.retweets') }}</span
+                  >
+                </div>
+                <div class="flex items-center gap-2">
+                  <MessageCircle
+                    class="h-5 w-5 text-blue-500"
+                  />
+                  <span class="font-medium">{{
+                    tweet.replies
+                  }}</span>
+                  <span class="text-sm text-muted-foreground"
+                    >{{ t('moderation.detail.replies') }}</span
+                  >
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <Separator />
@@ -478,7 +487,9 @@ const closeDialog = () => {
         </div>
       </ScrollArea>
 
-      <DialogFooter class="flex-shrink-0 gap-2 sm:gap-0">
+      <DialogFooter
+        class="border-t bg-background/95 px-6 py-4 gap-2 sm:gap-0"
+      >
         <Button variant="outline" @click="closeDialog">
           {{ t('common.cancel') }}
         </Button>
@@ -490,14 +501,11 @@ const closeDialog = () => {
           <Flag class="h-4 w-4 mr-2" />
           {{ t('moderation.actions.flag') }}
         </Button>
-        <Button variant="destructive" @click="handleReject">
+        <Button variant="outline" @click="handleReject">
           <XCircle class="h-4 w-4 mr-2" />
           {{ t('moderation.actions.reject') }}
         </Button>
-        <Button
-          class="bg-green-600 hover:bg-green-700"
-          @click="handleApprove"
-        >
+        <Button variant="destructive" @click="handleApprove">
           <CheckCircle class="h-4 w-4 mr-2" />
           {{ t('moderation.actions.approve') }}
         </Button>

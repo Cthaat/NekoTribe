@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { Inbox, RefreshCw } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import ModerationCard from './ModerationCard.vue';
 import type { ModerationTweet } from './ModerationCard.vue';
 
 const props = defineProps<{
   tweets: ModerationTweet[];
   loading?: boolean;
+  hasNext?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -51,15 +55,21 @@ const handleViewDetail = (tweet: ModerationTweet) => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <Card class="gap-0 overflow-hidden bg-card/70 py-0">
+    <CardContent class="p-4">
     <!-- 列表头部 -->
-    <div class="flex items-center justify-between">
-      <div class="text-sm text-muted-foreground">
-        {{
-          t('moderation.list.count', {
-            count: tweets.length
-          })
-        }}
+    <div class="mb-4 flex items-center justify-between gap-3">
+      <div>
+        <div class="text-sm font-medium">
+          {{ t('moderation.tabs.content') }}
+        </div>
+        <div class="text-xs text-muted-foreground">
+          {{
+            t('moderation.list.count', {
+              count: tweets.length
+            })
+          }}
+        </div>
       </div>
       <Button
         variant="outline"
@@ -78,16 +88,14 @@ const handleViewDetail = (tweet: ModerationTweet) => {
     </div>
 
     <!-- 加载状态 -->
-    <div v-if="loading" class="space-y-4">
-      <div v-for="i in 3" :key="i" class="animate-pulse">
-        <div class="h-48 bg-muted rounded-lg"></div>
-      </div>
+    <div v-if="loading" class="space-y-3">
+      <Skeleton v-for="i in 3" :key="i" class="h-44 rounded-lg" />
     </div>
 
     <!-- 空状态 -->
     <div
       v-else-if="tweets.length === 0"
-      class="flex flex-col items-center justify-center py-16 text-center"
+      class="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 py-16 text-center"
     >
       <div class="p-4 bg-muted rounded-full mb-4">
         <Inbox class="h-8 w-8 text-muted-foreground" />
@@ -109,26 +117,32 @@ const handleViewDetail = (tweet: ModerationTweet) => {
     </div>
 
     <!-- 推文列表 -->
-    <div v-else class="space-y-4">
-      <ModerationCard
-        v-for="tweet in tweets"
-        :key="tweet.id"
-        :tweet="tweet"
-        @approve="handleApprove"
-        @reject="handleReject"
-        @flag="handleFlag"
-        @view-detail="handleViewDetail"
-      />
+    <ScrollArea
+      v-else
+      class="h-[calc(100dvh-24rem)] max-h-[46rem] min-h-[420px] w-full rounded-md"
+    >
+      <div class="space-y-3 pr-3">
+        <ModerationCard
+          v-for="tweet in tweets"
+          :key="tweet.id"
+          :tweet="tweet"
+          @approve="handleApprove"
+          @reject="handleReject"
+          @flag="handleFlag"
+          @view-detail="handleViewDetail"
+        />
 
-      <!-- 加载更多 -->
-      <div class="flex justify-center pt-4">
-        <Button
-          variant="outline"
-          @click="emit('load-more')"
-        >
-          {{ t('moderation.actions.loadMore') }}
-        </Button>
+        <!-- 加载更多 -->
+        <div v-if="hasNext" class="flex justify-center pt-3">
+          <Button
+            variant="outline"
+            @click="emit('load-more')"
+          >
+            {{ t('moderation.actions.loadMore') }}
+          </Button>
+        </div>
       </div>
-    </div>
-  </div>
+    </ScrollArea>
+    </CardContent>
+  </Card>
 </template>

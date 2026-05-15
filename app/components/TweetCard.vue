@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import {
   v2GetPost,
   type PostVM
 } from '@/services';
+import { v2CreateReport } from '@/api/v2/moderation';
+import type { V2ModerationReportReason } from '@/types/v2';
 import {
   Card,
   CardContent,
@@ -23,6 +25,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 
@@ -34,6 +37,15 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import {
   MessageCircle,
   Repeat,
@@ -44,7 +56,9 @@ import {
   BookmarkCheck,
   BookmarkPlus,
   MessageSquareQuote,
-  PlayCircle
+  PlayCircle,
+  Flag,
+  Loader2
 } from 'lucide-vue-next';
 import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
 import TweetContent from '@/components/TweetContent.vue';
@@ -125,6 +139,21 @@ const localIsBookmarked = ref(
   props.tweet.viewer.hasBookmarked
 );
 const isDeleteDialogOpen = ref(false);
+const isReportDialogOpen = ref(false);
+const isSubmittingReport = ref(false);
+const reportReason = ref<V2ModerationReportReason>('spam');
+const reportDescription = ref('');
+
+const reportReasons: V2ModerationReportReason[] = [
+  'spam',
+  'harassment',
+  'hate',
+  'violence',
+  'adult',
+  'misinformation',
+  'copyright',
+  'other'
+];
 
 // 【修改二：添加 watch 来同步 prop 和本地 ref】
 // 当父组件的数据更新后，prop 会变化。我们需要监听这个变化，
@@ -163,6 +192,13 @@ function handleDelete() {
   }
 }
 
+function handleReport() {
+  if (isOwnTweet.value) return;
+  reportReason.value = 'spam';
+  reportDescription.value = '';
+  isReportDialogOpen.value = true;
+}
+
 function confirmDelete() {
   isDeleteDialogOpen.value = false;
   emit('delete-tweet', props.tweet.id);
@@ -180,6 +216,34 @@ function handleBookmark() {
     props.tweet,
     localIsBookmarked.value ? 'mark' : 'unmark'
   );
+}
+
+async function submitReport() {
+  if (isSubmittingReport.value) return;
+  isSubmittingReport.value = true;
+
+  try {
+    await v2CreateReport({
+      target_type: 'post',
+      target_id: props.tweet.id,
+      reason: reportReason.value,
+      description:
+        reportDescription.value.trim() || undefined,
+      evidence_url: localePath(`/tweet/${props.tweet.id}`)
+    });
+    toast.success(t('post.feedback.reported'));
+    isReportDialogOpen.value = false;
+    reportDescription.value = '';
+    reportReason.value = 'spam';
+  } catch (error) {
+    toast.error(
+      error instanceof Error
+        ? error.message
+        : t('post.feedback.reportFailed')
+    );
+  } finally {
+    isSubmittingReport.value = false;
+  }
 }
 
 const isLightboxOpen = ref(false);
@@ -380,6 +444,17 @@ const relatedExcerpt = computed(() => {
           >
             <Trash2 class="mr-2 h-4 w-4" />
             <span>{{ t('post.actions.delete') }}</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator v-if="!isOwnTweet" />
+
+          <DropdownMenuItem
+            v-if="!isOwnTweet"
+            @click.stop="handleReport"
+            class="text-destructive"
+          >
+            <Flag class="mr-2 h-4 w-4" />
+            <span>{{ t('post.actions.report') }}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -626,6 +701,91 @@ const relatedExcerpt = computed(() => {
         </AppButton>
         <AppButton variant="destructive" @click="confirmDelete">
           {{ t('common.delete') }}
+        </AppButton>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog v-model:open="isReportDialogOpen">
+    <DialogContent class="sm:max-w-md" @click.stop>
+      <DialogHeader>
+        <DialogTitle>{{ t('post.report.title') }}</DialogTitle>
+        <DialogDescription>
+          {{ t('post.report.description') }}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div class="space-y-4 py-2">
+        <div class="space-y-2">
+          <Label for="post-report-reason">
+            {{ t('post.report.reasonLabel') }}
+          </Label>
+          <Select v-model="reportReason">
+            <SelectTrigger
+              id="post-report-reason"
+              class="w-full"
+            >
+              <SelectValue
+                :placeholder="t('post.report.reasonPlaceholder')"
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                v-for="reason in reportReasons"
+                :key="reason"
+                :value="reason"
+              >
+                {{
+                  t(`moderation.filters.reasons.${reason}`)
+                }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div class="space-y-2">
+          <Label for="post-report-description">
+            {{ t('post.report.descriptionLabel') }}
+          </Label>
+          <Textarea
+            id="post-report-description"
+            v-model="reportDescription"
+            :placeholder="t('post.report.descriptionPlaceholder')"
+            class="min-h-24 resize-none"
+            maxlength="1000"
+          />
+          <p class="text-xs text-muted-foreground">
+            {{
+              t('post.report.descriptionHint', {
+                count: reportDescription.length
+              })
+            }}
+          </p>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <AppButton
+          variant="outline"
+          :disabled="isSubmittingReport"
+          @click="isReportDialogOpen = false"
+        >
+          {{ t('common.cancel') }}
+        </AppButton>
+        <AppButton
+          variant="destructive"
+          :disabled="isSubmittingReport"
+          @click="submitReport"
+        >
+          <Loader2
+            v-if="isSubmittingReport"
+            class="mr-2 h-4 w-4 animate-spin"
+          />
+          {{
+            isSubmittingReport
+              ? t('post.report.submitting')
+              : t('post.report.submit')
+          }}
         </AppButton>
       </DialogFooter>
     </DialogContent>

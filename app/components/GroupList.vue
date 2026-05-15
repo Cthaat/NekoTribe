@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { Inbox, RefreshCw, Plus } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import GroupCard from './GroupCard.vue';
 import type { Group } from './GroupCard.vue';
 
@@ -88,9 +89,7 @@ const handleSettings = (id: number) => {
       v-if="loading"
       class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
     >
-      <div v-for="i in 6" :key="i" class="animate-pulse">
-        <div class="h-64 bg-muted rounded-lg" />
-      </div>
+      <Skeleton v-for="i in 6" :key="i" class="h-64 rounded-lg" />
     </div>
 
     <!-- 空状态 -->

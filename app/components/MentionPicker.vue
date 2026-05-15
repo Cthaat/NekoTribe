@@ -6,6 +6,9 @@ import {
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { User, FileText } from 'lucide-vue-next';
 
 const { t } = useAppLocale();
@@ -123,19 +126,22 @@ defineExpose({
 </script>
 
 <template>
-  <div
+  <Card
     v-if="show && mentionItems.length > 0"
-    class="fixed z-50 w-80 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
+    class="fixed z-50 w-80 overflow-hidden py-0"
     :style="{
       top: position?.top ? `${position.top}px` : 'auto',
       left: position?.left ? `${position.left}px` : 'auto'
     }"
   >
-    <div class="max-h-80 overflow-y-auto p-1">
-      <div
+    <CardContent class="p-1">
+      <ScrollArea class="max-h-80">
+      <Button
         v-for="(item, index) in mentionItems"
         :key="`${item.type}-${item.id}`"
-        class="flex cursor-pointer items-center gap-3 rounded-sm px-3 py-2.5 transition-colors"
+        type="button"
+        variant="ghost"
+        class="h-auto w-full justify-start gap-3 rounded-sm px-3 py-2.5 text-left"
         :class="{
           'bg-accent text-accent-foreground': index === selectedIndex,
           'hover:bg-accent hover:text-accent-foreground': index !== selectedIndex
@@ -184,7 +190,7 @@ defineExpose({
               : t('chat.mention.post')
           }}
         </div>
-      </div>
+      </Button>
 
       <div
         v-if="isLoading"
@@ -192,7 +198,8 @@ defineExpose({
       >
         {{ t('chat.mention.loading') }}
       </div>
-    </div>
-  </div>
+      </ScrollArea>
+    </CardContent>
+  </Card>
 </template>
 

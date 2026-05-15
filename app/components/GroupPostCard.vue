@@ -21,6 +21,11 @@ import {
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle
+} from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -35,6 +40,7 @@ import type { GroupPost } from '@/types/groups';
 
 export type { GroupPost } from '@/types/groups';
 const { t, locale } = useAppLocale();
+const localePath = useLocalePath();
 
 const props = defineProps<{
   post: GroupPost;
@@ -149,6 +155,13 @@ const handleReport = () => {
 const handleShare = () => {
   emit('share', props.post.id);
 };
+
+const openAuthorProfile = () => {
+  if (!Number.isFinite(props.post.author.id) || props.post.author.id <= 0) {
+    return;
+  }
+  void navigateTo(localePath(`/user/${props.post.author.id}/profile`));
+};
 </script>
 
 <template>
@@ -158,12 +171,13 @@ const handleShare = () => {
     }"
   >
     <CardHeader class="space-y-3 pb-2">
-      <div
+      <Alert
         v-if="groupContext"
-        class="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2"
+        class="bg-muted/30"
       >
-        <div class="flex min-w-0 items-center gap-2">
-          <Avatar class="h-7 w-7">
+        <Users class="h-4 w-4" />
+        <AlertTitle class="flex min-w-0 items-center gap-2">
+          <Avatar class="h-6 w-6">
             <AvatarImage
               :src="groupContext.avatar"
               :alt="groupContext.name"
@@ -172,32 +186,28 @@ const handleShare = () => {
               groupContext.name.charAt(0)
             }}</AvatarFallback>
           </Avatar>
-          <div class="min-w-0">
-            <div
-              class="truncate text-sm font-medium leading-none"
-            >
-              {{ groupContext.name }}
-            </div>
-            <div
-              class="mt-1 flex items-center gap-1 text-xs text-muted-foreground"
-            >
-              <Users class="h-3 w-3" />
-              <span>{{ t('groups.posts.groupContext') }}</span>
-            </div>
-          </div>
-        </div>
-        <Badge
-          v-if="groupContext.canManage"
-          variant="outline"
-          class="text-xs"
-        >
-          {{ t('groups.posts.manageable') }}
-        </Badge>
-      </div>
+          <span class="truncate">{{ groupContext.name }}</span>
+          <Badge
+            v-if="groupContext.canManage"
+            variant="outline"
+            class="ml-auto text-xs"
+          >
+            {{ t('groups.posts.manageable') }}
+          </Badge>
+        </AlertTitle>
+        <AlertDescription>
+          {{ t('groups.posts.groupContext') }}
+        </AlertDescription>
+      </Alert>
 
       <div class="flex items-start justify-between gap-3">
         <!-- 作者信息 -->
-        <div class="flex items-center gap-3">
+        <Button
+          type="button"
+          variant="ghost"
+          class="h-auto min-w-0 justify-start gap-3 px-2 py-2 text-left"
+          @click="openAuthorProfile"
+        >
           <Avatar class="h-10 w-10">
             <AvatarImage
               :src="post.author.avatar"
@@ -235,7 +245,7 @@ const handleShare = () => {
               {{ formatTime(post.createdAt) }}
             </span>
           </div>
-        </div>
+        </Button>
 
         <!-- 操作菜单 -->
         <DropdownMenu>

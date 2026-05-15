@@ -12,6 +12,13 @@ import { toast } from 'vue-sonner';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage
+} from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -22,6 +29,10 @@ import {
 import TweetComposer from '@/components/TweetComposer.vue';
 const localePath = useLocalePath();
 const { t } = useAppLocale();
+
+function getInitials(name: string): string {
+  return name.trim().slice(0, 2).toUpperCase() || '?';
+}
 
 const isQuoteDialogOpen = ref(false);
 const isReplyDialogOpen = ref(false);
@@ -230,12 +241,13 @@ async function handleTweetSubmit(
             <!-- 1. 加载状态 -->
             <div
               v-if="isDialogLoading"
-              class="flex items-center justify-center h-48"
+              class="space-y-3"
             >
-              <p class="text-muted-foreground">
-                {{ t('post.composePage.dialog.loading') }}
-              </p>
-              <!-- 你也可以在这里放一个旋转的加载图标 -->
+              <Skeleton
+                v-for="item in 4"
+                :key="item"
+                class="h-24 rounded-lg"
+              />
             </div>
 
             <!-- 2. 错误状态 -->
@@ -256,30 +268,41 @@ async function handleTweetSubmit(
 
             <!-- 4. 成功状态 -->
             <div v-else class="grid gap-4">
-              <div
+              <Button
                 v-for="tweet in selectableTweets"
                 :key="tweet.id"
-                class="cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent"
+                type="button"
+                variant="outline"
+                class="h-auto w-full justify-start rounded-lg p-3 text-left"
                 @click="handleSelectQuote(tweet)"
               >
-                <div class="flex items-center text-sm mb-2">
-                  <img
-                    :src="tweet.author.avatarUrl"
-                    class="h-5 w-5 rounded-full mr-2"
-                  />
-                  <span class="font-bold">{{
-                    tweet.author.name
-                  }}</span>
-                  <span class="ml-1 text-muted-foreground"
-                    >@{{ tweet.author.username }}</span
-                  >
+                <div class="flex min-w-0 gap-3">
+                  <Avatar class="h-8 w-8">
+                    <AvatarImage
+                      :src="tweet.author.avatarUrl"
+                      :alt="tweet.author.name"
+                    />
+                    <AvatarFallback>
+                      {{ getInitials(tweet.author.name) }}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center text-sm">
+                      <span class="truncate font-bold">{{
+                        tweet.author.name
+                      }}</span>
+                      <span class="ml-1 truncate text-muted-foreground">
+                        @{{ tweet.author.username }}
+                      </span>
+                    </div>
+                    <p
+                      class="mt-1 line-clamp-3 whitespace-normal text-sm leading-snug text-muted-foreground"
+                    >
+                      {{ tweet.content }}
+                    </p>
+                  </div>
                 </div>
-                <p
-                  class="text-muted-foreground text-sm leading-snug"
-                >
-                  {{ tweet.content }}
-                </p>
-              </div>
+              </Button>
             </div>
           </ScrollArea>
         </DialogContent>
@@ -303,12 +326,13 @@ async function handleTweetSubmit(
             <!-- 1. 加载状态 -->
             <div
               v-if="isDialogLoading"
-              class="flex items-center justify-center h-48"
+              class="space-y-3"
             >
-              <p class="text-muted-foreground">
-                {{ t('post.composePage.dialog.loading') }}
-              </p>
-              <!-- 你也可以在这里放一个旋转的加载图标 -->
+              <Skeleton
+                v-for="item in 4"
+                :key="item"
+                class="h-24 rounded-lg"
+              />
             </div>
 
             <!-- 2. 错误状态 -->
@@ -329,30 +353,41 @@ async function handleTweetSubmit(
 
             <!-- 4. 成功状态 -->
             <div v-else class="grid gap-4">
-              <div
+              <Button
                 v-for="tweet in selectableTweets"
                 :key="tweet.id"
-                class="cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent"
+                type="button"
+                variant="outline"
+                class="h-auto w-full justify-start rounded-lg p-3 text-left"
                 @click="handleSelectReply(tweet)"
               >
-                <div class="flex items-center text-sm mb-2">
-                  <img
-                    :src="tweet.author.avatarUrl"
-                    class="h-5 w-5 rounded-full mr-2"
-                  />
-                  <span class="font-bold">{{
-                    tweet.author.name
-                  }}</span>
-                  <span class="ml-1 text-muted-foreground"
-                    >@{{ tweet.author.username }}</span
-                  >
+                <div class="flex min-w-0 gap-3">
+                  <Avatar class="h-8 w-8">
+                    <AvatarImage
+                      :src="tweet.author.avatarUrl"
+                      :alt="tweet.author.name"
+                    />
+                    <AvatarFallback>
+                      {{ getInitials(tweet.author.name) }}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center text-sm">
+                      <span class="truncate font-bold">{{
+                        tweet.author.name
+                      }}</span>
+                      <span class="ml-1 truncate text-muted-foreground">
+                        @{{ tweet.author.username }}
+                      </span>
+                    </div>
+                    <p
+                      class="mt-1 line-clamp-3 whitespace-normal text-sm leading-snug text-muted-foreground"
+                    >
+                      {{ tweet.content }}
+                    </p>
+                  </div>
                 </div>
-                <p
-                  class="text-muted-foreground text-sm leading-snug"
-                >
-                  {{ tweet.content }}
-                </p>
-              </div>
+              </Button>
             </div>
           </ScrollArea>
         </DialogContent>

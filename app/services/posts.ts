@@ -6,8 +6,10 @@ import type {
   V2MediaAsset,
   V2PagedResult,
   V2Post,
+  V2PostAnalytics,
   V2PublicUser,
-  V2RetweetPayload
+  V2RetweetPayload,
+  V2UpdatePostPayload
 } from '@/types/v2';
 import type {
   CommentLikeVM,
@@ -17,6 +19,7 @@ import type {
   CreatePostFormVM,
   CreateRetweetFormVM,
   PageViewModel,
+  PostAnalyticsVM,
   PostAuthorVM,
   PostBookmarkVM,
   PostFeedPageRequest,
@@ -26,7 +29,8 @@ import type {
   PostPageVM,
   PostTimelineType,
   PostVM,
-  PreviewPostVM
+  PreviewPostVM,
+  UpdatePostFormVM
 } from '@/types/posts';
 import {
   v2BookmarkPost as apiBookmarkPost,
@@ -36,6 +40,7 @@ import {
   v2DeleteComment,
   v2DeletePost,
   v2GetPost as apiGetPost,
+  v2GetPostAnalytics as apiGetPostAnalytics,
   v2LikeComment as apiLikeComment,
   v2LikePost as apiLikePost,
   v2ListComments as apiListComments,
@@ -48,6 +53,7 @@ import {
   v2UnlikeComment as apiUnlikeComment,
   v2UnlikePost as apiUnlikePost,
   v2UnbookmarkPost as apiUnbookmarkPost,
+  v2UpdatePost as apiUpdatePost,
   v2UploadMedia
 } from '@/api/v2/posts';
 import {
@@ -156,6 +162,21 @@ export function mapPost(dto: V2Post): PostVM {
   };
 }
 
+export function mapPostAnalytics(
+  dto: V2PostAnalytics
+): PostAnalyticsVM {
+  return {
+    postId: dto.post_id,
+    views: dto.views_count,
+    likes: dto.likes_count,
+    comments: dto.comments_count,
+    replies: dto.replies_count,
+    retweets: dto.retweets_count,
+    engagementScore: dto.engagement_score,
+    likeRate: dto.like_rate
+  };
+}
+
 export function mapPostToPreview(dto: V2Post): PreviewPostVM {
   return {
     id: dto.post_id,
@@ -225,6 +246,20 @@ function mapCreatePostForm(
     repost_of_post_id: form.repostOfPostId,
     quoted_post_id: form.quotedPostId,
     location: form.location
+  };
+}
+
+function mapUpdatePostForm(
+  form: UpdatePostFormVM
+): V2UpdatePostPayload {
+  return {
+    content: form.content,
+    visibility: form.visibility,
+    language: form.language,
+    location: form.location,
+    media_ids: form.mediaIds,
+    tag_names: form.tagNames,
+    mention_user_ids: form.mentionUserIds
   };
 }
 
@@ -324,10 +359,14 @@ export async function v2ListUserPosts(
 export async function v2ListMyPosts(query: {
   page?: number;
   pageSize?: number;
+  sort?: 'newest' | 'oldest' | 'popular';
+  q?: string;
 } = {}): Promise<PostPageVM> {
   return mapPostPage(await apiListMyPosts({
     page: query.page,
-    page_size: query.pageSize
+    page_size: query.pageSize,
+    sort: query.sort,
+    q: query.q
   }));
 }
 
@@ -451,10 +490,25 @@ export async function v2GetPost(
   return mapPost(await apiGetPost(postId));
 }
 
+export async function v2GetPostAnalytics(
+  postId: number
+): Promise<PostAnalyticsVM> {
+  return mapPostAnalytics(await apiGetPostAnalytics(postId));
+}
+
 export async function v2CreatePost(
   form: CreatePostFormVM
 ): Promise<PostVM> {
   return mapPost(await apiCreatePost(mapCreatePostForm(form)));
+}
+
+export async function v2UpdatePost(
+  postId: number,
+  form: UpdatePostFormVM
+): Promise<PostVM> {
+  return mapPost(
+    await apiUpdatePost(postId, mapUpdatePostForm(form))
+  );
 }
 
 export async function v2CreateRetweet(

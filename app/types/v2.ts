@@ -313,6 +313,169 @@ export interface V2Post {
   updated_at: string;
 }
 
+export type V2ModerationReportReason =
+  | 'spam'
+  | 'harassment'
+  | 'hate'
+  | 'violence'
+  | 'adult'
+  | 'misinformation'
+  | 'copyright'
+  | 'other';
+
+export type V2ModerationStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'flagged'
+  | 'removed'
+  | 'restored';
+
+export type V2ModerationReportStatus =
+  | 'pending'
+  | 'in_review'
+  | 'resolved'
+  | 'dismissed';
+
+export type V2ModerationPriority =
+  | 'low'
+  | 'normal'
+  | 'high'
+  | 'urgent';
+
+export type V2ModerationTargetType =
+  | 'post'
+  | 'comment'
+  | 'user';
+
+export interface V2ModerationReport {
+  report_id: number;
+  target_type: V2ModerationTargetType;
+  target_id: number;
+  reporter: V2PublicUser | null;
+  reason: V2ModerationReportReason;
+  description: string;
+  evidence_url: string | null;
+  status: V2ModerationReportStatus;
+  priority: V2ModerationPriority;
+  handled_by: V2PublicUser | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+}
+
+export interface V2ModerationContentItem {
+  case_id: number;
+  post_id: number;
+  content: string;
+  author: V2PublicUser;
+  media: V2MediaAsset[];
+  report_count: number;
+  report_reasons: V2ModerationReportReason[];
+  reports: V2ModerationReport[];
+  status: V2ModerationStatus;
+  priority: V2ModerationPriority;
+  assigned_to: V2PublicUser | null;
+  created_at: string;
+  updated_at: string;
+  reported_at: string;
+  likes_count: number;
+  retweets_count: number;
+  replies_count: number;
+}
+
+export interface V2ModerationStats {
+  pending: number;
+  approved: number;
+  rejected: number;
+  flagged: number;
+  today_processed: number;
+  avg_process_minutes: number;
+  open_reports: number;
+  appeal_success_rate: number;
+}
+
+export interface V2ModerationActionPayload {
+  action:
+    | 'approve'
+    | 'reject'
+    | 'flag'
+    | 'remove'
+    | 'restore'
+    | 'claim'
+    | 'release';
+  note?: string;
+  reason?: string;
+  duration_hours?: number;
+}
+
+export interface V2ModerationUserItem {
+  user_id: number;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  email: string;
+  status: string;
+  is_active: number;
+  is_verified: number;
+  followers_count: number;
+  posts_count: number;
+  likes_count: number;
+  report_count: number;
+  active_restriction: string | null;
+  restriction_until: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface V2ModerationUserActionPayload {
+  action: 'ban' | 'unban' | 'mute' | 'unmute' | 'note';
+  reason?: string;
+  note?: string;
+  duration_hours?: number;
+}
+
+export interface V2ModerationSetting {
+  key: string;
+  value: string;
+  value_type: 'boolean' | 'number' | 'string';
+  label: string;
+  description: string;
+  updated_at: string;
+}
+
+export interface V2ModerationAppeal {
+  appeal_id: number;
+  statement_id: number;
+  user: V2PublicUser;
+  appeal_message: string;
+  appeal_status: 'pending' | 'approved' | 'rejected';
+  admin_response: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface V2ModerationAppealPayload {
+  appeal_status: 'approved' | 'rejected';
+  admin_response?: string;
+}
+
+export interface V2ModerationSettingsPayload {
+  settings: Array<{
+    key: string;
+    value: string;
+  }>;
+}
+
+export interface V2CreateReportPayload {
+  target_type: V2ModerationTargetType;
+  target_id: number;
+  reason: V2ModerationReportReason;
+  description?: string;
+  evidence_url?: string;
+  priority?: V2ModerationPriority;
+}
+
 export interface V2CreatePostPayload {
   content?: string;
   visibility?: V2PostVisibility;
@@ -323,6 +486,16 @@ export interface V2CreatePostPayload {
   repost_of_post_id?: number | null;
   quoted_post_id?: number | null;
   location?: string;
+}
+
+export interface V2UpdatePostPayload {
+  content?: string;
+  visibility?: V2PostVisibility;
+  language?: string;
+  location?: string | null;
+  media_ids?: number[];
+  tag_names?: string[];
+  mention_user_ids?: number[];
 }
 
 export interface V2RetweetPayload {
@@ -339,6 +512,17 @@ export interface V2LikePostData {
 export interface V2BookmarkPostData {
   post_id: number;
   is_bookmarked: boolean;
+}
+
+export interface V2PostAnalytics {
+  post_id: number;
+  views_count: number;
+  likes_count: number;
+  comments_count: number;
+  replies_count: number;
+  retweets_count: number;
+  engagement_score: number;
+  like_rate: number;
 }
 
 export interface V2CommentStats {
@@ -384,6 +568,17 @@ export interface V2UserAnalytics {
   avg_likes_per_post: number;
   total_likes_given: number;
   total_comments_made: number;
+  engagement_score: number;
+}
+
+export interface V2UserDailyAnalytics {
+  day: string;
+  posts_count: number;
+  likes_received: number;
+  comments_received: number;
+  retweets_received: number;
+  likes_given: number;
+  comments_made: number;
   engagement_score: number;
 }
 
@@ -875,6 +1070,9 @@ export type V2GetUserByIdResponse =
   V2ApiResponse<V2PublicUser>;
 export type V2GetUserAnalyticsResponse =
   V2ApiResponse<V2UserAnalytics>;
+export type V2GetUserDailyAnalyticsResponse = V2ApiResponse<
+  V2UserDailyAnalytics[]
+>;
 export type V2FollowUserResponse =
   V2ApiResponse<V2FollowUserData>;
 export type V2UnfollowUserResponse =
@@ -909,7 +1107,10 @@ export type V2ListUserPostsRequest = V2PageQuery & {
 };
 export type V2ListUserPostsResponse =
   V2ApiResponse<V2Post[]>;
-export type V2ListMyPostsRequest = V2PageQuery;
+export type V2ListMyPostsRequest = V2PageQuery & {
+  sort?: V2PostSort;
+  q?: string;
+};
 export type V2ListMyPostsResponse = V2ApiResponse<V2Post[]>;
 export type V2ListMyBookmarkedPostsRequest = V2PageQuery & {
   sort?: V2PostSort;
@@ -918,8 +1119,12 @@ export type V2ListMyBookmarkedPostsResponse =
   V2ApiResponse<V2Post[]>;
 export type V2CreatePostRequest = V2CreatePostPayload;
 export type V2CreatePostResponse = V2ApiResponse<V2Post>;
+export type V2UpdatePostRequest = V2UpdatePostPayload;
+export type V2UpdatePostResponse = V2ApiResponse<V2Post>;
 export type V2GetPostResponse = V2ApiResponse<V2Post>;
 export type V2DeletePostResponse = V2ApiResponse<null>;
+export type V2GetPostAnalyticsResponse =
+  V2ApiResponse<V2PostAnalytics>;
 export type V2CreateRetweetRequest = V2RetweetPayload;
 export type V2CreateRetweetResponse = V2ApiResponse<V2Post>;
 export type V2LikePostResponse =

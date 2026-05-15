@@ -27,10 +27,20 @@ import {
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
+import {
+  Alert,
+  AlertDescription
+} from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger
+} from '@/components/ui/tabs';
 import {
   Copy,
   ExternalLink,
@@ -388,6 +398,16 @@ function selectTab(tab: TabItem): void {
   tabValue.value = tab.name;
 }
 
+function handleTabChange(value: string | number): void {
+  const selectedName = String(value);
+  const selectedTab = props.accountTabs.find(
+    tab => tab.name === selectedName
+  );
+  if (!selectedTab) return;
+  selectTab(selectedTab);
+  void navigateTo(selectedTab.to);
+}
+
 const isFollowing = ref(props.user.follow === 'follow');
 const showFollowAction = computed(() => {
   return props.user.id > 0 && props.user.id !== currentUserId.value;
@@ -535,9 +555,10 @@ function followUser() {
             class="flex flex-col sm:flex-row items-center gap-4"
           >
             <div class="flex-1 grid grid-cols-3 gap-4">
-              <button
+              <Button
                 type="button"
-                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                variant="ghost"
+                class="h-auto flex-col gap-0 rounded-lg px-3 py-2 text-center"
                 @click="openStatsDialog('followers')"
               >
                 <p
@@ -548,10 +569,11 @@ function followUser() {
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.followers') }}
                 </p>
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                variant="ghost"
+                class="h-auto flex-col gap-0 rounded-lg px-3 py-2 text-center"
                 @click="openStatsDialog('following')"
               >
                 <p
@@ -562,10 +584,11 @@ function followUser() {
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.following') }}
                 </p>
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                class="rounded-lg px-3 py-2 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                variant="ghost"
+                class="h-auto flex-col gap-0 rounded-lg px-3 py-2 text-center"
                 @click="openStatsDialog('likes')"
               >
                 <p
@@ -576,14 +599,15 @@ function followUser() {
                 <p class="text-xs text-muted-foreground">
                   {{ t('account.header.likes') }}
                 </p>
-              </button>
+              </Button>
             </div>
             <div class="w-full sm:w-1/3">
-              <label
+              <Label
                 for="completion"
                 class="text-sm font-medium"
-                >{{ t('account.header.activeScore') }}</label
               >
+                {{ t('account.header.activeScore') }}
+              </Label>
               <div class="flex items-center gap-2">
                 <Progress
                   :model-value="normalizedScore"
@@ -600,30 +624,25 @@ function followUser() {
     </CardContent>
   </Card>
   <!-- b. 账户子页面导航 -->
-  <nav
+  <Tabs
     v-if="accountTabs.length > 0"
+    :model-value="tabValue"
     class="w-full overflow-x-auto"
-    :aria-label="t('account.title')"
+    @update:model-value="handleTabChange"
   >
-    <div
-      class="inline-flex min-w-full items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground sm:min-w-0"
+    <TabsList
+      class="inline-flex h-auto min-w-full justify-start sm:min-w-0"
     >
-      <NuxtLink
+      <TabsTrigger
         v-for="tab in accountTabs"
         :key="tab.to"
-        :to="tab.to"
-        class="inline-flex h-8 flex-none items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-[color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        :class="
-          isTabActive(tab)
-            ? 'bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30 dark:text-foreground'
-            : 'hover:bg-background/60 hover:text-foreground'
-        "
-        @click="selectTab(tab)"
+        :value="tab.name"
+        class="flex-none px-3"
       >
         {{ tab.name }}
-      </NuxtLink>
-    </div>
-  </nav>
+      </TabsTrigger>
+    </TabsList>
+  </Tabs>
 
   <Dialog
     :open="statsDialogOpen"
@@ -648,28 +667,30 @@ function followUser() {
             class="h-20 rounded-lg"
           />
         </div>
-        <div
+        <Alert
           v-else-if="likesError"
-          class="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
+          variant="destructive"
         >
-          {{ likesError }}
-        </div>
+          <AlertDescription>{{ likesError }}</AlertDescription>
+        </Alert>
         <div v-else class="grid gap-3 sm:grid-cols-2">
-          <div
+          <Card
             v-for="item in likesStatItems"
             :key="item.label"
-            class="rounded-lg border bg-card p-4"
+            class="gap-0 py-0"
           >
-            <div
-              class="flex items-center gap-2 text-sm text-muted-foreground"
-            >
-              <Heart class="h-4 w-4" />
-              {{ item.label }}
-            </div>
-            <div class="mt-2 text-2xl font-semibold">
-              {{ item.value }}
-            </div>
-          </div>
+            <CardContent class="p-4">
+              <div
+                class="flex items-center gap-2 text-sm text-muted-foreground"
+              >
+                <Heart class="h-4 w-4" />
+                {{ item.label }}
+              </div>
+              <div class="mt-2 text-2xl font-semibold">
+                {{ item.value }}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -730,11 +751,12 @@ function followUser() {
             </div>
 
             <template v-else>
-              <button
+              <Button
                 v-for="item in relationshipUsers"
                 :key="item.id"
                 type="button"
-                class="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                variant="ghost"
+                class="h-auto w-full justify-start gap-3 rounded-lg p-2 text-left"
                 @click="openUserProfile(item.id)"
               >
                 <Avatar class="h-10 w-10">
@@ -765,7 +787,7 @@ function followUser() {
                   v-else
                   class="h-4 w-4 text-muted-foreground"
                 />
-              </button>
+              </Button>
             </template>
           </div>
         </ScrollArea>

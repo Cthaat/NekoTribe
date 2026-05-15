@@ -896,6 +896,108 @@ export async function v2GetUserAnalytics(
   });
 }
 
+export async function v2GetUserDailyAnalytics(
+  event: H3Event,
+  connection: oracledb.Connection,
+  userId: number
+): Promise<V2Response<V2UserDailyAnalytics[]>> {
+  const auth = v2Auth(event);
+  await v2RequirePublicUser(connection, auth.userId, userId);
+  const days = Math.min(
+    Math.max(v2QueryNumber(event, 'days', 14), 7),
+    90
+  );
+  const rows = await v2Rows(
+    connection,
+    `
+    WITH days AS (
+      SELECT TRUNC(SYSDATE) - (:days - LEVEL) AS day_start
+      FROM dual
+      CONNECT BY LEVEL <= :days
+    )
+    SELECT
+      TO_CHAR(d.day_start, 'YYYY-MM-DD') AS day,
+      (
+        SELECT COUNT(*)
+        FROM n_posts p
+        WHERE p.author_id = :user_id
+          AND p.is_deleted = 0
+          AND TRUNC(p.created_at) = d.day_start
+      ) AS posts_count,
+      (
+        SELECT COUNT(*)
+        FROM n_post_likes l
+        JOIN n_posts p ON p.post_id = l.post_id
+        WHERE p.author_id = :user_id
+          AND p.is_deleted = 0
+          AND TRUNC(l.created_at) = d.day_start
+      ) AS likes_received,
+      (
+        SELECT COUNT(*)
+        FROM n_comments c
+        JOIN n_posts p ON p.post_id = c.post_id
+        WHERE p.author_id = :user_id
+          AND p.is_deleted = 0
+          AND c.is_deleted = 0
+          AND TRUNC(c.created_at) = d.day_start
+      ) AS comments_received,
+      (
+        SELECT COUNT(*)
+        FROM n_posts r
+        JOIN n_posts p ON p.post_id = r.repost_of_post_id
+        WHERE p.author_id = :user_id
+          AND p.is_deleted = 0
+          AND r.is_deleted = 0
+          AND r.post_type = 'repost'
+          AND TRUNC(r.created_at) = d.day_start
+      ) AS retweets_received,
+      (
+        SELECT COUNT(*)
+        FROM n_post_likes l
+        WHERE l.user_id = :user_id
+          AND TRUNC(l.created_at) = d.day_start
+      ) AS likes_given,
+      (
+        SELECT COUNT(*)
+        FROM n_comments c
+        WHERE c.user_id = :user_id
+          AND c.is_deleted = 0
+          AND TRUNC(c.created_at) = d.day_start
+      ) AS comments_made
+    FROM days d
+    ORDER BY d.day_start
+    `,
+    {
+      user_id: userId,
+      days
+    }
+  );
+
+  return v2Ok(
+    rows.map(row => {
+      const likesReceived = v2Number(row.LIKES_RECEIVED);
+      const commentsReceived = v2Number(
+        row.COMMENTS_RECEIVED
+      );
+      const retweetsReceived = v2Number(
+        row.RETWEETS_RECEIVED
+      );
+      return {
+        day: v2String(row.DAY),
+        posts_count: v2Number(row.POSTS_COUNT),
+        likes_received: likesReceived,
+        comments_received: commentsReceived,
+        retweets_received: retweetsReceived,
+        likes_given: v2Number(row.LIKES_GIVEN),
+        comments_made: v2Number(row.COMMENTS_MADE),
+        engagement_score:
+          likesReceived + commentsReceived + retweetsReceived
+      };
+    }),
+    'user daily analytics'
+  );
+}
+
 export async function v2FollowUser(
   event: H3Event,
   connection: oracledb.Connection,

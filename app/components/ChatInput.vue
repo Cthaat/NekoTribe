@@ -25,6 +25,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Avatar,
   AvatarFallback,
@@ -355,7 +356,7 @@ const handleCancelReply = () => {
                 as="label"
               >
                 <Paperclip class="h-4 w-4" />
-                <input
+                <Input
                   type="file"
                   multiple
                   class="hidden"
@@ -378,7 +379,7 @@ const handleCancelReply = () => {
                 as="label"
               >
                 <ImageIcon class="h-4 w-4" />
-                <input
+                <Input
                   type="file"
                   accept="image/*"
                   multiple
@@ -465,7 +466,7 @@ const handleCancelReply = () => {
                   :placeholder="t('chat.composer.searchMembers')"
                   class="h-8"
                 />
-                <div class="max-h-64 overflow-y-auto">
+                <ScrollArea class="h-64">
                   <Button
                     v-for="member in filteredMembers"
                     :key="member.id"
@@ -499,7 +500,7 @@ const handleCancelReply = () => {
                   >
                     {{ t('chat.composer.noMembers') }}
                   </div>
-                </div>
+                </ScrollArea>
               </div>
             </PopoverContent>
           </Popover>
@@ -533,7 +534,7 @@ const handleCancelReply = () => {
                   :placeholder="t('chat.composer.searchChannels')"
                   class="h-8"
                 />
-                <div class="max-h-64 overflow-y-auto">
+                <ScrollArea class="h-64">
                   <Button
                     v-for="channel in filteredChannels"
                     :key="channel.id"
@@ -552,7 +553,7 @@ const handleCancelReply = () => {
                   >
                     {{ t('chat.composer.noChannels') }}
                   </div>
-                </div>
+                </ScrollArea>
               </div>
             </PopoverContent>
           </Popover>

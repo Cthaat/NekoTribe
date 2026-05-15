@@ -19,7 +19,9 @@ import type {
   V2ListUserPostsRequest,
   V2PagedResult,
   V2Post,
-  V2RetweetPayload
+  V2PostAnalytics,
+  V2RetweetPayload,
+  V2UpdatePostPayload
 } from '@/types/v2';
 
 type PostListQuery =
@@ -163,6 +165,17 @@ export async function v2GetPost(
   });
 }
 
+export async function v2GetPostAnalytics(
+  postId: number
+): Promise<V2PostAnalytics> {
+  return await v2RequestData<V2PostAnalytics>(
+    `/api/v2/posts/${postId}/analytics`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
 export async function v2DeletePost(
   postId: number
 ): Promise<void> {
@@ -178,6 +191,19 @@ export async function v2CreatePost(
     '/api/v2/posts',
     {
       method: 'POST',
+      body: payload
+    }
+  );
+}
+
+export async function v2UpdatePost(
+  postId: number,
+  payload: V2UpdatePostPayload
+): Promise<V2Post> {
+  return await v2RequestData<V2Post, V2UpdatePostPayload>(
+    `/api/v2/posts/${postId}`,
+    {
+      method: 'PUT',
       body: payload
     }
   );

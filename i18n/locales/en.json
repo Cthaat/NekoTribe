@@ -27,10 +27,21 @@
     "processing": "Processing...",
     "pagination": "Page {page} / {totalPages} · Total {total}"
   },
+  "globalSearch": {
+    "placeholder": "Search posts or users",
+    "usersTitle": "Users",
+    "postsAction": "Posts",
+    "enterHint": "Enter for posts",
+    "minHint": "Type at least 2 characters to search users.",
+    "loading": "Searching users...",
+    "empty": "No matching users found.",
+    "failed": "Failed to search users",
+    "followers": "{count} followers"
+  },
   "app": {
     "brand": {
       "name": "NekoTribe",
-      "tagline": "Edge Walker"
+      "tagline": "Meow meow meow~"
     },
     "meta": {
       "description": "Social media platform"
@@ -58,6 +69,7 @@
       "tweet": "Tweet",
       "home": "Home",
       "myTweets": "My Tweets",
+      "manageTweets": "Post Management",
       "mention": "Mention",
       "bookmark": "Bookmark",
       "meow": "Meow",
@@ -99,7 +111,8 @@
     "actions": {
       "addBookmark": "Add bookmark",
       "removeBookmark": "Remove bookmark",
-      "delete": "Delete post"
+      "delete": "Delete post",
+      "report": "Report post"
     },
     "feedback": {
       "liked": "Post liked",
@@ -108,7 +121,9 @@
       "deleted": "Post deleted",
       "deleteFailed": "Failed to delete post",
       "retweeted": "Reposted",
-      "retweetFailed": "Failed to repost"
+      "retweetFailed": "Failed to repost",
+      "reported": "Report submitted",
+      "reportFailed": "Failed to submit report"
     },
     "feed": {
       "loadFailed": "Failed to load posts",
@@ -220,6 +235,17 @@
     "delete": {
       "title": "Delete this post?",
       "description": "This post will be removed from the timeline. This action cannot be undone."
+    },
+    "report": {
+      "title": "Report this post",
+      "description": "Choose a reason and add any useful context. The moderation team will review it.",
+      "reasonLabel": "Reason",
+      "reasonPlaceholder": "Select a reason",
+      "descriptionLabel": "Details",
+      "descriptionPlaceholder": "Describe the issue, where it appears, or any relevant context (optional)",
+      "descriptionHint": "{count}/1000 characters",
+      "submit": "Submit report",
+      "submitting": "Submitting..."
     }
   },
   "comment": {
@@ -816,43 +842,56 @@
     },
     "actions": {
       "viewDetail": "View details",
-      "approve": "Approve",
-      "approveFull": "Approve content",
-      "reject": "Reject",
-      "rejectPost": "Reject post",
+      "approve": "Approve report",
+      "approveFull": "Approve report and remove",
+      "reject": "Dismiss report",
+      "rejectPost": "Dismiss report",
       "flag": "Flag for review",
       "refresh": "Refresh",
       "refreshList": "Refresh list",
       "loadMore": "Load more"
     },
     "feedback": {
-      "approved": "Post approved",
-      "rejected": "Post rejected",
+      "approved": "Report approved and the post was removed",
+      "rejected": "Report dismissed and the post remains visible",
       "flagged": "Post flagged for further review",
       "refreshed": "List refreshed",
       "noMore": "No more content",
-      "filtersReset": "Filters reset"
+      "filtersReset": "Filters reset",
+      "loadFailed": "Failed to load moderation data",
+      "actionSuccess": "Moderation action completed",
+      "actionFailed": "Moderation action failed"
     },
     "status": {
       "all": "All statuses",
       "pending": "Pending",
-      "approved": "Approved",
-      "rejected": "Rejected",
+      "approved": "Report approved",
+      "rejected": "Report dismissed",
       "flagged": "Flagged",
+      "removed": "Removed",
+      "restored": "Restored",
       "unknown": "Unknown"
+    },
+    "reportStatus": {
+      "pending": "Pending",
+      "inReview": "In review",
+      "resolved": "Resolved",
+      "dismissed": "Dismissed"
     },
     "stats": {
       "pending": "Pending",
-      "approved": "Approved",
-      "rejected": "Rejected",
+      "approved": "Report approved",
+      "rejected": "Report dismissed",
       "flagged": "Flagged",
       "todayProcessed": "Processed today",
       "avgProcessTime": "Avg. processing time",
       "zeroMinutes": "0 min",
-      "minutes": "{count} min"
+      "minutes": "{count} min",
+      "openReports": "Open reports",
+      "appealSuccessRate": "Appeal success"
     },
     "list": {
-      "count": "{count} items pending review",
+      "count": "{count} items in this view",
       "emptyTitle": "No content pending review",
       "emptyDescription": "There are no posts waiting for moderation. New reports will appear here."
     },
@@ -914,6 +953,63 @@
       "replies": "Replies",
       "note": "Moderation note (optional)",
       "notePlaceholder": "Enter moderation note..."
+    },
+    "users": {
+      "searchPlaceholder": "Search username, email, or display name...",
+      "status": "User status",
+      "active": "Active",
+      "suspended": "Suspended",
+      "disabled": "Disabled",
+      "pending": "Pending",
+      "mostReported": "Most reported",
+      "empty": "No users found",
+      "reportCount": "Linked reports",
+      "ban": "Ban",
+      "unban": "Unban",
+      "mute": "Mute 24h",
+      "unmute": "Unmute",
+      "defaultReason": "Manual moderation center action"
+    },
+    "reports": {
+      "status": "Report status",
+      "targetType": "Target type",
+      "targetPost": "Post",
+      "targetComment": "Comment",
+      "targetUser": "User",
+      "empty": "No reports found",
+      "anonymous": "Anonymous user",
+      "evidence": "View evidence"
+    },
+    "appeals": {
+      "title": "Appeal Review",
+      "empty": "No appeals found",
+      "approve": "Approve appeal",
+      "reject": "Reject appeal",
+      "defaultResponse": "The moderation center has reviewed this appeal."
+    },
+    "settings": {
+      "title": "Moderation Settings",
+      "description": "Configure automation thresholds, workflow constraints, and default penalties.",
+      "saved": "Moderation settings saved",
+      "saveFailed": "Failed to save moderation settings",
+      "definitions": {
+        "auto_hide_report_threshold": {
+          "label": "Auto-hide threshold",
+          "description": "Content is automatically marked high priority when report count reaches this value."
+        },
+        "require_note_on_reject": {
+          "label": "Require rejection note",
+          "description": "Moderators should leave a note when rejecting or removing content."
+        },
+        "allow_moderator_claim": {
+          "label": "Allow queue claiming",
+          "description": "Moderators can claim and release records in the moderation queue."
+        },
+        "default_mute_hours": {
+          "label": "Default mute duration",
+          "description": "Default number of hours for user mute actions."
+        }
+      }
     },
     "reportDetails": {
       "spam": {
@@ -1301,6 +1397,7 @@
       "overview": "Overview",
       "settings": "Settings",
       "profile": "Profile",
+      "posts": "Post Management",
       "appearance": "Appearance",
       "security": "Security",
       "active": "Active",
@@ -1407,6 +1504,70 @@
       "actionSuccess": "Operation succeeded.",
       "actionFailed": "Operation failed."
     },
+    "posts": {
+      "title": "Post Management",
+      "description": "Manage every post you published, update visibility, language, location and tags, and review per-post metrics.",
+      "create": "Create Post",
+      "save": "Save Changes",
+      "open": "Open Detail",
+      "searchPlaceholder": "Search your posts...",
+      "listTitle": "{count} posts in this view",
+      "detailTitle": "Post Settings and Data",
+      "detailDescription": "Select a post on the left to edit settings or inspect metrics.",
+      "noSelection": "Select a post to manage.",
+      "emptyTitle": "No posts to manage",
+      "emptyDescription": "After you publish your first post, you can manage content and inspect analytics here.",
+      "emptyContent": "(No body content)",
+      "loadingAnalytics": "Refreshing detailed metrics...",
+      "table": {
+        "post": "Post",
+        "createdAt": "Published",
+        "metrics": "Metrics"
+      },
+      "sort": {
+        "newest": "Newest",
+        "oldest": "Oldest",
+        "popular": "Top engagement"
+      },
+      "visibility": {
+        "all": "All visibility"
+      },
+      "language": {
+        "zh": "Chinese",
+        "en": "English",
+        "ja": "Japanese",
+        "ko": "Korean"
+      },
+      "stats": {
+        "total": "All Posts",
+        "visible": "In View",
+        "views": "Page Views",
+        "interactions": "Page Interactions"
+      },
+      "metrics": {
+        "views": "Views",
+        "likes": "Likes",
+        "comments": "Comments",
+        "replies": "Replies",
+        "retweets": "Reposts",
+        "engagement": "Engagement",
+        "likeRate": "Like Rate"
+      },
+      "form": {
+        "content": "Content",
+        "visibility": "Visibility",
+        "language": "Language",
+        "location": "Location",
+        "tags": "Tags",
+        "tagsPlaceholder": "Comma-separated, for example Oracle, Nuxt, V2"
+      },
+      "feedback": {
+        "loadFailed": "Failed to load post management data",
+        "analyticsFailed": "Failed to load post metrics",
+        "saved": "Post settings saved",
+        "saveFailed": "Failed to save post settings"
+      }
+    },
     "overview": {
       "title": "Overview",
       "description": "View your account information and statistics here.",
@@ -1427,7 +1588,38 @@
         "engagementScoreDescription": "Comprehensive assessment of user activity",
         "outgoingInteractions": "Outgoing Interactions",
         "likesGiven": "Likes Given",
-        "commentsMade": "Comments Made"
+        "commentsMade": "Comments Made",
+        "dailyTrend": "Daily Trend",
+        "dailyTrendDescription": "Posts, received likes, comments, and overall engagement over the last 14 days.",
+        "chartPosts": "Posts",
+        "chartLikes": "Likes",
+        "chartComments": "Comments",
+        "chartRetweets": "Retweets",
+        "chartInteraction": "Engagement",
+        "chartGivenLikes": "Likes Given",
+        "chartMadeComments": "Comments Made",
+        "chartScore": "Score",
+        "chartReceived": "Received",
+        "chartOutgoing": "Outgoing",
+        "receivedBreakdown": "Received Engagement Mix",
+        "receivedBreakdownDescription": "Daily stacked view of likes, comments, and retweets received.",
+        "outgoingTrend": "Outgoing Engagement Trend",
+        "outgoingTrendDescription": "Compare likes given and comments made by day.",
+        "scoreTrend": "Engagement Score Trend",
+        "scoreTrendDescription": "Track how the account activity score changes over the last 14 days.",
+        "compositionTitle": "Overall Mix",
+        "compositionDescription": "Summary of posts, received engagement, outgoing engagement, and score over the last 14 days.",
+        "compositionTotal": "Total",
+        "dataTableTitle": "Data Details",
+        "dataTableDescription": "Review posts, engagement, and activity score by date.",
+        "tableDate": "Date",
+        "tablePosts": "Posts",
+        "tableLikes": "Likes",
+        "tableComments": "Comments",
+        "tableRetweets": "Retweets",
+        "tableOutgoing": "Outgoing",
+        "tableScore": "Score",
+        "noTrendData": "No daily trend data yet"
       }
     },
     "profile": {

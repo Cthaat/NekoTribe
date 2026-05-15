@@ -19,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Collapsible,
   CollapsibleContent,
@@ -180,7 +181,8 @@ const getRoleColor = (role: ChatMember['role']) => {
     </div>
 
     <!-- 成员列表 -->
-    <div class="min-h-0 flex-1 overflow-y-auto py-2">
+    <ScrollArea class="min-h-0 flex-1">
+      <div class="py-2">
       <!-- 在线成员 -->
       <Collapsible
         v-model:open="isOnlineExpanded"
@@ -196,61 +198,67 @@ const getRoleColor = (role: ChatMember['role']) => {
             <div
               v-for="member in onlineMembers"
               :key="member.id"
-              class="group flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
-              @click="emit('view-profile', member)"
+              class="group flex items-center gap-1 rounded-md transition-colors hover:bg-muted/50"
             >
-              <!-- 头像 -->
-              <div class="relative flex-shrink-0">
-                <Avatar class="h-8 w-8">
-                  <AvatarImage
-                    :src="member.avatar"
-                    :alt="member.nickname"
-                  />
-                  <AvatarFallback>{{
-                    member.nickname.slice(0, 2)
-                  }}</AvatarFallback>
-                </Avatar>
-                <div
-                  class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background"
-                  :class="getStatusColor(member.status)"
-                />
-              </div>
-
-              <!-- 用户信息 -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-1">
-                  <!-- 角色图标 -->
-                  <component
-                    v-if="getRoleIcon(member.role)"
-                    :is="getRoleIcon(member.role)"
-                    class="h-3 w-3 flex-shrink-0"
-                    :class="getRoleColor(member.role)"
-                  />
-                  <span
-                    class="text-sm font-medium truncate"
-                    :class="getRoleColor(member.role)"
-                  >
-                    {{ member.nickname }}
-                  </span>
-                </div>
-                <div
-                  v-if="member.statusText"
-                  class="text-xs text-muted-foreground truncate"
-                >
-                  {{ member.statusText }}
-                </div>
-              </div>
-
-              <!-- 语音状态 -->
-              <div
-                v-if="member.isInVoice"
-                class="flex items-center gap-0.5"
+              <Button
+                type="button"
+                variant="ghost"
+                class="h-auto min-w-0 flex-1 justify-start gap-2 p-2 text-left"
+                @click="emit('view-profile', member)"
               >
-                <component
-                  :is="member.isMuted ? VolumeX : Volume2"
-                  class="h-3 w-3 text-muted-foreground"
-                />
-              </div>
+                <!-- 头像 -->
+                <div class="relative flex-shrink-0">
+                  <Avatar class="h-8 w-8">
+                    <AvatarImage
+                      :src="member.avatar"
+                      :alt="member.nickname"
+                    />
+                    <AvatarFallback>{{
+                      member.nickname.slice(0, 2)
+                    }}</AvatarFallback>
+                  </Avatar>
+                  <div
+                    class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background"
+                    :class="getStatusColor(member.status)"
+                  />
+                </div>
+
+                <!-- 用户信息 -->
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1">
+                    <!-- 角色图标 -->
+                    <component
+                      v-if="getRoleIcon(member.role)"
+                      :is="getRoleIcon(member.role)"
+                      class="h-3 w-3 flex-shrink-0"
+                      :class="getRoleColor(member.role)"
+                    />
+                    <span
+                      class="truncate text-sm font-medium"
+                      :class="getRoleColor(member.role)"
+                    >
+                      {{ member.nickname }}
+                    </span>
+                  </div>
+                  <div
+                    v-if="member.statusText"
+                    class="truncate text-xs text-muted-foreground"
+                  >
+                    {{ member.statusText }}
+                  </div>
+                </div>
+
+                <!-- 语音状态 -->
+                <div
+                  v-if="member.isInVoice"
+                  class="flex items-center gap-0.5"
+                >
+                  <component
+                    :is="member.isMuted ? VolumeX : Volume2"
+                    class="h-3 w-3 text-muted-foreground"
+                  />
+                </div>
+              </Button>
 
               <!-- 操作按钮 -->
               <div
@@ -327,41 +335,47 @@ const getRoleColor = (role: ChatMember['role']) => {
             <div
               v-for="member in offlineMembers"
               :key="member.id"
-              class="group flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors opacity-60"
-              @click="emit('view-profile', member)"
+              class="group flex items-center gap-1 rounded-md opacity-60 transition-colors hover:bg-muted/50"
             >
-              <!-- 头像 -->
-              <div class="relative flex-shrink-0">
-                <Avatar class="h-8 w-8 grayscale">
-                  <AvatarImage
-                    :src="member.avatar"
-                    :alt="member.nickname"
+              <Button
+                type="button"
+                variant="ghost"
+                class="h-auto min-w-0 flex-1 justify-start gap-2 p-2 text-left"
+                @click="emit('view-profile', member)"
+              >
+                <!-- 头像 -->
+                <div class="relative flex-shrink-0">
+                  <Avatar class="h-8 w-8 grayscale">
+                    <AvatarImage
+                      :src="member.avatar"
+                      :alt="member.nickname"
+                    />
+                    <AvatarFallback>{{
+                      member.nickname.slice(0, 2)
+                    }}</AvatarFallback>
+                  </Avatar>
+                  <div
+                    class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-gray-400"
                   />
-                  <AvatarFallback>{{
-                    member.nickname.slice(0, 2)
-                  }}</AvatarFallback>
-                </Avatar>
-                <div
-                  class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-gray-400"
-                />
-              </div>
-
-              <!-- 用户信息 -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-1">
-                  <component
-                    v-if="getRoleIcon(member.role)"
-                    :is="getRoleIcon(member.role)"
-                    class="h-3 w-3 flex-shrink-0"
-                    :class="getRoleColor(member.role)"
-                  />
-                  <span
-                    class="text-sm font-medium truncate"
-                  >
-                    {{ member.nickname }}
-                  </span>
                 </div>
-              </div>
+
+                <!-- 用户信息 -->
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1">
+                    <component
+                      v-if="getRoleIcon(member.role)"
+                      :is="getRoleIcon(member.role)"
+                      class="h-3 w-3 flex-shrink-0"
+                      :class="getRoleColor(member.role)"
+                    />
+                    <span
+                      class="truncate text-sm font-medium"
+                    >
+                      {{ member.nickname }}
+                    </span>
+                  </div>
+                </div>
+              </Button>
 
               <!-- 操作按钮 -->
               <div
@@ -425,6 +439,7 @@ const getRoleColor = (role: ChatMember['role']) => {
           </div>
         </CollapsibleContent>
       </Collapsible>
-    </div>
+      </div>
+    </ScrollArea>
   </div>
 </template>

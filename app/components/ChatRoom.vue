@@ -22,6 +22,7 @@ import {
   Maximize2
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -95,6 +96,7 @@ const emit = defineEmits<{
   (e: 'pin', messageId: number): void;
   (e: 'toggle-mute'): void;
   (e: 'search', query: string): void;
+  (e: 'view-profile', userId: number): void;
   (e: 'open-direct-message', member: ChatMember): void;
   (e: 'open-direct-message-standalone', member: ChatMember): void;
   (
@@ -398,29 +400,31 @@ onBeforeUnmount(() => {
                   >
                     {{ t('chat.message.noPinnedMessages') }}
                   </div>
-                  <div
+                  <Card
                     v-for="msg in pinnedMessages"
                     :key="msg.id"
-                    class="p-3 bg-muted rounded-lg"
+                    class="gap-0 bg-muted/50 py-0 shadow-xs"
                   >
-                    <div
-                      class="flex items-center gap-2 mb-1"
-                    >
-                      <span class="font-medium text-sm">{{
-                        msg.author.nickname
-                      }}</span>
-                      <span
-                        class="text-xs text-muted-foreground"
+                    <CardContent class="p-3">
+                      <div
+                        class="mb-1 flex items-center gap-2"
                       >
-                        {{
-                          new Date(
-                            msg.createdAt
-                          ).toLocaleDateString()
-                        }}
-                      </span>
-                    </div>
-                    <p class="text-sm">{{ msg.content }}</p>
-                  </div>
+                        <span class="text-sm font-medium">{{
+                          msg.author.nickname
+                        }}</span>
+                        <span
+                          class="text-xs text-muted-foreground"
+                        >
+                          {{
+                            new Date(
+                              msg.createdAt
+                            ).toLocaleDateString()
+                          }}
+                        </span>
+                      </div>
+                      <p class="text-sm">{{ msg.content }}</p>
+                    </CardContent>
+                  </Card>
                 </div>
               </SheetContent>
             </Sheet>
@@ -453,22 +457,24 @@ onBeforeUnmount(() => {
                   </SheetTitle>
                 </SheetHeader>
                 <div class="mt-6 space-y-4">
-                  <div
-                    class="flex items-center justify-between gap-4 rounded-md border p-3"
-                  >
-                    <div class="space-y-1">
-                      <Label>
-                        {{ t('chat.notifications.muteLabel') }}
-                      </Label>
-                      <p class="text-sm text-muted-foreground">
-                        {{ t('chat.notifications.muteDescription') }}
-                      </p>
-                    </div>
-                    <Switch
-                      :model-value="channel.isMuted"
-                      @update:model-value="emit('toggle-mute')"
-                    />
-                  </div>
+                  <Card class="gap-0 py-0">
+                    <CardContent
+                      class="flex items-center justify-between gap-4 p-3"
+                    >
+                      <div class="space-y-1">
+                        <Label>
+                          {{ t('chat.notifications.muteLabel') }}
+                        </Label>
+                        <p class="text-sm text-muted-foreground">
+                          {{ t('chat.notifications.muteDescription') }}
+                        </p>
+                      </div>
+                      <Switch
+                        :model-value="channel.isMuted"
+                        @update:model-value="emit('toggle-mute')"
+                      />
+                    </CardContent>
+                  </Card>
                 </div>
               </SheetContent>
             </Sheet>
@@ -578,6 +584,7 @@ onBeforeUnmount(() => {
                     emit('react', id, emoji)
                 "
                 @copy="handleCopy"
+                @view-profile="emit('view-profile', $event)"
               />
             </div>
 
@@ -637,6 +644,7 @@ onBeforeUnmount(() => {
       :current-user-id="currentUserId"
       class="hidden lg:flex"
       @message="openDirectMessage"
+      @view-profile="member => emit('view-profile', member.id)"
     />
 
     <Dialog v-model:open="callDialogOpen">
@@ -758,8 +766,9 @@ onBeforeUnmount(() => {
             </div>
           </ScrollArea>
 
-          <div class="rounded-2xl border bg-card p-3 shadow-sm">
-            <div class="flex items-center gap-3 rounded-full border bg-background/90 px-3 py-2">
+          <Card class="gap-0 rounded-2xl py-0">
+            <CardContent class="p-3">
+              <div class="flex items-center gap-3 rounded-full border bg-background/90 px-3 py-2">
               <Input
                 v-model="directMessageContent"
                 :placeholder="t('chat.directMessage.placeholder', { user: directMessageTarget.nickname })"
@@ -774,8 +783,9 @@ onBeforeUnmount(() => {
               >
                 {{ isSendingDirectMessage ? t('common.processing') : t('chat.actions.sendMessage') }}
               </AppSendButton>
-            </div>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </SheetContent>
     </Sheet>

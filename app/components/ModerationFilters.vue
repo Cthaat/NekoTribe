@@ -2,13 +2,13 @@
 import { ref, watch } from 'vue';
 import {
   Search,
-  Filter,
   Calendar,
   X
 } from 'lucide-vue-next';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -16,11 +16,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from '@/components/ui/popover';
 
 interface SelectOption {
   value: string;
@@ -133,7 +128,9 @@ const statusOptions: SelectOption[] = [
   { value: 'pending', labelKey: 'moderation.status.pending' },
   { value: 'approved', labelKey: 'moderation.status.approved' },
   { value: 'rejected', labelKey: 'moderation.status.rejected' },
-  { value: 'flagged', labelKey: 'moderation.status.flagged' }
+  { value: 'flagged', labelKey: 'moderation.status.flagged' },
+  { value: 'removed', labelKey: 'moderation.status.removed' },
+  { value: 'restored', labelKey: 'moderation.status.restored' }
 ];
 
 // 举报原因选项
@@ -203,11 +200,12 @@ const getOptionLabel = (
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <Card class="gap-0 bg-card/70 py-0">
+    <CardContent class="p-4">
     <!-- 搜索和主要过滤器 -->
     <div class="flex flex-wrap items-center gap-3">
       <!-- 搜索框 -->
-      <div class="relative flex-1 min-w-[200px] max-w-md">
+      <div class="relative min-w-[220px] flex-1">
         <Search
           class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
         />
@@ -224,7 +222,7 @@ const getOptionLabel = (
         :model-value="localFilters.status"
         @update:model-value="updateStatus"
       >
-        <SelectTrigger class="w-[140px]">
+        <SelectTrigger class="w-full min-w-[150px] sm:w-[150px]">
           <SelectValue
             :placeholder="
               t('moderation.filters.statusPlaceholder')
@@ -247,7 +245,7 @@ const getOptionLabel = (
         :model-value="localFilters.reportReason"
         @update:model-value="updateReportReason"
       >
-        <SelectTrigger class="w-[140px]">
+        <SelectTrigger class="w-full min-w-[160px] sm:w-[160px]">
           <SelectValue
             :placeholder="
               t('moderation.filters.reportReasonPlaceholder')
@@ -270,7 +268,7 @@ const getOptionLabel = (
         :model-value="localFilters.dateRange"
         @update:model-value="updateDateRange"
       >
-        <SelectTrigger class="w-[140px]">
+        <SelectTrigger class="w-full min-w-[150px] sm:w-[150px]">
           <Calendar class="h-4 w-4 mr-2" />
           <SelectValue
             :placeholder="
@@ -294,7 +292,7 @@ const getOptionLabel = (
         :model-value="localFilters.sortBy"
         @update:model-value="updateSortBy"
       >
-        <SelectTrigger class="w-[140px]">
+        <SelectTrigger class="w-full min-w-[170px] sm:w-[170px]">
           <SelectValue
             :placeholder="t('moderation.filters.sortPlaceholder')"
           />
@@ -326,7 +324,7 @@ const getOptionLabel = (
     <!-- 活动过滤器标签 -->
     <div
       v-if="hasActiveFilters()"
-      class="flex flex-wrap items-center gap-2"
+      class="mt-4 flex flex-wrap items-center gap-2 border-t pt-3"
     >
       <span class="text-sm text-muted-foreground"
         >{{ t('moderation.filters.current') }}</span
@@ -397,5 +395,6 @@ const getOptionLabel = (
         <X class="h-3 w-3" />
       </Badge>
     </div>
-  </div>
+    </CardContent>
+  </Card>
 </template>

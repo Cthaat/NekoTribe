@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppSidebar from '@/components/AppSidebar.vue';
+import AppGlobalSearch from '@/components/AppGlobalSearch.vue';
 import {
   SidebarInset,
   SidebarProvider,
@@ -21,6 +22,9 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
       >
         <div class="flex items-center gap-2">
           <SidebarTrigger class="-ml-1" />
+        </div>
+        <div class="hidden min-w-0 flex-1 sm:block">
+          <AppGlobalSearch class="mx-auto max-w-md" />
         </div>
         <div class="flex items-center gap-1">
           <LanguageTriggerIcon />
