@@ -149,12 +149,21 @@ export default defineNuxtConfig({
     smtpPort: process.env.SMTP_PORT,
     smtpUser: process.env.SMTP_USER,
     smtpPass: process.env.SMTP_PASS,
+    // SentimentFlow 外部情感分析服务
+    sentimentFlowEnabled:
+      process.env.SENTIMENTFLOW_ENABLED === 'true',
+    sentimentFlowBaseUrl:
+      process.env.SENTIMENTFLOW_BASE_URL || '',
+    sentimentFlowTimeoutMs:
+      process.env.SENTIMENTFLOW_TIMEOUT_MS || '10000',
     nlsLang: process.env.NLS_LANG,
     public: {
       wsUrl:
         process.env.NUXT_PUBLIC_WS_URL ||
         'ws://localhost:3000/_ws',
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || ''
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || '',
+      sentimentFlowEnabled:
+        process.env.SENTIMENTFLOW_ENABLED === 'true'
     }
   }
 });

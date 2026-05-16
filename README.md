@@ -304,11 +304,163 @@ Access:
 
 - App container port: `http://localhost:30001`
 - Nginx reverse proxy and upload static: `http://localhost:30002`
+- SentimentFlow backend API: `http://localhost:8846/health`, `http://localhost:8846/docs`
+- SentimentFlow frontend UI: `http://localhost:30008`
 - Oracle listener port: `localhost:5501`
 - Oracle EM Express: `http://localhost:5500/em`
 
 Oracle usually needs a few minutes on first boot. If the Oracle image fails to pull, run `docker login container-registry.oracle.com`, accept the database image license in the Oracle Container Registry; or use an external Oracle instance and update `.env`.
 You can also switch `ORACLE_IMAGE` in `.env` to a domestic mirror, for example `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c`.
+
+## SentimentFlow Runtime
+
+SentimentFlow is included in both Compose files as two services:
+
+- `sentimentflow`: FastAPI backend for prediction, training, models, and statistics.
+- `sentimentflow-frontend`: Next.js frontend UI that talks to the backend through `BACKEND_API_URL`.
+
+Keep the NekoTribe proxy enabled in `.env` when the app should call the sentiment-analysis backend:
+
+```env
+SENTIMENTFLOW_ENABLED=true
+SENTIMENTFLOW_HOST_PORT=8846
+SENTIMENTFLOW_CONTAINER_PORT=8846
+SENTIMENTFLOW_FRONTEND_HOST_PORT=30008
+SENTIMENTFLOW_FRONTEND_CONTAINER_PORT=3000
+```
+
+Port changes are centralized in `.env`. `SENTIMENTFLOW_HOST_PORT` controls host/browser access to the backend, for example `http://localhost:${SENTIMENTFLOW_HOST_PORT}/docs`; `SENTIMENTFLOW_CONTAINER_PORT` controls the backend process port, Docker target port, backend healthcheck, NekoTribe app-to-backend URL, and the frontend container's `BACKEND_API_URL`. `SENTIMENTFLOW_FRONTEND_HOST_PORT` controls host/browser access to the SentimentFlow UI, and `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` controls the Next.js server port inside the frontend container.
+
+### Docker Deployment: GHCR Images
+
+`docker-compose.yml` pulls the published GitHub Container Registry images:
+
+- Backend: `ghcr.io/cthaat/sentimentflow-backend:latest`
+- Frontend: `ghcr.io/cthaat/sentimentflow-frontend:latest`
+
+```bash
+cp .env.example .env
+docker compose pull sentimentflow sentimentflow-frontend
+docker compose up -d
+```
+
+PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+docker compose pull sentimentflow sentimentflow-frontend
+docker compose up -d
+```
+
+If the backend image appears stuck at `Pulling`, stop the current Compose command first and use the progress helper. It prints the remote image layers before pulling and then uses Compose plain progress:
+
+```powershell
+.\scripts\pull-sentimentflow-remote.ps1
+```
+
+After the pull finishes, the script can also start the stack without pulling again:
+
+```powershell
+.\scripts\pull-sentimentflow-remote.ps1 -Up
+```
+
+Default URLs:
+
+- NekoTribe app: `http://localhost:30001`
+- SentimentFlow backend health: `http://localhost:8846/health`
+- SentimentFlow backend docs: `http://localhost:8846/docs`
+- SentimentFlow frontend UI: `http://localhost:30008`
+
+To pin an automatic build, set image variables to specific tags in `.env`, for example:
+
+```env
+SENTIMENTFLOW_IMAGE=ghcr.io/cthaat/sentimentflow-backend:sha-a7f50e1
+SENTIMENTFLOW_FRONTEND_IMAGE=ghcr.io/cthaat/sentimentflow-frontend:sha-a7f50e1
+```
+
+### Docker Deployment: Build From GitHub
+
+`docker-compose.local.yml` builds NekoTribe locally and builds both SentimentFlow services from the Git source configured by `SENTIMENTFLOW_GIT_REPO` and `SENTIMENTFLOW_GIT_REF`. This avoids Docker Compose remote build-context path issues on Windows because the inline Dockerfiles clone the repository inside the build stage.
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+To rebuild only SentimentFlow:
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build sentimentflow sentimentflow-frontend
+```
+
+`SENTIMENTFLOW_GIT_REPO` defaults to `https://github.com/Cthaat/SentimentFlow.git`, and `SENTIMENTFLOW_GIT_REF` defaults to `main`; change `SENTIMENTFLOW_GIT_REF` to another branch, tag, or commit when needed. For example, use `SENTIMENTFLOW_GIT_REF=1d3ecf9` to build that commit. Model artifacts are kept in the `sentimentflow-models` Docker volume or the local `./sentimentflow-models` folder in local-build mode.
+
+`SENTIMENTFLOW_PIP_INDEX_URL` and `SENTIMENTFLOW_TORCH_INDEX_URL` both default to `https://pypi.org/simple` for the local backend build. The backend installs torch in its own cacheable layer so CUDA-capable torch dependencies can be reused across rebuilds instead of being downloaded every time. If package downloads are slow, you can change the PyPI index to a mirror, but hash mismatch errors usually mean the mirror or network returned a different file, so switch back to the official index before retrying.
+
+CUDA training requires Docker GPU access. The Compose files request all available GPUs for the `sentimentflow` backend with `gpus: all`, pass `NVIDIA_DRIVER_CAPABILITIES=compute,utility` into the container, and use `SENTIMENTFLOW_GPUS` for `NVIDIA_VISIBLE_DEVICES`. Before training, verify that your NVIDIA driver, Docker Desktop/Engine GPU support, and CUDA container runtime are working.
+
+### Non-Docker SentimentFlow Deployment
+
+Use this when NekoTribe runs on the host and only Oracle/Redis are in Docker, or when SentimentFlow is started manually.
+
+1. Start NekoTribe host development dependencies:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up -d redis oracle19c db-init
+```
+
+2. Start the SentimentFlow backend:
+
+```powershell
+git clone https://github.com/Cthaat/SentimentFlow.git
+Set-Location SentimentFlow\backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:SENTIMENTFLOW_PROJECT_ROOT = (Resolve-Path ..)
+$env:SENTIMENTFLOW_CONTAINER_PORT = "8846"
+uvicorn app.main:app --host 0.0.0.0 --port 8846
+```
+
+3. Start the SentimentFlow frontend in another terminal:
+
+```powershell
+Set-Location SentimentFlow\frontend
+corepack enable
+yarn install --frozen-lockfile
+$env:BACKEND_API_URL = "http://localhost:8846"
+$env:BACKEND_API_TIMEOUT_MS = "10000"
+yarn dev --hostname 0.0.0.0 --port 30008
+```
+
+For a production-style frontend outside Docker:
+
+```powershell
+yarn build
+$env:PORT = "30008"
+$env:HOSTNAME = "0.0.0.0"
+$env:BACKEND_API_URL = "http://localhost:8846"
+yarn start
+```
+
+4. In NekoTribe `.env`, keep `SENTIMENTFLOW_BASE_URL` empty when using the default backend host port, or set it explicitly when the backend is elsewhere:
+
+```env
+SENTIMENTFLOW_ENABLED=true
+SENTIMENTFLOW_BASE_URL=
+SENTIMENTFLOW_HOST_PORT=8846
+SENTIMENTFLOW_CONTAINER_PORT=8846
+```
+
+Then run `yarn dev`. Verify `http://localhost:8846/health`, `http://localhost:8846/docs`, `http://localhost:30008`, and NekoTribe's SentimentFlow integration page.
 
 ## Scripts
 
@@ -316,6 +468,7 @@ You can also switch `ORACLE_IMAGE` in `.env` to a domestic mirror, for example `
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `scripts/dev.sh`              | If `.env` is missing, copy template, start Redis/Oracle containers, install dependencies, then run `yarn dev`. |
 | `scripts/start.sh`            | If `.env` is missing, copy template, then build and start full Docker stack.                                   |
+| `scripts/pull-sentimentflow-remote.ps1` | Show remote GHCR image layer sizes, pull NekoTribe and SentimentFlow images with plain progress, and optionally start without pulling again. |
 | `scripts/init-db.sh`          | Manual fallback for executing `doc/neko_tribe-oracle-v2.sql` outside the default Compose flow.                 |
 | `scripts/docker-init-db.sh`   | Internal Compose entrypoint used by the `db-init` service.                                                     |
 | `scripts/dev.ps1`             | PowerShell equivalent of `scripts/dev.sh`.                                                                     |
@@ -376,6 +529,26 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | `NUXT_PUBLIC_WS_URL`      | No          | `ws://localhost:3000/_ws`         | Public WebSocket URL for local client.                          |
 | `DOCKER_PUBLIC_WS_URL`    | Docker      | `ws://localhost:30001/_ws`        | Public WebSocket URL for Docker mode.                           |
 | `NUXT_PUBLIC_API_BASE`    | No          | empty                             | Client API base; empty means same origin.                       |
+| `SENTIMENTFLOW_ENABLED`   | No          | `true`                            | Toggle SentimentFlow integration and proxy access.              |
+| `SENTIMENTFLOW_BASE_URL`  | No          | empty                             | Optional external SentimentFlow URL override; leave empty to derive host-dev access from `SENTIMENTFLOW_HOST_PORT`. |
+| `SENTIMENTFLOW_TIMEOUT_MS` | No         | `10000`                           | Upstream proxy timeout in milliseconds.                         |
+| `SENTIMENTFLOW_IMAGE`     | Docker      | `ghcr.io/cthaat/sentimentflow-backend:latest` | GHCR image pulled by `docker-compose.yml`.                      |
+| `SENTIMENTFLOW_LOCAL_IMAGE` | Docker local | `sentimentflow-backend:local`   | Local image tag produced by `docker-compose.local.yml`.         |
+| `SENTIMENTFLOW_FRONTEND_IMAGE` | Docker | `ghcr.io/cthaat/sentimentflow-frontend:latest` | SentimentFlow frontend GHCR image pulled by `docker-compose.yml`. |
+| `SENTIMENTFLOW_FRONTEND_LOCAL_IMAGE` | Docker local | `sentimentflow-frontend:local` | SentimentFlow frontend image tag produced by `docker-compose.local.yml`. |
+| `SENTIMENTFLOW_GIT_REPO` | Docker local | `https://github.com/Cthaat/SentimentFlow.git` | Git repository fetched inside the `docker-compose.local.yml` image build. |
+| `SENTIMENTFLOW_GIT_REF` | Docker local | `main` | Git branch, tag, or commit fetched for local SentimentFlow builds. |
+| `SENTIMENTFLOW_PIP_INDEX_URL` | Docker local | `https://pypi.org/simple` | Python package index used by the local SentimentFlow backend build. |
+| `SENTIMENTFLOW_TORCH_INDEX_URL` | Docker local | `https://pypi.org/simple` | PyTorch package index used by the local SentimentFlow backend build; default keeps CUDA-capable torch available. |
+| `SENTIMENTFLOW_TORCH_PACKAGE` | Docker local | `torch` | Torch package spec installed before the remaining backend requirements so Docker can cache the heavy CUDA dependency layer. |
+| `SENTIMENTFLOW_GPUS` | Docker | `all` | Value passed to `NVIDIA_VISIBLE_DEVICES`; Compose itself uses schema-valid `gpus: all`. |
+| `SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES` | Docker | `compute,utility` | NVIDIA driver capabilities exposed to the SentimentFlow backend container for CUDA training. |
+| `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT` | Docker | `/workspace`             | SentimentFlow project root inside the image/container.          |
+| `SENTIMENTFLOW_MODELS_DIR` | Docker      | `/workspace/models`               | Persistent model artifact mount target in the SentimentFlow container. |
+| `SENTIMENTFLOW_HOST_PORT` | Docker      | `8846`                            | Host/browser port for SentimentFlow; change this for `localhost:<port>` access. |
+| `SENTIMENTFLOW_CONTAINER_PORT` | Docker | `8846`                            | Container/internal port used by Uvicorn, Docker target port, healthcheck, and app-to-SentimentFlow Compose URL. |
+| `SENTIMENTFLOW_FRONTEND_HOST_PORT` | Docker | `30008`                    | Host/browser port for the SentimentFlow frontend UI.            |
+| `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` | Docker | `3000`                  | Container/internal port used by the Next.js frontend server, Docker target port, and frontend healthcheck. |
 
 ## External Services
 
@@ -387,6 +560,7 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | Nginx               | Serve `/upload/` files and reverse proxy in Docker mode.                           | Included in `docker compose up -d`.                                                         | `nginx/nginx.compose.conf` for Docker; `nginx/nginx.conf` for host dev proxy. |
 | File Upload Storage | Store user avatars and media files.                                                | Create under `upload/` as needed; git-ignored.                                              | Mount to `/usr/share/nginx/upload` in Nginx.                                  |
 | Media Toolchain     | Validate images/video/audio and generate legacy thumbnails.                        | Docker image includes `ffmpeg`; host legacy flow needs system `ffmpeg`.                     | `sharp`, `file-type`, `ffprobe-static`, optional system `ffmpeg`.             |
+| SentimentFlow backend + frontend | External sentiment analysis API and UI for predict, training, models, and admin operations. | GHCR mode: `docker compose up -d`; local build mode: `docker compose -f docker-compose.local.yml up -d --build`. | `SENTIMENTFLOW_*`; backend ports use `SENTIMENTFLOW_HOST_PORT` / `SENTIMENTFLOW_CONTAINER_PORT`, frontend ports use `SENTIMENTFLOW_FRONTEND_HOST_PORT` / `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT`. |
 
 Note: `doc/neko_tribe-oracle-v2.sql` is the current v2 dev baseline and is mounted into the `db-init` service. Files under `data/oracle-init/` are kept as historical group-module scripts because these scripts are not a full DB baseline.
 
