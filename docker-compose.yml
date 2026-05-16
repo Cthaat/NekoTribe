@@ -130,7 +130,7 @@ services:
     ports:
       - '${SENTIMENTFLOW_HOST_PORT:-8846}:${SENTIMENTFLOW_CONTAINER_PORT:-8846}'
     volumes:
-      - sentimentflow-models:${SENTIMENTFLOW_MODELS_DIR:-/workspace/models}
+      - ./sentimentflow-models:${SENTIMENTFLOW_MODELS_DIR:-/workspace/models}
     networks:
       - neko-network
     healthcheck:
