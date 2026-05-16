@@ -35,6 +35,7 @@ import {
   v2RequireGroup,
   v2RequirePublicUser
 } from '~/server/models/v2';
+import { v2CreateNotification } from './notifications';
 
 function v2Slug(name: string, id: number): string {
   const base =
@@ -1614,6 +1615,32 @@ function v2InviteCode(): string {
     .toUpperCase();
 }
 
+async function v2GroupInviteNotificationNames(
+  connection: oracledb.Connection,
+  groupId: number,
+  inviterId: number
+): Promise<{ groupName: string; inviterName: string }> {
+  const row = await v2One(
+    connection,
+    `
+    SELECT
+      g.name AS group_name,
+      COALESCE(u.display_name, u.username) AS inviter_name
+    FROM n_groups g
+    JOIN n_users u ON u.user_id = :inviter_id
+    WHERE g.group_id = :group_id
+    `,
+    {
+      group_id: groupId,
+      inviter_id: inviterId
+    }
+  );
+  return {
+    groupName: v2String(row?.GROUP_NAME, '群组'),
+    inviterName: v2String(row?.INVITER_NAME, '有人')
+  };
+}
+
 export async function v2CreateGroupInvite(
   event: H3Event,
   connection: oracledb.Connection,
@@ -1689,6 +1716,29 @@ export async function v2CreateGroupInvite(
     `,
     { invite_id: inviteId }
   );
+  if (payload.invitee_id) {
+    const { groupName, inviterName } =
+      await v2GroupInviteNotificationNames(
+        connection,
+        groupId,
+        auth.userId
+      );
+    await v2CreateNotification(connection, {
+      userId: payload.invitee_id,
+      actorId: auth.userId,
+      type: 'group_invite',
+      title: `${inviterName} 邀请你加入 ${groupName}`,
+      message: payload.message || '你收到了一条新的群组邀请。',
+      resourceType: 'group_invite',
+      resourceId: inviteId,
+      priority: 'normal',
+      metadata: {
+        group_id: groupId,
+        invite_id: inviteId,
+        event: 'group_invite_created'
+      }
+    });
+  }
   return v2Ok(
     {
       invite_id: inviteId,

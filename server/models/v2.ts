@@ -30,6 +30,13 @@ function v2RelationObject(relation: string): V2Relationship {
   };
 }
 
+function v2OnlineStatus(value: unknown): 'online' | 'offline' | 'hidden' {
+  if (value === 'online' || value === 'hidden') {
+    return value;
+  }
+  return 'offline';
+}
+
 export function v2MapPublicUser(row: V2DbRecord): V2PublicUser {
   return {
     user_id: v2Number(row.USER_ID),
@@ -46,7 +53,12 @@ export function v2MapPublicUser(row: V2DbRecord): V2PublicUser {
     following_count: v2Number(row.FOLLOWING_COUNT),
     posts_count: v2Number(row.POSTS_COUNT),
     likes_count: v2Number(row.LIKES_COUNT),
-    relationship: v2RelationObject(v2String(row.RELATION, 'none'))
+    relationship: v2RelationObject(v2String(row.RELATION, 'none')),
+    online_status: v2OnlineStatus(row.ONLINE_STATUS),
+    last_seen_at:
+      v2OnlineStatus(row.ONLINE_STATUS) === 'hidden'
+        ? null
+        : v2DateString(row.LAST_SEEN_AT)
   };
 }
 
@@ -73,22 +85,43 @@ export async function v2GetPublicUser(
     connection,
     `
     SELECT
-      user_id,
-      username,
-      avatar_url,
-      display_name,
-      bio,
-      location,
-      website,
-      is_verified,
-      followers_count,
-      following_count,
-      posts_count,
-      likes_count,
-      fn_get_user_relationship(:viewer_id, user_id) AS relation
-    FROM v_user_profile_public
-    WHERE user_id = :user_id
-      AND is_active = 1
+      u.user_id,
+      u.username,
+      u.avatar_url,
+      u.display_name,
+      u.bio,
+      u.location,
+      u.website,
+      u.is_verified,
+      u.followers_count,
+      u.following_count,
+      u.posts_count,
+      u.likes_count,
+      CASE
+        WHEN NVL(us.show_online_status, 1) = 0 THEN 'hidden'
+        WHEN EXISTS (
+          SELECT 1
+          FROM n_auth_sessions s
+          WHERE s.user_id = u.user_id
+            AND s.revoked_at IS NULL
+            AND s.last_accessed_at >= CURRENT_TIMESTAMP - NUMTODSINTERVAL(90, 'SECOND')
+        ) THEN 'online'
+        ELSE 'offline'
+      END AS online_status,
+      CASE
+        WHEN NVL(us.show_online_status, 1) = 0 THEN NULL
+        ELSE (
+          SELECT MAX(s.last_accessed_at)
+          FROM n_auth_sessions s
+          WHERE s.user_id = u.user_id
+            AND s.revoked_at IS NULL
+        )
+      END AS last_seen_at,
+      fn_get_user_relationship(:viewer_id, u.user_id) AS relation
+    FROM v_user_profile_public u
+    LEFT JOIN n_user_settings us ON us.user_id = u.user_id
+    WHERE u.user_id = :user_id
+      AND u.is_active = 1
     `,
     { viewer_id: viewerId, user_id: userId }
   );
@@ -137,11 +170,18 @@ export async function v2GetSelfUser(
       likes_count,
       bookmarks_count,
       comments_count,
+      'online' AS online_status,
+      (
+        SELECT MAX(s.last_accessed_at)
+        FROM n_auth_sessions s
+        WHERE s.user_id = u.user_id
+          AND s.revoked_at IS NULL
+      ) AS last_seen_at,
       created_at,
       updated_at,
-      fn_get_user_relationship(:viewer_id, user_id) AS relation
-    FROM v_user_profile_self
-    WHERE user_id = :user_id
+      fn_get_user_relationship(:viewer_id, u.user_id) AS relation
+    FROM v_user_profile_self u
+    WHERE u.user_id = :user_id
     `,
     { viewer_id: userId, user_id: userId }
   );

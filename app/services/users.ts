@@ -77,7 +77,9 @@ export function mapPublicUser(dto: V2PublicUser): PublicUserVM {
       isBlocked: dto.relationship.is_blocked,
       isBlocking: dto.relationship.is_blocking,
       relation: dto.relationship.relation
-    }
+    },
+    onlineStatus: dto.online_status,
+    lastSeenAt: dto.last_seen_at
   };
 }
 

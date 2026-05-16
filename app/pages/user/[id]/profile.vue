@@ -45,6 +45,8 @@ interface AccountHeaderUser {
     likesCount: number;
   };
   point: number;
+  onlineStatus: 'online' | 'offline' | 'hidden';
+  lastSeenAt: string | null;
 }
 
 interface UserAnalyticsData {
@@ -70,7 +72,9 @@ const user = ref<AccountHeaderUser>({
     followingCount: 0,
     likesCount: 0
   },
-  point: 0
+  point: 0,
+  onlineStatus: 'hidden',
+  lastSeenAt: null
 });
 
 const baseAccountTabs: Array<{ name: string; to: string }> = [];
@@ -113,6 +117,8 @@ async function loadUserProfile() {
     user.value.title = publicUser.username;
     user.value.location = publicUser.location;
     user.value.avatar = publicUser.avatarUrl;
+    user.value.onlineStatus = publicUser.onlineStatus;
+    user.value.lastSeenAt = publicUser.lastSeenAt;
     user.value.stats.followersCount =
       publicUser.followersCount;
     user.value.stats.followingCount =

@@ -599,7 +599,8 @@
       "online": "在线",
       "idle": "离开",
       "dnd": "请勿打扰",
-      "offline": "离线"
+      "offline": "离线",
+      "lastSeen": "最后在线 {time}"
     },
     "input": {
       "placeholder": "在 #{channel} 中发送消息..."
@@ -1354,7 +1355,8 @@
       "following": "关注",
       "likes": "获赞",
       "activeScore": "活跃分",
-      "moreActions": "更多操作"
+      "moreActions": "更多操作",
+      "lastSeen": "最后在线 {time}"
     },
     "follow": {
       "success": "已关注 {name}。",

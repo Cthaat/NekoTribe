@@ -80,7 +80,8 @@ export function mapV2ChatMember(
     nickname: member.display_name || member.username,
     avatar: normalizeAvatarUrl(member.avatar_url),
     role: member.role,
-    status: member.online_status
+    status: member.online_status === 'online' ? 'online' : 'offline',
+    lastSeenAt: member.last_seen_at
   };
 }
 

@@ -17,6 +17,7 @@ import {
   v2BadRequest,
   v2Body,
   v2Conflict,
+  v2Count,
   v2DateString,
   v2Execute,
   v2Forbidden,
@@ -36,6 +37,7 @@ import {
   v2UserAgent
 } from '~/server/utils/v2';
 import { v2RequireSelfUser } from '~/server/models/v2';
+import { v2CreateNotification } from './notifications';
 
 const OTP_EXPIRES_SECONDS = 300;
 
@@ -65,6 +67,84 @@ async function v2SendMail(
     subject: options.subject,
     text: options.text,
     html: options.html
+  });
+}
+
+function v2EscapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+async function v2SendLoginAlert(
+  event: H3Event,
+  connection: oracledb.Connection,
+  userId: number,
+  sessionId: string,
+  deviceInfo: string,
+  deviceFingerprint: string,
+  isNewDevice: boolean
+): Promise<void> {
+  if (!isNewDevice) return;
+
+  const row = await v2One(
+    connection,
+    `
+    SELECT
+      u.email,
+      NVL(us.login_alerts, 1) AS login_alerts,
+      NVL(us.email_notification_enabled, 1) AS email_notification_enabled
+    FROM n_users u
+    LEFT JOIN n_user_settings us ON us.user_id = u.user_id
+    WHERE u.user_id = :user_id
+    `,
+    { user_id: userId }
+  );
+  if (!v2Boolean(row?.LOGIN_ALERTS ?? 1)) return;
+
+  const ipAddress = v2RequestIp(event);
+  const userAgent = v2UserAgent(event);
+  const title = '新设备登录提醒';
+  const message = `你的账号刚刚通过新设备登录：${deviceInfo || 'unknown'}`;
+
+  await v2CreateNotification(connection, {
+    userId,
+    actorId: null,
+    type: 'login_alert',
+    title,
+    message,
+    resourceType: 'auth_session',
+    resourceId: null,
+    priority: 'high',
+    metadata: {
+      session_id: sessionId,
+      device_info: deviceInfo,
+      device_fingerprint: deviceFingerprint,
+      ip_address: ipAddress,
+      user_agent: userAgent
+    }
+  });
+
+  if (!v2Boolean(row?.EMAIL_NOTIFICATION_ENABLED ?? 1)) {
+    return;
+  }
+
+  const email = v2String(row?.EMAIL);
+  if (!email) return;
+
+  await v2SendMail({
+    to: email,
+    subject: title,
+    text: `${message}\nIP: ${ipAddress}\nUser-Agent: ${userAgent}`,
+    html: `
+      <p>${v2EscapeHtml(message)}</p>
+      <p><strong>IP:</strong> ${v2EscapeHtml(ipAddress)}</p>
+      <p><strong>User-Agent:</strong> ${v2EscapeHtml(userAgent)}</p>
+      <p>如果这不是你本人操作，请尽快修改密码并注销其他设备。</p>
+    `
   });
 }
 
@@ -595,6 +675,19 @@ export async function v2Login(
     getHeader(event, 'x-device-fingerprint'),
     'unknown'
   );
+  const knownDeviceCount = await v2Count(
+    connection,
+    `
+    SELECT COUNT(*) AS total
+    FROM n_auth_sessions
+    WHERE user_id = :user_id
+      AND device_fingerprint = :device_fingerprint
+    `,
+    {
+      user_id: userId,
+      device_fingerprint: deviceFingerprint
+    }
+  );
 
   await v2Execute(
     connection,
@@ -648,6 +741,20 @@ export async function v2Login(
   );
 
   v2SetAuthCookies(event, accessToken, refreshToken);
+
+  try {
+    await v2SendLoginAlert(
+      event,
+      connection,
+      userId,
+      sessionId,
+      deviceInfo,
+      deviceFingerprint,
+      knownDeviceCount === 0
+    );
+  } catch (error) {
+    console.error('[auth] login alert failed', error);
+  }
 
   return v2Ok(
     {

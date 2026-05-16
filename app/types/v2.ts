@@ -92,6 +92,8 @@ export interface V2PublicUser {
   posts_count: number;
   likes_count: number;
   relationship: V2Relationship;
+  online_status: 'online' | 'offline' | 'hidden';
+  last_seen_at: string | null;
 }
 
 export interface V2SelfUser extends V2PublicUser {
@@ -824,7 +826,7 @@ export interface V2StatementListQuery extends V2PageQuery {
   type?: string;
 }
 
-export interface V2SessionListQuery extends V2PageQuery {}
+export type V2SessionListQuery = V2PageQuery;
 
 export interface V2GroupListQuery extends V2PageQuery {
   q?: string;
@@ -836,8 +838,7 @@ export interface V2PopularGroupsQuery {
   limit?: number;
 }
 
-export interface V2GroupMemberListQuery
-  extends V2PageQuery {}
+export type V2GroupMemberListQuery = V2PageQuery;
 
 export interface V2GroupPostListQuery extends V2PageQuery {
   type?: V2GroupPostListType;
@@ -889,7 +890,8 @@ export interface V2ChatMember {
   avatar_url: string | null;
   role: V2GroupRole;
   status: string;
-  online_status: 'online' | 'offline';
+  online_status: 'online' | 'offline' | 'hidden';
+  last_seen_at: string | null;
 }
 
 export interface V2ChatReactionSummary {

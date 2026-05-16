@@ -21,16 +21,17 @@ import type {
   V2GroupRole,
   V2MediaAsset
 } from '../../../app/types/v2';
+import type { WSMessage } from '~/server/utils/redis';
 import {
   REDIS_CHANNELS,
-  publishMessage,
-  type WSMessage
+  publishMessage
 } from '~/server/utils/redis';
 import {
   WS_SERVER_ID,
   sendWsToRoom,
   sendWsToUser
 } from '~/server/utils/wsSession';
+import type { V2DbRecord } from '~/server/utils/v2';
 import {
   v2Auth,
   v2BadRequest,
@@ -54,10 +55,10 @@ import {
   v2RequiredNumber,
   v2RequiredString,
   v2Rows,
-  v2String,
-  type V2DbRecord
+  v2String
 } from '~/server/utils/v2';
 import { v2MapMedia, v2MapPublicUser } from '~/server/models/v2';
+import { v2CreateNotification } from './notifications';
 
 interface ChatMembership {
   groupId: number;
@@ -70,21 +71,6 @@ interface ChatChannelAccess extends ChatMembership {
   channelId: number;
   channelType: V2ChatChannelType;
   isPrivate: boolean;
-}
-
-function v2RoleLevel(role: string | null): number {
-  switch (role) {
-    case 'owner':
-      return 4;
-    case 'admin':
-      return 3;
-    case 'moderator':
-      return 2;
-    case 'member':
-      return 1;
-    default:
-      return 0;
-  }
 }
 
 function v2NormalizeChatChannelType(
@@ -107,14 +93,6 @@ function v2ChatRoomId(channelId: number): string {
 
 function v2ChatRedisChannel(channelId: number): string {
   return `${REDIS_CHANNELS.CHAT_CHANNEL}${channelId}`;
-}
-
-function v2ChatAuthorName(row: V2DbRecord): string {
-  return (
-    v2String(row.DISPLAY_NAME) ||
-    v2String(row.USERNAME) ||
-    'unknown'
-  );
 }
 
 function v2ChatLastMessage(
@@ -153,6 +131,11 @@ function v2MapChatChannel(
 
 function v2MapChatMember(row: V2DbRecord): V2ChatMember {
   const status = v2String(row.STATUS);
+  const onlineStatus = (() => {
+    const value = v2String(row.ONLINE_STATUS);
+    if (value === 'online' || value === 'hidden') return value;
+    return 'offline';
+  })();
   return {
     user_id: v2Number(row.USER_ID),
     username: v2String(row.USERNAME),
@@ -163,7 +146,11 @@ function v2MapChatMember(row: V2DbRecord): V2ChatMember {
     avatar_url: v2String(row.AVATAR_URL) || null,
     role: v2String(row.ROLE, 'member') as V2GroupRole,
     status,
-    online_status: status === 'active' ? 'online' : 'offline'
+    online_status: onlineStatus,
+    last_seen_at:
+      onlineStatus === 'hidden'
+        ? null
+        : v2DateString(row.LAST_SEEN_AT)
   };
 }
 
@@ -426,6 +413,28 @@ interface DirectConversationAccess {
 
 function v2DirectRedisChannel(userId: number): string {
   return `${REDIS_CHANNELS.USER_MESSAGE}${userId}`;
+}
+
+async function v2UserDisplayName(
+  connection: oracledb.Connection,
+  userId: number
+): Promise<string> {
+  const row = await v2One(
+    connection,
+    `
+    SELECT COALESCE(display_name, username) AS name
+    FROM n_users
+    WHERE user_id = :user_id
+    `,
+    { user_id: userId }
+  );
+  return v2String(row?.NAME, '有人');
+}
+
+function v2NotificationPreview(content: string): string {
+  const normalized = content.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= 80) return normalized;
+  return `${normalized.slice(0, 80)}...`;
 }
 
 function v2DirectLastMessage(
@@ -1426,24 +1435,45 @@ export async function v2ListChatMembers(
     connection,
     `
     SELECT
-      user_id,
-      username,
-      display_name,
-      avatar_url,
-      nickname,
-      role,
-      status
-    FROM v_group_member_details
-    WHERE group_id = :group_id
-      AND status IN ('active', 'muted')
+      gm.user_id,
+      gm.username,
+      gm.display_name,
+      gm.avatar_url,
+      gm.nickname,
+      gm.role,
+      gm.status,
+      CASE
+        WHEN NVL(us.show_online_status, 1) = 0 THEN 'hidden'
+        WHEN EXISTS (
+          SELECT 1
+          FROM n_auth_sessions s
+          WHERE s.user_id = gm.user_id
+            AND s.revoked_at IS NULL
+            AND s.last_accessed_at >= CURRENT_TIMESTAMP - NUMTODSINTERVAL(90, 'SECOND')
+        ) THEN 'online'
+        ELSE 'offline'
+      END AS online_status,
+      CASE
+        WHEN NVL(us.show_online_status, 1) = 0 THEN NULL
+        ELSE (
+          SELECT MAX(s.last_accessed_at)
+          FROM n_auth_sessions s
+          WHERE s.user_id = gm.user_id
+            AND s.revoked_at IS NULL
+        )
+      END AS last_seen_at
+    FROM v_group_member_details gm
+    LEFT JOIN n_user_settings us ON us.user_id = gm.user_id
+    WHERE gm.group_id = :group_id
+      AND gm.status IN ('active', 'muted')
     ORDER BY
-      CASE role
+      CASE gm.role
         WHEN 'owner' THEN 1
         WHEN 'admin' THEN 2
         WHEN 'moderator' THEN 3
         ELSE 4
       END,
-      joined_at ASC
+      gm.joined_at ASC
     `,
     { group_id: groupId }
   );
@@ -2501,6 +2531,20 @@ export async function v2CreateDirectMessage(
     auth.userId,
     messageId
   );
+  const actorName = await v2UserDisplayName(connection, auth.userId);
+  await v2CreateNotification(connection, {
+    userId: access.participantUserId,
+    actorId: auth.userId,
+    type: 'direct_message',
+    title: `${actorName} 给你发来私信`,
+    message: v2NotificationPreview(content),
+    resourceType: 'direct_message',
+    resourceId: messageId,
+    metadata: {
+      conversation_id: conversationId,
+      event: 'direct_message_created'
+    }
+  });
   await v2PublishDirectEvent(
     [auth.userId, access.participantUserId],
     'direct_message',

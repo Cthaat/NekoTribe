@@ -36,6 +36,8 @@ import {
   v2Unprocessable
 } from '~/server/utils/v2';
 import { v2VerifyOtpCode } from './auth';
+import { v2CreateNotification } from './notifications';
+import { v2PublishUserPresence } from './presence';
 import {
   v2MapPublicUser,
   v2RequirePublicUser,
@@ -46,6 +48,22 @@ function v2FirstAvatarFile(
   files: Files<string>
 ): File | null {
   return files.file?.[0] ?? files.avatar?.[0] ?? null;
+}
+
+async function v2UserDisplayName(
+  connection: oracledb.Connection,
+  userId: number
+): Promise<string> {
+  const row = await v2One(
+    connection,
+    `
+    SELECT COALESCE(display_name, username) AS name
+    FROM n_users
+    WHERE user_id = :user_id
+    `,
+    { user_id: userId }
+  );
+  return v2String(row?.NAME, '有人');
 }
 
 export async function v2GetMe(
@@ -465,7 +483,11 @@ export async function v2PatchSettings(
       binds
     );
   }
-  return await v2GetSettings(event, connection);
+  const result = await v2GetSettings(event, connection);
+  if (Object.hasOwn(body, 'show_online_status')) {
+    await v2PublishUserPresence(connection, auth.userId);
+  }
+  return result;
 }
 
 function v2MapStatement(
@@ -1017,6 +1039,20 @@ export async function v2FollowUser(
     auth.userId,
     targetUserId
   );
+  const alreadyFollowing = await v2Count(
+    connection,
+    `
+    SELECT COUNT(*) AS total
+    FROM n_user_follows
+    WHERE follower_id = :follower_id
+      AND following_id = :following_id
+      AND status = 'active'
+    `,
+    {
+      follower_id: auth.userId,
+      following_id: targetUserId
+    }
+  );
   await v2Execute(
     connection,
     `
@@ -1041,6 +1077,24 @@ export async function v2FollowUser(
       following_id: targetUserId
     }
   );
+  if (alreadyFollowing === 0) {
+    const actorName = await v2UserDisplayName(
+      connection,
+      auth.userId
+    );
+    await v2CreateNotification(connection, {
+      userId: targetUserId,
+      actorId: auth.userId,
+      type: 'follow',
+      title: `${actorName} 关注了你`,
+      message: '你收到了一个新的关注。',
+      resourceType: 'user',
+      resourceId: auth.userId,
+      metadata: {
+        event: 'user_follow'
+      }
+    });
+  }
   const stats = await v2One(
     connection,
     `

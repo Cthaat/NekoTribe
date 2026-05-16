@@ -53,8 +53,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      oracle19c:
-        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -109,21 +109,46 @@ services:
       app:
         condition: service_healthy
 
+  db-init:
+    image: "${ORACLE_IMAGE:-container-registry.oracle.com/database/enterprise:19.3.0.0}"
+    restart: 'no'
+    environment:
+      ORACLE_HOST: ${DOCKER_ORACLE_HOST:-oracle19c}
+      ORACLE_PORT: ${DOCKER_ORACLE_PORT:-1521}
+      ORACLE_PWD: ${ORACLE_PWD:-NekoRoot2026Local}
+      ORACLE_SYS_SERVICE_NAME: ${ORACLE_SYS_SERVICE_NAME:-ORCLCDB}
+      ORACLE_PDB_NAME: ${ORACLE_SERVICE_NAME:-ORCLPDB1}
+      DB_INIT_SCHEMA: ${ORACLE_USER:-neko_app}
+      DB_INIT_CHECK_TABLE: ${DB_INIT_CHECK_TABLE:-N_USERS}
+      SQL_FILE: /opt/oracle/init/neko_tribe-oracle-v2.sql
+    volumes:
+      - ./doc/neko_tribe-oracle-v2.sql:/opt/oracle/init/neko_tribe-oracle-v2.sql:ro
+      - ./scripts/docker-init-db.sh:/opt/oracle/init/docker-init-db.sh:ro
+    entrypoint:
+      - /bin/bash
+      - /opt/oracle/init/docker-init-db.sh
+    networks:
+      - neko-network
+    depends_on:
+      oracle19c:
+        condition: service_healthy
+
   oracle19c:
-    image: container-registry.oracle.com/database/enterprise:19.3.0.0
+    image: "${ORACLE_IMAGE:-container-registry.oracle.com/database/enterprise:19.3.0.0}"
     container_name: oracle19c
     ports:
       - '${ORACLE_HOST_PORT:-5501}:1521'
       - '${ORACLE_EM_PORT:-5500}:5500'
     environment:
       ORACLE_PWD: ${ORACLE_PWD:-NekoRoot2026Local}
+      ORACLE_PDB: ${ORACLE_SERVICE_NAME:-ORCLPDB1}
     volumes:
       - ./data/oracle-data:/opt/oracle/oradata
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'lsnrctl status >/dev/null 2>&1 || exit 1'
+          'printf "%s\n" "SELECT ''NEKOTRIBE_PDB_READY'' FROM dual;" | sqlplus -L -s "sys/$${ORACLE_PWD}@//localhost:1521/${ORACLE_SERVICE_NAME:-ORCLPDB1} as sysdba" | grep -q NEKOTRIBE_PDB_READY'
         ]
       interval: 30s
       timeout: 10s

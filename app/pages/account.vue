@@ -54,6 +54,8 @@ interface AccountHeaderUser {
     likesCount: number;
   };
   point: number;
+  onlineStatus: 'online' | 'offline' | 'hidden';
+  lastSeenAt: string | null;
 }
 
 const user = ref<AccountHeaderUser>({
@@ -69,7 +71,9 @@ const user = ref<AccountHeaderUser>({
     followingCount: 0,
     likesCount: 0
   },
-  point: 50
+  point: 50,
+  onlineStatus: 'hidden',
+  lastSeenAt: null
 });
 
 const baseAccountTabs = [
@@ -122,6 +126,8 @@ async function loadAccount(): Promise<void> {
     user.value.location = me.location;
     user.value.email = me.email;
     user.value.avatar = me.avatarUrl;
+    user.value.onlineStatus = me.onlineStatus;
+    user.value.lastSeenAt = me.lastSeenAt;
     user.value.stats.followersCount = me.followersCount;
     user.value.stats.followingCount = me.followingCount;
     user.value.stats.likesCount = me.likesCount;

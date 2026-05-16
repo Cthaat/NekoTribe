@@ -73,9 +73,9 @@ import {
   mapV2ChatGroup,
   mapV2ChatMember,
   mapV2ChatMessage,
-  replaceChatMessage,
-  type ChatGroupVM
+  replaceChatMessage
 } from '@/services/chat';
+import type { ChatGroupVM } from '@/services/chat';
 import { v2SearchUsers } from '@/services/users';
 import { usePreferenceStore } from '@/stores/user';
 import type { Group } from '@/types/groups';
@@ -99,6 +99,9 @@ interface ChatWsEvent {
     channel_id?: number;
     conversation_id?: number;
     message_id?: number;
+    user_id?: number;
+    online_status?: 'online' | 'offline' | 'hidden';
+    last_seen_at?: string | null;
     message?: V2ChatMessage;
     direct_message?: V2DirectMessage;
   };
@@ -189,6 +192,7 @@ const canSubmitCreateChannel = computed(
 let ws: WebSocket | null = null;
 let shouldReconnectWs = true;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let wsHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 let inviteSearchTimer: ReturnType<typeof setTimeout> | null =
   null;
@@ -308,6 +312,21 @@ function sendWs(payload: Record<string, unknown>): void {
   }
 }
 
+function stopWsHeartbeat(): void {
+  if (wsHeartbeatTimer) {
+    clearInterval(wsHeartbeatTimer);
+    wsHeartbeatTimer = null;
+  }
+}
+
+function startWsHeartbeat(): void {
+  stopWsHeartbeat();
+  sendWs({ type: 'ping' });
+  wsHeartbeatTimer = setInterval(() => {
+    sendWs({ type: 'ping' });
+  }, 30000);
+}
+
 function joinWsChannel(channelId: number): void {
   sendWs({
     type: 'chat_join_channel',
@@ -367,6 +386,31 @@ function updateChannelPreview(
   }
 }
 
+function updateMemberPresence(
+  userId: number,
+  onlineStatus: 'online' | 'offline' | 'hidden',
+  lastSeenAt?: string | null
+): void {
+  members.value = members.value.map(member =>
+    member.id === userId
+      ? {
+          ...member,
+          status:
+            onlineStatus === 'online' ? 'online' : 'offline',
+          lastSeenAt: lastSeenAt ?? member.lastSeenAt
+        }
+      : member
+  );
+  if (directMessageStandaloneTarget.value?.id === userId) {
+    directMessageStandaloneTarget.value = {
+      ...directMessageStandaloneTarget.value,
+      status: onlineStatus === 'online' ? 'online' : 'offline',
+      lastSeenAt:
+        lastSeenAt ?? directMessageStandaloneTarget.value.lastSeenAt
+    };
+  }
+}
+
 function handleWsMessage(event: MessageEvent<string>): void {
   let payload: ChatWsEvent;
   try {
@@ -376,6 +420,19 @@ function handleWsMessage(event: MessageEvent<string>): void {
   }
 
   const channelId = payload.data?.channel_id;
+  if (
+    payload.type === 'presence_update' &&
+    payload.data?.user_id &&
+    payload.data.online_status
+  ) {
+    updateMemberPresence(
+      payload.data.user_id,
+      payload.data.online_status,
+      payload.data.last_seen_at
+    );
+    return;
+  }
+
   const isActiveChannel =
     channelId !== undefined &&
     activeChannel.value?.id === channelId;
@@ -427,6 +484,7 @@ function connectWs(): void {
     window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${protocol}//${window.location.host}/_ws`);
   ws.onopen = () => {
+    startWsHeartbeat();
     if (activeChannel.value) {
       joinWsChannel(activeChannel.value.id);
     }
@@ -434,6 +492,7 @@ function connectWs(): void {
   ws.onmessage = handleWsMessage;
   ws.onclose = () => {
     ws = null;
+    stopWsHeartbeat();
     if (!shouldReconnectWs) return;
     reconnectTimer = setTimeout(connectWs, 3000);
   };
@@ -991,6 +1050,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   shouldReconnectWs = false;
   if (reconnectTimer) clearTimeout(reconnectTimer);
+  stopWsHeartbeat();
   if (searchTimer) clearTimeout(searchTimer);
   if (inviteSearchTimer) clearTimeout(inviteSearchTimer);
   if (activeChannel.value) {
