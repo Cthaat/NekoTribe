@@ -369,7 +369,7 @@ SENTIMENTFLOW_FRONTEND_IMAGE=ghcr.io/cthaat/sentimentflow-frontend:sha-1d3ecf9
 
 ### Docker 部署：从 GitHub 源码构建
 
-本地源码构建使用 `docker-compose.local.yml`。该文件会本地构建 NekoTribe，并通过内联 Dockerfile 在镜像构建阶段从 `SENTIMENTFLOW_GIT_CONTEXT` 拉取 SentimentFlow 源码，然后分别构建后端和前端。这样不会触发 Windows 下远程 build context 被当成本地路径解析的问题。
+本地源码构建使用 `docker-compose.local.yml`。该文件会本地构建 NekoTribe，并通过内联 Dockerfile 在镜像构建阶段从 `SENTIMENTFLOW_GIT_REPO` 和 `SENTIMENTFLOW_GIT_REF` 指定的 Git 源拉取 SentimentFlow 源码，然后分别构建后端和前端。这样不会触发 Windows 下远程 build context 被当成本地路径解析的问题。
 
 ```bash
 cp .env.example .env
@@ -389,7 +389,11 @@ docker compose -f docker-compose.local.yml up -d --build
 docker compose -f docker-compose.local.yml up -d --build sentimentflow sentimentflow-frontend
 ```
 
-`SENTIMENTFLOW_GIT_CONTEXT` 默认值是 `https://github.com/Cthaat/SentimentFlow.git#main`，可以按需把 `#` 后面的片段改成其他分支、标签或提交。模型文件在默认 Compose 中保存在 `sentimentflow-models` Docker 卷中，在本地构建 Compose 中保存在当前项目下的 `./sentimentflow-models` 目录中。
+`SENTIMENTFLOW_GIT_REPO` 默认值是 `https://github.com/Cthaat/SentimentFlow.git`，`SENTIMENTFLOW_GIT_REF` 默认值是 `main`，可以按需把 `SENTIMENTFLOW_GIT_REF` 改成其他分支、标签或提交。例如，写成 `SENTIMENTFLOW_GIT_REF=1d3ecf9` 就会构建这次提交。模型文件在默认 Compose 中保存在 `sentimentflow-models` Docker 卷中，在本地构建 Compose 中保存在当前项目下的 `./sentimentflow-models` 目录中。
+
+`SENTIMENTFLOW_PIP_INDEX_URL` 和 `SENTIMENTFLOW_TORCH_INDEX_URL` 默认都使用 `https://pypi.org/simple`，只影响本地构建后端镜像时的 Python 依赖下载。后端会把 torch 单独安装在可缓存层中，这样 CUDA 相关的大依赖后续可以复用缓存，不会每次构建都重新下载。如果下载很慢，可以把 PyPI 索引改成镜像源；但遇到 hash mismatch 时通常说明镜像源或网络返回了不一致文件，应先切回官方源再重试。
+
+CUDA 训练需要 Docker 能访问显卡。当前 Compose 默认通过 `SENTIMENTFLOW_GPUS=all` 给 `sentimentflow` 后端请求所有可用 GPU，并向容器传入 `NVIDIA_DRIVER_CAPABILITIES=compute,utility`。训练前需要先确认宿主机 NVIDIA 驱动、Docker Desktop/Engine 的 GPU 支持和 CUDA 容器运行时可用。
 
 ### 非 Docker 部署 SentimentFlow
 
@@ -520,7 +524,13 @@ SENTIMENTFLOW_CONTAINER_PORT=8846
 | `SENTIMENTFLOW_LOCAL_IMAGE` | Docker 本地  | `sentimentflow-backend:local` | `docker-compose.local.yml` 构建出的本地镜像标签。       |
 | `SENTIMENTFLOW_FRONTEND_IMAGE` | Docker   | `ghcr.io/cthaat/sentimentflow-frontend:latest` | `docker-compose.yml` 拉取的 SentimentFlow 前端 GHCR 镜像。 |
 | `SENTIMENTFLOW_FRONTEND_LOCAL_IMAGE` | Docker 本地 | `sentimentflow-frontend:local` | `docker-compose.local.yml` 构建出的 SentimentFlow 前端镜像标签。 |
-| `SENTIMENTFLOW_GIT_CONTEXT` | Docker 本地  | `https://github.com/Cthaat/SentimentFlow.git#main` | `docker-compose.local.yml` 镜像构建阶段拉取的 Git 源。 |
+| `SENTIMENTFLOW_GIT_REPO` | Docker 本地  | `https://github.com/Cthaat/SentimentFlow.git` | `docker-compose.local.yml` 镜像构建阶段拉取的 Git 仓库。 |
+| `SENTIMENTFLOW_GIT_REF` | Docker 本地  | `main` | 本地构建 SentimentFlow 时拉取的 Git 分支、标签或提交。 |
+| `SENTIMENTFLOW_PIP_INDEX_URL` | Docker 本地 | `https://pypi.org/simple` | 本地构建 SentimentFlow 后端镜像时使用的 Python 包索引。 |
+| `SENTIMENTFLOW_TORCH_INDEX_URL` | Docker 本地 | `https://pypi.org/simple` | 本地构建 SentimentFlow 后端镜像时使用的 PyTorch 包索引；默认保留 CUDA 训练可用的 torch。 |
+| `SENTIMENTFLOW_TORCH_PACKAGE` | Docker 本地 | `torch` | 先于其他后端依赖安装的 torch 包规格，用于缓存体积较大的 CUDA 依赖层。 |
+| `SENTIMENTFLOW_GPUS` | Docker | `all` | SentimentFlow 后端容器的 GPU 设备请求。 |
+| `SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES` | Docker | `compute,utility` | 暴露给 SentimentFlow 后端容器的 NVIDIA 驱动能力，用于 CUDA 训练。 |
 | `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT` | Docker | `/workspace`       | SentimentFlow 容器内项目根目录。                            |
 | `SENTIMENTFLOW_MODELS_DIR` | Docker        | `/workspace/models`       | SentimentFlow 容器内模型持久化挂载目录。                    |
 | `SENTIMENTFLOW_HOST_PORT` | Docker        | `8846`                     | SentimentFlow 暴露给宿主机和浏览器的端口；修改后访问 `localhost:<端口>`。 |
