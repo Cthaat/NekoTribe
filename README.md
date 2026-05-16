@@ -392,7 +392,7 @@ docker compose -f docker-compose.local.yml up -d --build sentimentflow sentiment
 
 `SENTIMENTFLOW_PIP_INDEX_URL` and `SENTIMENTFLOW_TORCH_INDEX_URL` both default to `https://pypi.org/simple` for the local backend build. The backend installs torch in its own cacheable layer so CUDA-capable torch dependencies can be reused across rebuilds instead of being downloaded every time. If package downloads are slow, you can change the PyPI index to a mirror, but hash mismatch errors usually mean the mirror or network returned a different file, so switch back to the official index before retrying.
 
-CUDA training requires Docker GPU access. The Compose files request all available GPUs for the `sentimentflow` backend by default through `SENTIMENTFLOW_GPUS=all`, and pass `NVIDIA_DRIVER_CAPABILITIES=compute,utility` into the container. Before training, verify that your NVIDIA driver, Docker Desktop/Engine GPU support, and CUDA container runtime are working.
+CUDA training requires Docker GPU access. The Compose files request all available GPUs for the `sentimentflow` backend with `gpus: all`, pass `NVIDIA_DRIVER_CAPABILITIES=compute,utility` into the container, and use `SENTIMENTFLOW_GPUS` for `NVIDIA_VISIBLE_DEVICES`. Before training, verify that your NVIDIA driver, Docker Desktop/Engine GPU support, and CUDA container runtime are working.
 
 ### Non-Docker SentimentFlow Deployment
 
@@ -528,7 +528,7 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | `SENTIMENTFLOW_PIP_INDEX_URL` | Docker local | `https://pypi.org/simple` | Python package index used by the local SentimentFlow backend build. |
 | `SENTIMENTFLOW_TORCH_INDEX_URL` | Docker local | `https://pypi.org/simple` | PyTorch package index used by the local SentimentFlow backend build; default keeps CUDA-capable torch available. |
 | `SENTIMENTFLOW_TORCH_PACKAGE` | Docker local | `torch` | Torch package spec installed before the remaining backend requirements so Docker can cache the heavy CUDA dependency layer. |
-| `SENTIMENTFLOW_GPUS` | Docker | `all` | GPU device request for the SentimentFlow backend container. |
+| `SENTIMENTFLOW_GPUS` | Docker | `all` | Value passed to `NVIDIA_VISIBLE_DEVICES`; Compose itself uses schema-valid `gpus: all`. |
 | `SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES` | Docker | `compute,utility` | NVIDIA driver capabilities exposed to the SentimentFlow backend container for CUDA training. |
 | `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT` | Docker | `/workspace`             | SentimentFlow project root inside the image/container.          |
 | `SENTIMENTFLOW_MODELS_DIR` | Docker      | `/workspace/models`               | Persistent model artifact mount target in the SentimentFlow container. |
