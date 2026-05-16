@@ -63,3 +63,6 @@ data/oracle-data
 
 SentimentFlow/
 sentimentflow-models/
+
+.codex
+.codex-logs
