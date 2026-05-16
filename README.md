@@ -374,8 +374,8 @@ Default URLs:
 To pin an automatic build, set image variables to specific tags in `.env`, for example:
 
 ```env
-SENTIMENTFLOW_IMAGE=ghcr.io/cthaat/sentimentflow-backend:sha-1d3ecf9
-SENTIMENTFLOW_FRONTEND_IMAGE=ghcr.io/cthaat/sentimentflow-frontend:sha-1d3ecf9
+SENTIMENTFLOW_IMAGE=ghcr.io/cthaat/sentimentflow-backend:sha-a7f50e1
+SENTIMENTFLOW_FRONTEND_IMAGE=ghcr.io/cthaat/sentimentflow-frontend:sha-a7f50e1
 ```
 
 ### Docker Deployment: Build From GitHub
