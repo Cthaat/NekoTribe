@@ -368,7 +368,7 @@ SENTIMENTFLOW_FRONTEND_IMAGE=ghcr.io/cthaat/sentimentflow-frontend:sha-1d3ecf9
 
 ### Docker Deployment: Build From GitHub
 
-`docker-compose.local.yml` builds NekoTribe locally and builds both SentimentFlow services from the Git source configured by `SENTIMENTFLOW_GIT_CONTEXT`. This avoids Docker Compose remote build-context path issues on Windows because the inline Dockerfiles clone the repository inside the build stage.
+`docker-compose.local.yml` builds NekoTribe locally and builds both SentimentFlow services from the Git source configured by `SENTIMENTFLOW_GIT_REPO` and `SENTIMENTFLOW_GIT_REF`. This avoids Docker Compose remote build-context path issues on Windows because the inline Dockerfiles clone the repository inside the build stage.
 
 ```bash
 cp .env.example .env
@@ -388,7 +388,11 @@ To rebuild only SentimentFlow:
 docker compose -f docker-compose.local.yml up -d --build sentimentflow sentimentflow-frontend
 ```
 
-`SENTIMENTFLOW_GIT_CONTEXT` defaults to `https://github.com/Cthaat/SentimentFlow.git#main`; change the fragment after `#` to another branch, tag, or commit when needed. Model artifacts are kept in the `sentimentflow-models` Docker volume or the local `./sentimentflow-models` folder in local-build mode.
+`SENTIMENTFLOW_GIT_REPO` defaults to `https://github.com/Cthaat/SentimentFlow.git`, and `SENTIMENTFLOW_GIT_REF` defaults to `main`; change `SENTIMENTFLOW_GIT_REF` to another branch, tag, or commit when needed. For example, use `SENTIMENTFLOW_GIT_REF=1d3ecf9` to build that commit. Model artifacts are kept in the `sentimentflow-models` Docker volume or the local `./sentimentflow-models` folder in local-build mode.
+
+`SENTIMENTFLOW_PIP_INDEX_URL` and `SENTIMENTFLOW_TORCH_INDEX_URL` both default to `https://pypi.org/simple` for the local backend build. The backend installs torch in its own cacheable layer so CUDA-capable torch dependencies can be reused across rebuilds instead of being downloaded every time. If package downloads are slow, you can change the PyPI index to a mirror, but hash mismatch errors usually mean the mirror or network returned a different file, so switch back to the official index before retrying.
+
+CUDA training requires Docker GPU access. The Compose files request all available GPUs for the `sentimentflow` backend by default through `SENTIMENTFLOW_GPUS=all`, and pass `NVIDIA_DRIVER_CAPABILITIES=compute,utility` into the container. Before training, verify that your NVIDIA driver, Docker Desktop/Engine GPU support, and CUDA container runtime are working.
 
 ### Non-Docker SentimentFlow Deployment
 
@@ -519,7 +523,13 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | `SENTIMENTFLOW_LOCAL_IMAGE` | Docker local | `sentimentflow-backend:local`   | Local image tag produced by `docker-compose.local.yml`.         |
 | `SENTIMENTFLOW_FRONTEND_IMAGE` | Docker | `ghcr.io/cthaat/sentimentflow-frontend:latest` | SentimentFlow frontend GHCR image pulled by `docker-compose.yml`. |
 | `SENTIMENTFLOW_FRONTEND_LOCAL_IMAGE` | Docker local | `sentimentflow-frontend:local` | SentimentFlow frontend image tag produced by `docker-compose.local.yml`. |
-| `SENTIMENTFLOW_GIT_CONTEXT` | Docker local | `https://github.com/Cthaat/SentimentFlow.git#main` | Git source fetched inside the `docker-compose.local.yml` image build. |
+| `SENTIMENTFLOW_GIT_REPO` | Docker local | `https://github.com/Cthaat/SentimentFlow.git` | Git repository fetched inside the `docker-compose.local.yml` image build. |
+| `SENTIMENTFLOW_GIT_REF` | Docker local | `main` | Git branch, tag, or commit fetched for local SentimentFlow builds. |
+| `SENTIMENTFLOW_PIP_INDEX_URL` | Docker local | `https://pypi.org/simple` | Python package index used by the local SentimentFlow backend build. |
+| `SENTIMENTFLOW_TORCH_INDEX_URL` | Docker local | `https://pypi.org/simple` | PyTorch package index used by the local SentimentFlow backend build; default keeps CUDA-capable torch available. |
+| `SENTIMENTFLOW_TORCH_PACKAGE` | Docker local | `torch` | Torch package spec installed before the remaining backend requirements so Docker can cache the heavy CUDA dependency layer. |
+| `SENTIMENTFLOW_GPUS` | Docker | `all` | GPU device request for the SentimentFlow backend container. |
+| `SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES` | Docker | `compute,utility` | NVIDIA driver capabilities exposed to the SentimentFlow backend container for CUDA training. |
 | `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT` | Docker | `/workspace`             | SentimentFlow project root inside the image/container.          |
 | `SENTIMENTFLOW_MODELS_DIR` | Docker      | `/workspace/models`               | Persistent model artifact mount target in the SentimentFlow container. |
 | `SENTIMENTFLOW_HOST_PORT` | Docker      | `8846`                            | Host/browser port for SentimentFlow; change this for `localhost:<port>` access. |
