@@ -353,6 +353,18 @@ docker compose pull sentimentflow sentimentflow-frontend
 docker compose up -d
 ```
 
+如果后端镜像一直显示 `Pulling` 但看不到层进度，先停止当前 Compose 命令，再使用进度辅助脚本。它会先打印远程镜像的层大小，再用 Compose plain progress 拉取：
+
+```powershell
+.\scripts\pull-sentimentflow-remote.ps1
+```
+
+拉取完成后，也可以让脚本直接用“不再拉取”的方式启动完整栈：
+
+```powershell
+.\scripts\pull-sentimentflow-remote.ps1 -Up
+```
+
 默认访问地址：
 
 - NekoTribe 应用：`http://localhost:30001`
@@ -457,6 +469,7 @@ SENTIMENTFLOW_CONTAINER_PORT=8846
 | ----------------------------- | ---------------------------------------------------------------------------------------------- |
 | `scripts/dev.sh`              | 缺少 `.env` 时自动复制模板，启动 Redis/Oracle 容器，安装依赖并运行 `yarn dev`。                |
 | `scripts/start.sh`            | 缺少 `.env` 时自动复制模板，并构建启动完整 Docker 栈。                                         |
+| `scripts/pull-sentimentflow-remote.ps1` | 显示 GHCR 远程镜像层大小，使用 plain progress 拉取 NekoTribe 与 SentimentFlow 镜像，并可选地启动完整栈且不再次拉取。 |
 | `scripts/init-db.sh`          | 默认 Compose 流程之外的手动兜底入口，可用于外部 Oracle 或恢复场景。                            |
 | `scripts/docker-init-db.sh`   | `db-init` 服务使用的内部 Compose 入口脚本。                                                     |
 | `scripts/dev.ps1`             | `scripts/dev.sh` 的 PowerShell 等价脚本。                                                      |
