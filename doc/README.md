@@ -375,8 +375,8 @@ docker compose up -d
 如需固定某次自动构建，在 `.env` 中把镜像改成具体标签：
 
 ```env
-SENTIMENTFLOW_IMAGE=ghcr.io/cthaat/sentimentflow-backend:sha-1d3ecf9
-SENTIMENTFLOW_FRONTEND_IMAGE=ghcr.io/cthaat/sentimentflow-frontend:sha-1d3ecf9
+SENTIMENTFLOW_IMAGE=ghcr.io/cthaat/sentimentflow-backend:sha-a7f50e1
+SENTIMENTFLOW_FRONTEND_IMAGE=ghcr.io/cthaat/sentimentflow-frontend:sha-a7f50e1
 ```
 
 ### Docker 部署：从 GitHub 源码构建
