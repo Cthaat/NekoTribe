@@ -393,7 +393,7 @@ docker compose -f docker-compose.local.yml up -d --build sentimentflow sentiment
 
 `SENTIMENTFLOW_PIP_INDEX_URL` 和 `SENTIMENTFLOW_TORCH_INDEX_URL` 默认都使用 `https://pypi.org/simple`，只影响本地构建后端镜像时的 Python 依赖下载。后端会把 torch 单独安装在可缓存层中，这样 CUDA 相关的大依赖后续可以复用缓存，不会每次构建都重新下载。如果下载很慢，可以把 PyPI 索引改成镜像源；但遇到 hash mismatch 时通常说明镜像源或网络返回了不一致文件，应先切回官方源再重试。
 
-CUDA 训练需要 Docker 能访问显卡。当前 Compose 默认通过 `SENTIMENTFLOW_GPUS=all` 给 `sentimentflow` 后端请求所有可用 GPU，并向容器传入 `NVIDIA_DRIVER_CAPABILITIES=compute,utility`。训练前需要先确认宿主机 NVIDIA 驱动、Docker Desktop/Engine 的 GPU 支持和 CUDA 容器运行时可用。
+CUDA 训练需要 Docker 能访问显卡。当前 Compose 通过 `gpus: all` 给 `sentimentflow` 后端请求所有可用 GPU，向容器传入 `NVIDIA_DRIVER_CAPABILITIES=compute,utility`，并使用 `SENTIMENTFLOW_GPUS` 控制 `NVIDIA_VISIBLE_DEVICES`。训练前需要先确认宿主机 NVIDIA 驱动、Docker Desktop/Engine 的 GPU 支持和 CUDA 容器运行时可用。
 
 ### 非 Docker 部署 SentimentFlow
 
@@ -529,7 +529,7 @@ SENTIMENTFLOW_CONTAINER_PORT=8846
 | `SENTIMENTFLOW_PIP_INDEX_URL` | Docker 本地 | `https://pypi.org/simple` | 本地构建 SentimentFlow 后端镜像时使用的 Python 包索引。 |
 | `SENTIMENTFLOW_TORCH_INDEX_URL` | Docker 本地 | `https://pypi.org/simple` | 本地构建 SentimentFlow 后端镜像时使用的 PyTorch 包索引；默认保留 CUDA 训练可用的 torch。 |
 | `SENTIMENTFLOW_TORCH_PACKAGE` | Docker 本地 | `torch` | 先于其他后端依赖安装的 torch 包规格，用于缓存体积较大的 CUDA 依赖层。 |
-| `SENTIMENTFLOW_GPUS` | Docker | `all` | SentimentFlow 后端容器的 GPU 设备请求。 |
+| `SENTIMENTFLOW_GPUS` | Docker | `all` | 传给 `NVIDIA_VISIBLE_DEVICES` 的值；Compose 本身使用符合 schema 的 `gpus: all`。 |
 | `SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES` | Docker | `compute,utility` | 暴露给 SentimentFlow 后端容器的 NVIDIA 驱动能力，用于 CUDA 训练。 |
 | `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT` | Docker | `/workspace`       | SentimentFlow 容器内项目根目录。                            |
 | `SENTIMENTFLOW_MODELS_DIR` | Docker        | `/workspace/models`       | SentimentFlow 容器内模型持久化挂载目录。                    |
