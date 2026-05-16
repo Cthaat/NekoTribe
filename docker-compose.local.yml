@@ -123,30 +123,49 @@ services:
       context: .
       pull: true
       args:
-        SENTIMENTFLOW_GIT_CONTEXT: ${SENTIMENTFLOW_GIT_CONTEXT:-https://github.com/Cthaat/SentimentFlow.git#main}
+        SENTIMENTFLOW_GIT_REPO: ${SENTIMENTFLOW_GIT_REPO:-https://github.com/Cthaat/SentimentFlow.git}
+        SENTIMENTFLOW_GIT_REF: ${SENTIMENTFLOW_GIT_REF:-main}
+        SENTIMENTFLOW_PIP_INDEX_URL: ${SENTIMENTFLOW_PIP_INDEX_URL:-https://pypi.org/simple}
+        SENTIMENTFLOW_TORCH_INDEX_URL: ${SENTIMENTFLOW_TORCH_INDEX_URL:-https://pypi.org/simple}
+        SENTIMENTFLOW_TORCH_PACKAGE: ${SENTIMENTFLOW_TORCH_PACKAGE:-torch}
         SENTIMENTFLOW_CONTAINER_PORT: ${SENTIMENTFLOW_CONTAINER_PORT:-8846}
       dockerfile_inline: |
+        FROM python:3.11-slim AS source
+        ARG SENTIMENTFLOW_GIT_REPO
+        ARG SENTIMENTFLOW_GIT_REF
+        WORKDIR /workspace
+        RUN apt-get update \
+          && apt-get install -y --no-install-recommends ca-certificates git \
+          && rm -rf /var/lib/apt/lists/*
+        RUN set -eux; \
+          git init .; \
+          git remote add origin "$${SENTIMENTFLOW_GIT_REPO}"; \
+          git fetch --depth 1 origin "$${SENTIMENTFLOW_GIT_REF}"; \
+          git checkout --detach FETCH_HEAD; \
+          rm -rf .git
+
+        FROM python:3.11-slim AS deps
+        ARG SENTIMENTFLOW_PIP_INDEX_URL=https://pypi.org/simple
+        ARG SENTIMENTFLOW_TORCH_INDEX_URL=https://pypi.org/simple
+        ARG SENTIMENTFLOW_TORCH_PACKAGE=torch
+        ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+        WORKDIR /deps
+        COPY --from=source /workspace/backend/requirements.txt ./requirements.txt
+        RUN --mount=type=cache,target=/root/.cache/pip \
+          grep -vE '^[[:space:]]*torch([[:space:]=<>!~].*)?$' requirements.txt > requirements-runtime.txt \
+          && python -m pip install --upgrade pip \
+          && python -m pip install --prefer-binary --retries 10 --timeout 120 --index-url "$${SENTIMENTFLOW_TORCH_INDEX_URL}" "$${SENTIMENTFLOW_TORCH_PACKAGE}" \
+          && python -m pip install --prefer-binary --retries 10 --timeout 120 --index-url "$${SENTIMENTFLOW_PIP_INDEX_URL}" -r requirements-runtime.txt
+
         FROM python:3.11-slim
-        ARG SENTIMENTFLOW_GIT_CONTEXT
         ARG SENTIMENTFLOW_CONTAINER_PORT=8846
         ENV PYTHONUNBUFFERED=1 \
             SENTIMENTFLOW_PROJECT_ROOT=/workspace \
             PYTHONPATH=/workspace:/workspace/backend \
             SENTIMENTFLOW_CONTAINER_PORT=${SENTIMENTFLOW_CONTAINER_PORT}
         WORKDIR /workspace
-        RUN apt-get update \
-          && apt-get install -y --no-install-recommends ca-certificates git \
-          && rm -rf /var/lib/apt/lists/*
-        RUN set -eux; \
-          repo="$${SENTIMENTFLOW_GIT_CONTEXT%%#*}"; \
-          ref="$${SENTIMENTFLOW_GIT_CONTEXT#*#}"; \
-          if [ "$$repo" = "$$ref" ]; then ref="main"; fi; \
-          git init .; \
-          git remote add origin "$$repo"; \
-          git fetch --depth 1 origin "$$ref"; \
-          git checkout --detach FETCH_HEAD; \
-          rm -rf .git
-        RUN pip install --no-cache-dir -r backend/requirements.txt
+        COPY --from=deps /usr/local /usr/local
+        COPY --from=source /workspace /workspace
         WORKDIR /workspace/backend
         EXPOSE ${SENTIMENTFLOW_CONTAINER_PORT}
         CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${SENTIMENTFLOW_CONTAINER_PORT:-8846}"]
@@ -157,7 +176,10 @@ services:
       SENTIMENTFLOW_PROJECT_ROOT: /workspace
       PYTHONPATH: /workspace:/workspace/backend
       SENTIMENTFLOW_CONTAINER_PORT: ${SENTIMENTFLOW_CONTAINER_PORT:-8846}
+      NVIDIA_VISIBLE_DEVICES: ${SENTIMENTFLOW_GPUS:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
     command: uvicorn app.main:app --host 0.0.0.0 --port ${SENTIMENTFLOW_CONTAINER_PORT:-8846}
+    gpus: ${SENTIMENTFLOW_GPUS:-all}
     ports:
       - '${SENTIMENTFLOW_HOST_PORT:-8846}:${SENTIMENTFLOW_CONTAINER_PORT:-8846}'
     volumes:
@@ -183,23 +205,22 @@ services:
       context: .
       pull: true
       args:
-        SENTIMENTFLOW_GIT_CONTEXT: ${SENTIMENTFLOW_GIT_CONTEXT:-https://github.com/Cthaat/SentimentFlow.git#main}
+        SENTIMENTFLOW_GIT_REPO: ${SENTIMENTFLOW_GIT_REPO:-https://github.com/Cthaat/SentimentFlow.git}
+        SENTIMENTFLOW_GIT_REF: ${SENTIMENTFLOW_GIT_REF:-main}
         SENTIMENTFLOW_FRONTEND_CONTAINER_PORT: ${SENTIMENTFLOW_FRONTEND_CONTAINER_PORT:-3000}
         YARN_REGISTRY: ${YARN_REGISTRY:-https://registry.npmjs.org}
       dockerfile_inline: |
         FROM node:20-bookworm-slim AS source
-        ARG SENTIMENTFLOW_GIT_CONTEXT
+        ARG SENTIMENTFLOW_GIT_REPO
+        ARG SENTIMENTFLOW_GIT_REF
         WORKDIR /workspace
         RUN apt-get update \
           && apt-get install -y --no-install-recommends ca-certificates git \
           && rm -rf /var/lib/apt/lists/*
         RUN set -eux; \
-          repo="$${SENTIMENTFLOW_GIT_CONTEXT%%#*}"; \
-          ref="$${SENTIMENTFLOW_GIT_CONTEXT#*#}"; \
-          if [ "$$repo" = "$$ref" ]; then ref="main"; fi; \
           git init .; \
-          git remote add origin "$$repo"; \
-          git fetch --depth 1 origin "$$ref"; \
+          git remote add origin "$${SENTIMENTFLOW_GIT_REPO}"; \
+          git fetch --depth 1 origin "$${SENTIMENTFLOW_GIT_REF}"; \
           git checkout --detach FETCH_HEAD; \
           rm -rf .git
 
