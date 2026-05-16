@@ -4,7 +4,7 @@ English | [中文](doc/README.md)
 
 NekoTribe is a full-stack social application built on Nuxt 4. It bundles a Vue frontend, Nitro Server API, Oracle data model, Redis realtime messaging, media uploads, notifications, account security flows, and parallel v1/v2 APIs.
 
-This repo is organized so a new developer can start quickly after clone: copy the env sample, start Docker dependencies with Compose-driven Oracle initialization, run the local dev server, then begin integration.
+This repo is organized so a new developer can start quickly after clone: copy and review the env sample, start Docker dependencies with Compose-driven Oracle initialization, run the local dev server, then begin integration.
 
 ## Highlights
 
@@ -17,6 +17,7 @@ This repo is organized so a new developer can start quickly after clone: copy th
 ## Quick Links
 
 - API docs: https://3kjlg46jpj.apifox.cn
+- Config before startup: [Configure `.env`](#before-quick-start-configure-env)
 - Quick start: [Local Development](#quick-start-local-development)
 - Quick start: [Full Docker Stack](#quick-start-full-docker-stack)
 - Config: [Environment Variables](#environment-variables)
@@ -31,8 +32,10 @@ This repo is organized so a new developer can start quickly after clone: copy th
 - [API and Data Model](#api-and-data-model)
 - [Tech Stack](#tech-stack)
 - [Requirements](#requirements)
+- [Before Quick Start: Configure `.env`](#before-quick-start-configure-env)
 - [Quick Start: Local Development](#quick-start-local-development)
 - [Quick Start: Full Docker Stack](#quick-start-full-docker-stack)
+- [SentimentFlow Runtime](#sentimentflow-runtime)
 - [Scripts](#scripts)
 - [Environment Variables](#environment-variables)
 - [External Services](#external-services)
@@ -252,8 +255,39 @@ Legacy SQL and stage SQL remain in `doc/` and `data/` to trace historical design
 - Yarn 1.x; if `yarn` is missing, run `corepack enable` first.
 - Docker Desktop or Docker Engine with Compose v2.
 - Windows is recommended with PowerShell; Git Bash, WSL, macOS shell, or Linux shell can run `.sh` scripts.
-- If using the built-in Oracle image, Oracle Container Registry access and license acceptance are required.
+- If switching `ORACLE_IMAGE` to the official Oracle image, Oracle Container Registry access and license acceptance are required.
 - Optional: for legacy v1 media thumbnails outside Docker, install `ffmpeg` locally.
+
+## Before Quick Start: Configure `.env`
+
+Copy the env template first, then review the required fields for your startup mode. `.env` contains secrets, database settings, Redis settings, SMTP settings, ports, and SentimentFlow settings; skipping this check commonly causes auth failures, Oracle connection failures, missing OTP email delivery, or Docker containers trying to reach host-only addresses.
+
+```bash
+cp .env.example .env
+```
+
+PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+At minimum, confirm these fields:
+
+| Scenario | Required or must-check fields | Recommended values and notes |
+| -------- | ----------------------------- | ---------------------------- |
+| Common | `ACCESS_SECRET`, `REFRESH_SECRET` | Replace with random long strings. Template values are acceptable only for temporary local debugging, not shared or production environments. Generate with a password manager or `openssl rand -base64 48`. |
+| Common | `ACCESS_EXPIRES_IN`, `REFRESH_EXPIRES_IN` | Template values can start the app: 15 minutes for access tokens and 30 days for refresh tokens. Change only if you need a different login lifetime. |
+| Host dev | `NODE_ENV` | Keep `development`; otherwise local HTTP login can fail because secure-cookie behavior changes. |
+| Host dev | `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD` | With built-in Compose Oracle, keep the template values: `localhost`, `5501`, `ORCLPDB1`, `neko_app`, `NekoApp2026#`. For an external Oracle instance, replace them with the real host, service name, user, and password. |
+| Full Docker stack | `APP_PORT`, `NGINX_PORT`, `DOCKER_PUBLIC_WS_URL` | Defaults are app `30001` and Nginx `30002`. If `APP_PORT` changes, also change `DOCKER_PUBLIC_WS_URL` to `ws://localhost:<APP_PORT>/_ws`. |
+| Full Docker stack | `DOCKER_ORACLE_HOST`, `DOCKER_ORACLE_PORT`, `DOCKER_REDIS_URL`, `DOCKER_REDIS_HOST`, `DOCKER_REDIS_PORT` | Keep these values when using built-in Compose services. They must point to Docker-network names `oracle19c` and `redis`, not `localhost`. |
+| Oracle init | `ORACLE_IMAGE`, `ORACLE_PWD`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`, `DB_INIT_CHECK_TABLE` | `.env.example` defaults to a domestic Oracle 19c mirror. `ORACLE_PWD` is the container `SYS/SYSTEM` password. `ORACLE_PASSWORD` must match the v2 SQL `neko_app` password; the template value is `NekoApp2026#`. `DB_INIT_CHECK_TABLE` defaults to `N_USERS` and is used to detect an initialized schema. |
+| Redis | `REDIS_PASSWORD` | The built-in Redis service reads this password. Changing it after a Redis volume already exists can break old clients or health checks unless you also reset/update the volume. |
+| Email features | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | The app can start without SMTP, but registration OTP, password reset, and account emails require a real SMTP account. 163/QQ/Gmail usually require an app-specific password or authorization code, not the web login password. |
+| SentimentFlow | `SENTIMENTFLOW_ENABLED`, `SENTIMENTFLOW_HOST_PORT`, `SENTIMENTFLOW_FRONTEND_HOST_PORT` | SentimentFlow backend and frontend are enabled by default. Set `SENTIMENTFLOW_ENABLED=false` if you do not need this feature and want to avoid pulling or starting SentimentFlow images. |
+
+If `.env` already exists, do not copy the template over it again; only fill in or adjust the fields above.
 
 ## Quick Start: Local Development
 
@@ -262,7 +296,8 @@ For "frontend and Nitro dev servers run on the host, Oracle/Redis run in Docker"
 ```bash
 corepack enable
 yarn install --frozen-lockfile
-cp .env.example .env
+test -f .env || cp .env.example .env
+# Review and save the required fields from "Before Quick Start: Configure .env"
 docker compose up -d redis oracle19c db-init
 yarn dev
 ```
@@ -279,7 +314,8 @@ PowerShell equivalent:
 ```powershell
 corepack enable
 yarn install --frozen-lockfile
-Copy-Item .env.example .env
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+# Review and save the required fields from "Before Quick Start: Configure .env"
 docker compose up -d redis oracle19c db-init
 yarn dev
 ```
@@ -289,14 +325,16 @@ yarn dev
 For "app, Redis, Oracle, Nginx all run in Docker":
 
 ```bash
-cp .env.example .env
+test -f .env || cp .env.example .env
+# Review and save the required fields from "Before Quick Start: Configure .env"
 docker compose up -d
 ```
 
 PowerShell:
 
 ```powershell
-Copy-Item .env.example .env
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+# Review and save the required fields from "Before Quick Start: Configure .env"
 docker compose up -d
 ```
 
@@ -309,8 +347,7 @@ Access:
 - Oracle listener port: `localhost:5501`
 - Oracle EM Express: `http://localhost:5500/em`
 
-Oracle usually needs a few minutes on first boot. If the Oracle image fails to pull, run `docker login container-registry.oracle.com`, accept the database image license in the Oracle Container Registry; or use an external Oracle instance and update `.env`.
-You can also switch `ORACLE_IMAGE` in `.env` to a domestic mirror, for example `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c`.
+Oracle usually needs a few minutes on first boot. `.env.example` defaults to a domestic Oracle 19c mirror. If you switch `ORACLE_IMAGE` to the official image, run `docker login container-registry.oracle.com` first and accept the database image license in the Oracle Container Registry. You can also use an external Oracle instance and update `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, and `ORACLE_PASSWORD` in `.env`.
 
 ## SentimentFlow Runtime
 
@@ -507,7 +544,7 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | `ORACLE_POOL_INCREMENT`   | No          | `1`                               | Oracle pool growth step.                                        |
 | `ORACLE_HOST_PORT`        | Docker      | `5501`                            | Oracle container `1521` mapped to host.                         |
 | `ORACLE_EM_PORT`          | Docker      | `5500`                            | Oracle EM Express mapped port.                                  |
-| `ORACLE_IMAGE`            | Docker      | `container-registry.oracle.com/database/enterprise:19.3.0.0` | Oracle image used by `oracle19c` and `db-init`.                 |
+| `ORACLE_IMAGE`            | Docker      | `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c` | Oracle image used by `oracle19c` and `db-init`; can be switched to the official Oracle Registry image. |
 | `ORACLE_PWD`              | Docker/Init | Replace with a strong password    | SYS/SYSTEM password for the Oracle container and init scripts.  |
 | `ORACLE_SYS_SERVICE_NAME` | Init        | `ORCLCDB`                         | CDB service name used by `db-init` and `scripts/init-db.*`.     |
 | `DB_INIT_CHECK_TABLE`     | Init        | `N_USERS`                         | App schema table used by `db-init` to detect an initialized DB. |
@@ -672,7 +709,7 @@ The bundled `docker-compose.yml` targets local dev and small test environments. 
 
 ### Docker cannot pull the Oracle image
 
-Set `ORACLE_IMAGE` in `.env` to choose the Oracle source. The default official image requires Oracle Container Registry access and license acceptance. If you want a domestic mirror, set it to a reachable image such as `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c`.
+Set `ORACLE_IMAGE` in `.env` to choose the Oracle source. `.env.example` defaults to `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c`. If you switch to `container-registry.oracle.com/database/enterprise:19.3.0.0`, log in to Oracle Container Registry and accept the image license first.
 
 ### Oracle errors after app startup
 
