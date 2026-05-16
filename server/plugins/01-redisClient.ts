@@ -57,6 +57,14 @@ function getRedisInstance(): Redis {
 }
 
 export default defineNitroPlugin(nitroApp => {
+  const redis = getRedisInstance();
+  redis.connect().catch(err => {
+    logError('redis', {
+      event: 'client:connect:failed',
+      error: serializeLogError(err)
+    });
+  });
+
   nitroApp.hooks.hook('request', (event: H3Event) => {
     Object.defineProperty(
       event.context as RedisEventContext,
