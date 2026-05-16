@@ -1,0 +1,3666 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "NekoTribe v2 incremental missing API contract",
+    "description": "仅包含 doc/v2.openapi.json 未覆盖的后端 v2 接口。导入时用于增量新增接口，不包含原文档已有的 path+method，也不复用原文档组件名。",
+    "version": "2.0.0-incremental.20260516"
+  },
+  "servers": [],
+  "tags": [
+    {
+      "name": "增量-Moderation",
+      "description": "仅本增量包新增的审核接口。"
+    },
+    {
+      "name": "增量-Reports",
+      "description": "仅本增量包新增的举报接口。"
+    },
+    {
+      "name": "增量-Users",
+      "description": "仅本增量包新增的用户接口。"
+    },
+    {
+      "name": "增量-Posts",
+      "description": "仅本增量包新增的帖子接口。"
+    },
+    {
+      "name": "增量-Groups",
+      "description": "仅本增量包新增的群组接口。"
+    }
+  ],
+  "paths": {
+    "/api/v2/moderation/stats": {
+      "get": {
+        "summary": "获取审核统计",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/stats.get.ts`，返回内容审核待处理、已处理、开放举报和申诉成功率等统计。",
+        "operationId": "incremental_get_moderation_stats",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IncrementalV2ModerationStats"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/moderation/content": {
+      "get": {
+        "summary": "分页获取待审核内容",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/content/index.get.ts`，按状态、举报原因、时间范围和关键词筛选帖子审核队列。",
+        "operationId": "incremental_get_moderation_content",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "搜索帖子内容、作者用户名或展示名。",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "spam"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "审核状态筛选，all 表示不过滤。",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "pending",
+                "approved",
+                "rejected",
+                "flagged",
+                "removed",
+                "restored"
+              ]
+            },
+            "example": "pending"
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "description": "举报原因筛选，all 表示不过滤。",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "spam",
+                "harassment",
+                "hate",
+                "violence",
+                "adult",
+                "misinformation",
+                "copyright",
+                "other"
+              ]
+            },
+            "example": "spam"
+          },
+          {
+            "name": "date_range",
+            "in": "query",
+            "description": "举报时间范围。",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "today",
+                "yesterday",
+                "week",
+                "month"
+              ]
+            },
+            "example": "week"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "排序方式。",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "newest",
+                "oldest",
+                "most_reports",
+                "most_engagement"
+              ]
+            },
+            "example": "newest"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码，最小 1，默认 1。",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量，1-100，默认 20。",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "moderation content listed"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IncrementalV2ModerationContentItem"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/IncrementalV2ApiMeta"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/moderation/content/{post_id}/actions": {
+      "post": {
+        "summary": "处理单条审核内容",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/content/[post_id]/actions.post.ts`，对指定帖子执行 approve/reject/flag/remove/restore/claim/release。",
+        "operationId": "incremental_post_moderation_content_post_id_actions",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "description": "帖子 ID。",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 100001
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncrementalV2ModerationActionPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "moderation action applied"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IncrementalV2ModerationContentItem"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/moderation/content/bulk-actions": {
+      "post": {
+        "summary": "批量处理审核内容",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/content/bulk-actions.post.ts`，批量对帖子执行 approve/reject/flag/remove/restore。",
+        "operationId": "incremental_post_moderation_content_bulk_actions",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncrementalV2BulkModerationPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "bulk moderation action applied"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IncrementalV2BulkModerationResult"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/moderation/reports": {
+      "get": {
+        "summary": "分页获取举报列表",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/reports/index.get.ts`，按举报状态、原因和目标类型筛选。",
+        "operationId": "incremental_get_moderation_reports",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "举报状态筛选，all 表示不过滤。",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "pending",
+                "in_review",
+                "resolved",
+                "dismissed"
+              ]
+            },
+            "example": "pending"
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "description": "举报原因筛选，all 表示不过滤。",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "spam",
+                "harassment",
+                "hate",
+                "violence",
+                "adult",
+                "misinformation",
+                "copyright",
+                "other"
+              ]
+            },
+            "example": "spam"
+          },
+          {
+            "name": "target_type",
+            "in": "query",
+            "description": "举报目标类型，all 表示不过滤。",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "post",
+                "comment",
+                "user"
+              ]
+            },
+            "example": "post"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码，最小 1，默认 1。",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量，1-100，默认 20。",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "moderation reports listed"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IncrementalV2ModerationReport"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/IncrementalV2ApiMeta"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/moderation/reports/{report_id}": {
+      "patch": {
+        "summary": "更新举报状态",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/reports/[report_id].patch.ts`，更新举报状态并记录处理人。",
+        "operationId": "incremental_patch_moderation_reports_report_id",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "description": "举报 ID。",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1100001
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncrementalV2ModerationReportPatchPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "report updated"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IncrementalV2ModerationReport"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/moderation/users": {
+      "get": {
+        "summary": "分页获取审核用户列表",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/users/index.get.ts`，按用户状态、关键词和举报量排序筛选。",
+        "operationId": "incremental_get_moderation_users",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "搜索用户名、展示名或邮箱。",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "neko"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "用户状态筛选，all 表示不过滤。",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "active"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "排序方式。",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "newest",
+                "oldest",
+                "reports"
+              ]
+            },
+            "example": "reports"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码，最小 1，默认 1。",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量，1-100，默认 20。",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "moderation users listed"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IncrementalV2ModerationUserItem"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/IncrementalV2ApiMeta"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/moderation/users/{user_id}/actions": {
+      "post": {
+        "summary": "执行用户审核动作",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/users/[user_id]/actions.post.ts`，对用户执行 ban/unban/mute/unmute/note。",
+        "operationId": "incremental_post_moderation_users_user_id_actions",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "用户 ID。",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1002
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncrementalV2ModerationUserActionPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "user moderation action applied"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IncrementalV2ModerationUserItem"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/moderation/settings": {
+      "get": {
+        "summary": "获取审核设置",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/settings/index.get.ts`，返回审核功能的可配置项。",
+        "operationId": "incremental_get_moderation_settings",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IncrementalV2ModerationSetting"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "summary": "更新审核设置",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/settings/index.patch.ts`，批量更新已定义的审核设置项。",
+        "operationId": "incremental_patch_moderation_settings",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncrementalV2ModerationSettingsPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IncrementalV2ModerationSetting"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/moderation/appeals": {
+      "get": {
+        "summary": "分页获取处罚申诉列表",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/appeals/index.get.ts`，按申诉状态筛选账号处罚申诉。",
+        "operationId": "incremental_get_moderation_appeals",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "申诉状态筛选，all 表示不过滤。",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "pending",
+                "approved",
+                "rejected"
+              ]
+            },
+            "example": "pending"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码，最小 1，默认 1。",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量，1-100，默认 20。",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "moderation appeals listed"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IncrementalV2ModerationAppeal"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/IncrementalV2ApiMeta"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/moderation/appeals/{appeal_id}": {
+      "patch": {
+        "summary": "处理处罚申诉",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/moderation/appeals/[appeal_id].patch.ts`，将申诉标记为 approved 或 rejected，并保存管理员回复。",
+        "operationId": "incremental_patch_moderation_appeals_appeal_id",
+        "tags": [
+          "增量-Moderation"
+        ],
+        "parameters": [
+          {
+            "name": "appeal_id",
+            "in": "path",
+            "description": "申诉 ID。",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 900001
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncrementalV2ModerationAppealPatchPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "appeal updated"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IncrementalV2ModerationAppeal"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/reports": {
+      "post": {
+        "summary": "创建举报",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/reports/index.post.ts`，对 post/comment/user 创建举报记录并同步审核案件。",
+        "operationId": "incremental_post_reports",
+        "tags": [
+          "增量-Reports"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncrementalV2CreateReportPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "report created"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IncrementalV2ModerationReport"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/users/{id}/analytics/daily": {
+      "get": {
+        "summary": "获取用户每日分析数据",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/users/[id]/analytics/daily.get.ts`，返回最近 7-90 天的发帖、获赞、评论、转发和互动分。",
+        "operationId": "incremental_get_users_id_analytics_daily",
+        "tags": [
+          "增量-Users"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "用户 ID。",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1001
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "description": "统计天数，后端会限制在 7-90，默认 14。",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 7,
+              "maximum": 90
+            },
+            "example": 14
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "user daily analytics"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IncrementalV2UserDailyAnalytics"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/posts/{post_id}": {
+      "put": {
+        "summary": "更新帖子",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/posts/[id].put.ts`，仅作者可修改帖子内容、可见性、语言、位置、媒体、标签和提及用户。",
+        "operationId": "incremental_put_posts_post_id",
+        "tags": [
+          "增量-Posts"
+        ],
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "description": "帖子 ID。",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 100001
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncrementalV2UpdatePostPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "post updated"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IncrementalV2Post"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/groups/{id}/members/{user_id}/roles": {
+      "patch": {
+        "summary": "变更成员角色（roles 别名）",
+        "deprecated": false,
+        "description": "后端 `server/api/v2/groups/[id]/members/[user_id]/roles/index.patch.ts`，该文件 re-export `/role` 实现，作为复数路径别名存在。",
+        "operationId": "incremental_patch_groups_id_members_user_id_roles",
+        "tags": [
+          "增量-Groups"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "群组 ID。",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 3
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "用户 ID。",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1002
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncrementalV2MemberRolePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "role updated"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IncrementalV2GroupMemberStatusData"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或 token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncrementalV2ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "incrementalBearerAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "incrementalBearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "增量文档专用命名，避免覆盖原文档 bearerAuth。"
+      }
+    },
+    "schemas": {
+      "IncrementalV2ApiMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "example": 20
+          },
+          "total": {
+            "type": "integer",
+            "example": 42
+          },
+          "has_next": {
+            "type": "boolean",
+            "example": false
+          },
+          "limit": {
+            "type": "integer",
+            "example": 20
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "v2 分页/限制元信息。"
+      },
+      "IncrementalV2Relationship": {
+        "type": "object",
+        "properties": {
+          "is_self": {
+            "type": "boolean",
+            "example": false
+          },
+          "is_following": {
+            "type": "boolean",
+            "example": false
+          },
+          "is_blocked": {
+            "type": "boolean",
+            "example": false
+          },
+          "is_blocking": {
+            "type": "boolean",
+            "example": false
+          },
+          "relation": {
+            "type": "string",
+            "example": "none"
+          }
+        },
+        "required": [
+          "is_self",
+          "is_following",
+          "is_blocked",
+          "is_blocking",
+          "relation"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2PublicUser": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "example": 1001
+          },
+          "username": {
+            "type": "string",
+            "example": "neko_dev"
+          },
+          "display_name": {
+            "type": "string",
+            "example": "Neko Dev"
+          },
+          "avatar_url": {
+            "type": "string",
+            "example": "/default-avatar.png"
+          },
+          "bio": {
+            "type": "string",
+            "example": "关注 API 设计"
+          },
+          "location": {
+            "type": "string",
+            "example": "Hangzhou"
+          },
+          "website": {
+            "type": "string",
+            "example": "https://example.com"
+          },
+          "is_verified": {
+            "type": "integer",
+            "example": 1
+          },
+          "followers_count": {
+            "type": "integer",
+            "example": 12
+          },
+          "following_count": {
+            "type": "integer",
+            "example": 8
+          },
+          "posts_count": {
+            "type": "integer",
+            "example": 30
+          },
+          "likes_count": {
+            "type": "integer",
+            "example": 88
+          },
+          "relationship": {
+            "$ref": "#/components/schemas/IncrementalV2Relationship"
+          },
+          "online_status": {
+            "type": "string",
+            "enum": [
+              "online",
+              "offline",
+              "hidden"
+            ],
+            "example": "offline"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T10:00:00.000Z",
+            "nullable": true
+          }
+        },
+        "required": [
+          "user_id",
+          "username",
+          "display_name",
+          "avatar_url",
+          "bio",
+          "location",
+          "website",
+          "is_verified",
+          "followers_count",
+          "following_count",
+          "posts_count",
+          "likes_count",
+          "relationship",
+          "online_status",
+          "last_seen_at"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2MediaAsset": {
+        "type": "object",
+        "properties": {
+          "media_id": {
+            "type": "integer",
+            "example": 600001
+          },
+          "media_type": {
+            "type": "string",
+            "example": "image"
+          },
+          "file_name": {
+            "type": "string",
+            "example": "image.png"
+          },
+          "public_url": {
+            "type": "string",
+            "example": "/upload/media/image.png"
+          },
+          "file_size": {
+            "type": "integer",
+            "example": 512000
+          },
+          "mime_type": {
+            "type": "string",
+            "example": "image/png"
+          },
+          "width": {
+            "type": "integer",
+            "example": 1280,
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "example": 720,
+            "nullable": true
+          },
+          "duration": {
+            "type": "number",
+            "example": 12.5,
+            "nullable": true
+          },
+          "thumbnail_url": {
+            "type": "string",
+            "example": "/upload/media/image-thumb.png",
+            "nullable": true
+          },
+          "alt_text": {
+            "type": "string",
+            "example": "图片说明",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "example": "ready"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "media_id",
+          "media_type",
+          "file_name",
+          "public_url",
+          "file_size",
+          "mime_type",
+          "width",
+          "height",
+          "duration",
+          "thumbnail_url",
+          "alt_text",
+          "status",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2PostStats": {
+        "type": "object",
+        "properties": {
+          "likes_count": {
+            "type": "integer",
+            "example": 10
+          },
+          "comments_count": {
+            "type": "integer",
+            "example": 2
+          },
+          "replies_count": {
+            "type": "integer",
+            "example": 1
+          },
+          "retweets_count": {
+            "type": "integer",
+            "example": 3
+          },
+          "views_count": {
+            "type": "integer",
+            "example": 120
+          },
+          "engagement_score": {
+            "type": "number",
+            "example": 16
+          }
+        },
+        "required": [
+          "likes_count",
+          "comments_count",
+          "replies_count",
+          "retweets_count",
+          "views_count",
+          "engagement_score"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ViewerPostState": {
+        "type": "object",
+        "properties": {
+          "is_liked": {
+            "type": "boolean",
+            "example": false
+          },
+          "is_bookmarked": {
+            "type": "boolean",
+            "example": false
+          },
+          "can_delete": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "is_liked",
+          "is_bookmarked",
+          "can_delete"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2Post": {
+        "type": "object",
+        "properties": {
+          "post_id": {
+            "type": "integer",
+            "example": 100001
+          },
+          "author": {
+            "$ref": "#/components/schemas/IncrementalV2PublicUser"
+          },
+          "content": {
+            "type": "string",
+            "example": "更新后的帖子内容"
+          },
+          "post_type": {
+            "type": "string",
+            "example": "post"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "followers",
+              "mentioned",
+              "private"
+            ],
+            "example": "public"
+          },
+          "language": {
+            "type": "string",
+            "example": "zh"
+          },
+          "location": {
+            "type": "string",
+            "example": "Hangzhou"
+          },
+          "reply_to_post_id": {
+            "type": "integer",
+            "example": 100000,
+            "nullable": true
+          },
+          "repost_of_post_id": {
+            "type": "integer",
+            "example": 100000,
+            "nullable": true
+          },
+          "quoted_post_id": {
+            "type": "integer",
+            "example": 100000,
+            "nullable": true
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncrementalV2MediaAsset"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "example": "api"
+            }
+          },
+          "mentions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncrementalV2PublicUser"
+            }
+          },
+          "stats": {
+            "$ref": "#/components/schemas/IncrementalV2PostStats"
+          },
+          "viewer_state": {
+            "$ref": "#/components/schemas/IncrementalV2ViewerPostState"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T09:30:00.000Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "post_id",
+          "author",
+          "content",
+          "post_type",
+          "visibility",
+          "language",
+          "location",
+          "reply_to_post_id",
+          "repost_of_post_id",
+          "quoted_post_id",
+          "media",
+          "tags",
+          "mentions",
+          "stats",
+          "viewer_state",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2UserDailyAnalytics": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-05-16"
+          },
+          "posts_count": {
+            "type": "integer",
+            "example": 2
+          },
+          "likes_received": {
+            "type": "integer",
+            "example": 8
+          },
+          "comments_received": {
+            "type": "integer",
+            "example": 3
+          },
+          "retweets_received": {
+            "type": "integer",
+            "example": 1
+          },
+          "likes_given": {
+            "type": "integer",
+            "example": 5
+          },
+          "comments_made": {
+            "type": "integer",
+            "example": 4
+          },
+          "engagement_score": {
+            "type": "number",
+            "example": 12
+          }
+        },
+        "required": [
+          "day",
+          "posts_count",
+          "likes_received",
+          "comments_received",
+          "retweets_received",
+          "likes_given",
+          "comments_made",
+          "engagement_score"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ModerationReport": {
+        "type": "object",
+        "properties": {
+          "report_id": {
+            "type": "integer",
+            "example": 1100001
+          },
+          "target_type": {
+            "type": "string",
+            "enum": [
+              "post",
+              "comment",
+              "user"
+            ],
+            "example": "post"
+          },
+          "target_id": {
+            "type": "integer",
+            "example": 100001
+          },
+          "reporter": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IncrementalV2PublicUser"
+              }
+            ],
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "spam",
+              "harassment",
+              "hate",
+              "violence",
+              "adult",
+              "misinformation",
+              "copyright",
+              "other"
+            ],
+            "example": "spam"
+          },
+          "description": {
+            "type": "string",
+            "example": "疑似垃圾内容"
+          },
+          "evidence_url": {
+            "type": "string",
+            "example": "https://example.com/evidence.png",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_review",
+              "resolved",
+              "dismissed"
+            ],
+            "example": "pending"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ],
+            "example": "normal"
+          },
+          "handled_by": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IncrementalV2PublicUser"
+              }
+            ],
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T09:00:00.000Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T09:00:00.000Z"
+          },
+          "resolved_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T10:00:00.000Z",
+            "nullable": true
+          }
+        },
+        "required": [
+          "report_id",
+          "target_type",
+          "target_id",
+          "reporter",
+          "reason",
+          "description",
+          "evidence_url",
+          "status",
+          "priority",
+          "handled_by",
+          "created_at",
+          "updated_at",
+          "resolved_at"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ModerationContentItem": {
+        "type": "object",
+        "properties": {
+          "case_id": {
+            "type": "integer",
+            "example": 1200001
+          },
+          "post_id": {
+            "type": "integer",
+            "example": 100001
+          },
+          "content": {
+            "type": "string",
+            "example": "待审核内容"
+          },
+          "author": {
+            "$ref": "#/components/schemas/IncrementalV2PublicUser"
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncrementalV2MediaAsset"
+            }
+          },
+          "report_count": {
+            "type": "integer",
+            "example": 3
+          },
+          "report_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "spam",
+                "harassment",
+                "hate",
+                "violence",
+                "adult",
+                "misinformation",
+                "copyright",
+                "other"
+              ],
+              "example": "spam"
+            }
+          },
+          "reports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncrementalV2ModerationReport"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "flagged",
+              "removed",
+              "restored"
+            ],
+            "example": "pending"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ],
+            "example": "normal"
+          },
+          "assigned_to": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IncrementalV2PublicUser"
+              }
+            ],
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T09:00:00.000Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T09:30:00.000Z"
+          },
+          "reported_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T09:00:00.000Z"
+          },
+          "likes_count": {
+            "type": "integer",
+            "example": 10
+          },
+          "retweets_count": {
+            "type": "integer",
+            "example": 2
+          },
+          "replies_count": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "required": [
+          "case_id",
+          "post_id",
+          "content",
+          "author",
+          "media",
+          "report_count",
+          "report_reasons",
+          "reports",
+          "status",
+          "priority",
+          "assigned_to",
+          "created_at",
+          "updated_at",
+          "reported_at",
+          "likes_count",
+          "retweets_count",
+          "replies_count"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ModerationStats": {
+        "type": "object",
+        "properties": {
+          "pending": {
+            "type": "integer",
+            "example": 12
+          },
+          "approved": {
+            "type": "integer",
+            "example": 5
+          },
+          "rejected": {
+            "type": "integer",
+            "example": 3
+          },
+          "flagged": {
+            "type": "integer",
+            "example": 2
+          },
+          "today_processed": {
+            "type": "integer",
+            "example": 7
+          },
+          "avg_process_minutes": {
+            "type": "number",
+            "example": 18
+          },
+          "open_reports": {
+            "type": "integer",
+            "example": 21
+          },
+          "appeal_success_rate": {
+            "type": "number",
+            "example": 35
+          }
+        },
+        "required": [
+          "pending",
+          "approved",
+          "rejected",
+          "flagged",
+          "today_processed",
+          "avg_process_minutes",
+          "open_reports",
+          "appeal_success_rate"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ModerationUserItem": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "example": 1002
+          },
+          "username": {
+            "type": "string",
+            "example": "reported_user"
+          },
+          "display_name": {
+            "type": "string",
+            "example": "Reported User"
+          },
+          "avatar_url": {
+            "type": "string",
+            "example": "/default-avatar.png"
+          },
+          "email": {
+            "type": "string",
+            "example": "reported@example.com"
+          },
+          "status": {
+            "type": "string",
+            "example": "active"
+          },
+          "is_active": {
+            "type": "integer",
+            "example": 1
+          },
+          "is_verified": {
+            "type": "integer",
+            "example": 0
+          },
+          "followers_count": {
+            "type": "integer",
+            "example": 5
+          },
+          "posts_count": {
+            "type": "integer",
+            "example": 12
+          },
+          "likes_count": {
+            "type": "integer",
+            "example": 30
+          },
+          "report_count": {
+            "type": "integer",
+            "example": 4
+          },
+          "active_restriction": {
+            "type": "string",
+            "example": "mute",
+            "nullable": true
+          },
+          "restriction_until": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-17T10:00:00.000Z",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-01T08:00:00.000Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "user_id",
+          "username",
+          "display_name",
+          "avatar_url",
+          "email",
+          "status",
+          "is_active",
+          "is_verified",
+          "followers_count",
+          "posts_count",
+          "likes_count",
+          "report_count",
+          "active_restriction",
+          "restriction_until",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ModerationSetting": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "auto_hide_report_threshold"
+          },
+          "value": {
+            "type": "string",
+            "example": "10"
+          },
+          "value_type": {
+            "type": "string",
+            "enum": [
+              "boolean",
+              "number",
+              "string"
+            ],
+            "example": "number"
+          },
+          "label": {
+            "type": "string",
+            "example": "Auto-hide threshold"
+          },
+          "description": {
+            "type": "string",
+            "example": "Automatically flags content when report count reaches this number."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "key",
+          "value",
+          "value_type",
+          "label",
+          "description",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ModerationAppeal": {
+        "type": "object",
+        "properties": {
+          "appeal_id": {
+            "type": "integer",
+            "example": 900001
+          },
+          "statement_id": {
+            "type": "integer",
+            "example": 800001
+          },
+          "user": {
+            "$ref": "#/components/schemas/IncrementalV2PublicUser"
+          },
+          "appeal_message": {
+            "type": "string",
+            "example": "我认为这次处罚存在误判"
+          },
+          "appeal_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected"
+            ],
+            "example": "pending"
+          },
+          "admin_response": {
+            "type": "string",
+            "example": "处理中"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T09:00:00.000Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-16T09:30:00.000Z"
+          }
+        },
+        "required": [
+          "appeal_id",
+          "statement_id",
+          "user",
+          "appeal_message",
+          "appeal_status",
+          "admin_response",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2BulkModerationResult": {
+        "type": "object",
+        "properties": {
+          "processed_count": {
+            "type": "integer",
+            "example": 3
+          }
+        },
+        "required": [
+          "processed_count"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2GroupMemberStatusData": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "example": 1002
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "moderator",
+              "member"
+            ],
+            "example": "moderator"
+          }
+        },
+        "required": [
+          "user_id",
+          "role"
+        ],
+        "additionalProperties": false,
+        "description": "成员角色变更结果。"
+      },
+      "IncrementalV2ModerationActionPayload": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject",
+              "flag",
+              "remove",
+              "restore",
+              "claim",
+              "release"
+            ],
+            "example": "flag"
+          },
+          "note": {
+            "type": "string",
+            "example": "处理备注"
+          },
+          "reason": {
+            "type": "string",
+            "example": "违反社区规则"
+          },
+          "duration_hours": {
+            "type": "integer",
+            "example": 24
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2BulkModerationPayload": {
+        "type": "object",
+        "properties": {
+          "post_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "example": 100001
+            }
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject",
+              "flag",
+              "remove",
+              "restore"
+            ],
+            "example": "flag"
+          },
+          "note": {
+            "type": "string",
+            "example": "批量处理备注"
+          },
+          "reason": {
+            "type": "string",
+            "example": "违反社区规则"
+          }
+        },
+        "required": [
+          "post_ids",
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ModerationReportPatchPayload": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_review",
+              "resolved",
+              "dismissed"
+            ],
+            "example": "in_review"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ModerationUserActionPayload": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "ban",
+              "unban",
+              "mute",
+              "unmute",
+              "note"
+            ],
+            "example": "mute"
+          },
+          "reason": {
+            "type": "string",
+            "example": "多次违规"
+          },
+          "note": {
+            "type": "string",
+            "example": "管理员备注"
+          },
+          "duration_hours": {
+            "type": "integer",
+            "example": 24
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ModerationSettingsPayload": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "example": "auto_hide_report_threshold"
+                },
+                "value": {
+                  "type": "string",
+                  "example": "10"
+                }
+              },
+              "required": [
+                "key",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "settings"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ModerationAppealPatchPayload": {
+        "type": "object",
+        "properties": {
+          "appeal_status": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "rejected"
+            ],
+            "example": "approved"
+          },
+          "admin_response": {
+            "type": "string",
+            "example": "申诉通过，已恢复相关状态"
+          }
+        },
+        "required": [
+          "appeal_status"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2CreateReportPayload": {
+        "type": "object",
+        "properties": {
+          "target_type": {
+            "type": "string",
+            "enum": [
+              "post",
+              "comment",
+              "user"
+            ],
+            "example": "post"
+          },
+          "target_id": {
+            "type": "integer",
+            "example": 100001
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "spam",
+              "harassment",
+              "hate",
+              "violence",
+              "adult",
+              "misinformation",
+              "copyright",
+              "other"
+            ],
+            "example": "spam"
+          },
+          "description": {
+            "type": "string",
+            "example": "疑似垃圾内容"
+          },
+          "evidence_url": {
+            "type": "string",
+            "example": "https://example.com/evidence.png"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ],
+            "example": "normal"
+          }
+        },
+        "required": [
+          "target_type",
+          "target_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2UpdatePostPayload": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "example": "更新后的内容"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "followers",
+              "mentioned",
+              "private"
+            ],
+            "example": "public"
+          },
+          "language": {
+            "type": "string",
+            "example": "zh"
+          },
+          "location": {
+            "type": "string",
+            "example": "Hangzhou",
+            "nullable": true
+          },
+          "media_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "example": 600001
+            }
+          },
+          "tag_names": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "example": "api"
+            }
+          },
+          "mention_user_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "example": 1002
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "帖子更新负载。后端同时兼容 mediaIds/tagNames/mentionUserIds。"
+      },
+      "IncrementalV2MemberRolePayload": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "moderator",
+              "member"
+            ],
+            "example": "moderator"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "IncrementalV2ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 40001
+          },
+          "message": {
+            "type": "string",
+            "example": "请求参数错误"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "x-incremental-import": {
+    "base_file": "doc/v2.openapi.json",
+    "backend_route_root": "server/api/v2",
+    "generated_on": "2026-05-16",
+    "included_operations": 16,
+    "safety_guards": [
+      "paths 仅包含原文档中不存在的 path+method",
+      "components 使用 IncrementalV2*/incrementalBearerAuth 前缀/命名，避免覆盖原组件",
+      "未写入 doc/v2.openapi.json"
+    ],
+    "excluded_as_already_covered": [
+      {
+        "method": "PUT",
+        "backend_path": "/api/v2/groups/{id}/members/{user_id}/approval-status",
+        "existing_doc_path": "/api/v2/groups/{id}/members/{member_id}/approval-status",
+        "reason": "仅路径参数名不同，URL 形态和方法已在原文档覆盖；为避免导入后产生重复接口，未放入增量 JSON。"
+      }
+    ]
+  }
+}
