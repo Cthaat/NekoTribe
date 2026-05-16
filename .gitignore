@@ -61,5 +61,6 @@ temp
 data/oracle19c-data
 data/oracle-data
 
-SentimentFlow/
+SentimentFlow/*
 sentimentflow-models/
+sentimentflow-runtime/
