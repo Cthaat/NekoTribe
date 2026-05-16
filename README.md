@@ -352,6 +352,18 @@ docker compose pull sentimentflow sentimentflow-frontend
 docker compose up -d
 ```
 
+If the backend image appears stuck at `Pulling`, stop the current Compose command first and use the progress helper. It prints the remote image layers before pulling and then uses Compose plain progress:
+
+```powershell
+.\scripts\pull-sentimentflow-remote.ps1
+```
+
+After the pull finishes, the script can also start the stack without pulling again:
+
+```powershell
+.\scripts\pull-sentimentflow-remote.ps1 -Up
+```
+
 Default URLs:
 
 - NekoTribe app: `http://localhost:30001`
@@ -456,6 +468,7 @@ Then run `yarn dev`. Verify `http://localhost:8846/health`, `http://localhost:88
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `scripts/dev.sh`              | If `.env` is missing, copy template, start Redis/Oracle containers, install dependencies, then run `yarn dev`. |
 | `scripts/start.sh`            | If `.env` is missing, copy template, then build and start full Docker stack.                                   |
+| `scripts/pull-sentimentflow-remote.ps1` | Show remote GHCR image layer sizes, pull NekoTribe and SentimentFlow images with plain progress, and optionally start without pulling again. |
 | `scripts/init-db.sh`          | Manual fallback for executing `doc/neko_tribe-oracle-v2.sql` outside the default Compose flow.                 |
 | `scripts/docker-init-db.sh`   | Internal Compose entrypoint used by the `db-init` service.                                                     |
 | `scripts/dev.ps1`             | PowerShell equivalent of `scripts/dev.sh`.                                                                     |
