@@ -177,6 +177,90 @@ services:
       retries: 5
       start_period: 10s
 
+  sentimentflow-frontend:
+    image: ${SENTIMENTFLOW_FRONTEND_LOCAL_IMAGE:-sentimentflow-frontend:local}
+    build:
+      context: .
+      pull: true
+      args:
+        SENTIMENTFLOW_GIT_CONTEXT: ${SENTIMENTFLOW_GIT_CONTEXT:-https://github.com/Cthaat/SentimentFlow.git#main}
+        SENTIMENTFLOW_FRONTEND_CONTAINER_PORT: ${SENTIMENTFLOW_FRONTEND_CONTAINER_PORT:-3000}
+        YARN_REGISTRY: ${YARN_REGISTRY:-https://registry.npmjs.org}
+      dockerfile_inline: |
+        FROM node:20-bookworm-slim AS source
+        ARG SENTIMENTFLOW_GIT_CONTEXT
+        WORKDIR /workspace
+        RUN apt-get update \
+          && apt-get install -y --no-install-recommends ca-certificates git \
+          && rm -rf /var/lib/apt/lists/*
+        RUN set -eux; \
+          repo="$${SENTIMENTFLOW_GIT_CONTEXT%%#*}"; \
+          ref="$${SENTIMENTFLOW_GIT_CONTEXT#*#}"; \
+          if [ "$$repo" = "$$ref" ]; then ref="main"; fi; \
+          git init .; \
+          git remote add origin "$$repo"; \
+          git fetch --depth 1 origin "$$ref"; \
+          git checkout --detach FETCH_HEAD; \
+          rm -rf .git
+
+        FROM node:20-bookworm-slim AS deps
+        ARG YARN_REGISTRY=https://registry.npmjs.org
+        WORKDIR /app
+        COPY --from=source /workspace/frontend/package.json /workspace/frontend/yarn.lock ./
+        RUN yarn config set registry "$${YARN_REGISTRY}" \
+          && yarn install --frozen-lockfile
+
+        FROM node:20-bookworm-slim AS builder
+        WORKDIR /app
+        ENV NEXT_TELEMETRY_DISABLED=1
+        COPY --from=deps /app/node_modules ./node_modules
+        COPY --from=source /workspace/frontend ./
+        RUN yarn build
+
+        FROM node:20-bookworm-slim AS runner
+        ARG SENTIMENTFLOW_FRONTEND_CONTAINER_PORT=3000
+        WORKDIR /app
+        ENV NODE_ENV=production \
+            NEXT_TELEMETRY_DISABLED=1 \
+            HOSTNAME=0.0.0.0 \
+            PORT=${SENTIMENTFLOW_FRONTEND_CONTAINER_PORT}
+        RUN groupadd --system --gid 1001 nodejs \
+          && useradd --system --uid 1001 --gid nodejs nextjs
+        COPY --from=builder /app/public ./public
+        COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+        COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+        USER nextjs
+        EXPOSE ${SENTIMENTFLOW_FRONTEND_CONTAINER_PORT}
+        CMD ["node", "server.js"]
+    pull_policy: build
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+      HOSTNAME: 0.0.0.0
+      PORT: ${SENTIMENTFLOW_FRONTEND_CONTAINER_PORT:-3000}
+      BACKEND_API_URL: http://sentimentflow:${SENTIMENTFLOW_CONTAINER_PORT:-8846}
+      BACKEND_API_TIMEOUT_MS: ${SENTIMENTFLOW_TIMEOUT_MS:-10000}
+    ports:
+      - '${SENTIMENTFLOW_FRONTEND_HOST_PORT:-30008}:${SENTIMENTFLOW_FRONTEND_CONTAINER_PORT:-3000}'
+    networks:
+      - neko-network
+    depends_on:
+      sentimentflow:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'const port=process.env.PORT||"3000";fetch("http://127.0.0.1:"+port+"/api/integration/health").then(r=>r.json()).then(j=>process.exit(j.ok?0:1)).catch(()=>process.exit(1))'
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   db-init:
     image: '${ORACLE_IMAGE:-container-registry.oracle.com/database/enterprise:19.3.0.0}'
     restart: 'no'
