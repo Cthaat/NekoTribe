@@ -118,6 +118,8 @@ services:
         condition: service_healthy
 
   sentimentflow:
+    profiles:
+      - '${SENTIMENTFLOW_ENABLED:-false}'
     image: ${SENTIMENTFLOW_LOCAL_IMAGE:-sentimentflow-backend:local}
     build:
       context: .
@@ -200,6 +202,8 @@ services:
       start_period: 10s
 
   sentimentflow-frontend:
+    profiles:
+      - '${SENTIMENTFLOW_ENABLED:-false}'
     image: ${SENTIMENTFLOW_FRONTEND_LOCAL_IMAGE:-sentimentflow-frontend:local}
     build:
       context: .
