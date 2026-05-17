@@ -111,6 +111,14 @@ function isPublicRoute(
   );
 }
 
+function isLegacyV1ApiEnabled(): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(
+    String(process.env.ENABLE_V1_API ?? '')
+      .trim()
+      .toLowerCase()
+  );
+}
+
 function extractToken(
   event: Parameters<typeof getCookie>[0]
 ): string | null {
@@ -196,7 +204,14 @@ export default defineEventHandler(async event => {
   const pathname = getRequestURL(event).pathname;
   const policy = getAuthPolicy(pathname);
 
-  if (!policy || isPublicRoute(policy, pathname)) return;
+  if (!policy) return;
+  if (policy.version === 'v1' && !isLegacyV1ApiEnabled()) {
+    throw createError({
+      statusCode: 410,
+      statusMessage: 'Legacy API is disabled'
+    });
+  }
+  if (isPublicRoute(policy, pathname)) return;
 
   const token = extractToken(event);
   if (!token) throw authError(policy, '请先登录');
