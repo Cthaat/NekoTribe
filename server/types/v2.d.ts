@@ -175,6 +175,11 @@ interface V2UserSettings {
   allow_dm_from_strangers?: boolean;
   push_notification_enabled?: boolean;
   email_notification_enabled?: boolean;
+  ai_sentiment_enabled?: boolean;
+  ai_sentiment_model_id?: string | null;
+  ai_sentiment_return_probabilities?: boolean;
+  ai_sentiment_include_metadata?: boolean;
+  ai_sentiment_top_k?: number;
   updated_at: string;
 }
 
@@ -186,6 +191,11 @@ interface V2UpdateSettingsPayload {
   allow_dm_from_strangers?: boolean;
   push_notification_enabled?: boolean;
   email_notification_enabled?: boolean;
+  ai_sentiment_enabled?: boolean;
+  ai_sentiment_model_id?: string | null;
+  ai_sentiment_return_probabilities?: boolean;
+  ai_sentiment_include_metadata?: boolean;
+  ai_sentiment_top_k?: number;
 }
 
 interface V2AccountStatement {
