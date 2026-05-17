@@ -288,7 +288,7 @@ Copy-Item .env.example .env
 | Oracle 初始化  | `ORACLE_IMAGE`、`ORACLE_PWD`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`、`DB_INIT_CHECK_TABLE` | `.env.example` 默认使用国内 Oracle 19c 镜像。`ORACLE_PWD` 是容器 `SYS/SYSTEM` 密码；`ORACLE_PASSWORD` 必须和 v2 SQL 创建的 `neko_app` 密码一致，模板值是 `NekoApp2026#`；`DB_INIT_CHECK_TABLE` 默认 `N_USERS`，用于判断是否已初始化。 |
 | Redis          | `REDIS_PASSWORD`                                                                                             | 内置 Redis 服务会读取这个密码。已有 Redis 数据卷启动后再改密码，可能导致旧客户端或健康检查认证失败，需要同步清理数据卷或保持旧密码。                                                                                                  |
 | 邮件功能       | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`                                                           | 应用可以在未配置 SMTP 时启动，但注册验证码、密码重置和账号邮件依赖真实 SMTP。163/QQ/Gmail 等服务通常需要应用专用密码或授权码，不是网页登录密码。                                                                                      |
-| SentimentFlow  | `SENTIMENTFLOW_ENABLED`、`SENTIMENTFLOW_HOST_PORT`、`SENTIMENTFLOW_FRONTEND_HOST_PORT`                       | 默认启用情感分析后端和前端。如果暂时不需要该功能，可设为 `false`，避免拉取或启动 SentimentFlow 镜像。                                                                                                                                 |
+| SentimentFlow  | `COMPOSE_PROFILES`、`SENTIMENTFLOW_ENABLED`、`SENTIMENTFLOW_HOST_PORT`、`SENTIMENTFLOW_FRONTEND_HOST_PORT`   | 保持 `COMPOSE_PROFILES=true`。将 `SENTIMENTFLOW_ENABLED=true` 时才会纳入情感分析后端和前端；设为 `false` 时，普通 Compose 启动会跳过拉取、构建和启动这些可选服务。                                                                 |
 
 如果 `.env` 已经存在，不要再次直接复制模板覆盖；只按上表补齐或修改需要的字段即可。
 
@@ -309,7 +309,7 @@ yarn dev
 
 ```bash
 git clone https://github.com/Cthaat/SentimentFlow.git
-docker compose up -f docker-compose.local.yml -d sentimentflow --build sentimentflow sentimentflow-frontend
+docker compose -f docker-compose.local.yml up -d --build sentimentflow sentimentflow-frontend
 ```
 
 访问地址：
@@ -369,12 +369,15 @@ Oracle 首次启动通常需要数分钟。`.env.example` 默认使用国内 Ora
 需要让 NekoTribe 应用调用情感分析后端时，在 `.env` 中保持代理开启：
 
 ```env
+COMPOSE_PROFILES=true
 SENTIMENTFLOW_ENABLED=true
 SENTIMENTFLOW_HOST_PORT=8846
 SENTIMENTFLOW_CONTAINER_PORT=8846
 SENTIMENTFLOW_FRONTEND_HOST_PORT=30008
 SENTIMENTFLOW_FRONTEND_CONTAINER_PORT=3000
 ```
+
+`COMPOSE_PROFILES=true` 是 Compose 的服务选择器。两个 SentimentFlow 服务会挂到 `SENTIMENTFLOW_ENABLED` 对应的 profile 上，所以 `SENTIMENTFLOW_ENABLED=false` 会让普通 `docker compose up` / `docker compose -f docker-compose.local.yml up --build` 跳过它们。
 
 端口变更集中在 `.env`。`SENTIMENTFLOW_HOST_PORT` 控制后端暴露给宿主机和浏览器的端口，例如 `http://localhost:${SENTIMENTFLOW_HOST_PORT}/docs`；`SENTIMENTFLOW_CONTAINER_PORT` 控制后端进程监听端口、Docker 目标端口、后端健康检查、NekoTribe app 容器访问后端的地址，以及 SentimentFlow 前端容器内的 `BACKEND_API_URL`。`SENTIMENTFLOW_FRONTEND_HOST_PORT` 控制宿主机和浏览器访问 SentimentFlow 前端界面的端口，`SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` 控制前端容器内 Next.js 服务器端口。
 
@@ -576,7 +579,8 @@ SENTIMENTFLOW_CONTAINER_PORT=8846
 | `NUXT_PUBLIC_WS_URL`                       | 否            | `ws://localhost:3000/_ws`                               | 客户端运行时使用的公开 WebSocket 地址。                                                  |
 | `DOCKER_PUBLIC_WS_URL`                     | Docker        | `ws://localhost:30001/_ws`                              | 应用容器模式下公开给客户端的 WebSocket 地址。                                            |
 | `NUXT_PUBLIC_API_BASE`                     | 否            | 空                                                      | 客户端 API 基础地址；空表示同源。                                                        |
-| `SENTIMENTFLOW_ENABLED`                    | 否            | `true`                                                  | 是否启用 SentimentFlow 集成和代理访问。                                                  |
+| `COMPOSE_PROFILES`                         | Docker        | `true`                                                  | 让 Compose 启用 profile 名为 `true` 的服务；保持该值，才能让 `SENTIMENTFLOW_ENABLED` 控制可选 SentimentFlow 服务。 |
+| `SENTIMENTFLOW_ENABLED`                    | 否            | `false` / `true`                                        | 是否启用 SentimentFlow 集成和代理访问；同时控制可选 Compose 服务是否被选中。             |
 | `SENTIMENTFLOW_BASE_URL`                   | 否            | 空                                                      | 外部 SentimentFlow 地址覆盖项；留空时宿主机开发访问会从 `SENTIMENTFLOW_HOST_PORT` 派生。 |
 | `SENTIMENTFLOW_TIMEOUT_MS`                 | 否            | `10000`                                                 | 上游代理超时时间，单位毫秒。                                                             |
 | `SENTIMENTFLOW_IMAGE`                      | Docker        | `ghcr.io/cthaat/sentimentflow-backend:latest`           | `docker-compose.yml` 拉取的 GHCR 镜像。                                                  |
