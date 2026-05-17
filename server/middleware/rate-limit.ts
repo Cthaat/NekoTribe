@@ -1,5 +1,6 @@
 import { defineEventHandler, createError } from '#imports';
 import type Redis from 'ioredis';
+import { getClientIp } from '~/server/utils/client-ip';
 import {
   getRequestLogContext,
   logError,
@@ -70,9 +71,7 @@ export default defineEventHandler(async event => {
     return;
   }
 
-  const ip =
-    event.node.req.headers['x-forwarded-for'] ||
-    event.node.req.socket.remoteAddress;
+  const ip = getClientIp(event);
   const now = Date.now();
   const redisKey = `rate_limit:${ip}`;
 

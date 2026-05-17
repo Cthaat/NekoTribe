@@ -117,6 +117,8 @@ services:
         condition: service_healthy
 
   sentimentflow:
+    profiles:
+      - '${SENTIMENTFLOW_ENABLED:-false}'
     image: ${SENTIMENTFLOW_IMAGE:-ghcr.io/cthaat/sentimentflow-backend:latest}
     pull_policy: always
     restart: unless-stopped
@@ -147,6 +149,8 @@ services:
       start_period: 10s
 
   sentimentflow-frontend:
+    profiles:
+      - '${SENTIMENTFLOW_ENABLED:-false}'
     image: ${SENTIMENTFLOW_FRONTEND_IMAGE:-ghcr.io/cthaat/sentimentflow-frontend:latest}
     pull_policy: always
     restart: unless-stopped

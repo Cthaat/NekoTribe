@@ -34,7 +34,6 @@ const IMAGE_MEDIA_MIME_TYPES = new Set([
   'image/gif',
   'image/jpeg',
   'image/png',
-  'image/svg+xml',
   'image/webp'
 ]);
 
@@ -45,6 +44,10 @@ const RICH_MEDIA_MIME_TYPES = new Set([
   'video/mp4',
   'video/ogg',
   'video/webm'
+]);
+const MEDIA_MIME_TYPES = new Set([
+  ...IMAGE_MEDIA_MIME_TYPES,
+  ...RICH_MEDIA_MIME_TYPES
 ]);
 
 const AVATAR_MAX_SIZE = 10 * 1024 * 1024;
@@ -212,8 +215,7 @@ async function detectUploadedFile(
   const detected = await fileTypeFromFile(file.filepath);
   const originalName =
     file.originalFilename || path.basename(file.filepath);
-  const mimeType =
-    detected?.mime || file.mimetype || 'application/octet-stream';
+  const mimeType = detected?.mime || '';
   const extension = pickDetectedExtension(
     detected?.ext,
     originalName
@@ -432,13 +434,6 @@ export async function deleteStorageReference(input: {
   publicUrl?: string | null;
 }): Promise<void> {
   if (input.storageKey) {
-    if (path.isAbsolute(input.storageKey)) {
-      await fs.promises.rm(input.storageKey, {
-        force: true
-      });
-      return;
-    }
-
     await deleteManagedObject(input.storageKey);
     return;
   }
@@ -477,6 +472,13 @@ export async function validateMediaFile(
   file: File
 ): Promise<ValidatedMediaFile> {
   const detected = await detectUploadedFile(file);
+
+  if (!MEDIA_MIME_TYPES.has(detected.mimeType)) {
+    throw new StorageHttpError(
+      400,
+      '仅支持图片、视频或音频文件'
+    );
+  }
 
   if ((file.size || 0) > MEDIA_MAX_SIZE) {
     throw new StorageHttpError(

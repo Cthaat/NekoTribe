@@ -4,9 +4,9 @@ import { fileTypeFromFile } from 'file-type';
 import sharp from 'sharp';
 import ffprobe from 'ffprobe-static';
 import { promisify } from 'util';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const ALLOWED_MIME = [
   'image/jpeg',
@@ -70,15 +70,15 @@ async function getMediaInfo(filePath: string): Promise<{
     // 正确获取 ffprobe 路径
     const ffprobePath = ffprobe.path || ffprobe;
 
-    // 处理文件路径中的特殊字符和空格
-    const escapedFilePath = `"${filePath.replace(/"/g, '\\"')}"`;
-
-    // 构建命令，确保路径正确
-    const command = `"${ffprobePath}" -v quiet -print_format json -show_format -show_streams ${escapedFilePath}`;
-
-    console.log('执行命令:', command);
-
-    const { stdout } = await execAsync(command, {
+    const { stdout } = await execFileAsync(String(ffprobePath), [
+      '-v',
+      'quiet',
+      '-print_format',
+      'json',
+      '-show_format',
+      '-show_streams',
+      filePath
+    ], {
       timeout: 30000, // 30秒超时
       encoding: 'utf8'
     });
@@ -145,8 +145,16 @@ async function generateThumbnail(
       return outputPath;
     } else if (mediaType === 'video') {
       // 视频缩略图 - 提取第一帧
-      const command = `ffmpeg -i "${filePath}" -vframes 1 -vf scale=300:300:force_original_aspect_ratio=decrease -y "${outputPath}"`;
-      await execAsync(command);
+      await execFileAsync('ffmpeg', [
+        '-i',
+        filePath,
+        '-vframes',
+        '1',
+        '-vf',
+        'scale=300:300:force_original_aspect_ratio=decrease',
+        '-y',
+        outputPath
+      ]);
       return outputPath;
     }
     return null;

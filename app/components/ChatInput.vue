@@ -619,6 +619,7 @@ const handleCancelReply = () => {
         <AppSendButton
           :aria-label="t('chat.actions.sendMessage')"
           :disabled="!canSend || disabled"
+          variant="secondary"
           class="h-10 px-4 rounded-lg"
           @click="handleSend"
         >

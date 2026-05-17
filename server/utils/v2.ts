@@ -8,11 +8,18 @@ import {
 } from 'h3';
 import oracledb from 'oracledb';
 import {
+  invalidateApiResponseCache,
+  readApiResponseCache,
+  shouldInvalidateApiResponseCache,
+  writeApiResponseCache
+} from './api-cache';
+import {
   getRequestLogContext,
   logError,
   logInfo,
   serializeLogError
 } from './logging';
+import { getClientIp } from './client-ip';
 
 export type V2DbRecord = Record<string, unknown>;
 export type V2RouteHandler<T> = (
@@ -52,7 +59,6 @@ export function defineV2Handler<T>(
     async (event): Promise<V2Response<T>> => {
       const context = getRequestLogContext(event);
       const startAt = Date.now();
-      const query = getQuery(event);
       const auth = v2OptionalAuth(event);
 
       logInfo('v2:handler:start', {
@@ -62,15 +68,47 @@ export function defineV2Handler<T>(
           event.node.req.method ||
           'UNKNOWN',
         path: context?.path ?? event.path,
-        query,
+        query: context?.query ?? {},
         authUserId: auth?.userId ?? null
       });
 
       try {
+        const cached = await readApiResponseCache<
+          V2Response<T>
+        >(event, 'v2');
+        if (cached.status === 'hit') {
+          logInfo('v2:handler:cache_hit', {
+            requestId: context?.requestId ?? 'unknown',
+            path: context?.path ?? event.path,
+            cacheId: cached.context.cacheId,
+            tags: cached.context.tags,
+            durationMs: Date.now() - startAt
+          });
+          return cached.value;
+        }
+
         const response = await v2WithConnection(
           event,
           connection => handler(event, connection)
         );
+        if (
+          cached.status === 'miss' &&
+          response.code >= 200 &&
+          response.code < 300
+        ) {
+          await writeApiResponseCache(
+            event,
+            cached.context,
+            response
+          );
+        }
+        if (
+          response.code >= 200 &&
+          response.code < 300 &&
+          shouldInvalidateApiResponseCache(event)
+        ) {
+          await invalidateApiResponseCache(event, 'v2');
+        }
         logInfo('v2:handler:success', {
           requestId: context?.requestId ?? 'unknown',
           path: context?.path ?? event.path,
@@ -474,14 +512,7 @@ export function v2Page(event: H3Event): V2PageState {
 }
 
 export function v2RequestIp(event: H3Event): string {
-  return (
-    event.node.req.headers['x-forwarded-for']
-      ?.toString()
-      .split(',')[0]
-      ?.trim() ||
-    event.node.req.socket.remoteAddress ||
-    'unknown'
-  );
+  return getClientIp(event);
 }
 
 export function v2UserAgent(event: H3Event): string {

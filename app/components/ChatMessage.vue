@@ -14,6 +14,7 @@ import {
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -250,15 +251,34 @@ const handleViewProfile = () => {
 
       <!-- 气泡容器 -->
       <div class="mt-0">
-        <div :class="[
-          'inline-block text-sm whitespace-pre-wrap break-words',
-          isOwn
-            ? 'ml-auto text-right rounded-2xl px-4 py-2 shadow-md bg-gradient-to-r from-primary to-primary/80 text-white'
-            : 'rounded-2xl px-4 py-2 bg-card text-foreground border'
-        ]">
-          {{ message.content }}
-          <span v-if="message.editedAt" class="text-xs text-muted-foreground ml-1">{{ t('chat.message.edited') }}</span>
-        </div>
+        <Card
+          :class="[
+            'inline-flex w-fit max-w-[min(36rem,calc(100vw-7rem))] gap-0 rounded-xl py-0 text-sm leading-6 shadow-xs',
+            isOwn
+              ? 'ml-auto border-primary/60 bg-primary text-primary-foreground'
+              : 'border-border/70 bg-muted text-foreground dark:bg-muted/80'
+          ]"
+        >
+          <CardContent class="px-4 py-2">
+            <div
+              class="whitespace-pre-wrap break-words"
+              :class="{ 'text-right': isOwn }"
+            >
+              {{ message.content }}
+              <span
+                v-if="message.editedAt"
+                class="ml-1 text-xs"
+                :class="
+                  isOwn
+                    ? 'text-primary-foreground/70'
+                    : 'text-muted-foreground'
+                "
+              >
+                {{ t('chat.message.edited') }}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <!-- 图片附件 -->

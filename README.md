@@ -181,9 +181,14 @@ server/models/v2.ts
 #### Redis and Realtime Messaging
 
 1. `server/plugins/01-redisClient.ts` provides a lazy Redis instance for normal requests.
-2. `server/utils/redis.ts` provides publishers, subscribers, and fallbacks for WebSocket.
-3. `server/routes/_ws.ts` maintains sessions, rooms, broadcasts, and heartbeat.
-4. In multi-instance deployments, Redis pub/sub enables cross-instance broadcasts.
+2. `server/utils/api-cache.ts` caches v2 GET responses with per-route, per-user, and tag-versioned Redis keys.
+3. `server/utils/oracle-query-cache.ts` wraps request Oracle connections and caches safe `SELECT`/`WITH` query results before the database is hit.
+4. `server/utils/v2.ts` checks Redis before Oracle on v2 GET requests, then writes successful responses with TTLs.
+5. Successful write queries bump related cache tag versions, so stale response and query caches become unreachable and expire naturally.
+6. Sequence, lock, password, token, and verification-code queries are intentionally skipped because caching them would be incorrect or unsafe.
+7. `server/utils/redis.ts` provides publishers, subscribers, and fallbacks for WebSocket.
+8. `server/routes/_ws.ts` maintains sessions, rooms, broadcasts, and heartbeat.
+9. In multi-instance deployments, Redis pub/sub enables cross-instance broadcasts.
 
 #### Media Uploads
 
@@ -243,7 +248,7 @@ Legacy SQL and stage SQL remain in `doc/` and `data/` to trace historical design
 | Backend            | Nitro Server API, h3, TypeScript                                                                                         |
 | API Versioning     | Legacy `server/api/v1`, resource-style `server/api/v2`                                                                   |
 | Database           | Oracle 19c, accessed via `oracledb`                                                                                      |
-| Cache and Realtime | Redis 7 via `ioredis`; Nitro WebSocket route at `server/routes/_ws.ts`                                                   |
+| Cache and Realtime | Redis 7 via `ioredis` for Oracle query cache, v2 response cache, OTP/rate-limit state, and WebSocket pub/sub             |
 | Auth               | JWT access/refresh tokens, HttpOnly cookies, bcrypt                                                                      |
 | Email              | SMTP via `nodemailer`                                                                                                    |
 | Media              | Local file uploads, `formidable`, `file-type`, `sharp`, `ffprobe-static`, optional system `ffmpeg` for legacy thumbnails |
@@ -274,18 +279,19 @@ Copy-Item .env.example .env
 
 At minimum, confirm these fields:
 
-| Scenario | Required or must-check fields | Recommended values and notes |
-| -------- | ----------------------------- | ---------------------------- |
-| Common | `ACCESS_SECRET`, `REFRESH_SECRET` | Replace with random long strings. Template values are acceptable only for temporary local debugging, not shared or production environments. Generate with a password manager or `openssl rand -base64 48`. |
-| Common | `ACCESS_EXPIRES_IN`, `REFRESH_EXPIRES_IN` | Template values can start the app: 15 minutes for access tokens and 30 days for refresh tokens. Change only if you need a different login lifetime. |
-| Host dev | `NODE_ENV` | Keep `development`; otherwise local HTTP login can fail because secure-cookie behavior changes. |
-| Host dev | `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD` | With built-in Compose Oracle, keep the template values: `localhost`, `5501`, `ORCLPDB1`, `neko_app`, `NekoApp2026#`. For an external Oracle instance, replace them with the real host, service name, user, and password. |
-| Full Docker stack | `APP_PORT`, `NGINX_PORT`, `DOCKER_PUBLIC_WS_URL` | Defaults are app `30001` and Nginx `30002`. If `APP_PORT` changes, also change `DOCKER_PUBLIC_WS_URL` to `ws://localhost:<APP_PORT>/_ws`. |
-| Full Docker stack | `DOCKER_ORACLE_HOST`, `DOCKER_ORACLE_PORT`, `DOCKER_REDIS_URL`, `DOCKER_REDIS_HOST`, `DOCKER_REDIS_PORT` | Keep these values when using built-in Compose services. They must point to Docker-network names `oracle19c` and `redis`, not `localhost`. |
-| Oracle init | `ORACLE_IMAGE`, `ORACLE_PWD`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`, `DB_INIT_CHECK_TABLE` | `.env.example` defaults to a domestic Oracle 19c mirror. `ORACLE_PWD` is the container `SYS/SYSTEM` password. `ORACLE_PASSWORD` must match the v2 SQL `neko_app` password; the template value is `NekoApp2026#`. `DB_INIT_CHECK_TABLE` defaults to `N_USERS` and is used to detect an initialized schema. |
-| Redis | `REDIS_PASSWORD` | The built-in Redis service reads this password. Changing it after a Redis volume already exists can break old clients or health checks unless you also reset/update the volume. |
-| Email features | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | The app can start without SMTP, but registration OTP, password reset, and account emails require a real SMTP account. 163/QQ/Gmail usually require an app-specific password or authorization code, not the web login password. |
-| SentimentFlow | `SENTIMENTFLOW_ENABLED`, `SENTIMENTFLOW_HOST_PORT`, `SENTIMENTFLOW_FRONTEND_HOST_PORT` | SentimentFlow backend and frontend are enabled by default. Set `SENTIMENTFLOW_ENABLED=false` if you do not need this feature and want to avoid pulling or starting SentimentFlow images. |
+| Scenario          | Required or must-check fields                                                                                | Recommended values and notes                                                                                                                                                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Common            | `ACCESS_SECRET`, `REFRESH_SECRET`                                                                            | Replace with random long strings. Template values are acceptable only for temporary local debugging, not shared or production environments. Generate with a password manager or `openssl rand -base64 48`.                                                                                                |
+| Common            | `ACCESS_EXPIRES_IN`, `REFRESH_EXPIRES_IN`                                                                    | Template values can start the app: 15 minutes for access tokens and 30 days for refresh tokens. Change only if you need a different login lifetime.                                                                                                                                                       |
+| Common            | `COOKIE_SECURE`, `TRUST_PROXY`, `ENABLE_V1_API`, `MODERATION_ADMIN_ACCOUNTS`                                 | For production HTTPS, set `COOKIE_SECURE=true`. Keep `TRUST_PROXY=false` unless the app only receives traffic from a trusted reverse proxy. Keep `ENABLE_V1_API=false` unless legacy APIs have been reviewed. Set moderation admin usernames or emails explicitly.                                        |
+| Host dev          | `NODE_ENV`                                                                                                   | Keep `development`; otherwise local HTTP login can fail because secure-cookie behavior changes.                                                                                                                                                                                                           |
+| Host dev          | `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`                        | With built-in Compose Oracle, keep the template values: `localhost`, `5501`, `ORCLPDB1`, `neko_app`, `NekoApp2026#`. For an external Oracle instance, replace them with the real host, service name, user, and password.                                                                                  |
+| Full Docker stack | `APP_PORT`, `NGINX_PORT`, `DOCKER_PUBLIC_WS_URL`                                                             | Defaults are app `30001` and Nginx `30002`. If `APP_PORT` changes, also change `DOCKER_PUBLIC_WS_URL` to `ws://localhost:<APP_PORT>/_ws`.                                                                                                                                                                 |
+| Full Docker stack | `DOCKER_ORACLE_HOST`, `DOCKER_ORACLE_PORT`, `DOCKER_REDIS_URL`, `DOCKER_REDIS_HOST`, `DOCKER_REDIS_PORT`     | Keep these values when using built-in Compose services. They must point to Docker-network names `oracle19c` and `redis`, not `localhost`.                                                                                                                                                                 |
+| Oracle init       | `ORACLE_IMAGE`, `ORACLE_PWD`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`, `DB_INIT_CHECK_TABLE` | `.env.example` defaults to a domestic Oracle 19c mirror. `ORACLE_PWD` is the container `SYS/SYSTEM` password. `ORACLE_PASSWORD` must match the v2 SQL `neko_app` password; the template value is `NekoApp2026#`. `DB_INIT_CHECK_TABLE` defaults to `N_USERS` and is used to detect an initialized schema. |
+| Redis             | `REDIS_PASSWORD`                                                                                             | The built-in Redis service reads this password. Changing it after a Redis volume already exists can break old clients or health checks unless you also reset/update the volume.                                                                                                                           |
+| Email features    | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`                                                           | The app can start without SMTP, but registration OTP, password reset, and account emails require a real SMTP account. 163/QQ/Gmail usually require an app-specific password or authorization code, not the web login password.                                                                            |
+| SentimentFlow     | `COMPOSE_PROFILES`, `SENTIMENTFLOW_ENABLED`, `SENTIMENTFLOW_HOST_PORT`, `SENTIMENTFLOW_FRONTEND_HOST_PORT`   | Keep `COMPOSE_PROFILES=true`. Set `SENTIMENTFLOW_ENABLED=true` to include the SentimentFlow backend and frontend; set it to `false` to skip pulling, building, and starting those optional services during plain Compose startup.                                                                         |
 
 If `.env` already exists, do not copy the template over it again; only fill in or adjust the fields above.
 
@@ -300,6 +306,13 @@ test -f .env || cp .env.example .env
 # Review and save the required fields from "Before Quick Start: Configure .env"
 docker compose up -d redis oracle19c db-init
 yarn dev
+```
+
+To get the AI capabilities with a local backend build, run this in the project root:
+
+```bash
+git clone https://github.com/Cthaat/SentimentFlow.git
+docker compose -f docker-compose.local.yml up -d --build sentimentflow sentimentflow-frontend
 ```
 
 Access:
@@ -359,12 +372,15 @@ SentimentFlow is included in both Compose files as two services:
 Keep the NekoTribe proxy enabled in `.env` when the app should call the sentiment-analysis backend:
 
 ```env
+COMPOSE_PROFILES=true
 SENTIMENTFLOW_ENABLED=true
 SENTIMENTFLOW_HOST_PORT=8846
 SENTIMENTFLOW_CONTAINER_PORT=8846
 SENTIMENTFLOW_FRONTEND_HOST_PORT=30008
 SENTIMENTFLOW_FRONTEND_CONTAINER_PORT=3000
 ```
+
+`COMPOSE_PROFILES=true` is the Compose selector. The two SentimentFlow services are attached to the profile named by `SENTIMENTFLOW_ENABLED`, so `SENTIMENTFLOW_ENABLED=false` removes them from normal `docker compose up` / `docker compose -f docker-compose.local.yml up --build` runs.
 
 Port changes are centralized in `.env`. `SENTIMENTFLOW_HOST_PORT` controls host/browser access to the backend, for example `http://localhost:${SENTIMENTFLOW_HOST_PORT}/docs`; `SENTIMENTFLOW_CONTAINER_PORT` controls the backend process port, Docker target port, backend healthcheck, NekoTribe app-to-backend URL, and the frontend container's `BACKEND_API_URL`. `SENTIMENTFLOW_FRONTEND_HOST_PORT` controls host/browser access to the SentimentFlow UI, and `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` controls the Next.js server port inside the frontend container.
 
@@ -501,22 +517,22 @@ Then run `yarn dev`. Verify `http://localhost:8846/health`, `http://localhost:88
 
 ## Scripts
 
-| Script                        | Purpose                                                                                                        |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `scripts/dev.sh`              | If `.env` is missing, copy template, start Redis/Oracle containers, install dependencies, then run `yarn dev`. |
-| `scripts/start.sh`            | If `.env` is missing, copy template, then build and start full Docker stack.                                   |
+| Script                                  | Purpose                                                                                                                                      |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/dev.sh`                        | If `.env` is missing, copy template, start Redis/Oracle containers, install dependencies, then run `yarn dev`.                               |
+| `scripts/start.sh`                      | If `.env` is missing, copy template, then build and start full Docker stack.                                                                 |
 | `scripts/pull-sentimentflow-remote.ps1` | Show remote GHCR image layer sizes, pull NekoTribe and SentimentFlow images with plain progress, and optionally start without pulling again. |
-| `scripts/init-db.sh`          | Manual fallback for executing `doc/neko_tribe-oracle-v2.sql` outside the default Compose flow.                 |
-| `scripts/docker-init-db.sh`   | Internal Compose entrypoint used by the `db-init` service.                                                     |
-| `scripts/dev.ps1`             | PowerShell equivalent of `scripts/dev.sh`.                                                                     |
-| `scripts/start.ps1`           | PowerShell equivalent of `scripts/start.sh`.                                                                   |
-| `scripts/init-db.ps1`         | PowerShell equivalent of `scripts/init-db.sh`.                                                                 |
-| `yarn dev`                    | Start Nuxt dev server.                                                                                         |
-| `yarn build`                  | Build Nuxt production output.                                                                                  |
-| `yarn start` / `yarn preview` | Preview the built Nuxt output locally.                                                                         |
-| `yarn typecheck`              | Run Nuxt TypeScript type checking.                                                                             |
-| `yarn docker:up`              | Run `docker compose up -d`.                                                                                    |
-| `yarn docker:down`            | Stop the Docker Compose stack.                                                                                 |
+| `scripts/init-db.sh`                    | Manual fallback for executing `doc/neko_tribe-oracle-v2.sql` outside the default Compose flow.                                               |
+| `scripts/docker-init-db.sh`             | Internal Compose entrypoint used by the `db-init` service.                                                                                   |
+| `scripts/dev.ps1`                       | PowerShell equivalent of `scripts/dev.sh`.                                                                                                   |
+| `scripts/start.ps1`                     | PowerShell equivalent of `scripts/start.sh`.                                                                                                 |
+| `scripts/init-db.ps1`                   | PowerShell equivalent of `scripts/init-db.sh`.                                                                                               |
+| `yarn dev`                              | Start Nuxt dev server.                                                                                                                       |
+| `yarn build`                            | Build Nuxt production output.                                                                                                                |
+| `yarn start` / `yarn preview`           | Preview the built Nuxt output locally.                                                                                                       |
+| `yarn typecheck`                        | Run Nuxt TypeScript type checking.                                                                                                           |
+| `yarn docker:up`                        | Run `docker compose up -d`.                                                                                                                  |
+| `yarn docker:down`                      | Stop the Docker Compose stack.                                                                                                               |
 
 The default Compose flow runs `db-init` once before `app` starts. It checks `NEKO_APP.N_USERS` first and skips initialization when the schema already exists. The v2 SQL creates users, tablespaces, tables, sequences, triggers, views, and seed data; manual `scripts/init-db.*` is kept for external Oracle instances or recovery work.
 
@@ -524,79 +540,85 @@ The default Compose flow runs `db-init` once before `app` starts. It checks `NEK
 
 Copy `.env.example` to `.env`. For non-local environments, replace all example secrets and passwords.
 
-| Variable                  | Required    | Example                           | Purpose                                                         |
-| ------------------------- | ----------- | --------------------------------- | --------------------------------------------------------------- |
-| `NODE_ENV`                | Yes         | `development`                     | Runtime environment.                                            |
-| `APP_PORT`                | Docker      | `30001`                           | App container port mapped to host.                              |
-| `NGINX_PORT`              | Docker      | `30002`                           | Nginx container port mapped to host.                            |
-| `ACCESS_SECRET`           | Yes         | Replace with a random long secret | JWT access token signing secret.                                |
-| `ACCESS_EXPIRES_IN`       | Yes         | `900`                             | Access token TTL in seconds.                                    |
-| `REFRESH_SECRET`          | Yes         | Replace with a random long secret | JWT refresh token signing secret.                               |
-| `REFRESH_EXPIRES_IN`      | Yes         | `2592000`                         | Refresh token TTL in seconds.                                   |
-| `ORACLE_HOST`             | Yes         | `localhost`                       | Oracle host for host dev mode.                                  |
-| `ORACLE_PORT`             | Yes         | `5501`                            | Oracle port for host dev mode.                                  |
-| `ORACLE_SERVICE_NAME`     | Yes         | `ORCLPDB1`                        | Oracle service name for connection pool.                        |
-| `ORACLE_SID`              | No          | empty                             | Compatibility field; pool uses service name.                    |
-| `ORACLE_USER`             | Yes         | `neko_app`                        | App schema user.                                                |
-| `ORACLE_PASSWORD`         | Yes         | From v2 SQL                       | App schema password for local dev.                              |
-| `ORACLE_POOL_MIN`         | No          | `2`                               | Oracle pool minimum connections.                                |
-| `ORACLE_POOL_MAX`         | No          | `10`                              | Oracle pool maximum connections.                                |
-| `ORACLE_POOL_INCREMENT`   | No          | `1`                               | Oracle pool growth step.                                        |
-| `ORACLE_HOST_PORT`        | Docker      | `5501`                            | Oracle container `1521` mapped to host.                         |
-| `ORACLE_EM_PORT`          | Docker      | `5500`                            | Oracle EM Express mapped port.                                  |
-| `ORACLE_IMAGE`            | Docker      | `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c` | Oracle image used by `oracle19c` and `db-init`; can be switched to the official Oracle Registry image. |
-| `ORACLE_PWD`              | Docker/Init | Replace with a strong password    | SYS/SYSTEM password for the Oracle container and init scripts.  |
-| `ORACLE_SYS_SERVICE_NAME` | Init        | `ORCLCDB`                         | CDB service name used by `db-init` and `scripts/init-db.*`.     |
-| `DB_INIT_CHECK_TABLE`     | Init        | `N_USERS`                         | App schema table used by `db-init` to detect an initialized DB. |
-| `DOCKER_ORACLE_HOST`      | Docker      | `oracle19c`                       | Oracle host inside the app container.                           |
-| `DOCKER_ORACLE_PORT`      | Docker      | `1521`                            | Oracle port inside the app container.                           |
-| `DOCKER_NODE_ENV`         | Docker      | `production`                      | App container runtime, fixed to production.                     |
-| `DOCKER_REDIS_URL`        | Docker      | `redis://redis:6379`              | Redis URL inside the app container, overrides host `REDIS_URL`. |
-| `REDIS_URL`               | No          | empty                             | Optional Redis URL; preferred by Redis utils if set.            |
-| `REDIS_HOST`              | Yes         | `localhost`                       | Redis host for host dev mode.                                   |
-| `REDIS_PORT`              | Yes         | `6379`                            | Redis port.                                                     |
-| `REDIS_DB`                | No          | `0`                               | Redis database number.                                          |
-| `REDIS_PASSWORD`          | No          | Replace with a strong password    | Redis password; compose service reads it from `.env`.           |
-| `DOCKER_REDIS_HOST`       | Docker      | `redis`                           | Redis host inside the app container.                            |
-| `DOCKER_REDIS_PORT`       | Docker      | `6379`                            | Redis port inside the app container.                            |
-| `SMTP_HOST`               | Email       | `smtp.example.com`                | SMTP host for OTP and account emails.                           |
-| `SMTP_PORT`               | Email       | `465`                             | SMTP port; current code uses secure SMTP.                       |
-| `SMTP_USER`               | Email       | empty                             | SMTP username and sender.                                       |
-| `SMTP_PASS`               | Email       | empty                             | SMTP password or app-specific password.                         |
-| `NUXT_PUBLIC_WS_URL`      | No          | `ws://localhost:3000/_ws`         | Public WebSocket URL for local client.                          |
-| `DOCKER_PUBLIC_WS_URL`    | Docker      | `ws://localhost:30001/_ws`        | Public WebSocket URL for Docker mode.                           |
-| `NUXT_PUBLIC_API_BASE`    | No          | empty                             | Client API base; empty means same origin.                       |
-| `SENTIMENTFLOW_ENABLED`   | No          | `true`                            | Toggle SentimentFlow integration and proxy access.              |
-| `SENTIMENTFLOW_BASE_URL`  | No          | empty                             | Optional external SentimentFlow URL override; leave empty to derive host-dev access from `SENTIMENTFLOW_HOST_PORT`. |
-| `SENTIMENTFLOW_TIMEOUT_MS` | No         | `10000`                           | Upstream proxy timeout in milliseconds.                         |
-| `SENTIMENTFLOW_IMAGE`     | Docker      | `ghcr.io/cthaat/sentimentflow-backend:latest` | GHCR image pulled by `docker-compose.yml`.                      |
-| `SENTIMENTFLOW_LOCAL_IMAGE` | Docker local | `sentimentflow-backend:local`   | Local image tag produced by `docker-compose.local.yml`.         |
-| `SENTIMENTFLOW_FRONTEND_IMAGE` | Docker | `ghcr.io/cthaat/sentimentflow-frontend:latest` | SentimentFlow frontend GHCR image pulled by `docker-compose.yml`. |
-| `SENTIMENTFLOW_FRONTEND_LOCAL_IMAGE` | Docker local | `sentimentflow-frontend:local` | SentimentFlow frontend image tag produced by `docker-compose.local.yml`. |
-| `SENTIMENTFLOW_GIT_REPO` | Docker local | `https://github.com/Cthaat/SentimentFlow.git` | Git repository fetched inside the `docker-compose.local.yml` image build. |
-| `SENTIMENTFLOW_GIT_REF` | Docker local | `main` | Git branch, tag, or commit fetched for local SentimentFlow builds. |
-| `SENTIMENTFLOW_PIP_INDEX_URL` | Docker local | `https://pypi.org/simple` | Python package index used by the local SentimentFlow backend build. |
-| `SENTIMENTFLOW_TORCH_INDEX_URL` | Docker local | `https://pypi.org/simple` | PyTorch package index used by the local SentimentFlow backend build; default keeps CUDA-capable torch available. |
-| `SENTIMENTFLOW_TORCH_PACKAGE` | Docker local | `torch` | Torch package spec installed before the remaining backend requirements so Docker can cache the heavy CUDA dependency layer. |
-| `SENTIMENTFLOW_GPUS` | Docker | `all` | Value passed to `NVIDIA_VISIBLE_DEVICES`; Compose itself uses schema-valid `gpus: all`. |
-| `SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES` | Docker | `compute,utility` | NVIDIA driver capabilities exposed to the SentimentFlow backend container for CUDA training. |
-| `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT` | Docker | `/workspace`             | SentimentFlow project root inside the image/container.          |
-| `SENTIMENTFLOW_MODELS_DIR` | Docker      | `/workspace/models`               | Persistent model artifact mount target in the SentimentFlow container. |
-| `SENTIMENTFLOW_HOST_PORT` | Docker      | `8846`                            | Host/browser port for SentimentFlow; change this for `localhost:<port>` access. |
-| `SENTIMENTFLOW_CONTAINER_PORT` | Docker | `8846`                            | Container/internal port used by Uvicorn, Docker target port, healthcheck, and app-to-SentimentFlow Compose URL. |
-| `SENTIMENTFLOW_FRONTEND_HOST_PORT` | Docker | `30008`                    | Host/browser port for the SentimentFlow frontend UI.            |
-| `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` | Docker | `3000`                  | Container/internal port used by the Next.js frontend server, Docker target port, and frontend healthcheck. |
+| Variable                                   | Required     | Example                                                 | Purpose                                                                                                                     |
+| ------------------------------------------ | ------------ | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                 | Yes          | `development`                                           | Runtime environment.                                                                                                        |
+| `APP_PORT`                                 | Docker       | `30001`                                                 | App container port mapped to host.                                                                                          |
+| `NGINX_PORT`                               | Docker       | `30002`                                                 | Nginx container port mapped to host.                                                                                        |
+| `ACCESS_SECRET`                            | Yes          | Replace with a random long secret                       | JWT access token signing secret.                                                                                            |
+| `ACCESS_EXPIRES_IN`                        | Yes          | `900`                                                   | Access token TTL in seconds.                                                                                                |
+| `REFRESH_SECRET`                           | Yes          | Replace with a random long secret                       | JWT refresh token signing secret.                                                                                           |
+| `REFRESH_EXPIRES_IN`                       | Yes          | `2592000`                                               | Refresh token TTL in seconds.                                                                                               |
+| `COOKIE_SECURE`                            | No           | `false`                                                 | Set `true` only when serving over HTTPS; Compose defaults app runtime to secure cookies.                                    |
+| `TRUST_PROXY`                              | No           | `false`                                                 | Trust forwarded client IP headers only behind a trusted reverse proxy.                                                      |
+| `ENABLE_V1_API`                            | No           | `false`                                                 | Re-enable legacy `/api/v1` routes only after a security review.                                                             |
+| `MODERATION_ADMIN_ACCOUNTS`                | No           | `v2_admin`                                              | Comma-separated usernames or emails allowed to use moderation admin APIs.                                                   |
+| `MODERATION_ALLOW_ALL`                     | No           | `false`                                                 | Temporary bypass for moderation admin checks; keep disabled in production.                                                  |
+| `ORACLE_HOST`                              | Yes          | `localhost`                                             | Oracle host for host dev mode.                                                                                              |
+| `ORACLE_PORT`                              | Yes          | `5501`                                                  | Oracle port for host dev mode.                                                                                              |
+| `ORACLE_SERVICE_NAME`                      | Yes          | `ORCLPDB1`                                              | Oracle service name for connection pool.                                                                                    |
+| `ORACLE_SID`                               | No           | empty                                                   | Compatibility field; pool uses service name.                                                                                |
+| `ORACLE_USER`                              | Yes          | `neko_app`                                              | App schema user.                                                                                                            |
+| `ORACLE_PASSWORD`                          | Yes          | From v2 SQL                                             | App schema password for local dev.                                                                                          |
+| `ORACLE_POOL_MIN`                          | No           | `2`                                                     | Oracle pool minimum connections.                                                                                            |
+| `ORACLE_POOL_MAX`                          | No           | `10`                                                    | Oracle pool maximum connections.                                                                                            |
+| `ORACLE_POOL_INCREMENT`                    | No           | `1`                                                     | Oracle pool growth step.                                                                                                    |
+| `ORACLE_HOST_PORT`                         | Docker       | `5501`                                                  | Oracle container `1521` mapped to host.                                                                                     |
+| `ORACLE_EM_PORT`                           | Docker       | `5500`                                                  | Oracle EM Express mapped port.                                                                                              |
+| `ORACLE_IMAGE`                             | Docker       | `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c` | Oracle image used by `oracle19c` and `db-init`; can be switched to the official Oracle Registry image.                      |
+| `ORACLE_PWD`                               | Docker/Init  | Replace with a strong password                          | SYS/SYSTEM password for the Oracle container and init scripts.                                                              |
+| `ORACLE_SYS_SERVICE_NAME`                  | Init         | `ORCLCDB`                                               | CDB service name used by `db-init` and `scripts/init-db.*`.                                                                 |
+| `DB_INIT_CHECK_TABLE`                      | Init         | `N_USERS`                                               | App schema table used by `db-init` to detect an initialized DB.                                                             |
+| `DOCKER_ORACLE_HOST`                       | Docker       | `oracle19c`                                             | Oracle host inside the app container.                                                                                       |
+| `DOCKER_ORACLE_PORT`                       | Docker       | `1521`                                                  | Oracle port inside the app container.                                                                                       |
+| `DOCKER_NODE_ENV`                          | Docker       | `production`                                            | App container runtime, fixed to production.                                                                                 |
+| `DOCKER_REDIS_URL`                         | Docker       | `redis://redis:6379`                                    | Redis URL inside the app container, overrides host `REDIS_URL`.                                                             |
+| `REDIS_URL`                                | No           | empty                                                   | Optional Redis URL; preferred by Redis utils if set.                                                                        |
+| `REDIS_HOST`                               | Yes          | `localhost`                                             | Redis host for host dev mode.                                                                                               |
+| `REDIS_PORT`                               | Yes          | `6379`                                                  | Redis port.                                                                                                                 |
+| `REDIS_DB`                                 | No           | `0`                                                     | Redis database number.                                                                                                      |
+| `REDIS_PASSWORD`                           | No           | Replace with a strong password                          | Redis password; compose service reads it from `.env`.                                                                       |
+| `DOCKER_REDIS_HOST`                        | Docker       | `redis`                                                 | Redis host inside the app container.                                                                                        |
+| `DOCKER_REDIS_PORT`                        | Docker       | `6379`                                                  | Redis port inside the app container.                                                                                        |
+| `SMTP_HOST`                                | Email        | `smtp.example.com`                                      | SMTP host for OTP and account emails.                                                                                       |
+| `SMTP_PORT`                                | Email        | `465`                                                   | SMTP port; current code uses secure SMTP.                                                                                   |
+| `SMTP_USER`                                | Email        | empty                                                   | SMTP username and sender.                                                                                                   |
+| `SMTP_PASS`                                | Email        | empty                                                   | SMTP password or app-specific password.                                                                                     |
+| `NUXT_PUBLIC_WS_URL`                       | No           | `ws://localhost:3000/_ws`                               | Public WebSocket URL for local client.                                                                                      |
+| `DOCKER_PUBLIC_WS_URL`                     | Docker       | `ws://localhost:30001/_ws`                              | Public WebSocket URL for Docker mode.                                                                                       |
+| `NUXT_PUBLIC_API_BASE`                     | No           | empty                                                   | Client API base; empty means same origin.                                                                                   |
+| `COMPOSE_PROFILES`                         | Docker       | `true`                                                  | Lets Compose activate services whose profile is named `true`; keep this value so `SENTIMENTFLOW_ENABLED` can control the optional SentimentFlow services. |
+| `SENTIMENTFLOW_ENABLED`                    | No           | `false` / `true`                                        | Toggle SentimentFlow integration and proxy access; also controls whether the optional Compose services are selected.        |
+| `SENTIMENTFLOW_BASE_URL`                   | No           | empty                                                   | Optional external SentimentFlow URL override; leave empty to derive host-dev access from `SENTIMENTFLOW_HOST_PORT`.         |
+| `SENTIMENTFLOW_TIMEOUT_MS`                 | No           | `10000`                                                 | Upstream proxy timeout in milliseconds.                                                                                     |
+| `SENTIMENTFLOW_IMAGE`                      | Docker       | `ghcr.io/cthaat/sentimentflow-backend:latest`           | GHCR image pulled by `docker-compose.yml`.                                                                                  |
+| `SENTIMENTFLOW_LOCAL_IMAGE`                | Docker local | `sentimentflow-backend:local`                           | Local image tag produced by `docker-compose.local.yml`.                                                                     |
+| `SENTIMENTFLOW_FRONTEND_IMAGE`             | Docker       | `ghcr.io/cthaat/sentimentflow-frontend:latest`          | SentimentFlow frontend GHCR image pulled by `docker-compose.yml`.                                                           |
+| `SENTIMENTFLOW_FRONTEND_LOCAL_IMAGE`       | Docker local | `sentimentflow-frontend:local`                          | SentimentFlow frontend image tag produced by `docker-compose.local.yml`.                                                    |
+| `SENTIMENTFLOW_GIT_REPO`                   | Docker local | `https://github.com/Cthaat/SentimentFlow.git`           | Git repository fetched inside the `docker-compose.local.yml` image build.                                                   |
+| `SENTIMENTFLOW_GIT_REF`                    | Docker local | `main`                                                  | Git branch, tag, or commit fetched for local SentimentFlow builds.                                                          |
+| `SENTIMENTFLOW_PIP_INDEX_URL`              | Docker local | `https://pypi.org/simple`                               | Python package index used by the local SentimentFlow backend build.                                                         |
+| `SENTIMENTFLOW_TORCH_INDEX_URL`            | Docker local | `https://pypi.org/simple`                               | PyTorch package index used by the local SentimentFlow backend build; default keeps CUDA-capable torch available.            |
+| `SENTIMENTFLOW_TORCH_PACKAGE`              | Docker local | `torch`                                                 | Torch package spec installed before the remaining backend requirements so Docker can cache the heavy CUDA dependency layer. |
+| `SENTIMENTFLOW_GPUS`                       | Docker       | `all`                                                   | Value passed to `NVIDIA_VISIBLE_DEVICES`; Compose itself uses schema-valid `gpus: all`.                                     |
+| `SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES` | Docker       | `compute,utility`                                       | NVIDIA driver capabilities exposed to the SentimentFlow backend container for CUDA training.                                |
+| `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT`     | Docker       | `/workspace`                                            | SentimentFlow project root inside the image/container.                                                                      |
+| `SENTIMENTFLOW_MODELS_DIR`                 | Docker       | `/workspace/models`                                     | Persistent model artifact mount target in the SentimentFlow container.                                                      |
+| `SENTIMENTFLOW_HOST_PORT`                  | Docker       | `8846`                                                  | Host/browser port for SentimentFlow; change this for `localhost:<port>` access.                                             |
+| `SENTIMENTFLOW_CONTAINER_PORT`             | Docker       | `8846`                                                  | Container/internal port used by Uvicorn, Docker target port, healthcheck, and app-to-SentimentFlow Compose URL.             |
+| `SENTIMENTFLOW_FRONTEND_HOST_PORT`         | Docker       | `30008`                                                 | Host/browser port for the SentimentFlow frontend UI.                                                                        |
+| `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT`    | Docker       | `3000`                                                  | Container/internal port used by the Next.js frontend server, Docker target port, and frontend healthcheck.                  |
 
 ## External Services
 
-| Service             | Purpose                                                                            | Local Startup                                                                               | Configuration                                                                 |
-| ------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Oracle 19c          | Primary DB for users, posts, groups, notifications, auth sessions, media metadata. | Included in `docker compose up -d`; `db-init` applies the v2 baseline before app startup. | `ORACLE_*` in `.env`.                                                         |
-| Redis 7             | v1 OTP storage, WebSocket pub/sub, realtime broadcasts.                            | `docker compose up -d redis`.                                                               | `REDIS_*` in `.env`.                                                          |
-| SMTP                | Send OTP, password reset, and account emails.                                      | Any SMTP-compatible provider.                                                               | `SMTP_*` in `.env`.                                                           |
-| Nginx               | Serve `/upload/` files and reverse proxy in Docker mode.                           | Included in `docker compose up -d`.                                                         | `nginx/nginx.compose.conf` for Docker; `nginx/nginx.conf` for host dev proxy. |
-| File Upload Storage | Store user avatars and media files.                                                | Create under `upload/` as needed; git-ignored.                                              | Mount to `/usr/share/nginx/upload` in Nginx.                                  |
-| Media Toolchain     | Validate images/video/audio and generate legacy thumbnails.                        | Docker image includes `ffmpeg`; host legacy flow needs system `ffmpeg`.                     | `sharp`, `file-type`, `ffprobe-static`, optional system `ffmpeg`.             |
+| Service                          | Purpose                                                                                     | Local Startup                                                                                                    | Configuration                                                                                                                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Oracle 19c                       | Primary DB for users, posts, groups, notifications, auth sessions, media metadata.          | Included in `docker compose up -d`; `db-init` applies the v2 baseline before app startup.                        | `ORACLE_*` in `.env`.                                                                                                                                                                             |
+| Redis 7                          | Oracle SELECT query cache, v2 API response cache, v1 OTP storage, rate-limit state, WebSocket pub/sub, realtime broadcasts. | `docker compose up -d redis`.                                                                                    | `REDIS_*` in `.env`.                                                                                                                                                                              |
+| SMTP                             | Send OTP, password reset, and account emails.                                               | Any SMTP-compatible provider.                                                                                    | `SMTP_*` in `.env`.                                                                                                                                                                               |
+| Nginx                            | Serve `/upload/` files and reverse proxy in Docker mode.                                    | Included in `docker compose up -d`.                                                                              | `nginx/nginx.compose.conf` for Docker; `nginx/nginx.conf` for host dev proxy.                                                                                                                     |
+| File Upload Storage              | Store user avatars and media files.                                                         | Create under `upload/` as needed; git-ignored.                                                                   | Mount to `/usr/share/nginx/upload` in Nginx.                                                                                                                                                      |
+| Media Toolchain                  | Validate images/video/audio and generate legacy thumbnails.                                 | Docker image includes `ffmpeg`; host legacy flow needs system `ffmpeg`.                                          | `sharp`, `file-type`, `ffprobe-static`, optional system `ffmpeg`.                                                                                                                                 |
 | SentimentFlow backend + frontend | External sentiment analysis API and UI for predict, training, models, and admin operations. | GHCR mode: `docker compose up -d`; local build mode: `docker compose -f docker-compose.local.yml up -d --build`. | `SENTIMENTFLOW_*`; backend ports use `SENTIMENTFLOW_HOST_PORT` / `SENTIMENTFLOW_CONTAINER_PORT`, frontend ports use `SENTIMENTFLOW_FRONTEND_HOST_PORT` / `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT`. |
 
 Note: `doc/neko_tribe-oracle-v2.sql` is the current v2 dev baseline and is mounted into the `db-init` service. Files under `data/oracle-init/` are kept as historical group-module scripts because these scripts are not a full DB baseline.

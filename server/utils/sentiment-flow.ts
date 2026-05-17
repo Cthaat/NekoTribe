@@ -158,8 +158,36 @@ export function buildSentimentFlowTargetUrl(
   const baseWithSlash = baseUrl.endsWith('/')
     ? baseUrl
     : `${baseUrl}/`;
-  const normalizedPath = path.replace(/^\/+/, '');
-  const url = new URL(normalizedPath, baseWithSlash);
+  const base = new URL(baseWithSlash);
+  const normalizedPath = path
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '');
+
+  if (/^[a-z][a-z0-9+.-]*:/i.test(normalizedPath)) {
+    throw new Error('absolute upstream URLs are not allowed');
+  }
+
+  const decodedSegments = normalizedPath
+    .split('/')
+    .map(segment => decodeURIComponent(segment));
+  if (
+    decodedSegments.some(
+      segment => segment === '.' || segment === '..'
+    )
+  ) {
+    throw new Error('path traversal is not allowed');
+  }
+
+  const url = new URL(normalizedPath, base);
+  const basePath = base.pathname.endsWith('/')
+    ? base.pathname
+    : `${base.pathname}/`;
+  if (
+    url.origin !== base.origin ||
+    !url.pathname.startsWith(basePath)
+  ) {
+    throw new Error('upstream target escaped configured base URL');
+  }
   appendQuery(url, query);
   return url.toString();
 }

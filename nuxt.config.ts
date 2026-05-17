@@ -5,7 +5,11 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineNuxtConfig({
   compatibilityDate: '2026-04-26',
   debug: false,
-  devtools: { enabled: true },
+  devtools: {
+    enabled:
+      process.env.NODE_ENV !== 'production' &&
+      process.env.NUXT_DEVTOOLS !== 'false'
+  },
 
   alias: {
     '~/server': fileURLToPath(

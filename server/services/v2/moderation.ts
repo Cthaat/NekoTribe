@@ -137,6 +137,56 @@ const DEFAULT_SETTINGS: ModerationSettingDefinition[] = [
 
 let moderationSchemaReady = false;
 
+function moderationAdminAccounts(): Set<string> {
+  const configured = (process.env.MODERATION_ADMIN_ACCOUNTS || '')
+    .split(',')
+    .map(item => item.trim().toLowerCase())
+    .filter(Boolean);
+
+  return new Set(configured.length > 0 ? configured : ['v2_admin']);
+}
+
+function moderationAccessBypassEnabled(): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(
+    String(process.env.MODERATION_ALLOW_ALL ?? '')
+      .trim()
+      .toLowerCase()
+  );
+}
+
+async function requireModerationAccess(
+  event: H3Event,
+  connection: oracledb.Connection
+): Promise<V2AuthPayload> {
+  const auth = v2Auth(event);
+  if (moderationAccessBypassEnabled()) {
+    return auth;
+  }
+
+  const row = await v2One(
+    connection,
+    `
+    SELECT username, email
+    FROM n_users
+    WHERE user_id = :user_id
+      AND is_active = 1
+      AND status = 'active'
+    `,
+    { user_id: auth.userId }
+  );
+  const allowedAccounts = moderationAdminAccounts();
+  const username = v2String(row?.USERNAME).toLowerCase();
+  const email = v2String(row?.EMAIL).toLowerCase();
+  if (
+    allowedAccounts.has(username) ||
+    allowedAccounts.has(email)
+  ) {
+    return auth;
+  }
+
+  v2Forbidden('需要审核权限');
+}
+
 function ensureValue<T extends readonly string[]>(
   values: T,
   value: string,
@@ -797,7 +847,7 @@ export async function v2ListModerationContent(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2ServiceResponse<V2ModerationContentItem[]>> {
-  const auth = v2Auth(event);
+  const auth = await requireModerationAccess(event, connection);
   await ensureModerationSchema(connection);
 
   const page = v2Page(event);
@@ -890,7 +940,7 @@ export async function v2GetModerationStats(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2ServiceResponse<V2ModerationStats>> {
-  v2Auth(event);
+  await requireModerationAccess(event, connection);
   await ensureModerationSchema(connection);
 
   const row = await v2One(
@@ -961,7 +1011,7 @@ export async function v2ModeratePost(
   connection: oracledb.Connection,
   postId: number
 ): Promise<V2ServiceResponse<V2ModerationContentItem>> {
-  const auth = v2Auth(event);
+  const auth = await requireModerationAccess(event, connection);
   await ensureModerationSchema(connection);
   await verifyTargetExists(connection, 'post', postId);
 
@@ -1187,7 +1237,7 @@ export async function v2BulkModeratePosts(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2ServiceResponse<{ processed_count: number }>> {
-  const auth = v2Auth(event);
+  const auth = await requireModerationAccess(event, connection);
   await ensureModerationSchema(connection);
   const body = await v2Body(event);
   const postIds = v2NumberArray(body.post_ids);
@@ -1401,7 +1451,7 @@ export async function v2ListModerationReports(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2ServiceResponse<V2ModerationReport[]>> {
-  const auth = v2Auth(event);
+  const auth = await requireModerationAccess(event, connection);
   await ensureModerationSchema(connection);
   const page = v2Page(event);
   const status = v2QueryString(event, 'status', 'all');
@@ -1461,7 +1511,7 @@ export async function v2PatchModerationReport(
   connection: oracledb.Connection,
   reportId: number
 ): Promise<V2ServiceResponse<V2ModerationReport>> {
-  const auth = v2Auth(event);
+  const auth = await requireModerationAccess(event, connection);
   await ensureModerationSchema(connection);
   const body = await v2Body(event);
   const status = moderationReportStatus(v2String(body.status));
@@ -1504,7 +1554,7 @@ export async function v2ListModerationUsers(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2ServiceResponse<V2ModerationUserItem[]>> {
-  v2Auth(event);
+  await requireModerationAccess(event, connection);
   await ensureModerationSchema(connection);
   const page = v2Page(event);
   const status = v2QueryString(event, 'status', 'all');
@@ -1649,7 +1699,7 @@ export async function v2ModerateUser(
   connection: oracledb.Connection,
   userId: number
 ): Promise<V2ServiceResponse<V2ModerationUserItem>> {
-  const auth = v2Auth(event);
+  const auth = await requireModerationAccess(event, connection);
   await ensureModerationSchema(connection);
   if (userId === auth.userId) v2Forbidden('不能处罚自己');
   await verifyTargetExists(connection, 'user', userId);
@@ -1819,7 +1869,7 @@ export async function v2GetModerationSettings(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2ServiceResponse<V2ModerationSetting[]>> {
-  v2Auth(event);
+  await requireModerationAccess(event, connection);
   await ensureModerationSchema(connection);
   const rows = await v2Rows(
     connection,
@@ -1855,7 +1905,7 @@ export async function v2PatchModerationSettings(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2ServiceResponse<V2ModerationSetting[]>> {
-  const auth = v2Auth(event);
+  const auth = await requireModerationAccess(event, connection);
   await ensureModerationSchema(connection);
   const body = await v2Body(event);
   const settings = Array.isArray(body.settings)
@@ -1944,7 +1994,7 @@ export async function v2ListModerationAppeals(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2ServiceResponse<V2ModerationAppeal[]>> {
-  const auth = v2Auth(event);
+  const auth = await requireModerationAccess(event, connection);
   const page = v2Page(event);
   const status = v2QueryString(event, 'status', 'all');
   const binds: Record<string, string | number> = {};
@@ -1995,7 +2045,7 @@ export async function v2PatchModerationAppeal(
   connection: oracledb.Connection,
   appealId: number
 ): Promise<V2ServiceResponse<V2ModerationAppeal>> {
-  const auth = v2Auth(event);
+  const auth = await requireModerationAccess(event, connection);
   const body = await v2Body(event);
   const status = ensureValue(
     ['approved', 'rejected'] as const,

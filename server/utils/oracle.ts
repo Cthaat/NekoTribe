@@ -7,6 +7,7 @@ import {
   logInfo,
   serializeLogError
 } from '~/server/utils/logging';
+import { clearOracleQueryCacheSource } from '~/server/utils/oracle-query-cache';
 
 let pool: oracledb.Pool | null = null;
 
@@ -56,7 +57,9 @@ export async function initOraclePool(): Promise<oracledb.Pool> {
 
 export async function getOracleConnection(): Promise<oracledb.Connection> {
   const activePool = await initOraclePool();
-  return await activePool.getConnection();
+  return clearOracleQueryCacheSource(
+    await activePool.getConnection()
+  );
 }
 
 export async function closeOraclePool(): Promise<void> {

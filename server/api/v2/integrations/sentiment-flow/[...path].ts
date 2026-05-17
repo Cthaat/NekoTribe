@@ -22,6 +22,7 @@ const BLOCKED_REQUEST_HEADERS = new Set([
   'keep-alive',
   'proxy-authenticate',
   'proxy-authorization',
+  'authorization',
   'te',
   'trailer',
   'cookie'
@@ -115,11 +116,20 @@ export default defineEventHandler(async event => {
 
   const method = getMethod(event).toUpperCase();
   const path = getRouterParam(event, 'path') ?? '';
-  const targetUrl = buildSentimentFlowTargetUrl(
-    config.baseUrl,
-    path,
-    getQuery(event)
-  );
+  let targetUrl: string;
+  try {
+    targetUrl = buildSentimentFlowTargetUrl(
+      config.baseUrl,
+      path,
+      getQuery(event)
+    );
+  } catch (error) {
+    v2ProxyError(
+      400,
+      'Invalid SentimentFlow proxy path',
+      error instanceof Error ? error.message : undefined
+    );
+  }
   const body = BODYLESS_METHODS.has(method)
     ? undefined
     : await readRawBody(event);

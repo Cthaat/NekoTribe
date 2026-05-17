@@ -748,12 +748,20 @@ onBeforeUnmount(() => {
                   :class="{ 'justify-end': message.author.user_id === currentUserId }"
                 >
                   <div class="max-w-[84%]">
-                    <div
-                      class="rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm"
-                      :class="message.author.user_id === currentUserId ? 'ml-auto bg-primary text-primary-foreground' : 'bg-background text-foreground border border-border/80'"
+                    <Card
+                      class="gap-0 rounded-xl py-0 text-sm leading-6 shadow-xs"
+                      :class="
+                        message.author.user_id === currentUserId
+                          ? 'ml-auto border-primary/60 bg-primary text-primary-foreground'
+                          : 'border-border/70 bg-muted text-foreground dark:bg-muted/80'
+                      "
                     >
-                      <div class="whitespace-pre-wrap break-words">{{ message.content }}</div>
-                    </div>
+                      <CardContent class="px-4 py-3">
+                        <div class="whitespace-pre-wrap break-words">
+                          {{ message.content }}
+                        </div>
+                      </CardContent>
+                    </Card>
                     <div
                       class="mt-1 px-1 text-[11px] text-muted-foreground"
                       :class="message.author.user_id === currentUserId ? 'text-right' : 'text-left'"
