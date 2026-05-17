@@ -1,0 +1,240 @@
+@startuml NekoTribe社交信息管理系统功能流程图
+
+!theme cerulean
+skinparam backgroundColor #FEFEFE
+skinparam shadowing true
+skinparam roundCorner 12
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 12
+
+skinparam activity {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontColor #1A237E
+  DiamondBackgroundColor #FFF9C4
+  DiamondBorderColor #F9A825
+}
+
+skinparam partition {
+  BackgroundColor #F5F5F5
+  BorderColor #9E9E9E
+}
+
+title **NekoTribe 社交信息管理系统 — 功能流程总图**\n<size:11>基于信息生命周期管理的全栈社交平台</size>
+
+|#E8F5E9|用户交互层|
+start
+fork
+  :📝 用户注册/登录;
+  note right
+    信息主体身份建立
+    ·邮箱验证·密码加密
+    ·OTP认证·会话创建
+  end note
+fork again
+  :📄 内容发布;
+  note right
+    信息资源生产
+    ·文本/图片/视频
+    ·话题标签标引
+    ·@提及关联
+  end note
+fork again
+  :💬 社交互动;
+  note right
+    信息关系构建
+    ·关注/屏蔽
+    ·点赞/收藏/评论
+    ·群组协作
+  end note
+fork again
+  :⚡ 即时通信;
+  note right
+    实时信息流转
+    ·WebSocket连接
+    ·频道消息
+    ·在线状态
+  end note
+end fork
+
+|#E3F2FD|信息采集与验证层|
+:信息输入验证与质量控制;
+partition "信息采集网关" {
+  :表单数据格式校验（类型/长度/范围）;
+  :多模态信息接收（formidable流式上传）;
+  :MIME类型检测与媒体元数据提取;
+  :参数化绑定（防SQL注入）;
+  :JWT身份令牌解析与权限验证;
+}
+
+|#FFF3E0|业务逻辑与信息处理层|
+partition "六大信息服务模块" {
+  fork
+    :🔐 **认证服务**
+    ·注册入库
+    ·登录验证
+    ·令牌刷新
+    ·会话管理
+    ·密码重置;
+  fork again
+    :📰 **内容服务**
+    ·帖文CRUD
+    ·评论管理
+    ·转发处理
+    ·话题自动标引
+    ·热度计算;
+  fork again
+    :👥 **社交服务**
+    ·关注/取关
+    ·屏蔽/静音
+    ·用户推荐
+    ·关系查询;
+  fork again
+    :🏠 **群组服务**
+    ·群组创建
+    ·成员管理
+    ·角色权限
+    ·群组内容;
+  fork again
+    :🔔 **通知服务**
+    ·事件触发生成
+    ·状态流转管理
+    ·批量已读处理
+    ·删除与恢复;
+  fork again
+    :🛡️ **审核服务**
+    ·内容合规审查
+    ·举报受理处理
+    ·用户行为管控
+    ·AI情感分析;
+  end fork
+}
+
+|#FCE4EC|数据库操作层（信息管理核心）|
+partition "信息资源全过程操作" {
+  :===== **INSERT — 信息资源创建** =====
+  ·用户注册信息入库（加密存储）
+  ·帖文内容与元数据原子写入
+  ·社交关系记录建立
+  ·会话凭证安全写入
+  ·通知事件批量生成;
+
+  :===== **SELECT — 信息检索获取** =====
+  ·主键精确定位（O(1)复杂度）
+  ·分页列表检索（ROW_NUMBER窗口）
+  ·多表JOIN关联查询
+  ·多条件组合过滤
+  ·模糊内容搜索（LIKE/全文索引）
+  ·聚合统计（COUNT/SUM/AVG）;
+
+  :===== **UPDATE — 信息维护修正** =====
+  ·用户资料定向修改
+  ·互动计数原子递增
+  ·通知状态批量流转
+  ·密码安全重置
+  ·UPDATED_AT自动记录;
+
+  :===== **DELETE — 生命周期控制** =====
+  ·软删除标记（IS_DELETED=1）
+  ·归档保留（支持恢复）
+  ·会话过期自动清理
+  ·物理删除（定期任务）;
+
+  :===== **聚合分析 — 信息挖掘** =====
+  ·GROUP BY话题热度统计
+  ·用户活跃度画像生成
+  ·群组健康度指标聚合
+  ·时间维度趋势分析;
+
+  :===== **安全管控 — 权限与审计** =====
+  ·数据库角色权限控制
+  ·视图屏蔽敏感字段
+  ·CHECK约束强制执行
+  ·RMAN定期备份恢复;
+}
+
+|#EDE7F6|数据持久化与缓存层|
+fork
+  :🗄️ **Oracle 19c**
+  ━━━━━━━━━━━━━━
+  USERS · POSTS · COMMENTS
+  FOLLOWS · GROUPS · SESSIONS
+  NOTIFICATIONS · POST_TAGS
+  ━━━━━━━━━━━━━━
+  ✓ ACID事务保障
+  ✓ 外键参照完整性
+  ✓ B-Tree索引加速
+  ✓ 行级锁并发控制;
+fork again
+  :⚡ **Redis 7**
+  ━━━━━━━━━━━━━━
+  · API响应缓存（TTL）
+  · Oracle查询结果缓存
+  · 会话状态临时存储
+  · 验证码临时信息
+  · Pub/Sub消息总线
+  · 用户在线状态
+  ━━━━━━━━━━━━━━
+  命中→直接返回(<5ms)
+  未命中→查Oracle→回填
+  变更→精确失效清除;
+end fork
+
+|#E8F5E9|信息输出与可视化层|
+fork
+  :🌐 **RESTful API**
+  统一JSON响应
+  {code/message/data/meta};
+fork again
+  :⚡ **WebSocket**
+  实时推送
+  跨实例广播;
+end fork
+
+partition "前端信息可视化呈现" {
+  fork
+    :📋 时间线信息流
+    （无限滚动）;
+  fork again
+    :📊 统计仪表盘
+    （数据图表）;
+  fork again
+    :🔗 社交关系网络
+    （关注/粉丝）;
+  fork again
+    :📂 群组目录结构
+    （层级展示）;
+  end fork
+  :🖥️ 管理控制台（审核态势全局感知）;
+}
+
+|#EFEBE9|信息生命周期闭环|
+partition "全程可追溯 · 可恢复 · 可审计" {
+  :创建（INSERT）;
+  :存储（Oracle持久化）;
+  :检索（SELECT+缓存加速）;
+  :利用（可视化呈现与决策支持）;
+  :更新（UPDATE状态流转）;
+  if (信息是否过期/删除?) then (是)
+    :软删除（逻辑标记）;
+    :归档保留（审计备查）;
+    :定期清理（物理释放）;
+  else (否)
+    :继续流转;
+  endif
+}
+
+stop
+
+legend right
+  |= 层级 |= 核心职责 |= 关键技术 |
+  | 用户交互层 | 信息生产与消费入口 | Vue 3 / Nuxt 4 |
+  | 采集验证层 | 信息质量把关 | formidable / bcrypt |
+  | 业务处理层 | 信息逻辑编排 | Nitro Service |
+  | 数据库操作层 | 信息全过程管理 | SQL DML/DDL |
+  | 持久化缓存层 | 信息存储与加速 | Oracle 19c / Redis 7 |
+  | 输出可视化层 | 信息呈现与决策 | REST API / WebSocket |
+  | 生命周期层 | 信息闭环管控 | 软删除 / 归档 / 备份 |
+endlegend
+
+@enduml
