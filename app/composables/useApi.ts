@@ -101,7 +101,44 @@ function queryPayload(
   options: ApiFetchOptions
 ): unknown {
   const candidate = options as { query?: unknown };
-  return toSerializable(candidate.query);
+  return sanitizeLogPayload(candidate.query);
+}
+
+function isSensitiveLogKey(key: string): boolean {
+  const normalized = key.trim().toLowerCase();
+  return (
+    normalized === 'token' ||
+    normalized === 'access_token' ||
+    normalized === 'refresh_token' ||
+    normalized === 'authorization' ||
+    normalized === 'password' ||
+    normalized === 'new_password' ||
+    normalized === 'confirm_password' ||
+    normalized.endsWith('_token') ||
+    normalized.endsWith('_secret') ||
+    normalized.includes('password')
+  );
+}
+
+function sanitizeLogPayload(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeLogPayload);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(
+        ([key, item]) => [
+          key,
+          isSensitiveLogKey(key)
+            ? '[redacted]'
+            : sanitizeLogPayload(item)
+        ]
+      )
+    );
+  }
+
+  return toSerializable(value);
 }
 
 function logApiRequest(
@@ -228,6 +265,13 @@ function toSafeHeaderValue(value: string): string {
   }
 }
 
+function sanitizeUrlLikeForHeader(value: string): string {
+  return value.replace(
+    /([?&](?:access_token|refresh_token|token|password|new_password|confirm_password|authorization|secret|client_secret|code)=)[^&#\s]*/gi,
+    '$1[redacted]'
+  );
+}
+
 function isRefreshPath(path: string): boolean {
   return (
     path.includes('/auth/refresh') ||
@@ -254,7 +298,7 @@ export const apiFetch = async <T>(
   const traceHeaders: Record<string, string> = {};
   if (route?.fullPath) {
     traceHeaders['x-client-route'] = toSafeHeaderValue(
-      String(route.fullPath)
+      sanitizeUrlLikeForHeader(String(route.fullPath))
     );
   }
   const componentName = getComponentName();
@@ -266,12 +310,12 @@ export const apiFetch = async <T>(
   const stackSource = buildStackSource();
   if (stackSource) {
     traceHeaders['x-client-source'] = toSafeHeaderValue(
-      stackSource
+      sanitizeUrlLikeForHeader(stackSource)
     );
   }
   if (!isServer && typeof location !== 'undefined') {
     traceHeaders['x-client-referer'] = toSafeHeaderValue(
-      String(location.href)
+      sanitizeUrlLikeForHeader(String(location.href))
     );
   }
   traceHeaders['x-client-platform'] = isServer
