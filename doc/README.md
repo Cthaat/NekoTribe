@@ -274,18 +274,18 @@ Copy-Item .env.example .env
 
 最少需要确认下面这些字段：
 
-| 场景 | 必填或必须核对的字段 | 推荐值与说明 |
-| ---- | -------------------- | ------------ |
-| 通用 | `ACCESS_SECRET`、`REFRESH_SECRET` | 必须替换为随机长字符串；本地临时调试可以保留模板值，但不要用于共享环境或生产环境。可用密码管理器或 `openssl rand -base64 48` 生成。 |
-| 通用 | `ACCESS_EXPIRES_IN`、`REFRESH_EXPIRES_IN` | 模板值可直接启动，分别表示访问令牌 15 分钟、刷新令牌 30 天；需要缩短登录有效期时再调整。 |
-| 本地开发 | `NODE_ENV` | 保持 `development`，否则本地 HTTP 调试可能因为安全 Cookie 配置导致登录状态异常。 |
-| 本地开发 | `ORACLE_HOST`、`ORACLE_PORT`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD` | 使用内置 Compose Oracle 时保持模板值：`localhost`、`5501`、`ORCLPDB1`、`neko_app`、`NekoApp2026#`。如果连接外部 Oracle，必须改成外部实例真实地址、服务名、用户名和密码。 |
-| 完整 Docker 栈 | `APP_PORT`、`NGINX_PORT`、`DOCKER_PUBLIC_WS_URL` | 默认应用端口是 `30001`，Nginx 端口是 `30002`。如果改了 `APP_PORT`，同步把 `DOCKER_PUBLIC_WS_URL` 改为 `ws://localhost:<APP_PORT>/_ws`。 |
-| 完整 Docker 栈 | `DOCKER_ORACLE_HOST`、`DOCKER_ORACLE_PORT`、`DOCKER_REDIS_URL`、`DOCKER_REDIS_HOST`、`DOCKER_REDIS_PORT` | 使用内置 Compose 服务时不要改，必须分别指向 Docker 网络内的 `oracle19c` 和 `redis`，不能写成 `localhost`。 |
-| Oracle 初始化 | `ORACLE_IMAGE`、`ORACLE_PWD`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`、`DB_INIT_CHECK_TABLE` | `.env.example` 默认使用国内 Oracle 19c 镜像。`ORACLE_PWD` 是容器 `SYS/SYSTEM` 密码；`ORACLE_PASSWORD` 必须和 v2 SQL 创建的 `neko_app` 密码一致，模板值是 `NekoApp2026#`；`DB_INIT_CHECK_TABLE` 默认 `N_USERS`，用于判断是否已初始化。 |
-| Redis | `REDIS_PASSWORD` | 内置 Redis 服务会读取这个密码。已有 Redis 数据卷启动后再改密码，可能导致旧客户端或健康检查认证失败，需要同步清理数据卷或保持旧密码。 |
-| 邮件功能 | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS` | 应用可以在未配置 SMTP 时启动，但注册验证码、密码重置和账号邮件依赖真实 SMTP。163/QQ/Gmail 等服务通常需要应用专用密码或授权码，不是网页登录密码。 |
-| SentimentFlow | `SENTIMENTFLOW_ENABLED`、`SENTIMENTFLOW_HOST_PORT`、`SENTIMENTFLOW_FRONTEND_HOST_PORT` | 默认启用情感分析后端和前端。如果暂时不需要该功能，可设为 `false`，避免拉取或启动 SentimentFlow 镜像。 |
+| 场景           | 必填或必须核对的字段                                                                                         | 推荐值与说明                                                                                                                                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 通用           | `ACCESS_SECRET`、`REFRESH_SECRET`                                                                            | 必须替换为随机长字符串；本地临时调试可以保留模板值，但不要用于共享环境或生产环境。可用密码管理器或 `openssl rand -base64 48` 生成。                                                                                                   |
+| 通用           | `ACCESS_EXPIRES_IN`、`REFRESH_EXPIRES_IN`                                                                    | 模板值可直接启动，分别表示访问令牌 15 分钟、刷新令牌 30 天；需要缩短登录有效期时再调整。                                                                                                                                              |
+| 本地开发       | `NODE_ENV`                                                                                                   | 保持 `development`，否则本地 HTTP 调试可能因为安全 Cookie 配置导致登录状态异常。                                                                                                                                                      |
+| 本地开发       | `ORACLE_HOST`、`ORACLE_PORT`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`                        | 使用内置 Compose Oracle 时保持模板值：`localhost`、`5501`、`ORCLPDB1`、`neko_app`、`NekoApp2026#`。如果连接外部 Oracle，必须改成外部实例真实地址、服务名、用户名和密码。                                                              |
+| 完整 Docker 栈 | `APP_PORT`、`NGINX_PORT`、`DOCKER_PUBLIC_WS_URL`                                                             | 默认应用端口是 `30001`，Nginx 端口是 `30002`。如果改了 `APP_PORT`，同步把 `DOCKER_PUBLIC_WS_URL` 改为 `ws://localhost:<APP_PORT>/_ws`。                                                                                               |
+| 完整 Docker 栈 | `DOCKER_ORACLE_HOST`、`DOCKER_ORACLE_PORT`、`DOCKER_REDIS_URL`、`DOCKER_REDIS_HOST`、`DOCKER_REDIS_PORT`     | 使用内置 Compose 服务时不要改，必须分别指向 Docker 网络内的 `oracle19c` 和 `redis`，不能写成 `localhost`。                                                                                                                            |
+| Oracle 初始化  | `ORACLE_IMAGE`、`ORACLE_PWD`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`、`DB_INIT_CHECK_TABLE` | `.env.example` 默认使用国内 Oracle 19c 镜像。`ORACLE_PWD` 是容器 `SYS/SYSTEM` 密码；`ORACLE_PASSWORD` 必须和 v2 SQL 创建的 `neko_app` 密码一致，模板值是 `NekoApp2026#`；`DB_INIT_CHECK_TABLE` 默认 `N_USERS`，用于判断是否已初始化。 |
+| Redis          | `REDIS_PASSWORD`                                                                                             | 内置 Redis 服务会读取这个密码。已有 Redis 数据卷启动后再改密码，可能导致旧客户端或健康检查认证失败，需要同步清理数据卷或保持旧密码。                                                                                                  |
+| 邮件功能       | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`                                                           | 应用可以在未配置 SMTP 时启动，但注册验证码、密码重置和账号邮件依赖真实 SMTP。163/QQ/Gmail 等服务通常需要应用专用密码或授权码，不是网页登录密码。                                                                                      |
+| SentimentFlow  | `SENTIMENTFLOW_ENABLED`、`SENTIMENTFLOW_HOST_PORT`、`SENTIMENTFLOW_FRONTEND_HOST_PORT`                       | 默认启用情感分析后端和前端。如果暂时不需要该功能，可设为 `false`，避免拉取或启动 SentimentFlow 镜像。                                                                                                                                 |
 
 如果 `.env` 已经存在，不要再次直接复制模板覆盖；只按上表补齐或修改需要的字段即可。
 
@@ -300,6 +300,13 @@ test -f .env || cp .env.example .env
 # 按“快速开始前: 配置 .env”检查并保存必填项
 docker compose up -d redis oracle19c db-init
 yarn dev
+```
+
+要在本地后端构建中启用 AI 功能，请在启动依赖项后运行以下命令：
+
+```bash
+git clone https://github.com/Cthaat/SentimentFlow.git
+docker compose up -f docker-compose.local.yml -d sentimentflow --build sentimentflow sentimentflow-frontend
 ```
 
 访问地址：
@@ -501,22 +508,22 @@ SENTIMENTFLOW_CONTAINER_PORT=8846
 
 ## 脚本说明
 
-| 脚本                          | 用途                                                                                           |
-| ----------------------------- | ---------------------------------------------------------------------------------------------- |
-| `scripts/dev.sh`              | 缺少 `.env` 时自动复制模板，启动 Redis/Oracle 容器，安装依赖并运行 `yarn dev`。                |
-| `scripts/start.sh`            | 缺少 `.env` 时自动复制模板，并构建启动完整 Docker 栈。                                         |
+| 脚本                                    | 用途                                                                                                                 |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `scripts/dev.sh`                        | 缺少 `.env` 时自动复制模板，启动 Redis/Oracle 容器，安装依赖并运行 `yarn dev`。                                      |
+| `scripts/start.sh`                      | 缺少 `.env` 时自动复制模板，并构建启动完整 Docker 栈。                                                               |
 | `scripts/pull-sentimentflow-remote.ps1` | 显示 GHCR 远程镜像层大小，使用 plain progress 拉取 NekoTribe 与 SentimentFlow 镜像，并可选地启动完整栈且不再次拉取。 |
-| `scripts/init-db.sh`          | 默认 Compose 流程之外的手动兜底入口，可用于外部 Oracle 或恢复场景。                            |
-| `scripts/docker-init-db.sh`   | `db-init` 服务使用的内部 Compose 入口脚本。                                                     |
-| `scripts/dev.ps1`             | `scripts/dev.sh` 的 PowerShell 等价脚本。                                                      |
-| `scripts/start.ps1`           | `scripts/start.sh` 的 PowerShell 等价脚本。                                                    |
-| `scripts/init-db.ps1`         | `scripts/init-db.sh` 的 PowerShell 等价脚本。                                                  |
-| `yarn dev`                    | 启动 Nuxt 开发服务器。                                                                         |
-| `yarn build`                  | 构建 Nuxt 生产产物。                                                                           |
-| `yarn start` / `yarn preview` | 本地预览已构建的 Nuxt 产物。                                                                   |
-| `yarn typecheck`              | 运行 Nuxt TypeScript 类型检查。                                                                |
-| `yarn docker:up`              | 执行 `docker compose up -d`。                                                                  |
-| `yarn docker:down`            | 停止 Docker Compose 栈。                                                                       |
+| `scripts/init-db.sh`                    | 默认 Compose 流程之外的手动兜底入口，可用于外部 Oracle 或恢复场景。                                                  |
+| `scripts/docker-init-db.sh`             | `db-init` 服务使用的内部 Compose 入口脚本。                                                                          |
+| `scripts/dev.ps1`                       | `scripts/dev.sh` 的 PowerShell 等价脚本。                                                                            |
+| `scripts/start.ps1`                     | `scripts/start.sh` 的 PowerShell 等价脚本。                                                                          |
+| `scripts/init-db.ps1`                   | `scripts/init-db.sh` 的 PowerShell 等价脚本。                                                                        |
+| `yarn dev`                              | 启动 Nuxt 开发服务器。                                                                                               |
+| `yarn build`                            | 构建 Nuxt 生产产物。                                                                                                 |
+| `yarn start` / `yarn preview`           | 本地预览已构建的 Nuxt 产物。                                                                                         |
+| `yarn typecheck`                        | 运行 Nuxt TypeScript 类型检查。                                                                                      |
+| `yarn docker:up`                        | 执行 `docker compose up -d`。                                                                                        |
+| `yarn docker:down`                      | 停止 Docker Compose 栈。                                                                                             |
 
 默认 Compose 流程会在 app 启动前运行一次 `db-init`。它会先检查 `NEKO_APP.N_USERS`，如果 schema 已存在就跳过初始化。v2 SQL 会创建用户、表空间、表、序列、触发器、视图和种子数据；`scripts/init-db.*` 保留给外部 Oracle 或恢复场景使用。
 
@@ -524,79 +531,79 @@ SENTIMENTFLOW_CONTAINER_PORT=8846
 
 复制 `.env.example` 为 `.env`。除本地开发外，必须替换所有示例密钥和密码。
 
-| 变量                      | 是否必需      | 示例值                     | 用途                                                        |
-| ------------------------- | ------------- | -------------------------- | ----------------------------------------------------------- |
-| `NODE_ENV`                | 是            | `development`              | 运行环境。                                                  |
-| `APP_PORT`                | Docker        | `30001`                    | 应用容器映射到宿主机的端口。                                |
-| `NGINX_PORT`              | Docker        | `30002`                    | Nginx 容器映射到宿主机的端口。                              |
-| `ACCESS_SECRET`           | 是            | 替换为随机长密钥           | JWT 访问令牌签名密钥。                                      |
-| `ACCESS_EXPIRES_IN`       | 是            | `900`                      | 访问令牌有效期，单位秒。                                    |
-| `REFRESH_SECRET`          | 是            | 替换为随机长密钥           | JWT 刷新令牌签名密钥。                                      |
-| `REFRESH_EXPIRES_IN`      | 是            | `2592000`                  | 刷新令牌有效期，单位秒。                                    |
-| `ORACLE_HOST`             | 是            | `localhost`                | 宿主机开发模式下应用连接的 Oracle 主机。                    |
-| `ORACLE_PORT`             | 是            | `5501`                     | 宿主机开发模式下应用连接的 Oracle 端口。                    |
-| `ORACLE_SERVICE_NAME`     | 是            | `ORCLPDB1`                 | 应用连接池使用的 Oracle 服务名。                            |
-| `ORACLE_SID`              | 否            | 空                         | 兼容字段；当前连接池使用服务名。                            |
-| `ORACLE_USER`             | 是            | `neko_app`                 | 应用 schema 用户。                                          |
-| `ORACLE_PASSWORD`         | 是            | 来自 v2 SQL                | 本地开发应用 schema 密码。                                  |
-| `ORACLE_POOL_MIN`         | 否            | `2`                        | Oracle 连接池最小连接数。                                   |
-| `ORACLE_POOL_MAX`         | 否            | `10`                       | Oracle 连接池最大连接数。                                   |
-| `ORACLE_POOL_INCREMENT`   | 否            | `1`                        | Oracle 连接池扩容步长。                                     |
-| `ORACLE_HOST_PORT`        | Docker        | `5501`                     | Oracle 容器 `1521` 映射到宿主机的端口。                     |
-| `ORACLE_EM_PORT`          | Docker        | `5500`                     | Oracle EM Express 映射端口。                                |
-| `ORACLE_IMAGE`            | Docker        | `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c` | `oracle19c` 和 `db-init` 使用的 Oracle 镜像；也可切换为官方 Oracle Registry 镜像。 |
-| `ORACLE_PWD`              | Docker/初始化 | 替换为安全密码             | Oracle 容器 SYS/SYSTEM 密码，也是初始化脚本的 SYSDBA 密码。 |
-| `ORACLE_SYS_SERVICE_NAME` | 初始化        | `ORCLCDB`                  | `db-init` 和 `scripts/init-db.*` 使用的 CDB 服务名。         |
-| `DB_INIT_CHECK_TABLE`     | 初始化        | `N_USERS`                  | `db-init` 用来判断数据库是否已初始化的应用 schema 表。       |
-| `DOCKER_ORACLE_HOST`      | Docker        | `oracle19c`                | 应用容器内访问 Oracle 的主机名。                            |
-| `DOCKER_ORACLE_PORT`      | Docker        | `1521`                     | 应用容器内访问 Oracle 的端口。                              |
-| `DOCKER_NODE_ENV`         | Docker        | `production`               | 应用容器运行环境，默认固定为生产模式。                      |
-| `DOCKER_REDIS_URL`        | Docker        | `redis://redis:6379`       | 应用容器内 Redis 连接串，覆盖宿主机开发用的 `REDIS_URL`。   |
-| `REDIS_URL`               | 否            | 空                         | 可选 Redis 连接字符串；设置后 Redis 工具优先使用它。        |
-| `REDIS_HOST`              | 是            | `localhost`                | 宿主机开发模式下 Redis 主机。                               |
-| `REDIS_PORT`              | 是            | `6379`                     | Redis 端口。                                                |
-| `REDIS_DB`                | 否            | `0`                        | Redis 数据库编号。                                          |
-| `REDIS_PASSWORD`          | 否            | 替换为安全密码             | Redis 密码；内置 Redis 服务会读取该值。                     |
-| `DOCKER_REDIS_HOST`       | Docker        | `redis`                    | 应用容器内访问 Redis 的主机名。                             |
-| `DOCKER_REDIS_PORT`       | Docker        | `6379`                     | 应用容器内访问 Redis 的端口。                               |
-| `SMTP_HOST`               | 邮件          | `smtp.example.com`         | 验证码和账号邮件使用的 SMTP 主机。                          |
-| `SMTP_PORT`               | 邮件          | `465`                      | SMTP 端口；当前代码按安全 SMTP 创建连接。                   |
-| `SMTP_USER`               | 邮件          | 空                         | SMTP 用户名和发件人。                                       |
-| `SMTP_PASS`               | 邮件          | 空                         | SMTP 密码或应用专用密码。                                   |
-| `NUXT_PUBLIC_WS_URL`      | 否            | `ws://localhost:3000/_ws`  | 客户端运行时使用的公开 WebSocket 地址。                     |
-| `DOCKER_PUBLIC_WS_URL`    | Docker        | `ws://localhost:30001/_ws` | 应用容器模式下公开给客户端的 WebSocket 地址。               |
-| `NUXT_PUBLIC_API_BASE`    | 否            | 空                         | 客户端 API 基础地址；空表示同源。                           |
-| `SENTIMENTFLOW_ENABLED`   | 否            | `true`                     | 是否启用 SentimentFlow 集成和代理访问。                     |
-| `SENTIMENTFLOW_BASE_URL`  | 否            | 空                         | 外部 SentimentFlow 地址覆盖项；留空时宿主机开发访问会从 `SENTIMENTFLOW_HOST_PORT` 派生。 |
-| `SENTIMENTFLOW_TIMEOUT_MS` | 否           | `10000`                    | 上游代理超时时间，单位毫秒。                                |
-| `SENTIMENTFLOW_IMAGE`     | Docker        | `ghcr.io/cthaat/sentimentflow-backend:latest` | `docker-compose.yml` 拉取的 GHCR 镜像。              |
-| `SENTIMENTFLOW_LOCAL_IMAGE` | Docker 本地  | `sentimentflow-backend:local` | `docker-compose.local.yml` 构建出的本地镜像标签。       |
-| `SENTIMENTFLOW_FRONTEND_IMAGE` | Docker   | `ghcr.io/cthaat/sentimentflow-frontend:latest` | `docker-compose.yml` 拉取的 SentimentFlow 前端 GHCR 镜像。 |
-| `SENTIMENTFLOW_FRONTEND_LOCAL_IMAGE` | Docker 本地 | `sentimentflow-frontend:local` | `docker-compose.local.yml` 构建出的 SentimentFlow 前端镜像标签。 |
-| `SENTIMENTFLOW_GIT_REPO` | Docker 本地  | `https://github.com/Cthaat/SentimentFlow.git` | `docker-compose.local.yml` 镜像构建阶段拉取的 Git 仓库。 |
-| `SENTIMENTFLOW_GIT_REF` | Docker 本地  | `main` | 本地构建 SentimentFlow 时拉取的 Git 分支、标签或提交。 |
-| `SENTIMENTFLOW_PIP_INDEX_URL` | Docker 本地 | `https://pypi.org/simple` | 本地构建 SentimentFlow 后端镜像时使用的 Python 包索引。 |
-| `SENTIMENTFLOW_TORCH_INDEX_URL` | Docker 本地 | `https://pypi.org/simple` | 本地构建 SentimentFlow 后端镜像时使用的 PyTorch 包索引；默认保留 CUDA 训练可用的 torch。 |
-| `SENTIMENTFLOW_TORCH_PACKAGE` | Docker 本地 | `torch` | 先于其他后端依赖安装的 torch 包规格，用于缓存体积较大的 CUDA 依赖层。 |
-| `SENTIMENTFLOW_GPUS` | Docker | `all` | 传给 `NVIDIA_VISIBLE_DEVICES` 的值；Compose 本身使用符合 schema 的 `gpus: all`。 |
-| `SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES` | Docker | `compute,utility` | 暴露给 SentimentFlow 后端容器的 NVIDIA 驱动能力，用于 CUDA 训练。 |
-| `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT` | Docker | `/workspace`       | SentimentFlow 容器内项目根目录。                            |
-| `SENTIMENTFLOW_MODELS_DIR` | Docker        | `/workspace/models`       | SentimentFlow 容器内模型持久化挂载目录。                    |
-| `SENTIMENTFLOW_HOST_PORT` | Docker        | `8846`                     | SentimentFlow 暴露给宿主机和浏览器的端口；修改后访问 `localhost:<端口>`。 |
-| `SENTIMENTFLOW_CONTAINER_PORT` | Docker   | `8846`                     | SentimentFlow 容器内端口，用于 Uvicorn、Docker 目标端口、健康检查和 app 容器内访问地址。 |
-| `SENTIMENTFLOW_FRONTEND_HOST_PORT` | Docker | `30008`             | SentimentFlow 前端界面暴露给宿主机和浏览器的端口。          |
-| `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` | Docker | `3000`         | SentimentFlow 前端容器内 Next.js 服务器端口，用于 Docker 目标端口和前端健康检查。 |
+| 变量                                       | 是否必需      | 示例值                                                  | 用途                                                                                     |
+| ------------------------------------------ | ------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                 | 是            | `development`                                           | 运行环境。                                                                               |
+| `APP_PORT`                                 | Docker        | `30001`                                                 | 应用容器映射到宿主机的端口。                                                             |
+| `NGINX_PORT`                               | Docker        | `30002`                                                 | Nginx 容器映射到宿主机的端口。                                                           |
+| `ACCESS_SECRET`                            | 是            | 替换为随机长密钥                                        | JWT 访问令牌签名密钥。                                                                   |
+| `ACCESS_EXPIRES_IN`                        | 是            | `900`                                                   | 访问令牌有效期，单位秒。                                                                 |
+| `REFRESH_SECRET`                           | 是            | 替换为随机长密钥                                        | JWT 刷新令牌签名密钥。                                                                   |
+| `REFRESH_EXPIRES_IN`                       | 是            | `2592000`                                               | 刷新令牌有效期，单位秒。                                                                 |
+| `ORACLE_HOST`                              | 是            | `localhost`                                             | 宿主机开发模式下应用连接的 Oracle 主机。                                                 |
+| `ORACLE_PORT`                              | 是            | `5501`                                                  | 宿主机开发模式下应用连接的 Oracle 端口。                                                 |
+| `ORACLE_SERVICE_NAME`                      | 是            | `ORCLPDB1`                                              | 应用连接池使用的 Oracle 服务名。                                                         |
+| `ORACLE_SID`                               | 否            | 空                                                      | 兼容字段；当前连接池使用服务名。                                                         |
+| `ORACLE_USER`                              | 是            | `neko_app`                                              | 应用 schema 用户。                                                                       |
+| `ORACLE_PASSWORD`                          | 是            | 来自 v2 SQL                                             | 本地开发应用 schema 密码。                                                               |
+| `ORACLE_POOL_MIN`                          | 否            | `2`                                                     | Oracle 连接池最小连接数。                                                                |
+| `ORACLE_POOL_MAX`                          | 否            | `10`                                                    | Oracle 连接池最大连接数。                                                                |
+| `ORACLE_POOL_INCREMENT`                    | 否            | `1`                                                     | Oracle 连接池扩容步长。                                                                  |
+| `ORACLE_HOST_PORT`                         | Docker        | `5501`                                                  | Oracle 容器 `1521` 映射到宿主机的端口。                                                  |
+| `ORACLE_EM_PORT`                           | Docker        | `5500`                                                  | Oracle EM Express 映射端口。                                                             |
+| `ORACLE_IMAGE`                             | Docker        | `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c` | `oracle19c` 和 `db-init` 使用的 Oracle 镜像；也可切换为官方 Oracle Registry 镜像。       |
+| `ORACLE_PWD`                               | Docker/初始化 | 替换为安全密码                                          | Oracle 容器 SYS/SYSTEM 密码，也是初始化脚本的 SYSDBA 密码。                              |
+| `ORACLE_SYS_SERVICE_NAME`                  | 初始化        | `ORCLCDB`                                               | `db-init` 和 `scripts/init-db.*` 使用的 CDB 服务名。                                     |
+| `DB_INIT_CHECK_TABLE`                      | 初始化        | `N_USERS`                                               | `db-init` 用来判断数据库是否已初始化的应用 schema 表。                                   |
+| `DOCKER_ORACLE_HOST`                       | Docker        | `oracle19c`                                             | 应用容器内访问 Oracle 的主机名。                                                         |
+| `DOCKER_ORACLE_PORT`                       | Docker        | `1521`                                                  | 应用容器内访问 Oracle 的端口。                                                           |
+| `DOCKER_NODE_ENV`                          | Docker        | `production`                                            | 应用容器运行环境，默认固定为生产模式。                                                   |
+| `DOCKER_REDIS_URL`                         | Docker        | `redis://redis:6379`                                    | 应用容器内 Redis 连接串，覆盖宿主机开发用的 `REDIS_URL`。                                |
+| `REDIS_URL`                                | 否            | 空                                                      | 可选 Redis 连接字符串；设置后 Redis 工具优先使用它。                                     |
+| `REDIS_HOST`                               | 是            | `localhost`                                             | 宿主机开发模式下 Redis 主机。                                                            |
+| `REDIS_PORT`                               | 是            | `6379`                                                  | Redis 端口。                                                                             |
+| `REDIS_DB`                                 | 否            | `0`                                                     | Redis 数据库编号。                                                                       |
+| `REDIS_PASSWORD`                           | 否            | 替换为安全密码                                          | Redis 密码；内置 Redis 服务会读取该值。                                                  |
+| `DOCKER_REDIS_HOST`                        | Docker        | `redis`                                                 | 应用容器内访问 Redis 的主机名。                                                          |
+| `DOCKER_REDIS_PORT`                        | Docker        | `6379`                                                  | 应用容器内访问 Redis 的端口。                                                            |
+| `SMTP_HOST`                                | 邮件          | `smtp.example.com`                                      | 验证码和账号邮件使用的 SMTP 主机。                                                       |
+| `SMTP_PORT`                                | 邮件          | `465`                                                   | SMTP 端口；当前代码按安全 SMTP 创建连接。                                                |
+| `SMTP_USER`                                | 邮件          | 空                                                      | SMTP 用户名和发件人。                                                                    |
+| `SMTP_PASS`                                | 邮件          | 空                                                      | SMTP 密码或应用专用密码。                                                                |
+| `NUXT_PUBLIC_WS_URL`                       | 否            | `ws://localhost:3000/_ws`                               | 客户端运行时使用的公开 WebSocket 地址。                                                  |
+| `DOCKER_PUBLIC_WS_URL`                     | Docker        | `ws://localhost:30001/_ws`                              | 应用容器模式下公开给客户端的 WebSocket 地址。                                            |
+| `NUXT_PUBLIC_API_BASE`                     | 否            | 空                                                      | 客户端 API 基础地址；空表示同源。                                                        |
+| `SENTIMENTFLOW_ENABLED`                    | 否            | `true`                                                  | 是否启用 SentimentFlow 集成和代理访问。                                                  |
+| `SENTIMENTFLOW_BASE_URL`                   | 否            | 空                                                      | 外部 SentimentFlow 地址覆盖项；留空时宿主机开发访问会从 `SENTIMENTFLOW_HOST_PORT` 派生。 |
+| `SENTIMENTFLOW_TIMEOUT_MS`                 | 否            | `10000`                                                 | 上游代理超时时间，单位毫秒。                                                             |
+| `SENTIMENTFLOW_IMAGE`                      | Docker        | `ghcr.io/cthaat/sentimentflow-backend:latest`           | `docker-compose.yml` 拉取的 GHCR 镜像。                                                  |
+| `SENTIMENTFLOW_LOCAL_IMAGE`                | Docker 本地   | `sentimentflow-backend:local`                           | `docker-compose.local.yml` 构建出的本地镜像标签。                                        |
+| `SENTIMENTFLOW_FRONTEND_IMAGE`             | Docker        | `ghcr.io/cthaat/sentimentflow-frontend:latest`          | `docker-compose.yml` 拉取的 SentimentFlow 前端 GHCR 镜像。                               |
+| `SENTIMENTFLOW_FRONTEND_LOCAL_IMAGE`       | Docker 本地   | `sentimentflow-frontend:local`                          | `docker-compose.local.yml` 构建出的 SentimentFlow 前端镜像标签。                         |
+| `SENTIMENTFLOW_GIT_REPO`                   | Docker 本地   | `https://github.com/Cthaat/SentimentFlow.git`           | `docker-compose.local.yml` 镜像构建阶段拉取的 Git 仓库。                                 |
+| `SENTIMENTFLOW_GIT_REF`                    | Docker 本地   | `main`                                                  | 本地构建 SentimentFlow 时拉取的 Git 分支、标签或提交。                                   |
+| `SENTIMENTFLOW_PIP_INDEX_URL`              | Docker 本地   | `https://pypi.org/simple`                               | 本地构建 SentimentFlow 后端镜像时使用的 Python 包索引。                                  |
+| `SENTIMENTFLOW_TORCH_INDEX_URL`            | Docker 本地   | `https://pypi.org/simple`                               | 本地构建 SentimentFlow 后端镜像时使用的 PyTorch 包索引；默认保留 CUDA 训练可用的 torch。 |
+| `SENTIMENTFLOW_TORCH_PACKAGE`              | Docker 本地   | `torch`                                                 | 先于其他后端依赖安装的 torch 包规格，用于缓存体积较大的 CUDA 依赖层。                    |
+| `SENTIMENTFLOW_GPUS`                       | Docker        | `all`                                                   | 传给 `NVIDIA_VISIBLE_DEVICES` 的值；Compose 本身使用符合 schema 的 `gpus: all`。         |
+| `SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES` | Docker        | `compute,utility`                                       | 暴露给 SentimentFlow 后端容器的 NVIDIA 驱动能力，用于 CUDA 训练。                        |
+| `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT`     | Docker        | `/workspace`                                            | SentimentFlow 容器内项目根目录。                                                         |
+| `SENTIMENTFLOW_MODELS_DIR`                 | Docker        | `/workspace/models`                                     | SentimentFlow 容器内模型持久化挂载目录。                                                 |
+| `SENTIMENTFLOW_HOST_PORT`                  | Docker        | `8846`                                                  | SentimentFlow 暴露给宿主机和浏览器的端口；修改后访问 `localhost:<端口>`。                |
+| `SENTIMENTFLOW_CONTAINER_PORT`             | Docker        | `8846`                                                  | SentimentFlow 容器内端口，用于 Uvicorn、Docker 目标端口、健康检查和 app 容器内访问地址。 |
+| `SENTIMENTFLOW_FRONTEND_HOST_PORT`         | Docker        | `30008`                                                 | SentimentFlow 前端界面暴露给宿主机和浏览器的端口。                                       |
+| `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT`    | Docker        | `3000`                                                  | SentimentFlow 前端容器内 Next.js 服务器端口，用于 Docker 目标端口和前端健康检查。        |
 
 ## 外部服务
 
-| 服务         | 用途                                                         | 本地启动方式                                                                                   | 配置方式                                                                                  |
-| ------------ | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Oracle 19c   | 用户、帖子、群组、通知、认证会话、媒体元数据等主业务数据库。 | 包含在 `docker compose up -d` 中；`db-init` 会在 app 启动前写入 v2 基线。                     | `.env` 中的 `ORACLE_*`。                                                                  |
-| Redis 7      | v1 验证码存储、WebSocket 发布/订阅和实时广播。               | `docker compose up -d redis`。                                                                 | `.env` 中的 `REDIS_*`。                                                                   |
-| SMTP         | 发送邮箱验证码、密码重置和账号相关邮件。                     | 使用任意兼容 SMTP 的邮件服务商。                                                               | `.env` 中的 `SMTP_*`。                                                                    |
-| Nginx        | 静态服务 `/upload/` 文件，并在 Docker 模式下反向代理应用。   | 包含在 `docker compose up -d` 中。                                                             | 完整 Docker 使用 `nginx/nginx.compose.conf`；反代宿主机 dev 服务使用 `nginx/nginx.conf`。 |
-| 文件系统上传 | 存储用户头像和媒体文件。                                     | 按需在 `upload/` 下创建，已被 git 忽略。                                                       | 挂载到 Nginx 容器的 `/usr/share/nginx/upload`。                                           |
-| 媒体工具链   | 校验图片、视频、音频并为旧版链路生成缩略图。                 | Docker 镜像已安装 `ffmpeg`；宿主机旧版媒体链路需要系统 `ffmpeg`。                              | `sharp`、`file-type`、`ffprobe-static`，可选系统 `ffmpeg`。                               |
+| 服务                      | 用途                                                          | 本地启动方式                                                                                                            | 配置方式                                                                                                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Oracle 19c                | 用户、帖子、群组、通知、认证会话、媒体元数据等主业务数据库。  | 包含在 `docker compose up -d` 中；`db-init` 会在 app 启动前写入 v2 基线。                                               | `.env` 中的 `ORACLE_*`。                                                                                                                                                                                  |
+| Redis 7                   | v1 验证码存储、WebSocket 发布/订阅和实时广播。                | `docker compose up -d redis`。                                                                                          | `.env` 中的 `REDIS_*`。                                                                                                                                                                                   |
+| SMTP                      | 发送邮箱验证码、密码重置和账号相关邮件。                      | 使用任意兼容 SMTP 的邮件服务商。                                                                                        | `.env` 中的 `SMTP_*`。                                                                                                                                                                                    |
+| Nginx                     | 静态服务 `/upload/` 文件，并在 Docker 模式下反向代理应用。    | 包含在 `docker compose up -d` 中。                                                                                      | 完整 Docker 使用 `nginx/nginx.compose.conf`；反代宿主机 dev 服务使用 `nginx/nginx.conf`。                                                                                                                 |
+| 文件系统上传              | 存储用户头像和媒体文件。                                      | 按需在 `upload/` 下创建，已被 git 忽略。                                                                                | 挂载到 Nginx 容器的 `/usr/share/nginx/upload`。                                                                                                                                                           |
+| 媒体工具链                | 校验图片、视频、音频并为旧版链路生成缩略图。                  | Docker 镜像已安装 `ffmpeg`；宿主机旧版媒体链路需要系统 `ffmpeg`。                                                       | `sharp`、`file-type`、`ffprobe-static`，可选系统 `ffmpeg`。                                                                                                                                               |
 | SentimentFlow 后端 + 前端 | 外部情感分析 API 与界面，提供预测、训练、模型管理和统计功能。 | GHCR 模式：运行 `docker compose up -d`；本地构建模式：运行 `docker compose -f docker-compose.local.yml up -d --build`。 | `.env` 中的 `SENTIMENTFLOW_*`；后端端口由 `SENTIMENTFLOW_HOST_PORT` / `SENTIMENTFLOW_CONTAINER_PORT` 控制，前端端口由 `SENTIMENTFLOW_FRONTEND_HOST_PORT` / `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` 控制。 |
 
 备注：`doc/neko_tribe-oracle-v2.sql` 是当前 v2 开发数据库基线，并会挂载到 `db-init` 服务。`data/oracle-init/` 下的文件保留为历史群组模块脚本，因为这些脚本本身不是完整数据库基线。
