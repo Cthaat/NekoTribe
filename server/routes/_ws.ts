@@ -6,8 +6,10 @@ import {
   v2TouchAuthSession
 } from '~/server/services/v2/presence';
 import { getOracleConnection } from '~/server/utils/oracle';
+import { attachOracleQueryCacheWithSource } from '~/server/utils/oracle-query-cache';
 import type { WSMessage } from '~/server/utils/redis';
 import {
+  getRedisClient,
   REDIS_CHANNELS,
   subscribeToChannel
 } from '~/server/utils/redis';
@@ -49,6 +51,22 @@ function chatRedisChannel(channelId: number): string {
 
 function userRedisChannel(userId: number): string {
   return `${REDIS_CHANNELS.USER_MESSAGE}${userId}`;
+}
+
+async function getCachedWsOracleConnection(options: {
+  authUserId?: number | null;
+  path?: string;
+} = {}) {
+  const connection = await getOracleConnection();
+  return attachOracleQueryCacheWithSource(
+    {
+      redis: getRedisClient(),
+      authUserId: options.authUserId ?? null,
+      requestId: `ws:${WS_SERVER_ID}`,
+      path: options.path ?? '/_ws'
+    },
+    connection
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -123,7 +141,10 @@ async function authenticatePeer(
     return null;
   }
 
-  const connection = await getOracleConnection();
+  const connection = await getCachedWsOracleConnection({
+    authUserId: payload.userId,
+    path: '/_ws/authenticate'
+  });
   try {
     const session = await v2One(
       connection,
@@ -301,7 +322,10 @@ async function handleJoinChatChannel(
     return;
   }
 
-  const connection = await getOracleConnection();
+  const connection = await getCachedWsOracleConnection({
+    authUserId: session.auth.userId,
+    path: '/_ws/chat/join'
+  });
   try {
     const canAccess = await v2CanAccessChatChannel(
       connection,
@@ -346,7 +370,10 @@ async function touchWsSession(sessionId: string): Promise<void> {
   const authSessionId = session?.auth.sessionId;
   if (!authSessionId) return;
 
-  const connection = await getOracleConnection();
+  const connection = await getCachedWsOracleConnection({
+    authUserId: session.auth.userId,
+    path: '/_ws/session/touch'
+  });
   try {
     await v2TouchAuthSession(connection, authSessionId);
   } finally {
@@ -369,7 +396,10 @@ function schedulePresenceOfflinePublish(userId: number): void {
       presenceOfflineTimers.delete(userId);
       if (sessionManager.isUserOnline(userId)) return;
 
-      const connection = await getOracleConnection();
+      const connection = await getCachedWsOracleConnection({
+        authUserId: userId,
+        path: '/_ws/presence/offline'
+      });
       try {
         await v2PublishUserPresence(connection, userId);
       } catch (error) {
@@ -407,7 +437,10 @@ export default defineWebSocketHandler({
     await ensureUserRedisSubscription(auth.userId);
     clearPresenceOfflineTimer(auth.userId);
     if (!wasOnline) {
-      const connection = await getOracleConnection();
+      const connection = await getCachedWsOracleConnection({
+        authUserId: auth.userId,
+        path: '/_ws/presence/online'
+      });
       try {
         await v2PublishUserPresence(connection, auth.userId);
       } finally {
@@ -458,7 +491,10 @@ export default defineWebSocketHandler({
       const userId = removedSession?.auth.userId;
       const authSessionId = removedSession?.auth.sessionId;
       if (userId && authSessionId) {
-        const connection = await getOracleConnection();
+        const connection = await getCachedWsOracleConnection({
+          authUserId: userId,
+          path: '/_ws/close'
+        });
         try {
           await v2TouchAuthSession(connection, authSessionId);
           if (!sessionManager.isUserOnline(userId)) {
