@@ -291,7 +291,7 @@ At minimum, confirm these fields:
 | Oracle init       | `ORACLE_IMAGE`, `ORACLE_PWD`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`, `DB_INIT_CHECK_TABLE` | `.env.example` defaults to a domestic Oracle 19c mirror. `ORACLE_PWD` is the container `SYS/SYSTEM` password. `ORACLE_PASSWORD` must match the v2 SQL `neko_app` password; the template value is `NekoApp2026#`. `DB_INIT_CHECK_TABLE` defaults to `N_USERS` and is used to detect an initialized schema. |
 | Redis             | `REDIS_PASSWORD`                                                                                             | The built-in Redis service reads this password. Changing it after a Redis volume already exists can break old clients or health checks unless you also reset/update the volume.                                                                                                                           |
 | Email features    | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`                                                           | The app can start without SMTP, but registration OTP, password reset, and account emails require a real SMTP account. 163/QQ/Gmail usually require an app-specific password or authorization code, not the web login password.                                                                            |
-| SentimentFlow     | `SENTIMENTFLOW_ENABLED`, `SENTIMENTFLOW_HOST_PORT`, `SENTIMENTFLOW_FRONTEND_HOST_PORT`                       | SentimentFlow backend and frontend are enabled by default. Set `SENTIMENTFLOW_ENABLED=false` if you do not need this feature and want to avoid pulling or starting SentimentFlow images.                                                                                                                  |
+| SentimentFlow     | `COMPOSE_PROFILES`, `SENTIMENTFLOW_ENABLED`, `SENTIMENTFLOW_HOST_PORT`, `SENTIMENTFLOW_FRONTEND_HOST_PORT`   | Keep `COMPOSE_PROFILES=true`. Set `SENTIMENTFLOW_ENABLED=true` to include the SentimentFlow backend and frontend; set it to `false` to skip pulling, building, and starting those optional services during plain Compose startup.                                                                         |
 
 If `.env` already exists, do not copy the template over it again; only fill in or adjust the fields above.
 
@@ -312,7 +312,7 @@ To get the AI capabilities with a local backend build, run this in the project r
 
 ```bash
 git clone https://github.com/Cthaat/SentimentFlow.git
-docker compose up -f docker-compose.local.yml -d sentimentflow --build sentimentflow sentimentflow-frontend
+docker compose -f docker-compose.local.yml up -d --build sentimentflow sentimentflow-frontend
 ```
 
 Access:
@@ -372,12 +372,15 @@ SentimentFlow is included in both Compose files as two services:
 Keep the NekoTribe proxy enabled in `.env` when the app should call the sentiment-analysis backend:
 
 ```env
+COMPOSE_PROFILES=true
 SENTIMENTFLOW_ENABLED=true
 SENTIMENTFLOW_HOST_PORT=8846
 SENTIMENTFLOW_CONTAINER_PORT=8846
 SENTIMENTFLOW_FRONTEND_HOST_PORT=30008
 SENTIMENTFLOW_FRONTEND_CONTAINER_PORT=3000
 ```
+
+`COMPOSE_PROFILES=true` is the Compose selector. The two SentimentFlow services are attached to the profile named by `SENTIMENTFLOW_ENABLED`, so `SENTIMENTFLOW_ENABLED=false` removes them from normal `docker compose up` / `docker compose -f docker-compose.local.yml up --build` runs.
 
 Port changes are centralized in `.env`. `SENTIMENTFLOW_HOST_PORT` controls host/browser access to the backend, for example `http://localhost:${SENTIMENTFLOW_HOST_PORT}/docs`; `SENTIMENTFLOW_CONTAINER_PORT` controls the backend process port, Docker target port, backend healthcheck, NekoTribe app-to-backend URL, and the frontend container's `BACKEND_API_URL`. `SENTIMENTFLOW_FRONTEND_HOST_PORT` controls host/browser access to the SentimentFlow UI, and `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` controls the Next.js server port inside the frontend container.
 
@@ -584,7 +587,8 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | `NUXT_PUBLIC_WS_URL`                       | No           | `ws://localhost:3000/_ws`                               | Public WebSocket URL for local client.                                                                                      |
 | `DOCKER_PUBLIC_WS_URL`                     | Docker       | `ws://localhost:30001/_ws`                              | Public WebSocket URL for Docker mode.                                                                                       |
 | `NUXT_PUBLIC_API_BASE`                     | No           | empty                                                   | Client API base; empty means same origin.                                                                                   |
-| `SENTIMENTFLOW_ENABLED`                    | No           | `true`                                                  | Toggle SentimentFlow integration and proxy access.                                                                          |
+| `COMPOSE_PROFILES`                         | Docker       | `true`                                                  | Lets Compose activate services whose profile is named `true`; keep this value so `SENTIMENTFLOW_ENABLED` can control the optional SentimentFlow services. |
+| `SENTIMENTFLOW_ENABLED`                    | No           | `false` / `true`                                        | Toggle SentimentFlow integration and proxy access; also controls whether the optional Compose services are selected.        |
 | `SENTIMENTFLOW_BASE_URL`                   | No           | empty                                                   | Optional external SentimentFlow URL override; leave empty to derive host-dev access from `SENTIMENTFLOW_HOST_PORT`.         |
 | `SENTIMENTFLOW_TIMEOUT_MS`                 | No           | `10000`                                                 | Upstream proxy timeout in milliseconds.                                                                                     |
 | `SENTIMENTFLOW_IMAGE`                      | Docker       | `ghcr.io/cthaat/sentimentflow-backend:latest`           | GHCR image pulled by `docker-compose.yml`.                                                                                  |
