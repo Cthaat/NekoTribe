@@ -6,6 +6,7 @@ import {
   getRequestURL,
   setResponseHeader
 } from 'h3';
+import { getClientIp } from './client-ip';
 
 export interface RequestLogContext {
   requestId: string;
@@ -40,6 +41,21 @@ interface RequestLogCarrier {
 
 const requestLogStorage =
   new AsyncLocalStorage<RequestLogContext>();
+
+const SENSITIVE_QUERY_KEYS = new Set([
+  'access_token',
+  'refresh_token',
+  'token',
+  'password',
+  'new_password',
+  'confirm_password',
+  'authorization',
+  'cookie',
+  'secret',
+  'client_secret',
+  'code'
+]);
+const REDACTED_VALUE = '[redacted]';
 
 function isH3Event(event: unknown): event is H3Event {
   return (
@@ -85,18 +101,62 @@ function toSerializable(value: unknown): unknown {
 }
 
 function requestIp(event: H3Event): string {
-  return (
-    getHeader(event, 'x-forwarded-for')
-      ?.toString()
-      .split(',')[0]
-      ?.trim() ||
-    event.node.req.socket.remoteAddress ||
-    'unknown'
-  );
+  return getClientIp(event);
 }
 
 function queryRecord(url: URL): Record<string, string> {
   return Object.fromEntries(url.searchParams.entries());
+}
+
+function isSensitiveKey(key: string): boolean {
+  const normalized = key.trim().toLowerCase();
+  return (
+    SENSITIVE_QUERY_KEYS.has(normalized) ||
+    normalized.endsWith('_token') ||
+    normalized.endsWith('_secret') ||
+    normalized.includes('password')
+  );
+}
+
+function sanitizeQueryRecord(
+  query: Record<string, string>
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(query).map(([key, value]) => [
+      key,
+      isSensitiveKey(key) ? REDACTED_VALUE : value
+    ])
+  );
+}
+
+function sanitizeSearchParams(searchParams: URLSearchParams): void {
+  for (const key of Array.from(searchParams.keys())) {
+    if (isSensitiveKey(key)) {
+      searchParams.set(key, REDACTED_VALUE);
+    }
+  }
+}
+
+function sanitizeUrlLikeValue(value: string): string {
+  if (!value || value === '-') {
+    return value;
+  }
+
+  try {
+    const url = new URL(value, 'http://localhost');
+    sanitizeSearchParams(url.searchParams);
+    const sanitized =
+      url.pathname + url.search + url.hash;
+    return value.startsWith('http://') ||
+      value.startsWith('https://')
+      ? url.toString()
+      : sanitized;
+  } catch {
+    return value.replace(
+      /([?&](?:access_token|refresh_token|token|password|new_password|confirm_password|authorization|secret|client_secret|code)=)[^&#\s]*/gi,
+      `$1${REDACTED_VALUE}`
+    );
+  }
 }
 
 export function createRequestLogContext(
@@ -110,9 +170,11 @@ export function createRequestLogContext(
     requestId,
     startAt: Date.now(),
     method: event.node.req.method || 'UNKNOWN',
-    rawUrl: event.node.req.url || url.pathname,
+    rawUrl: sanitizeUrlLikeValue(
+      event.node.req.url || url.pathname
+    ),
     path: url.pathname,
-    query: queryRecord(url),
+    query: sanitizeQueryRecord(queryRecord(url)),
     ip: requestIp(event),
     userAgent:
       getHeader(event, 'user-agent')?.toString() ||
@@ -136,6 +198,15 @@ export function createRequestLogContext(
       )
     }
   };
+  context.client.route = sanitizeUrlLikeValue(
+    context.client.route
+  );
+  context.client.source = sanitizeUrlLikeValue(
+    context.client.source
+  );
+  context.client.referer = sanitizeUrlLikeValue(
+    context.client.referer
+  );
 
   (event.context as RequestLogCarrier).requestLog = context;
   requestLogStorage.enterWith(context);
