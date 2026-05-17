@@ -44,8 +44,8 @@ export async function sentimentFlowRequest<
 >(
   path: string,
   options: SentimentFlowRequestOptions<TBody, TQuery> = {}
-): Promise<SentimentFlowApiResponse<TData>> {
-  return await apiFetch<SentimentFlowApiResponse<TData>>(
+): Promise<SentimentFlowApiResponse<TData> | TData> {
+  return await apiFetch<SentimentFlowApiResponse<TData> | TData>(
     proxyPath(path),
     {
       method: options.method,
@@ -69,5 +69,12 @@ export async function sentimentFlowRequestData<
     TBody,
     TQuery
   >(path, options);
-  return response.data;
+  if (
+    response &&
+    typeof response === 'object' &&
+    'data' in response
+  ) {
+    return (response as SentimentFlowApiResponse<TData>).data;
+  }
+  return response as TData;
 }
