@@ -181,9 +181,14 @@ server/models/v2.ts
 #### Redis and Realtime Messaging
 
 1. `server/plugins/01-redisClient.ts` provides a lazy Redis instance for normal requests.
-2. `server/utils/redis.ts` provides publishers, subscribers, and fallbacks for WebSocket.
-3. `server/routes/_ws.ts` maintains sessions, rooms, broadcasts, and heartbeat.
-4. In multi-instance deployments, Redis pub/sub enables cross-instance broadcasts.
+2. `server/utils/api-cache.ts` caches v2 GET responses with per-route, per-user, and tag-versioned Redis keys.
+3. `server/utils/oracle-query-cache.ts` wraps request Oracle connections and caches safe `SELECT`/`WITH` query results before the database is hit.
+4. `server/utils/v2.ts` checks Redis before Oracle on v2 GET requests, then writes successful responses with TTLs.
+5. Successful write queries bump related cache tag versions, so stale response and query caches become unreachable and expire naturally.
+6. Sequence, lock, password, token, and verification-code queries are intentionally skipped because caching them would be incorrect or unsafe.
+7. `server/utils/redis.ts` provides publishers, subscribers, and fallbacks for WebSocket.
+8. `server/routes/_ws.ts` maintains sessions, rooms, broadcasts, and heartbeat.
+9. In multi-instance deployments, Redis pub/sub enables cross-instance broadcasts.
 
 #### Media Uploads
 
@@ -243,7 +248,7 @@ Legacy SQL and stage SQL remain in `doc/` and `data/` to trace historical design
 | Backend            | Nitro Server API, h3, TypeScript                                                                                         |
 | API Versioning     | Legacy `server/api/v1`, resource-style `server/api/v2`                                                                   |
 | Database           | Oracle 19c, accessed via `oracledb`                                                                                      |
-| Cache and Realtime | Redis 7 via `ioredis`; Nitro WebSocket route at `server/routes/_ws.ts`                                                   |
+| Cache and Realtime | Redis 7 via `ioredis` for Oracle query cache, v2 response cache, OTP/rate-limit state, and WebSocket pub/sub             |
 | Auth               | JWT access/refresh tokens, HttpOnly cookies, bcrypt                                                                      |
 | Email              | SMTP via `nodemailer`                                                                                                    |
 | Media              | Local file uploads, `formidable`, `file-type`, `sharp`, `ffprobe-static`, optional system `ffmpeg` for legacy thumbnails |
@@ -605,7 +610,7 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | Service                          | Purpose                                                                                     | Local Startup                                                                                                    | Configuration                                                                                                                                                                                     |
 | -------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Oracle 19c                       | Primary DB for users, posts, groups, notifications, auth sessions, media metadata.          | Included in `docker compose up -d`; `db-init` applies the v2 baseline before app startup.                        | `ORACLE_*` in `.env`.                                                                                                                                                                             |
-| Redis 7                          | v1 OTP storage, WebSocket pub/sub, realtime broadcasts.                                     | `docker compose up -d redis`.                                                                                    | `REDIS_*` in `.env`.                                                                                                                                                                              |
+| Redis 7                          | Oracle SELECT query cache, v2 API response cache, v1 OTP storage, rate-limit state, WebSocket pub/sub, realtime broadcasts. | `docker compose up -d redis`.                                                                                    | `REDIS_*` in `.env`.                                                                                                                                                                              |
 | SMTP                             | Send OTP, password reset, and account emails.                                               | Any SMTP-compatible provider.                                                                                    | `SMTP_*` in `.env`.                                                                                                                                                                               |
 | Nginx                            | Serve `/upload/` files and reverse proxy in Docker mode.                                    | Included in `docker compose up -d`.                                                                              | `nginx/nginx.compose.conf` for Docker; `nginx/nginx.conf` for host dev proxy.                                                                                                                     |
 | File Upload Storage              | Store user avatars and media files.                                                         | Create under `upload/` as needed; git-ignored.                                                                   | Mount to `/usr/share/nginx/upload` in Nginx.                                                                                                                                                      |
