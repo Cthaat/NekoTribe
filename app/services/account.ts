@@ -64,6 +64,13 @@ function mapSettings(dto: V2UserSettings): AccountSettingsVM {
     allowDmFromStrangers: !!dto.allow_dm_from_strangers,
     pushNotificationEnabled: !!dto.push_notification_enabled,
     emailNotificationEnabled: !!dto.email_notification_enabled,
+    aiSentimentEnabled: !!dto.ai_sentiment_enabled,
+    aiSentimentModelId: dto.ai_sentiment_model_id ?? null,
+    aiSentimentReturnProbabilities:
+      dto.ai_sentiment_return_probabilities ?? true,
+    aiSentimentIncludeMetadata:
+      !!dto.ai_sentiment_include_metadata,
+    aiSentimentTopK: dto.ai_sentiment_top_k ?? 3,
     updatedAt: dto.updated_at
   };
 }
@@ -78,7 +85,14 @@ function mapUpdateSettingsForm(
     show_online_status: form.showOnlineStatus,
     allow_dm_from_strangers: form.allowDmFromStrangers,
     push_notification_enabled: form.pushNotificationEnabled,
-    email_notification_enabled: form.emailNotificationEnabled
+    email_notification_enabled: form.emailNotificationEnabled,
+    ai_sentiment_enabled: form.aiSentimentEnabled,
+    ai_sentiment_model_id: form.aiSentimentModelId,
+    ai_sentiment_return_probabilities:
+      form.aiSentimentReturnProbabilities,
+    ai_sentiment_include_metadata:
+      form.aiSentimentIncludeMetadata,
+    ai_sentiment_top_k: form.aiSentimentTopK
   };
 }
 
