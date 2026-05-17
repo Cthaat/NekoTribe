@@ -283,7 +283,7 @@ Copy-Item .env.example .env
 | 通用           | `ACCESS_EXPIRES_IN`、`REFRESH_EXPIRES_IN`                                                                    | 模板值可直接启动，分别表示访问令牌 15 分钟、刷新令牌 30 天；需要缩短登录有效期时再调整。                                                                                                                                              |
 | 本地开发       | `NODE_ENV`                                                                                                   | 保持 `development`，否则本地 HTTP 调试可能因为安全 Cookie 配置导致登录状态异常。                                                                                                                                                      |
 | 本地开发       | `ORACLE_HOST`、`ORACLE_PORT`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`                        | 使用内置 Compose Oracle 时保持模板值：`localhost`、`5501`、`ORCLPDB1`、`neko_app`、`NekoApp2026#`。如果连接外部 Oracle，必须改成外部实例真实地址、服务名、用户名和密码。                                                              |
-| 完整 Docker 栈 | `APP_PORT`、`NGINX_PORT`、`DOCKER_PUBLIC_WS_URL`                                                             | 默认应用端口是 `30001`，Nginx 端口是 `30002`。如果改了 `APP_PORT`，同步把 `DOCKER_PUBLIC_WS_URL` 改为 `ws://localhost:<APP_PORT>/_ws`。                                                                                               |
+| 完整 Docker 栈 | `APP_PORT`、`NGINX_PORT`、`DOCKER_PUBLIC_WS_URL`                                                             | 默认应用端口是 `30001`，Nginx 端口是 `30002`。`DOCKER_PUBLIC_WS_URL` 建议留空，让浏览器按当前页面自动使用同源 WebSocket。通过 HTTPS 或 Cloudflare Tunnel 访问时，浏览器必须使用 `wss://.../_ws`，不能使用 `ws://.../_ws`。           |
 | 完整 Docker 栈 | `DOCKER_ORACLE_HOST`、`DOCKER_ORACLE_PORT`、`DOCKER_REDIS_URL`、`DOCKER_REDIS_HOST`、`DOCKER_REDIS_PORT`     | 使用内置 Compose 服务时不要改，必须分别指向 Docker 网络内的 `oracle19c` 和 `redis`，不能写成 `localhost`。                                                                                                                            |
 | Oracle 初始化  | `ORACLE_IMAGE`、`ORACLE_PWD`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`、`DB_INIT_CHECK_TABLE` | `.env.example` 默认使用国内 Oracle 19c 镜像。`ORACLE_PWD` 是容器 `SYS/SYSTEM` 密码；`ORACLE_PASSWORD` 必须和 v2 SQL 创建的 `neko_app` 密码一致，模板值是 `NekoApp2026#`；`DB_INIT_CHECK_TABLE` 默认 `N_USERS`，用于判断是否已初始化。 |
 | Redis          | `REDIS_PASSWORD`                                                                                             | 内置 Redis 服务会读取这个密码。已有 Redis 数据卷启动后再改密码，可能导致旧客户端或健康检查认证失败，需要同步清理数据卷或保持旧密码。                                                                                                  |
@@ -576,8 +576,9 @@ SENTIMENTFLOW_CONTAINER_PORT=8846
 | `SMTP_PORT`                                | 邮件          | `465`                                                   | SMTP 端口；当前代码按安全 SMTP 创建连接。                                                |
 | `SMTP_USER`                                | 邮件          | 空                                                      | SMTP 用户名和发件人。                                                                    |
 | `SMTP_PASS`                                | 邮件          | 空                                                      | SMTP 密码或应用专用密码。                                                                |
-| `NUXT_PUBLIC_WS_URL`                       | 否            | `ws://localhost:3000/_ws`                               | 客户端运行时使用的公开 WebSocket 地址。                                                  |
-| `DOCKER_PUBLIC_WS_URL`                     | Docker        | `ws://localhost:30001/_ws`                              | 应用容器模式下公开给客户端的 WebSocket 地址。                                            |
+| `NUXT_PUBLIC_WS_URL`                       | 否            | 空                                                      | 客户端公开 WebSocket 地址覆盖项。留空表示同源 `/_ws`，HTTP 页面自动用 `ws://`，HTTPS 页面自动用 `wss://`。 |
+| `NUXT_DEV_HMR_PROTOCOL`、`NUXT_DEV_HMR_HOST`、`NUXT_DEV_HMR_CLIENT_PORT` | 仅开发        | 空                                                      | 仅在把 `yarn dev` 通过 HTTPS 或 Cloudflare Tunnel 暴露时使用。常见取值是 `wss`、公网域名和 `443`。 |
+| `DOCKER_PUBLIC_WS_URL`                     | Docker        | 空                                                      | Docker 模式 WebSocket 地址覆盖项。Nginx、HTTPS 或 Cloudflare Tunnel 后建议留空；只有确实需要独立公网入口时才填写 `wss://你的域名/_ws`。 |
 | `NUXT_PUBLIC_API_BASE`                     | 否            | 空                                                      | 客户端 API 基础地址；空表示同源。                                                        |
 | `COMPOSE_PROFILES`                         | Docker        | `true`                                                  | 让 Compose 启用 profile 名为 `true` 的服务；保持该值，才能让 `SENTIMENTFLOW_ENABLED` 控制可选 SentimentFlow 服务。 |
 | `SENTIMENTFLOW_ENABLED`                    | 否            | `false` / `true`                                        | 是否启用 SentimentFlow 集成和代理访问；同时控制可选 Compose 服务是否被选中。             |
@@ -713,9 +714,9 @@ docker build -t nekotribe:prod .
 docker run --env-file .env -p 3000:3000 nekotribe:prod
 ```
 
-5. 在应用前放置 Nginx 或其他反向代理。
+5. 在应用前放置 Nginx 或其他反向代理，并确认 `/_ws` 会转发 WebSocket Upgrade 头。
 6. 挂载持久化 `upload/` 存储，并由反向代理或等价对象存储服务提供 `/upload/` 访问。
-7. 生产环境应使用 HTTPS，以便认证 Cookie 可以安全启用 `secure`。
+7. 生产环境应使用 HTTPS，以便认证 Cookie 可以安全启用 `secure`。WebSocket 公开地址建议留空使用同源 `wss://` 自动检测，或显式填写 `wss://你的域名/_ws`。
 
 内置 `docker-compose.yml` 面向本地开发和小型测试环境。生产环境建议使用托管 Oracle/Redis，并且不要复用示例密码。
 
@@ -732,6 +733,10 @@ docker run --env-file .env -p 3000:3000 nekotribe:prod
 ### Redis 认证失败
 
 确认 `.env` 中的 `REDIS_PASSWORD` 与 Redis 容器实际密码一致。内置 compose 服务会从 `.env` 读取该值。
+
+### Cloudflare Tunnel 或 HTTPS 下提示不安全 WebSocket
+
+是的，这是 HTTPS 页面尝试连接 `ws://...` 造成的混合内容问题。保持 `DOCKER_PUBLIC_WS_URL` 和 `NUXT_PUBLIC_WS_URL` 为空，客户端会自动连接同源 `wss://你的域名/_ws`；如果必须显式配置，也要写成 `wss://你的域名/_ws`。不要把 `ws://localhost:30001/_ws` 暴露给通过 Cloudflare 或 HTTPS 反向代理访问的浏览器。如果问题发生在 `yarn dev`，再设置 `NUXT_DEV_HMR_PROTOCOL=wss`、`NUXT_DEV_HMR_HOST=你的域名`、`NUXT_DEV_HMR_CLIENT_PORT=443`。
 
 ### `docker compose up -d` 提示 `dependency failed to start`，但稍后 `app` 变成 `healthy`
 
