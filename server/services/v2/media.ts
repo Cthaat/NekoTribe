@@ -12,16 +12,11 @@ import { v2MapMedia } from '~/server/models/v2';
 import {
   v2Auth,
   v2BadRequest,
-  v2Body,
   v2Execute,
   v2NextId,
   v2NotFound,
-  v2Number,
   v2Ok,
   v2One,
-  v2RequiredString,
-  v2String,
-  v2StringOrNull,
   type V2DbRecord
 } from '~/server/utils/v2';
 
@@ -181,102 +176,19 @@ async function v2UploadMultipartMedia(
   );
 }
 
-async function v2CreateJsonMedia(
-  event: H3Event,
-  connection: oracledb.Connection
-): Promise<V2MediaAsset> {
-  const auth = v2Auth(event);
-  const body = await v2Body(event);
-  const mediaId = await v2NextId(
-    connection,
-    'seq_media_id'
-  );
-
-  await v2Execute(
-    connection,
-    `
-    INSERT INTO n_media_assets (
-      media_id,
-      owner_user_id,
-      media_type,
-      file_name,
-      storage_key,
-      public_url,
-      file_size,
-      mime_type,
-      width,
-      height,
-      duration,
-      thumbnail_url,
-      alt_text,
-      status
-    ) VALUES (
-      :media_id,
-      :owner_user_id,
-      :media_type,
-      :file_name,
-      :storage_key,
-      :public_url,
-      :file_size,
-      :mime_type,
-      :width,
-      :height,
-      :duration,
-      :thumbnail_url,
-      :alt_text,
-      :status
-    )
-    `,
-    {
-      media_id: mediaId,
-      owner_user_id: auth.userId,
-      media_type: v2String(body.media_type, 'image'),
-      file_name: v2RequiredString(body, 'file_name'),
-      storage_key: v2String(
-        body.storage_key,
-        v2String(body.public_url)
-      ),
-      public_url: v2RequiredString(body, 'public_url'),
-      file_size: v2Number(body.file_size),
-      mime_type: v2String(
-        body.mime_type,
-        'application/octet-stream'
-      ),
-      width:
-        body.width === undefined
-          ? null
-          : v2Number(body.width),
-      height:
-        body.height === undefined
-          ? null
-          : v2Number(body.height),
-      duration:
-        body.duration === undefined
-          ? null
-          : v2Number(body.duration),
-      thumbnail_url: v2StringOrNull(body.thumbnail_url),
-      alt_text: v2StringOrNull(body.alt_text),
-      status: v2String(body.status, 'ready')
-    }
-  );
-
-  const row = await v2One(
-    connection,
-    'SELECT * FROM n_media_assets WHERE media_id = :media_id',
-    { media_id: mediaId }
-  );
-  if (!row) v2NotFound('媒体不存在');
-  return v2MapMedia(row as V2DbRecord);
-}
-
 export async function v2UploadMedia(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2Response<V2MediaAsset>> {
+  if (!v2IsMultipart(event)) {
+    v2BadRequest('请使用 multipart/form-data 上传媒体文件');
+  }
+
   try {
-    const media = v2IsMultipart(event)
-      ? await v2UploadMultipartMedia(event, connection)
-      : await v2CreateJsonMedia(event, connection);
+    const media = await v2UploadMultipartMedia(
+      event,
+      connection
+    );
 
     return v2Ok(media, 'media uploaded');
   } catch (error) {
