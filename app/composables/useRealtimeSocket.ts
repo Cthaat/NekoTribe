@@ -15,6 +15,22 @@ let shouldReconnect = true;
 
 const listeners = new Set<RealtimeListener>();
 
+function normalizedHostname(hostname: string): string {
+  return hostname.trim().replace(/^\[|\]$/g, '').toLowerCase();
+}
+
+function isLocalOnlyHostname(hostname: string): boolean {
+  const normalized = normalizedHostname(hostname);
+  return (
+    !normalized ||
+    normalized === 'localhost' ||
+    normalized === '0.0.0.0' ||
+    normalized === '::' ||
+    normalized === '::1' ||
+    normalized.startsWith('127.')
+  );
+}
+
 function browserRealtimeUrl(): string {
   const protocol =
     window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -23,12 +39,7 @@ function browserRealtimeUrl(): string {
 
 function browserReachableHostname(): string {
   const hostname = window.location.hostname;
-  if (
-    !hostname ||
-    hostname === '0.0.0.0' ||
-    hostname === '::' ||
-    hostname === '[::]'
-  ) {
+  if (isLocalOnlyHostname(hostname)) {
     return 'localhost';
   }
   return hostname;
@@ -46,12 +57,28 @@ function normalizeConfiguredRealtimeUrl(
     if (url.protocol === 'http:') url.protocol = 'ws:';
     if (url.protocol === 'https:') url.protocol = 'wss:';
 
+    const configuredHostIsLocal = isLocalOnlyHostname(
+      url.hostname
+    );
+    const browserHostIsLocal = isLocalOnlyHostname(
+      window.location.hostname
+    );
+
+    if (configuredHostIsLocal && !browserHostIsLocal) {
+      return null;
+    }
+
     if (
-      url.hostname === '0.0.0.0' ||
-      url.hostname === '::' ||
-      url.hostname === '[::]'
+      ['0.0.0.0', '::', '[::]'].includes(url.hostname)
     ) {
       url.hostname = browserReachableHostname();
+    }
+
+    if (
+      window.location.protocol === 'https:' &&
+      url.protocol === 'ws:'
+    ) {
+      url.protocol = 'wss:';
     }
 
     return url.toString();
