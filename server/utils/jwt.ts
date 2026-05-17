@@ -4,10 +4,14 @@ import type { Secret, SignOptions } from 'jsonwebtoken';
 
 const runtimeConfig = useRuntimeConfig();
 
-const JWT_SECRET: Secret =
-  runtimeConfig.jwtSecret ||
-  'your-super-secret-key-change-in-production';
-const JWT_EXPIRES_IN = runtimeConfig.jwtExpiresIn || '7d';
+function jwtSecret(): Secret {
+  const secret = String(runtimeConfig.accessSecret || '');
+  if (!secret) {
+    throw new Error('ACCESS_SECRET is not configured');
+  }
+
+  return secret;
+}
 
 /**
  * 用户信息接口
@@ -25,7 +29,7 @@ export interface UserPayload {
 export function generateToken(
   payload: UserPayload
 ): string {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, jwtSecret(), {
     expiresIn: '7d',
     issuer: 'NekoTribe',
     audience: 'NekoTribe-Users'
@@ -39,7 +43,7 @@ export function verifyToken(
   token: string
 ): UserPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, {
+    const decoded = jwt.verify(token, jwtSecret(), {
       issuer: 'NekoTribe',
       audience: 'NekoTribe-Users'
     }) as UserPayload;
@@ -61,7 +65,7 @@ export function extractTokenFromHeader(
   // 支持 "Bearer <token>" 格式
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
   if (match) {
-    return match[1];
+    return match[1] ?? null;
   }
 
   // 也支持直接传递 token
@@ -72,9 +76,10 @@ export function extractTokenFromHeader(
  * 从查询参数中提取 Token (用于 WebSocket 连接)
  */
 export function extractTokenFromQuery(
-  query: Record<string, any>
+  query: Record<string, unknown>
 ): string | null {
-  return query.token || query.access_token || null;
+  const token = query.token ?? query.access_token;
+  return typeof token === 'string' ? token : null;
 }
 
 /**
@@ -90,7 +95,7 @@ export function generateRefreshToken(
     audience: 'NekoTribe-Users'
   };
 
-  return jwt.sign(refreshPayload, JWT_SECRET, options);
+  return jwt.sign(refreshPayload, jwtSecret(), options);
 }
 
 /**
@@ -100,7 +105,7 @@ export function verifyRefreshToken(
   token: string
 ): UserPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, {
+    const decoded = jwt.verify(token, jwtSecret(), {
       issuer: 'NekoTribe',
       audience: 'NekoTribe-Users'
     }) as UserPayload & { type: string };
