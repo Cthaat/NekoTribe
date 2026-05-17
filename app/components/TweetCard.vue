@@ -685,7 +685,7 @@ const relatedExcerpt = computed(() => {
   />
 
   <Dialog v-model:open="isDeleteDialogOpen">
-    <DialogContent @click.stop>
+    <DialogContent>
       <DialogHeader>
         <DialogTitle>{{ t('post.delete.title') }}</DialogTitle>
         <DialogDescription>
@@ -707,7 +707,7 @@ const relatedExcerpt = computed(() => {
   </Dialog>
 
   <Dialog v-model:open="isReportDialogOpen">
-    <DialogContent class="sm:max-w-md" @click.stop>
+    <DialogContent class="sm:max-w-md">
       <DialogHeader>
         <DialogTitle>{{ t('post.report.title') }}</DialogTitle>
         <DialogDescription>
