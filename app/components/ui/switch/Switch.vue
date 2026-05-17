@@ -1,28 +1,50 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
 import { reactiveOmit } from '@vueuse/core'
+import { computed } from 'vue'
 import {
   SwitchRoot,
   type SwitchRootEmits,
   type SwitchRootProps,
   SwitchThumb,
-  useForwardPropsEmits,
 } from 'reka-ui'
 import { cn } from '@/lib/utils'
 
-const props = defineProps<SwitchRootProps & { class?: HTMLAttributes['class'] }>()
+type SwitchProps = SwitchRootProps & {
+  checked?: boolean | null
+  class?: HTMLAttributes['class']
+}
 
-const emits = defineEmits<SwitchRootEmits>()
+type SwitchEmits = SwitchRootEmits & {
+  'update:checked': [payload: boolean]
+}
 
-const delegatedProps = reactiveOmit(props, 'class')
+const props = defineProps<SwitchProps>()
 
-const forwarded = useForwardPropsEmits(delegatedProps, emits)
+const emits = defineEmits<SwitchEmits>()
+
+const delegatedProps = reactiveOmit(
+  props,
+  'checked',
+  'class',
+  'modelValue'
+)
+
+const modelValue = computed({
+  get: () => props.checked ?? props.modelValue,
+  set: (value: boolean) => {
+    emits('update:modelValue', value)
+    emits('update:checked', value)
+  },
+})
+
 </script>
 
 <template>
   <SwitchRoot
     data-slot="switch"
-    v-bind="forwarded"
+    v-bind="delegatedProps"
+    v-model="modelValue"
     :class="cn(
       'peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-input/80 inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
       props.class,

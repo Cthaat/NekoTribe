@@ -2,6 +2,50 @@
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 
+type ViteHmrProtocol = 'ws' | 'wss';
+
+interface ViteHmrConfig {
+  protocol?: ViteHmrProtocol;
+  host?: string;
+  clientPort?: number;
+}
+
+interface ViteServerConfig {
+  hmr: ViteHmrConfig;
+}
+
+function devHmrProtocol(): ViteHmrProtocol | undefined {
+  const protocol = process.env.NUXT_DEV_HMR_PROTOCOL;
+  if (protocol === 'ws' || protocol === 'wss') {
+    return protocol;
+  }
+  return undefined;
+}
+
+function devHmrClientPort(): number | undefined {
+  const rawPort = process.env.NUXT_DEV_HMR_CLIENT_PORT;
+  if (!rawPort) return undefined;
+
+  const port = Number.parseInt(rawPort, 10);
+  return Number.isInteger(port) && port > 0 ? port : undefined;
+}
+
+function devViteServerConfig(): ViteServerConfig | undefined {
+  const hmr: ViteHmrConfig = {
+    protocol: devHmrProtocol(),
+    host: process.env.NUXT_DEV_HMR_HOST || undefined,
+    clientPort: devHmrClientPort()
+  };
+
+  if (!hmr.protocol && !hmr.host && !hmr.clientPort) {
+    return undefined;
+  }
+
+  return { hmr };
+}
+
+const viteServerConfig = devViteServerConfig();
+
 export default defineNuxtConfig({
   compatibilityDate: '2026-04-26',
   debug: false,
@@ -35,7 +79,8 @@ export default defineNuxtConfig({
   css: ['~/assets/css/tailwind.css'],
 
   vite: {
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()],
+    ...(viteServerConfig ? { server: viteServerConfig } : {})
   },
 
   colorMode: {
@@ -162,9 +207,7 @@ export default defineNuxtConfig({
       process.env.SENTIMENTFLOW_TIMEOUT_MS || '10000',
     nlsLang: process.env.NLS_LANG,
     public: {
-      wsUrl:
-        process.env.NUXT_PUBLIC_WS_URL ||
-        'ws://localhost:3000/_ws',
+      wsUrl: process.env.NUXT_PUBLIC_WS_URL || '',
       apiBase: process.env.NUXT_PUBLIC_API_BASE || '',
       sentimentFlowEnabled:
         process.env.SENTIMENTFLOW_ENABLED === 'true'

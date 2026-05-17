@@ -74,6 +74,11 @@ export interface AccountSettingsVM {
   allowDmFromStrangers: boolean;
   pushNotificationEnabled: boolean;
   emailNotificationEnabled: boolean;
+  aiSentimentEnabled: boolean;
+  aiSentimentModelId: string | null;
+  aiSentimentReturnProbabilities: boolean;
+  aiSentimentIncludeMetadata: boolean;
+  aiSentimentTopK: number;
   updatedAt: string;
 }
 
@@ -85,6 +90,11 @@ export interface UpdateAccountSettingsFormVM {
   allowDmFromStrangers?: boolean;
   pushNotificationEnabled?: boolean;
   emailNotificationEnabled?: boolean;
+  aiSentimentEnabled?: boolean;
+  aiSentimentModelId?: string | null;
+  aiSentimentReturnProbabilities?: boolean;
+  aiSentimentIncludeMetadata?: boolean;
+  aiSentimentTopK?: number;
 }
 
 export type AccountStatementPageVM =

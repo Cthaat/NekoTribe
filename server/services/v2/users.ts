@@ -383,6 +383,8 @@ export async function v2ChangeEmail(
 function v2MapSettings(
   row: Record<string, unknown>
 ): V2UserSettings {
+  const topK = v2Number(row.AI_SENTIMENT_TOP_K, 3);
+
   return {
     user_id: v2Number(row.USER_ID),
     two_factor_enabled: v2Boolean(row.TWO_FACTOR_ENABLED),
@@ -398,14 +400,130 @@ function v2MapSettings(
     email_notification_enabled: v2Boolean(
       row.EMAIL_NOTIFICATION_ENABLED
     ),
+    ai_sentiment_enabled: v2Boolean(
+      row.AI_SENTIMENT_ENABLED
+    ),
+    ai_sentiment_model_id: v2StringOrNull(
+      row.AI_SENTIMENT_MODEL_ID
+    ),
+    ai_sentiment_return_probabilities:
+      row.AI_SENTIMENT_RETURN_PROBABILITIES === undefined ||
+      row.AI_SENTIMENT_RETURN_PROBABILITIES === null
+        ? true
+        : v2Boolean(row.AI_SENTIMENT_RETURN_PROBABILITIES),
+    ai_sentiment_include_metadata: v2Boolean(
+      row.AI_SENTIMENT_INCLUDE_METADATA
+    ),
+    ai_sentiment_top_k:
+      topK >= 1 && topK <= 10 ? Math.trunc(topK) : 3,
     updated_at: v2DateString(row.UPDATED_AT) || ''
   };
+}
+
+let userSettingsSchemaReady = false;
+
+const USER_SETTINGS_AI_COLUMNS = [
+  {
+    name: 'AI_SENTIMENT_ENABLED',
+    sql: `
+    ALTER TABLE n_user_settings ADD (
+      ai_sentiment_enabled NUMBER(1) DEFAULT 0 NOT NULL
+        CHECK (ai_sentiment_enabled IN (0, 1))
+    )
+    `
+  },
+  {
+    name: 'AI_SENTIMENT_MODEL_ID',
+    sql: `
+    ALTER TABLE n_user_settings ADD (
+      ai_sentiment_model_id VARCHAR2(128)
+    )
+    `
+  },
+  {
+    name: 'AI_SENTIMENT_RETURN_PROBABILITIES',
+    sql: `
+    ALTER TABLE n_user_settings ADD (
+      ai_sentiment_return_probabilities NUMBER(1) DEFAULT 1 NOT NULL
+        CHECK (ai_sentiment_return_probabilities IN (0, 1))
+    )
+    `
+  },
+  {
+    name: 'AI_SENTIMENT_INCLUDE_METADATA',
+    sql: `
+    ALTER TABLE n_user_settings ADD (
+      ai_sentiment_include_metadata NUMBER(1) DEFAULT 0 NOT NULL
+        CHECK (ai_sentiment_include_metadata IN (0, 1))
+    )
+    `
+  },
+  {
+    name: 'AI_SENTIMENT_TOP_K',
+    sql: `
+    ALTER TABLE n_user_settings ADD (
+      ai_sentiment_top_k NUMBER(2) DEFAULT 3 NOT NULL
+        CHECK (ai_sentiment_top_k BETWEEN 1 AND 10)
+    )
+    `
+  }
+];
+
+function isColumnAlreadyExistsError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /ORA-01430|already exists/i.test(error.message)
+  );
+}
+
+async function v2EnsureSettingsSchema(
+  connection: oracledb.Connection
+): Promise<void> {
+  if (userSettingsSchemaReady) {
+    return;
+  }
+
+  const rows = await v2Rows(
+    connection,
+    `
+    SELECT column_name
+    FROM user_tab_columns
+    WHERE table_name = 'N_USER_SETTINGS'
+      AND column_name IN (
+        'AI_SENTIMENT_ENABLED',
+        'AI_SENTIMENT_MODEL_ID',
+        'AI_SENTIMENT_RETURN_PROBABILITIES',
+        'AI_SENTIMENT_INCLUDE_METADATA',
+        'AI_SENTIMENT_TOP_K'
+      )
+    `
+  );
+  const existing = new Set(
+    rows.map(row => v2String(row.COLUMN_NAME).toUpperCase())
+  );
+
+  for (const column of USER_SETTINGS_AI_COLUMNS) {
+    if (existing.has(column.name)) {
+      continue;
+    }
+
+    try {
+      await v2Execute(connection, column.sql);
+    } catch (error) {
+      if (!isColumnAlreadyExistsError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  userSettingsSchemaReady = true;
 }
 
 async function v2EnsureSettings(
   connection: oracledb.Connection,
   userId: number
 ): Promise<void> {
+  await v2EnsureSettingsSchema(connection);
   await v2Execute(
     connection,
     `
@@ -448,10 +566,13 @@ export async function v2PatchSettings(
     'show_online_status',
     'allow_dm_from_strangers',
     'push_notification_enabled',
-    'email_notification_enabled'
+    'email_notification_enabled',
+    'ai_sentiment_enabled',
+    'ai_sentiment_return_probabilities',
+    'ai_sentiment_include_metadata'
   ];
   const clauses: string[] = [];
-  const binds: Record<string, string | number> = {
+  const binds: Record<string, string | number | null> = {
     user_id: auth.userId
   };
   for (const key of fields) {
@@ -469,6 +590,29 @@ export async function v2PatchSettings(
       'profile_visibility = :profile_visibility'
     );
     binds.profile_visibility = visibility;
+  }
+  if (Object.hasOwn(body, 'ai_sentiment_model_id')) {
+    const modelId = v2String(
+      body.ai_sentiment_model_id
+    ).trim();
+    if (modelId.length > 128) {
+      v2BadRequest('ai_sentiment_model_id 长度不能超过 128');
+    }
+    clauses.push(
+      'ai_sentiment_model_id = :ai_sentiment_model_id'
+    );
+    binds.ai_sentiment_model_id =
+      modelId.length > 0 ? modelId : null;
+  }
+  if (Object.hasOwn(body, 'ai_sentiment_top_k')) {
+    const topK = Math.trunc(
+      v2Number(body.ai_sentiment_top_k, 3)
+    );
+    if (topK < 1 || topK > 10) {
+      v2BadRequest('ai_sentiment_top_k 必须在 1 到 10 之间');
+    }
+    clauses.push('ai_sentiment_top_k = :ai_sentiment_top_k');
+    binds.ai_sentiment_top_k = topK;
   }
 
   if (clauses.length > 0) {

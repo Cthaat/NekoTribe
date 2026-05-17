@@ -8,6 +8,7 @@ import { ref, onMounted } from 'vue';
 // 引入 UI 组件
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
+import AiSentimentControlPanel from '@/components/AiSentimentControlPanel.vue';
 import SecurityPage from '@/components/SecurityPage.vue';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -118,6 +119,10 @@ onMounted(loadSettings);
         <!-- 账号安全模块（现有组件） -->
         <Separator class="my-6" />
         <SecurityPage />
+
+        <Separator class="my-6" />
+
+        <AiSentimentControlPanel />
 
         <Separator class="my-6" />
 

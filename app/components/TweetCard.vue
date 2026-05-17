@@ -58,9 +58,11 @@ import {
   MessageSquareQuote,
   PlayCircle,
   Flag,
-  Loader2
+  Loader2,
+  BrainCircuit
 } from 'lucide-vue-next';
 import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
+import AiSentimentPredictionDialog from '@/components/AiSentimentPredictionDialog.vue';
 import TweetContent from '@/components/TweetContent.vue';
 
 const preferenceStore = usePreferenceStore();
@@ -140,6 +142,7 @@ const localIsBookmarked = ref(
 );
 const isDeleteDialogOpen = ref(false);
 const isReportDialogOpen = ref(false);
+const isAiPredictionOpen = ref(false);
 const isSubmittingReport = ref(false);
 const reportReason = ref<V2ModerationReportReason>('spam');
 const reportDescription = ref('');
@@ -197,6 +200,10 @@ function handleReport() {
   reportReason.value = 'spam';
   reportDescription.value = '';
   isReportDialogOpen.value = true;
+}
+
+function handleAiPrediction() {
+  isAiPredictionOpen.value = true;
 }
 
 function confirmDelete() {
@@ -435,6 +442,16 @@ const relatedExcerpt = computed(() => {
           >
             <BookmarkCheck class="mr-2 h-4 w-4" />
             <span>{{ t('post.actions.removeBookmark') }}</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            @click.stop="handleAiPrediction"
+            class="text-primary"
+          >
+            <BrainCircuit class="mr-2 h-4 w-4" />
+            <span>{{ t('sentiment.actions.predict') }}</span>
           </DropdownMenuItem>
 
           <DropdownMenuItem
@@ -682,6 +699,11 @@ const relatedExcerpt = computed(() => {
     v-model:open="isLightboxOpen"
     :items="mediaItems"
     :start-index="lightboxStartIndex"
+  />
+  <AiSentimentPredictionDialog
+    v-model:open="isAiPredictionOpen"
+    :text="tweet.content"
+    :post-id="tweet.id"
   />
 
   <Dialog v-model:open="isDeleteDialogOpen">

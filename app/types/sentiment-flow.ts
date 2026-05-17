@@ -56,6 +56,7 @@ export interface SentimentFlowLoginData {
 export interface SentimentFlowPredictPayload {
   text: string;
   model_id?: string;
+  model?: 'lstm' | 'bert';
   return_probabilities?: boolean;
   include_metadata?: boolean;
   top_k?: number;
@@ -108,6 +109,7 @@ export interface SentimentFlowTrainingStartPayload {
   dataset_path: string;
   model_type: string;
   hyperparams?: Record<string, SentimentFlowJson>;
+  config?: Record<string, SentimentFlowJson>;
   notes?: string;
 }
 
@@ -169,6 +171,12 @@ export interface SentimentFlowModelItem {
   name: string;
   version: string;
   type: string;
+  path?: string;
+  size_mb?: number | null;
+  best_f1?: number | null;
+  best_mae?: number | null;
+  best_qwk?: number | null;
+  best_epoch?: number | null;
   is_active: boolean;
   created_at: string;
 }
