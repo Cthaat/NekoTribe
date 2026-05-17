@@ -286,7 +286,7 @@ At minimum, confirm these fields:
 | Common            | `COOKIE_SECURE`, `TRUST_PROXY`, `ENABLE_V1_API`, `MODERATION_ADMIN_ACCOUNTS`                                 | For production HTTPS, set `COOKIE_SECURE=true`. Keep `TRUST_PROXY=false` unless the app only receives traffic from a trusted reverse proxy. Keep `ENABLE_V1_API=false` unless legacy APIs have been reviewed. Set moderation admin usernames or emails explicitly.                                        |
 | Host dev          | `NODE_ENV`                                                                                                   | Keep `development`; otherwise local HTTP login can fail because secure-cookie behavior changes.                                                                                                                                                                                                           |
 | Host dev          | `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`                        | With built-in Compose Oracle, keep the template values: `localhost`, `5501`, `ORCLPDB1`, `neko_app`, `NekoApp2026#`. For an external Oracle instance, replace them with the real host, service name, user, and password.                                                                                  |
-| Full Docker stack | `APP_PORT`, `NGINX_PORT`, `DOCKER_PUBLIC_WS_URL`                                                             | Defaults are app `30001` and Nginx `30002`. If `APP_PORT` changes, also change `DOCKER_PUBLIC_WS_URL` to `ws://localhost:<APP_PORT>/_ws`.                                                                                                                                                                 |
+| Full Docker stack | `APP_PORT`, `NGINX_PORT`, `DOCKER_PUBLIC_WS_URL`                                                             | Defaults are app `30001` and Nginx `30002`. Keep `DOCKER_PUBLIC_WS_URL` empty for same-origin WebSocket auto-detection. If exposing the site through HTTPS or Cloudflare Tunnel, the browser must use `wss://.../_ws`, not `ws://.../_ws`.                                                                   |
 | Full Docker stack | `DOCKER_ORACLE_HOST`, `DOCKER_ORACLE_PORT`, `DOCKER_REDIS_URL`, `DOCKER_REDIS_HOST`, `DOCKER_REDIS_PORT`     | Keep these values when using built-in Compose services. They must point to Docker-network names `oracle19c` and `redis`, not `localhost`.                                                                                                                                                                 |
 | Oracle init       | `ORACLE_IMAGE`, `ORACLE_PWD`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`, `DB_INIT_CHECK_TABLE` | `.env.example` defaults to a domestic Oracle 19c mirror. `ORACLE_PWD` is the container `SYS/SYSTEM` password. `ORACLE_PASSWORD` must match the v2 SQL `neko_app` password; the template value is `NekoApp2026#`. `DB_INIT_CHECK_TABLE` defaults to `N_USERS` and is used to detect an initialized schema. |
 | Redis             | `REDIS_PASSWORD`                                                                                             | The built-in Redis service reads this password. Changing it after a Redis volume already exists can break old clients or health checks unless you also reset/update the volume.                                                                                                                           |
@@ -584,8 +584,9 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | `SMTP_PORT`                                | Email        | `465`                                                   | SMTP port; current code uses secure SMTP.                                                                                   |
 | `SMTP_USER`                                | Email        | empty                                                   | SMTP username and sender.                                                                                                   |
 | `SMTP_PASS`                                | Email        | empty                                                   | SMTP password or app-specific password.                                                                                     |
-| `NUXT_PUBLIC_WS_URL`                       | No           | `ws://localhost:3000/_ws`                               | Public WebSocket URL for local client.                                                                                      |
-| `DOCKER_PUBLIC_WS_URL`                     | Docker       | `ws://localhost:30001/_ws`                              | Public WebSocket URL for Docker mode.                                                                                       |
+| `NUXT_PUBLIC_WS_URL`                       | No           | empty                                                   | Public WebSocket URL override. Empty means same-origin `/_ws`, automatically using `ws://` on HTTP and `wss://` on HTTPS.   |
+| `NUXT_DEV_HMR_PROTOCOL`, `NUXT_DEV_HMR_HOST`, `NUXT_DEV_HMR_CLIENT_PORT` | Dev only     | empty                                                   | Optional Vite HMR override for `yarn dev` behind HTTPS or Cloudflare Tunnel. Typical tunnel values are `wss`, your public host, and `443`. |
+| `DOCKER_PUBLIC_WS_URL`                     | Docker       | empty                                                   | Docker WebSocket URL override. Keep empty behind Nginx, HTTPS, or Cloudflare Tunnel; use `wss://your-domain/_ws` only when an explicit public endpoint is required. |
 | `NUXT_PUBLIC_API_BASE`                     | No           | empty                                                   | Client API base; empty means same origin.                                                                                   |
 | `COMPOSE_PROFILES`                         | Docker       | `true`                                                  | Lets Compose activate services whose profile is named `true`; keep this value so `SENTIMENTFLOW_ENABLED` can control the optional SentimentFlow services. |
 | `SENTIMENTFLOW_ENABLED`                    | No           | `false` / `true`                                        | Toggle SentimentFlow integration and proxy access; also controls whether the optional Compose services are selected.        |
@@ -721,9 +722,9 @@ docker build -t nekotribe:prod .
 docker run --env-file .env -p 3000:3000 nekotribe:prod
 ```
 
-5. Place Nginx or another reverse proxy in front of the app.
+5. Place Nginx or another reverse proxy in front of the app. Make sure it forwards WebSocket upgrade headers for `/_ws`.
 6. Mount persistent `upload/` storage and serve `/upload/` via the proxy or an equivalent object store.
-7. Use HTTPS in production so auth cookies can safely enable `secure`.
+7. Use HTTPS in production so auth cookies can safely enable `secure`. Keep the public WebSocket URL empty for same-origin `wss://` auto-detection, or set it explicitly to `wss://your-domain/_ws`.
 
 The bundled `docker-compose.yml` targets local dev and small test environments. For production, prefer managed Oracle/Redis and avoid example passwords.
 
@@ -740,6 +741,10 @@ Confirm the `db-init` service exited successfully with `docker compose logs db-i
 ### Redis authentication failure
 
 Confirm `REDIS_PASSWORD` in `.env` matches the Redis container password. The built-in compose service reads the value from `.env`.
+
+### Cloudflare Tunnel or HTTPS reports an insecure WebSocket
+
+Yes, this is a mixed-content issue when an HTTPS page tries to open `ws://...`. Keep `DOCKER_PUBLIC_WS_URL` and `NUXT_PUBLIC_WS_URL` empty so the client connects to same-origin `wss://your-domain/_ws`, or set the public URL explicitly to `wss://your-domain/_ws`. Do not expose `ws://localhost:30001/_ws` to browsers that load the page through Cloudflare or any HTTPS reverse proxy. If this happens during `yarn dev`, set `NUXT_DEV_HMR_PROTOCOL=wss`, `NUXT_DEV_HMR_HOST=your-domain`, and `NUXT_DEV_HMR_CLIENT_PORT=443`.
 
 ### `docker compose up -d` shows `dependency failed to start`, but `app` later becomes `healthy`
 
