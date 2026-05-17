@@ -86,6 +86,13 @@ function toSafeHeaderValue(value: string): string {
   }
 }
 
+function sanitizeUrlLikeForHeader(value: string): string {
+  return value.replace(
+    /([?&](?:access_token|refresh_token|token|password|new_password|confirm_password|authorization|secret|client_secret|code)=)[^&#\s]*/gi,
+    '$1[redacted]'
+  );
+}
+
 function isRefreshPath(path: string): boolean {
   return (
     path.includes('/auth/refresh') ||
@@ -153,7 +160,7 @@ export function useApiFetch<T>(
   };
   if (route?.fullPath) {
     headers['x-client-route'] = toSafeHeaderValue(
-      String(route.fullPath)
+      sanitizeUrlLikeForHeader(String(route.fullPath))
     );
   }
   if (componentName) {
@@ -163,12 +170,12 @@ export function useApiFetch<T>(
   }
   if (stackSource) {
     headers['x-client-source'] = toSafeHeaderValue(
-      stackSource
+      sanitizeUrlLikeForHeader(stackSource)
     );
   }
   if (!isServer && typeof location !== 'undefined') {
     headers['x-client-referer'] = toSafeHeaderValue(
-      String(location.href)
+      sanitizeUrlLikeForHeader(String(location.href))
     );
   }
   headers['x-client-platform'] = isServer
