@@ -2,10 +2,17 @@ import type { H3Event } from 'h3';
 import {
   createError,
   defineEventHandler,
+  getQuery,
   getRouterParam,
   readBody
 } from 'h3';
 import oracledb from 'oracledb';
+import {
+  invalidateApiResponseCache,
+  readApiResponseCache,
+  shouldInvalidateApiResponseCache,
+  writeApiResponseCache
+} from './api-cache';
 import {
   getRequestLogContext,
   logError,
@@ -66,10 +73,42 @@ export function defineV2Handler<T>(
       });
 
       try {
+        const cached = await readApiResponseCache<
+          V2Response<T>
+        >(event, 'v2');
+        if (cached.status === 'hit') {
+          logInfo('v2:handler:cache_hit', {
+            requestId: context?.requestId ?? 'unknown',
+            path: context?.path ?? event.path,
+            cacheId: cached.context.cacheId,
+            tags: cached.context.tags,
+            durationMs: Date.now() - startAt
+          });
+          return cached.value;
+        }
+
         const response = await v2WithConnection(
           event,
           connection => handler(event, connection)
         );
+        if (
+          cached.status === 'miss' &&
+          response.code >= 200 &&
+          response.code < 300
+        ) {
+          await writeApiResponseCache(
+            event,
+            cached.context,
+            response
+          );
+        }
+        if (
+          response.code >= 200 &&
+          response.code < 300 &&
+          shouldInvalidateApiResponseCache(event)
+        ) {
+          await invalidateApiResponseCache(event, 'v2');
+        }
         logInfo('v2:handler:success', {
           requestId: context?.requestId ?? 'unknown',
           path: context?.path ?? event.path,
