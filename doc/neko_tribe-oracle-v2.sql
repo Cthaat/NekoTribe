@@ -762,6 +762,11 @@ CREATE TABLE n_user_settings (
     allow_dm_from_strangers      NUMBER(1)       DEFAULT 0 NOT NULL CHECK (allow_dm_from_strangers IN (0, 1)),
     push_notification_enabled    NUMBER(1)       DEFAULT 1 NOT NULL CHECK (push_notification_enabled IN (0, 1)),
     email_notification_enabled   NUMBER(1)       DEFAULT 1 NOT NULL CHECK (email_notification_enabled IN (0, 1)),
+    ai_sentiment_enabled         NUMBER(1)       DEFAULT 0 NOT NULL CHECK (ai_sentiment_enabled IN (0, 1)),
+    ai_sentiment_model_id        VARCHAR2(128),
+    ai_sentiment_return_probabilities NUMBER(1)  DEFAULT 1 NOT NULL CHECK (ai_sentiment_return_probabilities IN (0, 1)),
+    ai_sentiment_include_metadata NUMBER(1)      DEFAULT 0 NOT NULL CHECK (ai_sentiment_include_metadata IN (0, 1)),
+    ai_sentiment_top_k           NUMBER(2)       DEFAULT 3 NOT NULL CHECK (ai_sentiment_top_k BETWEEN 1 AND 10),
     updated_at                   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT fk_user_settings_user FOREIGN KEY (user_id)
         REFERENCES n_users(user_id) ON DELETE CASCADE
@@ -775,6 +780,11 @@ COMMENT ON COLUMN n_user_settings.show_online_status IS '是否显示在线状�
 COMMENT ON COLUMN n_user_settings.allow_dm_from_strangers IS '是否允许陌生人私信';
 COMMENT ON COLUMN n_user_settings.push_notification_enabled IS '是否开启推送通知';
 COMMENT ON COLUMN n_user_settings.email_notification_enabled IS '是否开启邮件通知';
+COMMENT ON COLUMN n_user_settings.ai_sentiment_enabled IS '是否开启AI情感预测';
+COMMENT ON COLUMN n_user_settings.ai_sentiment_model_id IS 'AI情感预测默认模型ID，空表示使用激活模型';
+COMMENT ON COLUMN n_user_settings.ai_sentiment_return_probabilities IS 'AI情感预测是否返回概率分布';
+COMMENT ON COLUMN n_user_settings.ai_sentiment_include_metadata IS 'AI情感预测是否返回输入元信息';
+COMMENT ON COLUMN n_user_settings.ai_sentiment_top_k IS 'AI情感预测Top-K标签数量';
 COMMENT ON COLUMN n_user_settings.updated_at IS '更新时间';
 
 
