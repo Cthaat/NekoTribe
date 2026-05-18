@@ -133,7 +133,7 @@ const postId = ref('my-awesome-post-123');
 
 <template>
   <div
-    class="flex h-screen w-full items-center justify-center gap-4"
+    class="flex min-h-screen w-full flex-col items-stretch justify-center gap-4 p-4 sm:flex-row sm:items-center"
   >
     <Button
       @click="() => toast(t('diagnostics.sonner.normalToast'))"
