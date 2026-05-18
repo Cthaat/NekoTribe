@@ -17,7 +17,7 @@ import {
   getLocalTimeZone
 } from '@internationalized/date';
 import { CalendarIcon } from 'lucide-vue-next';
-import { Calendar } from '@/components/ui/calendar';
+import BirthdayCalendar from '@/components/BirthdayCalendar.vue';
 import {
   Popover,
   PopoverContent,
@@ -459,9 +459,8 @@ const handleCheckboxChange = (checked: boolean): void => {
           (包括 value, onBlur, onInput/onChange 事件) 自动绑定到 <Calendar> 组件上。
           这使得用户在日历中选择日期时，表单状态会自动更新。
         -->
-                    <Calendar
+                    <BirthdayCalendar
                       v-bind="componentField"
-                      initial-focus
                     />
                   </PopoverContent>
                 </Popover>
