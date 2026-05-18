@@ -731,7 +731,9 @@
       "lastSeen": "Last seen {time}"
     },
     "input": {
-      "placeholder": "Message #{channel}..."
+      "placeholder": "Message #{channel}...",
+      "announcementReadOnly": "Only group managers can post in announcement channels",
+      "unsupportedChannel": "This channel type does not support messages"
     },
     "members": {
       "searchPlaceholder": "Search members",
