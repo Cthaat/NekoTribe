@@ -178,10 +178,7 @@ services:
       SENTIMENTFLOW_PROJECT_ROOT: /workspace
       PYTHONPATH: /workspace:/workspace/backend
       SENTIMENTFLOW_CONTAINER_PORT: ${SENTIMENTFLOW_CONTAINER_PORT:-8846}
-      NVIDIA_VISIBLE_DEVICES: ${SENTIMENTFLOW_GPUS:-all}
-      NVIDIA_DRIVER_CAPABILITIES: ${SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
     command: uvicorn app.main:app --host 0.0.0.0 --port ${SENTIMENTFLOW_CONTAINER_PORT:-8846}
-    gpus: all
     ports:
       - '${SENTIMENTFLOW_HOST_PORT:-8846}:${SENTIMENTFLOW_CONTAINER_PORT:-8846}'
     volumes:
