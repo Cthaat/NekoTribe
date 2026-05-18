@@ -96,6 +96,7 @@ function handleReplyBlur() {
 
 <template>
   <div
+    :id="`comment-${comment.id}`"
     class="relative flex min-w-0 flex-col"
     :style="indentationStyle"
   >
@@ -104,7 +105,7 @@ function handleReplyBlur() {
       v-if="level > 0"
       class="absolute -left-3 top-0 h-full w-px bg-border"
       aria-hidden="true"
-    ></div>
+    />
 
     <div
       class="min-w-0 rounded-lg border border-transparent p-3 transition-all duration-200 hover:border-border hover:bg-accent/50 hover:shadow-sm sm:p-4"
@@ -214,8 +215,8 @@ function handleReplyBlur() {
               </Button>
               <AppSendButton
                 size="sm"
-                @click="handleSubmitReply"
                 :disabled="!replyContent.trim()"
+                @click="handleSubmitReply"
               >
                 {{ t('comment.submitReply') }}
               </AppSendButton>
