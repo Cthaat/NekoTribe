@@ -88,6 +88,8 @@ import type { PublicUserVM } from '@/types/users';
 
 const { t } = useAppLocale();
 const localePath = useLocalePath();
+const LAST_CHAT_GROUP_STORAGE_PREFIX =
+  'nekotribe.chat.lastGroupId';
 
 definePageMeta({
   layout: 'chat'
@@ -203,6 +205,62 @@ function allChannels(): Channel[] {
   );
 }
 
+function lastChatGroupStorageKey(): string {
+  const userId = currentUserId.value;
+  return `${LAST_CHAT_GROUP_STORAGE_PREFIX}:${
+    Number.isFinite(userId) && userId > 0
+      ? String(userId)
+      : 'guest'
+  }`;
+}
+
+function readLastChatGroupId(): number | null {
+  if (!import.meta.client) return null;
+  try {
+    const raw = window.localStorage.getItem(
+      lastChatGroupStorageKey()
+    );
+    const id = Number(raw);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastChatGroupId(groupId: number): void {
+  if (!import.meta.client) return;
+  try {
+    window.localStorage.setItem(
+      lastChatGroupStorageKey(),
+      String(groupId)
+    );
+  } catch {
+    // Storage can be unavailable in private browsing or SSR-like previews.
+  }
+}
+
+function forgetLastChatGroupId(groupId: number): void {
+  if (readLastChatGroupId() !== groupId || !import.meta.client) {
+    return;
+  }
+  try {
+    window.localStorage.removeItem(lastChatGroupStorageKey());
+  } catch {
+    // Ignore storage failures; the chat can still fall back to the first group.
+  }
+}
+
+function preferredChatGroup(): ChatGroupVM | null {
+  const lastGroupId = readLastChatGroupId();
+  return (
+    (lastGroupId
+      ? groups.value.find(group => group.id === lastGroupId)
+      : null) ??
+    groups.value[0] ??
+    null
+  );
+}
+
 function findCategoryName(categoryId: number): string {
   return (
     channelCategories.value.find(
@@ -293,6 +351,7 @@ function handleGroupSettingsUpdated(group: Group): void {
 
 function handleGroupDeleted(groupId: number): void {
   groups.value = groups.value.filter(group => group.id !== groupId);
+  forgetLastChatGroupId(groupId);
   groupSettingsOpen.value = false;
   groupSettingsModel.value = null;
   if (activeGroup.value?.id !== groupId) return;
@@ -554,6 +613,7 @@ async function refreshChannels(
 
 async function loadGroup(group: ChatGroupVM): Promise<Channel | null> {
   activeGroup.value = group;
+  writeLastChatGroupId(group.id);
   const [memberItems] = await Promise.all([
     v2ListChatMembers(group.id),
     refreshChannels()
@@ -575,9 +635,9 @@ async function loadChat(): Promise<void> {
       page_size: 50
     });
     groups.value = result.items.map(mapV2ChatGroup);
-    const firstGroup = groups.value[0] ?? null;
-    if (firstGroup) {
-      await loadGroup(firstGroup);
+    const nextGroup = preferredChatGroup();
+    if (nextGroup) {
+      await loadGroup(nextGroup);
       connectWs();
     }
   } catch {
