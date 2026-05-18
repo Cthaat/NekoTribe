@@ -96,7 +96,7 @@ function handleReplyBlur() {
 
 <template>
   <div
-    class="relative flex flex-col"
+    class="relative flex min-w-0 flex-col"
     :style="indentationStyle"
   >
     <!-- 用于连接嵌套评论的垂直线，模仿 Reddit 的外观 -->
@@ -107,10 +107,10 @@ function handleReplyBlur() {
     ></div>
 
     <div
-      class="p-4 rounded-lg transition-all duration-200 hover:bg-accent/50 border border-transparent hover:border-border hover:shadow-sm"
+      class="min-w-0 rounded-lg border border-transparent p-3 transition-all duration-200 hover:border-border hover:bg-accent/50 hover:shadow-sm sm:p-4"
     >
       <!-- 评论头部：头像、昵称、时间 -->
-      <div class="flex items-center text-sm mb-3">
+      <div class="mb-3 flex min-w-0 flex-wrap items-center text-sm">
         <Avatar
           class="h-8 w-8 mr-3 ring-2 ring-background shadow-sm"
         >
@@ -122,18 +122,18 @@ function handleReplyBlur() {
             comment.author.name.substring(0, 1)
           }}</AvatarFallback>
         </Avatar>
-        <span class="font-semibold">{{
+        <span class="min-w-0 truncate font-semibold">{{
           comment.author.name
         }}</span>
         <span class="mx-2 text-muted-foreground">·</span>
-        <span class="text-muted-foreground">{{
+        <span class="min-w-0 break-words text-muted-foreground">{{
           formattedDate
         }}</span>
       </div>
 
       <!-- 评论内容 -->
       <p
-        class="text-base whitespace-pre-wrap leading-relaxed text-foreground/90 mb-3"
+        class="mb-3 break-words whitespace-pre-wrap text-base leading-relaxed text-foreground/90"
       >
         {{ comment.content }}
       </p>
@@ -203,7 +203,7 @@ function handleReplyBlur() {
           >
             <div
               v-if="isReplyInputFocused"
-              class="flex justify-end gap-2 mt-2"
+              class="mt-2 grid gap-2 sm:flex sm:justify-end"
             >
               <Button
                 variant="ghost"
