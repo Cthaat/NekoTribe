@@ -4,7 +4,7 @@ import {
   Bot,
   Command,
   Frame,
-  LifeBuoy,
+  Info,
   Map,
   PieChart,
   Send,
@@ -153,8 +153,12 @@ const baseNavData = computed(() => ({
     }
   ],
   navSecondary: [
-    { title: t('nav.secondary.support'), url: '#', icon: LifeBuoy },
-    { title: t('nav.secondary.feedback'), url: '#', icon: Send }
+    { title: t('nav.secondary.about'), url: '/about', icon: Info },
+    {
+      title: t('nav.secondary.feedback'),
+      url: 'https://github.com/Cthaat/NekoTribe/issues',
+      icon: Send
+    }
   ],
   projects: [
     { name: t('nav.projects.design'), url: '#', icon: Frame },

@@ -87,8 +87,9 @@
       "settings": "设置"
     },
     "secondary": {
+      "about": "关于项目",
       "support": "支持",
-      "feedback": "反馈"
+      "feedback": "反馈建议"
     },
     "projects": {
       "design": "设计工程",
@@ -105,6 +106,63 @@
       "logout": "退出登录",
       "logoutSuccess": "退出登录成功，正在跳转到登录页面...",
       "logoutError": "退出登录失败，请重试。"
+    }
+  },
+  "about": {
+    "badge": "NekoTribe 项目",
+    "title": "关于 NekoTribe",
+    "description": "NekoTribe 是一个面向社交互动场景的全栈项目，围绕推文、群组、聊天、通知、内容审核和 AI 情感分析构建，适合用于课程展示、功能演示和继续扩展开发。",
+    "actions": {
+      "repository": "项目仓库",
+      "backHome": "返回首页"
+    },
+    "features": {
+      "social": {
+        "title": "社交动态",
+        "description": "支持推文发布、回复、转发、点赞、收藏、搜索和个人时间线。"
+      },
+      "groups": {
+        "title": "群组社区",
+        "description": "提供群组发现、加入邀请、群组帖子、成员管理和群聊基础能力。"
+      },
+      "realtime": {
+        "title": "实时互动",
+        "description": "通过 WebSocket 承载私聊、群聊、在线状态和通知投递。"
+      },
+      "safety": {
+        "title": "审核与分析",
+        "description": "包含内容举报、审核后台、账户安全和 SentimentFlow 情感分析接入。"
+      }
+    },
+    "links": {
+      "title": "相关链接",
+      "description": "这里放置项目开发、反馈和常用功能入口。",
+      "repository": {
+        "title": "GitHub 仓库",
+        "description": "查看源码、提交记录和项目结构。"
+      },
+      "docs": {
+        "title": "项目文档",
+        "description": "阅读接口、部署和功能设计文档。"
+      },
+      "feedback": {
+        "title": "问题反馈",
+        "description": "通过 GitHub Issues 记录问题和改进建议。"
+      },
+      "groups": {
+        "title": "发现群组",
+        "description": "进入应用内群组发现页，查看社区功能。"
+      }
+    },
+    "versions": {
+      "title": "版本信息",
+      "description": "来自项目现有版本配置。",
+      "app": "主应用",
+      "web": "Web 前端",
+      "server": "Oracle 服务",
+      "build": "构建号",
+      "releaseDate": "发布日期",
+      "unknown": "未知"
     }
   },
   "post": {
@@ -787,6 +845,12 @@
       "emptyTitle": "还没有私聊记录",
       "emptyDescription": "发送第一条私信开始对话。"
     },
+    "directConversations": {
+      "title": "私聊列表",
+      "description": "查看所有一对一会话",
+      "empty": "还没有私聊会话",
+      "noMessages": "还没有消息"
+    },
     "message": {
       "pinned": "已置顶",
       "edited": "（已编辑）",
@@ -846,7 +910,8 @@
     },
     "empty": {
       "noGroups": "你还没有加入任何群组",
-      "noChannels": "当前群组还没有可访问的文字频道"
+      "noChannels": "当前群组还没有可访问的文字频道",
+      "selectDirectConversation": "从左侧选择一个私聊会话"
     },
     "prompts": {
       "channelName": "请输入频道名称",
@@ -885,6 +950,7 @@
       "muteFailed": "频道静音状态更新失败",
       "voiceCallUnavailable": "语音通话后端尚未接入",
       "videoCallUnavailable": "视频通话后端尚未接入",
+      "loadDirectConversationsFailed": "私聊列表加载失败",
       "loadDirectMessagesFailed": "私聊记录加载失败",
       "directMessageSent": "私信已发送",
       "directMessageFailed": "私信发送失败",
@@ -1500,6 +1566,7 @@
       "createGroup": "创建群组",
       "editProfile": "编辑资料",
       "openPublicProfile": "查看公开主页",
+      "directMessage": "私聊",
       "copyProfileLink": "复制主页链接",
       "refreshProfile": "刷新资料",
       "accountSettings": "账户设置",
@@ -1528,6 +1595,8 @@
     "tabs": {
       "overview": "概览",
       "settings": "设置",
+      "pro": "Pro",
+      "billing": "账单",
       "profile": "个人资料",
       "posts": "推文管理",
       "appearance": "外观",
@@ -1551,6 +1620,113 @@
       "compactMode": "紧凑模式",
       "compactOn": "开启",
       "compactOff": "关闭"
+    },
+    "pro": {
+      "badge": "会员中心",
+      "title": "升级到 NekoTribe Pro",
+      "description": "为重度社交、群组协作和 AI 情感分析准备的高级前端入口。当前页面先提供完整的前端展示，后续可以直接接入真实订阅接口。",
+      "actions": {
+        "upgrade": "查看账单方案",
+        "settings": "账户设置",
+        "viewPlan": "查看方案"
+      },
+      "status": {
+        "title": "当前权益",
+        "description": "快速查看当前账户的会员状态和资源使用情况。",
+        "current": "当前方案",
+        "plan": "Free",
+        "badge": "未升级",
+        "storage": "媒体存储",
+        "aiQuota": "AI 分析额度"
+      },
+      "features": {
+        "ai": {
+          "title": "AI 情感分析",
+          "description": "更高频率地调用 SentimentFlow，对推文和评论进行情绪判断。"
+        },
+        "realtime": {
+          "title": "实时协作增强",
+          "description": "面向群组、聊天和通知的高级提醒与历史追踪能力。"
+        },
+        "safety": {
+          "title": "安全与审核",
+          "description": "为活跃账户提供更清晰的安全状态、登录提醒和审核记录。"
+        },
+        "speed": {
+          "title": "更高资源上限",
+          "description": "提升媒体、消息、搜索和 AI 使用额度，适合高频使用场景。"
+        }
+      },
+      "plans": {
+        "period": "/ 月",
+        "free": {
+          "name": "Free",
+          "price": "¥0",
+          "description": "适合日常浏览、发帖和加入群组。",
+          "feature1": "基础推文和群组功能",
+          "feature2": "标准通知与私聊",
+          "feature3": "有限 AI 分析额度"
+        },
+        "pro": {
+          "name": "Pro",
+          "price": "¥19",
+          "description": "适合活跃创作者和重度社交用户。",
+          "badge": "推荐",
+          "feature1": "更多 AI 情感分析次数",
+          "feature2": "高级消息与群组提醒",
+          "feature3": "更高媒体存储额度"
+        },
+        "team": {
+          "name": "Team",
+          "price": "¥59",
+          "description": "适合小组协作、课堂项目和团队管理。",
+          "feature1": "团队成员和群组管理增强",
+          "feature2": "共享分析额度和账单",
+          "feature3": "优先支持与审核工具"
+        }
+      }
+    },
+    "billing": {
+      "badge": "账单中心",
+      "title": "账单与订阅",
+      "description": "管理订阅方案、付款方式、资源用量和历史账单。当前页面为前端展示骨架，方便后续接入真实支付服务。",
+      "actions": {
+        "export": "导出账单",
+        "addPayment": "添加付款方式"
+      },
+      "summary": {
+        "plan": "订阅方案",
+        "free": "Free",
+        "nextDate": "下次结算",
+        "status": "账户状态",
+        "normal": "正常"
+      },
+      "payment": {
+        "title": "付款方式",
+        "description": "保存用于 Pro 订阅和团队账单的支付信息。",
+        "method": "默认付款方式",
+        "empty": "尚未绑定银行卡或支付账户。",
+        "notSet": "未设置"
+      },
+      "usage": {
+        "title": "本月用量",
+        "description": "查看当前周期内的资源使用进度。",
+        "ai": "AI 分析",
+        "storage": "媒体存储",
+        "note": "这些数值暂为前端展示数据，接入后端后可替换为真实用量。"
+      },
+      "invoices": {
+        "title": "历史账单",
+        "description": "查看最近的订阅账单和付款状态。",
+        "id": "账单号",
+        "date": "日期",
+        "amount": "金额",
+        "status": "状态"
+      },
+      "invoiceStatus": {
+        "paid": "已支付",
+        "pending": "待处理"
+      }
     },
     "settings": {
       "title": "账户设置",

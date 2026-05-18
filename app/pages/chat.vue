@@ -3,7 +3,8 @@ import {
   computed,
   onBeforeUnmount,
   onMounted,
-  ref
+  ref,
+  watch
 } from 'vue';
 import { toast } from 'vue-sonner';
 import {
@@ -16,6 +17,7 @@ import {
   UserPlus
 } from 'lucide-vue-next';
 import ChatChannelList from '@/components/ChatChannelList.vue';
+import ChatDirectConversationList from '@/components/ChatDirectConversationList.vue';
 import ChatRoom from '@/components/ChatRoom.vue';
 import GroupManageModal from '@/components/GroupManageModal.vue';
 import {
@@ -60,6 +62,7 @@ import {
   v2ListChatGroups,
   v2ListChatMembers,
   v2ListChatMessages,
+  v2ListDirectConversations,
   v2ListDirectMessages,
   v2SetChatChannelMuteStatus,
   v2SetChatMessagePinStatus,
@@ -70,6 +73,7 @@ import {
 import { getGroup } from '@/services/groups';
 import {
   buildChatChannelCategories,
+  mapV2DirectConversationMember,
   mapV2ChatGroup,
   mapV2ChatMember,
   mapV2ChatMessage,
@@ -82,12 +86,15 @@ import type { Group } from '@/types/groups';
 import type {
   V2CreateGroupInviteData,
   V2ChatMessage,
+  V2DirectConversation,
   V2DirectMessage
 } from '@/types/v2';
 import type { PublicUserVM } from '@/types/users';
 
 const { t } = useAppLocale();
 const localePath = useLocalePath();
+const route = useRoute();
+const router = useRouter();
 const LAST_CHAT_GROUP_STORAGE_PREFIX =
   'nekotribe.chat.lastGroupId';
 
@@ -144,7 +151,9 @@ const directConversationId = ref<number | null>(null);
 const directMessageTargetId = ref<number | null>(null);
 const directMessageStandaloneTarget = ref<ChatMember | null>(null);
 const directMessageContent = ref('');
+const directConversations = ref<V2DirectConversation[]>([]);
 const directMessages = ref<V2DirectMessage[]>([]);
+const isLoadingDirectConversations = ref(false);
 const isLoadingDirectMessages = ref(false);
 const isSendingDirectMessage = ref(false);
 
@@ -429,6 +438,76 @@ function upsertDirectMessage(message: V2DirectMessage): void {
   directMessages.value = updated;
 }
 
+function sortDirectConversations(
+  items: V2DirectConversation[]
+): V2DirectConversation[] {
+  return [...items].sort((a, b) => {
+    const left = new Date(
+      a.last_message?.created_at || a.updated_at
+    ).getTime();
+    const right = new Date(
+      b.last_message?.created_at || b.updated_at
+    ).getTime();
+    return right - left;
+  });
+}
+
+function upsertDirectConversation(
+  conversation: V2DirectConversation
+): void {
+  const index = directConversations.value.findIndex(
+    item => item.conversation_id === conversation.conversation_id
+  );
+  if (index === -1) {
+    directConversations.value = sortDirectConversations([
+      conversation,
+      ...directConversations.value
+    ]);
+    return;
+  }
+
+  const updated = [...directConversations.value];
+  updated[index] = conversation;
+  directConversations.value = sortDirectConversations(updated);
+}
+
+function updateDirectConversationPreview(
+  message: V2DirectMessage,
+  isActiveConversation: boolean
+): void {
+  const index = directConversations.value.findIndex(
+    item => item.conversation_id === message.conversation_id
+  );
+  if (index === -1) {
+    void loadDirectConversations(false);
+    return;
+  }
+
+  const current = directConversations.value[index];
+  if (!current) return;
+
+  const updated = [...directConversations.value];
+  const isIncoming = message.author.user_id !== currentUserId.value;
+  updated[index] = {
+    ...current,
+    unread_count:
+      isIncoming && !isActiveConversation
+        ? current.unread_count + 1
+        : isActiveConversation
+          ? 0
+          : current.unread_count,
+    last_message: {
+      message_id: message.message_id,
+      content: message.content,
+      author_name:
+        message.author.display_name || message.author.username,
+      created_at: message.created_at
+    },
+    updated_at: message.updated_at || message.created_at
+  };
+  directConversations.value = sortDirectConversations(updated);
+}
+
 function updateChannelPreview(
   rawMessage: V2ChatMessage,
   isActiveChannel: boolean
@@ -526,10 +605,18 @@ function handleWsMessage(event: MessageEvent<string>): void {
 
   if (
     payload.type === 'direct_message' &&
-    payload.data?.direct_message &&
-    payload.data.conversation_id === directConversationId.value
+    payload.data?.direct_message
   ) {
-    upsertDirectMessage(payload.data.direct_message);
+    const directMessage = payload.data.direct_message;
+    const isActiveConversation =
+      directMessage.conversation_id === directConversationId.value;
+    if (isActiveConversation) {
+      upsertDirectMessage(directMessage);
+    }
+    updateDirectConversationPreview(
+      directMessage,
+      isActiveConversation
+    );
     return;
   }
 
@@ -593,6 +680,106 @@ async function loadMessages(
   }
 }
 
+async function loadDirectConversations(
+  showLoading = true
+): Promise<void> {
+  if (showLoading) {
+    isLoadingDirectConversations.value = true;
+  }
+  try {
+    const result = await v2ListDirectConversations({
+      page: 1,
+      page_size: 50
+    });
+    directConversations.value = sortDirectConversations(
+      result.items
+    );
+  } catch {
+    toast.error(t('chat.feedback.loadDirectConversationsFailed'));
+  } finally {
+    if (showLoading) {
+      isLoadingDirectConversations.value = false;
+    }
+  }
+}
+
+async function loadDirectMessagesForConversation(
+  conversationId: number
+): Promise<void> {
+  directMessages.value = [];
+  isLoadingDirectMessages.value = true;
+  try {
+    const result = await v2ListDirectMessages(conversationId, {
+      page: 1,
+      page_size: 50
+    });
+    directMessages.value = result.items;
+    directConversations.value = directConversations.value.map(
+      conversation =>
+        conversation.conversation_id === conversationId
+          ? { ...conversation, unread_count: 0 }
+          : conversation
+    );
+  } catch {
+    toast.error(t('chat.feedback.loadDirectMessagesFailed'));
+  } finally {
+    isLoadingDirectMessages.value = false;
+  }
+}
+
+async function openDirectConversation(
+  conversation: V2DirectConversation
+): Promise<void> {
+  upsertDirectConversation(conversation);
+  directConversationId.value = conversation.conversation_id;
+  directMessageTargetId.value = conversation.participant.user_id;
+  directMessageStandaloneTarget.value =
+    mapV2DirectConversationMember(conversation);
+  directMessageContent.value = '';
+  await loadDirectMessagesForConversation(
+    conversation.conversation_id
+  );
+}
+
+function directMessageQueryUserId(): number | null {
+  const raw = route.query.dm;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const id = Number(value ?? 0);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function clearDirectMessageQuery(): void {
+  if (!('dm' in route.query)) return;
+  const query = { ...route.query };
+  delete query.dm;
+  void router.replace({
+    path: route.path,
+    query
+  });
+}
+
+async function openDirectMessageFromQuery(): Promise<void> {
+  const targetUserId = directMessageQueryUserId();
+  if (!targetUserId) return;
+  if (targetUserId === currentUserId.value) {
+    toast.error(t('chat.feedback.cannotMessageSelf'));
+    clearDirectMessageQuery();
+    return;
+  }
+
+  try {
+    const conversation = await v2CreateDirectConversation({
+      target_user_id: targetUserId
+    });
+    await openDirectConversation(conversation);
+    await loadDirectConversations(false);
+  } catch {
+    toast.error(t('chat.feedback.loadDirectMessagesFailed'));
+  } finally {
+    clearDirectMessageQuery();
+  }
+}
+
 async function refreshChannels(
   preferredChannelId?: number
 ): Promise<void> {
@@ -637,16 +824,20 @@ async function loadChat(): Promise<void> {
   isLoading.value = true;
   errorMessage.value = '';
   try {
-    const result = await v2ListChatGroups({
-      page: 1,
-      page_size: 50
-    });
+    const [result] = await Promise.all([
+      v2ListChatGroups({
+        page: 1,
+        page_size: 50
+      }),
+      loadDirectConversations()
+    ]);
     groups.value = result.items.map(mapV2ChatGroup);
     const nextGroup = preferredChatGroup();
     if (nextGroup) {
       await loadGroup(nextGroup);
-      connectWs();
     }
+    connectWs();
+    await openDirectMessageFromQuery();
   } catch {
     errorMessage.value = t('chat.feedback.loadFailed');
   } finally {
@@ -657,6 +848,7 @@ async function loadChat(): Promise<void> {
 async function handleSelectChannel(
   channel: Channel
 ): Promise<void> {
+  exitDirectMessageView();
   if (activeChannel.value?.id === channel.id) return;
   if (activeChannel.value) {
     leaveWsChannel(activeChannel.value.id);
@@ -670,7 +862,11 @@ async function handleSelectChannel(
 
 async function handleSelectGroup(groupId: number): Promise<void> {
   const group = groups.value.find(item => item.id === groupId);
-  if (!group || group.id === activeGroup.value?.id) return;
+  if (!group) return;
+
+  exitDirectMessageView();
+
+  if (group.id === activeGroup.value?.id) return;
 
   if (activeChannel.value) {
     leaveWsChannel(activeChannel.value.id);
@@ -1031,26 +1227,18 @@ async function handleOpenDirectMessage(
 ): Promise<void> {
   directMessageTargetId.value = member.id;
   directConversationId.value = null;
-  directMessages.value = [];
-  isLoadingDirectMessages.value = true;
 
   try {
     const conversation = await v2CreateDirectConversation({
       target_user_id: member.id
     });
     directConversationId.value = conversation.conversation_id;
-    const result = await v2ListDirectMessages(
-      conversation.conversation_id,
-      {
-        page: 1,
-        page_size: 50
-      }
+    upsertDirectConversation(conversation);
+    await loadDirectMessagesForConversation(
+      conversation.conversation_id
     );
-    directMessages.value = result.items;
   } catch {
     toast.error(t('chat.feedback.loadDirectMessagesFailed'));
-  } finally {
-    isLoadingDirectMessages.value = false;
   }
 }
 
@@ -1062,8 +1250,22 @@ async function handleOpenDirectMessageStandalone(
   directMessageStandaloneTarget.value = member;
 }
 
+async function handleSelectDirectConversation(
+  conversation: V2DirectConversation
+): Promise<void> {
+  await openDirectConversation(conversation);
+}
+
 function closeDirectMessageStandalone(): void {
   directMessageStandaloneTarget.value = null;
+}
+
+function exitDirectMessageView(): void {
+  directMessageStandaloneTarget.value = null;
+  directMessageContent.value = '';
+  directConversationId.value = null;
+  directMessageTargetId.value = null;
+  directMessages.value = [];
 }
 
 function handleSendDirectMessageKeydown(
@@ -1108,6 +1310,8 @@ async function handleSendDirectMessage(
       content
     });
     upsertDirectMessage(created);
+    updateDirectConversationPreview(created, true);
+    void loadDirectConversations(false);
     toast.success(t('chat.feedback.directMessageSent'));
   } catch {
     toast.error(t('chat.feedback.directMessageFailed'));
@@ -1119,6 +1323,15 @@ async function handleSendDirectMessage(
 onMounted(() => {
   void loadChat();
 });
+
+watch(
+  () => route.query.dm,
+  () => {
+    if (!isLoading.value) {
+      void openDirectMessageFromQuery();
+    }
+  }
+);
 
 onBeforeUnmount(() => {
   shouldReconnectWs = false;
@@ -1136,28 +1349,40 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex h-full min-h-0 w-full flex-col overflow-hidden md:flex-row">
     <div
-      v-if="!isDirectMessageStandalone"
-      class="h-48 min-h-0 w-full flex-shrink-0 overflow-hidden border-b bg-muted/20 md:h-full md:w-60 md:border-b-0 md:border-r"
+      class="h-80 min-h-0 w-full flex-shrink-0 overflow-hidden border-b bg-muted/20 md:h-full md:w-72 md:border-b-0 md:border-r"
     >
-      <ChatChannelList
-        :categories="channelCategories"
-        :active-channel-id="activeChannel?.id"
-        :group-name="activeGroup?.name"
-        :group-avatar="activeGroup?.avatar"
-        :groups="groups"
-        :active-group-id="activeGroup?.id"
-        :can-manage="canManage"
-        :current-user-name="currentUserName"
-        @select-group="handleSelectGroup"
-        @select="handleSelectChannel"
-        @create-channel="handleCreateChannel"
-        @edit-channel="handleEditChannel"
-        @delete-channel="handleDeleteChannel"
-        @toggle-mute="handleToggleChannelMute"
-        @invite-members="openInviteDialog"
-        @notification-settings="openNotificationSettings"
-        @settings="openGroupSettings"
-      />
+      <div class="flex h-full min-h-0 flex-col">
+        <div class="h-40 min-h-0 shrink-0 md:h-64">
+          <ChatDirectConversationList
+            :conversations="directConversations"
+            :active-conversation-id="directConversationId"
+            :is-loading="isLoadingDirectConversations"
+            @select="handleSelectDirectConversation"
+            @view-profile="openMemberProfile"
+          />
+        </div>
+        <div class="min-h-0 flex-1 border-t">
+          <ChatChannelList
+            :categories="channelCategories"
+            :active-channel-id="activeChannel?.id"
+            :group-name="activeGroup?.name"
+            :group-avatar="activeGroup?.avatar"
+            :groups="groups"
+            :active-group-id="activeGroup?.id"
+            :can-manage="canManage"
+            :current-user-name="currentUserName"
+            @select-group="handleSelectGroup"
+            @select="handleSelectChannel"
+            @create-channel="handleCreateChannel"
+            @edit-channel="handleEditChannel"
+            @delete-channel="handleDeleteChannel"
+            @toggle-mute="handleToggleChannelMute"
+            @invite-members="openInviteDialog"
+            @notification-settings="openNotificationSettings"
+            @settings="openGroupSettings"
+          />
+        </div>
+      </div>
     </div>
 
     <Dialog v-model:open="createChannelDialogOpen">
@@ -1557,10 +1782,14 @@ onBeforeUnmount(() => {
         </Button>
       </div>
       <div
-        v-else-if="!activeGroup"
+        v-else-if="!activeGroup && !isDirectMessageStandalone"
         class="h-full flex items-center justify-center text-muted-foreground"
       >
-        {{ t('chat.empty.noGroups') }}
+        {{
+          directConversations.length > 0
+            ? t('chat.empty.selectDirectConversation')
+            : t('chat.empty.noGroups')
+        }}
       </div>
       <template v-else>
         <div
@@ -1578,15 +1807,25 @@ onBeforeUnmount(() => {
               <span class="sr-only">返回频道</span>
             </Button>
 
-            <Avatar class="h-10 w-10 shrink-0 ring-1 ring-border">
-              <AvatarImage
-                :src="directMessageStandaloneTarget.avatar"
-                :alt="directMessageStandaloneTarget.nickname"
-              />
-              <AvatarFallback>
-                {{ directMessageStandaloneTarget.nickname.slice(0, 2) }}
-              </AvatarFallback>
-            </Avatar>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              class="h-10 w-10 shrink-0 rounded-full p-0"
+              @click="
+                openMemberProfile(directMessageStandaloneTarget.id)
+              "
+            >
+              <Avatar class="h-10 w-10 ring-1 ring-border">
+                <AvatarImage
+                  :src="directMessageStandaloneTarget.avatar"
+                  :alt="directMessageStandaloneTarget.nickname"
+                />
+                <AvatarFallback>
+                  {{ directMessageStandaloneTarget.nickname.slice(0, 2) }}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
 
             <div class="min-w-0 flex-1">
               <div class="truncate text-base font-semibold leading-6">
@@ -1597,9 +1836,12 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <span class="rounded-full border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+            <Badge
+              variant="secondary"
+              class="rounded-full px-3 py-1 text-xs"
+            >
               {{ t('chat.directMessage.title') }}
-            </span>
+            </Badge>
           </div>
 
           <div class="relative min-h-0 flex-1">
@@ -1632,12 +1874,20 @@ onBeforeUnmount(() => {
                     :class="{ 'justify-end': message.author.user_id === currentUserId }"
                   >
                     <div class="max-w-[72%]">
-                      <div
-                        class="rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm"
-                        :class="message.author.user_id === currentUserId ? 'ml-auto bg-primary text-primary-foreground' : 'bg-card text-foreground border'"
+                      <Card
+                        class="gap-0 rounded-xl py-0 text-sm leading-6 shadow-xs"
+                        :class="
+                          message.author.user_id === currentUserId
+                            ? 'ml-auto border-primary/60 bg-primary text-primary-foreground'
+                            : 'border-border/70 bg-muted text-foreground dark:bg-muted/80'
+                        "
                       >
-                        <div class="whitespace-pre-wrap break-words">{{ message.content }}</div>
-                      </div>
+                        <CardContent class="px-4 py-3">
+                          <div class="whitespace-pre-wrap break-words">
+                            {{ message.content }}
+                          </div>
+                        </CardContent>
+                      </Card>
                       <div
                         class="mt-1 px-1 text-[11px] text-muted-foreground"
                         :class="message.author.user_id === currentUserId ? 'text-right' : 'text-left'"

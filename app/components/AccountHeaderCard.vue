@@ -47,6 +47,7 @@ import {
   Heart,
   Mail,
   MapPin,
+  MessageCircle,
   MoreHorizontal,
   RefreshCw,
   Settings,
@@ -341,6 +342,11 @@ function goToAccountSecurity(): void {
   void navigateTo(localePath('account-security'));
 }
 
+function openDirectMessage(): void {
+  if (props.user.id <= 0 || isSelfProfile.value) return;
+  void navigateTo(localePath(`/chat?dm=${props.user.id}`));
+}
+
 async function loadRelationshipUsers(
   reset = true
 ): Promise<void> {
@@ -545,6 +551,14 @@ function followUser() {
             </div>
             <div class="flex items-center space-x-2 self-start sm:self-auto">
               <Button
+                v-if="showFollowAction"
+                variant="secondary"
+                @click="openDirectMessage"
+              >
+                <MessageCircle class="h-4 w-4" />
+                {{ t('account.actions.directMessage') }}
+              </Button>
+              <Button
                 v-if="showFollowAction && !isFollowing"
                 variant="outline"
                 @click="followUser"
@@ -575,6 +589,13 @@ function followUser() {
                   <DropdownMenuItem @click="copyProfileLink">
                     <Copy class="h-4 w-4" />
                     {{ t('account.actions.copyProfileLink') }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    v-if="showFollowAction"
+                    @click="openDirectMessage"
+                  >
+                    <MessageCircle class="h-4 w-4" />
+                    {{ t('account.actions.directMessage') }}
                   </DropdownMenuItem>
                   <DropdownMenuItem @click="refreshProfile">
                     <RefreshCw class="h-4 w-4" />

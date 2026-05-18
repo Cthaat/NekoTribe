@@ -86,6 +86,14 @@ const baseAccountTabs = [
     to: 'account-settings'
   },
   {
+    labelKey: 'account.tabs.pro',
+    to: 'account-pro'
+  },
+  {
+    labelKey: 'account.tabs.billing',
+    to: 'account-billing'
+  },
+  {
     labelKey: 'account.tabs.profile',
     to: 'account-profile'
   },
@@ -116,6 +124,14 @@ const localizedAccountTabs = computed(() => {
 });
 
 const activeTab = ref(t('account.tabs.overview'));
+const route = useRoute();
+
+function updateActiveTabFromRoute(): void {
+  const active = localizedAccountTabs.value.find(
+    tab => tab.to === route.path
+  );
+  activeTab.value = active?.name ?? t('account.tabs.overview');
+}
 
 async function loadAccount(): Promise<void> {
   try {
@@ -169,8 +185,14 @@ async function handleCreateGroup(
 }
 
 onMounted(() => {
+  updateActiveTabFromRoute();
   void loadAccount();
 });
+
+watch(
+  () => [route.path, localizedAccountTabs.value] as const,
+  updateActiveTabFromRoute
+);
 </script>
 
 <template>
