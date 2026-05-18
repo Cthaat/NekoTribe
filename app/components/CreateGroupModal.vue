@@ -152,7 +152,7 @@ const closeDialog = () => {
 
       <div class="space-y-6 py-4">
         <!-- 头像上传 -->
-        <div class="flex items-center gap-4">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div class="relative">
             <Avatar class="h-20 w-20">
               <AvatarImage
@@ -278,10 +278,10 @@ const closeDialog = () => {
       </div>
 
       <DialogFooter>
-        <Button variant="outline" @click="closeDialog">
+        <Button class="w-full sm:w-auto" variant="outline" @click="closeDialog">
           {{ t('common.cancel') }}
         </Button>
-        <Button @click="handleSubmit">
+        <Button class="w-full sm:w-auto" @click="handleSubmit">
           {{ t('groups.actions.create') }}
         </Button>
       </DialogFooter>
