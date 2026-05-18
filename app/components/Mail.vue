@@ -21,9 +21,8 @@ import {
 import { TooltipProvider } from '@/components/ui/tooltip';
 import MailDisplay from '@/components/MailDisplay.vue';
 import MailList from '@/components/MailList.vue';
-import Nav, {
-  type LinkProp
-} from '@/components/MailNav.vue';
+import Nav from '@/components/MailNav.vue';
+import type { LinkProp } from '@/components/MailNav.vue';
 import type { MailItem } from './mail/types';
 
 type MailView =
@@ -62,22 +61,30 @@ interface MailProps {
   loading?: boolean;
 }
 
+defineOptions({
+  name: 'NotificationMail'
+});
+
 const emit = defineEmits<{
-  (e: 'read-mail', mailId: string): void;
-  (e: 'delete-mail', mailId: string): void;
-  (e: 'restore-mail', mailId: string): void;
+  (
+    e: 'read-mail' | 'delete-mail' | 'restore-mail',
+    mailId: string
+  ): void;
   (
     e: 'set-read-status',
     payload: { mailId: string; read: boolean }
   ): void;
-  (e: 'mark-all-read'): void;
-  (e: 'refresh'): void;
+  (e: 'mark-all-read' | 'refresh'): void;
   (e: 'filter-change', filters: MailFilterPayload): void;
 }>();
 
 const props = withDefaults(defineProps<MailProps>(), {
+  accounts: () => [],
   defaultCollapsed: false,
-  defaultLayout: () => [265, 440, 655]
+  defaultLayout: () => [265, 440, 655],
+  loadMore: undefined,
+  isTrashView: false,
+  loading: false
 });
 
 const { t } = useAppLocale();
@@ -218,8 +225,9 @@ const links = computed<LinkProp[]>(() => [
     value: option.value,
     title: option.title,
     icon: option.icon,
-    variant:
+    variant: (
       currentView.value === option.value ? 'default' : 'ghost'
+    ) as LinkProp['variant']
   }))
 ]);
 
@@ -368,7 +376,7 @@ watch(
         </TabsList>
         <TabsContent value="all" class="m-0">
           <MailList
-            v-model:selectedMail="selectedMail"
+            v-model:selected-mail="selectedMail"
             :items="filteredMailList"
             :load-more="props.loadMore"
             @read-mail="handleReadMail"
@@ -376,7 +384,7 @@ watch(
         </TabsContent>
         <TabsContent value="unread" class="m-0">
           <MailList
-            v-model:selectedMail="selectedMail"
+            v-model:selected-mail="selectedMail"
             :items="unreadMailList"
             :load-more="props.loadMore"
             @read-mail="handleReadMail"
@@ -493,7 +501,7 @@ watch(
           </div>
           <TabsContent value="all" class="m-0">
             <MailList
-              v-model:selectedMail="selectedMail"
+              v-model:selected-mail="selectedMail"
               :items="filteredMailList"
               :load-more="props.loadMore"
               @read-mail="handleReadMail"
@@ -501,7 +509,7 @@ watch(
           </TabsContent>
           <TabsContent value="unread" class="m-0">
             <MailList
-              v-model:selectedMail="selectedMail"
+              v-model:selected-mail="selectedMail"
               :items="unreadMailList"
               :load-more="props.loadMore"
               @read-mail="handleReadMail"
