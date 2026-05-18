@@ -87,8 +87,9 @@
       "settings": "设置"
     },
     "secondary": {
+      "about": "关于项目",
       "support": "支持",
-      "feedback": "反馈"
+      "feedback": "反馈建议"
     },
     "projects": {
       "design": "设计工程",
@@ -105,6 +106,63 @@
       "logout": "退出登录",
       "logoutSuccess": "退出登录成功，正在跳转到登录页面...",
       "logoutError": "退出登录失败，请重试。"
+    }
+  },
+  "about": {
+    "badge": "NekoTribe 项目",
+    "title": "关于 NekoTribe",
+    "description": "NekoTribe 是一个面向社交互动场景的全栈项目，围绕推文、群组、聊天、通知、内容审核和 AI 情感分析构建，适合用于课程展示、功能演示和继续扩展开发。",
+    "actions": {
+      "repository": "项目仓库",
+      "backHome": "返回首页"
+    },
+    "features": {
+      "social": {
+        "title": "社交动态",
+        "description": "支持推文发布、回复、转发、点赞、收藏、搜索和个人时间线。"
+      },
+      "groups": {
+        "title": "群组社区",
+        "description": "提供群组发现、加入邀请、群组帖子、成员管理和群聊基础能力。"
+      },
+      "realtime": {
+        "title": "实时互动",
+        "description": "通过 WebSocket 承载私聊、群聊、在线状态和通知投递。"
+      },
+      "safety": {
+        "title": "审核与分析",
+        "description": "包含内容举报、审核后台、账户安全和 SentimentFlow 情感分析接入。"
+      }
+    },
+    "links": {
+      "title": "相关链接",
+      "description": "这里放置项目开发、反馈和常用功能入口。",
+      "repository": {
+        "title": "GitHub 仓库",
+        "description": "查看源码、提交记录和项目结构。"
+      },
+      "docs": {
+        "title": "项目文档",
+        "description": "阅读接口、部署和功能设计文档。"
+      },
+      "feedback": {
+        "title": "问题反馈",
+        "description": "通过 GitHub Issues 记录问题和改进建议。"
+      },
+      "groups": {
+        "title": "发现群组",
+        "description": "进入应用内群组发现页，查看社区功能。"
+      }
+    },
+    "versions": {
+      "title": "版本信息",
+      "description": "来自项目现有版本配置。",
+      "app": "主应用",
+      "web": "Web 前端",
+      "server": "Oracle 服务",
+      "build": "构建号",
+      "releaseDate": "发布日期",
+      "unknown": "未知"
     }
   },
   "post": {
