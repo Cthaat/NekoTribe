@@ -160,6 +160,13 @@ const currentUserName = computed(
 const canManage = computed(
   () => activeGroup.value?.canManage ?? false
 );
+const canSendActiveChannel = computed(() => {
+  const channel = activeChannel.value;
+  if (!channel) return false;
+  if (channel.type === 'text') return true;
+  if (channel.type === 'announcement') return canManage.value;
+  return false;
+});
 const isDirectMessageStandalone = computed(
   () => directMessageStandaloneTarget.value !== null
 );
@@ -696,7 +703,13 @@ async function handleSendMessage(
   attachments?: File[],
   replyToMessageId?: number
 ): Promise<void> {
-  if (!activeChannel.value || isSending.value) return;
+  if (
+    !activeChannel.value ||
+    isSending.value ||
+    !canSendActiveChannel.value
+  ) {
+    return;
+  }
   isSending.value = true;
   try {
     const mediaIds = await uploadAttachments(attachments);
