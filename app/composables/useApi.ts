@@ -510,9 +510,34 @@ function sanitizeUrlLikeForHeader(value: string): string {
 }
 
 function isRefreshPath(path: string): boolean {
+  const normalizedPath = normalizeApiPath(path);
   return (
-    path.includes('/auth/refresh') ||
-    path.includes('/auth/tokens/current')
+    normalizedPath.includes('/auth/refresh') ||
+    normalizedPath.includes('/auth/tokens/current')
+  );
+}
+
+function normalizeApiPath(path: string): string {
+  try {
+    return new URL(path, 'http://localhost').pathname;
+  } catch {
+    return path.split(/[?#]/, 1)[0] || path;
+  }
+}
+
+function isAuthEntryPath(path: string): boolean {
+  const normalizedPath = normalizeApiPath(path);
+  return (
+    normalizedPath === '/api/v1/auth/login' ||
+    normalizedPath === '/api/v1/auth/register' ||
+    normalizedPath === '/api/v1/auth/get-verification' ||
+    normalizedPath === '/api/v1/auth/check-verification' ||
+    normalizedPath === '/api/v1/auth/reset-password' ||
+    normalizedPath === '/api/v2/auth/otp' ||
+    normalizedPath === '/api/v2/auth/otp/verification' ||
+    normalizedPath === '/api/v2/auth/registration' ||
+    normalizedPath === '/api/v2/auth/tokens' ||
+    normalizedPath === '/api/v2/auth/password-reset'
   );
 }
 
@@ -596,7 +621,8 @@ export const apiFetch = async <T>(
     if (
       (maybeError.response?.status === 401 ||
         maybeError.statusCode === 401) &&
-      !isRefreshPath(path)
+      !isRefreshPath(path) &&
+      !isAuthEntryPath(path)
     ) {
       try {
         await runWithNuxtContext(
