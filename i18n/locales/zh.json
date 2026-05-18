@@ -695,7 +695,8 @@
   },
   "avatar": {
     "validation": {
-      "maxSize": "文件大小不能超过 {size}MB"
+      "maxSize": "文件大小不能超过 {size}MB",
+      "imageOnly": "请选择图片文件"
     },
     "crop": {
       "title": "裁剪头像",
