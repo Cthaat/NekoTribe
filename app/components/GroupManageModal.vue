@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, reactive, ref, shallowRef, watch } from 'vue';
 import {
+  Camera,
   Check,
   Clock,
   Copy,
   Crown,
+  ImagePlus,
   Link,
+  Loader2,
   RefreshCw,
   Save,
   Search,
@@ -71,6 +74,7 @@ import {
   unmuteGroupMember,
   updateGroup
 } from '@/services/groups';
+import { v2UploadMedia } from '@/services';
 import type {
   Group,
   GroupMember,
@@ -82,6 +86,7 @@ import type {
   V2GroupInvite,
   V2GroupPostPermission
 } from '@/types/v2';
+import { normalizeAssetUrl } from '@/utils/assets';
 
 const props = defineProps<{
   open: boolean;
@@ -109,6 +114,10 @@ const saving = ref(false);
 const deleting = ref(false);
 const creatingInvite = ref(false);
 const actionKey = ref<string | null>(null);
+const avatarInputRef = ref<HTMLInputElement | null>(null);
+const coverInputRef = ref<HTMLInputElement | null>(null);
+const uploadingAvatar = ref(false);
+const uploadingCover = ref(false);
 
 const form = reactive<UpdateGroupData>({
   name: '',
@@ -278,6 +287,113 @@ function updatePostPermission(value: unknown): void {
     next === 'moderator_up'
   ) {
     form.postPermission = next;
+  }
+}
+
+function resetAvatarInput(): void {
+  if (avatarInputRef.value) {
+    avatarInputRef.value.value = '';
+  }
+}
+
+function resetCoverInput(): void {
+  if (coverInputRef.value) {
+    coverInputRef.value.value = '';
+  }
+}
+
+function triggerAvatarUpload(): void {
+  if (!canEditSettings.value || uploadingAvatar.value) return;
+  avatarInputRef.value?.click();
+}
+
+function triggerCoverUpload(): void {
+  if (!canEditSettings.value || uploadingCover.value) return;
+  coverInputRef.value?.click();
+}
+
+function clearAvatar(): void {
+  if (!canEditSettings.value || uploadingAvatar.value) return;
+  form.avatar = '';
+  resetAvatarInput();
+}
+
+function clearCover(): void {
+  if (!canEditSettings.value || uploadingCover.value) return;
+  form.coverImage = '';
+  resetCoverInput();
+}
+
+function isValidImageFile(file: File, maxSizeInMB: number): boolean {
+  if (!file.type.startsWith('image/')) {
+    toast.error(t('avatar.validation.imageOnly'));
+    return false;
+  }
+
+  if (file.size > maxSizeInMB * 1024 * 1024) {
+    toast.error(
+      t('avatar.validation.maxSize', { size: maxSizeInMB })
+    );
+    return false;
+  }
+
+  return true;
+}
+
+async function uploadGroupImage(
+  file: File,
+  altText: string
+): Promise<string> {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('alt_text', altText || file.name);
+  const media = await v2UploadMedia(body);
+  return normalizeAssetUrl(media.public_url);
+}
+
+async function handleAvatarSelected(event: Event): Promise<void> {
+  const target = event.target as HTMLInputElement | null;
+  const file = target?.files?.[0];
+  resetAvatarInput();
+
+  if (!file || !isValidImageFile(file, 5)) return;
+
+  uploadingAvatar.value = true;
+  try {
+    form.avatar = await uploadGroupImage(
+      file,
+      form.name || props.group?.name || file.name
+    );
+  } catch (error) {
+    toast.error(t('avatar.feedback.uploadFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    uploadingAvatar.value = false;
+  }
+}
+
+async function handleCoverSelected(event: Event): Promise<void> {
+  const target = event.target as HTMLInputElement | null;
+  const file = target?.files?.[0];
+  resetCoverInput();
+
+  if (!file || !isValidImageFile(file, 8)) return;
+
+  uploadingCover.value = true;
+  try {
+    form.coverImage = await uploadGroupImage(
+      file,
+      form.name || props.group?.name || file.name
+    );
+  } catch (error) {
+    toast.error(t('avatar.feedback.uploadFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    uploadingCover.value = false;
   }
 }
 
@@ -683,11 +799,62 @@ async function deleteCurrentGroup(): Promise<void> {
                 />
               </div>
 
-              <div class="grid gap-4 md:grid-cols-2">
+              <div class="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
                 <div class="space-y-2">
                   <Label for="manage-group-avatar">
                     {{ t('groups.manage.fields.avatar') }}
                   </Label>
+                  <input
+                    ref="avatarInputRef"
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    class="hidden"
+                    @change="handleAvatarSelected"
+                  >
+                  <div class="flex items-center gap-3">
+                    <Avatar class="h-16 w-16">
+                      <AvatarImage
+                        v-if="form.avatar"
+                        :src="form.avatar"
+                      />
+                      <AvatarFallback>
+                        {{ form.name.slice(0, 1) || '?' }}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div class="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        :disabled="
+                          !canEditSettings || uploadingAvatar
+                        "
+                        :aria-label="
+                          t('groups.manage.fields.avatar')
+                        "
+                        @click="triggerAvatarUpload"
+                      >
+                        <Loader2
+                          v-if="uploadingAvatar"
+                          class="h-4 w-4 animate-spin"
+                        />
+                        <Camera v-else class="h-4 w-4" />
+                      </Button>
+                      <Button
+                        v-if="form.avatar"
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        :disabled="
+                          !canEditSettings || uploadingAvatar
+                        "
+                        :aria-label="t('common.cancel')"
+                        @click="clearAvatar"
+                      >
+                        <X class="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                   <Input
                     id="manage-group-avatar"
                     v-model="form.avatar"
@@ -695,9 +862,67 @@ async function deleteCurrentGroup(): Promise<void> {
                   />
                 </div>
                 <div class="space-y-2">
-                  <Label for="manage-group-cover">
-                    {{ t('groups.manage.fields.cover') }}
-                  </Label>
+                  <div class="flex items-center justify-between gap-3">
+                    <Label for="manage-group-cover">
+                      {{ t('groups.manage.fields.cover') }}
+                    </Label>
+                    <div class="flex shrink-0 gap-2">
+                      <input
+                        ref="coverInputRef"
+                        type="file"
+                        accept="image/png,image/jpeg,image/gif,image/webp"
+                        class="hidden"
+                        @change="handleCoverSelected"
+                      >
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        :disabled="
+                          !canEditSettings || uploadingCover
+                        "
+                        :aria-label="
+                          t('groups.manage.fields.cover')
+                        "
+                        @click="triggerCoverUpload"
+                      >
+                        <Loader2
+                          v-if="uploadingCover"
+                          class="h-4 w-4 animate-spin"
+                        />
+                        <ImagePlus v-else class="h-4 w-4" />
+                      </Button>
+                      <Button
+                        v-if="form.coverImage"
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        :disabled="
+                          !canEditSettings || uploadingCover
+                        "
+                        :aria-label="t('common.cancel')"
+                        @click="clearCover"
+                      >
+                        <X class="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div
+                    class="relative h-32 overflow-hidden rounded-lg border bg-muted/40"
+                  >
+                    <img
+                      v-if="form.coverImage"
+                      :src="form.coverImage"
+                      :alt="form.name"
+                      class="h-full w-full object-cover"
+                    >
+                    <div
+                      v-else
+                      class="flex h-full items-center justify-center text-muted-foreground"
+                    >
+                      <ImagePlus class="h-6 w-6" />
+                    </div>
+                  </div>
                   <Input
                     id="manage-group-cover"
                     v-model="form.coverImage"
