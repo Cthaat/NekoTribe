@@ -787,6 +787,12 @@
       "emptyTitle": "还没有私聊记录",
       "emptyDescription": "发送第一条私信开始对话。"
     },
+    "directConversations": {
+      "title": "私聊列表",
+      "description": "查看所有一对一会话",
+      "empty": "还没有私聊会话",
+      "noMessages": "还没有消息"
+    },
     "message": {
       "pinned": "已置顶",
       "edited": "（已编辑）",
@@ -846,7 +852,8 @@
     },
     "empty": {
       "noGroups": "你还没有加入任何群组",
-      "noChannels": "当前群组还没有可访问的文字频道"
+      "noChannels": "当前群组还没有可访问的文字频道",
+      "selectDirectConversation": "从左侧选择一个私聊会话"
     },
     "prompts": {
       "channelName": "请输入频道名称",
@@ -885,6 +892,7 @@
       "muteFailed": "频道静音状态更新失败",
       "voiceCallUnavailable": "语音通话后端尚未接入",
       "videoCallUnavailable": "视频通话后端尚未接入",
+      "loadDirectConversationsFailed": "私聊列表加载失败",
       "loadDirectMessagesFailed": "私聊记录加载失败",
       "directMessageSent": "私信已发送",
       "directMessageFailed": "私信发送失败",
@@ -1500,6 +1508,7 @@
       "createGroup": "创建群组",
       "editProfile": "编辑资料",
       "openPublicProfile": "查看公开主页",
+      "directMessage": "私聊",
       "copyProfileLink": "复制主页链接",
       "refreshProfile": "刷新资料",
       "accountSettings": "账户设置",
