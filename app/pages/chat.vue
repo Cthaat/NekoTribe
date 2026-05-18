@@ -437,6 +437,76 @@ function upsertDirectMessage(message: V2DirectMessage): void {
   directMessages.value = updated;
 }
 
+function sortDirectConversations(
+  items: V2DirectConversation[]
+): V2DirectConversation[] {
+  return [...items].sort((a, b) => {
+    const left = new Date(
+      a.last_message?.created_at || a.updated_at
+    ).getTime();
+    const right = new Date(
+      b.last_message?.created_at || b.updated_at
+    ).getTime();
+    return right - left;
+  });
+}
+
+function upsertDirectConversation(
+  conversation: V2DirectConversation
+): void {
+  const index = directConversations.value.findIndex(
+    item => item.conversation_id === conversation.conversation_id
+  );
+  if (index === -1) {
+    directConversations.value = sortDirectConversations([
+      conversation,
+      ...directConversations.value
+    ]);
+    return;
+  }
+
+  const updated = [...directConversations.value];
+  updated[index] = conversation;
+  directConversations.value = sortDirectConversations(updated);
+}
+
+function updateDirectConversationPreview(
+  message: V2DirectMessage,
+  isActiveConversation: boolean
+): void {
+  const index = directConversations.value.findIndex(
+    item => item.conversation_id === message.conversation_id
+  );
+  if (index === -1) {
+    void loadDirectConversations(false);
+    return;
+  }
+
+  const current = directConversations.value[index];
+  if (!current) return;
+
+  const updated = [...directConversations.value];
+  const isIncoming = message.author.user_id !== currentUserId.value;
+  updated[index] = {
+    ...current,
+    unread_count:
+      isIncoming && !isActiveConversation
+        ? current.unread_count + 1
+        : isActiveConversation
+          ? 0
+          : current.unread_count,
+    last_message: {
+      message_id: message.message_id,
+      content: message.content,
+      author_name:
+        message.author.display_name || message.author.username,
+      created_at: message.created_at
+    },
+    updated_at: message.updated_at || message.created_at
+  };
+  directConversations.value = sortDirectConversations(updated);
+}
+
 function updateChannelPreview(
   rawMessage: V2ChatMessage,
   isActiveChannel: boolean
@@ -598,6 +668,106 @@ async function loadMessages(
     toast.error(t('chat.feedback.loadMessagesFailed'));
   } finally {
     isLoadingMessages.value = false;
+  }
+}
+
+async function loadDirectConversations(
+  showLoading = true
+): Promise<void> {
+  if (showLoading) {
+    isLoadingDirectConversations.value = true;
+  }
+  try {
+    const result = await v2ListDirectConversations({
+      page: 1,
+      page_size: 50
+    });
+    directConversations.value = sortDirectConversations(
+      result.items
+    );
+  } catch {
+    toast.error(t('chat.feedback.loadDirectConversationsFailed'));
+  } finally {
+    if (showLoading) {
+      isLoadingDirectConversations.value = false;
+    }
+  }
+}
+
+async function loadDirectMessagesForConversation(
+  conversationId: number
+): Promise<void> {
+  directMessages.value = [];
+  isLoadingDirectMessages.value = true;
+  try {
+    const result = await v2ListDirectMessages(conversationId, {
+      page: 1,
+      page_size: 50
+    });
+    directMessages.value = result.items;
+    directConversations.value = directConversations.value.map(
+      conversation =>
+        conversation.conversation_id === conversationId
+          ? { ...conversation, unread_count: 0 }
+          : conversation
+    );
+  } catch {
+    toast.error(t('chat.feedback.loadDirectMessagesFailed'));
+  } finally {
+    isLoadingDirectMessages.value = false;
+  }
+}
+
+async function openDirectConversation(
+  conversation: V2DirectConversation
+): Promise<void> {
+  upsertDirectConversation(conversation);
+  directConversationId.value = conversation.conversation_id;
+  directMessageTargetId.value = conversation.participant.user_id;
+  directMessageStandaloneTarget.value =
+    mapV2DirectConversationMember(conversation);
+  directMessageContent.value = '';
+  await loadDirectMessagesForConversation(
+    conversation.conversation_id
+  );
+}
+
+function directMessageQueryUserId(): number | null {
+  const raw = route.query.dm;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const id = Number(value ?? 0);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function clearDirectMessageQuery(): void {
+  if (!('dm' in route.query)) return;
+  const query = { ...route.query };
+  delete query.dm;
+  void router.replace({
+    path: route.path,
+    query
+  });
+}
+
+async function openDirectMessageFromQuery(): Promise<void> {
+  const targetUserId = directMessageQueryUserId();
+  if (!targetUserId) return;
+  if (targetUserId === currentUserId.value) {
+    toast.error(t('chat.feedback.cannotMessageSelf'));
+    clearDirectMessageQuery();
+    return;
+  }
+
+  try {
+    const conversation = await v2CreateDirectConversation({
+      target_user_id: targetUserId
+    });
+    await openDirectConversation(conversation);
+    await loadDirectConversations(false);
+  } catch {
+    toast.error(t('chat.feedback.loadDirectMessagesFailed'));
+  } finally {
+    clearDirectMessageQuery();
   }
 }
 
