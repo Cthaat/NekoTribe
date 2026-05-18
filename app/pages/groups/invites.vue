@@ -125,13 +125,14 @@ onMounted(() => {
 <template>
   <div class="space-y-4">
     <!-- 头部 -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="text-sm text-muted-foreground">
         {{ t('groups.invites.pendingCount', { count: invites.length }) }}
       </div>
       <Button
         variant="outline"
         size="sm"
+        class="w-full sm:w-auto"
         :disabled="isRefreshing"
         @click="handleRefresh"
       >
@@ -169,9 +170,9 @@ onMounted(() => {
         class="hover:shadow-md transition-shadow"
       >
         <CardHeader class="pb-3">
-          <div class="flex items-start gap-4">
+          <div class="flex items-start gap-3 sm:gap-4">
             <!-- 群组头像 -->
-            <Avatar class="h-14 w-14">
+            <Avatar class="h-12 w-12 shrink-0 sm:h-14 sm:w-14">
               <AvatarImage
                 :src="invite.group.avatar"
                 :alt="invite.group.name"
@@ -181,10 +182,10 @@ onMounted(() => {
               }}</AvatarFallback>
             </Avatar>
 
-            <div class="flex-1">
+            <div class="min-w-0 flex-1">
               <!-- 群组信息 -->
-              <div class="flex items-center gap-2">
-                <h3 class="font-semibold">
+              <div class="flex min-w-0 flex-wrap items-center gap-2">
+                <h3 class="min-w-0 truncate font-semibold">
                   {{ invite.group.name }}
                 </h3>
                 <Badge variant="secondary" class="gap-1">
@@ -230,11 +231,11 @@ onMounted(() => {
         </CardHeader>
 
         <CardFooter
-          class="border-t pt-3 flex items-center justify-between"
+          class="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between"
         >
           <!-- 时间信息 -->
           <div
-            class="flex items-center gap-4 text-xs text-muted-foreground"
+            class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground"
           >
             <div class="flex items-center gap-1">
               <Clock class="h-3 w-3" />
@@ -250,7 +251,7 @@ onMounted(() => {
           </div>
 
           <!-- 操作按钮 -->
-          <div class="flex items-center gap-2">
+          <div class="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:items-center">
             <Button
               variant="outline"
               size="sm"
