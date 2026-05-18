@@ -12,6 +12,11 @@ import {
   nextTick
 } from 'vue';
 import type { MailItem } from './mail/types';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage
+} from '@/components/ui/avatar';
 
 interface MailListProps {
   items: MailItem[];
@@ -38,7 +43,9 @@ watch(
       if (observer && sentinel.value) {
         try {
           observer.unobserve(sentinel.value);
-        } catch {}
+        } catch {
+          // The sentinel may already be detached during fast list swaps.
+        }
         observer.observe(sentinel.value);
       }
     });
@@ -65,7 +72,9 @@ function reobserveSentinel() {
   if (!observer || !sentinel.value) return;
   try {
     observer.unobserve(sentinel.value);
-  } catch {}
+  } catch {
+    // The sentinel can be removed before IntersectionObserver catches up.
+  }
   observer.observe(sentinel.value);
 }
 
@@ -143,57 +152,95 @@ function selectMail(mailId: string) {
           "
           @click="selectMail(String(item.id))"
         >
-          <div class="flex w-full flex-col gap-1">
-            <div class="flex items-center">
-              <div class="flex items-center gap-2">
-                <div class="font-semibold">
-                  {{ item.name }}
-                </div>
-                <span
-                  v-if="!item.read"
-                  class="flex h-2 w-2 rounded-full bg-blue-600"
-                />
-              </div>
-              <div
-                :class="
-                  cn(
-                    'ml-auto text-xs',
-                    selectedMail === item.id
-                      ? 'text-foreground'
-                      : 'text-muted-foreground'
-                  )
-                "
-              >
+          <div class="flex w-full gap-3">
+            <Avatar class="mt-0.5 size-9 shrink-0">
+              <AvatarImage
+                :src="item.avatar"
+                :alt="item.name"
+              />
+              <AvatarFallback>
                 {{
-                  formatDistanceToNow(new Date(item.date), {
-                    addSuffix: true
-                  })
+                  (item.name || item.typeLabel)
+                    .substring(0, 2)
+                    .toUpperCase()
                 }}
+              </AvatarFallback>
+            </Avatar>
+
+            <div class="min-w-0 flex-1">
+              <div class="flex w-full flex-col gap-1">
+                <div class="flex items-center gap-2">
+                  <div class="min-w-0 truncate font-semibold">
+                    {{ item.name }}
+                  </div>
+                  <span
+                    v-if="!item.read"
+                    class="flex h-2 w-2 shrink-0 rounded-full bg-blue-600"
+                  />
+                  <div
+                    :class="
+                      cn(
+                        'ml-auto shrink-0 text-xs',
+                        selectedMail === item.id
+                          ? 'text-foreground'
+                          : 'text-muted-foreground'
+                      )
+                    "
+                  >
+                    {{
+                      formatDistanceToNow(new Date(item.date), {
+                        addSuffix: true
+                      })
+                    }}
+                  </div>
+                </div>
+
+                <div class="line-clamp-1 text-xs font-medium">
+                  {{ item.subject }}
+                </div>
+              </div>
+
+              <div
+                class="mt-2 line-clamp-2 text-xs text-muted-foreground"
+              >
+                {{ item.text.substring(0, 300) }}
+              </div>
+
+              <div
+                v-if="item.primaryPreview"
+                class="mt-3 min-w-0 rounded-md border bg-muted/40 p-2"
+              >
+                <div class="text-xs font-medium text-foreground">
+                  {{ item.primaryPreview.title }}
+                </div>
+                <p
+                  class="mt-1 line-clamp-2 text-xs text-muted-foreground"
+                >
+                  {{ item.primaryPreview.text }}
+                </p>
+              </div>
+
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                <Badge
+                  v-for="label of item.labels"
+                  :key="label"
+                  :variant="getBadgeVariantFromLabel(label)"
+                >
+                  {{ label }}
+                </Badge>
+                <Badge
+                  v-if="item.priority !== 'normal'"
+                  variant="outline"
+                >
+                  {{ item.priorityLabel }}
+                </Badge>
               </div>
             </div>
-
-            <div class="text-xs font-medium">
-              {{ item.subject }}
-            </div>
-          </div>
-          <div
-            class="line-clamp-2 text-xs text-muted-foreground"
-          >
-            {{ item.text.substring(0, 300) }}
-          </div>
-          <div class="flex items-center gap-2">
-            <Badge
-              v-for="label of item.labels"
-              :key="label"
-              :variant="getBadgeVariantFromLabel(label)"
-            >
-              {{ label }}
-            </Badge>
           </div>
         </Button>
       </TransitionGroup>
       <!-- 无限滚动哨兵：接近底部时触发 loadMore -->
-      <div ref="sentinel" class="h-1 w-full"></div>
+      <div ref="sentinel" class="h-1 w-full" />
     </div>
   </ScrollArea>
 </template>
