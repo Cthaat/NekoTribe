@@ -604,10 +604,18 @@ function handleWsMessage(event: MessageEvent<string>): void {
 
   if (
     payload.type === 'direct_message' &&
-    payload.data?.direct_message &&
-    payload.data.conversation_id === directConversationId.value
+    payload.data?.direct_message
   ) {
-    upsertDirectMessage(payload.data.direct_message);
+    const directMessage = payload.data.direct_message;
+    const isActiveConversation =
+      directMessage.conversation_id === directConversationId.value;
+    if (isActiveConversation) {
+      upsertDirectMessage(directMessage);
+    }
+    updateDirectConversationPreview(
+      directMessage,
+      isActiveConversation
+    );
     return;
   }
 
@@ -815,16 +823,20 @@ async function loadChat(): Promise<void> {
   isLoading.value = true;
   errorMessage.value = '';
   try {
-    const result = await v2ListChatGroups({
-      page: 1,
-      page_size: 50
-    });
+    const [result] = await Promise.all([
+      v2ListChatGroups({
+        page: 1,
+        page_size: 50
+      }),
+      loadDirectConversations()
+    ]);
     groups.value = result.items.map(mapV2ChatGroup);
     const nextGroup = preferredChatGroup();
     if (nextGroup) {
       await loadGroup(nextGroup);
-      connectWs();
     }
+    connectWs();
+    await openDirectMessageFromQuery();
   } catch {
     errorMessage.value = t('chat.feedback.loadFailed');
   } finally {
