@@ -118,6 +118,64 @@ async function v2CommentAuthorId(
   return row ? v2Number(row.USER_ID) : null;
 }
 
+function v2NotificationExcerpt(value: string, maxLength = 160): string {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, maxLength)}...`;
+}
+
+async function v2PostExcerpt(
+  connection: oracledb.Connection,
+  postId: number | null | undefined
+): Promise<string | null> {
+  if (!postId) return null;
+  const row = await v2One(
+    connection,
+    `
+    SELECT DBMS_LOB.SUBSTR(content, 4000, 1) AS content
+    FROM n_posts
+    WHERE post_id = :post_id
+      AND is_deleted = 0
+    `,
+    { post_id: postId }
+  );
+  const content = v2String(row?.CONTENT);
+  return content ? v2NotificationExcerpt(content) : null;
+}
+
+interface V2CommentNotificationContext {
+  authorId: number;
+  postId: number;
+  excerpt: string | null;
+}
+
+async function v2CommentNotificationContext(
+  connection: oracledb.Connection,
+  commentId: number | null | undefined
+): Promise<V2CommentNotificationContext | null> {
+  if (!commentId) return null;
+  const row = await v2One(
+    connection,
+    `
+    SELECT
+      user_id,
+      post_id,
+      DBMS_LOB.SUBSTR(content, 4000, 1) AS content
+    FROM n_comments
+    WHERE comment_id = :comment_id
+      AND is_deleted = 0
+    `,
+    { comment_id: commentId }
+  );
+  if (!row) return null;
+  const content = v2String(row.CONTENT);
+  return {
+    authorId: v2Number(row.USER_ID),
+    postId: v2Number(row.POST_ID),
+    excerpt: content ? v2NotificationExcerpt(content) : null
+  };
+}
+
 function v2PostVisibility(value: string): string {
   if (
     value === 'public' ||
@@ -795,6 +853,7 @@ async function v2NotifyPostCreated(
       connection,
       payload.reply_to_post_id
     );
+    const sourcePostId = payload.reply_to_post_id ?? null;
     if (targetUserId) {
       await v2CreateNotification(connection, {
         userId: targetUserId,
@@ -805,7 +864,16 @@ async function v2NotifyPostCreated(
         resourceType: 'post',
         resourceId: postId,
         metadata: {
-          source_post_id: payload.reply_to_post_id ?? null,
+          source_post_id: sourcePostId,
+          target_post_id: sourcePostId,
+          action_post_id: postId,
+          post_excerpt: await v2PostExcerpt(
+            connection,
+            sourcePostId
+          ),
+          reply_excerpt: payload.content
+            ? v2NotificationExcerpt(payload.content)
+            : null,
           event: 'post_reply'
         }
       });
@@ -817,6 +885,7 @@ async function v2NotifyPostCreated(
       connection,
       payload.repost_of_post_id
     );
+    const sourcePostId = payload.repost_of_post_id ?? null;
     if (targetUserId) {
       await v2CreateNotification(connection, {
         userId: targetUserId,
@@ -827,7 +896,16 @@ async function v2NotifyPostCreated(
         resourceType: 'post',
         resourceId: postId,
         metadata: {
-          source_post_id: payload.repost_of_post_id ?? null,
+          source_post_id: sourcePostId,
+          target_post_id: sourcePostId,
+          action_post_id: postId,
+          post_excerpt: await v2PostExcerpt(
+            connection,
+            sourcePostId
+          ),
+          retweet_excerpt: payload.content
+            ? v2NotificationExcerpt(payload.content)
+            : null,
           event: 'post_repost'
         }
       });
@@ -839,6 +917,7 @@ async function v2NotifyPostCreated(
       connection,
       payload.quoted_post_id
     );
+    const sourcePostId = payload.quoted_post_id ?? null;
     if (targetUserId) {
       await v2CreateNotification(connection, {
         userId: targetUserId,
@@ -849,7 +928,16 @@ async function v2NotifyPostCreated(
         resourceType: 'post',
         resourceId: postId,
         metadata: {
-          source_post_id: payload.quoted_post_id ?? null,
+          source_post_id: sourcePostId,
+          target_post_id: sourcePostId,
+          action_post_id: postId,
+          post_excerpt: await v2PostExcerpt(
+            connection,
+            sourcePostId
+          ),
+          quote_excerpt: payload.content
+            ? v2NotificationExcerpt(payload.content)
+            : null,
           event: 'post_quote'
         }
       });
@@ -868,6 +956,8 @@ async function v2NotifyPostCreated(
       resourceType: 'post',
       resourceId: postId,
       metadata: {
+        target_post_id: postId,
+        post_excerpt: await v2PostExcerpt(connection, postId),
         event: 'post_mention'
       }
     });
@@ -883,6 +973,11 @@ async function v2NotifyCommentCreated(
 ): Promise<void> {
   const actorName = await v2UserDisplayName(connection, actorId);
   const postAuthorId = await v2PostAuthorId(connection, postId);
+  const commentContext = await v2CommentNotificationContext(
+    connection,
+    commentId
+  );
+  const postExcerpt = await v2PostExcerpt(connection, postId);
   if (postAuthorId) {
     await v2CreateNotification(connection, {
       userId: postAuthorId,
@@ -894,6 +989,10 @@ async function v2NotifyCommentCreated(
       resourceId: commentId,
       metadata: {
         post_id: postId,
+        target_post_id: postId,
+        comment_id: commentId,
+        comment_excerpt: commentContext?.excerpt ?? null,
+        post_excerpt: postExcerpt,
         event: 'comment_created'
       }
     });
@@ -904,6 +1003,10 @@ async function v2NotifyCommentCreated(
     parentCommentId
   );
   if (parentAuthorId && parentAuthorId !== postAuthorId) {
+    const parentContext = await v2CommentNotificationContext(
+      connection,
+      parentCommentId
+    );
     await v2CreateNotification(connection, {
       userId: parentAuthorId,
       actorId,
@@ -914,7 +1017,12 @@ async function v2NotifyCommentCreated(
       resourceId: commentId,
       metadata: {
         post_id: postId,
+        target_post_id: postId,
+        comment_id: commentId,
         parent_comment_id: parentCommentId ?? null,
+        comment_excerpt: commentContext?.excerpt ?? null,
+        parent_comment_excerpt: parentContext?.excerpt ?? null,
+        post_excerpt: postExcerpt,
         event: 'comment_reply'
       }
     });
@@ -939,6 +1047,8 @@ async function v2NotifyPostLiked(
     resourceType: 'post',
     resourceId: postId,
     metadata: {
+      target_post_id: postId,
+      post_excerpt: await v2PostExcerpt(connection, postId),
       event: 'post_like'
     }
   });
@@ -949,15 +1059,15 @@ async function v2NotifyCommentLiked(
   actorId: number,
   commentId: number
 ): Promise<void> {
-  const commentAuthorId = await v2CommentAuthorId(
+  const commentContext = await v2CommentNotificationContext(
     connection,
     commentId
   );
-  if (!commentAuthorId) return;
+  if (!commentContext) return;
 
   const actorName = await v2UserDisplayName(connection, actorId);
   await v2CreateNotification(connection, {
-    userId: commentAuthorId,
+    userId: commentContext.authorId,
     actorId,
     type: 'like',
     title: `${actorName} 赞了你的评论`,
@@ -965,6 +1075,14 @@ async function v2NotifyCommentLiked(
     resourceType: 'comment',
     resourceId: commentId,
     metadata: {
+      post_id: commentContext.postId,
+      target_post_id: commentContext.postId,
+      comment_id: commentId,
+      comment_excerpt: commentContext.excerpt,
+      post_excerpt: await v2PostExcerpt(
+        connection,
+        commentContext.postId
+      ),
       event: 'comment_like'
     }
   });
