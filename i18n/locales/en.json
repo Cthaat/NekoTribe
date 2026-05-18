@@ -990,6 +990,10 @@
       "restoreSuccess": "Mail restored",
       "restoreFailed": "Failed to restore mail",
       "readFailed": "Failed to mark mail as read",
+      "markReadSuccess": "Notification marked as read",
+      "markUnreadSuccess": "Notification marked as unread",
+      "markAllReadSuccess": "All notifications marked as read",
+      "markAllReadFailed": "Failed to mark all as read",
       "systemName": "System",
       "systemEmail": "system"
     }
@@ -997,6 +1001,14 @@
   "mail": {
     "folders": {
       "inbox": "Inbox",
+      "unread": "Unread",
+      "likes": "Likes",
+      "comments": "Comments",
+      "retweets": "Reposts",
+      "follows": "Follows",
+      "mentions": "Mentions",
+      "security": "Security",
+      "system": "System",
       "trash": "Trash"
     },
     "tabs": {
@@ -1004,27 +1016,54 @@
       "unread": "Unread"
     },
     "searchPlaceholder": "Search",
+    "actions": {
+      "refresh": "Refresh",
+      "markAllRead": "Mark all read",
+      "viewTweet": "View post",
+      "viewComment": "View comment",
+      "viewProfile": "View profile",
+      "viewSession": "View login session",
+      "viewInvite": "View invite"
+    },
+    "types": {
+      "like": "Like",
+      "comment": "Comment",
+      "retweet": "Repost",
+      "follow": "Follow",
+      "mention": "Mention",
+      "login_alert": "Login alert",
+      "system": "System",
+      "group_invite": "Group invite"
+    },
+    "priority": {
+      "low": "Low priority",
+      "normal": "Normal",
+      "high": "Important",
+      "urgent": "Urgent"
+    },
+    "preview": {
+      "post": "Related post",
+      "comment": "Comment",
+      "action": "Interaction",
+      "parentComment": "Original comment"
+    },
+    "details": {
+      "postId": "Post ID",
+      "commentId": "Comment ID",
+      "device": "Device",
+      "ipAddress": "IP address",
+      "userAgent": "Browser",
+      "resource": "Resource"
+    },
     "display": {
-      "archive": "Archive",
-      "moveToJunk": "Move to junk",
       "moveToTrash": "Move to trash",
       "restore": "Restore",
       "restoreFromTrash": "Restore from trash",
-      "snooze": "Snooze",
-      "snoozeUntil": "Snooze until",
-      "laterToday": "Later today",
-      "tomorrow": "Tomorrow",
-      "thisWeekend": "This weekend",
-      "nextWeek": "Next week",
-      "reply": "Reply",
-      "replyAll": "Reply all",
-      "forward": "Forward",
       "more": "More",
+      "markAsRead": "Mark as read",
       "markAsUnread": "Mark as unread",
-      "starThread": "Star thread",
-      "addLabel": "Add label",
-      "muteThread": "Mute thread",
-      "replyTo": "Reply-To:",
+      "viewActor": "View user",
+      "openRelated": "Open",
       "noSelection": "No message selected"
     }
   },
