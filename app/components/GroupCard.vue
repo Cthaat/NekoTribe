@@ -220,7 +220,7 @@ const handleSettings = () => {
 
       <!-- 统计信息 -->
       <div
-        class="flex items-center gap-4 text-sm text-muted-foreground"
+        class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground"
       >
         <div class="flex items-center gap-1">
           <Users class="h-4 w-4" />
