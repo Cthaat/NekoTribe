@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, nextTick, watch } from 'vue';
 import {
   Smile,
   Paperclip,
@@ -44,6 +44,7 @@ const props = defineProps<{
   channelName?: string;
   replyTo?: ChatMessageType | null;
   disabled?: boolean;
+  disabledReason?: string;
   members?: ChatMember[];
   channels?: Channel[];
 }>();
@@ -89,9 +90,19 @@ const stickers = [
 // 计算是否可发送
 const canSend = computed(() => {
   return (
+    props.disabled !== true &&
     message.value.trim().length > 0 ||
     attachments.value.length > 0
   );
+});
+
+const inputPlaceholder = computed(() => {
+  if (props.disabled && props.disabledReason) {
+    return props.disabledReason;
+  }
+  return t('chat.input.placeholder', {
+    channel: props.channelName || t('chat.fallbackChannel')
+  });
 });
 
 const filteredMembers = computed(() => {
@@ -134,6 +145,7 @@ const focusTextarea = () => {
 };
 
 const insertText = (text: string) => {
+  if (props.disabled) return;
   const textarea = getTextareaElement();
   if (!textarea) {
     message.value += text;
@@ -176,30 +188,35 @@ const handleSend = () => {
 
 // 插入表情
 const insertEmoji = (emoji: string) => {
+  if (props.disabled) return;
   insertText(emoji);
   isEmojiPickerOpen.value = false;
   focusTextarea();
 };
 
 const insertMention = (member: ChatMember) => {
+  if (props.disabled) return;
   insertText(`@${member.username} `);
   mentionSearch.value = '';
   isMentionPickerOpen.value = false;
 };
 
 const insertChannel = (channel: Channel) => {
+  if (props.disabled) return;
   insertText(`#${channel.name} `);
   channelSearch.value = '';
   isChannelPickerOpen.value = false;
 };
 
 const insertSticker = (sticker: string) => {
+  if (props.disabled) return;
   insertText(`${sticker} `);
   isStickerPickerOpen.value = false;
 };
 
 // 处理键盘事件
 const handleKeydown = (e: KeyboardEvent) => {
+  if (props.disabled) return;
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     handleSend();
@@ -208,12 +225,17 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 // 处理输入
 const handleInput = () => {
+  if (props.disabled) return;
   emit('typing');
 };
 
 // 处理文件选择
 const handleFileSelect = (e: Event) => {
   const input = e.target as HTMLInputElement;
+  if (props.disabled) {
+    input.value = '';
+    return;
+  }
   if (input.files) {
     attachments.value = [
       ...attachments.value,
@@ -226,6 +248,10 @@ const handleFileSelect = (e: Event) => {
 // 处理图片选择
 const handleImageSelect = (e: Event) => {
   const input = e.target as HTMLInputElement;
+  if (props.disabled) {
+    input.value = '';
+    return;
+  }
   if (input.files) {
     const imageFiles = Array.from(input.files).filter(f =>
       f.type.startsWith('image/')
@@ -255,6 +281,21 @@ const getFilePreview = (file: File): string | undefined => {
 const handleCancelReply = () => {
   emit('cancel-reply');
 };
+
+watch(
+  () => props.disabled,
+  disabled => {
+    if (!disabled) return;
+    message.value = '';
+    attachments.value = [];
+    mentionSearch.value = '';
+    channelSearch.value = '';
+    isEmojiPickerOpen.value = false;
+    isMentionPickerOpen.value = false;
+    isChannelPickerOpen.value = false;
+    isStickerPickerOpen.value = false;
+  }
+);
 </script>
 
 <template>
@@ -352,14 +393,19 @@ const handleCancelReply = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                class="h-8 w-8 p-0"
+                :class="[
+                  'h-8 w-8 p-0',
+                  disabled ? 'pointer-events-none opacity-50' : ''
+                ]"
                 as="label"
+                :disabled="disabled"
               >
                 <Paperclip class="h-4 w-4" />
                 <Input
                   type="file"
                   multiple
                   class="hidden"
+                  :disabled="disabled"
                   @change="handleFileSelect"
                 />
               </Button>
@@ -375,8 +421,12 @@ const handleCancelReply = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                class="h-8 w-8 p-0"
+                :class="[
+                  'h-8 w-8 p-0',
+                  disabled ? 'pointer-events-none opacity-50' : ''
+                ]"
                 as="label"
+                :disabled="disabled"
               >
                 <ImageIcon class="h-4 w-4" />
                 <Input
@@ -384,6 +434,7 @@ const handleCancelReply = () => {
                   accept="image/*"
                   multiple
                   class="hidden"
+                  :disabled="disabled"
                   @change="handleImageSelect"
                 />
               </Button>
@@ -402,6 +453,7 @@ const handleCancelReply = () => {
                     variant="ghost"
                     size="sm"
                     class="h-8 w-8 p-0"
+                    :disabled="disabled"
                   >
                     <Smile class="h-4 w-4" />
                   </Button>
@@ -428,6 +480,7 @@ const handleCancelReply = () => {
                     variant="ghost"
                     size="sm"
                     class="h-8 w-8 p-0 text-lg hover:bg-muted"
+                    :disabled="disabled"
                     @click="insertEmoji(emoji)"
                   >
                     {{ emoji }}
@@ -446,6 +499,7 @@ const handleCancelReply = () => {
                     variant="ghost"
                     size="sm"
                     class="h-8 w-8 p-0"
+                    :disabled="disabled"
                   >
                     <AtSign class="h-4 w-4" />
                   </Button>
@@ -465,6 +519,7 @@ const handleCancelReply = () => {
                   v-model="mentionSearch"
                   :placeholder="t('chat.composer.searchMembers')"
                   class="h-8"
+                  :disabled="disabled"
                 />
                 <ScrollArea class="h-64">
                   <Button
@@ -472,6 +527,7 @@ const handleCancelReply = () => {
                     :key="member.id"
                     variant="ghost"
                     class="h-auto w-full justify-start gap-2 px-2 py-2"
+                    :disabled="disabled"
                     @click="insertMention(member)"
                   >
                     <Avatar class="h-7 w-7">
@@ -514,6 +570,7 @@ const handleCancelReply = () => {
                     variant="ghost"
                     size="sm"
                     class="h-8 w-8 p-0"
+                    :disabled="disabled"
                   >
                     <Hash class="h-4 w-4" />
                   </Button>
@@ -533,6 +590,7 @@ const handleCancelReply = () => {
                   v-model="channelSearch"
                   :placeholder="t('chat.composer.searchChannels')"
                   class="h-8"
+                  :disabled="disabled"
                 />
                 <ScrollArea class="h-64">
                   <Button
@@ -540,6 +598,7 @@ const handleCancelReply = () => {
                     :key="channel.id"
                     variant="ghost"
                     class="h-9 w-full justify-start gap-2 px-2"
+                    :disabled="disabled"
                     @click="insertChannel(channel)"
                   >
                     <Hash class="h-4 w-4 text-muted-foreground" />
@@ -567,6 +626,7 @@ const handleCancelReply = () => {
                     variant="ghost"
                     size="sm"
                     class="h-8 w-8 p-0"
+                    :disabled="disabled"
                   >
                     <Gift class="h-4 w-4" />
                   </Button>
@@ -587,6 +647,7 @@ const handleCancelReply = () => {
                   :key="sticker.value"
                   variant="ghost"
                   class="h-12 flex-col gap-1 p-1"
+                  :disabled="disabled"
                   @click="insertSticker(sticker.value)"
                 >
                   <span class="text-lg">{{ sticker.value }}</span>
@@ -605,7 +666,7 @@ const handleCancelReply = () => {
         <Textarea
           ref="textareaRef"
           v-model="message"
-          :placeholder="t('chat.input.placeholder', { channel: channelName || t('chat.fallbackChannel') })"
+          :placeholder="inputPlaceholder"
           :disabled="disabled"
           class="min-h-11 max-h-32 resize-none px-4 py-2.5 leading-5 rounded-xl bg-card border"
           rows="1"
