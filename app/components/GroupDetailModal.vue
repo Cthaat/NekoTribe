@@ -172,7 +172,7 @@ const handleTabChange = (value: string | number) => {
 <template>
   <Dialog :open="open" @update:open="closeDialog">
     <DialogContent
-      class="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0"
+      class="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden p-0"
     >
       <template v-if="group">
         <!-- 封面 -->
@@ -188,8 +188,8 @@ const handleTabChange = (value: string | number) => {
         </div>
 
         <!-- 头部信息 -->
-        <div class="px-6 pb-4 -mt-10 relative">
-          <div class="flex items-end gap-4">
+        <div class="relative -mt-10 px-4 pb-4 sm:px-6">
+          <div class="flex flex-col items-start gap-4 sm:flex-row sm:items-end">
             <Avatar
               class="h-20 w-20 border-4 border-background"
             >
@@ -201,12 +201,12 @@ const handleTabChange = (value: string | number) => {
                 group.name.charAt(0)
               }}</AvatarFallback>
             </Avatar>
-            <div class="flex-1 pb-1">
-              <h2 class="text-xl font-bold">
+            <div class="min-w-0 flex-1 pb-1">
+              <h2 class="truncate text-xl font-bold">
                 {{ group.name }}
               </h2>
               <div
-                class="flex items-center gap-2 text-sm text-muted-foreground"
+                class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
               >
                 <component
                   :is="getPrivacyIcon(group.privacy)"
@@ -222,7 +222,7 @@ const handleTabChange = (value: string | number) => {
           </div>
 
           <!-- 操作按钮 -->
-          <div class="flex items-center gap-2 mt-4">
+          <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button
               v-if="!group.isOwner"
               :variant="
@@ -276,17 +276,19 @@ const handleTabChange = (value: string | number) => {
           class="flex-1 flex flex-col"
           @update:model-value="handleTabChange"
         >
-          <TabsList class="mx-6 mt-2">
-            <TabsTrigger value="about">{{ t('groups.detail.tabs.about') }}</TabsTrigger>
-            <TabsTrigger value="posts">
-              {{ t('groups.detail.tabs.posts', { count: posts?.length || 0 }) }}
-            </TabsTrigger>
-            <TabsTrigger value="members">
-              {{ t('groups.detail.tabs.members', { count: members?.length || 0 }) }}
-            </TabsTrigger>
-          </TabsList>
+          <div class="mx-4 mt-2 overflow-x-auto sm:mx-6">
+            <TabsList class="grid w-max min-w-full grid-cols-3">
+              <TabsTrigger value="about">{{ t('groups.detail.tabs.about') }}</TabsTrigger>
+              <TabsTrigger value="posts">
+                {{ t('groups.detail.tabs.posts', { count: posts?.length || 0 }) }}
+              </TabsTrigger>
+              <TabsTrigger value="members">
+                {{ t('groups.detail.tabs.members', { count: members?.length || 0 }) }}
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          <ScrollArea class="flex-1 px-6 py-4">
+          <ScrollArea class="flex-1 px-4 py-4 sm:px-6">
             <!-- 关于 -->
             <TabsContent
               value="about"
@@ -294,7 +296,7 @@ const handleTabChange = (value: string | number) => {
             >
               <div>
                 <h3 class="font-medium mb-2">{{ t('groups.detail.aboutTitle') }}</h3>
-                <p class="text-sm text-muted-foreground">
+                <p class="break-words text-sm text-muted-foreground">
                   {{ group.description }}
                 </p>
               </div>
