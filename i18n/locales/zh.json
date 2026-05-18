@@ -990,6 +990,10 @@
       "restoreSuccess": "邮件已恢复",
       "restoreFailed": "恢复邮件失败",
       "readFailed": "标记邮件为已读失败",
+      "markReadSuccess": "通知已标记为已读",
+      "markUnreadSuccess": "通知已标记为未读",
+      "markAllReadSuccess": "所有通知已标记为已读",
+      "markAllReadFailed": "全部标记已读失败",
       "systemName": "系统",
       "systemEmail": "system"
     }
@@ -997,6 +1001,14 @@
   "mail": {
     "folders": {
       "inbox": "收件箱",
+      "unread": "未读通知",
+      "likes": "点赞",
+      "comments": "评论",
+      "retweets": "转发",
+      "follows": "关注",
+      "mentions": "提及",
+      "security": "安全",
+      "system": "系统",
       "trash": "垃圾桶"
     },
     "tabs": {
@@ -1004,27 +1016,54 @@
       "unread": "未读"
     },
     "searchPlaceholder": "搜索",
+    "actions": {
+      "refresh": "刷新",
+      "markAllRead": "全部已读",
+      "viewTweet": "查看推文",
+      "viewComment": "查看评论",
+      "viewProfile": "查看主页",
+      "viewSession": "查看登录设备",
+      "viewInvite": "查看邀请"
+    },
+    "types": {
+      "like": "点赞",
+      "comment": "评论",
+      "retweet": "转发",
+      "follow": "关注",
+      "mention": "提及",
+      "login_alert": "登录提醒",
+      "system": "系统",
+      "group_invite": "群组邀请"
+    },
+    "priority": {
+      "low": "低优先级",
+      "normal": "普通",
+      "high": "重要",
+      "urgent": "紧急"
+    },
+    "preview": {
+      "post": "相关推文",
+      "comment": "评论内容",
+      "action": "互动内容",
+      "parentComment": "被回复的评论"
+    },
+    "details": {
+      "postId": "推文 ID",
+      "commentId": "评论 ID",
+      "device": "登录设备",
+      "ipAddress": "IP 地址",
+      "userAgent": "浏览器",
+      "resource": "关联资源"
+    },
     "display": {
-      "archive": "归档",
-      "moveToJunk": "移至垃圾邮件",
       "moveToTrash": "移至垃圾桶",
       "restore": "恢复",
       "restoreFromTrash": "从垃圾桶恢复",
-      "snooze": "稍后提醒",
-      "snoozeUntil": "稍后提醒至",
-      "laterToday": "今天晚些时候",
-      "tomorrow": "明天",
-      "thisWeekend": "本周末",
-      "nextWeek": "下周",
-      "reply": "回复",
-      "replyAll": "全部回复",
-      "forward": "转发",
       "more": "更多",
+      "markAsRead": "标记为已读",
       "markAsUnread": "标记为未读",
-      "starThread": "星标会话",
-      "addLabel": "添加标签",
-      "muteThread": "静音会话",
-      "replyTo": "回复至：",
+      "viewActor": "查看用户",
+      "openRelated": "打开",
       "noSelection": "未选择邮件"
     }
   },
