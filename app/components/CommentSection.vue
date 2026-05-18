@@ -139,7 +139,7 @@ function handleCommentInputBlur() {
 </script>
 
 <template>
-  <div class="w-full max-w-3xl mx-auto p-6 font-sans">
+  <div class="mx-auto w-full max-w-3xl px-3 py-6 font-sans sm:p-6">
     <!-- 评论区标题 -->
     <div class="flex items-center gap-3 mb-6">
       <h2
@@ -179,9 +179,9 @@ function handleCommentInputBlur() {
         >
           <div
             v-if="isCommentInputFocused"
-            class="mt-3 flex items-center justify-between"
+          class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           >
-            <span class="ml-2 text-xs text-muted-foreground">
+            <span class="text-xs text-muted-foreground sm:ml-2">
               {{
                 t('comment.characterCount', {
                   count: newCommentContent.length,
