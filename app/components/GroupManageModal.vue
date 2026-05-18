@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, ref, shallowRef, watch } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  reactive,
+  ref,
+  shallowRef,
+  watch
+} from 'vue';
 import {
   Camera,
   Check,
@@ -60,6 +67,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip';
 import { toast } from 'vue-sonner';
+import GroupAvatarCropDialog from './GroupAvatarCropDialog.vue';
 import {
   approveGroupMember,
   changeGroupMemberRole,
@@ -118,6 +126,9 @@ const avatarInputRef = ref<HTMLInputElement | null>(null);
 const coverInputRef = ref<HTMLInputElement | null>(null);
 const uploadingAvatar = ref(false);
 const uploadingCover = ref(false);
+const avatarCropDialogOpen = ref(false);
+const avatarCropSourceUrl = ref<string | null>(null);
+const avatarCropFileName = ref('avatar.jpg');
 
 const form = reactive<UpdateGroupData>({
   name: '',
@@ -217,6 +228,7 @@ function resetForm(group: Group): void {
   uploadingCover.value = false;
   resetAvatarInput();
   resetCoverInput();
+  closeAvatarCropDialog();
   activeTab.value = 'settings';
 }
 
@@ -307,7 +319,13 @@ function resetCoverInput(): void {
 }
 
 function triggerAvatarUpload(): void {
-  if (!canEditSettings.value || uploadingAvatar.value) return;
+  if (
+    !canEditSettings.value ||
+    uploadingAvatar.value ||
+    avatarCropDialogOpen.value
+  ) {
+    return;
+  }
   avatarInputRef.value?.click();
 }
 
@@ -355,6 +373,25 @@ async function uploadGroupImage(
   return normalizeAssetUrl(media.public_url);
 }
 
+function revokeObjectUrl(url: string | null): void {
+  if (url) {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function closeAvatarCropDialog(): void {
+  avatarCropDialogOpen.value = false;
+  revokeObjectUrl(avatarCropSourceUrl.value);
+  avatarCropSourceUrl.value = null;
+}
+
+function openAvatarCropDialog(file: File): void {
+  closeAvatarCropDialog();
+  avatarCropFileName.value = file.name || 'avatar.jpg';
+  avatarCropSourceUrl.value = URL.createObjectURL(file);
+  avatarCropDialogOpen.value = true;
+}
+
 async function handleAvatarSelected(event: Event): Promise<void> {
   const target = event.target as HTMLInputElement | null;
   const file = target?.files?.[0];
@@ -362,6 +399,11 @@ async function handleAvatarSelected(event: Event): Promise<void> {
 
   if (!file || !isValidImageFile(file, 5)) return;
 
+  openAvatarCropDialog(file);
+}
+
+async function handleAvatarCropApply(file: File): Promise<void> {
+  closeAvatarCropDialog();
   uploadingAvatar.value = true;
   try {
     form.avatar = await uploadGroupImage(
@@ -690,6 +732,10 @@ async function deleteCurrentGroup(): Promise<void> {
     deleting.value = false;
   }
 }
+
+onBeforeUnmount(() => {
+  closeAvatarCropDialog();
+});
 </script>
 
 <template>
@@ -1410,4 +1456,17 @@ async function deleteCurrentGroup(): Promise<void> {
       </template>
     </DialogContent>
   </Dialog>
+
+  <GroupAvatarCropDialog
+    v-model:open="avatarCropDialogOpen"
+    :source-url="avatarCropSourceUrl"
+    :file-name="avatarCropFileName"
+    :alt="form.name || group?.name || t('groups.manage.fields.avatar')"
+    @update:open="
+      value => {
+        if (!value) closeAvatarCropDialog()
+      }
+    "
+    @apply="handleAvatarCropApply"
+  />
 </template>
