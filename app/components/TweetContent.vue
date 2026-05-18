@@ -26,7 +26,7 @@ const parsedContent = computed<ContentSegment[]>(() => {
   // - #hashtag
   // - URLs
   const pattern =
-    /(@\[(\d+):(\w+)\])|(@\w+)|(#\w+)|(https?:\/\/[^\s]+)/g;
+    /(@\[(\d+):([\p{L}\p{N}_-]+)\])|(@[\p{L}\p{N}_-]+)|(#[\p{L}\p{N}_]+)|(https?:\/\/[^\s]+)/gu;
 
   let lastIndex = 0;
   let match;
@@ -63,7 +63,9 @@ const parsedContent = computed<ContentSegment[]>(() => {
       segments.push({
         type: 'hashtag',
         content: match[5],
-        link: `/search?q=${encodeURIComponent(match[5])}`
+        link: localePath(
+          `/tweet/search/${encodeURIComponent(match[5])}`
+        )
       });
     } else if (match[6]) {
       // URL
@@ -117,7 +119,7 @@ function handleClick(segment: ContentSegment) {
       <span
         v-else-if="segment.type === 'mention'"
         class="text-blue-500 hover:text-blue-400 hover:underline cursor-pointer font-medium"
-        @click="handleClick(segment)"
+        @click.stop="handleClick(segment)"
       >
         {{ segment.content }}
       </span>
@@ -126,7 +128,7 @@ function handleClick(segment: ContentSegment) {
       <span
         v-else-if="segment.type === 'hashtag'"
         class="text-blue-500 hover:text-blue-400 hover:underline cursor-pointer font-medium"
-        @click="handleClick(segment)"
+        @click.stop="handleClick(segment)"
       >
         {{ segment.content }}
       </span>
@@ -135,7 +137,7 @@ function handleClick(segment: ContentSegment) {
       <span
         v-else-if="segment.type === 'url'"
         class="text-blue-500 hover:text-blue-400 hover:underline cursor-pointer"
-        @click="handleClick(segment)"
+        @click.stop="handleClick(segment)"
       >
         {{ segment.content }}
       </span>
