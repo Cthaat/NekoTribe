@@ -579,7 +579,7 @@ async function deleteCurrentGroup(): Promise<void> {
   >
     <DialogContent class="max-w-5xl max-h-[92vh] p-0 overflow-hidden">
       <template v-if="group">
-        <DialogHeader class="px-6 pt-6 pb-4">
+        <DialogHeader class="px-4 pt-5 pb-4 sm:px-6 sm:pt-6">
           <div class="flex items-start justify-between gap-4">
             <div class="flex min-w-0 items-center gap-3">
               <Avatar class="h-12 w-12">
@@ -614,8 +614,8 @@ async function deleteCurrentGroup(): Promise<void> {
         <Separator />
 
         <Tabs v-model="activeTab" class="flex min-h-0 flex-col">
-          <div class="px-6 pt-4">
-            <TabsList class="grid w-full grid-cols-4">
+          <div class="overflow-x-auto px-4 pt-4 sm:px-6">
+            <TabsList class="grid w-max min-w-full grid-cols-4 sm:w-full">
               <TabsTrigger value="settings">
                 {{ t('groups.manage.tabs.settings') }}
               </TabsTrigger>
@@ -631,7 +631,7 @@ async function deleteCurrentGroup(): Promise<void> {
             </TabsList>
           </div>
 
-          <ScrollArea class="h-[62vh] px-6 py-5">
+          <ScrollArea class="h-[62vh] px-4 py-5 sm:px-6">
             <TabsContent value="settings" class="mt-0 space-y-5">
               <div class="grid gap-4 md:grid-cols-2">
                 <div class="space-y-2">
@@ -709,7 +709,7 @@ async function deleteCurrentGroup(): Promise<void> {
               <div class="grid gap-4 md:grid-cols-2">
                 <Card class="gap-0 py-0">
                   <CardContent
-                    class="flex items-center justify-between gap-4 p-4"
+                    class="flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div class="space-y-1">
                       <Label>
@@ -773,7 +773,7 @@ async function deleteCurrentGroup(): Promise<void> {
                     class="gap-0 bg-muted/20 py-0 shadow-xs"
                   >
                     <CardContent
-                      class="flex items-center justify-between gap-3 p-3"
+                    class="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div class="flex min-w-0 items-center gap-3">
                         <Avatar class="h-9 w-9">
@@ -794,7 +794,7 @@ async function deleteCurrentGroup(): Promise<void> {
                           </div>
                         </div>
                       </div>
-                      <div class="flex shrink-0 gap-2">
+                      <div class="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:shrink-0">
                         <Button
                           size="sm"
                           variant="outline"
@@ -818,8 +818,8 @@ async function deleteCurrentGroup(): Promise<void> {
                 </div>
               </div>
 
-              <div class="flex items-center gap-2">
-                <div class="relative flex-1">
+              <div class="grid gap-2 sm:flex sm:items-center">
+                <div class="relative min-w-0 sm:flex-1">
                   <Search
                     class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                   />
@@ -831,6 +831,7 @@ async function deleteCurrentGroup(): Promise<void> {
                 </div>
                 <Button
                   variant="outline"
+                  class="w-full sm:w-auto"
                   :disabled="loadingMembers"
                   @click="loadMembers"
                 >
@@ -1045,8 +1046,8 @@ async function deleteCurrentGroup(): Promise<void> {
                     class="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_120px_120px_auto]"
                   >
                     <div class="min-w-0">
-                      <div class="flex items-center gap-2">
-                        <span class="font-mono text-sm">
+                      <div class="flex min-w-0 flex-wrap items-center gap-2">
+                        <span class="break-all font-mono text-sm">
                           {{ invite.invite_code || '-' }}
                         </span>
                         <Badge
@@ -1150,15 +1151,17 @@ async function deleteCurrentGroup(): Promise<void> {
 
         <Separator />
 
-        <DialogFooter class="px-6 py-4">
+        <DialogFooter class="px-4 py-4 sm:px-6">
           <Button
             variant="outline"
+            class="w-full sm:w-auto"
             @click="emit('update:open', false)"
           >
             {{ t('common.close') }}
           </Button>
           <Button
             v-if="activeTab === 'settings'"
+            class="w-full sm:w-auto"
             :disabled="!canEditSettings || saving"
             @click="saveSettings"
           >
