@@ -342,9 +342,9 @@ const handleCancelReply = () => {
     </div>
 
     <!-- 输入区域 -->
-    <div class="flex items-end gap-2">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
       <!-- 工具按钮 -->
-      <div class="flex h-11 items-center gap-1">
+      <div class="flex h-auto flex-wrap items-center gap-1 sm:h-11 sm:flex-nowrap">
         <TooltipProvider>
           <!-- 上传附件 -->
           <Tooltip>
@@ -456,7 +456,7 @@ const handleCancelReply = () => {
               </TooltipContent>
             </Tooltip>
             <PopoverContent
-              class="w-72 p-2"
+              class="w-[min(18rem,calc(100vw-1rem))] p-2"
               side="top"
               align="start"
             >
@@ -524,7 +524,7 @@ const handleCancelReply = () => {
               </TooltipContent>
             </Tooltip>
             <PopoverContent
-              class="w-64 p-2"
+              class="w-[min(16rem,calc(100vw-1rem))] p-2"
               side="top"
               align="start"
             >
@@ -601,7 +601,7 @@ const handleCancelReply = () => {
       </div>
 
       <!-- 输入框 -->
-      <div class="flex-1 relative">
+      <div class="relative min-w-0 flex-1">
         <Textarea
           ref="textareaRef"
           v-model="message"
@@ -615,12 +615,12 @@ const handleCancelReply = () => {
       </div>
 
       <!-- 发送按钮 -->
-      <div class="flex items-center">
+      <div class="flex items-center sm:shrink-0">
         <AppSendButton
           :aria-label="t('chat.actions.sendMessage')"
           :disabled="!canSend || disabled"
           variant="secondary"
-          class="h-10 px-4 rounded-lg"
+          class="h-10 w-full rounded-lg px-4 sm:w-auto"
           @click="handleSend"
         >
           {{ t('chat.actions.sendMessage') }}
