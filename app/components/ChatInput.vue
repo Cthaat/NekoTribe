@@ -91,8 +91,8 @@ const stickers = [
 const canSend = computed(() => {
   return (
     props.disabled !== true &&
-    message.value.trim().length > 0 ||
-    attachments.value.length > 0
+    (message.value.trim().length > 0 ||
+      attachments.value.length > 0)
   );
 });
 
