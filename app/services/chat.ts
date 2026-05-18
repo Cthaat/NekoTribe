@@ -10,6 +10,7 @@ import type {
   V2ChatGroup,
   V2ChatMember,
   V2ChatMessage,
+  V2DirectConversation,
   V2MediaAsset
 } from '@/types/v2';
 
@@ -82,6 +83,22 @@ export function mapV2ChatMember(
     role: member.role,
     status: member.online_status === 'online' ? 'online' : 'offline',
     lastSeenAt: member.last_seen_at
+  };
+}
+
+export function mapV2DirectConversationMember(
+  conversation: V2DirectConversation
+): ChatMember {
+  const participant = conversation.participant;
+  return {
+    id: participant.user_id,
+    username: participant.username,
+    nickname: participant.display_name || participant.username,
+    avatar: normalizeAvatarUrl(participant.avatar_url),
+    role: 'member',
+    status:
+      participant.online_status === 'online' ? 'online' : 'offline',
+    lastSeenAt: participant.last_seen_at
   };
 }
 
