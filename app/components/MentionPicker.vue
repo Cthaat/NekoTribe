@@ -128,7 +128,7 @@ defineExpose({
 <template>
   <Card
     v-if="show && mentionItems.length > 0"
-    class="fixed z-50 w-80 overflow-hidden py-0"
+    class="fixed z-50 w-[min(20rem,calc(100vw-1rem))] overflow-hidden py-0"
     :style="{
       top: position?.top ? `${position.top}px` : 'auto',
       left: position?.left ? `${position.left}px` : 'auto'
