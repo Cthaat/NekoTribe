@@ -66,6 +66,18 @@ async function handleLogout() {
 }
 
 const { isMobile } = useSidebar();
+
+function goToUserMenuRoute(routeName: string): void {
+  void navigateTo(localePath(routeName));
+}
+
+function goToNotifications(): void {
+  void navigateTo(
+    localePath(
+      `/user/${preferenceStore.preferences.user.id}/notifications`
+    )
+  );
+}
 </script>
 
 <template>
@@ -133,30 +145,29 @@ const { isMobile } = useSidebar();
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              @select="goToUserMenuRoute('account-pro')"
+            >
               <Sparkles />
               {{ t('nav.user.upgrade') }}
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              @select="goToUserMenuRoute('account-overview')"
+            >
               <BadgeCheck />
               {{ t('nav.user.account') }}
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              @select="goToUserMenuRoute('account-billing')"
+            >
               <CreditCard />
               {{ t('nav.user.billing') }}
             </DropdownMenuItem>
             <DropdownMenuItem
-              @select="
-                () =>
-                  navigateTo(
-                    localePath(
-                      `/user/${preferenceStore.preferences.user.id}/notifications`
-                    )
-                  )
-              "
+              @select="goToNotifications"
             >
               <Bell />
               {{ t('nav.user.notifications') }}
