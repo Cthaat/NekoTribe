@@ -125,6 +125,32 @@ const messagesContainerRef = ref<HTMLElement | null>(null);
 const isAtBottom = ref(true);
 const hasNewMessages = ref(false);
 
+const canSendInChannel = computed(() => {
+  if (props.channel.type === 'text') return true;
+  if (props.channel.type === 'announcement') {
+    return props.canManage === true;
+  }
+  return false;
+});
+
+const composerDisabledReason = computed(() => {
+  if (
+    props.channel.type === 'announcement' &&
+    props.canManage !== true
+  ) {
+    return t('chat.input.announcementReadOnly');
+  }
+  if (!canSendInChannel.value) {
+    return t('chat.input.unsupportedChannel');
+  }
+  return '';
+});
+
+const isComposerDisabled = computed(
+  () =>
+    props.isSending === true || !canSendInChannel.value
+);
+
 // 判断消息是否是同一组的第一条（同一用户连续发送）
 const isFirstInGroup = (index: number) => {
   if (index === 0) return true;
@@ -250,6 +276,7 @@ const handleSend = (
   content: string,
   attachments?: File[]
 ) => {
+  if (!canSendInChannel.value) return;
   emit('send', content, attachments, replyTo.value?.id);
   replyTo.value = null;
   scrollToBottom();
@@ -644,7 +671,8 @@ onBeforeUnmount(() => {
       <ChatInput
         :channel-name="channel.name"
         :reply-to="replyTo"
-        :disabled="isSending"
+        :disabled="isComposerDisabled"
+        :disabled-reason="composerDisabledReason"
         :members="members"
         :channels="channels"
         @send="handleSend"
