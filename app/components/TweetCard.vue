@@ -381,7 +381,7 @@ const relatedExcerpt = computed(() => {
   >
     <CardHeader class="flex flex-row items-start p-4">
       <Avatar
-        class="h-12 w-12 mr-4"
+        class="mr-3 h-10 w-10 shrink-0 sm:mr-4 sm:h-12 sm:w-12"
         @click.stop="
           () =>
             navigateTo(
@@ -397,16 +397,16 @@ const relatedExcerpt = computed(() => {
           tweet.author.username.substring(0, 2).toUpperCase()
         }}</AvatarFallback>
       </Avatar>
-      <div class="flex-1">
-        <div class="flex items-center gap-2">
-          <h3 class="font-bold text-base">
+      <div class="min-w-0 flex-1">
+        <div class="flex min-w-0 items-center gap-2">
+          <h3 class="truncate text-base font-bold">
             {{ tweet.author.name }}
           </h3>
           <BadgeCheck
             v-if="tweet.author.verified"
             class="h-5 w-5 text-blue-500"
           />
-          <span class="text-sm text-muted-foreground"
+          <span class="truncate text-sm text-muted-foreground"
             >@{{ tweet.author.username }}</span
           >
         </div>
@@ -482,7 +482,7 @@ const relatedExcerpt = computed(() => {
         v-if="relatedTweetId"
         class="mb-3 -mt-1 space-y-2"
       >
-        <div class="flex items-center gap-2 text-xs">
+        <div class="flex flex-wrap items-center gap-2 text-xs">
           <component
             :is="relatedTweetIcon"
             class="h-4 w-4 text-muted-foreground"
@@ -553,7 +553,7 @@ const relatedExcerpt = computed(() => {
             )
           "
         >
-          <div class="flex items-center gap-2 mb-1 text-sm">
+          <div class="mb-1 flex min-w-0 items-center gap-2 text-sm">
             <Avatar class="h-6 w-6">
               <AvatarImage
                 :src="relatedTweet.author.avatarUrl"
@@ -567,13 +567,13 @@ const relatedExcerpt = computed(() => {
                 }}
               </AvatarFallback>
             </Avatar>
-            <span class="font-medium">
+            <span class="truncate font-medium">
               {{
                 relatedTweet.author.name ||
                 t('post.relation.unknownUser')
               }}
             </span>
-            <span class="text-muted-foreground">
+            <span class="truncate text-muted-foreground">
               {{
                 relatedAuthorHandle ||
                 t('post.relation.unknownUserHandle')
