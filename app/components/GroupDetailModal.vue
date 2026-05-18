@@ -42,6 +42,13 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'vue-sonner';
 import GroupMemberCard from './GroupMemberCard.vue';
 import GroupPostCard from './GroupPostCard.vue';
+import {
+  changeGroupMemberRole,
+  getGroup,
+  muteGroupMember,
+  removeGroupMember,
+  unmuteGroupMember
+} from '@/services/groups';
 import type {
   Group,
   GroupMember,
@@ -63,6 +70,8 @@ const emit = defineEmits<{
   (e: 'leave', id: number): void;
   (e: 'settings', id: number): void;
   (e: 'invite', id: number): void;
+  (e: 'updated', group: Group): void;
+  (e: 'members-updated', id: number): void;
 }>();
 
 // 当前标签
@@ -70,6 +79,7 @@ const activeTab = ref('about');
 
 // 通知状态
 const notificationsEnabled = ref(true);
+const memberActionKey = ref<string | null>(null);
 
 // 重置状态
 watch(
@@ -162,6 +172,113 @@ const openMemberProfile = (userId: number) => {
   closeDialog();
   void navigateTo(localePath(`/user/${userId}/profile`));
 };
+
+function findMember(memberId: number): GroupMember | null {
+  return (
+    props.members?.find(member => member.id === memberId) ?? null
+  );
+}
+
+async function refreshGroupAfterMemberAction(): Promise<void> {
+  if (!props.group) return;
+  emit('members-updated', props.group.id);
+  emit('updated', await getGroup(props.group.id));
+}
+
+async function runMemberAction(
+  key: string,
+  action: () => Promise<void>,
+  successMessage: string
+): Promise<void> {
+  if (!props.group || memberActionKey.value) return;
+  memberActionKey.value = key;
+  try {
+    await action();
+    toast.success(successMessage);
+    await refreshGroupAfterMemberAction();
+  } catch (error) {
+    toast.error(t('groups.manage.feedback.memberFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    memberActionKey.value = null;
+  }
+}
+
+function promoteMember(memberId: number): void {
+  const member = findMember(memberId);
+  if (!props.group || !member) return;
+  void runMemberAction(
+    `promote-${member.userId}`,
+    () =>
+      changeGroupMemberRole(
+        props.group?.id ?? 0,
+        member.userId,
+        'admin'
+      ),
+    t('groups.member.feedback.promoted')
+  );
+}
+
+function demoteMember(memberId: number): void {
+  const member = findMember(memberId);
+  if (!props.group || !member) return;
+  void runMemberAction(
+    `demote-${member.userId}`,
+    () =>
+      changeGroupMemberRole(
+        props.group?.id ?? 0,
+        member.userId,
+        'member'
+      ),
+    t('groups.member.feedback.demoted')
+  );
+}
+
+function muteMember(memberId: number): void {
+  const member = findMember(memberId);
+  if (!props.group || !member) return;
+  void runMemberAction(
+    `mute-${member.userId}`,
+    () =>
+      muteGroupMember(
+        props.group?.id ?? 0,
+        member.userId,
+        24,
+        t('groups.manage.defaultMuteReason')
+      ),
+    t('groups.member.feedback.muted')
+  );
+}
+
+function unmuteMember(memberId: number): void {
+  const member = findMember(memberId);
+  if (!props.group || !member) return;
+  void runMemberAction(
+    `unmute-${member.userId}`,
+    () =>
+      unmuteGroupMember(
+        props.group?.id ?? 0,
+        member.userId
+      ),
+    t('groups.member.feedback.unmuted')
+  );
+}
+
+function removeMember(memberId: number): void {
+  const member = findMember(memberId);
+  if (!props.group || !member) return;
+  void runMemberAction(
+    `remove-${member.userId}`,
+    () =>
+      removeGroupMember(
+        props.group?.id ?? 0,
+        member.userId
+      ),
+    t('groups.member.feedback.removed')
+  );
+}
 
 // 切换标签
 const handleTabChange = (value: string | number) => {
@@ -436,6 +553,12 @@ const handleTabChange = (value: string | number) => {
                   :can-manage="
                     group.isOwner || group.isAdmin
                   "
+                  :disabled="!!memberActionKey"
+                  @promote="promoteMember"
+                  @demote="demoteMember"
+                  @mute="muteMember"
+                  @unmute="unmuteMember"
+                  @remove="removeMember"
                   @view-profile="openMemberProfile"
                 />
               </div>
