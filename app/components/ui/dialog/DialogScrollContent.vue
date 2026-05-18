@@ -30,7 +30,7 @@ const { t } = useAppLocale()
       <DialogContent
         :class="
           cn(
-            'relative z-50 grid w-full max-w-lg my-8 gap-4 border border-border bg-background p-6 shadow-lg duration-200 sm:rounded-lg md:w-full',
+            'relative z-50 my-4 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] gap-4 overflow-y-auto border border-border bg-background p-4 shadow-lg duration-200 sm:my-8 sm:w-full sm:max-w-lg sm:rounded-lg sm:p-6 md:w-full',
             props.class,
           )
         "

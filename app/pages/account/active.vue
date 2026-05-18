@@ -88,7 +88,7 @@ onMounted(load);
     <!-- 卡片内容区域 -->
     <CardContent>
       <!-- 页面主体：桌面端使用内边距更大的容器 -->
-      <div class="hidden space-y-6 p-10 pb-16 md:block">
+      <div class="space-y-6 p-4 pb-8 sm:p-6 md:p-10 md:pb-16">
         <!-- 标题与描述容器 -->
         <div class="space-y-0.5">
           <!-- 页面主标题：活跃会话 -->
@@ -106,17 +106,18 @@ onMounted(load);
         <Separator class="my-6" />
 
         <!-- 顶部工具栏：刷新/注销其它设备 -->
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <!-- 左侧说明文字 -->
           <div class="text-sm text-muted-foreground">
             <!-- 国际化：同描述 -->
             {{ t('account.active.description') }}
           </div>
           <!-- 右侧按钮组 -->
-          <div class="flex items-center gap-2">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
             <!-- 刷新按钮：重新加载会话列表 -->
             <Button
               variant="outline"
+              class="w-full sm:w-auto"
               :disabled="loading"
               @click="load()"
               >{{ t('common.refresh') }}</Button
@@ -124,6 +125,7 @@ onMounted(load);
             <!-- 注销其它设备按钮：删除除当前设备外的所有会话 -->
             <Button
               variant="destructive"
+              class="w-full sm:w-auto"
               :disabled="loading || !sessions.length"
               @click="revokeOthers()"
               >{{
@@ -133,8 +135,8 @@ onMounted(load);
           </div>
         </div>
 
-        <div class="mt-4 overflow-hidden rounded-md border">
-          <Table>
+        <div class="mt-4 rounded-md border">
+          <Table class="min-w-[700px]">
             <TableHeader>
               <TableRow>
                 <TableHead>

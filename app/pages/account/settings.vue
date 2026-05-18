@@ -105,7 +105,7 @@ onMounted(loadSettings);
     <!-- 卡片内容区 -->
     <CardContent>
       <!-- 页面容器与标题说明（桌面端更大内边距） -->
-      <div class="hidden space-y-6 p-10 pb-16 md:block">
+      <div class="space-y-6 p-4 pb-8 sm:p-6 md:p-10 md:pb-16">
         <!-- 标题与副标题 -->
         <div class="space-y-0.5">
           <h2 class="text-2xl font-bold tracking-tight">
@@ -133,8 +133,8 @@ onMounted(loadSettings);
           </h3>
           <div class="grid gap-4">
             <!-- 资料可见范围 -->
-            <div class="flex items-center justify-between">
-              <div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div class="min-w-0">
                 <div class="font-medium">
                   {{ t('account.settings.visibility') }}
                 </div>
@@ -145,7 +145,7 @@ onMounted(loadSettings);
                 </div>
               </div>
               <Select v-model="profileVisibility">
-                <SelectTrigger class="w-[140px]"
+                <SelectTrigger class="w-full sm:w-[140px]"
                   ><SelectValue placeholder="-"
                 /></SelectTrigger>
                 <SelectContent>
@@ -160,8 +160,8 @@ onMounted(loadSettings);
             </div>
 
             <!-- 在线状态是否展示 -->
-            <div class="flex items-center justify-between">
-              <div>
+            <div class="flex items-start justify-between gap-4 sm:items-center">
+              <div class="min-w-0">
                 <div class="font-medium">
                   {{ t('account.settings.showOnline') }}
                 </div>
@@ -177,8 +177,8 @@ onMounted(loadSettings);
             </div>
 
             <!-- 是否允许陌生人私信 -->
-            <div class="flex items-center justify-between">
-              <div>
+            <div class="flex items-start justify-between gap-4 sm:items-center">
+              <div class="min-w-0">
                 <div class="font-medium">
                   {{ t('account.settings.allowDM') }}
                 </div>
@@ -202,8 +202,8 @@ onMounted(loadSettings);
           </h3>
           <div class="grid gap-4">
             <!-- 推送通知开关 -->
-            <div class="flex items-center justify-between">
-              <div>
+            <div class="flex items-start justify-between gap-4 sm:items-center">
+              <div class="min-w-0">
                 <div class="font-medium">
                   {{ t('account.settings.push') }}
                 </div>
@@ -216,8 +216,8 @@ onMounted(loadSettings);
               />
             </div>
             <!-- 邮件通知开关 -->
-            <div class="flex items-center justify-between">
-              <div>
+            <div class="flex items-start justify-between gap-4 sm:items-center">
+              <div class="min-w-0">
                 <div class="font-medium">
                   {{ t('account.settings.email') }}
                 </div>
@@ -241,8 +241,8 @@ onMounted(loadSettings);
           </h3>
           <div class="grid gap-4">
             <!-- 二次验证开关 -->
-            <div class="flex items-center justify-between">
-              <div>
+            <div class="flex items-start justify-between gap-4 sm:items-center">
+              <div class="min-w-0">
                 <div class="font-medium">
                   {{ t('account.settings.2fa') }}
                 </div>
@@ -253,8 +253,8 @@ onMounted(loadSettings);
               <Switch v-model:checked="twoFactorEnabled" />
             </div>
             <!-- 登录提醒开关 -->
-            <div class="flex items-center justify-between">
-              <div>
+            <div class="flex items-start justify-between gap-4 sm:items-center">
+              <div class="min-w-0">
                 <div class="font-medium">
                   {{ t('account.settings.loginAlerts') }}
                 </div>
@@ -270,14 +270,16 @@ onMounted(loadSettings);
         </div>
 
         <!-- 操作按钮 -->
-        <div class="mt-6 flex justify-end gap-2">
+        <div class="mt-6 flex flex-col justify-end gap-2 sm:flex-row">
           <Button
             variant="outline"
+            class="w-full sm:w-auto"
             :disabled="loading || saving"
             @click="loadSettings()"
             >{{ t('common.refresh') }}</Button
           >
           <Button
+            class="w-full sm:w-auto"
             :disabled="loading || saving"
             @click="saveSettings()"
             >{{ t('account.settings.save') }}</Button

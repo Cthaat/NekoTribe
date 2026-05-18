@@ -479,7 +479,7 @@ function followUser() {
   <!-- 整个组件的最外层是一个 Card -->
   <Card>
     <!-- a. 卡片内容区，只包含需要内边距 (p-6) 的用户信息 -->
-    <CardContent class="p-6">
+    <CardContent class="p-4 sm:p-6">
       <div
         class="flex flex-col sm:flex-row items-start gap-6"
       >
@@ -490,12 +490,12 @@ function followUser() {
         />
 
         <!-- 右侧的所有信息，使用 space-y-4 来创建垂直间距 -->
-        <div class="flex-1 space-y-4">
+        <div class="min-w-0 flex-1 space-y-4">
           <!-- 用户名和操作按钮 -->
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="flex flex-wrap items-center gap-2">
-                <h2 class="text-xl font-semibold">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <div class="flex min-w-0 flex-wrap items-center gap-2">
+                <h2 class="min-w-0 truncate text-xl font-semibold">
                   {{ user.name }}
                 </h2>
                 <Badge
@@ -543,7 +543,7 @@ function followUser() {
                 >
               </div>
             </div>
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-2 self-start sm:self-auto">
               <Button
                 v-if="showFollowAction && !isFollowing"
                 variant="outline"
@@ -607,11 +607,11 @@ function followUser() {
           <div
             class="flex flex-col sm:flex-row items-center gap-4"
           >
-            <div class="flex-1 grid grid-cols-3 gap-4">
+            <div class="grid flex-1 grid-cols-3 gap-2 sm:gap-4">
               <Button
                 type="button"
                 variant="ghost"
-                class="h-auto flex-col gap-0 rounded-lg px-3 py-2 text-center"
+                class="h-auto min-w-0 flex-col gap-0 rounded-lg px-2 py-2 text-center sm:px-3"
                 @click="openStatsDialog('followers')"
               >
                 <p
@@ -626,7 +626,7 @@ function followUser() {
               <Button
                 type="button"
                 variant="ghost"
-                class="h-auto flex-col gap-0 rounded-lg px-3 py-2 text-center"
+                class="h-auto min-w-0 flex-col gap-0 rounded-lg px-2 py-2 text-center sm:px-3"
                 @click="openStatsDialog('following')"
               >
                 <p
@@ -641,7 +641,7 @@ function followUser() {
               <Button
                 type="button"
                 variant="ghost"
-                class="h-auto flex-col gap-0 rounded-lg px-3 py-2 text-center"
+                class="h-auto min-w-0 flex-col gap-0 rounded-lg px-2 py-2 text-center sm:px-3"
                 @click="openStatsDialog('likes')"
               >
                 <p

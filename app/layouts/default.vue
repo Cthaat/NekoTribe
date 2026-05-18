@@ -16,7 +16,7 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
     <AppSidebar />
     <SidebarInset>
       <header
-        class="flex h-16 shrink-0 items-center gap-4 px-4"
+        class="flex h-16 shrink-0 items-center gap-2 px-3 sm:gap-4 sm:px-4"
       >
         <div class="flex items-center gap-2">
           <SidebarTrigger class="-ml-1" />
@@ -26,7 +26,9 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
           />
         </div>
         <div class="min-w-0 flex-1">
-          <AppGlobalSearch class="max-w-2xl" />
+          <AppGlobalSearch
+            class="max-w-2xl max-[420px]:[&_button]:hidden max-[420px]:[&_input]:pr-3"
+          />
         </div>
 
         <div class="flex items-center gap-2">

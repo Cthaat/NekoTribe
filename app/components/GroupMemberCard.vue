@@ -25,7 +25,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { toast } from 'vue-sonner';
 import type { GroupMember } from '@/types/groups';
 
 export type { GroupMember } from '@/types/groups';
@@ -34,6 +33,7 @@ const { t, locale } = useAppLocale();
 const props = defineProps<{
   member: GroupMember;
   canManage?: boolean;
+  disabled?: boolean;
   isCurrentUser?: boolean;
 }>();
 
@@ -65,8 +65,9 @@ const roleText = computed(() => {
     case 'owner':
       return t('groups.detail.owner');
     case 'admin':
-    case 'moderator':
       return t('groups.member.roles.admin');
+    case 'moderator':
+      return t('groups.member.roles.moderator');
     default:
       return t('groups.member.roles.member');
   }
@@ -98,27 +99,22 @@ const formatTime = (dateStr: string) => {
 // 处理操作
 const handleRemove = () => {
   emit('remove', props.member.id);
-  toast.success(t('groups.member.feedback.removed'));
 };
 
 const handlePromote = () => {
   emit('promote', props.member.id);
-  toast.success(t('groups.member.feedback.promoted'));
 };
 
 const handleDemote = () => {
   emit('demote', props.member.id);
-  toast.success(t('groups.member.feedback.demoted'));
 };
 
 const handleMute = () => {
   emit('mute', props.member.id);
-  toast.success(t('groups.member.feedback.muted'));
 };
 
 const handleUnmute = () => {
   emit('unmute', props.member.id);
-  toast.success(t('groups.member.feedback.unmuted'));
 };
 
 const handleViewProfile = () => {
@@ -195,6 +191,7 @@ const handleViewProfile = () => {
             variant="ghost"
             size="icon"
             class="h-8 w-8"
+            :disabled="disabled"
           >
             <MoreHorizontal class="h-4 w-4" />
           </Button>
@@ -202,6 +199,7 @@ const handleViewProfile = () => {
         <DropdownMenuContent align="end">
           <DropdownMenuItem
             v-if="member.role === 'member'"
+            :disabled="disabled"
             @click="handlePromote"
           >
             <ShieldPlus class="h-4 w-4 mr-2" />
@@ -209,6 +207,7 @@ const handleViewProfile = () => {
           </DropdownMenuItem>
           <DropdownMenuItem
             v-if="member.role === 'admin'"
+            :disabled="disabled"
             @click="handleDemote"
           >
             <ShieldMinus class="h-4 w-4 mr-2" />
@@ -217,18 +216,24 @@ const handleViewProfile = () => {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             v-if="!member.isMuted"
+            :disabled="disabled"
             @click="handleMute"
           >
             <VolumeX class="h-4 w-4 mr-2" />
             {{ t('groups.member.actions.mute') }}
           </DropdownMenuItem>
-          <DropdownMenuItem v-else @click="handleUnmute">
+          <DropdownMenuItem
+            v-else
+            :disabled="disabled"
+            @click="handleUnmute"
+          >
             <Volume2 class="h-4 w-4 mr-2" />
             {{ t('groups.member.actions.unmute') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             class="text-destructive"
+            :disabled="disabled"
             @click="handleRemove"
           >
             <UserMinus class="h-4 w-4 mr-2" />

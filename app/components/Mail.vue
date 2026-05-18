@@ -1,8 +1,10 @@
 <script lang="ts" setup>
 import { refDebounced } from '@vueuse/core';
+import { Icon } from '@iconify/vue';
 import { Search } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   ResizableHandle,
@@ -140,10 +142,80 @@ function handleReadMail(mailId: string) {
 
 <template>
   <TooltipProvider :delay-duration="0">
+    <div class="flex min-h-[calc(100dvh-4rem)] flex-col md:hidden">
+      <div class="space-y-3 border-b p-3">
+        <div class="grid grid-cols-2 gap-2">
+          <Button
+            v-for="link in links"
+            :key="link.value"
+            :variant="link.variant"
+            class="justify-start"
+            @click="handleNavClick(link.value)"
+          >
+            <Icon :icon="link.icon" class="size-4" />
+            {{ link.title }}
+          </Button>
+        </div>
+        <form>
+          <div class="relative">
+            <Search
+              class="absolute left-2 top-2.5 size-4 text-muted-foreground"
+            />
+            <Input
+              v-model="searchValue"
+              :placeholder="t('mail.searchPlaceholder')"
+              class="pl-8"
+            />
+          </div>
+        </form>
+      </div>
+
+      <Tabs default-value="all" class="min-h-0 flex-1">
+        <TabsList class="mx-3 mt-3 grid grid-cols-2">
+          <TabsTrigger
+            value="all"
+            class="text-zinc-600 dark:text-zinc-200"
+          >
+            {{ t('mail.tabs.all') }}
+          </TabsTrigger>
+          <TabsTrigger
+            value="unread"
+            class="text-zinc-600 dark:text-zinc-200"
+          >
+            {{ t('mail.tabs.unread') }}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="all" class="m-0">
+          <MailList
+            v-model:selectedMail="selectedMail"
+            :items="filteredMailList"
+            :load-more="props.loadMore"
+            @read-mail="handleReadMail"
+          />
+        </TabsContent>
+        <TabsContent value="unread" class="m-0">
+          <MailList
+            v-model:selectedMail="selectedMail"
+            :items="unreadMailList"
+            :load-more="props.loadMore"
+            @read-mail="handleReadMail"
+          />
+        </TabsContent>
+      </Tabs>
+
+      <MailDisplay
+        class="min-h-72 border-t"
+        :mail="selectedMailData"
+        :is-trash-view="isTrashView"
+        @delete-mail="emit('delete-mail', $event)"
+        @restore-mail="emit('restore-mail', $event)"
+      />
+    </div>
+
     <ResizablePanelGroup
       id="resize-panel-group-1"
       direction="horizontal"
-      class="h-dvh items-stretch"
+      class="hidden h-dvh items-stretch md:flex"
     >
       <ResizablePanel
         id="resize-panel-1"

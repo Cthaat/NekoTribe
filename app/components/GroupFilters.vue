@@ -146,9 +146,9 @@ function getCategoryOptionLabel(value: string): string {
 <template>
   <div class="flex flex-col gap-4">
     <!-- 搜索和主要过滤器 -->
-    <div class="flex flex-wrap items-center gap-3">
+    <div class="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
       <!-- 搜索框 -->
-      <div class="relative flex-1 min-w-[200px] max-w-md">
+      <div class="relative min-w-0 sm:min-w-[200px] sm:flex-1 sm:max-w-md">
         <Search
           class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
         />
@@ -165,7 +165,7 @@ function getCategoryOptionLabel(value: string): string {
         :model-value="localFilters.privacy"
         @update:model-value="updatePrivacy"
       >
-        <SelectTrigger class="w-[130px]">
+        <SelectTrigger class="w-full sm:w-[130px]">
           <SelectValue :placeholder="t('groups.filters.privacyPlaceholder')" />
         </SelectTrigger>
         <SelectContent>
@@ -184,7 +184,7 @@ function getCategoryOptionLabel(value: string): string {
         :model-value="localFilters.category"
         @update:model-value="updateCategory"
       >
-        <SelectTrigger class="w-[120px]">
+        <SelectTrigger class="w-full sm:w-[120px]">
           <SelectValue :placeholder="t('groups.filters.categoryPlaceholder')" />
         </SelectTrigger>
         <SelectContent>
@@ -203,7 +203,7 @@ function getCategoryOptionLabel(value: string): string {
         :model-value="localFilters.sortBy"
         @update:model-value="updateSortBy"
       >
-        <SelectTrigger class="w-[120px]">
+        <SelectTrigger class="w-full sm:w-[120px]">
           <SlidersHorizontal class="h-4 w-4 mr-2" />
           <SelectValue :placeholder="t('groups.filters.sortPlaceholder')" />
         </SelectTrigger>
@@ -223,7 +223,7 @@ function getCategoryOptionLabel(value: string): string {
         v-if="hasActiveFilters()"
         variant="ghost"
         size="sm"
-        class="text-muted-foreground"
+        class="w-full text-muted-foreground sm:w-auto"
         @click="resetFilters"
       >
         <X class="h-4 w-4 mr-1" />

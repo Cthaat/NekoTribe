@@ -641,7 +641,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="space-y-4 rounded-md border p-4">
+  <section class="space-y-4 rounded-md border p-3 sm:p-4">
     <div
       class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
     >
@@ -668,7 +668,7 @@ onBeforeUnmount(() => {
       <Button
         variant="outline"
         size="sm"
-        class="gap-2"
+        class="w-full gap-2 sm:w-auto"
         :disabled="loading"
         @click="refreshAll"
       >
@@ -697,22 +697,24 @@ onBeforeUnmount(() => {
     </Alert>
 
     <Tabs default-value="overview" class="w-full">
-      <TabsList class="grid w-full grid-cols-3">
-        <TabsTrigger value="overview">
-          {{ t('sentiment.panel.tabs.overview') }}
-        </TabsTrigger>
-        <TabsTrigger value="prediction">
-          {{ t('sentiment.panel.tabs.prediction') }}
-        </TabsTrigger>
-        <TabsTrigger value="training">
-          {{ t('sentiment.panel.tabs.training') }}
-        </TabsTrigger>
-      </TabsList>
+      <div class="overflow-x-auto">
+        <TabsList class="grid w-max min-w-full grid-cols-3">
+          <TabsTrigger value="overview">
+            {{ t('sentiment.panel.tabs.overview') }}
+          </TabsTrigger>
+          <TabsTrigger value="prediction">
+            {{ t('sentiment.panel.tabs.prediction') }}
+          </TabsTrigger>
+          <TabsTrigger value="training">
+            {{ t('sentiment.panel.tabs.training') }}
+          </TabsTrigger>
+        </TabsList>
+      </div>
 
       <TabsContent value="overview" class="space-y-5 pt-4">
         <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <div class="space-y-4 rounded-md border p-4">
-            <div class="flex items-center justify-between gap-4">
+            <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <Label class="font-medium">
                   {{ t('sentiment.panel.enableLabel') }}
@@ -817,9 +819,9 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="flex justify-end">
+            <div class="grid sm:flex sm:justify-end">
               <Button
-                class="gap-2"
+                class="w-full gap-2 sm:w-auto"
                 :disabled="saving"
                 @click="saveAiSettings"
               >
@@ -882,7 +884,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="rounded-md border">
-          <Table>
+          <Table class="min-w-[640px]">
             <TableHeader>
               <TableRow>
                 <TableHead>
@@ -972,9 +974,9 @@ onBeforeUnmount(() => {
               class="min-h-32 resize-none"
               maxlength="2000"
             />
-            <div class="flex justify-end">
+            <div class="grid sm:flex sm:justify-end">
               <Button
-                class="gap-2"
+                class="w-full gap-2 sm:w-auto"
                 :disabled="testing || !canUseUpstream"
                 @click="runTestPrediction"
               >
@@ -1030,7 +1032,7 @@ onBeforeUnmount(() => {
             <div class="text-sm text-muted-foreground">
               {{ t('sentiment.prediction.primaryLabel') }}
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
               <Badge>
                 {{
                   sentimentLabel(
@@ -1144,9 +1146,9 @@ onBeforeUnmount(() => {
                 />
               </div>
             </div>
-            <div class="flex justify-end">
+            <div class="grid sm:flex sm:justify-end">
               <Button
-                class="gap-2"
+                class="w-full gap-2 sm:w-auto"
                 :disabled="startingTraining || !canUseUpstream"
                 @click="startTraining"
               >
@@ -1167,12 +1169,12 @@ onBeforeUnmount(() => {
               <div class="font-medium">
                 {{ t('sentiment.panel.training.statusTitle') }}
               </div>
-              <div class="flex gap-2">
+              <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex">
                 <Select
                   v-model="trainingStatusFilter"
                   @update:model-value="refreshTrainingJobs"
                 >
-                  <SelectTrigger class="w-32">
+                  <SelectTrigger class="w-full sm:w-32">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1200,8 +1202,8 @@ onBeforeUnmount(() => {
               v-if="selectedTrainingStatus"
               class="space-y-3 rounded-md bg-muted/40 p-3"
             >
-              <div class="flex items-center justify-between gap-2">
-                <span class="font-medium">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span class="break-all font-medium">
                   {{ selectedTrainingStatus.job_id }}
                 </span>
                 <Badge
@@ -1241,7 +1243,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="max-h-72 overflow-auto rounded-md border">
-              <Table>
+              <Table class="min-w-[640px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>
@@ -1322,18 +1324,19 @@ onBeforeUnmount(() => {
           v-if="selectedTrainingJobId"
           class="rounded-md border p-4"
         >
-          <div class="mb-3 flex items-center justify-between gap-3">
-            <div>
+          <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
               <div class="font-medium">
                 {{ t('sentiment.panel.training.streamTitle') }}
               </div>
-              <div class="text-xs text-muted-foreground">
+              <div class="break-all text-xs text-muted-foreground">
                 {{ selectedTrainingJobId }}
               </div>
             </div>
             <Button
               variant="outline"
               size="sm"
+              class="w-full sm:w-auto"
               @click="closeTrainingStream"
             >
               {{ t('common.close') }}

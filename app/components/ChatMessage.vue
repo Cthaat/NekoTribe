@@ -182,8 +182,9 @@ const handleViewProfile = () => {
     :class="{ 'mt-4': isFirstInGroup, 'flex justify-end': isOwn, 'flex': !isOwn }"
   >
     <!-- 头像区域 -->
-    <div v-if="showAvatar && !isOwn" class="w-10 flex-shrink-0">
+    <div v-if="!isOwn" class="w-10 flex-shrink-0">
       <Button
+        v-if="showAvatar"
         type="button"
         variant="ghost"
         class="h-10 w-10 rounded-full p-0"

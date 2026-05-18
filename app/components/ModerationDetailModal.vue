@@ -228,7 +228,7 @@ const closeDialog = () => {
     <DialogContent
       class="grid max-h-[92dvh] max-w-5xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0"
     >
-      <DialogHeader class="border-b px-6 py-4">
+      <DialogHeader class="border-b px-4 py-4 sm:px-6">
         <DialogTitle class="flex items-center gap-2">
           <Eye class="h-5 w-5" />
           {{ t('moderation.detail.title') }}
@@ -238,13 +238,13 @@ const closeDialog = () => {
         </DialogDescription>
       </DialogHeader>
 
-      <ScrollArea v-if="tweet" class="min-h-0 px-6 py-4">
-        <div class="space-y-5 pr-4">
+      <ScrollArea v-if="tweet" class="min-h-0 px-4 py-4 sm:px-6">
+        <div class="space-y-5 pr-2 sm:pr-4">
           <!-- 用户信息区域 -->
           <div
-            class="flex items-start gap-4 rounded-lg border bg-muted/30 p-4"
+            class="flex items-start gap-3 rounded-lg border bg-muted/30 p-3 sm:gap-4 sm:p-4"
           >
-            <Avatar class="h-14 w-14">
+            <Avatar class="h-12 w-12 shrink-0 sm:h-14 sm:w-14">
               <AvatarImage
                 :src="tweet.author.avatar"
                 :alt="tweet.author.nickname"
@@ -308,7 +308,7 @@ const closeDialog = () => {
               {{ t('moderation.detail.postContent') }}
             </h4>
             <div class="rounded-lg border bg-background p-4">
-              <p class="whitespace-pre-wrap leading-7">
+              <p class="break-words whitespace-pre-wrap leading-7">
                 {{ tweet.content }}
               </p>
             </div>
@@ -488,7 +488,7 @@ const closeDialog = () => {
       </ScrollArea>
 
       <DialogFooter
-        class="border-t bg-background/95 px-6 py-4 gap-2 sm:gap-0"
+        class="grid gap-2 border-t bg-background/95 px-4 py-4 sm:flex sm:px-6"
       >
         <Button variant="outline" @click="closeDialog">
           {{ t('common.cancel') }}

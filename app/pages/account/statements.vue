@@ -224,9 +224,9 @@ onMounted(load);
         <Separator class="my-6" />
 
         <!-- 筛选条 -->
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
           <!-- 类型筛选 -->
-          <div class="flex items-center gap-2">
+          <div class="grid gap-2 sm:flex sm:items-center">
             <span class="text-sm text-muted-foreground">{{
               t('account.statements.filters.type')
             }}</span>
@@ -234,7 +234,7 @@ onMounted(load);
               v-model="typeFilter"
               @update:model-value="reloadFromFirstPage"
             >
-              <SelectTrigger class="w-[150px]">
+              <SelectTrigger class="w-full sm:w-[150px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -259,7 +259,7 @@ onMounted(load);
             </Select>
           </div>
           <!-- 状态筛选 -->
-          <div class="flex items-center gap-2">
+          <div class="grid gap-2 sm:flex sm:items-center">
             <span class="text-sm text-muted-foreground">{{
               t('account.statements.filters.status')
             }}</span>
@@ -267,7 +267,7 @@ onMounted(load);
               v-model="statusFilter"
               @update:model-value="reloadFromFirstPage"
             >
-              <SelectTrigger class="w-[150px]">
+              <SelectTrigger class="w-full sm:w-[150px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -299,9 +299,10 @@ onMounted(load);
             </Select>
           </div>
           <!-- 刷新按钮 -->
-          <div class="ml-auto flex items-center gap-2">
+          <div class="flex items-center gap-2 sm:ml-auto">
             <AppButton
               variant="outline"
+              class="w-full sm:w-auto"
               :disabled="loading"
               :loading="loading"
               @click="load()"
@@ -310,8 +311,8 @@ onMounted(load);
           </div>
         </div>
 
-        <div class="mt-4 overflow-hidden rounded-md border">
-          <Table>
+        <div class="mt-4 rounded-md border">
+          <Table class="min-w-[720px]">
             <TableHeader>
               <TableRow>
                 <TableHead>
@@ -452,7 +453,7 @@ onMounted(load);
         </div>
 
         <!-- 分页 -->
-        <div class="mt-4 flex items-center justify-between">
+        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="text-sm text-muted-foreground">
             {{
               t('common.pagination', {
@@ -462,7 +463,7 @@ onMounted(load);
               })
             }}
           </div>
-          <div class="flex items-center gap-2">
+          <div class="grid grid-cols-2 gap-2 sm:flex sm:items-center">
             <AppButton
               size="sm"
               variant="outline"
@@ -513,13 +514,15 @@ onMounted(load);
                 )
               "
             />
-            <DialogFooter>
+            <DialogFooter class="flex-col sm:flex-row">
               <AppButton
                 variant="ghost"
+                class="w-full sm:w-auto"
                 @click="closeAppealDialog"
                 >{{ t('common.cancel') }}</AppButton
               >
               <AppButton
+                class="w-full sm:w-auto"
                 :disabled="loading"
                 :loading="loading"
                 @click="submitCurrentAppeal"

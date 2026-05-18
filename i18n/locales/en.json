@@ -450,6 +450,8 @@
       "description": "Create a group to bring like-minded people together",
       "avatar": "Group avatar",
       "avatarDescription": "Click to upload a group avatar",
+      "cover": "Group cover",
+      "coverDescription": "Uploaded images appear in the group header banner",
       "name": "Group name *",
       "namePlaceholder": "Enter group name",
       "groupDescriptionLabel": "Group description *",
@@ -500,8 +502,8 @@
       "fields": {
         "name": "Group name",
         "description": "Group description",
-        "avatar": "Avatar URL",
-        "cover": "Cover URL",
+        "avatar": "Avatar",
+        "cover": "Cover",
         "privacy": "Group type",
         "joinApproval": "Join approval",
         "joinApprovalHint": "When enabled, new members need approval before joining.",
@@ -695,7 +697,8 @@
   },
   "avatar": {
     "validation": {
-      "maxSize": "File size must not exceed {size}MB"
+      "maxSize": "File size must not exceed {size}MB",
+      "imageOnly": "Please select an image file"
     },
     "crop": {
       "title": "Crop avatar",
@@ -728,7 +731,9 @@
       "lastSeen": "Last seen {time}"
     },
     "input": {
-      "placeholder": "Message #{channel}..."
+      "placeholder": "Message #{channel}...",
+      "announcementReadOnly": "Only group managers can post in announcement channels",
+      "unsupportedChannel": "This channel type does not support messages"
     },
     "members": {
       "searchPlaceholder": "Search members",

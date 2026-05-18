@@ -468,9 +468,13 @@ function updateMentionPicker(
 
   void nextTick(() => {
     const rect = textarea.getBoundingClientRect();
+    const pickerWidth = Math.min(320, window.innerWidth - 16);
     mentionPickerPosition.value = {
       top: Math.min(rect.top + 72, window.innerHeight - 360),
-      left: Math.min(rect.left + 12, window.innerWidth - 340)
+      left: Math.max(
+        8,
+        Math.min(rect.left + 12, window.innerWidth - pickerWidth - 8)
+      )
     };
   });
 }
@@ -895,7 +899,10 @@ defineExpose({
               {{ t('post.composer.addTag') }}
             </Button>
           </PopoverTrigger>
-          <PopoverContent class="w-72" align="start">
+          <PopoverContent
+            class="w-[min(18rem,calc(100vw-1rem))]"
+            align="start"
+          >
             <div class="space-y-3">
               <Label for="post-tag-input">
                 {{ t('post.composer.tagLabel') }}
@@ -927,7 +934,10 @@ defineExpose({
               {{ t('post.composer.addLocation') }}
             </Button>
           </PopoverTrigger>
-          <PopoverContent class="w-80" align="start">
+          <PopoverContent
+            class="w-[min(20rem,calc(100vw-1rem))]"
+            align="start"
+          >
             <div class="space-y-3">
               <Label for="post-location-input">
                 {{ t('post.composer.locationLabel') }}
@@ -948,7 +958,10 @@ defineExpose({
               <SmilePlus class="h-4 w-4" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent class="w-64" align="start">
+          <PopoverContent
+            class="w-[min(16rem,calc(100vw-1rem))]"
+            align="start"
+          >
             <div class="grid grid-cols-4 gap-1">
               <Button
                 v-for="emoji in quickEmojis"
@@ -964,7 +977,7 @@ defineExpose({
         </Popover>
       </div>
 
-      <div class="flex items-center justify-end gap-3">
+      <div class="flex w-full items-center justify-end gap-3 sm:w-auto">
         <div class="relative h-8 w-8">
           <svg class="h-full w-full" viewBox="0 0 32 32">
             <circle
@@ -999,7 +1012,7 @@ defineExpose({
         </div>
 
         <AppSendButton
-          class="h-10 px-5 font-semibold"
+          class="h-10 flex-1 px-5 font-semibold sm:flex-none"
           :loading="isSubmitting"
           :disabled="isTweetDisabled"
           @click="handleSubmit"

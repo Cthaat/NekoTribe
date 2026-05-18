@@ -59,7 +59,9 @@ import {
   PlayCircle,
   Flag,
   Loader2,
-  BrainCircuit
+  BrainCircuit,
+  Hash,
+  MapPin
 } from 'lucide-vue-next';
 import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
 import AiSentimentPredictionDialog from '@/components/AiSentimentPredictionDialog.vue';
@@ -107,6 +109,22 @@ const mediaItems = computed(() => {
     };
   });
 });
+
+const visibleTags = computed(() =>
+  props.tweet.tags
+    .map(tag => tag.trim().replace(/^#/, ''))
+    .filter(Boolean)
+);
+
+const visibleLocation = computed(() =>
+  props.tweet.location.trim()
+);
+
+const hasPostLabels = computed(
+  () =>
+    visibleTags.value.length > 0 ||
+    visibleLocation.value.length > 0
+);
 
 // 格式化时间戳
 const formattedDate = computed(() => {
@@ -271,6 +289,16 @@ function toTweetDetail(
   navigateTo(detailPath);
 }
 
+function searchPosts(query: string) {
+  const normalized = query.trim();
+  if (!normalized) return;
+  void navigateTo(
+    localePath(
+      `/tweet/search/${encodeURIComponent(normalized)}`
+    )
+  );
+}
+
 type RelatedTweetKind = 'reply' | 'quote' | 'repost';
 
 const relatedTweetKind = computed<RelatedTweetKind | null>(() => {
@@ -381,7 +409,7 @@ const relatedExcerpt = computed(() => {
   >
     <CardHeader class="flex flex-row items-start p-4">
       <Avatar
-        class="h-12 w-12 mr-4"
+        class="mr-3 h-10 w-10 shrink-0 sm:mr-4 sm:h-12 sm:w-12"
         @click.stop="
           () =>
             navigateTo(
@@ -397,16 +425,16 @@ const relatedExcerpt = computed(() => {
           tweet.author.username.substring(0, 2).toUpperCase()
         }}</AvatarFallback>
       </Avatar>
-      <div class="flex-1">
-        <div class="flex items-center gap-2">
-          <h3 class="font-bold text-base">
+      <div class="min-w-0 flex-1">
+        <div class="flex min-w-0 items-center gap-2">
+          <h3 class="truncate text-base font-bold">
             {{ tweet.author.name }}
           </h3>
           <BadgeCheck
             v-if="tweet.author.verified"
             class="h-5 w-5 text-blue-500"
           />
-          <span class="text-sm text-muted-foreground"
+          <span class="truncate text-sm text-muted-foreground"
             >@{{ tweet.author.username }}</span
           >
         </div>
@@ -482,7 +510,7 @@ const relatedExcerpt = computed(() => {
         v-if="relatedTweetId"
         class="mb-3 -mt-1 space-y-2"
       >
-        <div class="flex items-center gap-2 text-xs">
+        <div class="flex flex-wrap items-center gap-2 text-xs">
           <component
             :is="relatedTweetIcon"
             class="h-4 w-4 text-muted-foreground"
@@ -553,7 +581,7 @@ const relatedExcerpt = computed(() => {
             )
           "
         >
-          <div class="flex items-center gap-2 mb-1 text-sm">
+          <div class="mb-1 flex min-w-0 items-center gap-2 text-sm">
             <Avatar class="h-6 w-6">
               <AvatarImage
                 :src="relatedTweet.author.avatarUrl"
@@ -567,13 +595,13 @@ const relatedExcerpt = computed(() => {
                 }}
               </AvatarFallback>
             </Avatar>
-            <span class="font-medium">
+            <span class="truncate font-medium">
               {{
                 relatedTweet.author.name ||
                 t('post.relation.unknownUser')
               }}
             </span>
-            <span class="text-muted-foreground">
+            <span class="truncate text-muted-foreground">
               {{
                 relatedAuthorHandle ||
                 t('post.relation.unknownUserHandle')
@@ -604,6 +632,37 @@ const relatedExcerpt = computed(() => {
 
       <div class="text-base">
         <TweetContent :content="tweet.content" />
+      </div>
+
+      <div
+        v-if="hasPostLabels"
+        class="mt-3 flex flex-wrap gap-2"
+      >
+        <Button
+          v-if="visibleLocation"
+          type="button"
+          variant="outline"
+          size="sm"
+          class="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-primary"
+          @click.stop="searchPosts(visibleLocation)"
+        >
+          <MapPin class="h-3.5 w-3.5" />
+          <span class="max-w-[12rem] truncate">
+            {{ visibleLocation }}
+          </span>
+        </Button>
+        <Button
+          v-for="tag in visibleTags"
+          :key="`tag-${tweet.id}-${tag}`"
+          type="button"
+          variant="outline"
+          size="sm"
+          class="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-primary"
+          @click.stop="searchPosts(`#${tag}`)"
+        >
+          <Hash class="h-3.5 w-3.5" />
+          <span>{{ tag }}</span>
+        </Button>
       </div>
 
       <!-- 媒体展示区 -->

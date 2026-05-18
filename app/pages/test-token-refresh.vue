@@ -1,7 +1,7 @@
 <!-- 测试Token刷新页面 -->
 
 <template>
-  <div class="container mx-auto p-8">
+  <div class="container mx-auto p-4 sm:p-8">
     <h1 class="text-3xl font-bold mb-6">
       {{ t('diagnostics.token.pageTitle') }}
     </h1>
@@ -64,52 +64,55 @@
           {{ t('diagnostics.token.actionsTitle') }}
         </h2>
 
-        <AppButton
-          @click="testApiCall"
-          :disabled="loading"
-          :loading="loading"
-        >
-          {{
-            loading
-              ? t('diagnostics.token.requesting')
-              : t('diagnostics.token.authRequest')
-          }}
-        </AppButton>
+        <div class="grid gap-2 sm:flex sm:flex-wrap">
+          <AppButton
+            class="w-full sm:w-auto"
+            @click="testApiCall"
+            :disabled="loading"
+            :loading="loading"
+          >
+            {{
+              loading
+                ? t('diagnostics.token.requesting')
+                : t('diagnostics.token.authRequest')
+            }}
+          </AppButton>
 
-        <AppButton
-          @click="manualRefresh"
-          :disabled="refreshing"
-          :loading="refreshing"
-          class="ml-2"
-        >
-          {{
-            refreshing
-              ? t('diagnostics.token.refreshing')
-              : t('diagnostics.token.manualRefresh')
-          }}
-        </AppButton>
+          <AppButton
+            class="w-full sm:w-auto"
+            @click="manualRefresh"
+            :disabled="refreshing"
+            :loading="refreshing"
+          >
+            {{
+              refreshing
+                ? t('diagnostics.token.refreshing')
+                : t('diagnostics.token.manualRefresh')
+            }}
+          </AppButton>
 
-        <AppButton
-          @click="invalidateToken"
-          variant="secondary"
-          class="ml-2"
-        >
-          {{ t('diagnostics.token.invalidateToken') }}
-        </AppButton>
+          <AppButton
+            class="w-full sm:w-auto"
+            @click="invalidateToken"
+            variant="secondary"
+          >
+            {{ t('diagnostics.token.invalidateToken') }}
+          </AppButton>
 
-        <AppButton
-          @click="clearAllTokens"
-          variant="destructive"
-          class="ml-2"
-        >
-          {{ t('diagnostics.token.clearTokens') }}
-        </AppButton>
+          <AppButton
+            class="w-full sm:w-auto"
+            @click="clearAllTokens"
+            variant="destructive"
+          >
+            {{ t('diagnostics.token.clearTokens') }}
+          </AppButton>
+        </div>
       </div>
 
       <!-- 日志显示 -->
       <Card class="gap-0 bg-gray-900 py-0 text-green-400">
         <CardContent class="p-4">
-        <div class="flex justify-between items-center mb-2">
+        <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 class="text-xl font-semibold">
             {{ t('diagnostics.token.logsTitle') }}
           </h2>

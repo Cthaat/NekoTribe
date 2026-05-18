@@ -66,7 +66,7 @@ const lang = computed({
     <!-- 卡片内容区域 -->
     <CardContent>
       <!-- 页面主体：桌面端使用内边距更大的容器 -->
-      <div class="hidden space-y-6 p-10 pb-16 md:block">
+      <div class="space-y-6 p-4 pb-8 sm:p-6 md:p-10 md:pb-16">
         <!-- 标题与描述容器 -->
         <div class="space-y-0.5">
           <!-- 页面主标题：外观设置 -->

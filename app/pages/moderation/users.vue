@@ -107,8 +107,8 @@ onMounted(() => {
   <div class="space-y-4">
     <Card>
       <CardContent class="p-4">
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="relative min-w-[220px] flex-1">
+        <div class="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
+          <div class="relative min-w-0 sm:min-w-[220px] sm:flex-1">
             <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               v-model="filters.q"
@@ -117,7 +117,7 @@ onMounted(() => {
             />
           </div>
           <Select v-model="filters.status">
-            <SelectTrigger class="w-[160px]">
+            <SelectTrigger class="w-full sm:w-[160px]">
               <SelectValue :placeholder="t('moderation.users.status')" />
             </SelectTrigger>
             <SelectContent>
@@ -129,7 +129,7 @@ onMounted(() => {
             </SelectContent>
           </Select>
           <Select v-model="filters.sort">
-            <SelectTrigger class="w-[160px]">
+            <SelectTrigger class="w-full sm:w-[160px]">
               <SelectValue :placeholder="t('moderation.filters.sortPlaceholder')" />
             </SelectTrigger>
             <SelectContent>
@@ -138,7 +138,7 @@ onMounted(() => {
               <SelectItem value="reports">{{ t('moderation.users.mostReported') }}</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" @click="loadUsers(true)">
+          <Button class="w-full sm:w-auto" variant="outline" @click="loadUsers(true)">
             {{ t('moderation.actions.refresh') }}
           </Button>
         </div>
@@ -161,23 +161,23 @@ onMounted(() => {
 
     <template v-else>
       <Card v-for="user in users" :key="user.id">
-        <CardHeader class="flex flex-row items-start justify-between space-y-0">
-        <div class="flex items-center gap-3">
+        <CardHeader class="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
+        <div class="flex min-w-0 items-center gap-3">
           <Avatar class="h-11 w-11">
             <AvatarImage :src="user.avatarUrl" />
             <AvatarFallback>{{ initials(user) }}</AvatarFallback>
           </Avatar>
-          <div>
-            <CardTitle class="flex items-center gap-2 text-base">
+          <div class="min-w-0">
+            <CardTitle class="flex min-w-0 items-center gap-2 text-base">
               {{ user.name }}
               <CheckCircle v-if="user.verified" class="h-4 w-4 text-primary" />
             </CardTitle>
-            <div class="text-sm text-muted-foreground">
+            <div class="truncate text-sm text-muted-foreground">
               @{{ user.username }} · {{ user.email }}
             </div>
           </div>
         </div>
-        <div class="flex flex-wrap justify-end gap-2">
+        <div class="flex flex-wrap gap-2 sm:justify-end">
           <Badge :variant="user.active ? 'secondary' : 'destructive'">
             {{ user.status }}
           </Badge>
@@ -205,7 +205,7 @@ onMounted(() => {
             <div class="font-medium">{{ user.reportCount }}</div>
           </div>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="grid gap-2 sm:flex sm:flex-wrap">
           <Button
             v-if="user.active"
             variant="destructive"

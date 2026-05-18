@@ -128,7 +128,7 @@ function selectMail(mailId: string) {
 </script>
 
 <template>
-  <ScrollArea class="h-screen flex">
+  <ScrollArea class="flex h-[min(32rem,calc(100dvh-12rem))] md:h-screen">
     <div class="flex-1 flex flex-col gap-2 p-4 pt-0">
       <TransitionGroup name="list" appear>
         <Button

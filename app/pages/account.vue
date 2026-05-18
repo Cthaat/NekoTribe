@@ -176,8 +176,8 @@ onMounted(() => {
 <template>
   <div class="p-4 sm:p-6 lg:p-8 space-y-8">
     <!-- 1. 顶部的 Header: 标题和操作按钮 -->
-    <div class="flex items-center justify-between">
-      <div>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="min-w-0">
         <h1 class="text-2xl font-bold tracking-tight">
           {{ t('account.title') }} - {{ activeTab }}
         </h1>
@@ -185,10 +185,10 @@ onMounted(() => {
           {{ t('account.breadcrumb') }}
         </p>
       </div>
-      <div class="flex items-center space-x-2">
+      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:space-x-2">
         <Button
           variant="outline"
-          class="gap-2"
+          class="w-full gap-2 sm:w-auto"
           @click="filterDialogOpen = true"
         >
           <ListFilter class="h-4 w-4" />
@@ -196,7 +196,7 @@ onMounted(() => {
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button class="gap-2">
+            <Button class="w-full gap-2 sm:w-auto">
               <Plus class="h-4 w-4" />
               {{ t('common.create') }}
               <ChevronDown class="h-4 w-4 opacity-70" />

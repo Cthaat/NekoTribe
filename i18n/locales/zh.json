@@ -450,6 +450,8 @@
       "description": "创建一个群组来聚集志同道合的朋友",
       "avatar": "群组头像",
       "avatarDescription": "点击上传群组头像",
+      "cover": "群组封面",
+      "coverDescription": "上传后会显示在群组顶部横幅",
       "name": "群组名称 *",
       "namePlaceholder": "输入群组名称",
       "groupDescriptionLabel": "群组描述 *",
@@ -500,8 +502,8 @@
       "fields": {
         "name": "群组名称",
         "description": "群组描述",
-        "avatar": "头像 URL",
-        "cover": "封面 URL",
+        "avatar": "头像",
+        "cover": "封面",
         "privacy": "群组类型",
         "joinApproval": "加入审批",
         "joinApprovalHint": "开启后，新成员需要管理员审批才能加入。",
@@ -695,7 +697,8 @@
   },
   "avatar": {
     "validation": {
-      "maxSize": "文件大小不能超过 {size}MB"
+      "maxSize": "文件大小不能超过 {size}MB",
+      "imageOnly": "请选择图片文件"
     },
     "crop": {
       "title": "裁剪头像",
@@ -728,7 +731,9 @@
       "lastSeen": "最后在线 {time}"
     },
     "input": {
-      "placeholder": "在 #{channel} 中发送消息..."
+      "placeholder": "在 #{channel} 中发送消息...",
+      "announcementReadOnly": "只有群组管理员可以在公告频道发言",
+      "unsupportedChannel": "该频道类型暂不支持发送消息"
     },
     "members": {
       "searchPlaceholder": "搜索成员",

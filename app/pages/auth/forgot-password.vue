@@ -387,7 +387,7 @@ const onSubmit = handleSubmit(
       它将包裹输入框和按钮，让它们在同一行显示。
     -->
               <div
-                class="flex w-full items-center gap-x-2 justify-start"
+                class="grid w-full gap-2 sm:flex sm:items-center sm:justify-start"
               >
                 <FormControl>
                   <!-- 
@@ -397,6 +397,7 @@ const onSubmit = handleSubmit(
                   <PinInput
                     id="captcha"
                     v-model="value"
+                    class="justify-center sm:justify-start"
                     placeholder="○"
                   >
                     <PinInputGroup>
@@ -416,7 +417,7 @@ const onSubmit = handleSubmit(
                   @click="sendCaptcha"
                   :disabled="isCaptchaSending || isLoading"
                   :loading="isCaptchaSending"
-                  class="w-32"
+                  class="w-full sm:w-32"
                 >
                   <!-- 
     使用 v-if 和 v-else 来根据 isCaptchaSending 的状态显示不同的文本

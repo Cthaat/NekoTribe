@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  ref,
+  watch
+} from 'vue';
+import { useRoute } from 'vue-router';
 import { CheckCircle2, Search, UserRound } from 'lucide-vue-next';
 import {
   Avatar,
@@ -23,12 +30,14 @@ const MIN_QUERY_LENGTH = 2;
 
 const { t, locale } = useAppLocale();
 const localePath = useLocalePath();
+const route = useRoute();
 
 const searchQuery = ref('');
 const users = ref<PublicUserVM[]>([]);
 const isPopoverOpen = ref(false);
 const isSearchingUsers = ref(false);
 const searchError = ref('');
+const isSyncingRouteSearch = ref(false);
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 let searchRequestId = 0;
@@ -94,7 +103,6 @@ function submitPostSearch(): void {
   const query = trimmedQuery.value;
   if (!query) return;
   closeSearch();
-  searchQuery.value = '';
   void navigateTo(
     localePath(`/tweet/search/${encodeURIComponent(query)}`)
   );
@@ -116,6 +124,13 @@ function handlePopoverOpenChange(open: boolean): void {
   isPopoverOpen.value = open && !!trimmedQuery.value;
 }
 
+function routeSearchQuery(): string {
+  if (!route.path.includes('/tweet/search/')) return '';
+  const value = route.params.search;
+  if (Array.isArray(value)) return String(value[0] ?? '');
+  return typeof value === 'string' ? value : '';
+}
+
 watch(
   searchQuery,
   value => {
@@ -123,6 +138,13 @@ watch(
     const query = value.trim();
     const requestId = ++searchRequestId;
     searchError.value = '';
+
+    if (isSyncingRouteSearch.value) {
+      isPopoverOpen.value = false;
+      isSearchingUsers.value = false;
+      users.value = [];
+      return;
+    }
 
     if (!query) {
       isPopoverOpen.value = false;
@@ -144,6 +166,20 @@ watch(
       void runUserSearch(query, requestId);
     }, 250);
   }
+);
+
+watch(
+  [() => route.path, () => route.params.search],
+  () => {
+    const query = routeSearchQuery();
+    if (!query || query === searchQuery.value) return;
+    isSyncingRouteSearch.value = true;
+    searchQuery.value = query;
+    void nextTick(() => {
+      isSyncingRouteSearch.value = false;
+    });
+  },
+  { immediate: true }
 );
 
 onBeforeUnmount(() => {

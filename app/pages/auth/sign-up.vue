@@ -580,14 +580,14 @@ const handleCheckboxChange = (checked: boolean): void => {
       使用一个 div 作为 Flexbox 容器，
       它将包裹输入框和按钮，让它们在同一行显示。
     -->
-              <div class="flex w-full items-center gap-x-2">
+              <div class="grid w-full gap-2 sm:flex sm:items-center">
                 <FormControl>
                   <!-- 
           flex-1 是关键，它告诉输入框：
           "占据所有可用的剩余空间"。
         -->
                   <PinInput
-                    class="flex-1"
+                    class="justify-center sm:flex-1 sm:justify-start"
                     id="captcha"
                     v-model="value"
                     placeholder="○"
@@ -610,6 +610,7 @@ const handleCheckboxChange = (checked: boolean): void => {
                   @click="sendCaptcha"
                   :disabled="isCaptchaSending || isLoading"
                   :loading="isCaptchaSending"
+                  class="w-full sm:w-auto"
                 >
                   <!-- 
     使用 v-if 和 v-else 来根据 isCaptchaSending 的状态显示不同的文本

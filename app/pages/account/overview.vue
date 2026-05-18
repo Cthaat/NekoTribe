@@ -65,7 +65,7 @@ onMounted(async () => {
 <template>
   <Card>
     <CardContent>
-      <div class="hidden space-y-6 p-8 pb-16 md:block">
+      <div class="space-y-6 p-4 pb-8 sm:p-6 md:p-8 md:pb-16">
         <div class="space-y-0.5">
           <h2 class="text-2xl font-bold tracking-tight">
             {{ t('account.overview.title') }}

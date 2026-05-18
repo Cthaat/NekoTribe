@@ -203,9 +203,9 @@ const getOptionLabel = (
   <Card class="gap-0 bg-card/70 py-0">
     <CardContent class="p-4">
     <!-- 搜索和主要过滤器 -->
-    <div class="flex flex-wrap items-center gap-3">
+    <div class="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
       <!-- 搜索框 -->
-      <div class="relative min-w-[220px] flex-1">
+      <div class="relative min-w-0 sm:min-w-[220px] sm:flex-1">
         <Search
           class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
         />
@@ -222,7 +222,7 @@ const getOptionLabel = (
         :model-value="localFilters.status"
         @update:model-value="updateStatus"
       >
-        <SelectTrigger class="w-full min-w-[150px] sm:w-[150px]">
+        <SelectTrigger class="w-full sm:w-[150px]">
           <SelectValue
             :placeholder="
               t('moderation.filters.statusPlaceholder')
@@ -245,7 +245,7 @@ const getOptionLabel = (
         :model-value="localFilters.reportReason"
         @update:model-value="updateReportReason"
       >
-        <SelectTrigger class="w-full min-w-[160px] sm:w-[160px]">
+        <SelectTrigger class="w-full sm:w-[160px]">
           <SelectValue
             :placeholder="
               t('moderation.filters.reportReasonPlaceholder')
@@ -268,7 +268,7 @@ const getOptionLabel = (
         :model-value="localFilters.dateRange"
         @update:model-value="updateDateRange"
       >
-        <SelectTrigger class="w-full min-w-[150px] sm:w-[150px]">
+        <SelectTrigger class="w-full sm:w-[150px]">
           <Calendar class="h-4 w-4 mr-2" />
           <SelectValue
             :placeholder="
@@ -292,7 +292,7 @@ const getOptionLabel = (
         :model-value="localFilters.sortBy"
         @update:model-value="updateSortBy"
       >
-        <SelectTrigger class="w-full min-w-[170px] sm:w-[170px]">
+        <SelectTrigger class="w-full sm:w-[170px]">
           <SelectValue
             :placeholder="t('moderation.filters.sortPlaceholder')"
           />
@@ -314,7 +314,7 @@ const getOptionLabel = (
         variant="ghost"
         size="sm"
         @click="resetFilters"
-        class="text-muted-foreground"
+        class="w-full text-muted-foreground sm:w-auto"
       >
         <X class="h-4 w-4 mr-1" />
         {{ t('common.reset') }}

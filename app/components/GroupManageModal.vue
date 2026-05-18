@@ -1,11 +1,21 @@
 <script setup lang="ts">
-import { computed, reactive, ref, shallowRef, watch } from 'vue';
 import {
+  computed,
+  onBeforeUnmount,
+  reactive,
+  ref,
+  shallowRef,
+  watch
+} from 'vue';
+import {
+  Camera,
   Check,
   Clock,
   Copy,
   Crown,
+  ImagePlus,
   Link,
+  Loader2,
   RefreshCw,
   Save,
   Search,
@@ -57,6 +67,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip';
 import { toast } from 'vue-sonner';
+import GroupAvatarCropDialog from './GroupAvatarCropDialog.vue';
 import {
   approveGroupMember,
   changeGroupMemberRole,
@@ -71,6 +82,7 @@ import {
   unmuteGroupMember,
   updateGroup
 } from '@/services/groups';
+import { v2UploadMedia } from '@/services';
 import type {
   Group,
   GroupMember,
@@ -82,6 +94,7 @@ import type {
   V2GroupInvite,
   V2GroupPostPermission
 } from '@/types/v2';
+import { normalizeAssetUrl } from '@/utils/assets';
 
 const props = defineProps<{
   open: boolean;
@@ -109,6 +122,13 @@ const saving = ref(false);
 const deleting = ref(false);
 const creatingInvite = ref(false);
 const actionKey = ref<string | null>(null);
+const avatarInputRef = ref<HTMLInputElement | null>(null);
+const coverInputRef = ref<HTMLInputElement | null>(null);
+const uploadingAvatar = ref(false);
+const uploadingCover = ref(false);
+const avatarCropDialogOpen = ref(false);
+const avatarCropSourceUrl = ref<string | null>(null);
+const avatarCropFileName = ref('avatar.jpg');
 
 const form = reactive<UpdateGroupData>({
   name: '',
@@ -204,6 +224,11 @@ function resetForm(group: Group): void {
   form.postPermission = group.postPermission;
   deleteConfirm.value = '';
   memberSearch.value = '';
+  uploadingAvatar.value = false;
+  uploadingCover.value = false;
+  resetAvatarInput();
+  resetCoverInput();
+  closeAvatarCropDialog();
   activeTab.value = 'settings';
 }
 
@@ -278,6 +303,143 @@ function updatePostPermission(value: unknown): void {
     next === 'moderator_up'
   ) {
     form.postPermission = next;
+  }
+}
+
+function resetAvatarInput(): void {
+  if (avatarInputRef.value) {
+    avatarInputRef.value.value = '';
+  }
+}
+
+function resetCoverInput(): void {
+  if (coverInputRef.value) {
+    coverInputRef.value.value = '';
+  }
+}
+
+function triggerAvatarUpload(): void {
+  if (
+    !canEditSettings.value ||
+    uploadingAvatar.value ||
+    avatarCropDialogOpen.value
+  ) {
+    return;
+  }
+  avatarInputRef.value?.click();
+}
+
+function triggerCoverUpload(): void {
+  if (!canEditSettings.value || uploadingCover.value) return;
+  coverInputRef.value?.click();
+}
+
+function clearAvatar(): void {
+  if (!canEditSettings.value || uploadingAvatar.value) return;
+  form.avatar = '';
+  resetAvatarInput();
+}
+
+function clearCover(): void {
+  if (!canEditSettings.value || uploadingCover.value) return;
+  form.coverImage = '';
+  resetCoverInput();
+}
+
+function isValidImageFile(file: File, maxSizeInMB: number): boolean {
+  if (!file.type.startsWith('image/')) {
+    toast.error(t('avatar.validation.imageOnly'));
+    return false;
+  }
+
+  if (file.size > maxSizeInMB * 1024 * 1024) {
+    toast.error(
+      t('avatar.validation.maxSize', { size: maxSizeInMB })
+    );
+    return false;
+  }
+
+  return true;
+}
+
+async function uploadGroupImage(
+  file: File,
+  altText: string
+): Promise<string> {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('alt_text', altText || file.name);
+  const media = await v2UploadMedia(body);
+  return normalizeAssetUrl(media.public_url);
+}
+
+function revokeObjectUrl(url: string | null): void {
+  if (url) {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function closeAvatarCropDialog(): void {
+  avatarCropDialogOpen.value = false;
+  revokeObjectUrl(avatarCropSourceUrl.value);
+  avatarCropSourceUrl.value = null;
+}
+
+function openAvatarCropDialog(file: File): void {
+  closeAvatarCropDialog();
+  avatarCropFileName.value = file.name || 'avatar.jpg';
+  avatarCropSourceUrl.value = URL.createObjectURL(file);
+  avatarCropDialogOpen.value = true;
+}
+
+async function handleAvatarSelected(event: Event): Promise<void> {
+  const target = event.target as HTMLInputElement | null;
+  const file = target?.files?.[0];
+  resetAvatarInput();
+
+  if (!file || !isValidImageFile(file, 5)) return;
+
+  openAvatarCropDialog(file);
+}
+
+async function handleAvatarCropApply(file: File): Promise<void> {
+  closeAvatarCropDialog();
+  uploadingAvatar.value = true;
+  try {
+    form.avatar = await uploadGroupImage(
+      file,
+      form.name || props.group?.name || file.name
+    );
+  } catch (error) {
+    toast.error(t('avatar.feedback.uploadFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    uploadingAvatar.value = false;
+  }
+}
+
+async function handleCoverSelected(event: Event): Promise<void> {
+  const target = event.target as HTMLInputElement | null;
+  const file = target?.files?.[0];
+  resetCoverInput();
+
+  if (!file || !isValidImageFile(file, 8)) return;
+
+  uploadingCover.value = true;
+  try {
+    form.coverImage = await uploadGroupImage(
+      file,
+      form.name || props.group?.name || file.name
+    );
+  } catch (error) {
+    toast.error(t('avatar.feedback.uploadFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    uploadingCover.value = false;
   }
 }
 
@@ -570,6 +732,10 @@ async function deleteCurrentGroup(): Promise<void> {
     deleting.value = false;
   }
 }
+
+onBeforeUnmount(() => {
+  closeAvatarCropDialog();
+});
 </script>
 
 <template>
@@ -579,7 +745,7 @@ async function deleteCurrentGroup(): Promise<void> {
   >
     <DialogContent class="max-w-5xl max-h-[92vh] p-0 overflow-hidden">
       <template v-if="group">
-        <DialogHeader class="px-6 pt-6 pb-4">
+        <DialogHeader class="px-4 pt-5 pb-4 sm:px-6 sm:pt-6">
           <div class="flex items-start justify-between gap-4">
             <div class="flex min-w-0 items-center gap-3">
               <Avatar class="h-12 w-12">
@@ -614,8 +780,8 @@ async function deleteCurrentGroup(): Promise<void> {
         <Separator />
 
         <Tabs v-model="activeTab" class="flex min-h-0 flex-col">
-          <div class="px-6 pt-4">
-            <TabsList class="grid w-full grid-cols-4">
+          <div class="overflow-x-auto px-4 pt-4 sm:px-6">
+            <TabsList class="grid w-max min-w-full grid-cols-4 sm:w-full">
               <TabsTrigger value="settings">
                 {{ t('groups.manage.tabs.settings') }}
               </TabsTrigger>
@@ -631,7 +797,7 @@ async function deleteCurrentGroup(): Promise<void> {
             </TabsList>
           </div>
 
-          <ScrollArea class="h-[62vh] px-6 py-5">
+          <ScrollArea class="h-[62vh] px-4 py-5 sm:px-6">
             <TabsContent value="settings" class="mt-0 space-y-5">
               <div class="grid gap-4 md:grid-cols-2">
                 <div class="space-y-2">
@@ -683,11 +849,62 @@ async function deleteCurrentGroup(): Promise<void> {
                 />
               </div>
 
-              <div class="grid gap-4 md:grid-cols-2">
+              <div class="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
                 <div class="space-y-2">
                   <Label for="manage-group-avatar">
                     {{ t('groups.manage.fields.avatar') }}
                   </Label>
+                  <input
+                    ref="avatarInputRef"
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    class="hidden"
+                    @change="handleAvatarSelected"
+                  >
+                  <div class="flex items-center gap-3">
+                    <Avatar class="h-16 w-16">
+                      <AvatarImage
+                        v-if="form.avatar"
+                        :src="form.avatar"
+                      />
+                      <AvatarFallback>
+                        {{ form.name.slice(0, 1) || '?' }}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div class="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        :disabled="
+                          !canEditSettings || uploadingAvatar
+                        "
+                        :aria-label="
+                          t('groups.manage.fields.avatar')
+                        "
+                        @click="triggerAvatarUpload"
+                      >
+                        <Loader2
+                          v-if="uploadingAvatar"
+                          class="h-4 w-4 animate-spin"
+                        />
+                        <Camera v-else class="h-4 w-4" />
+                      </Button>
+                      <Button
+                        v-if="form.avatar"
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        :disabled="
+                          !canEditSettings || uploadingAvatar
+                        "
+                        :aria-label="t('common.cancel')"
+                        @click="clearAvatar"
+                      >
+                        <X class="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                   <Input
                     id="manage-group-avatar"
                     v-model="form.avatar"
@@ -695,9 +912,67 @@ async function deleteCurrentGroup(): Promise<void> {
                   />
                 </div>
                 <div class="space-y-2">
-                  <Label for="manage-group-cover">
-                    {{ t('groups.manage.fields.cover') }}
-                  </Label>
+                  <div class="flex items-center justify-between gap-3">
+                    <Label for="manage-group-cover">
+                      {{ t('groups.manage.fields.cover') }}
+                    </Label>
+                    <div class="flex shrink-0 gap-2">
+                      <input
+                        ref="coverInputRef"
+                        type="file"
+                        accept="image/png,image/jpeg,image/gif,image/webp"
+                        class="hidden"
+                        @change="handleCoverSelected"
+                      >
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        :disabled="
+                          !canEditSettings || uploadingCover
+                        "
+                        :aria-label="
+                          t('groups.manage.fields.cover')
+                        "
+                        @click="triggerCoverUpload"
+                      >
+                        <Loader2
+                          v-if="uploadingCover"
+                          class="h-4 w-4 animate-spin"
+                        />
+                        <ImagePlus v-else class="h-4 w-4" />
+                      </Button>
+                      <Button
+                        v-if="form.coverImage"
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        :disabled="
+                          !canEditSettings || uploadingCover
+                        "
+                        :aria-label="t('common.cancel')"
+                        @click="clearCover"
+                      >
+                        <X class="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div
+                    class="relative h-32 overflow-hidden rounded-lg border bg-muted/40"
+                  >
+                    <img
+                      v-if="form.coverImage"
+                      :src="form.coverImage"
+                      :alt="form.name"
+                      class="h-full w-full object-cover"
+                    >
+                    <div
+                      v-else
+                      class="flex h-full items-center justify-center text-muted-foreground"
+                    >
+                      <ImagePlus class="h-6 w-6" />
+                    </div>
+                  </div>
                   <Input
                     id="manage-group-cover"
                     v-model="form.coverImage"
@@ -709,7 +984,7 @@ async function deleteCurrentGroup(): Promise<void> {
               <div class="grid gap-4 md:grid-cols-2">
                 <Card class="gap-0 py-0">
                   <CardContent
-                    class="flex items-center justify-between gap-4 p-4"
+                    class="flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div class="space-y-1">
                       <Label>
@@ -773,7 +1048,7 @@ async function deleteCurrentGroup(): Promise<void> {
                     class="gap-0 bg-muted/20 py-0 shadow-xs"
                   >
                     <CardContent
-                      class="flex items-center justify-between gap-3 p-3"
+                    class="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div class="flex min-w-0 items-center gap-3">
                         <Avatar class="h-9 w-9">
@@ -794,7 +1069,7 @@ async function deleteCurrentGroup(): Promise<void> {
                           </div>
                         </div>
                       </div>
-                      <div class="flex shrink-0 gap-2">
+                      <div class="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:shrink-0">
                         <Button
                           size="sm"
                           variant="outline"
@@ -818,8 +1093,8 @@ async function deleteCurrentGroup(): Promise<void> {
                 </div>
               </div>
 
-              <div class="flex items-center gap-2">
-                <div class="relative flex-1">
+              <div class="grid gap-2 sm:flex sm:items-center">
+                <div class="relative min-w-0 sm:flex-1">
                   <Search
                     class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                   />
@@ -831,6 +1106,7 @@ async function deleteCurrentGroup(): Promise<void> {
                 </div>
                 <Button
                   variant="outline"
+                  class="w-full sm:w-auto"
                   :disabled="loadingMembers"
                   @click="loadMembers"
                 >
@@ -1045,8 +1321,8 @@ async function deleteCurrentGroup(): Promise<void> {
                     class="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_120px_120px_auto]"
                   >
                     <div class="min-w-0">
-                      <div class="flex items-center gap-2">
-                        <span class="font-mono text-sm">
+                      <div class="flex min-w-0 flex-wrap items-center gap-2">
+                        <span class="break-all font-mono text-sm">
                           {{ invite.invite_code || '-' }}
                         </span>
                         <Badge
@@ -1150,16 +1426,23 @@ async function deleteCurrentGroup(): Promise<void> {
 
         <Separator />
 
-        <DialogFooter class="px-6 py-4">
+        <DialogFooter class="px-4 py-4 sm:px-6">
           <Button
             variant="outline"
+            class="w-full sm:w-auto"
             @click="emit('update:open', false)"
           >
             {{ t('common.close') }}
           </Button>
           <Button
             v-if="activeTab === 'settings'"
-            :disabled="!canEditSettings || saving"
+            class="w-full sm:w-auto"
+            :disabled="
+              !canEditSettings ||
+              saving ||
+              uploadingAvatar ||
+              uploadingCover
+            "
             @click="saveSettings"
           >
             <Save class="mr-2 h-4 w-4" />
@@ -1173,4 +1456,17 @@ async function deleteCurrentGroup(): Promise<void> {
       </template>
     </DialogContent>
   </Dialog>
+
+  <GroupAvatarCropDialog
+    v-model:open="avatarCropDialogOpen"
+    :source-url="avatarCropSourceUrl"
+    :file-name="avatarCropFileName"
+    :alt="form.name || group?.name || t('groups.manage.fields.avatar')"
+    @update:open="
+      value => {
+        if (!value) closeAvatarCropDialog()
+      }
+    "
+    @apply="handleAvatarCropApply"
+  />
 </template>

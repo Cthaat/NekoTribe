@@ -153,7 +153,7 @@ const getRoleColor = (role: ChatMember['role']) => {
 
 <template>
   <div
-    class="flex h-full min-h-0 w-60 shrink-0 flex-col overflow-hidden border-l bg-muted/30"
+    class="flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-l bg-muted/30 lg:w-60"
   >
     <!-- 搜索框 -->
     <div class="shrink-0 border-b p-3">

@@ -95,7 +95,7 @@ const statsCards = computed(() => [
         class="flex flex-row items-center justify-between space-y-0 pb-2"
       >
         <CardTitle
-          class="text-sm font-medium text-muted-foreground"
+          class="min-w-0 text-sm font-medium text-muted-foreground"
         >
           {{ stat.title }}
         </CardTitle>

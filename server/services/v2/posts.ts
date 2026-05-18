@@ -295,6 +295,7 @@ export async function v2ListPosts(
       : v2QueryString(event, 'sort', 'newest');
   const timeline = v2QueryString(event, 'timeline', 'home');
   const q = v2QueryString(event, 'q').trim().toLowerCase();
+  const tagSearch = q.replace(/^#+/, '').trim();
   const binds: Record<string, string | number | null> = {
     viewer_id: auth.userId
   };
@@ -349,10 +350,21 @@ export async function v2ListPosts(
     `);
   }
   if (q) {
-    where.push(
-      'AND LOWER(DBMS_LOB.SUBSTR(v.content, 4000, 1)) LIKE :q'
-    );
+    where.push(`
+      AND (
+        LOWER(DBMS_LOB.SUBSTR(v.content, 4000, 1)) LIKE :q
+        OR LOWER(NVL(v.location, '')) LIKE :q
+        OR EXISTS (
+          SELECT 1
+          FROM n_post_tags pt
+          JOIN n_tags t ON t.tag_id = pt.tag_id
+          WHERE pt.post_id = v.post_id
+            AND t.name_lower LIKE :tag_q
+        )
+      )
+    `);
     binds.q = `%${q}%`;
+    binds.tag_q = `%${tagSearch || q}%`;
   }
 
   const extraWhere = where.join('\n');

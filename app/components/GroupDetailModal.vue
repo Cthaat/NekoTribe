@@ -42,6 +42,13 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'vue-sonner';
 import GroupMemberCard from './GroupMemberCard.vue';
 import GroupPostCard from './GroupPostCard.vue';
+import {
+  changeGroupMemberRole,
+  getGroup,
+  muteGroupMember,
+  removeGroupMember,
+  unmuteGroupMember
+} from '@/services/groups';
 import type {
   Group,
   GroupMember,
@@ -63,6 +70,8 @@ const emit = defineEmits<{
   (e: 'leave', id: number): void;
   (e: 'settings', id: number): void;
   (e: 'invite', id: number): void;
+  (e: 'updated', group: Group): void;
+  (e: 'members-updated', id: number): void;
 }>();
 
 // 当前标签
@@ -70,6 +79,7 @@ const activeTab = ref('about');
 
 // 通知状态
 const notificationsEnabled = ref(true);
+const memberActionKey = ref<string | null>(null);
 
 // 重置状态
 watch(
@@ -163,6 +173,113 @@ const openMemberProfile = (userId: number) => {
   void navigateTo(localePath(`/user/${userId}/profile`));
 };
 
+function findMember(memberId: number): GroupMember | null {
+  return (
+    props.members?.find(member => member.id === memberId) ?? null
+  );
+}
+
+async function refreshGroupAfterMemberAction(): Promise<void> {
+  if (!props.group) return;
+  emit('members-updated', props.group.id);
+  emit('updated', await getGroup(props.group.id));
+}
+
+async function runMemberAction(
+  key: string,
+  action: () => Promise<void>,
+  successMessage: string
+): Promise<void> {
+  if (!props.group || memberActionKey.value) return;
+  memberActionKey.value = key;
+  try {
+    await action();
+    toast.success(successMessage);
+    await refreshGroupAfterMemberAction();
+  } catch (error) {
+    toast.error(t('groups.manage.feedback.memberFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    memberActionKey.value = null;
+  }
+}
+
+function promoteMember(memberId: number): void {
+  const member = findMember(memberId);
+  if (!props.group || !member) return;
+  void runMemberAction(
+    `promote-${member.userId}`,
+    () =>
+      changeGroupMemberRole(
+        props.group?.id ?? 0,
+        member.userId,
+        'admin'
+      ),
+    t('groups.member.feedback.promoted')
+  );
+}
+
+function demoteMember(memberId: number): void {
+  const member = findMember(memberId);
+  if (!props.group || !member) return;
+  void runMemberAction(
+    `demote-${member.userId}`,
+    () =>
+      changeGroupMemberRole(
+        props.group?.id ?? 0,
+        member.userId,
+        'member'
+      ),
+    t('groups.member.feedback.demoted')
+  );
+}
+
+function muteMember(memberId: number): void {
+  const member = findMember(memberId);
+  if (!props.group || !member) return;
+  void runMemberAction(
+    `mute-${member.userId}`,
+    () =>
+      muteGroupMember(
+        props.group?.id ?? 0,
+        member.userId,
+        24,
+        t('groups.manage.defaultMuteReason')
+      ),
+    t('groups.member.feedback.muted')
+  );
+}
+
+function unmuteMember(memberId: number): void {
+  const member = findMember(memberId);
+  if (!props.group || !member) return;
+  void runMemberAction(
+    `unmute-${member.userId}`,
+    () =>
+      unmuteGroupMember(
+        props.group?.id ?? 0,
+        member.userId
+      ),
+    t('groups.member.feedback.unmuted')
+  );
+}
+
+function removeMember(memberId: number): void {
+  const member = findMember(memberId);
+  if (!props.group || !member) return;
+  void runMemberAction(
+    `remove-${member.userId}`,
+    () =>
+      removeGroupMember(
+        props.group?.id ?? 0,
+        member.userId
+      ),
+    t('groups.member.feedback.removed')
+  );
+}
+
 // 切换标签
 const handleTabChange = (value: string | number) => {
   activeTab.value = String(value);
@@ -172,7 +289,7 @@ const handleTabChange = (value: string | number) => {
 <template>
   <Dialog :open="open" @update:open="closeDialog">
     <DialogContent
-      class="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0"
+      class="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden p-0"
     >
       <template v-if="group">
         <!-- 封面 -->
@@ -188,8 +305,8 @@ const handleTabChange = (value: string | number) => {
         </div>
 
         <!-- 头部信息 -->
-        <div class="px-6 pb-4 -mt-10 relative">
-          <div class="flex items-end gap-4">
+        <div class="relative -mt-10 px-4 pb-4 sm:px-6">
+          <div class="flex flex-col items-start gap-4 sm:flex-row sm:items-end">
             <Avatar
               class="h-20 w-20 border-4 border-background"
             >
@@ -201,12 +318,12 @@ const handleTabChange = (value: string | number) => {
                 group.name.charAt(0)
               }}</AvatarFallback>
             </Avatar>
-            <div class="flex-1 pb-1">
-              <h2 class="text-xl font-bold">
+            <div class="min-w-0 flex-1 pb-1">
+              <h2 class="truncate text-xl font-bold">
                 {{ group.name }}
               </h2>
               <div
-                class="flex items-center gap-2 text-sm text-muted-foreground"
+                class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
               >
                 <component
                   :is="getPrivacyIcon(group.privacy)"
@@ -222,7 +339,7 @@ const handleTabChange = (value: string | number) => {
           </div>
 
           <!-- 操作按钮 -->
-          <div class="flex items-center gap-2 mt-4">
+          <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button
               v-if="!group.isOwner"
               :variant="
@@ -276,17 +393,19 @@ const handleTabChange = (value: string | number) => {
           class="flex-1 flex flex-col"
           @update:model-value="handleTabChange"
         >
-          <TabsList class="mx-6 mt-2">
-            <TabsTrigger value="about">{{ t('groups.detail.tabs.about') }}</TabsTrigger>
-            <TabsTrigger value="posts">
-              {{ t('groups.detail.tabs.posts', { count: posts?.length || 0 }) }}
-            </TabsTrigger>
-            <TabsTrigger value="members">
-              {{ t('groups.detail.tabs.members', { count: members?.length || 0 }) }}
-            </TabsTrigger>
-          </TabsList>
+          <div class="mx-4 mt-2 overflow-x-auto sm:mx-6">
+            <TabsList class="grid w-max min-w-full grid-cols-3">
+              <TabsTrigger value="about">{{ t('groups.detail.tabs.about') }}</TabsTrigger>
+              <TabsTrigger value="posts">
+                {{ t('groups.detail.tabs.posts', { count: posts?.length || 0 }) }}
+              </TabsTrigger>
+              <TabsTrigger value="members">
+                {{ t('groups.detail.tabs.members', { count: members?.length || 0 }) }}
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          <ScrollArea class="flex-1 px-6 py-4">
+          <ScrollArea class="flex-1 px-4 py-4 sm:px-6">
             <!-- 关于 -->
             <TabsContent
               value="about"
@@ -294,7 +413,7 @@ const handleTabChange = (value: string | number) => {
             >
               <div>
                 <h3 class="font-medium mb-2">{{ t('groups.detail.aboutTitle') }}</h3>
-                <p class="text-sm text-muted-foreground">
+                <p class="break-words text-sm text-muted-foreground">
                   {{ group.description }}
                 </p>
               </div>
@@ -434,6 +553,12 @@ const handleTabChange = (value: string | number) => {
                   :can-manage="
                     group.isOwner || group.isAdmin
                   "
+                  :disabled="!!memberActionKey"
+                  @promote="promoteMember"
+                  @demote="demoteMember"
+                  @mute="muteMember"
+                  @unmute="unmuteMember"
+                  @remove="removeMember"
                   @view-profile="openMemberProfile"
                 />
               </div>

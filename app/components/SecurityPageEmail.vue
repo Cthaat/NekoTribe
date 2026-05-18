@@ -265,7 +265,7 @@ const onSubmit = handleSubmit(
       它将包裹输入框和按钮，让它们在同一行显示。
     -->
         <div
-          class="flex w-full items-center gap-x-2 justify-start"
+          class="flex w-full flex-col items-stretch justify-start gap-2 sm:flex-row sm:items-center sm:gap-x-2"
         >
           <FormControl>
             <!-- 
@@ -294,7 +294,7 @@ const onSubmit = handleSubmit(
             @click="sendCaptcha"
             :disabled="isCaptchaSending || isLoading"
             :loading="isCaptchaSending"
-            class="w-32"
+            class="w-full sm:w-32"
           >
             <!-- 
     使用 v-if 和 v-else 来根据 isCaptchaSending 的状态显示不同的文本
@@ -329,6 +329,7 @@ const onSubmit = handleSubmit(
             'account.security.securityPage.email.updateButton'
           )
         "
+        class="w-full sm:w-auto"
       >
         {{
           t(
