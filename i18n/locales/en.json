@@ -87,6 +87,7 @@
       "settings": "Settings"
     },
     "secondary": {
+      "about": "About",
       "support": "Support",
       "feedback": "Feedback"
     },
@@ -105,6 +106,63 @@
       "logout": "Log out",
       "logoutSuccess": "Logged out. Redirecting to login...",
       "logoutError": "Failed to log out. Please try again."
+    }
+  },
+  "about": {
+    "badge": "NekoTribe Project",
+    "title": "About NekoTribe",
+    "description": "NekoTribe is a full-stack social interaction project built around posts, groups, chat, notifications, moderation, and AI sentiment analysis. It is suitable for coursework demos, feature showcases, and continued product development.",
+    "actions": {
+      "repository": "Repository",
+      "backHome": "Back Home"
+    },
+    "features": {
+      "social": {
+        "title": "Social Feed",
+        "description": "Create posts, reply, repost, like, bookmark, search, and browse personal timelines."
+      },
+      "groups": {
+        "title": "Group Community",
+        "description": "Discover groups, handle invites, publish group posts, manage members, and use group chat."
+      },
+      "realtime": {
+        "title": "Realtime Interaction",
+        "description": "WebSocket support powers direct chat, group chat, presence, and notification delivery."
+      },
+      "safety": {
+        "title": "Moderation & Analysis",
+        "description": "Includes reports, moderation workflows, account safety, and SentimentFlow integration."
+      }
+    },
+    "links": {
+      "title": "Related Links",
+      "description": "Project development, feedback, and commonly used app entries.",
+      "repository": {
+        "title": "GitHub Repository",
+        "description": "Browse source code, commits, and project structure."
+      },
+      "docs": {
+        "title": "Project Docs",
+        "description": "Read API, deployment, and feature design documentation."
+      },
+      "feedback": {
+        "title": "Issue Feedback",
+        "description": "Use GitHub Issues to track bugs and improvement ideas."
+      },
+      "groups": {
+        "title": "Discover Groups",
+        "description": "Open the in-app groups page and explore community features."
+      }
+    },
+    "versions": {
+      "title": "Version Info",
+      "description": "Loaded from the existing project version configuration.",
+      "app": "Main App",
+      "web": "Web Frontend",
+      "server": "Oracle Service",
+      "build": "Build",
+      "releaseDate": "Release Date",
+      "unknown": "Unknown"
     }
   },
   "post": {
