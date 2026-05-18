@@ -1,0 +1,6 @@
+services:
+  sentimentflow:
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${SENTIMENTFLOW_GPUS:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
+    gpus: all
