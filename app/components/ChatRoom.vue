@@ -108,6 +108,7 @@ const emit = defineEmits<{
 
 // 状态
 const showMemberList = ref(true);
+const mobileMemberListOpen = ref(false);
 const showPinnedMessages = ref(false);
 const showSearch = ref(false);
 const notificationSettingsOpen = ref(false);
@@ -310,16 +311,16 @@ onBeforeUnmount(() => {
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden min-w-0">
       <!-- 频道头部 -->
       <div
-        class="h-12 border-b flex items-center justify-between px-4 bg-background flex-shrink-0"
+        class="flex h-12 flex-shrink-0 items-center justify-between gap-2 border-b bg-background px-3 sm:px-4"
       >
-        <div class="flex items-center gap-2">
+        <div class="flex min-w-0 items-center gap-2">
           <Hash class="h-5 w-5 text-muted-foreground" />
-          <span class="font-semibold">{{
+          <span class="truncate font-semibold">{{
             channel.name
           }}</span>
-          <div class="h-4 w-px bg-border mx-2" />
+          <div class="mx-2 hidden h-4 w-px bg-border sm:block" />
           <span
-            class="text-sm text-muted-foreground truncate max-w-xs"
+            class="hidden max-w-xs truncate text-sm text-muted-foreground sm:inline"
           >
             {{
               channel.lastMessage ||
@@ -389,7 +390,7 @@ onBeforeUnmount(() => {
                   <p>{{ t('chat.message.pinnedMessages') }}</p>
                 </TooltipContent>
               </Tooltip>
-              <SheetContent side="right" class="w-80">
+              <SheetContent side="right" class="w-full sm:w-80">
                 <SheetHeader>
                   <SheetTitle>{{ t('chat.message.pinnedMessages') }}</SheetTitle>
                 </SheetHeader>
@@ -503,7 +504,22 @@ onBeforeUnmount(() => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  class="h-8 w-8 p-0"
+                  class="h-8 w-8 p-0 lg:hidden"
+                  @click="mobileMemberListOpen = true"
+                >
+                  <PanelRightOpen class="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{{ t('chat.actions.showMembers') }}</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="hidden h-8 w-8 p-0 lg:inline-flex"
                   :class="{ 'bg-muted': showMemberList }"
                   @click="showMemberList = !showMemberList"
                 >
@@ -646,6 +662,22 @@ onBeforeUnmount(() => {
       @message="openDirectMessage"
       @view-profile="member => emit('view-profile', member.id)"
     />
+
+    <Sheet v-model:open="mobileMemberListOpen">
+      <SheetContent side="right" class="flex w-full flex-col p-0 sm:w-80">
+        <SheetHeader class="border-b px-4 py-3">
+          <SheetTitle>{{ t('chat.actions.showMembers') }}</SheetTitle>
+        </SheetHeader>
+        <ChatMemberList
+          :members="members"
+          :can-manage="canManage"
+          :current-user-id="currentUserId"
+          class="border-l-0"
+          @message="openDirectMessage"
+          @view-profile="member => emit('view-profile', member.id)"
+        />
+      </SheetContent>
+    </Sheet>
 
     <Dialog v-model:open="callDialogOpen">
       <DialogContent class="sm:max-w-md">
