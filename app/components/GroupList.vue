@@ -55,13 +55,14 @@ const handleSettings = (id: number) => {
 <template>
   <div class="space-y-4">
     <!-- 列表头部 -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="text-sm text-muted-foreground">
         {{ t('groups.list.count', { count: groups.length }) }}
       </div>
-      <div class="flex items-center gap-2">
+      <div class="grid gap-2 sm:flex sm:items-center">
         <Button
           v-if="showCreateButton"
+          class="w-full sm:w-auto"
           @click="emit('create')"
         >
           <Plus class="h-4 w-4 mr-2" />
@@ -70,6 +71,7 @@ const handleSettings = (id: number) => {
         <Button
           variant="outline"
           size="sm"
+          class="w-full sm:w-auto"
           :disabled="isRefreshing"
           @click="handleRefresh"
         >
@@ -106,13 +108,14 @@ const handleSettings = (id: number) => {
       <p class="text-sm text-muted-foreground max-w-sm">
         {{ t('groups.empty.description') }}
       </p>
-      <div class="flex gap-2 mt-4">
+      <div class="mt-4 grid gap-2 sm:flex">
         <Button variant="outline" @click="handleRefresh">
           <RefreshCw class="h-4 w-4 mr-2" />
           {{ t('groups.actions.refreshList') }}
         </Button>
         <Button
           v-if="showCreateButton"
+          class="w-full sm:w-auto"
           @click="emit('create')"
         >
           <Plus class="h-4 w-4 mr-2" />
