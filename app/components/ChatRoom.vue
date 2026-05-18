@@ -744,16 +744,28 @@ onBeforeUnmount(() => {
       <SheetContent side="right" class="flex w-full flex-col p-0 sm:w-96">
         <div class="border-b px-5 py-4">
           <div class="flex items-start gap-3 pr-16">
-            <Avatar class="h-11 w-11 shrink-0 ring-1 ring-border">
-              <AvatarImage
-                v-if="directMessageTarget"
-                :src="directMessageTarget.avatar"
-                :alt="directMessageTarget?.nickname"
-              />
-              <AvatarFallback v-if="directMessageTarget">
-                {{ directMessageTarget.nickname.slice(0, 2) }}
-              </AvatarFallback>
-            </Avatar>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              class="h-11 w-11 shrink-0 rounded-full p-0"
+              :disabled="!directMessageTarget"
+              @click="
+                directMessageTarget &&
+                emit('view-profile', directMessageTarget.id)
+              "
+            >
+              <Avatar class="h-11 w-11 ring-1 ring-border">
+                <AvatarImage
+                  v-if="directMessageTarget"
+                  :src="directMessageTarget.avatar"
+                  :alt="directMessageTarget?.nickname"
+                />
+                <AvatarFallback v-if="directMessageTarget">
+                  {{ directMessageTarget.nickname.slice(0, 2) }}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
             <div class="min-w-0 flex-1">
               <div
                 v-if="directMessageTarget"
