@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { refDebounced } from '@vueuse/core';
 import { Icon } from '@iconify/vue';
-import { Search } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { CheckCheck, RefreshCw, Search } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,13 +19,30 @@ import {
   TabsTrigger
 } from '@/components/ui/tabs';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import AccountSwitcher from '@/components/AccountSwitcher.vue';
 import MailDisplay from '@/components/MailDisplay.vue';
 import MailList from '@/components/MailList.vue';
 import Nav, {
   type LinkProp
 } from '@/components/MailNav.vue';
 import type { MailItem } from './mail/types';
+
+type MailView =
+  | 'inbox'
+  | 'unread'
+  | 'like'
+  | 'comment'
+  | 'retweet'
+  | 'follow'
+  | 'mention'
+  | 'login_alert'
+  | 'system'
+  | 'trash';
+
+interface MailFilterPayload {
+  type: string;
+  unreadOnly: boolean;
+  showDeleted: boolean;
+}
 
 interface MailProps {
   // 改为可选，以便页面不再强制传入
@@ -42,13 +59,21 @@ interface MailProps {
   loadMore?: () => void;
   // 是否是垃圾桶视图
   isTrashView?: boolean;
+  loading?: boolean;
 }
 
-const emit = defineEmits([
-  'read-mail',
-  'delete-mail',
-  'restore-mail'
-]);
+const emit = defineEmits<{
+  (e: 'read-mail', mailId: string): void;
+  (e: 'delete-mail', mailId: string): void;
+  (e: 'restore-mail', mailId: string): void;
+  (
+    e: 'set-read-status',
+    payload: { mailId: string; read: boolean }
+  ): void;
+  (e: 'mark-all-read'): void;
+  (e: 'refresh'): void;
+  (e: 'filter-change', filters: MailFilterPayload): void;
+}>();
 
 const props = withDefaults(defineProps<MailProps>(), {
   defaultCollapsed: false,
@@ -64,21 +89,116 @@ const selectedMail = ref<string | undefined>(
 );
 const searchValue = ref('');
 const debouncedSearch = refDebounced(searchValue, 250);
+const currentView = ref<MailView>('inbox');
+const activeTab = ref<'all' | 'unread'>('all');
+
+const viewOptions = computed<
+  Array<{
+    value: MailView;
+    title: string;
+    icon: string;
+    type: string;
+    showDeleted?: boolean;
+    forceUnread?: boolean;
+  }>
+>(() => [
+  {
+    value: 'inbox',
+    title: t('mail.folders.inbox'),
+    icon: 'lucide:inbox',
+    type: 'all'
+  },
+  {
+    value: 'unread',
+    title: t('mail.folders.unread'),
+    icon: 'lucide:mail-warning',
+    type: 'all',
+    forceUnread: true
+  },
+  {
+    value: 'like',
+    title: t('mail.folders.likes'),
+    icon: 'lucide:heart',
+    type: 'like'
+  },
+  {
+    value: 'comment',
+    title: t('mail.folders.comments'),
+    icon: 'lucide:message-circle',
+    type: 'comment'
+  },
+  {
+    value: 'retweet',
+    title: t('mail.folders.retweets'),
+    icon: 'lucide:repeat-2',
+    type: 'retweet'
+  },
+  {
+    value: 'follow',
+    title: t('mail.folders.follows'),
+    icon: 'lucide:user-plus',
+    type: 'follow'
+  },
+  {
+    value: 'mention',
+    title: t('mail.folders.mentions'),
+    icon: 'lucide:at-sign',
+    type: 'mention'
+  },
+  {
+    value: 'login_alert',
+    title: t('mail.folders.security'),
+    icon: 'lucide:shield-alert',
+    type: 'login_alert'
+  },
+  {
+    value: 'system',
+    title: t('mail.folders.system'),
+    icon: 'lucide:bell',
+    type: 'system'
+  },
+  {
+    value: 'trash',
+    title: t('mail.folders.trash'),
+    icon: 'lucide:trash-2',
+    type: 'all',
+    showDeleted: true
+  }
+]);
+
+const currentViewOption = computed(
+  () =>
+    viewOptions.value.find(
+      option => option.value === currentView.value
+    ) ?? viewOptions.value[0]
+);
+
+const isCurrentTrashView = computed(
+  () => currentView.value === 'trash' || props.isTrashView
+);
 
 const filteredMailList = computed(() => {
   let output: MailItem[] = [];
-  const searchValue = debouncedSearch.value?.trim();
-  if (!searchValue) {
+  const normalizedSearch = debouncedSearch.value
+    ?.trim()
+    .toLowerCase();
+  if (!normalizedSearch) {
     output = props.mails;
   } else {
     output = props.mails.filter(item => {
-      return (
-        item.name.includes(debouncedSearch.value) ||
-        item.email.includes(debouncedSearch.value) ||
-        item.name.includes(debouncedSearch.value) ||
-        item.subject.includes(debouncedSearch.value) ||
-        item.text.includes(debouncedSearch.value)
-      );
+      const searchableText = [
+        item.name,
+        item.email,
+        item.subject,
+        item.text,
+        item.typeLabel,
+        item.primaryPreview?.text,
+        item.secondaryPreview?.text
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(' ')
+        .toLowerCase();
+      return searchableText.includes(normalizedSearch);
     });
   }
 
@@ -93,33 +213,56 @@ const selectedMailData = computed(() =>
   props.mails.find(item => item.id === selectedMail.value)
 );
 
-// 当前选中的视图：inbox 或 trash
-const currentView = ref<'inbox' | 'trash'>('inbox');
-
 const links = computed<LinkProp[]>(() => [
-  {
-    value: 'inbox',
-    title: t('mail.folders.inbox'),
-    icon: 'lucide:inbox',
+  ...viewOptions.value.map(option => ({
+    value: option.value,
+    title: option.title,
+    icon: option.icon,
     variant:
-      currentView.value === 'inbox' ? 'default' : 'ghost'
-  },
-  {
-    value: 'trash',
-    title: t('mail.folders.trash'),
-    icon: 'lucide:trash-2',
-    variant:
-      currentView.value === 'trash' ? 'default' : 'ghost'
-  }
+      currentView.value === option.value ? 'default' : 'ghost'
+  }))
 ]);
 
-// 切换视图
+function emitFilterChange(
+  view = currentView.value,
+  tab = activeTab.value
+) {
+  const option =
+    viewOptions.value.find(item => item.value === view) ??
+    viewOptions.value[0];
+  if (!option) return;
+
+  emit('filter-change', {
+    type: option.type,
+    unreadOnly:
+      Boolean(option.forceUnread) || tab === 'unread',
+    showDeleted: Boolean(option.showDeleted)
+  });
+}
+
+function resetSelectedMail() {
+  selectedMail.value = undefined;
+}
+
 function handleNavClick(value: string) {
-  if (value === 'inbox') {
+  const nextView = viewOptions.value.find(
+    option => option.value === value
+  )?.value;
+  if (!nextView) return;
+
+  currentView.value = nextView;
+  activeTab.value = nextView === 'unread' ? 'unread' : 'all';
+  resetSelectedMail();
+  emitFilterChange(nextView, activeTab.value);
+}
+
+function handleTabChange(value: string | number) {
+  activeTab.value = value === 'unread' ? 'unread' : 'all';
+  if (currentView.value === 'unread' && activeTab.value === 'all') {
     currentView.value = 'inbox';
-  } else if (value === 'trash') {
-    currentView.value = 'trash';
   }
+  resetSelectedMail();
+  emitFilterChange();
 }
 
 // 暴露当前视图给父组件
@@ -138,6 +281,20 @@ function onExpand() {
 function handleReadMail(mailId: string) {
   emit('read-mail', mailId);
 }
+
+watch(
+  filteredMailList,
+  items => {
+    if (
+      selectedMail.value &&
+      items.some(item => item.id === selectedMail.value)
+    ) {
+      return;
+    }
+    selectedMail.value = items[0]?.id;
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -156,6 +313,26 @@ function handleReadMail(mailId: string) {
             {{ link.title }}
           </Button>
         </div>
+        <div class="grid grid-cols-2 gap-2">
+          <Button
+            variant="outline"
+            class="justify-start"
+            :disabled="props.loading"
+            @click="emit('refresh')"
+          >
+            <RefreshCw class="size-4" />
+            {{ t('mail.actions.refresh') }}
+          </Button>
+          <Button
+            variant="outline"
+            class="justify-start"
+            :disabled="props.loading || isCurrentTrashView"
+            @click="emit('mark-all-read')"
+          >
+            <CheckCheck class="size-4" />
+            {{ t('mail.actions.markAllRead') }}
+          </Button>
+        </div>
         <form>
           <div class="relative">
             <Search
@@ -170,7 +347,11 @@ function handleReadMail(mailId: string) {
         </form>
       </div>
 
-      <Tabs default-value="all" class="min-h-0 flex-1">
+      <Tabs
+        :model-value="activeTab"
+        class="min-h-0 flex-1"
+        @update:model-value="handleTabChange"
+      >
         <TabsList class="mx-3 mt-3 grid grid-cols-2">
           <TabsTrigger
             value="all"
@@ -206,9 +387,10 @@ function handleReadMail(mailId: string) {
       <MailDisplay
         class="min-h-72 border-t"
         :mail="selectedMailData"
-        :is-trash-view="isTrashView"
+        :is-trash-view="isCurrentTrashView"
         @delete-mail="emit('delete-mail', $event)"
         @restore-mail="emit('restore-mail', $event)"
+        @set-read-status="emit('set-read-status', $event)"
       />
     </div>
 
@@ -245,29 +427,52 @@ function handleReadMail(mailId: string) {
         :default-size="defaultLayout[1]"
         :min-size="30"
       >
-        <Tabs default-value="all">
-          <div class="flex items-center px-4 py-2">
+        <Tabs
+          :model-value="activeTab"
+          @update:model-value="handleTabChange"
+        >
+          <div class="flex flex-wrap items-center gap-2 px-4 py-2">
             <h1 class="text-xl font-bold">
-              {{
-                currentView === 'inbox'
-                  ? t('mail.folders.inbox')
-                  : t('mail.folders.trash')
-              }}
+              {{ currentViewOption?.title }}
             </h1>
-            <TabsList class="ml-auto">
-              <TabsTrigger
-                value="all"
-                class="text-zinc-600 dark:text-zinc-200"
+            <div class="ml-auto flex items-center gap-2">
+              <TabsList>
+                <TabsTrigger
+                  value="all"
+                  class="text-zinc-600 dark:text-zinc-200"
+                >
+                  {{ t('mail.tabs.all') }}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="unread"
+                  class="text-zinc-600 dark:text-zinc-200"
+                >
+                  {{ t('mail.tabs.unread') }}
+                </TabsTrigger>
+              </TabsList>
+              <Button
+                variant="ghost"
+                size="icon"
+                :disabled="props.loading"
+                @click="emit('refresh')"
               >
-                {{ t('mail.tabs.all') }}
-              </TabsTrigger>
-              <TabsTrigger
-                value="unread"
-                class="text-zinc-600 dark:text-zinc-200"
+                <RefreshCw class="size-4" />
+                <span class="sr-only">{{
+                  t('mail.actions.refresh')
+                }}</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                :disabled="props.loading || isCurrentTrashView"
+                @click="emit('mark-all-read')"
               >
-                {{ t('mail.tabs.unread') }}
-              </TabsTrigger>
-            </TabsList>
+                <CheckCheck class="size-4" />
+                <span class="sr-only">{{
+                  t('mail.actions.markAllRead')
+                }}</span>
+              </Button>
+            </div>
           </div>
           <Separator />
           <div
@@ -311,9 +516,10 @@ function handleReadMail(mailId: string) {
       >
         <MailDisplay
           :mail="selectedMailData"
-          :is-trash-view="isTrashView"
+          :is-trash-view="isCurrentTrashView"
           @delete-mail="emit('delete-mail', $event)"
           @restore-mail="emit('restore-mail', $event)"
+          @set-read-status="emit('set-read-status', $event)"
         />
       </ResizablePanel>
     </ResizablePanelGroup>
