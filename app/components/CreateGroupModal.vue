@@ -81,6 +81,10 @@ watch(
         privacy: 'public',
         category: ''
       };
+      isAvatarUploading.value = false;
+      isCoverUploading.value = false;
+      resetAvatarInput();
+      resetCoverInput();
     }
   }
 );
