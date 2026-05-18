@@ -1061,10 +1061,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 w-full overflow-hidden">
+  <div class="flex h-full min-h-0 w-full flex-col overflow-hidden md:flex-row">
     <div
       v-if="!isDirectMessageStandalone"
-      class="hidden h-full min-h-0 w-60 flex-shrink-0 overflow-hidden border-r bg-muted/20 md:block"
+      class="h-48 min-h-0 w-full flex-shrink-0 overflow-hidden border-b bg-muted/20 md:h-full md:w-60 md:border-b-0 md:border-r"
     >
       <ChatChannelList
         :categories="channelCategories"
