@@ -136,9 +136,9 @@ onMounted(() => {
 <template>
   <div class="space-y-4">
     <Card>
-      <CardContent class="flex flex-wrap gap-3 p-4">
+      <CardContent class="grid gap-3 p-4 sm:flex sm:flex-wrap">
         <Select v-model="filters.status">
-          <SelectTrigger class="w-[160px]">
+          <SelectTrigger class="w-full sm:w-[160px]">
             <SelectValue :placeholder="t('moderation.reports.status')" />
           </SelectTrigger>
           <SelectContent>
@@ -150,7 +150,7 @@ onMounted(() => {
           </SelectContent>
         </Select>
         <Select v-model="filters.reason">
-          <SelectTrigger class="w-[160px]">
+          <SelectTrigger class="w-full sm:w-[160px]">
             <SelectValue :placeholder="t('moderation.filters.reportReasonPlaceholder')" />
           </SelectTrigger>
           <SelectContent>
@@ -166,7 +166,7 @@ onMounted(() => {
           </SelectContent>
         </Select>
         <Select v-model="filters.targetType">
-          <SelectTrigger class="w-[160px]">
+          <SelectTrigger class="w-full sm:w-[160px]">
             <SelectValue :placeholder="t('moderation.reports.targetType')" />
           </SelectTrigger>
           <SelectContent>
@@ -176,7 +176,7 @@ onMounted(() => {
             <SelectItem value="user">{{ t('moderation.reports.targetUser') }}</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" @click="loadReports(true)">
+        <Button class="w-full sm:w-auto" variant="outline" @click="loadReports(true)">
           {{ t('moderation.actions.refresh') }}
         </Button>
       </CardContent>
@@ -198,18 +198,18 @@ onMounted(() => {
 
     <template v-else>
       <Card v-for="report in reports" :key="report.id">
-        <CardHeader class="flex flex-row items-start justify-between space-y-0">
-        <div>
-          <CardTitle class="flex items-center gap-2 text-base">
+        <CardHeader class="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
+          <CardTitle class="flex min-w-0 items-center gap-2 text-base">
             <Flag class="h-4 w-4 text-destructive" />
-            #{{ report.id }} · {{ t(`moderation.filters.reasons.${report.reason}`) }}
+            <span class="truncate">#{{ report.id }} · {{ t(`moderation.filters.reasons.${report.reason}`) }}</span>
           </CardTitle>
-          <div class="mt-1 text-sm text-muted-foreground">
+          <div class="mt-1 truncate text-sm text-muted-foreground">
             {{ report.reporterName || t('moderation.reports.anonymous') }}
             · {{ report.targetType }} #{{ report.targetId }}
           </div>
         </div>
-        <div class="flex flex-wrap justify-end gap-2">
+        <div class="flex flex-wrap gap-2 sm:justify-end">
           <Badge variant="outline">{{ report.priority }}</Badge>
           <Badge>{{ report.status }}</Badge>
         </div>
@@ -230,7 +230,7 @@ onMounted(() => {
           <ExternalLink class="h-4 w-4" />
           {{ t('moderation.reports.evidence') }}
         </Button>
-        <div class="flex flex-wrap gap-2">
+        <div class="grid gap-2 sm:flex sm:flex-wrap">
           <Button size="sm" variant="outline" @click="setReportStatus(report, 'in_review')">
             {{ t('moderation.reportStatus.inReview') }}
           </Button>
@@ -273,12 +273,12 @@ onMounted(() => {
             :key="appeal.id"
             class="rounded-lg border p-4"
           >
-            <div class="flex items-start justify-between gap-3">
-              <div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div class="min-w-0">
                 <div class="font-medium">
                   {{ appeal.userName }} · #{{ appeal.statementId }}
                 </div>
-                <div class="text-sm text-muted-foreground">
+                <div class="truncate text-sm text-muted-foreground">
                   @{{ appeal.username }} · {{ appeal.status }}
                 </div>
               </div>
