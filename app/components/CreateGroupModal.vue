@@ -3,6 +3,7 @@ import { ref, watch } from 'vue';
 import {
   Camera,
   Globe,
+  Loader2,
   Lock,
   Shield,
   X
@@ -36,7 +37,9 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { toast } from 'vue-sonner';
+import { v2UploadMedia } from '@/services';
 import type { CreateGroupData } from '@/types/groups';
+import { normalizeAssetUrl } from '@/utils/assets';
 
 export type { CreateGroupData } from '@/types/groups';
 const { t } = useAppLocale();
@@ -59,6 +62,8 @@ const formData = ref<CreateGroupData>({
   privacy: 'public',
   category: ''
 });
+const avatarInputRef = ref<HTMLInputElement | null>(null);
+const isAvatarUploading = ref(false);
 
 // 重置表单
 watch(
@@ -116,6 +121,65 @@ const updateCategory = (value: unknown) => {
   formData.value.category = value ? String(value) : '';
 };
 
+const resetAvatarInput = () => {
+  if (avatarInputRef.value) {
+    avatarInputRef.value.value = '';
+  }
+};
+
+const triggerAvatarUpload = () => {
+  if (isAvatarUploading.value) return;
+  avatarInputRef.value?.click();
+};
+
+const clearAvatar = () => {
+  if (isAvatarUploading.value) return;
+  formData.value.avatar = '';
+  resetAvatarInput();
+};
+
+const handleAvatarSelected = async (event: Event) => {
+  const target = event.target as HTMLInputElement | null;
+  const file = target?.files?.[0];
+  resetAvatarInput();
+
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    toast.error(t('avatar.validation.imageOnly'));
+    return;
+  }
+
+  const maxSizeInMB = 5;
+  if (file.size > maxSizeInMB * 1024 * 1024) {
+    toast.error(
+      t('avatar.validation.maxSize', { size: maxSizeInMB })
+    );
+    return;
+  }
+
+  isAvatarUploading.value = true;
+  try {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('alt_text', formData.value.name || file.name);
+    const media = await v2UploadMedia(body);
+
+    if (props.open) {
+      formData.value.avatar = normalizeAssetUrl(
+        media.public_url
+      );
+    }
+  } catch (error) {
+    toast.error(t('avatar.feedback.uploadFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    isAvatarUploading.value = false;
+  }
+};
+
 // 提交表单
 const handleSubmit = () => {
   if (!formData.value.name.trim()) {
@@ -154,6 +218,13 @@ const closeDialog = () => {
         <!-- 头像上传 -->
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div class="relative">
+            <input
+              ref="avatarInputRef"
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              class="hidden"
+              @change="handleAvatarSelected"
+            >
             <Avatar class="h-20 w-20">
               <AvatarImage
                 v-if="formData.avatar"
@@ -164,11 +235,31 @@ const closeDialog = () => {
               </AvatarFallback>
             </Avatar>
             <Button
+              type="button"
               variant="secondary"
               size="icon"
               class="absolute -bottom-1 -right-1 h-8 w-8 rounded-full"
+              :disabled="isAvatarUploading"
+              :aria-label="t('groups.create.avatar')"
+              @click="triggerAvatarUpload"
             >
-              <Camera class="h-4 w-4" />
+              <Loader2
+                v-if="isAvatarUploading"
+                class="h-4 w-4 animate-spin"
+              />
+              <Camera v-else class="h-4 w-4" />
+            </Button>
+            <Button
+              v-if="formData.avatar"
+              type="button"
+              variant="outline"
+              size="icon"
+              class="absolute -right-2 -top-2 h-6 w-6 rounded-full bg-background"
+              :disabled="isAvatarUploading"
+              :aria-label="t('common.cancel')"
+              @click="clearAvatar"
+            >
+              <X class="h-3 w-3" />
             </Button>
           </div>
           <div class="flex-1">
