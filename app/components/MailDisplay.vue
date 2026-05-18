@@ -1,38 +1,35 @@
 <script lang="ts" setup>
+import { computed } from 'vue';
+import type { Component } from 'vue';
 import {
-  addDays,
-  addHours,
-  format,
-  nextSaturday
-} from 'date-fns';
-import {
-  Archive,
-  ArchiveX,
-  Clock,
-  Forward,
+  AtSign,
+  Bell,
+  Check,
+  ExternalLink,
+  Heart,
+  MailOpen,
+  MessageCircle,
   MoreVertical,
-  Reply,
-  ReplyAll,
+  Repeat2,
+  RotateCcw,
+  ShieldAlert,
   Trash2,
-  RotateCcw
+  UserPlus,
+  UserRound
 } from 'lucide-vue-next';
 import {
   Avatar,
-  AvatarFallback
+  AvatarFallback,
+  AvatarImage
 } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
 import {
   Tooltip,
@@ -47,57 +44,134 @@ interface MailDisplayProps {
 }
 
 const props = defineProps<MailDisplayProps>();
-const { t } = useAppLocale();
+const emit = defineEmits<{
+  (e: 'delete-mail' | 'restore-mail', mailId: string): void;
+  (
+    e: 'set-read-status',
+    payload: { mailId: string; read: boolean }
+  ): void;
+}>();
 
-const today = new Date();
+const { t, locale } = useAppLocale();
 
-const emit = defineEmits(['delete-mail', 'restore-mail']);
+const notificationIcons: Record<string, Component> = {
+  like: Heart,
+  comment: MessageCircle,
+  retweet: Repeat2,
+  follow: UserPlus,
+  mention: AtSign,
+  login_alert: ShieldAlert,
+  system: Bell
+};
+
+const notificationIcon = computed<Component>(() => {
+  const type = props.mail?.type ?? '';
+  return notificationIcons[type] ?? Bell;
+});
+
+const formattedDate = computed(() => {
+  if (!props.mail?.date) return '';
+
+  return new Date(props.mail.date).toLocaleString(
+    locale.value === 'zh' ? 'zh-CN' : 'en-US',
+    {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }
+  );
+});
+
+const priorityBadgeVariant = computed(() =>
+  props.mail?.priority === 'high' ||
+  props.mail?.priority === 'urgent'
+    ? 'destructive'
+    : 'outline'
+);
+
+function initials(value: string): string {
+  return (value || 'NT').substring(0, 2).toUpperCase();
+}
+
+function toggleReadStatus() {
+  if (!props.mail) return;
+  emit('set-read-status', {
+    mailId: props.mail.id,
+    read: !props.mail.read
+  });
+}
 </script>
 
 <template>
   <div class="flex h-full flex-col">
     <div class="flex items-center p-2">
-      <div class="flex items-center gap-2" v-if="mail">
+      <div v-if="mail" class="flex items-center gap-2">
+        <Tooltip v-if="mail.href">
+          <TooltipTrigger as-child>
+            <Button as-child variant="ghost" size="icon">
+              <NuxtLink :to="mail.href">
+                <ExternalLink class="size-4" />
+                <span class="sr-only">{{
+                  mail.primaryActionLabel
+                }}</span>
+              </NuxtLink>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{{
+            mail.primaryActionLabel
+          }}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip v-if="mail.actorHref">
+          <TooltipTrigger as-child>
+            <Button as-child variant="ghost" size="icon">
+              <NuxtLink :to="mail.actorHref">
+                <UserRound class="size-4" />
+                <span class="sr-only">{{
+                  t('mail.display.viewActor')
+                }}</span>
+              </NuxtLink>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{{
+            t('mail.display.viewActor')
+          }}</TooltipContent>
+        </Tooltip>
+
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
               variant="ghost"
               size="icon"
-              :disabled="!mail"
+              @click.stop="toggleReadStatus"
             >
-              <Archive class="size-4" />
-              <span class="sr-only">{{
-                t('mail.display.archive')
-              }}</span>
+              <Check v-if="!mail.read" class="size-4" />
+              <MailOpen v-else class="size-4" />
+              <span class="sr-only">
+                {{
+                  mail.read
+                    ? t('mail.display.markAsUnread')
+                    : t('mail.display.markAsRead')
+                }}
+              </span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{{
-            t('mail.display.archive')
-          }}</TooltipContent>
+          <TooltipContent>
+            {{
+              mail.read
+                ? t('mail.display.markAsUnread')
+                : t('mail.display.markAsRead')
+            }}
+          </TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon"
-              :disabled="!mail"
-            >
-              <ArchiveX class="size-4" />
-              <span class="sr-only">{{
-                t('mail.display.moveToJunk')
-              }}</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{{
-            t('mail.display.moveToJunk')
-          }}</TooltipContent>
-        </Tooltip>
+
         <Tooltip v-if="!isTrashView">
           <TooltipTrigger as-child>
             <Button
               variant="ghost"
               size="icon"
-              :disabled="!mail"
               @click.stop="emit('delete-mail', mail.id)"
             >
               <Trash2 class="size-4" />
@@ -110,12 +184,12 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
             t('mail.display.moveToTrash')
           }}</TooltipContent>
         </Tooltip>
+
         <Tooltip v-else>
           <TooltipTrigger as-child>
             <Button
               variant="ghost"
               size="icon"
-              :disabled="!mail"
               @click.stop="emit('restore-mail', mail.id)"
             >
               <RotateCcw class="size-4" />
@@ -124,240 +198,203 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
               }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent
-            >{{ t('mail.display.restoreFromTrash') }}</TooltipContent
-          >
-        </Tooltip>
-        <Separator
-          orientation="vertical"
-          class="mx-1 h-6"
-        />
-        <Tooltip>
-          <Popover>
-            <PopoverTrigger as-child>
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  :disabled="!mail"
-                >
-                  <Clock class="size-4" />
-                  <span class="sr-only">{{
-                    t('mail.display.snooze')
-                  }}</span>
-                </Button>
-              </TooltipTrigger>
-            </PopoverTrigger>
-            <PopoverContent class="flex w-[min(535px,calc(100vw-2rem))] flex-col p-0 sm:flex-row">
-              <div
-                class="flex flex-col gap-2 border-r px-2 py-4"
-              >
-                <div class="px-4 text-sm font-medium">
-                  {{ t('mail.display.snoozeUntil') }}
-                </div>
-                <div class="grid min-w-0 gap-1 sm:min-w-[250px]">
-                  <Button
-                    variant="ghost"
-                    class="justify-start font-normal"
-                  >
-                    {{ t('mail.display.laterToday') }}
-                    <span
-                      class="ml-auto text-muted-foreground"
-                    >
-                      {{
-                        format(
-                          addHours(today, 4),
-                          'E, h:m b'
-                        )
-                      }}
-                    </span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    class="justify-start font-normal"
-                  >
-                    {{ t('mail.display.tomorrow') }}
-                    <span
-                      class="ml-auto text-muted-foreground"
-                    >
-                      {{
-                        format(
-                          addDays(today, 1),
-                          'E, h:m b'
-                        )
-                      }}
-                    </span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    class="justify-start font-normal"
-                  >
-                    {{ t('mail.display.thisWeekend') }}
-                    <span
-                      class="ml-auto text-muted-foreground"
-                    >
-                      {{
-                        format(
-                          nextSaturday(today),
-                          'E, h:m b'
-                        )
-                      }}
-                    </span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    class="justify-start font-normal"
-                  >
-                    {{ t('mail.display.nextWeek') }}
-                    <span
-                      class="ml-auto text-muted-foreground"
-                    >
-                      {{
-                        format(
-                          addDays(today, 7),
-                          'E, h:m b'
-                        )
-                      }}
-                    </span>
-                  </Button>
-                </div>
-              </div>
-              <div class="p-2">
-                <Calendar />
-              </div>
-            </PopoverContent>
-          </Popover>
           <TooltipContent>{{
-            t('mail.display.snooze')
+            t('mail.display.restoreFromTrash')
           }}</TooltipContent>
         </Tooltip>
       </div>
-      <div
-        class="ml-auto flex items-center gap-2"
-        v-if="mail"
-      >
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon"
-              :disabled="!mail"
-            >
-              <Reply class="size-4" />
+
+      <div v-if="mail" class="ml-auto">
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button variant="ghost" size="icon">
+              <MoreVertical class="size-4" />
               <span class="sr-only">{{
-                t('mail.display.reply')
+                t('mail.display.more')
               }}</span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>{{
-            t('mail.display.reply')
-          }}</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon"
-              :disabled="!mail"
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              v-if="mail.href"
+              as-child
             >
-              <ReplyAll class="size-4" />
-              <span class="sr-only">{{
-                t('mail.display.replyAll')
-              }}</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{{
-            t('mail.display.replyAll')
-          }}</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon"
-              :disabled="!mail"
+              <NuxtLink :to="mail.href">
+                {{ mail.primaryActionLabel }}
+              </NuxtLink>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              v-if="mail.actorHref"
+              as-child
             >
-              <Forward class="size-4" />
-              <span class="sr-only">{{
-                t('mail.display.forward')
-              }}</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{{
-            t('mail.display.forward')
-          }}</TooltipContent>
-        </Tooltip>
+              <NuxtLink :to="mail.actorHref">
+                {{ t('mail.display.viewActor') }}
+              </NuxtLink>
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="toggleReadStatus">
+              {{
+                mail.read
+                  ? t('mail.display.markAsUnread')
+                  : t('mail.display.markAsRead')
+              }}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <Separator orientation="vertical" class="mx-2 h-6" />
-      <DropdownMenu v-if="mail">
-        <DropdownMenuTrigger as-child>
-          <Button
-            variant="ghost"
-            size="icon"
-            :disabled="!mail"
-          >
-            <MoreVertical class="size-4" />
-            <span class="sr-only">{{
-              t('mail.display.more')
-            }}</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            >{{ t('mail.display.markAsUnread') }}</DropdownMenuItem
-          >
-          <DropdownMenuItem>{{
-            t('mail.display.starThread')
-          }}</DropdownMenuItem>
-          <DropdownMenuItem>{{
-            t('mail.display.addLabel')
-          }}</DropdownMenuItem>
-          <DropdownMenuItem>{{
-            t('mail.display.muteThread')
-          }}</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
+
     <Separator />
-    <div v-if="mail" class="flex flex-1 flex-col">
-      <div class="flex items-start p-4">
-        <div class="flex items-start gap-4 text-sm">
-          <Avatar>
-            <AvatarImage
-              :src="mail.avatar"
-              :alt="mail.name"
+
+    <div v-if="mail" class="min-h-0 flex-1 overflow-auto">
+      <div class="flex items-start gap-4 p-4">
+        <Avatar class="size-11 shrink-0">
+          <AvatarImage :src="mail.avatar" :alt="mail.name" />
+          <AvatarFallback>{{ initials(mail.name) }}</AvatarFallback>
+        </Avatar>
+
+        <div class="min-w-0 flex-1 space-y-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <component
+              :is="notificationIcon"
+              class="size-4 text-muted-foreground"
             />
-            <AvatarFallback>
-              {{ mail.name }}
-            </AvatarFallback>
-          </Avatar>
-          <div class="grid gap-1">
-            <div class="font-semibold">
+            <div class="min-w-0 truncate font-semibold">
               {{ mail.name }}
             </div>
-            <div class="line-clamp-1 text-xs">
-              {{ mail.subject }}
+            <Badge variant="secondary">
+              {{ mail.typeLabel }}
+            </Badge>
+            <Badge
+              v-if="mail.priority !== 'normal'"
+              :variant="priorityBadgeVariant"
+            >
+              {{ mail.priorityLabel }}
+            </Badge>
+            <span
+              v-if="!mail.read"
+              class="h-2 w-2 rounded-full bg-blue-600"
+            />
+          </div>
+
+          <div class="text-sm font-medium">
+            {{ mail.subject }}
+          </div>
+
+          <div class="text-xs text-muted-foreground">
+            {{ formattedDate }}
+          </div>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div class="space-y-4 p-4">
+        <p class="whitespace-pre-wrap text-sm leading-6">
+          {{ mail.text }}
+        </p>
+
+        <div
+          v-if="mail.primaryPreview"
+          class="rounded-lg border bg-muted/30 p-3"
+        >
+          <div
+            class="mb-2 flex flex-wrap items-center justify-between gap-2"
+          >
+            <div class="text-sm font-medium">
+              {{ mail.primaryPreview.title }}
             </div>
-            <div class="line-clamp-1 text-xs">
-              <span class="font-medium">{{
-                t('mail.display.replyTo')
-              }}</span>
-              {{ mail.email }}
+            <Button
+              v-if="mail.primaryPreview.to"
+              as-child
+              variant="link"
+              size="sm"
+              class="h-auto p-0"
+            >
+              <NuxtLink :to="mail.primaryPreview.to">
+                {{ t('mail.display.openRelated') }}
+              </NuxtLink>
+            </Button>
+          </div>
+          <p
+            class="whitespace-pre-wrap break-words text-sm text-muted-foreground"
+          >
+            {{ mail.primaryPreview.text }}
+          </p>
+        </div>
+
+        <div
+          v-if="mail.secondaryPreview"
+          class="rounded-lg border bg-background p-3"
+        >
+          <div
+            class="mb-2 flex flex-wrap items-center justify-between gap-2"
+          >
+            <div class="text-sm font-medium">
+              {{ mail.secondaryPreview.title }}
+            </div>
+            <Button
+              v-if="mail.secondaryPreview.to"
+              as-child
+              variant="link"
+              size="sm"
+              class="h-auto p-0"
+            >
+              <NuxtLink :to="mail.secondaryPreview.to">
+                {{ t('mail.display.openRelated') }}
+              </NuxtLink>
+            </Button>
+          </div>
+          <p
+            class="whitespace-pre-wrap break-words text-sm text-muted-foreground"
+          >
+            {{ mail.secondaryPreview.text }}
+          </p>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <Button
+            v-if="mail.href"
+            as-child
+            size="sm"
+          >
+            <NuxtLink :to="mail.href">
+              <ExternalLink class="size-4" />
+              {{ mail.primaryActionLabel }}
+            </NuxtLink>
+          </Button>
+          <Button
+            v-if="mail.actorHref"
+            as-child
+            variant="outline"
+            size="sm"
+          >
+            <NuxtLink :to="mail.actorHref">
+              <UserRound class="size-4" />
+              {{ t('mail.display.viewActor') }}
+            </NuxtLink>
+          </Button>
+        </div>
+
+        <div
+          v-if="mail.details.length > 0"
+          class="grid gap-2 rounded-lg border bg-muted/20 p-3 text-sm"
+        >
+          <div
+            v-for="detail in mail.details"
+            :key="detail.label"
+            class="grid gap-1 sm:grid-cols-[9rem_minmax(0,1fr)]"
+          >
+            <div class="text-muted-foreground">
+              {{ detail.label }}
+            </div>
+            <div class="min-w-0 break-words">
+              {{ detail.value }}
             </div>
           </div>
         </div>
-        <div
-          v-if="mail.date"
-          class="ml-auto text-xs text-muted-foreground"
-        >
-          {{ format(new Date(mail.date), 'PPpp') }}
-        </div>
-      </div>
-      <Separator />
-      <div class="flex-1 whitespace-pre-wrap p-4 text-sm">
-        {{ mail.text }}
       </div>
     </div>
+
     <div
       v-else
       class="p-8 text-center text-muted-foreground"
