@@ -1768,10 +1768,14 @@ onBeforeUnmount(() => {
         </Button>
       </div>
       <div
-        v-else-if="!activeGroup"
+        v-else-if="!activeGroup && !isDirectMessageStandalone"
         class="h-full flex items-center justify-center text-muted-foreground"
       >
-        {{ t('chat.empty.noGroups') }}
+        {{
+          directConversations.length > 0
+            ? t('chat.empty.selectDirectConversation')
+            : t('chat.empty.noGroups')
+        }}
       </div>
       <template v-else>
         <div
@@ -1808,9 +1812,12 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <span class="rounded-full border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+            <Badge
+              variant="secondary"
+              class="rounded-full px-3 py-1 text-xs"
+            >
               {{ t('chat.directMessage.title') }}
-            </span>
+            </Badge>
           </div>
 
           <div class="relative min-h-0 flex-1">
@@ -1843,12 +1850,20 @@ onBeforeUnmount(() => {
                     :class="{ 'justify-end': message.author.user_id === currentUserId }"
                   >
                     <div class="max-w-[72%]">
-                      <div
-                        class="rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm"
-                        :class="message.author.user_id === currentUserId ? 'ml-auto bg-primary text-primary-foreground' : 'bg-card text-foreground border'"
+                      <Card
+                        class="gap-0 rounded-xl py-0 text-sm leading-6 shadow-xs"
+                        :class="
+                          message.author.user_id === currentUserId
+                            ? 'ml-auto border-primary/60 bg-primary text-primary-foreground'
+                            : 'border-border/70 bg-muted text-foreground dark:bg-muted/80'
+                        "
                       >
-                        <div class="whitespace-pre-wrap break-words">{{ message.content }}</div>
-                      </div>
+                        <CardContent class="px-4 py-3">
+                          <div class="whitespace-pre-wrap break-words">
+                            {{ message.content }}
+                          </div>
+                        </CardContent>
+                      </Card>
                       <div
                         class="mt-1 px-1 text-[11px] text-muted-foreground"
                         :class="message.author.user_id === currentUserId ? 'text-right' : 'text-left'"
