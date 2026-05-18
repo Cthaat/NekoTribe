@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   BadgeCheck,
   Bot,
-  Database,
   Github,
   MessageSquare,
   RadioTower,
