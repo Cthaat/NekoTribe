@@ -59,7 +59,9 @@ import {
   PlayCircle,
   Flag,
   Loader2,
-  BrainCircuit
+  BrainCircuit,
+  Hash,
+  MapPin
 } from 'lucide-vue-next';
 import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
 import AiSentimentPredictionDialog from '@/components/AiSentimentPredictionDialog.vue';
@@ -107,6 +109,22 @@ const mediaItems = computed(() => {
     };
   });
 });
+
+const visibleTags = computed(() =>
+  props.tweet.tags
+    .map(tag => tag.trim().replace(/^#/, ''))
+    .filter(Boolean)
+);
+
+const visibleLocation = computed(() =>
+  props.tweet.location.trim()
+);
+
+const hasPostLabels = computed(
+  () =>
+    visibleTags.value.length > 0 ||
+    visibleLocation.value.length > 0
+);
 
 // 格式化时间戳
 const formattedDate = computed(() => {
@@ -269,6 +287,16 @@ function toTweetDetail(
   const detailPath = localePath(`/tweet/${tweetId}`);
   tweetStore.setSelectedTweet(selectedTweet);
   navigateTo(detailPath);
+}
+
+function searchPosts(query: string) {
+  const normalized = query.trim();
+  if (!normalized) return;
+  void navigateTo(
+    localePath(
+      `/tweet/search/${encodeURIComponent(normalized)}`
+    )
+  );
 }
 
 type RelatedTweetKind = 'reply' | 'quote' | 'repost';
@@ -604,6 +632,37 @@ const relatedExcerpt = computed(() => {
 
       <div class="text-base">
         <TweetContent :content="tweet.content" />
+      </div>
+
+      <div
+        v-if="hasPostLabels"
+        class="mt-3 flex flex-wrap gap-2"
+      >
+        <Button
+          v-if="visibleLocation"
+          type="button"
+          variant="outline"
+          size="sm"
+          class="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-primary"
+          @click.stop="searchPosts(visibleLocation)"
+        >
+          <MapPin class="h-3.5 w-3.5" />
+          <span class="max-w-[12rem] truncate">
+            {{ visibleLocation }}
+          </span>
+        </Button>
+        <Button
+          v-for="tag in visibleTags"
+          :key="`tag-${tweet.id}-${tag}`"
+          type="button"
+          variant="outline"
+          size="sm"
+          class="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-primary"
+          @click.stop="searchPosts(`#${tag}`)"
+        >
+          <Hash class="h-3.5 w-3.5" />
+          <span>{{ tag }}</span>
+        </Button>
       </div>
 
       <!-- 媒体展示区 -->
