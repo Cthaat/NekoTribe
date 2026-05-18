@@ -12,6 +12,19 @@ dist
 # 依赖文件夹 (这些会在Docker构建过程中重新安装)
 node_modules
 
+# 本地外部项目和模型数据
+# docker-compose.local.yml 会在构建阶段从 Git 拉取 SentimentFlow，
+# sentimentflow-models 只作为运行时 volume 挂载，不应该进入构建上下文。
+SentimentFlow
+sentimentflow-models
+
+# 机器学习模型/训练产物
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+
 # 本地环境变量文件 (这些应该在运行时注入，而不是打包到镜像里)
 .env
 .env.*
