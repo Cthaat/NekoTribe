@@ -277,6 +277,16 @@ function formatFileSize(size: number): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function createMediaDraftId(file: File): string {
+  const randomPart =
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return `${file.name}-${file.size}-${file.lastModified}-${randomPart}`;
+}
+
 function updateVisibility(value: unknown): void {
   if (
     value === 'public' ||
@@ -316,7 +326,7 @@ function appendMediaFiles(files: File[]): void {
     const kind = mediaKind(file);
     if (!kind || accepted.length >= availableSlots) continue;
     accepted.push({
-      id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+      id: createMediaDraftId(file),
       file,
       previewUrl: URL.createObjectURL(file),
       kind,
