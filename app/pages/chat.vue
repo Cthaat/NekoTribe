@@ -16,6 +16,7 @@ import {
   UserPlus
 } from 'lucide-vue-next';
 import ChatChannelList from '@/components/ChatChannelList.vue';
+import ChatDirectConversationList from '@/components/ChatDirectConversationList.vue';
 import ChatRoom from '@/components/ChatRoom.vue';
 import GroupManageModal from '@/components/GroupManageModal.vue';
 import {
@@ -60,6 +61,7 @@ import {
   v2ListChatGroups,
   v2ListChatMembers,
   v2ListChatMessages,
+  v2ListDirectConversations,
   v2ListDirectMessages,
   v2SetChatChannelMuteStatus,
   v2SetChatMessagePinStatus,
@@ -70,6 +72,7 @@ import {
 import { getGroup } from '@/services/groups';
 import {
   buildChatChannelCategories,
+  mapV2DirectConversationMember,
   mapV2ChatGroup,
   mapV2ChatMember,
   mapV2ChatMessage,
@@ -82,12 +85,15 @@ import type { Group } from '@/types/groups';
 import type {
   V2CreateGroupInviteData,
   V2ChatMessage,
+  V2DirectConversation,
   V2DirectMessage
 } from '@/types/v2';
 import type { PublicUserVM } from '@/types/users';
 
 const { t } = useAppLocale();
 const localePath = useLocalePath();
+const route = useRoute();
+const router = useRouter();
 const LAST_CHAT_GROUP_STORAGE_PREFIX =
   'nekotribe.chat.lastGroupId';
 
@@ -144,7 +150,9 @@ const directConversationId = ref<number | null>(null);
 const directMessageTargetId = ref<number | null>(null);
 const directMessageStandaloneTarget = ref<ChatMember | null>(null);
 const directMessageContent = ref('');
+const directConversations = ref<V2DirectConversation[]>([]);
 const directMessages = ref<V2DirectMessage[]>([]);
+const isLoadingDirectConversations = ref(false);
 const isLoadingDirectMessages = ref(false);
 const isSendingDirectMessage = ref(false);
 
