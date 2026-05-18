@@ -91,7 +91,7 @@ watch(currentPath, newPath => {
 
 <template>
   <ScrollArea class="h-[calc(100dvh-4rem)]">
-    <div class="mx-auto max-w-7xl space-y-5">
+    <div class="mx-auto max-w-7xl space-y-5 px-3 py-3 sm:px-0 sm:py-0">
       <!-- 页面标题 -->
       <Card class="gap-0 bg-card/70 py-0">
         <CardContent
@@ -115,14 +115,14 @@ watch(currentPath, newPath => {
         <Tabs
           :model-value="activeTab"
           @update:model-value="handleTabChange"
-          class="overflow-x-auto"
+          class="w-full overflow-x-auto sm:w-auto"
         >
-          <TabsList class="w-full sm:w-auto">
+          <TabsList class="w-max min-w-full sm:w-auto sm:min-w-0">
             <TabsTrigger
               v-for="tab in tabs"
               :key="tab.value"
               :value="tab.value"
-              class="gap-2"
+              class="shrink-0 gap-2"
             >
               <component :is="tab.icon" class="h-4 w-4" />
               <span>{{ t(tab.labelKey) }}</span>
