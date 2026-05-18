@@ -497,7 +497,11 @@ const closeDialog = () => {
         <Button class="w-full sm:w-auto" variant="outline" @click="closeDialog">
           {{ t('common.cancel') }}
         </Button>
-        <Button class="w-full sm:w-auto" @click="handleSubmit">
+        <Button
+          class="w-full sm:w-auto"
+          :disabled="isAvatarUploading || isCoverUploading"
+          @click="handleSubmit"
+        >
           {{ t('groups.actions.create') }}
         </Button>
       </DialogFooter>
