@@ -13,6 +13,14 @@ import {
 } from '~/server/utils/sentiment-flow';
 
 const BODYLESS_METHODS = new Set(['GET', 'HEAD']);
+const UPSTREAM_REDIRECT_STATUSES = new Set([
+  301,
+  302,
+  303,
+  307,
+  308
+]);
+const MAX_UPSTREAM_REDIRECTS = 5;
 const BLOCKED_REQUEST_HEADERS = new Set([
   'host',
   'connection',
@@ -34,6 +42,7 @@ const BLOCKED_RESPONSE_HEADERS = new Set([
   'transfer-encoding',
   'upgrade',
   'keep-alive',
+  'location',
   'proxy-authenticate',
   'proxy-authorization',
   'te',
@@ -97,6 +106,115 @@ function isAbortError(error: unknown): boolean {
   );
 }
 
+function resolveRedirectTarget(
+  baseUrl: string,
+  currentUrl: string,
+  location: string
+): string {
+  const redirectUrl = new URL(location, currentUrl);
+  const baseWithSlash = baseUrl.endsWith('/')
+    ? baseUrl
+    : `${baseUrl}/`;
+  const base = new URL(baseWithSlash);
+  const basePath = base.pathname.endsWith('/')
+    ? base.pathname
+    : `${base.pathname}/`;
+
+  if (
+    redirectUrl.origin !== base.origin ||
+    !redirectUrl.pathname.startsWith(basePath)
+  ) {
+    throw new Error(
+      'upstream redirect escaped configured base URL'
+    );
+  }
+
+  return redirectUrl.toString();
+}
+
+function redirectMethod(
+  status: number,
+  method: string
+): string {
+  if (status === 303 && method !== 'HEAD') {
+    return 'GET';
+  }
+
+  if (
+    (status === 301 || status === 302) &&
+    method === 'POST'
+  ) {
+    return 'GET';
+  }
+
+  return method;
+}
+
+async function closeRedirectResponse(
+  response: Response
+): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Ignore cleanup errors; the next upstream request is the useful signal.
+  }
+}
+
+async function fetchSentimentFlowUpstream(options: {
+  targetUrl: string;
+  baseUrl: string;
+  method: string;
+  headers: Headers;
+  body: string | undefined;
+  signal: AbortSignal;
+}): Promise<Response> {
+  let targetUrl = options.targetUrl;
+  let method = options.method;
+  let body = options.body;
+
+  for (
+    let redirectCount = 0;
+    redirectCount <= MAX_UPSTREAM_REDIRECTS;
+    redirectCount += 1
+  ) {
+    const response = await fetch(targetUrl, {
+      method,
+      headers: options.headers,
+      body: BODYLESS_METHODS.has(method) ? undefined : body,
+      redirect: 'manual',
+      signal: options.signal
+    });
+
+    if (!UPSTREAM_REDIRECT_STATUSES.has(response.status)) {
+      return response;
+    }
+
+    const location = response.headers.get('location');
+    if (!location) {
+      return response;
+    }
+
+    if (redirectCount === MAX_UPSTREAM_REDIRECTS) {
+      await closeRedirectResponse(response);
+      throw new Error('too many SentimentFlow redirects');
+    }
+
+    targetUrl = resolveRedirectTarget(
+      options.baseUrl,
+      targetUrl,
+      location
+    );
+    const nextMethod = redirectMethod(response.status, method);
+    if (nextMethod !== method) {
+      method = nextMethod;
+      body = undefined;
+    }
+    await closeRedirectResponse(response);
+  }
+
+  throw new Error('too many SentimentFlow redirects');
+}
+
 export default defineEventHandler(async event => {
   const config = resolveSentimentFlowConfig();
 
@@ -140,11 +258,12 @@ export default defineEventHandler(async event => {
   );
 
   try {
-    const upstreamResponse = await fetch(targetUrl, {
+    const upstreamResponse = await fetchSentimentFlowUpstream({
+      targetUrl,
+      baseUrl: config.baseUrl,
       method,
       headers: forwardRequestHeaders(getRequestHeaders(event)),
       body,
-      redirect: 'manual',
       signal: abortController.signal
     });
 
