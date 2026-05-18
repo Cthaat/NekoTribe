@@ -138,6 +138,11 @@ function handleGroupUpdated(group: Group): void {
   }
 }
 
+async function handleMembersUpdated(groupId: number): Promise<void> {
+  if (selectedGroup.value?.id !== groupId) return;
+  await groupDetail.refresh();
+}
+
 async function handleGroupDeleted(groupId: number): Promise<void> {
   manageModalOpen.value = false;
   manageGroup.value = null;
@@ -172,6 +177,8 @@ async function handleGroupDeleted(groupId: number): Promise<void> {
       @leave="handleLeave"
       @settings="handleSettings"
       @invite="handleInvite"
+      @updated="handleGroupUpdated"
+      @members-updated="handleMembersUpdated"
     />
 
     <!-- 创建群组弹窗 -->
