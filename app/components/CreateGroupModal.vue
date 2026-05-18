@@ -3,6 +3,7 @@ import { ref, watch } from 'vue';
 import {
   Camera,
   Globe,
+  ImagePlus,
   Loader2,
   Lock,
   Shield,
@@ -63,7 +64,9 @@ const formData = ref<CreateGroupData>({
   category: ''
 });
 const avatarInputRef = ref<HTMLInputElement | null>(null);
+const coverInputRef = ref<HTMLInputElement | null>(null);
 const isAvatarUploading = ref(false);
+const isCoverUploading = ref(false);
 
 // 重置表单
 watch(
@@ -127,9 +130,20 @@ const resetAvatarInput = () => {
   }
 };
 
+const resetCoverInput = () => {
+  if (coverInputRef.value) {
+    coverInputRef.value.value = '';
+  }
+};
+
 const triggerAvatarUpload = () => {
   if (isAvatarUploading.value) return;
   avatarInputRef.value?.click();
+};
+
+const triggerCoverUpload = () => {
+  if (isCoverUploading.value) return;
+  coverInputRef.value?.click();
 };
 
 const clearAvatar = () => {
@@ -138,6 +152,39 @@ const clearAvatar = () => {
   resetAvatarInput();
 };
 
+const clearCover = () => {
+  if (isCoverUploading.value) return;
+  formData.value.coverImage = '';
+  resetCoverInput();
+};
+
+function isValidImageFile(file: File, maxSizeInMB: number): boolean {
+  if (!file.type.startsWith('image/')) {
+    toast.error(t('avatar.validation.imageOnly'));
+    return false;
+  }
+
+  if (file.size > maxSizeInMB * 1024 * 1024) {
+    toast.error(
+      t('avatar.validation.maxSize', { size: maxSizeInMB })
+    );
+    return false;
+  }
+
+  return true;
+}
+
+async function uploadGroupImage(
+  file: File,
+  altText: string
+): Promise<string> {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('alt_text', altText || file.name);
+  const media = await v2UploadMedia(body);
+  return normalizeAssetUrl(media.public_url);
+}
+
 const handleAvatarSelected = async (event: Event) => {
   const target = event.target as HTMLInputElement | null;
   const file = target?.files?.[0];
@@ -145,29 +192,14 @@ const handleAvatarSelected = async (event: Event) => {
 
   if (!file) return;
 
-  if (!file.type.startsWith('image/')) {
-    toast.error(t('avatar.validation.imageOnly'));
-    return;
-  }
-
-  const maxSizeInMB = 5;
-  if (file.size > maxSizeInMB * 1024 * 1024) {
-    toast.error(
-      t('avatar.validation.maxSize', { size: maxSizeInMB })
-    );
-    return;
-  }
+  if (!isValidImageFile(file, 5)) return;
 
   isAvatarUploading.value = true;
   try {
-    const body = new FormData();
-    body.append('file', file);
-    body.append('alt_text', formData.value.name || file.name);
-    const media = await v2UploadMedia(body);
-
     if (props.open) {
-      formData.value.avatar = normalizeAssetUrl(
-        media.public_url
+      formData.value.avatar = await uploadGroupImage(
+        file,
+        formData.value.name || file.name
       );
     }
   } catch (error) {
@@ -177,6 +209,33 @@ const handleAvatarSelected = async (event: Event) => {
     });
   } finally {
     isAvatarUploading.value = false;
+  }
+};
+
+const handleCoverSelected = async (event: Event) => {
+  const target = event.target as HTMLInputElement | null;
+  const file = target?.files?.[0];
+  resetCoverInput();
+
+  if (!file) return;
+
+  if (!isValidImageFile(file, 8)) return;
+
+  isCoverUploading.value = true;
+  try {
+    if (props.open) {
+      formData.value.coverImage = await uploadGroupImage(
+        file,
+        formData.value.name || file.name
+      );
+    }
+  } catch (error) {
+    toast.error(t('avatar.feedback.uploadFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    isCoverUploading.value = false;
   }
 };
 
@@ -267,6 +326,68 @@ const closeDialog = () => {
             <p class="text-sm text-muted-foreground">
               {{ t('groups.create.avatarDescription') }}
             </p>
+          </div>
+        </div>
+
+        <!-- 封面上传 -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <Label>{{ t('groups.create.cover') }}</Label>
+              <p class="text-sm text-muted-foreground">
+                {{ t('groups.create.coverDescription') }}
+              </p>
+            </div>
+            <div class="flex shrink-0 gap-2">
+              <input
+                ref="coverInputRef"
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                class="hidden"
+                @change="handleCoverSelected"
+              >
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                :disabled="isCoverUploading"
+                :aria-label="t('groups.create.cover')"
+                @click="triggerCoverUpload"
+              >
+                <Loader2
+                  v-if="isCoverUploading"
+                  class="h-4 w-4 animate-spin"
+                />
+                <ImagePlus v-else class="h-4 w-4" />
+              </Button>
+              <Button
+                v-if="formData.coverImage"
+                type="button"
+                variant="outline"
+                size="icon"
+                :disabled="isCoverUploading"
+                :aria-label="t('common.cancel')"
+                @click="clearCover"
+              >
+                <X class="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div
+            class="relative h-28 overflow-hidden rounded-lg border bg-muted/40"
+          >
+            <img
+              v-if="formData.coverImage"
+              :src="formData.coverImage"
+              :alt="formData.name || t('groups.create.cover')"
+              class="h-full w-full object-cover"
+            >
+            <div
+              v-else
+              class="flex h-full items-center justify-center text-muted-foreground"
+            >
+              <ImagePlus class="h-6 w-6" />
+            </div>
           </div>
         </div>
 
