@@ -213,6 +213,10 @@ function resetForm(group: Group): void {
   form.postPermission = group.postPermission;
   deleteConfirm.value = '';
   memberSearch.value = '';
+  uploadingAvatar.value = false;
+  uploadingCover.value = false;
+  resetAvatarInput();
+  resetCoverInput();
   activeTab.value = 'settings';
 }
 
@@ -1387,7 +1391,12 @@ async function deleteCurrentGroup(): Promise<void> {
           <Button
             v-if="activeTab === 'settings'"
             class="w-full sm:w-auto"
-            :disabled="!canEditSettings || saving"
+            :disabled="
+              !canEditSettings ||
+              saving ||
+              uploadingAvatar ||
+              uploadingCover
+            "
             @click="saveSettings"
           >
             <Save class="mr-2 h-4 w-4" />
