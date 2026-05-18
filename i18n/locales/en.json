@@ -1595,6 +1595,8 @@
     "tabs": {
       "overview": "Overview",
       "settings": "Settings",
+      "pro": "Pro",
+      "billing": "Billing",
       "profile": "Profile",
       "posts": "Post Management",
       "appearance": "Appearance",
@@ -1618,6 +1620,113 @@
       "compactMode": "Compact mode",
       "compactOn": "On",
       "compactOff": "Off"
+    },
+    "pro": {
+      "badge": "Membership",
+      "title": "Upgrade to NekoTribe Pro",
+      "description": "A premium front-end entry for heavier social use, group collaboration and AI sentiment analysis. This page is ready for a future subscription API.",
+      "actions": {
+        "upgrade": "View Billing Plans",
+        "settings": "Account Settings",
+        "viewPlan": "View Plan"
+      },
+      "status": {
+        "title": "Current Benefits",
+        "description": "Review account plan status and resource usage.",
+        "current": "Current plan",
+        "plan": "Free",
+        "badge": "Not upgraded",
+        "storage": "Media storage",
+        "aiQuota": "AI analysis quota"
+      },
+      "features": {
+        "ai": {
+          "title": "AI Sentiment",
+          "description": "Run SentimentFlow more often across posts and comments."
+        },
+        "realtime": {
+          "title": "Realtime Boost",
+          "description": "Advanced notification and history surfaces for groups and chat."
+        },
+        "safety": {
+          "title": "Safety & Moderation",
+          "description": "Clearer security status, login alerts and account records."
+        },
+        "speed": {
+          "title": "Higher Limits",
+          "description": "More room for media, messages, search and AI-heavy workflows."
+        }
+      },
+      "plans": {
+        "period": "/ mo",
+        "free": {
+          "name": "Free",
+          "price": "$0",
+          "description": "For everyday browsing, posting and group participation.",
+          "feature1": "Basic posts and groups",
+          "feature2": "Standard notifications and DMs",
+          "feature3": "Limited AI analysis quota"
+        },
+        "pro": {
+          "name": "Pro",
+          "price": "$3",
+          "description": "For active creators and heavy social users.",
+          "badge": "Recommended",
+          "feature1": "More AI sentiment analysis",
+          "feature2": "Advanced message and group alerts",
+          "feature3": "Higher media storage limit"
+        },
+        "team": {
+          "name": "Team",
+          "price": "$9",
+          "description": "For small teams, coursework and community management.",
+          "feature1": "Enhanced team and group management",
+          "feature2": "Shared analysis quota and billing",
+          "feature3": "Priority support and moderation tools"
+        }
+      }
+    },
+    "billing": {
+      "badge": "Billing Center",
+      "title": "Billing & Subscription",
+      "description": "Manage plans, payment methods, resource usage and invoice history. This front-end shell can be wired to a real payment service later.",
+      "actions": {
+        "export": "Export",
+        "addPayment": "Add Payment Method"
+      },
+      "summary": {
+        "plan": "Plan",
+        "free": "Free",
+        "nextDate": "Next billing",
+        "status": "Account status",
+        "normal": "Normal"
+      },
+      "payment": {
+        "title": "Payment Method",
+        "description": "Save payment details for Pro subscriptions and team billing.",
+        "method": "Default method",
+        "empty": "No card or payment account has been added.",
+        "notSet": "Not set"
+      },
+      "usage": {
+        "title": "Monthly Usage",
+        "description": "Track resource usage in the current billing cycle.",
+        "ai": "AI analysis",
+        "storage": "Media storage",
+        "note": "These values are front-end placeholders and can be replaced by live usage data later."
+      },
+      "invoices": {
+        "title": "Invoice History",
+        "description": "Review recent subscription invoices and payment status.",
+        "id": "Invoice",
+        "date": "Date",
+        "amount": "Amount",
+        "status": "Status"
+      },
+      "invoiceStatus": {
+        "paid": "Paid",
+        "pending": "Pending"
+      }
     },
     "settings": {
       "title": "Account Settings",
