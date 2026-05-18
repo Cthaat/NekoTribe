@@ -1235,6 +1235,7 @@ export async function v2FollowUser(
       resourceType: 'user',
       resourceId: auth.userId,
       metadata: {
+        target_user_id: auth.userId,
         event: 'user_follow'
       }
     });
