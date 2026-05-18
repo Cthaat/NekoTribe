@@ -731,7 +731,9 @@
       "lastSeen": "最后在线 {time}"
     },
     "input": {
-      "placeholder": "在 #{channel} 中发送消息..."
+      "placeholder": "在 #{channel} 中发送消息...",
+      "announcementReadOnly": "只有群组管理员可以在公告频道发言",
+      "unsupportedChannel": "该频道类型暂不支持发送消息"
     },
     "members": {
       "searchPlaceholder": "搜索成员",
