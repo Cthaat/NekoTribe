@@ -695,7 +695,8 @@
   },
   "avatar": {
     "validation": {
-      "maxSize": "File size must not exceed {size}MB"
+      "maxSize": "File size must not exceed {size}MB",
+      "imageOnly": "Please select an image file"
     },
     "crop": {
       "title": "Crop avatar",
