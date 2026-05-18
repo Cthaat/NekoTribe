@@ -223,7 +223,7 @@ async function handleBookmarkTweet(
 
 <template>
   <div class="pt-2">
-    <div class="bg-background p-10">
+    <div class="bg-background p-4 sm:p-10">
       <div v-if="!hasMounted || feed.loading" class="space-y-4">
         <TweetCardSkeleton
           v-for="i in 5"
@@ -236,7 +236,7 @@ async function handleBookmarkTweet(
         class="text-center text-destructive"
       >
         {{ t('post.feed.loadProblem') }}
-        <pre class="text-xs mt-2">{{ feed.error }}</pre>
+        <pre class="mt-2 whitespace-pre-wrap break-words text-xs">{{ feed.error }}</pre>
       </div>
 
       <TweetList
