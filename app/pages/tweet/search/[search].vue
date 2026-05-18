@@ -33,6 +33,12 @@ const selectedTweetForRetweet = ref<PostVM | null>(null);
 const isSubmittingRetweet = ref(false);
 const hasMounted = ref(false);
 
+function currentSearchQuery(): string {
+  const value = route.params.search;
+  if (Array.isArray(value)) return String(value[0] ?? '');
+  return typeof value === 'string' ? value : '';
+}
+
 const feed = usePostFeed({
   debugName: 'tweet-search',
   pageSize: 15,
@@ -41,7 +47,7 @@ const feed = usePostFeed({
       page,
       pageSize,
       sort: 'newest',
-      q: String(route.params.search || '')
+      q: currentSearchQuery()
     })
 });
 
@@ -51,11 +57,21 @@ onMounted(() => {
 });
 
 watch(
-  [() => feed.page, () => route.params.search],
+  () => feed.page,
   () => {
-    if (hasMounted.value) {
-      void feed.refresh();
+    if (hasMounted.value) void feed.refresh();
+  }
+);
+
+watch(
+  () => route.params.search,
+  () => {
+    if (!hasMounted.value) return;
+    if (feed.page !== 1) {
+      feed.page = 1;
+      return;
     }
+    void feed.refresh();
   }
 );
 
