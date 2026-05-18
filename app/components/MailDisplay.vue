@@ -148,14 +148,14 @@ const emit = defineEmits(['delete-mail', 'restore-mail']);
                 </Button>
               </TooltipTrigger>
             </PopoverTrigger>
-            <PopoverContent class="flex w-[535px] p-0">
+            <PopoverContent class="flex w-[min(535px,calc(100vw-2rem))] flex-col p-0 sm:flex-row">
               <div
                 class="flex flex-col gap-2 border-r px-2 py-4"
               >
                 <div class="px-4 text-sm font-medium">
                   {{ t('mail.display.snoozeUntil') }}
                 </div>
-                <div class="grid min-w-[250px] gap-1">
+                <div class="grid min-w-0 gap-1 sm:min-w-[250px]">
                   <Button
                     variant="ghost"
                     class="justify-start font-normal"
