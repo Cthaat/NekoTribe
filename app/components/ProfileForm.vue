@@ -436,8 +436,8 @@ const df = new DateFormatter(
       </FormItem>
     </FormField>
 
-    <div class="flex gap-2 justify-start">
-      <Button type="submit">
+    <div class="flex flex-col gap-2 justify-start sm:flex-row">
+      <Button type="submit" class="w-full sm:w-auto">
         {{
           t('account.profile.profilePage.updateProfile')
         }}
@@ -446,6 +446,7 @@ const df = new DateFormatter(
       <Button
         type="button"
         variant="outline"
+        class="w-full sm:w-auto"
         @click="resetForm"
       >
         {{ t('account.profile.profilePage.resetForm') }}
