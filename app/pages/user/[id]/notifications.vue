@@ -120,7 +120,7 @@ const hasNoNotifications = computed(
 </script>
 
 <template>
-  <div class="hidden flex-col md:flex">
+  <div class="flex min-h-[calc(100dvh-4rem)] flex-col">
     <Mail
       ref="mailRef"
       :mails="mails"
