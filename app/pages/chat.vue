@@ -3,7 +3,8 @@ import {
   computed,
   onBeforeUnmount,
   onMounted,
-  ref
+  ref,
+  watch
 } from 'vue';
 import { toast } from 'vue-sonner';
 import {
@@ -1221,26 +1222,18 @@ async function handleOpenDirectMessage(
 ): Promise<void> {
   directMessageTargetId.value = member.id;
   directConversationId.value = null;
-  directMessages.value = [];
-  isLoadingDirectMessages.value = true;
 
   try {
     const conversation = await v2CreateDirectConversation({
       target_user_id: member.id
     });
     directConversationId.value = conversation.conversation_id;
-    const result = await v2ListDirectMessages(
-      conversation.conversation_id,
-      {
-        page: 1,
-        page_size: 50
-      }
+    upsertDirectConversation(conversation);
+    await loadDirectMessagesForConversation(
+      conversation.conversation_id
     );
-    directMessages.value = result.items;
   } catch {
     toast.error(t('chat.feedback.loadDirectMessagesFailed'));
-  } finally {
-    isLoadingDirectMessages.value = false;
   }
 }
 
@@ -1250,6 +1243,12 @@ async function handleOpenDirectMessageStandalone(
   await handleOpenDirectMessage(member);
   directMessageContent.value = '';
   directMessageStandaloneTarget.value = member;
+}
+
+async function handleSelectDirectConversation(
+  conversation: V2DirectConversation
+): Promise<void> {
+  await openDirectConversation(conversation);
 }
 
 function closeDirectMessageStandalone(): void {
@@ -1298,6 +1297,8 @@ async function handleSendDirectMessage(
       content
     });
     upsertDirectMessage(created);
+    updateDirectConversationPreview(created, true);
+    void loadDirectConversations(false);
     toast.success(t('chat.feedback.directMessageSent'));
   } catch {
     toast.error(t('chat.feedback.directMessageFailed'));
@@ -1309,6 +1310,15 @@ async function handleSendDirectMessage(
 onMounted(() => {
   void loadChat();
 });
+
+watch(
+  () => route.query.dm,
+  () => {
+    if (!isLoading.value) {
+      void openDirectMessageFromQuery();
+    }
+  }
+);
 
 onBeforeUnmount(() => {
   shouldReconnectWs = false;
@@ -1326,28 +1336,39 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex h-full min-h-0 w-full flex-col overflow-hidden md:flex-row">
     <div
-      v-if="!isDirectMessageStandalone"
-      class="h-48 min-h-0 w-full flex-shrink-0 overflow-hidden border-b bg-muted/20 md:h-full md:w-60 md:border-b-0 md:border-r"
+      class="h-80 min-h-0 w-full flex-shrink-0 overflow-hidden border-b bg-muted/20 md:h-full md:w-72 md:border-b-0 md:border-r"
     >
-      <ChatChannelList
-        :categories="channelCategories"
-        :active-channel-id="activeChannel?.id"
-        :group-name="activeGroup?.name"
-        :group-avatar="activeGroup?.avatar"
-        :groups="groups"
-        :active-group-id="activeGroup?.id"
-        :can-manage="canManage"
-        :current-user-name="currentUserName"
-        @select-group="handleSelectGroup"
-        @select="handleSelectChannel"
-        @create-channel="handleCreateChannel"
-        @edit-channel="handleEditChannel"
-        @delete-channel="handleDeleteChannel"
-        @toggle-mute="handleToggleChannelMute"
-        @invite-members="openInviteDialog"
-        @notification-settings="openNotificationSettings"
-        @settings="openGroupSettings"
-      />
+      <div class="flex h-full min-h-0 flex-col">
+        <div class="h-40 min-h-0 shrink-0 md:h-64">
+          <ChatDirectConversationList
+            :conversations="directConversations"
+            :active-conversation-id="directConversationId"
+            :is-loading="isLoadingDirectConversations"
+            @select="handleSelectDirectConversation"
+          />
+        </div>
+        <div class="min-h-0 flex-1 border-t">
+          <ChatChannelList
+            :categories="channelCategories"
+            :active-channel-id="activeChannel?.id"
+            :group-name="activeGroup?.name"
+            :group-avatar="activeGroup?.avatar"
+            :groups="groups"
+            :active-group-id="activeGroup?.id"
+            :can-manage="canManage"
+            :current-user-name="currentUserName"
+            @select-group="handleSelectGroup"
+            @select="handleSelectChannel"
+            @create-channel="handleCreateChannel"
+            @edit-channel="handleEditChannel"
+            @delete-channel="handleDeleteChannel"
+            @toggle-mute="handleToggleChannelMute"
+            @invite-members="openInviteDialog"
+            @notification-settings="openNotificationSettings"
+            @settings="openGroupSettings"
+          />
+        </div>
+      </div>
     </div>
 
     <Dialog v-model:open="createChannelDialogOpen">
