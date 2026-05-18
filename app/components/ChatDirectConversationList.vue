@@ -21,6 +21,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'select', conversation: V2DirectConversation): void;
+  (e: 'view-profile', userId: number): void;
 }>();
 
 const { t, locale } = useAppLocale();
@@ -44,6 +45,12 @@ function participantAvatar(
   conversation: V2DirectConversation
 ): string {
   return normalizeAvatarUrl(conversation.participant.avatar_url);
+}
+
+function participantUserId(
+  conversation: V2DirectConversation
+): number {
+  return conversation.participant.user_id;
 }
 
 function formatConversationTime(value: string | undefined): string {
@@ -97,65 +104,82 @@ function formatConversationTime(value: string | undefined): string {
         </div>
 
         <template v-else>
-          <Button
+          <div
             v-for="conversation in conversations"
             :key="conversation.conversation_id"
-            type="button"
-            variant="ghost"
-            class="h-auto w-full justify-start gap-3 rounded-md p-2 text-left"
+            class="flex items-center gap-2 rounded-md p-1 transition-colors hover:bg-muted/50"
             :class="{
               'bg-muted text-foreground':
                 conversation.conversation_id === activeConversationId
             }"
-            @click="emit('select', conversation)"
           >
-            <Avatar class="h-9 w-9 shrink-0">
-              <AvatarImage
-                :src="participantAvatar(conversation)"
-                :alt="participantName(conversation)"
-              />
-              <AvatarFallback>
-                {{ initials(conversation) }}
-              </AvatarFallback>
-            </Avatar>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              class="h-10 w-10 shrink-0 rounded-full p-0"
+              @click="
+                emit(
+                  'view-profile',
+                  participantUserId(conversation)
+                )
+              "
+            >
+              <Avatar class="h-9 w-9">
+                <AvatarImage
+                  :src="participantAvatar(conversation)"
+                  :alt="participantName(conversation)"
+                />
+                <AvatarFallback>
+                  {{ initials(conversation) }}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
 
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="min-w-0 flex-1 truncate text-sm font-medium">
-                  {{ participantName(conversation) }}
-                </span>
-                <span
-                  class="shrink-0 text-[11px] text-muted-foreground"
-                >
-                  {{
-                    formatConversationTime(
-                      conversation.last_message?.created_at ||
-                        conversation.updated_at
-                    )
-                  }}
-                </span>
+            <Button
+              type="button"
+              variant="ghost"
+              class="h-auto min-w-0 flex-1 justify-start rounded-md p-1.5 text-left hover:bg-transparent"
+              @click="emit('select', conversation)"
+            >
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="min-w-0 flex-1 truncate text-sm font-medium">
+                    {{ participantName(conversation) }}
+                  </span>
+                  <span
+                    class="shrink-0 text-[11px] text-muted-foreground"
+                  >
+                    {{
+                      formatConversationTime(
+                        conversation.last_message?.created_at ||
+                          conversation.updated_at
+                      )
+                    }}
+                  </span>
+                </div>
+                <div class="mt-0.5 flex items-center gap-2">
+                  <span class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                    {{
+                      conversation.last_message?.content ||
+                        t('chat.directConversations.noMessages')
+                    }}
+                  </span>
+                  <Badge
+                    v-if="conversation.unread_count > 0"
+                    variant="destructive"
+                    class="h-5 min-w-5 px-1.5 text-xs"
+                  >
+                    {{
+                      conversation.unread_count > 99
+                        ? '99+'
+                        : conversation.unread_count
+                    }}
+                  </Badge>
+                </div>
               </div>
-              <div class="mt-0.5 flex items-center gap-2">
-                <span class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                  {{
-                    conversation.last_message?.content ||
-                      t('chat.directConversations.noMessages')
-                  }}
-                </span>
-                <Badge
-                  v-if="conversation.unread_count > 0"
-                  variant="destructive"
-                  class="h-5 min-w-5 px-1.5 text-xs"
-                >
-                  {{
-                    conversation.unread_count > 99
-                      ? '99+'
-                      : conversation.unread_count
-                  }}
-                </Badge>
-              </div>
-            </div>
-          </Button>
+            </Button>
+          </div>
         </template>
       </div>
     </ScrollArea>
