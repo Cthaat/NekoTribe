@@ -787,6 +787,12 @@
       "emptyTitle": "No direct messages yet",
       "emptyDescription": "Send the first message to start the conversation."
     },
+    "directConversations": {
+      "title": "Direct messages",
+      "description": "See every one-on-one conversation",
+      "empty": "No direct conversations yet",
+      "noMessages": "No messages yet"
+    },
     "message": {
       "pinned": "Pinned",
       "edited": "(edited)",
@@ -846,7 +852,8 @@
     },
     "empty": {
       "noGroups": "You have not joined any groups yet",
-      "noChannels": "This group has no accessible text channels"
+      "noChannels": "This group has no accessible text channels",
+      "selectDirectConversation": "Select a direct conversation on the left"
     },
     "prompts": {
       "channelName": "Enter a channel name",
@@ -885,6 +892,7 @@
       "muteFailed": "Failed to update channel mute status",
       "voiceCallUnavailable": "Voice call backend is not connected yet",
       "videoCallUnavailable": "Video call backend is not connected yet",
+      "loadDirectConversationsFailed": "Failed to load direct conversations",
       "loadDirectMessagesFailed": "Failed to load direct messages",
       "directMessageSent": "Direct message sent",
       "directMessageFailed": "Failed to send direct message",
@@ -1500,6 +1508,7 @@
       "createGroup": "Create Group",
       "editProfile": "Edit Profile",
       "openPublicProfile": "Open Public Profile",
+      "directMessage": "Direct Message",
       "copyProfileLink": "Copy Profile Link",
       "refreshProfile": "Refresh Profile",
       "accountSettings": "Account Settings",
