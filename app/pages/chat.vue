@@ -848,6 +848,7 @@ async function loadChat(): Promise<void> {
 async function handleSelectChannel(
   channel: Channel
 ): Promise<void> {
+  exitDirectMessageView();
   if (activeChannel.value?.id === channel.id) return;
   if (activeChannel.value) {
     leaveWsChannel(activeChannel.value.id);
@@ -861,7 +862,11 @@ async function handleSelectChannel(
 
 async function handleSelectGroup(groupId: number): Promise<void> {
   const group = groups.value.find(item => item.id === groupId);
-  if (!group || group.id === activeGroup.value?.id) return;
+  if (!group) return;
+
+  exitDirectMessageView();
+
+  if (group.id === activeGroup.value?.id) return;
 
   if (activeChannel.value) {
     leaveWsChannel(activeChannel.value.id);
@@ -1255,6 +1260,14 @@ function closeDirectMessageStandalone(): void {
   directMessageStandaloneTarget.value = null;
 }
 
+function exitDirectMessageView(): void {
+  directMessageStandaloneTarget.value = null;
+  directMessageContent.value = '';
+  directConversationId.value = null;
+  directMessageTargetId.value = null;
+  directMessages.value = [];
+}
+
 function handleSendDirectMessageKeydown(
   event: KeyboardEvent
 ): void {
@@ -1345,6 +1358,7 @@ onBeforeUnmount(() => {
             :active-conversation-id="directConversationId"
             :is-loading="isLoadingDirectConversations"
             @select="handleSelectDirectConversation"
+            @view-profile="openMemberProfile"
           />
         </div>
         <div class="min-h-0 flex-1 border-t">
@@ -1793,15 +1807,25 @@ onBeforeUnmount(() => {
               <span class="sr-only">返回频道</span>
             </Button>
 
-            <Avatar class="h-10 w-10 shrink-0 ring-1 ring-border">
-              <AvatarImage
-                :src="directMessageStandaloneTarget.avatar"
-                :alt="directMessageStandaloneTarget.nickname"
-              />
-              <AvatarFallback>
-                {{ directMessageStandaloneTarget.nickname.slice(0, 2) }}
-              </AvatarFallback>
-            </Avatar>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              class="h-10 w-10 shrink-0 rounded-full p-0"
+              @click="
+                openMemberProfile(directMessageStandaloneTarget.id)
+              "
+            >
+              <Avatar class="h-10 w-10 ring-1 ring-border">
+                <AvatarImage
+                  :src="directMessageStandaloneTarget.avatar"
+                  :alt="directMessageStandaloneTarget.nickname"
+                />
+                <AvatarFallback>
+                  {{ directMessageStandaloneTarget.nickname.slice(0, 2) }}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
 
             <div class="min-w-0 flex-1">
               <div class="truncate text-base font-semibold leading-6">
