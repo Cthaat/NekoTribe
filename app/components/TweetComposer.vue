@@ -62,6 +62,7 @@ interface MediaDraft {
   previewUrl: string;
   kind: 'image' | 'video';
   altText: string;
+  description: string;
 }
 
 interface MentionDraft {
@@ -330,7 +331,8 @@ function appendMediaFiles(files: File[]): void {
       file,
       previewUrl: URL.createObjectURL(file),
       kind,
-      altText: ''
+      altText: '',
+      description: ''
     });
   }
 
@@ -563,6 +565,10 @@ function buildMediaFormData(): FormData {
       `altText:${index}`,
       draft.altText.trim()
     );
+    formData.append(
+      `description:${index}`,
+      draft.description.trim()
+    );
   });
   return formData;
 }
@@ -727,6 +733,12 @@ defineExpose({
               v-model="draft.altText"
               :placeholder="t('post.composer.altTextPlaceholder')"
               maxlength="120"
+              class="h-8 text-xs"
+            />
+            <Input
+              v-model="draft.description"
+              :placeholder="t('post.composer.mediaDescriptionPlaceholder')"
+              maxlength="240"
               class="h-8 text-xs"
             />
           </div>
