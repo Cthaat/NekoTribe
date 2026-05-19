@@ -288,7 +288,7 @@ At minimum, confirm these fields:
 | Host dev          | `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`                        | With built-in Compose Oracle, keep the template values: `localhost`, `5501`, `ORCLPDB1`, `neko_app`, `NekoApp2026#`. For an external Oracle instance, replace them with the real host, service name, user, and password.                                                                                  |
 | Full Docker stack | `APP_PORT`, `NGINX_PORT`, `DOCKER_PUBLIC_WS_URL`                                                             | Defaults are app `30001` and Nginx `30002`. Keep `DOCKER_PUBLIC_WS_URL` empty for same-origin WebSocket auto-detection. If exposing the site through HTTPS or Cloudflare Tunnel, the browser must use `wss://.../_ws`, not `ws://.../_ws`.                                                                |
 | Full Docker stack | `DOCKER_ORACLE_HOST`, `DOCKER_ORACLE_PORT`, `DOCKER_REDIS_URL`, `DOCKER_REDIS_HOST`, `DOCKER_REDIS_PORT`     | Keep these values when using built-in Compose services. They must point to Docker-network names `oracle19c` and `redis`, not `localhost`.                                                                                                                                                                 |
-| Oracle init       | `ORACLE_IMAGE`, `ORACLE_PWD`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`, `DB_INIT_CHECK_TABLE` | `.env.example` defaults to a domestic Oracle 19c mirror. `ORACLE_PWD` is the container `SYS/SYSTEM` password. `ORACLE_PASSWORD` must match the v2 SQL `neko_app` password; the template value is `NekoApp2026#`. `DB_INIT_CHECK_TABLE` defaults to `N_USERS` and is used to detect an initialized schema. |
+| Oracle init/storage | `ORACLE_IMAGE`, `ORACLE_PWD`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`, `DB_INIT_CHECK_TABLE`, `ORACLE_DATA_VOLUME`, `ORACLE_DATA_MOUNT_OPTIONS` | `.env.example` defaults to a domestic Oracle 19c mirror. `ORACLE_PWD` is the container `SYS/SYSTEM` password. `ORACLE_PASSWORD` must match the v2 SQL `neko_app` password; the template value is `NekoApp2026#`. Oracle data uses the Docker named volume `oracle-data` by default to avoid Rocky Linux/SELinux bind-mount permission failures. |
 | Redis             | `REDIS_PASSWORD`                                                                                             | The built-in Redis service reads this password. Changing it after a Redis volume already exists can break old clients or health checks unless you also reset/update the volume.                                                                                                                           |
 | Email features    | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`                                                           | The app can start without SMTP, but registration OTP, password reset, and account emails require a real SMTP account. 163/QQ/Gmail usually require an app-specific password or authorization code, not the web login password.                                                                            |
 | SentimentFlow     | `COMPOSE_PROFILES`, `SENTIMENTFLOW_ENABLED`, `SENTIMENTFLOW_HOST_PORT`, `SENTIMENTFLOW_FRONTEND_HOST_PORT`   | Keep `COMPOSE_PROFILES=true`. Set `SENTIMENTFLOW_ENABLED=true` to include the SentimentFlow backend and frontend; set it to `false` to skip pulling, building, and starting those optional services during plain Compose startup.                                                                         |
@@ -371,6 +371,8 @@ Access:
 - Oracle EM Express: `http://localhost:5500/em`
 
 Oracle usually needs a few minutes on first boot. `.env.example` defaults to a domestic Oracle 19c mirror. If you switch `ORACLE_IMAGE` to the official image, run `docker login container-registry.oracle.com` first and accept the database image license in the Oracle Container Registry. You can also use an external Oracle instance and update `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, and `ORACLE_PASSWORD` in `.env`.
+
+Oracle data is persisted in the Docker named volume `oracle-data` by default. This avoids Rocky Linux/SELinux permission failures that commonly happen when Oracle writes directly into a project bind mount such as `./data/oracle-data`. If an old `./data/oracle-data` directory already exists, Compose will ignore it unless you explicitly set `ORACLE_DATA_VOLUME=./data/oracle-data`.
 
 ## SentimentFlow Runtime
 
@@ -591,6 +593,8 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | `ORACLE_EM_PORT`                                                         | Docker       | `5500`                                                  | Oracle EM Express mapped port.                                                                                                                                      |
 | `ORACLE_IMAGE`                                                           | Docker       | `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c` | Oracle image used by `oracle19c` and `db-init`; can be switched to the official Oracle Registry image.                                                              |
 | `ORACLE_PWD`                                                             | Docker/Init  | Replace with a strong password                          | SYS/SYSTEM password for the Oracle container and init scripts.                                                                                                      |
+| `ORACLE_DATA_VOLUME`                                                     | Docker       | `oracle-data`                                           | Source mounted to `/opt/oracle/oradata`. Keep the named volume default on Rocky Linux/SELinux unless you intentionally manage a host directory.                     |
+| `ORACLE_DATA_MOUNT_OPTIONS`                                              | Docker/Linux | empty                                                   | Optional short-syntax mount suffix. Use `:Z` only when `ORACLE_DATA_VOLUME` is a host path such as `./data/oracle-data`; leave empty for named volumes.             |
 | `ORACLE_SYS_SERVICE_NAME`                                                | Init         | `ORCLCDB`                                               | CDB service name used by `db-init` and `scripts/init-db.*`.                                                                                                         |
 | `DB_INIT_CHECK_TABLE`                                                    | Init         | `N_USERS`                                               | App schema table used by `db-init` to detect an initialized DB.                                                                                                     |
 | `DOCKER_ORACLE_HOST`                                                     | Docker       | `oracle19c`                                             | Oracle host inside the app container.                                                                                                                               |
@@ -763,6 +767,37 @@ Set `ORACLE_IMAGE` in `.env` to choose the Oracle source. `.env.example` default
 ### Oracle errors after app startup
 
 Confirm the `db-init` service exited successfully with `docker compose logs db-init`. Also confirm host dev uses `ORACLE_HOST=localhost`, `ORACLE_PORT=5501`, while Docker app mode uses `DOCKER_ORACLE_HOST=oracle19c`, `DOCKER_ORACLE_PORT=1521`.
+
+### Oracle reports permission denied on Rocky Linux
+
+The default Compose config now stores Oracle files in the Docker named volume `oracle-data`, which avoids SELinux relabeling and host directory ownership problems. If your `.env` contains an old host-path override, remove it or set:
+
+```env
+ORACLE_DATA_VOLUME=oracle-data
+ORACLE_DATA_MOUNT_OPTIONS=
+```
+
+Then restart Oracle:
+
+```bash
+docker compose down
+docker compose up -d oracle19c db-init
+```
+
+Only use a project directory bind mount when you intentionally need database files under the repo. On Rocky Linux, configure both ownership and SELinux labeling:
+
+```bash
+mkdir -p ./data/oracle-data
+sudo chown -R 54321:54321 ./data/oracle-data
+sudo chmod -R u+rwX,g+rwX ./data/oracle-data
+```
+
+```env
+ORACLE_DATA_VOLUME=./data/oracle-data
+ORACLE_DATA_MOUNT_OPTIONS=:Z
+```
+
+Back up existing database data before switching between named volumes and host-path mounts.
 
 ### Redis authentication failure
 
