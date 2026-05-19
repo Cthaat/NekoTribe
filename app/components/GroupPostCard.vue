@@ -148,7 +148,6 @@ const handleDelete = () => {
 // 处理举报
 const handleReport = () => {
   emit('report', props.post.id);
-  toast.success(t('groups.post.feedback.reported'));
 };
 
 // 处理分享
