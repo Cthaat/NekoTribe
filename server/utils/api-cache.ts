@@ -563,6 +563,9 @@ export async function writeApiResponseCache<T>(
 function isCacheNeutralMutation(pathname: string, method: string): boolean {
   if (pathname === '/api/v2/auth/otp') return true;
   if (pathname === '/api/v2/auth/otp/verification') return true;
+  if (pathname.startsWith('/api/v2/auth/two-factor/challenges')) {
+    return true;
+  }
   return method === 'PATCH' && pathname === '/api/v2/auth/tokens/current';
 }
 

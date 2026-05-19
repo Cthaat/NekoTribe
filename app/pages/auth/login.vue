@@ -11,7 +11,15 @@ import { toTypedSchema } from '@vee-validate/zod';
 import { useForm } from 'vee-validate';
 import { toast } from 'vue-sonner';
 import { usePreferenceStore } from '~/stores/user'; // 导入 store
-import { v2Login } from '@/services';
+import {
+  v2CompleteTwoFactorLogin,
+  v2Login
+} from '@/services';
+import type {
+  LoginResultVM,
+  LoginVM,
+  TwoFactorLoginChallengeVM
+} from '@/types/auth';
 // 从你的 UI 库中导入这些基础表单组件
 import {
   FormControl,
@@ -21,6 +29,8 @@ import {
   FormMessage
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input'; // 导入 Input 组件
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { navigateTo } from '#app';
 
 const { t } = useAppLocale();
@@ -62,6 +72,27 @@ const form = useForm<LoginFormValues>({
 });
 
 const isLoading = ref(false);
+const twoFactorChallenge =
+  ref<TwoFactorLoginChallengeVM | null>(null);
+const twoFactorCode = ref('');
+const trustDevice = ref(false);
+
+function isTwoFactorChallenge(
+  response: LoginResultVM
+): response is TwoFactorLoginChallengeVM {
+  return 'twoFactorRequired' in response && response.twoFactorRequired;
+}
+
+async function completeLogin(response: LoginVM): Promise<void> {
+  preferenceStore.setCurrentUser(response.user);
+  preferenceStore.setCurrentSession(response.tokens);
+  toast(t('auth.login.successLogin'), {
+    description:
+      t('auth.login.welcomeBack') +
+      ` ${response.user.name || t('nav.user.fallbackName')}`
+  });
+  await navigateTo(localePath('/'));
+}
 
 async function onValidSubmit(
   values: LoginFormValues
@@ -69,15 +100,17 @@ async function onValidSubmit(
   isLoading.value = true;
 
   try {
-    const response = await v2Login(values);
-    preferenceStore.setCurrentUser(response.user);
-    preferenceStore.setCurrentSession(response.tokens);
-    toast(t('auth.login.successLogin'), {
-      description:
-        t('auth.login.welcomeBack') +
-        ` ${response.user.name || t('nav.user.fallbackName')}`
+    const response = await v2Login({
+      ...values,
+      rememberMe: trustDevice.value
     });
-    await navigateTo(localePath('/'));
+    if (isTwoFactorChallenge(response)) {
+      twoFactorChallenge.value = response;
+      twoFactorCode.value = '';
+      toast.info(t('auth.login.twoFactorRequired'));
+      return;
+    }
+    await completeLogin(response);
   } catch (error) {
     const message =
       error instanceof Error
@@ -85,6 +118,34 @@ async function onValidSubmit(
         : t('auth.login.unknownError');
     console.error(t('auth.login.loginFailed'), error);
     toast.error(t('auth.login.loginFailed'), {
+      description: message
+    });
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+async function handleTwoFactorSubmit(): Promise<void> {
+  const challenge = twoFactorChallenge.value;
+  const code = twoFactorCode.value.trim();
+  if (!challenge || !code) {
+    toast.error(t('auth.login.twoFactorCodeRequired'));
+    return;
+  }
+
+  isLoading.value = true;
+  try {
+    const response = await v2CompleteTwoFactorLogin({
+      challengeId: challenge.challengeId,
+      code
+    });
+    await completeLogin(response);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : t('auth.login.unknownError');
+    toast.error(t('auth.login.twoFactorFailed'), {
       description: message
     });
   } finally {
@@ -117,7 +178,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
         <form
           class="grid gap-4"
           :form="form"
-          @submit="onSubmit"
+          @submit.prevent="onSubmit"
         >
           <FormField
             v-slot="{ componentField }"
@@ -163,6 +224,44 @@ const onSubmit = form.handleSubmit(onValidSubmit);
             </FormItem>
           </FormField>
 
+          <div class="flex items-start gap-2 rounded-lg border bg-muted/20 p-3">
+            <Checkbox
+              id="trust-device"
+              :checked="trustDevice"
+              :disabled="isLoading"
+              @update:checked="trustDevice = $event === true"
+            />
+            <div class="grid gap-1 leading-none">
+              <Label for="trust-device" class="text-sm font-medium">
+                {{ t('auth.login.trustDevice') }}
+              </Label>
+              <p class="text-xs text-muted-foreground">
+                {{ t('auth.login.trustDeviceHint') }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="twoFactorChallenge"
+            class="grid gap-2 rounded-lg border bg-muted/30 p-3"
+          >
+            <Label for="two-factor-code">
+              {{ t('auth.login.twoFactorCode') }}
+            </Label>
+            <Input
+              id="two-factor-code"
+              v-model="twoFactorCode"
+              :disabled="isLoading"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              :placeholder="t('auth.login.twoFactorCodePlaceholder')"
+              @keydown.enter.prevent="handleTwoFactorSubmit"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ t('auth.login.twoFactorHint') }}
+            </p>
+          </div>
+
           <div class="mt-4 text-center text-sm">
             {{ t('auth.login.forgotPassword') }}
             <NuxtLink
@@ -174,12 +273,23 @@ const onSubmit = form.handleSubmit(onValidSubmit);
           </div>
 
           <AppButton
+            v-if="!twoFactorChallenge"
             type="submit"
             class="w-full"
             :loading="isLoading"
             :loading-label="t('auth.login.loginButton')"
           >
             {{ t('auth.login.loginButton') }}
+          </AppButton>
+          <AppButton
+            v-else
+            type="button"
+            class="w-full"
+            :loading="isLoading"
+            :loading-label="t('auth.login.twoFactorVerify')"
+            @click="handleTwoFactorSubmit"
+          >
+            {{ t('auth.login.twoFactorVerify') }}
           </AppButton>
         </form>
         <div class="mt-4 text-center text-sm">

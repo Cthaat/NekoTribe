@@ -1,5 +1,6 @@
 import {
   v2CreateOtp as apiCreateOtp,
+  v2CompleteTwoFactorLogin as apiCompleteTwoFactorLogin,
   v2Login as apiLogin,
   v2LogoutCurrent,
   v2PasswordReset as apiPasswordReset,
@@ -25,9 +26,12 @@ import type {
   AuthOtpVM,
   AuthSessionVM,
   LoginFormVM,
+  LoginResultVM,
   LoginVM,
   PasswordResetFormVM,
-  RegistrationFormVM
+  RegistrationFormVM,
+  TwoFactorLoginChallengeVM,
+  TwoFactorLoginFormVM
 } from '@/types/auth';
 import { mapCurrentUser } from './users';
 
@@ -107,10 +111,27 @@ function mapSession(dto: V2TokenData): AuthSessionVM {
 }
 
 function mapLogin(dto: V2LoginData): LoginVM {
+  if ('two_factor_required' in dto && dto.two_factor_required) {
+    throw new Error('two-factor challenge cannot be mapped as login');
+  }
   return {
     user: mapCurrentUser(dto.user),
     tokens: mapSession(dto.tokens)
   };
+}
+
+function mapTwoFactorChallenge(
+  dto: V2LoginData
+): TwoFactorLoginChallengeVM | null {
+  if ('two_factor_required' in dto && dto.two_factor_required) {
+    return {
+      twoFactorRequired: true,
+      challengeId: dto.challenge_id,
+      account: dto.account,
+      expiresAt: dto.expires_at
+    };
+  }
+  return null;
 }
 
 function mapPasswordResetForm(
@@ -147,8 +168,22 @@ export async function v2Register(
 
 export async function v2Login(
   form: LoginFormVM
+): Promise<LoginResultVM> {
+  const result = await apiLogin(mapLoginForm(form));
+  return mapTwoFactorChallenge(result) ?? mapLogin(result);
+}
+
+export async function v2CompleteTwoFactorLogin(
+  form: TwoFactorLoginFormVM
 ): Promise<LoginVM> {
-  return mapLogin(await apiLogin(mapLoginForm(form)));
+  const result = await apiCompleteTwoFactorLogin(
+    form.challengeId,
+    {
+      challenge_id: form.challengeId,
+      code: form.code
+    }
+  );
+  return mapLogin(result);
 }
 
 export async function v2RefreshCurrentToken(): Promise<AuthSessionVM> {

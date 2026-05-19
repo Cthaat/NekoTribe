@@ -5,6 +5,8 @@
     "prev": "上一页",
     "next": "下一页",
     "cancel": "取消",
+    "delete": "删除",
+    "copy": "复制",
     "submit": "提交",
     "networkError": "网络错误",
     "pagination": "第 {page} / {totalPages} 页 · 共 {total} 条"
@@ -63,6 +65,15 @@
       "successLogin": "登录成功,即将跳转到首页...",
       "loginFailed": "登录失败,请检查您的账号和密码是否正确。",
       "unknownError": "发生未知错误，请稍后再试。",
+      "twoFactorRequired": "请输入两步验证码完成登录。",
+      "twoFactorCode": "两步验证码",
+      "twoFactorCodePlaceholder": "6 位验证码或恢复码",
+      "twoFactorCodeRequired": "请输入两步验证码",
+      "twoFactorHint": "可使用认证器验证码或一次性恢复码。",
+      "twoFactorVerify": "验证并登录",
+      "twoFactorFailed": "两步验证失败",
+      "trustDevice": "信任此设备",
+      "trustDeviceHint": "两步验证通过后，30 天内同一浏览器不再要求验证码。",
       "resetPassword": "重置密码"
     },
     "signUp": {
@@ -210,6 +221,7 @@
       "overview": "概览",
       "settings": "设置",
       "profile": "个人资料",
+      "likes": "我的点赞",
       "appearance": "外观",
       "security": "安全",
       "active": "活跃设备",
@@ -264,6 +276,13 @@
       "thisDevice": "本设备",
       "otherDevice": "其它设备",
       "contentPlaceholder": "活跃会话列表即将上线。"
+    },
+    "likes": {
+      "title": "我的点赞",
+      "description": "查看你点过赞的推文，并保持互动状态同步。",
+      "summary": "共 {count} 条已点赞推文",
+      "emptyTitle": "还没有点过赞",
+      "emptyDescription": "当你给推文点赞后，它们会集中显示在这里。"
     },
     "statements": {
       "title": "账户状态",
@@ -485,6 +504,47 @@
           "captchaLabel": "验证码",
           "secondsLeft": "秒后重试",
           "sendCaptcha": "发送验证码"
+        }
+      },
+      "twoFactor": {
+        "title": "两步验证",
+        "description": "使用认证器验证码保护登录流程。",
+        "enabled": "已开启",
+        "disabled": "未开启",
+        "password": "当前密码",
+        "passwordPlaceholder": "请输入当前密码",
+        "startSetup": "生成密钥",
+        "secret": "认证器密钥",
+        "code": "验证码",
+        "codeOrRecovery": "验证码或恢复码",
+        "codePlaceholder": "6 位验证码或恢复码",
+        "confirm": "确认开启",
+        "disable": "关闭两步验证",
+        "recoveryCodes": "恢复码",
+        "feedback": {
+          "loadFailed": "加载两步验证状态失败",
+          "passwordRequired": "请输入当前密码",
+          "setupStarted": "密钥已生成",
+          "setupFailed": "生成密钥失败",
+          "codeRequired": "请输入验证码",
+          "confirmFailed": "开启两步验证失败",
+          "enabled": "两步验证已开启",
+          "disableRequired": "请输入密码和验证码",
+          "disableFailed": "关闭两步验证失败",
+          "disabled": "两步验证已关闭",
+          "copied": "密钥已复制"
+        }
+      },
+      "danger": {
+        "title": "注销账号",
+        "description": "注销后账号会停用，当前会话失效，已发布内容会被隐藏。",
+        "confirmation": "确认内容",
+        "confirmationPlaceholder": "输入用户名或 DELETE",
+        "delete": "注销账号",
+        "feedback": {
+          "required": "请输入密码和确认内容",
+          "deleted": "账号已注销",
+          "deleteFailed": "注销账号失败"
         }
       }
     }

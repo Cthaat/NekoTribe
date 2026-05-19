@@ -46,6 +46,7 @@ interface ApiErrorCarrier {
 }
 
 type NuxtAppContext = ReturnType<typeof tryUseNuxtApp>;
+const DEVICE_FINGERPRINT_KEY = 'nekotribe:device-fingerprint';
 
 function toSerializable(value: unknown): unknown {
   if (
@@ -509,6 +510,53 @@ function sanitizeUrlLikeForHeader(value: string): string {
   );
 }
 
+function createClientDeviceFingerprint(): string {
+  const randomUuid = globalThis.crypto?.randomUUID;
+  if (typeof randomUuid === 'function') {
+    return `fp_${randomUuid.call(globalThis.crypto)}`;
+  }
+  return `fp_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2)}`;
+}
+
+function getClientDeviceHeaders(
+  isServer: boolean
+): Record<string, string> {
+  if (isServer || typeof window === 'undefined') {
+    return {};
+  }
+
+  let fingerprint = '';
+  try {
+    fingerprint =
+      window.localStorage.getItem(DEVICE_FINGERPRINT_KEY) || '';
+    if (!fingerprint) {
+      fingerprint = createClientDeviceFingerprint();
+      window.localStorage.setItem(
+        DEVICE_FINGERPRINT_KEY,
+        fingerprint
+      );
+    }
+  } catch {
+    fingerprint = createClientDeviceFingerprint();
+  }
+
+  const platform =
+    typeof navigator === 'undefined' ? '' : navigator.platform;
+  const userAgent =
+    typeof navigator === 'undefined' ? '' : navigator.userAgent;
+  const deviceInfo = [platform, userAgent]
+    .filter(Boolean)
+    .join(' | ')
+    .slice(0, 200);
+
+  return {
+    'x-device-fingerprint': toSafeHeaderValue(fingerprint),
+    'x-device-info': toSafeHeaderValue(deviceInfo || 'browser')
+  };
+}
+
 function isRefreshPath(path: string): boolean {
   const normalizedPath = normalizeApiPath(path);
   return (
@@ -537,6 +585,10 @@ function isAuthEntryPath(path: string): boolean {
     normalizedPath === '/api/v2/auth/otp/verification' ||
     normalizedPath === '/api/v2/auth/registration' ||
     normalizedPath === '/api/v2/auth/tokens' ||
+    normalizedPath === '/api/v2/auth/two-factor/challenges' ||
+    /^\/api\/v2\/auth\/two-factor\/challenges\/[^/]+$/u.test(
+      normalizedPath
+    ) ||
     normalizedPath === '/api/v2/auth/password-reset'
   );
 }
@@ -592,6 +644,7 @@ export const apiFetch = async <T>(
     headers: {
       ...getForwardedRequestHeaders(isServer),
       ...traceHeaders,
+      ...getClientDeviceHeaders(isServer),
       ...headersToRecord(options.headers)
     }
   };

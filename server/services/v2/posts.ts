@@ -45,6 +45,7 @@ type V2PostListMode =
   | 'user'
   | 'me'
   | 'bookmarks'
+  | 'likes'
   | 'tag'
   | 'replies'
   | 'retweets';
@@ -116,6 +117,26 @@ async function v2CommentAuthorId(
     { comment_id: commentId }
   );
   return row ? v2Number(row.USER_ID) : null;
+}
+
+function v2LikedPostSortOrder(sort: string): string {
+  if (sort === 'oldest') {
+    return `ORDER BY (
+      SELECT MAX(l.created_at)
+      FROM n_post_likes l
+      WHERE l.post_id = v.post_id
+        AND l.user_id = :viewer_id
+    ) ASC`;
+  }
+  if (sort === 'popular') {
+    return 'ORDER BY v.engagement_score DESC, v.created_at DESC';
+  }
+  return `ORDER BY (
+    SELECT MAX(l.created_at)
+    FROM n_post_likes l
+    WHERE l.post_id = v.post_id
+      AND l.user_id = :viewer_id
+  ) DESC`;
 }
 
 function v2NotificationExcerpt(value: string, maxLength = 160): string {
@@ -377,6 +398,16 @@ export async function v2ListPosts(
       )
     `);
   }
+  if (options.mode === 'likes') {
+    where.push(`
+      AND EXISTS (
+        SELECT 1
+        FROM n_post_likes l
+        WHERE l.post_id = v.post_id
+          AND l.user_id = :viewer_id
+      )
+    `);
+  }
   if (options.mode === 'tag' && options.tag_name) {
     where.push(`
       AND EXISTS (
@@ -435,7 +466,9 @@ export async function v2ListPosts(
     connection,
     v2PostSelectSql(extraWhere).replace(
       '__ORDER_BY__',
-      v2SortOrder(sort)
+      options.mode === 'likes'
+        ? v2LikedPostSortOrder(sort)
+        : v2SortOrder(sort)
     ),
     {
       ...binds,

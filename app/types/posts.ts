@@ -8,6 +8,7 @@ export type PostTimelineType =
   | 'my_tweets'
   | 'mention'
   | 'bookmark'
+  | 'likes'
   | 'trending'
   | 'user';
 
@@ -51,6 +52,7 @@ export interface PostMediaVM {
   originalUrl: string;
   thumbnailUrl: string;
   altText: string | null;
+  description: string | null;
 }
 
 export interface PostCountsVM {

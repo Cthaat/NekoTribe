@@ -16,7 +16,7 @@ interface PostFeedState {
   loading: boolean;
   error: string | null;
   total: number;
-  readonly totalPages: number;
+  totalPages: number;
   refresh: () => Promise<void>;
   removePost: (postId: number) => void;
   patchPost: (
@@ -112,28 +112,27 @@ export function usePostFeed(
     loading: false,
     error: null,
     total: 0,
-    get totalPages() {
-      return Math.max(
-        1,
-        Math.ceil(state.total / state.pageSize)
-      );
-    },
-    async refresh(): Promise<void> {
-      state.loading = true;
-      state.error = null;
+    totalPages: 1,
+    async refresh(this: PostFeedState): Promise<void> {
+      this.loading = true;
+      this.error = null;
 
       logPostFeed(debugName, 'refresh:start', {
-        page: state.page,
-        pageSize: state.pageSize
+        page: this.page,
+        pageSize: this.pageSize
       });
 
       try {
         const result = await options.loadPage(
-          state.page,
-          state.pageSize
+          this.page,
+          this.pageSize
         );
-        state.posts = result.items;
-        state.total = result.total;
+        this.posts = result.items;
+        this.total = result.total;
+        this.totalPages = Math.max(
+          1,
+          Math.ceil(this.total / this.pageSize)
+        );
 
         logPostFeed(debugName, 'refresh:success', {
           itemCount: result.items.length,
@@ -149,34 +148,40 @@ export function usePostFeed(
         const errorDetails = serializeFeedError(caught);
         const message =
           errorDetails.message || '加载推文失败';
-        state.error = message;
-        state.posts = [];
-        state.total = 0;
+        this.error = message;
+        this.posts = [];
+        this.total = 0;
+        this.totalPages = 1;
 
         console.error(
           `[usePostFeed:${debugName}] refresh:error`,
           errorDetails
         );
       } finally {
-        state.loading = false;
+        this.loading = false;
       }
     },
-    removePost(postId: number): void {
-      state.posts = state.posts.filter(
-        post => post.id !== postId
+    removePost(this: PostFeedState, postId: number): void {
+      this.posts = this.posts.filter(
+        (post: PostVM) => post.id !== postId
       );
-      state.total = Math.max(state.total - 1, 0);
+      this.total = Math.max(this.total - 1, 0);
+      this.totalPages = Math.max(
+        1,
+        Math.ceil(this.total / this.pageSize)
+      );
       logPostFeed(debugName, 'remove', {
         postId,
-        remaining: state.posts.length
+        remaining: this.posts.length
       });
     },
     patchPost(
+      this: PostFeedState,
       postId: number,
       updater: (post: PostVM) => PostVM
     ): void {
-      const index = state.posts.findIndex(
-        post => post.id === postId
+      const index = this.posts.findIndex(
+        (post: PostVM) => post.id === postId
       );
       if (index === -1) {
         console.warn(
@@ -186,9 +191,9 @@ export function usePostFeed(
         return;
       }
 
-      const currentPost = state.posts[index];
+      const currentPost = this.posts[index];
       if (!currentPost) return;
-      state.posts[index] = updater(currentPost);
+      this.posts[index] = updater(currentPost);
       logPostFeed(debugName, 'patch', { postId });
     }
   });

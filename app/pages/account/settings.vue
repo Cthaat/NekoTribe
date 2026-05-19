@@ -33,7 +33,6 @@ const loading = ref(false);
 const saving = ref(false);
 
 // 本地响应式数据：与后端字段一一对应
-const twoFactorEnabled = ref(false);
 const loginAlerts = ref(true);
 const profileVisibility = ref<'public' | 'private'>(
   'public'
@@ -49,7 +48,6 @@ async function loadSettings() {
   loading.value = true;
   try {
     const settings = await v2GetSettings();
-    twoFactorEnabled.value = settings.twoFactorEnabled;
     loginAlerts.value = settings.loginAlerts;
     profileVisibility.value =
       (settings.profileVisibility as
@@ -77,7 +75,6 @@ async function saveSettings() {
   saving.value = true;
   try {
     await v2PatchSettings({
-      twoFactorEnabled: twoFactorEnabled.value,
       loginAlerts: loginAlerts.value,
       profileVisibility: profileVisibility.value,
       showOnlineStatus: showOnlineStatus.value,
@@ -240,18 +237,6 @@ onMounted(loadSettings);
             {{ t('account.settings.securityOther') }}
           </h3>
           <div class="grid gap-4">
-            <!-- 二次验证开关 -->
-            <div class="flex items-start justify-between gap-4 sm:items-center">
-              <div class="min-w-0">
-                <div class="font-medium">
-                  {{ t('account.settings.2fa') }}
-                </div>
-                <div class="text-xs text-muted-foreground">
-                  {{ t('account.settings.2faDesc') }}
-                </div>
-              </div>
-              <Switch v-model:checked="twoFactorEnabled" />
-            </div>
             <!-- 登录提醒开关 -->
             <div class="flex items-start justify-between gap-4 sm:items-center">
               <div class="min-w-0">

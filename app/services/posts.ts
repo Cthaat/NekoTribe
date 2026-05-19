@@ -45,6 +45,7 @@ import {
   v2LikePost as apiLikePost,
   v2ListComments as apiListComments,
   v2ListMyBookmarkedPosts as apiListMyBookmarkedPosts,
+  v2ListMyLikedPosts as apiListMyLikedPosts,
   v2ListMyPosts as apiListMyPosts,
   v2ListPostReplies as apiListPostReplies,
   v2ListPosts as apiListPosts,
@@ -125,7 +126,8 @@ export function mapMediaToPostMedia(
     thumbnailUrl: normalizeAssetUrl(
       media.thumbnail_url || media.public_url
     ),
-    altText: media.alt_text
+    altText: media.alt_text,
+    description: media.description
   };
 }
 
@@ -289,6 +291,7 @@ export function normalizePostTimelineType(
     value === 'my_tweets' ||
     value === 'mention' ||
     value === 'bookmark' ||
+    value === 'likes' ||
     value === 'trending' ||
     value === 'user'
   ) {
@@ -382,6 +385,18 @@ export async function v2ListMyBookmarkedPosts(query: {
   }));
 }
 
+export async function v2ListMyLikedPosts(query: {
+  page?: number;
+  pageSize?: number;
+  sort?: 'newest' | 'oldest' | 'popular';
+} = {}): Promise<PostPageVM> {
+  return mapPostPage(await apiListMyLikedPosts({
+    page: query.page,
+    page_size: query.pageSize,
+    sort: query.sort
+  }));
+}
+
 export async function v2ListPostReplies(
   postId: number,
   query: {
@@ -451,6 +466,20 @@ export async function v2ListTimelinePosts(
       branch: 'bookmarks'
     });
     return await v2ListMyBookmarkedPosts({
+      ...query,
+      sort: request.sort ?? 'newest'
+    });
+  }
+
+  if (request.type === 'likes') {
+    logPostsService('timeline:branch', {
+      type: request.type,
+      userId: request.userId,
+      page: request.page,
+      pageSize: request.pageSize,
+      branch: 'my-likes'
+    });
+    return await v2ListMyLikedPosts({
       ...query,
       sort: request.sort ?? 'newest'
     });

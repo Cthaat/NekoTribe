@@ -18,6 +18,8 @@ interface MediaItem {
   type: 'image' | 'video';
   originalUrl: string;
   thumbnailUrl: string;
+  altText?: string | null;
+  description?: string | null;
 }
 
 const props = defineProps<{
@@ -85,7 +87,7 @@ function prev() {
                   :key="`image-${currentItem.originalUrl}`"
                   :src="currentItem.originalUrl"
                   class="block max-w-full max-h-full object-contain rounded-lg"
-                  :alt="t('media.lightboxAlt')"
+                  :alt="currentItem.altText || t('media.lightboxAlt')"
                 />
                 <video
                   v-else-if="currentItem.type === 'video'"
@@ -98,6 +100,13 @@ function prev() {
                 />
               </template>
             </Transition>
+          </div>
+
+          <div
+            v-if="currentItem?.description"
+            class="absolute inset-x-4 bottom-6 mx-auto max-w-2xl rounded-md bg-black/65 px-3 py-2 text-sm text-white"
+          >
+            {{ currentItem.description }}
           </div>
 
           <!-- 关闭按钮 (右上角) -->

@@ -90,7 +90,7 @@ async function handleDeleteTweet(tweetId: number) {
 }
 
 function handleReplyTweet(tweet: PostVM) {
-  const detailPage = localePath(`/tweet/${tweet.id}`);
+  const detailPage = localePath(`/tweet/${tweet.id}?reply=1`);
   return navigateTo(detailPage, { replace: true });
 }
 

@@ -8,7 +8,10 @@ import {
   STORAGE_MEDIA_MAX_SIZE,
   storePostMediaFile
 } from '~/server/storage';
-import { v2MapMedia } from '~/server/models/v2';
+import {
+  v2EnsureMediaDescriptionColumn,
+  v2MapMedia
+} from '~/server/models/v2';
 import {
   v2Auth,
   v2BadRequest,
@@ -17,7 +20,7 @@ import {
   v2NotFound,
   v2Ok,
   v2One,
-  type V2DbRecord
+  v2StringOrNull
 } from '~/server/utils/v2';
 
 function v2FirstField(
@@ -81,6 +84,7 @@ async function v2UploadMultipartMedia(
               connection,
               'seq_media_id'
             );
+            await v2EnsureMediaDescriptionColumn(connection);
 
             await v2Execute(
               connection,
@@ -99,6 +103,7 @@ async function v2UploadMultipartMedia(
               duration,
               thumbnail_url,
               alt_text,
+              description,
               status
             ) VALUES (
               :media_id,
@@ -114,6 +119,7 @@ async function v2UploadMultipartMedia(
               :duration,
               :thumbnail_url,
               :alt_text,
+              :description,
               'ready'
             )
             `,
@@ -131,7 +137,9 @@ async function v2UploadMultipartMedia(
                 duration: storedMedia.metadata.duration,
                 thumbnail_url: storedMedia.thumbnailUrl,
                 alt_text:
-                  v2FirstField(fields, 'alt_text') || null
+                  v2FirstField(fields, 'alt_text') || null,
+                description:
+                  v2FirstField(fields, 'description') || null
               },
               false
             );

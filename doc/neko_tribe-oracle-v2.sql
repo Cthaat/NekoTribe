@@ -154,6 +154,8 @@ CREATE SEQUENCE seq_moderation_report_id START WITH 1100000 INCREMENT BY 1 NOMAX
 CREATE SEQUENCE seq_moderation_case_id START WITH 1200000 INCREMENT BY 1 NOMAXVALUE NOCYCLE CACHE 50;
 CREATE SEQUENCE seq_moderation_action_id START WITH 1300000 INCREMENT BY 1 NOMAXVALUE NOCYCLE CACHE 50;
 CREATE SEQUENCE seq_moderation_restriction_id START WITH 1400000 INCREMENT BY 1 NOMAXVALUE NOCYCLE CACHE 50;
+CREATE SEQUENCE seq_2fa_recovery_code_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE seq_2fa_trusted_device_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
 
 -- 群组模块延续原有独立序列
 CREATE SEQUENCE seq_group_id START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
@@ -480,6 +482,7 @@ CREATE TABLE n_media_assets (
     duration               NUMBER(10),
     thumbnail_url          VARCHAR2(500),
     alt_text               VARCHAR2(500),
+    description            VARCHAR2(1000),
     status                 VARCHAR2(20)    DEFAULT 'ready' NOT NULL CHECK (status IN ('uploaded', 'processing', 'ready', 'failed')),
     created_at             TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at             TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -507,6 +510,7 @@ COMMENT ON COLUMN n_media_assets.height IS '高度';
 COMMENT ON COLUMN n_media_assets.duration IS '时长（秒）';
 COMMENT ON COLUMN n_media_assets.thumbnail_url IS '缩略图地址';
 COMMENT ON COLUMN n_media_assets.alt_text IS '媒体替代文本';
+COMMENT ON COLUMN n_media_assets.description IS '媒体描述/说明';
 COMMENT ON COLUMN n_media_assets.status IS '媒体处理状态（uploaded/processing/ready/failed）';
 COMMENT ON COLUMN n_media_assets.created_at IS '创建时间';
 COMMENT ON COLUMN n_media_assets.updated_at IS '更新时间';
@@ -786,6 +790,105 @@ COMMENT ON COLUMN n_user_settings.ai_sentiment_return_probabilities IS 'AI情感
 COMMENT ON COLUMN n_user_settings.ai_sentiment_include_metadata IS 'AI情感预测是否返回输入元信息';
 COMMENT ON COLUMN n_user_settings.ai_sentiment_top_k IS 'AI情感预测Top-K标签数量';
 COMMENT ON COLUMN n_user_settings.updated_at IS '更新时间';
+
+
+-- 4.22.1 双因素认证密钥表
+CREATE TABLE n_user_two_factor_secrets (
+    user_id                 NUMBER(10)      PRIMARY KEY,
+    secret_encrypted        VARCHAR2(512)   NOT NULL,
+    secret_iv               VARCHAR2(64)    NOT NULL,
+    secret_auth_tag         VARCHAR2(64)    NOT NULL,
+    confirmed_at            TIMESTAMP,
+    enabled_at              TIMESTAMP,
+    created_at              TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at              TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT fk_2fa_secret_user FOREIGN KEY (user_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_user_two_factor_secrets IS '双因素认证TOTP密钥表';
+COMMENT ON COLUMN n_user_two_factor_secrets.user_id IS '用户ID';
+COMMENT ON COLUMN n_user_two_factor_secrets.secret_encrypted IS '加密后的TOTP密钥';
+COMMENT ON COLUMN n_user_two_factor_secrets.secret_iv IS '密钥加密IV';
+COMMENT ON COLUMN n_user_two_factor_secrets.secret_auth_tag IS '密钥加密认证标签';
+COMMENT ON COLUMN n_user_two_factor_secrets.confirmed_at IS '首次验证确认时间';
+COMMENT ON COLUMN n_user_two_factor_secrets.enabled_at IS '启用时间';
+COMMENT ON COLUMN n_user_two_factor_secrets.created_at IS '创建时间';
+COMMENT ON COLUMN n_user_two_factor_secrets.updated_at IS '更新时间';
+
+
+-- 4.22.2 双因素恢复码表
+CREATE TABLE n_user_two_factor_recovery_codes (
+    recovery_code_id        NUMBER(15)      PRIMARY KEY,
+    user_id                 NUMBER(10)      NOT NULL,
+    code_hash               VARCHAR2(255)   NOT NULL,
+    used_at                 TIMESTAMP,
+    created_at              TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT fk_2fa_recovery_user FOREIGN KEY (user_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_user_two_factor_recovery_codes IS '双因素认证恢复码表';
+COMMENT ON COLUMN n_user_two_factor_recovery_codes.recovery_code_id IS '恢复码ID';
+COMMENT ON COLUMN n_user_two_factor_recovery_codes.user_id IS '用户ID';
+COMMENT ON COLUMN n_user_two_factor_recovery_codes.code_hash IS '恢复码哈希';
+COMMENT ON COLUMN n_user_two_factor_recovery_codes.used_at IS '使用时间';
+COMMENT ON COLUMN n_user_two_factor_recovery_codes.created_at IS '创建时间';
+
+
+-- 4.22.3 双因素可信设备表
+CREATE TABLE n_user_two_factor_trusted_devices (
+    trusted_device_id       NUMBER(15)      PRIMARY KEY,
+    user_id                 NUMBER(10)      NOT NULL,
+    device_fingerprint      VARCHAR2(200)   NOT NULL,
+    device_info             VARCHAR2(200),
+    ip_address              VARCHAR2(64),
+    user_agent              VARCHAR2(500),
+    expires_at              TIMESTAMP       NOT NULL,
+    revoked_at              TIMESTAMP,
+    created_at              TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    last_used_at            TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT fk_2fa_trusted_user FOREIGN KEY (user_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT uk_2fa_trusted_device UNIQUE (user_id, device_fingerprint)
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_user_two_factor_trusted_devices IS '双因素认证可信设备表';
+COMMENT ON COLUMN n_user_two_factor_trusted_devices.trusted_device_id IS '可信设备ID';
+COMMENT ON COLUMN n_user_two_factor_trusted_devices.user_id IS '用户ID';
+COMMENT ON COLUMN n_user_two_factor_trusted_devices.device_fingerprint IS '设备指纹';
+COMMENT ON COLUMN n_user_two_factor_trusted_devices.device_info IS '设备信息';
+COMMENT ON COLUMN n_user_two_factor_trusted_devices.ip_address IS '最近IP地址';
+COMMENT ON COLUMN n_user_two_factor_trusted_devices.user_agent IS '最近User-Agent';
+COMMENT ON COLUMN n_user_two_factor_trusted_devices.expires_at IS '可信设备过期时间';
+COMMENT ON COLUMN n_user_two_factor_trusted_devices.revoked_at IS '撤销时间';
+COMMENT ON COLUMN n_user_two_factor_trusted_devices.created_at IS '创建时间';
+COMMENT ON COLUMN n_user_two_factor_trusted_devices.last_used_at IS '最后使用时间';
+
+
+-- 4.22.4 双因素登录挑战表
+CREATE TABLE n_auth_two_factor_challenges (
+    challenge_id            VARCHAR2(80)    PRIMARY KEY,
+    user_id                 NUMBER(10)      NOT NULL,
+    remember_me             NUMBER(1)       DEFAULT 0 NOT NULL CHECK (remember_me IN (0, 1)),
+    device_info             VARCHAR2(200),
+    device_fingerprint      VARCHAR2(200),
+    ip_address              VARCHAR2(64),
+    user_agent              VARCHAR2(500),
+    expires_at              TIMESTAMP       NOT NULL,
+    consumed_at             TIMESTAMP,
+    created_at              TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT fk_2fa_challenge_user FOREIGN KEY (user_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_auth_two_factor_challenges IS '双因素认证登录挑战表';
+COMMENT ON COLUMN n_auth_two_factor_challenges.challenge_id IS '挑战ID';
+COMMENT ON COLUMN n_auth_two_factor_challenges.user_id IS '用户ID';
+COMMENT ON COLUMN n_auth_two_factor_challenges.remember_me IS '是否信任当前设备';
+COMMENT ON COLUMN n_auth_two_factor_challenges.device_info IS '设备信息';
+COMMENT ON COLUMN n_auth_two_factor_challenges.device_fingerprint IS '设备指纹';
+COMMENT ON COLUMN n_auth_two_factor_challenges.ip_address IS '请求IP地址';
+COMMENT ON COLUMN n_auth_two_factor_challenges.user_agent IS '请求User-Agent';
+COMMENT ON COLUMN n_auth_two_factor_challenges.expires_at IS '过期时间';
+COMMENT ON COLUMN n_auth_two_factor_challenges.consumed_at IS '完成时间';
+COMMENT ON COLUMN n_auth_two_factor_challenges.created_at IS '创建时间';
 
 
 -- 4.23 账户状态表
@@ -1577,6 +1680,9 @@ CREATE INDEX idx_auth_sessions_user ON n_auth_sessions(user_id, revoked_at) TABL
 CREATE INDEX idx_auth_sessions_refresh_expires ON n_auth_sessions(refresh_token_expires_at) TABLESPACE neko_index;
 CREATE INDEX idx_auth_sessions_fingerprint ON n_auth_sessions(device_fingerprint) TABLESPACE neko_index;
 CREATE INDEX idx_auth_otp_account_type ON n_auth_otp_events(account, otp_type, expires_at) TABLESPACE neko_index;
+CREATE INDEX idx_2fa_recovery_user ON n_user_two_factor_recovery_codes(user_id, used_at) TABLESPACE neko_index;
+CREATE INDEX idx_2fa_challenge_user ON n_auth_two_factor_challenges(user_id, expires_at, consumed_at) TABLESPACE neko_index;
+CREATE INDEX idx_2fa_trusted_user ON n_user_two_factor_trusted_devices(user_id, expires_at, revoked_at) TABLESPACE neko_index;
 
 -- 关系
 CREATE INDEX idx_user_follows_follower ON n_user_follows(follower_id, status, created_at DESC) TABLESPACE neko_index;
@@ -5735,7 +5841,8 @@ GRANT SELECT ON n_direct_messages TO neko_readonly;
 GRANT SELECT ON n_direct_conversation_reads TO neko_readonly;
 
 -- 安全边界:
---   neko_readonly 不直接授权 n_auth_sessions / n_auth_otp_events 等认证秘密表。
+--   neko_readonly 不直接授权 n_auth_sessions / n_auth_otp_events /
+--   n_user_two_factor_* / n_auth_two_factor_challenges 等认证秘密表。
 --   v_user_profile_self 含 email / phone / birth_date 等敏感字段，仅建议应用用户按当前登录人查询。
 GRANT SELECT ON v_user_profile_public TO neko_readonly;
 GRANT SELECT ON v_post_detail TO neko_readonly;

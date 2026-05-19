@@ -13,6 +13,7 @@ import type {
   V2LikePostData,
   V2MediaAsset,
   V2ListMyBookmarkedPostsRequest,
+  V2ListMyLikedPostsRequest,
   V2ListMyPostsRequest,
   V2ListPostsRequest,
   V2ListTrendingPostsRequest,
@@ -29,7 +30,8 @@ type PostListQuery =
   | V2ListTrendingPostsRequest
   | V2ListUserPostsRequest
   | V2ListMyPostsRequest
-  | V2ListMyBookmarkedPostsRequest;
+  | V2ListMyBookmarkedPostsRequest
+  | V2ListMyLikedPostsRequest;
 
 function logPostListResponse(
   source: string,
@@ -133,6 +135,21 @@ export async function v2ListMyBookmarkedPosts(
     query
   });
   logPostListResponse('my-bookmarks', query, response);
+  return toV2PagedResult(response);
+}
+
+export async function v2ListMyLikedPosts(
+  query: V2ListMyLikedPostsRequest = {}
+): Promise<V2PagedResult<V2Post>> {
+  const response = await v2Request<
+    V2Post[],
+    undefined,
+    V2ListMyLikedPostsRequest
+  >('/api/v2/users/me/likes', {
+    method: 'GET',
+    query
+  });
+  logPostListResponse('my-likes', query, response);
   return toV2PagedResult(response);
 }
 
@@ -341,6 +358,7 @@ export async function v2UploadMedia(
     duration?: number | null;
     thumbnail_url?: string | null;
     alt_text?: string | null;
+    description?: string | null;
     status?: string;
   }
 ): Promise<V2MediaAsset> {

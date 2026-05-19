@@ -97,6 +97,43 @@ export interface UpdateAccountSettingsFormVM {
   aiSentimentTopK?: number;
 }
 
+export interface TwoFactorSetupFormVM {
+  password: string;
+}
+
+export interface TwoFactorSetupVM {
+  secret: string;
+  otpauthUrl: string;
+}
+
+export interface TwoFactorConfirmFormVM {
+  code: string;
+}
+
+export interface TwoFactorConfirmVM {
+  enabled: boolean;
+  recoveryCodes: string[];
+}
+
+export interface TwoFactorDisableFormVM {
+  password: string;
+  code: string;
+}
+
+export interface TwoFactorStatusVM {
+  enabled: boolean;
+}
+
+export interface AccountDeletionFormVM {
+  password: string;
+  confirmation: string;
+}
+
+export interface AccountDeletionVM {
+  deleted: boolean;
+  userId: number;
+}
+
 export type AccountStatementPageVM =
   PageViewModel<AccountStatementVM>;
 export type SessionPageVM = PageViewModel<SessionVM>;

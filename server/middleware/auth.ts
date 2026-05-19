@@ -67,6 +67,7 @@ const AUTH_POLICIES: AuthVersionPolicy[] = [
       /^\/api\/v2\/auth\/otp\/verification$/,
       /^\/api\/v2\/auth\/registration$/,
       /^\/api\/v2\/auth\/tokens$/,
+      /^\/api\/v2\/auth\/two-factor\/challenges(?:\/[^/]+)?$/,
       /^\/api\/v2\/auth\/tokens\/current$/,
       /^\/api\/v2\/auth\/password-reset$/
     ],

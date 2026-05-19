@@ -6,6 +6,7 @@
     "next": "Next",
     "cancel": "Cancel",
     "delete": "Delete",
+    "copy": "Copy",
     "submit": "Submit",
     "close": "Close",
     "toggle": "Toggle",
@@ -180,6 +181,10 @@
       "deleteFailed": "Failed to delete post",
       "retweeted": "Reposted",
       "retweetFailed": "Failed to repost",
+      "replied": "Reply posted",
+      "replyFailed": "Failed to post reply",
+      "likeFailed": "Failed to update like",
+      "bookmarkFailed": "Failed to update bookmark",
       "reported": "Report submitted",
       "reportFailed": "Failed to submit report"
     },
@@ -191,6 +196,14 @@
       "emptyUserPosts": "This user has not posted anything yet.",
       "emptyTitle": "No posts yet.",
       "emptyDescription": "Follow more users or check back later for new updates.",
+      "emptyMentionTitle": "No mentions yet",
+      "emptyMentionDescription": "Posts that mention you will appear here automatically. You can browse the home timeline first.",
+      "emptyMentionHint": "Mentions appear when someone {'@'}mentions you",
+      "emptyBookmarkTitle": "No bookmarks yet",
+      "emptyBookmarkDescription": "Save posts you like and they will appear here for quick access later.",
+      "emptyBookmarkHint": "Bookmarks save posts you manually collect",
+      "emptyGoHome": "Go Home",
+      "emptyExplore": "Explore Home",
       "searchEmptyTitle": "No matching posts found.",
       "searchEmptyDescription": "Try another keyword or search again later.",
       "unavailable": "This post does not exist or has been deleted."
@@ -207,6 +220,7 @@
       "removeMedia": "Remove media",
       "dropHint": "Drop to upload images or videos",
       "altTextPlaceholder": "Add media description (optional)",
+      "mediaDescriptionPlaceholder": "Add media description (optional)",
       "replyPost": "Reply to post",
       "quotePost": "Quote post",
       "addMention": "Mention user",
@@ -285,7 +299,9 @@
       "empty": "This post has no reply posts yet.",
       "loadFailed": "Failed to load reply posts",
       "loadMore": "Load more replies",
-      "loading": "Loading..."
+      "loading": "Loading...",
+      "composeTitle": "Reply to this post",
+      "composeDescription": "Your reply will appear as a post in the reply list."
     },
     "media": {
       "thumbnailAlt": "Post media thumbnail"
@@ -1431,6 +1447,15 @@
       "successLogin": "Login successful, redirecting to homepage...",
       "loginFailed": "Login failed, please check your account and password.",
       "unknownError": "An unknown error occurred, please try again later.",
+      "twoFactorRequired": "Enter your two-factor code to finish signing in.",
+      "twoFactorCode": "Two-factor code",
+      "twoFactorCodePlaceholder": "6-digit code or recovery code",
+      "twoFactorCodeRequired": "Two-factor code is required",
+      "twoFactorHint": "Use an authenticator code or a one-time recovery code.",
+      "twoFactorVerify": "Verify and sign in",
+      "twoFactorFailed": "Two-factor verification failed",
+      "trustDevice": "Trust this device",
+      "trustDeviceHint": "After two-factor verification, this browser will skip codes for 30 days.",
       "resetPassword": "Reset Password",
       "coverImageAlt": "Login page cover image"
     },
@@ -1647,6 +1672,7 @@
       "billing": "Billing",
       "profile": "Profile",
       "posts": "Post Management",
+      "likes": "My Likes",
       "appearance": "Appearance",
       "security": "Security",
       "active": "Active",
@@ -1820,6 +1846,13 @@
         "othersRevoked": "Other sessions revoked",
         "operationFailed": "Operation failed"
       }
+    },
+    "likes": {
+      "title": "My Likes",
+      "description": "Review posts you liked and keep like, bookmark, reply and repost state in sync.",
+      "summary": "{count} liked posts",
+      "emptyTitle": "No liked posts yet",
+      "emptyDescription": "Posts you like will appear here for quick review."
     },
     "statements": {
       "title": "Account Status",
@@ -2105,6 +2138,47 @@
           "captchaLabel": "Verification Code",
           "secondsLeft": "seconds",
           "sendCaptcha": "Send"
+        }
+      },
+      "twoFactor": {
+        "title": "Two-factor authentication",
+        "description": "Protect sign-in with authenticator app codes.",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "password": "Current password",
+        "passwordPlaceholder": "Enter your current password",
+        "startSetup": "Generate secret",
+        "secret": "Authenticator secret",
+        "code": "Verification code",
+        "codeOrRecovery": "Code or recovery code",
+        "codePlaceholder": "6-digit code or recovery code",
+        "confirm": "Enable",
+        "disable": "Disable 2FA",
+        "recoveryCodes": "Recovery codes",
+        "feedback": {
+          "loadFailed": "Failed to load 2FA status",
+          "passwordRequired": "Current password is required",
+          "setupStarted": "Secret generated",
+          "setupFailed": "Failed to generate secret",
+          "codeRequired": "Verification code is required",
+          "confirmFailed": "Failed to enable 2FA",
+          "enabled": "Two-factor authentication enabled",
+          "disableRequired": "Password and code are required",
+          "disableFailed": "Failed to disable 2FA",
+          "disabled": "Two-factor authentication disabled",
+          "copied": "Secret copied"
+        }
+      },
+      "danger": {
+        "title": "Delete Account",
+        "description": "Deleting your account disables sign-in, revokes active sessions, and hides your published content.",
+        "confirmation": "Confirmation",
+        "confirmationPlaceholder": "Enter your username or DELETE",
+        "delete": "Delete account",
+        "feedback": {
+          "required": "Password and confirmation are required",
+          "deleted": "Account deleted",
+          "deleteFailed": "Failed to delete account"
         }
       }
     }

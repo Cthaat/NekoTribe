@@ -60,6 +60,20 @@ export interface LoginVM {
   tokens: AuthSessionVM;
 }
 
+export interface TwoFactorLoginChallengeVM {
+  twoFactorRequired: true;
+  challengeId: string;
+  account: string;
+  expiresAt: string;
+}
+
+export type LoginResultVM = LoginVM | TwoFactorLoginChallengeVM;
+
+export interface TwoFactorLoginFormVM {
+  challengeId: string;
+  code: string;
+}
+
 export interface PasswordResetFormVM {
   email: string;
   verificationId: string;

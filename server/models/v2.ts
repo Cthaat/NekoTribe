@@ -3,6 +3,7 @@ import {
   v2Boolean,
   v2Count,
   v2DateString,
+  v2Execute,
   v2JsonValue,
   v2NotFound,
   v2Number,
@@ -35,6 +36,37 @@ function v2OnlineStatus(value: unknown): 'online' | 'offline' | 'hidden' {
     return value;
   }
   return 'offline';
+}
+
+let mediaDescriptionColumnReady = false;
+
+export async function v2EnsureMediaDescriptionColumn(
+  connection: oracledb.Connection
+): Promise<void> {
+  if (mediaDescriptionColumnReady) return;
+
+  const exists = await v2Count(
+    connection,
+    `
+    SELECT COUNT(*) AS total
+    FROM user_tab_columns
+    WHERE table_name = 'N_MEDIA_ASSETS'
+      AND column_name = 'DESCRIPTION'
+    `
+  );
+
+  if (exists === 0) {
+    await v2Execute(
+      connection,
+      `
+      ALTER TABLE n_media_assets ADD (
+        description VARCHAR2(1000)
+      )
+      `
+    );
+  }
+
+  mediaDescriptionColumnReady = true;
 }
 
 export function v2MapPublicUser(row: V2DbRecord): V2PublicUser {
@@ -252,6 +284,7 @@ export function v2MapMedia(row: V2DbRecord): V2MediaAsset {
       v2StringOrNull(row.THUMBNAIL_URL)
     ),
     alt_text: v2StringOrNull(row.ALT_TEXT),
+    description: v2StringOrNull(row.DESCRIPTION),
     status: v2String(row.STATUS),
     created_at: v2DateString(row.CREATED_AT) || ''
   };
@@ -261,6 +294,7 @@ export async function v2GetPostMedia(
   connection: oracledb.Connection,
   postId: number
 ): Promise<V2MediaAsset[]> {
+  await v2EnsureMediaDescriptionColumn(connection);
   const rows = await v2Rows(
     connection,
     `
@@ -276,6 +310,7 @@ export async function v2GetPostMedia(
       ma.duration,
       ma.thumbnail_url,
       ma.alt_text,
+      ma.description,
       ma.status,
       ma.created_at
     FROM n_post_media pm

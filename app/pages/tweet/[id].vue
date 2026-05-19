@@ -1,12 +1,15 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue';
 import type {
+  CreatePostFormVM,
   CommentVM,
-  PostVM
+  PostVM,
+  PreviewPostVM
 } from '@/services';
 import {
   v2BookmarkPost,
   v2CreateComment,
+  v2CreatePost,
   v2CreateRetweet,
   v2DeletePost,
   v2GetPost,
@@ -16,12 +19,14 @@ import {
   v2ListPostReplies,
   v2UnlikeComment,
   v2UnlikePost,
-  v2UnbookmarkPost
+  v2UnbookmarkPost,
+  v2UploadMedia
 } from '@/services';
 import TweetCard from '@/components/TweetCard.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import TweetList from '@/components/TweetList.vue';
 import CommentSection from '@/components/CommentSection.vue';
+import TweetComposer from '@/components/TweetComposer.vue';
 import {
   Alert,
   AlertDescription,
@@ -29,6 +34,13 @@ import {
 } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
 import { toast } from 'vue-sonner';
 import { useRoute } from 'vue-router';
 import { usePreferenceStore } from '~/stores/user';
@@ -56,6 +68,11 @@ const repliesHasNext = ref(false);
 const isRetweetModalOpen = ref(false);
 const selectedTweetForRetweet = ref<PostVM | null>(null);
 const isSubmittingRetweet = ref(false);
+const isReplyComposerOpen = ref(false);
+const selectedTweetForReply = ref<PreviewPostVM | null>(null);
+const isSubmittingReplyPost = ref(false);
+const replyComposerRef =
+  ref<InstanceType<typeof TweetComposer> | null>(null);
 
 async function loadTweet() {
   tweetPending.value = true;
@@ -143,11 +160,20 @@ async function loadPageData(): Promise<void> {
 }
 
 await loadPageData();
+openReplyFromRoute();
 
 watch(
   () => route.params.id,
+  async () => {
+    await loadPageData();
+    openReplyFromRoute();
+  }
+);
+
+watch(
+  () => route.query.reply,
   () => {
-    void loadPageData();
+    openReplyFromRoute();
   }
 );
 
@@ -199,7 +225,21 @@ async function handleDeleteTweet(tweetId: number) {
   }
 }
 
+function mapPostVmToPreview(post: PostVM): PreviewPostVM {
+  return {
+    id: post.id,
+    author: {
+      name: post.author.name,
+      username: post.author.username,
+      avatarUrl: post.author.avatarUrl
+    },
+    content: post.content
+  };
+}
+
 function handleReplyTweet(tweetItem: PostVM): void {
+  selectedTweetForReply.value = mapPostVmToPreview(tweetItem);
+  isReplyComposerOpen.value = true;
 }
 
 function handleRetweetTweet(tweetItem: PostVM): void {
@@ -347,6 +387,75 @@ async function handleReplyTweetComment(
   }
 }
 
+function openReplyFromRoute(): void {
+  if (!tweet.value || route.query.reply !== '1') return;
+  if (isReplyComposerOpen.value) return;
+  handleReplyTweet(tweet.value);
+}
+
+function closeReplyComposer(): void {
+  isReplyComposerOpen.value = false;
+  selectedTweetForReply.value = null;
+}
+
+async function uploadReplyMedia(
+  formData: FormData
+): Promise<number[]> {
+  const mediaIds: number[] = [];
+  const fileEntries = formData.getAll('file');
+
+  for (const [index, entry] of fileEntries.entries()) {
+    if (!(entry instanceof File)) continue;
+    const mediaFormData = new FormData();
+    mediaFormData.append('file', entry);
+    const altText = String(
+      formData.get(`altText:${index}`) || ''
+    );
+    const description = String(
+      formData.get(`description:${index}`) || ''
+    );
+    if (altText) mediaFormData.append('alt_text', altText);
+    if (description) {
+      mediaFormData.append('description', description);
+    }
+    const media = await v2UploadMedia(mediaFormData);
+    mediaIds.push(media.media_id);
+  }
+
+  return mediaIds;
+}
+
+async function handleSubmitPostReply(
+  submitForm: CreatePostFormVM,
+  formData: FormData
+): Promise<void> {
+  const target = selectedTweetForReply.value;
+  if (!target) return;
+
+  isSubmittingReplyPost.value = true;
+  try {
+    const mediaIds = await uploadReplyMedia(formData);
+    await v2CreatePost({
+      ...submitForm,
+      replyToPostId: target.id,
+      repostOfPostId: null,
+      quotedPostId: null,
+      mediaIds
+    });
+    toast.success(t('post.feedback.replied'));
+    replyComposerRef.value?.reset();
+    isReplyComposerOpen.value = false;
+    selectedTweetForReply.value = null;
+    await Promise.all([loadTweet(), loadReplyPosts(true)]);
+  } catch (error) {
+    toast.error(t('post.feedback.replyFailed'), {
+      description: error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    isSubmittingReplyPost.value = false;
+  }
+}
+
 const pending = computed(
   () => tweetPending.value || commentPending.value
 );
@@ -384,6 +493,25 @@ const pending = computed(
         :is-submitting="isSubmittingRetweet"
         @submit-retweet="handleSubmitRetweet"
       />
+      <Dialog v-model:open="isReplyComposerOpen">
+        <DialogContent class="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{{ t('post.replies.composeTitle') }}</DialogTitle>
+            <DialogDescription>
+              {{ t('post.replies.composeDescription') }}
+            </DialogDescription>
+          </DialogHeader>
+          <TweetComposer
+            v-if="selectedTweetForReply"
+            ref="replyComposerRef"
+            :reply-to="selectedTweetForReply"
+            :is-submitting="isSubmittingReplyPost"
+            @clear-reply="closeReplyComposer"
+            @open-reply-dialog="isReplyComposerOpen = true"
+            @submit="handleSubmitPostReply"
+          />
+        </DialogContent>
+      </Dialog>
 
       <section class="mx-auto mt-6 max-w-2xl px-4 sm:px-0">
         <div
