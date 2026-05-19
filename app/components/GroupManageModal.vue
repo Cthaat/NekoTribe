@@ -85,6 +85,7 @@ import {
 import { v2UploadMedia } from '@/services';
 import type {
   Group,
+  GroupCategory,
   GroupMember,
   GroupPrivacy,
   GroupRole,
@@ -137,8 +138,11 @@ const form = reactive<UpdateGroupData>({
   coverImage: '',
   privacy: 'public',
   joinApproval: false,
-  postPermission: 'all'
+  postPermission: 'all',
+  category: null,
+  tags: []
 });
+const tagsText = ref('');
 
 const privacyOptions: Array<{
   value: GroupPrivacy;
@@ -147,6 +151,17 @@ const privacyOptions: Array<{
   { value: 'public', labelKey: 'groups.filters.privacy.public' },
   { value: 'private', labelKey: 'groups.filters.privacy.private' },
   { value: 'secret', labelKey: 'groups.filters.privacy.secret' }
+];
+
+const categoryOptions = [
+  { value: 'tech' as const, labelKey: 'groups.filters.category.tech' },
+  { value: 'game' as const, labelKey: 'groups.filters.category.game' },
+  { value: 'music' as const, labelKey: 'groups.filters.category.music' },
+  { value: 'art' as const, labelKey: 'groups.filters.category.art' },
+  { value: 'life' as const, labelKey: 'groups.filters.category.life' },
+  { value: 'study' as const, labelKey: 'groups.filters.category.study' },
+  { value: 'work' as const, labelKey: 'groups.filters.category.work' },
+  { value: 'other' as const, labelKey: 'groups.filters.category.other' }
 ];
 
 const postPermissionOptions: Array<{
@@ -222,6 +237,9 @@ function resetForm(group: Group): void {
   form.privacy = group.privacy;
   form.joinApproval = group.joinApproval;
   form.postPermission = group.postPermission;
+  form.category = group.category ?? null;
+  form.tags = group.tags ?? [];
+  tagsText.value = (group.tags ?? []).join(', ');
   deleteConfirm.value = '';
   memberSearch.value = '';
   uploadingAvatar.value = false;
@@ -304,6 +322,36 @@ function updatePostPermission(value: unknown): void {
   ) {
     form.postPermission = next;
   }
+}
+
+function updateCategory(value: unknown): void {
+  const next = String(value);
+  if (
+    next === 'tech' ||
+    next === 'game' ||
+    next === 'music' ||
+    next === 'art' ||
+    next === 'life' ||
+    next === 'study' ||
+    next === 'work' ||
+    next === 'other'
+  ) {
+    form.category = next as GroupCategory;
+  }
+}
+
+function normalizeTags(value: string): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of value.split(/[,，\s]+/)) {
+    const tag = raw.replace(/^#/, '').trim().slice(0, 50);
+    const key = tag.toLowerCase();
+    if (!tag || seen.has(key)) continue;
+    seen.add(key);
+    result.push(tag);
+    if (result.length >= 8) break;
+  }
+  return result;
 }
 
 function resetAvatarInput(): void {
@@ -548,7 +596,9 @@ async function saveSettings(): Promise<void> {
       name: form.name.trim(),
       description: form.description.trim(),
       avatar: form.avatar.trim(),
-      coverImage: form.coverImage.trim()
+      coverImage: form.coverImage.trim(),
+      category: form.category,
+      tags: normalizeTags(tagsText.value)
     });
     emit('updated', updated);
     toast.success(t('groups.manage.feedback.updated'));
@@ -847,6 +897,49 @@ onBeforeUnmount(() => {
                   class="min-h-24 resize-none"
                   :disabled="!canEditSettings"
                 />
+              </div>
+
+              <div class="grid gap-4 md:grid-cols-2">
+                <div class="space-y-2">
+                  <Label>
+                    {{ t('groups.manage.fields.category') }}
+                  </Label>
+                  <Select
+                    :model-value="form.category ?? ''"
+                    :disabled="!canEditSettings"
+                    @update:model-value="updateCategory"
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        :placeholder="t('groups.create.categoryPlaceholder')"
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem
+                        v-for="option in categoryOptions"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ t(option.labelKey) }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div class="space-y-2">
+                  <Label for="manage-group-tags">
+                    {{ t('groups.manage.fields.tags') }}
+                  </Label>
+                  <Input
+                    id="manage-group-tags"
+                    v-model="tagsText"
+                    :placeholder="t('groups.create.tagsPlaceholder')"
+                    maxlength="160"
+                    :disabled="!canEditSettings"
+                  />
+                  <p class="text-xs text-muted-foreground">
+                    {{ t('groups.create.tagsHint') }}
+                  </p>
+                </div>
               </div>
 
               <div class="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
