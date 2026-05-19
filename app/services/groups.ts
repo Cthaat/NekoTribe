@@ -2,22 +2,29 @@ import {
   v2ApproveGroupMember,
   v2ChangeGroupMemberRole,
   v2CreateGroup,
+  v2CreateGroupPostComment,
   v2CreateGroupInvite,
   v2CreateGroupPost,
   v2DeleteGroup,
+  v2DeleteGroupPostComment,
   v2DeleteGroupPost,
+  v2GetGroupNotificationPreference,
   v2GetGroupById,
   v2JoinGroup,
   v2LeaveGroup,
+  v2ListGroupPostComments,
   v2ListGroupInvites,
   v2ListGroupMembers,
   v2ListGroupPosts,
   v2ListGroups,
+  v2ListMyGroupInvites,
   v2ListMyGroups,
   v2MuteGroupMember,
   v2PatchGroup,
+  v2PutGroupNotificationPreference,
   v2RemoveGroupMember,
   v2RespondGroupInvite,
+  v2SetGroupCommentLikeStatus,
   v2SetGroupPostLikeStatus,
   v2SetGroupPostPinStatus,
   v2TransferGroupOwnership,
@@ -25,10 +32,15 @@ import {
 } from '@/api/v2/groups';
 import type {
   V2CreateGroupInviteData,
+  V2CreateGroupCommentPayload,
   V2CreateGroupPostPayload,
   V2CreateGroupPayload,
+  V2GroupCategory,
   V2Group,
+  V2GroupComment,
+  V2GroupCommentLikeData,
   V2GroupInvite,
+  V2GroupNotificationPreference,
   V2GroupPostLikeData,
   V2GroupMember,
   V2GroupPost,
@@ -53,6 +65,11 @@ import type {
   GroupStatsData,
   UpdateGroupData
 } from '@/types/groups';
+import type {
+  CommentLikeVM,
+  CommentVM,
+  PostAuthorVM
+} from '@/types/posts';
 import {
   normalizeAssetUrl,
   normalizeAvatarUrl,
@@ -63,6 +80,17 @@ const groupPrivacyValues = [
   'public',
   'private',
   'secret'
+] as const;
+
+const groupCategoryValues = [
+  'tech',
+  'game',
+  'music',
+  'art',
+  'life',
+  'study',
+  'work',
+  'other'
 ] as const;
 
 const elevatedRoles: V2GroupRole[] = [
@@ -81,6 +109,18 @@ function toOptionalGroupPrivacy(
   value: string
 ): V2GroupPrivacy | undefined {
   return isGroupPrivacy(value) ? value : undefined;
+}
+
+function isGroupCategory(
+  value: string
+): value is V2GroupCategory {
+  return groupCategoryValues.some(item => item === value);
+}
+
+function toOptionalGroupCategory(
+  value: string
+): V2GroupCategory | undefined {
+  return isGroupCategory(value) ? value : undefined;
 }
 
 function publicUserName(user: V2PublicUser): string {
@@ -118,7 +158,8 @@ export function mapV2GroupToGroup(group: V2Group): Group {
     isAdmin: role ? elevatedRoles.includes(role) : false,
     membershipRole: role,
     membershipStatus: group.membership.status,
-    tags: []
+    category: group.category,
+    tags: group.tags
   };
 }
 
@@ -138,6 +179,49 @@ export function mapV2MemberToGroupMember(
     joinedAt: member.joined_at,
     isMuted: member.status === 'muted',
     mutedUntil: member.mute_until ?? undefined
+  };
+}
+
+function mapV2PublicUserToPostAuthor(
+  user: V2PublicUser
+): PostAuthorVM {
+  return {
+    id: user.user_id,
+    username: user.username,
+    name: publicUserName(user),
+    avatarUrl: normalizeAvatarUrl(user.avatar_url),
+    bio: user.bio,
+    location: user.location,
+    website: user.website,
+    verified: user.is_verified === 1,
+    followersCount: user.followers_count,
+    followingCount: user.following_count,
+    postsCount: user.posts_count,
+    likesCount: user.likes_count,
+    relation: user.relationship.relation
+  };
+}
+
+function mapV2GroupCommentToComment(
+  comment: V2GroupComment
+): CommentVM {
+  return {
+    id: comment.comment_id,
+    postId: comment.post_id,
+    author: mapV2PublicUserToPostAuthor(comment.author),
+    parentCommentId: comment.parent_comment_id,
+    rootCommentId: null,
+    content: comment.content,
+    counts: {
+      likes: comment.likes_count,
+      replies: 0
+    },
+    viewer: {
+      hasLiked: comment.is_liked_by_me,
+      canDelete: comment.can_delete_by_me
+    },
+    createdAt: comment.created_at,
+    updatedAt: comment.updated_at
   };
 }
 
@@ -230,17 +314,7 @@ function applyLocalGroupFilters(
     filters.category !== 'all' &&
     result.some(group => group.category)
   ) {
-    const categoryMap: Record<string, string> = {
-      tech: '科技',
-      game: '游戏',
-      music: '音乐',
-      art: '艺术',
-      life: '生活',
-      study: '学习',
-      work: '工作',
-      other: '其他'
-    };
-    const category = categoryMap[filters.category];
+    const category = toOptionalGroupCategory(filters.category);
     result = result.filter(
       group => group.category === category
     );
@@ -305,6 +379,7 @@ export async function listDiscoverGroups(
   const result = await v2ListGroups({
     q: filters.search.trim() || undefined,
     privacy: toOptionalGroupPrivacy(filters.privacy),
+    category: toOptionalGroupCategory(filters.category),
     page,
     page_size: pageSize
   });
@@ -325,6 +400,9 @@ export async function listJoinedGroups(
   pageSize: number
 ): Promise<GroupListResult> {
   const result = await v2ListMyGroups({
+    q: filters.search.trim() || undefined,
+    privacy: toOptionalGroupPrivacy(filters.privacy),
+    category: toOptionalGroupCategory(filters.category),
     page,
     page_size: pageSize
   });
@@ -355,6 +433,8 @@ export async function createGroup(
     description: data.description,
     avatar_url: data.avatar || null,
     cover_url: data.coverImage || null,
+    category: data.category,
+    tags: data.tags,
     privacy: data.privacy,
     join_approval: data.privacy !== 'public',
     post_permission: 'all'
@@ -376,6 +456,8 @@ export async function updateGroup(
       description: data.description,
       avatar_url: data.avatar || null,
       cover_url: data.coverImage || null,
+      category: data.category,
+      tags: data.tags,
       privacy: data.privacy,
       join_approval: data.joinApproval,
       post_permission: data.postPermission
@@ -387,6 +469,22 @@ export async function deleteGroup(
   groupId: number
 ): Promise<void> {
   await v2DeleteGroup(groupId);
+}
+
+export async function getGroupNotificationPreference(
+  groupId: number
+): Promise<V2GroupNotificationPreference> {
+  return await v2GetGroupNotificationPreference(groupId);
+}
+
+export async function setGroupNotificationPreference(
+  groupId: number,
+  isEnabled: boolean
+): Promise<V2GroupNotificationPreference> {
+  return await v2PutGroupNotificationPreference(
+    groupId,
+    isEnabled
+  );
 }
 
 export async function joinGroup(
@@ -594,6 +692,66 @@ export async function setGroupPostLikeStatus(
   );
 }
 
+export async function listGroupPostComments(
+  groupId: number,
+  postId: number,
+  page = 1,
+  pageSize = 50
+): Promise<{
+  comments: CommentVM[];
+  total: number;
+  hasNext: boolean;
+}> {
+  const result = await v2ListGroupPostComments(groupId, postId, {
+    page,
+    page_size: pageSize
+  });
+  const comments = result.items.map(mapV2GroupCommentToComment);
+  return {
+    comments,
+    total: result.meta?.total ?? comments.length,
+    hasNext: !!result.meta?.has_next
+  };
+}
+
+export async function createGroupPostComment(
+  groupId: number,
+  postId: number,
+  payload: V2CreateGroupCommentPayload
+): Promise<CommentVM> {
+  return mapV2GroupCommentToComment(
+    await v2CreateGroupPostComment(groupId, postId, payload)
+  );
+}
+
+export async function deleteGroupPostComment(
+  groupId: number,
+  postId: number,
+  commentId: number
+): Promise<void> {
+  await v2DeleteGroupPostComment(groupId, postId, commentId);
+}
+
+export async function setGroupCommentLikeStatus(
+  groupId: number,
+  postId: number,
+  commentId: number,
+  liked: boolean
+): Promise<CommentLikeVM> {
+  const result: V2GroupCommentLikeData =
+    await v2SetGroupCommentLikeStatus(
+      groupId,
+      postId,
+      commentId,
+      liked
+    );
+  return {
+    commentId: result.comment_id,
+    isLiked: result.is_liked,
+    likesCount: result.likes_count
+  };
+}
+
 export async function listGroupMembers(
   groupId: number
 ): Promise<GroupMember[]> {
@@ -684,7 +842,29 @@ export async function createGroupInvite(
 export async function listMyGroupInvites(): Promise<
   GroupInviteView[]
 > {
-  return [];
+  const result = await v2ListMyGroupInvites({
+    page: 1,
+    page_size: 100
+  });
+  return result.items
+    .filter(invite => invite.group)
+    .map(invite => ({
+      id: invite.invite_id,
+      group: {
+        id: invite.group?.group_id ?? 0,
+        name: invite.group?.name ?? '',
+        avatar:
+          normalizeNullableAssetUrl(
+            invite.group?.avatar_url ?? null
+          ) || '',
+        memberCount: invite.group?.member_count ?? 0,
+        description: invite.group?.description ?? ''
+      },
+      inviter: mapOwner(invite.inviter),
+      message: invite.message ?? undefined,
+      createdAt: invite.created_at,
+      expiresAt: invite.expires_at ?? undefined
+    }));
 }
 
 export async function respondGroupInvite(
