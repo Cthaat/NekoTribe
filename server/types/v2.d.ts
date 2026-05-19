@@ -67,6 +67,23 @@ interface V2SelfUser extends V2PublicUser {
   updated_at: string;
 }
 
+type V2GroupPrivacy = 'public' | 'private' | 'secret';
+
+type V2GroupCategory =
+  | 'tech'
+  | 'game'
+  | 'music'
+  | 'art'
+  | 'life'
+  | 'study'
+  | 'work'
+  | 'other';
+
+type V2GroupPostPermission =
+  | 'all'
+  | 'admin_only'
+  | 'moderator_up';
+
 type V2GroupRole = 'owner' | 'admin' | 'moderator' | 'member';
 
 interface V2AuthOtpPayload {
@@ -315,7 +332,12 @@ type V2ModerationPriority =
   | 'high'
   | 'urgent';
 
-type V2ModerationTargetType = 'post' | 'comment' | 'user';
+type V2ModerationTargetType =
+  | 'post'
+  | 'comment'
+  | 'user'
+  | 'group_post'
+  | 'group_comment';
 
 interface V2ModerationReport {
   report_id: number;
@@ -599,7 +621,7 @@ interface V2NotificationBatchReadData {
 
 interface V2GroupMembership {
   is_member: boolean;
-  role: string | null;
+  role: V2GroupRole | null;
   status: string | null;
   joined_at: string | null;
 }
@@ -611,11 +633,13 @@ interface V2Group {
   description: string;
   avatar_url: string | null;
   cover_url: string | null;
+  category: V2GroupCategory | null;
+  tags: string[];
   owner: V2PublicUser;
-  privacy: string;
+  privacy: V2GroupPrivacy;
   privacy_desc: string;
   join_approval: boolean;
-  post_permission: string;
+  post_permission: V2GroupPostPermission;
   member_count: number;
   post_count: number;
   is_active: number;
@@ -629,9 +653,23 @@ interface V2CreateGroupPayload {
   description?: string;
   avatar_url?: string | null;
   cover_url?: string | null;
-  privacy?: 'public' | 'private' | 'secret';
+  category?: V2GroupCategory | null;
+  tags?: string[];
+  privacy?: V2GroupPrivacy;
   join_approval?: boolean;
-  post_permission?: 'all' | 'admin_only' | 'moderator_up';
+  post_permission?: V2GroupPostPermission;
+}
+
+interface V2UpdateGroupPayload {
+  name?: string;
+  description?: string;
+  avatar_url?: string | null;
+  cover_url?: string | null;
+  category?: V2GroupCategory | null;
+  tags?: string[];
+  privacy?: V2GroupPrivacy;
+  join_approval?: boolean;
+  post_permission?: V2GroupPostPermission;
 }
 
 interface V2JoinGroupPayload {
@@ -641,7 +679,7 @@ interface V2JoinGroupPayload {
 interface V2GroupMember {
   member_id: number;
   user: V2PublicUser;
-  role: string;
+  role: V2GroupRole;
   role_desc: string;
   status: string;
   nickname: string | null;
@@ -652,7 +690,7 @@ interface V2GroupMemberStatusData {
   member_id?: number;
   user_id?: number;
   status?: string;
-  role?: string;
+  role?: V2GroupRole;
   mute_until?: string | null;
 }
 
@@ -686,6 +724,7 @@ interface V2GroupComment {
   content: string;
   likes_count: number;
   is_liked_by_me: boolean;
+  can_delete_by_me: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -694,6 +733,12 @@ interface V2CreateGroupCommentPayload {
   content: string;
   parent_comment_id?: number | null;
   reply_to_user_id?: number | null;
+}
+
+interface V2GroupCommentLikeData {
+  comment_id: number;
+  is_liked: boolean;
+  likes_count: number;
 }
 
 interface V2CreateGroupInvitePayload {
@@ -707,9 +752,20 @@ interface V2GroupInvite {
   invite_id: number;
   invite_code: string | null;
   status: string;
+  message: string | null;
   max_uses: number | null;
   used_count: number;
   expires_at: string | null;
+  created_at: string;
+  group: {
+    group_id: number;
+    name: string;
+    slug: string;
+    description: string;
+    avatar_url: string | null;
+    privacy: V2GroupPrivacy;
+    member_count: number;
+  } | null;
   inviter: V2PublicUser;
   invitee: V2PublicUser | null;
   is_valid: boolean;
@@ -737,6 +793,13 @@ interface V2InviteResponseData {
   invite_id: number;
   status: string;
   group_id: number;
+}
+
+interface V2GroupNotificationPreference {
+  user_id: number;
+  group_id: number;
+  is_enabled: boolean;
+  updated_at: string;
 }
 
 interface V2GroupAuditLog {
