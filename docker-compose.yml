@@ -212,7 +212,7 @@ services:
       ORACLE_PWD: ${ORACLE_PWD:-NekoRoot2026Local}
       ORACLE_PDB: ${ORACLE_SERVICE_NAME:-ORCLPDB1}
     volumes:
-      - ./data/oracle-data:/opt/oracle/oradata
+      - ${ORACLE_DATA_VOLUME:-oracle-data}:/opt/oracle/oradata${ORACLE_DATA_MOUNT_OPTIONS:-}
     healthcheck:
       test:
         [
@@ -233,4 +233,5 @@ networks:
 
 volumes:
   redis-data:
+  oracle-data:
   sentimentflow-models:
