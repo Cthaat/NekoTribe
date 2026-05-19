@@ -9,9 +9,19 @@ import {
 import { toast } from 'vue-sonner';
 import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import GroupPostCard from '@/components/GroupPostCard.vue';
+import CommentSection from '@/components/CommentSection.vue';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -20,17 +30,28 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import {
+  createGroupPostComment,
   deleteGroupPost,
+  deleteGroupPostComment,
+  listGroupPostComments,
   listJoinedGroupPostFeed,
+  setGroupCommentLikeStatus,
   setGroupPostLikeStatus,
   setGroupPostPinStatus
 } from '@/services/groups';
+import { v2CreateReport } from '@/api/v2/moderation';
 import type { Group, GroupPost } from '@/types/groups';
-import type { V2GroupPostListType } from '@/types/v2';
+import type {
+  V2GroupPostListType,
+  V2ModerationReportReason
+} from '@/types/v2';
+import type { CommentVM } from '@/types/posts';
 import { usePreferenceStore } from '~/stores/user';
 
 const { t } = useAppLocale();
+const route = useRoute();
 const preferenceStore = usePreferenceStore();
 
 const pageSize = 10;
@@ -44,6 +65,15 @@ const hasNext = ref(false);
 const loading = ref(false);
 const loadingMore = ref(false);
 const error = ref<string | null>(null);
+const commentDialogOpen = ref(false);
+const commentPost = ref<GroupPost | null>(null);
+const comments = ref<CommentVM[]>([]);
+const commentsLoading = ref(false);
+const reportDialogOpen = ref(false);
+const reportPost = ref<GroupPost | null>(null);
+const reportReason = ref<V2ModerationReportReason>('spam');
+const reportDescription = ref('');
+const isSubmittingReport = ref(false);
 
 const typeOptions: {
   value: V2GroupPostListType;
@@ -58,6 +88,17 @@ const typeOptions: {
     value: 'announcement',
     labelKey: 'groups.posts.types.announcement'
   }
+];
+
+const reportReasons: V2ModerationReportReason[] = [
+  'spam',
+  'harassment',
+  'hate',
+  'violence',
+  'adult',
+  'misinformation',
+  'copyright',
+  'other'
 ];
 
 const currentUserId = computed(() =>
@@ -246,12 +287,189 @@ async function handleShare(postId: number): Promise<void> {
   }
 }
 
+async function loadCommentsForPost(
+  post: GroupPost
+): Promise<void> {
+  if (!post.group) return;
+  commentsLoading.value = true;
+  try {
+    const result = await listGroupPostComments(
+      post.group.id,
+      post.id
+    );
+    comments.value = result.comments;
+  } catch (caught) {
+    comments.value = [];
+    toast.error(t('comment.feedback.loadFailed'), {
+      description:
+        caught instanceof Error ? caught.message : undefined
+    });
+  } finally {
+    commentsLoading.value = false;
+  }
+}
+
+async function handleComment(postId: number): Promise<void> {
+  const post = posts.value.find(item => item.id === postId);
+  if (!post?.group) return;
+  commentPost.value = post;
+  commentDialogOpen.value = true;
+  await loadCommentsForPost(post);
+}
+
+async function handleSendComment(
+  content: string
+): Promise<void> {
+  const post = commentPost.value;
+  if (!post?.group) return;
+  try {
+    const comment = await createGroupPostComment(
+      post.group.id,
+      post.id,
+      { content }
+    );
+    comments.value = [comment, ...comments.value];
+    patchPost(post.id, item => ({
+      ...item,
+      commentCount: item.commentCount + 1
+    }));
+  } catch (caught) {
+    toast.error(t('comment.feedback.sendFailed'), {
+      description:
+        caught instanceof Error ? caught.message : undefined
+    });
+  }
+}
+
+async function handleSubmitCommentReply(
+  parentCommentId: string | number,
+  content: string
+): Promise<void> {
+  const post = commentPost.value;
+  if (!post?.group) return;
+  const parentId = Number(parentCommentId);
+  if (!Number.isFinite(parentId)) return;
+  try {
+    const comment = await createGroupPostComment(
+      post.group.id,
+      post.id,
+      {
+        content,
+        parent_comment_id: parentId
+      }
+    );
+    comments.value = [comment, ...comments.value];
+    patchPost(post.id, item => ({
+      ...item,
+      commentCount: item.commentCount + 1
+    }));
+  } catch (caught) {
+    toast.error(t('comment.feedback.replyFailed'), {
+      description:
+        caught instanceof Error ? caught.message : undefined
+    });
+  }
+}
+
+async function handleLikeComment(
+  commentId: string | number,
+  action: 'likeComment' | 'unlikeComment'
+): Promise<void> {
+  const post = commentPost.value;
+  if (!post?.group) return;
+  const id = Number(commentId);
+  if (!Number.isFinite(id)) return;
+  try {
+    await setGroupCommentLikeStatus(
+      post.group.id,
+      post.id,
+      id,
+      action === 'likeComment'
+    );
+  } catch (caught) {
+    toast.error(t('comment.feedback.likeFailed'), {
+      description:
+        caught instanceof Error ? caught.message : undefined
+    });
+    await loadCommentsForPost(post);
+  }
+}
+
+async function handleDeleteComment(
+  commentId: string | number
+): Promise<void> {
+  const post = commentPost.value;
+  if (!post?.group) return;
+  const id = Number(commentId);
+  if (!Number.isFinite(id)) return;
+  try {
+    await deleteGroupPostComment(post.group.id, post.id, id);
+    comments.value = comments.value.filter(
+      comment => comment.id !== id
+    );
+    patchPost(post.id, item => ({
+      ...item,
+      commentCount: Math.max(0, item.commentCount - 1)
+    }));
+    toast.success(t('comment.feedback.deleted'));
+  } catch (caught) {
+    toast.error(t('comment.feedback.deleteFailed'), {
+      description:
+        caught instanceof Error ? caught.message : undefined
+    });
+  }
+}
+
+function handleReport(postId: number): void {
+  const post = posts.value.find(item => item.id === postId);
+  if (!post) return;
+  reportPost.value = post;
+  reportReason.value = 'spam';
+  reportDescription.value = '';
+  reportDialogOpen.value = true;
+}
+
+async function submitGroupPostReport(): Promise<void> {
+  if (!reportPost.value) return;
+  isSubmittingReport.value = true;
+  try {
+    await v2CreateReport({
+      target_type: 'group_post',
+      target_id: reportPost.value.id,
+      reason: reportReason.value,
+      description:
+        reportDescription.value.trim() || undefined
+    });
+    toast.success(t('groups.post.feedback.reported'));
+    reportDialogOpen.value = false;
+    reportPost.value = null;
+  } catch (caught) {
+    toast.error(t('post.feedback.reportFailed'), {
+      description:
+        caught instanceof Error ? caught.message : undefined
+    });
+  } finally {
+    isSubmittingReport.value = false;
+  }
+}
+
 watch([selectedGroupId, selectedType], () => {
   void refreshPosts();
 });
 
-onMounted(() => {
-  void refreshPosts();
+onMounted(async () => {
+  const groupId = Number(route.query.group);
+  if (Number.isFinite(groupId) && groupId > 0) {
+    selectedGroupId.value = String(groupId);
+  }
+  await refreshPosts();
+  const postId = Number(route.query.post);
+  if (!Number.isFinite(postId)) return;
+  if (route.query.report === '1') {
+    handleReport(postId);
+  } else if (route.query.comments === '1') {
+    await handleComment(postId);
+  }
 });
 </script>
 
@@ -397,6 +615,8 @@ onMounted(() => {
         @pin="id => handlePin(id, true)"
         @unpin="id => handlePin(id, false)"
         @delete="handleDelete"
+        @comment="handleComment"
+        @report="handleReport"
         @share="handleShare"
       />
 
@@ -414,5 +634,111 @@ onMounted(() => {
         </Button>
       </div>
     </div>
+
+    <Dialog v-model:open="commentDialogOpen">
+      <DialogContent class="max-h-[88vh] max-w-3xl overflow-y-auto p-0">
+        <DialogHeader class="px-4 pt-4 sm:px-6">
+          <DialogTitle>{{ t('comment.title') }}</DialogTitle>
+          <DialogDescription v-if="commentPost?.group">
+            {{ commentPost.group.name }}
+          </DialogDescription>
+        </DialogHeader>
+        <div v-if="commentsLoading" class="space-y-3 p-6">
+          <Skeleton class="h-20 w-full" />
+          <Skeleton class="h-16 w-full" />
+        </div>
+        <CommentSection
+          v-else-if="commentPost"
+          :comments="comments"
+          :post-id="commentPost.id"
+          enable-delete
+          @send-reply="handleSendComment"
+          @submit-reply="handleSubmitCommentReply"
+          @like-comment="handleLikeComment"
+          @delete-comment="handleDeleteComment"
+        />
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="reportDialogOpen">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{{ t('post.report.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('post.report.description') }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="space-y-4 py-2">
+          <div class="space-y-2">
+            <Label for="group-post-report-reason">
+              {{ t('post.report.reasonLabel') }}
+            </Label>
+            <Select v-model="reportReason">
+              <SelectTrigger
+                id="group-post-report-reason"
+                class="w-full"
+              >
+                <SelectValue
+                  :placeholder="t('post.report.reasonPlaceholder')"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="reason in reportReasons"
+                  :key="reason"
+                  :value="reason"
+                >
+                  {{
+                    t(`moderation.filters.reasons.${reason}`)
+                  }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div class="space-y-2">
+            <Label for="group-post-report-description">
+              {{ t('post.report.descriptionLabel') }}
+            </Label>
+            <Textarea
+              id="group-post-report-description"
+              v-model="reportDescription"
+              :placeholder="t('post.report.descriptionPlaceholder')"
+              class="min-h-24 resize-none"
+              maxlength="1000"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{
+                t('post.report.descriptionHint', {
+                  count: reportDescription.length
+                })
+              }}
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            :disabled="isSubmittingReport"
+            @click="reportDialogOpen = false"
+          >
+            {{ t('common.cancel') }}
+          </Button>
+          <Button
+            variant="destructive"
+            :disabled="isSubmittingReport"
+            @click="submitGroupPostReport"
+          >
+            {{
+              isSubmittingReport
+                ? t('post.report.submitting')
+                : t('post.report.submit')
+            }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
