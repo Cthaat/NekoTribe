@@ -293,7 +293,7 @@ async function createTableIfMissing(
 function isConstraintDdlNoop(error: unknown): boolean {
   return (
     error instanceof Error &&
-    /ORA-02443|ORA-02264|already exists|does not exist/i.test(
+    /ORA-00054|ORA-02443|ORA-02264|already exists|does not exist/i.test(
       error.message
     )
   );
