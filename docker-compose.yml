@@ -217,7 +217,7 @@ services:
       test:
         [
           'CMD-SHELL',
-          "echo 'select 1 from dual;' | sqlplus -s system/$${ORACLE_PWD}@//localhost:1521/$${ORACLE_PDB} | grep -q 1"
+          'printf "%s\n" "SELECT ''NEKOTRIBE_PDB_READY'' FROM dual;" | sqlplus -L -s "sys/$${ORACLE_PWD}@//localhost:1521/${ORACLE_SERVICE_NAME:-ORCLPDB1} as sysdba" | grep -q NEKOTRIBE_PDB_READY'
         ]
       interval: 30s
       timeout: 10s
