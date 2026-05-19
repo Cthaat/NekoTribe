@@ -40,7 +40,10 @@ import {
 import { toast } from 'vue-sonner';
 import GroupAvatarCropDialog from './GroupAvatarCropDialog.vue';
 import { v2UploadMedia } from '@/services';
-import type { CreateGroupData } from '@/types/groups';
+import type {
+  CreateGroupData,
+  GroupCategory
+} from '@/types/groups';
 import { normalizeAssetUrl } from '@/utils/assets';
 
 export type { CreateGroupData } from '@/types/groups';
@@ -62,8 +65,10 @@ const formData = ref<CreateGroupData>({
   avatar: '',
   coverImage: '',
   privacy: 'public',
-  category: ''
+  category: 'tech',
+  tags: []
 });
+const tagsText = ref('');
 const avatarInputRef = ref<HTMLInputElement | null>(null);
 const coverInputRef = ref<HTMLInputElement | null>(null);
 const isAvatarUploading = ref(false);
@@ -83,8 +88,10 @@ watch(
         avatar: '',
         coverImage: '',
         privacy: 'public',
-        category: ''
+        category: 'tech',
+        tags: []
       };
+      tagsText.value = '';
       isAvatarUploading.value = false;
       isCoverUploading.value = false;
       resetAvatarInput();
@@ -105,6 +112,20 @@ const categoryOptions = [
   { value: 'work', labelKey: 'groups.filters.category.work' },
   { value: 'other', labelKey: 'groups.filters.category.other' }
 ];
+
+function normalizeTags(value: string): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of value.split(/[,，\s]+/)) {
+    const tag = raw.replace(/^#/, '').trim().slice(0, 50);
+    const key = tag.toLowerCase();
+    if (!tag || seen.has(key)) continue;
+    seen.add(key);
+    result.push(tag);
+    if (result.length >= 8) break;
+  }
+  return result;
+}
 
 // 隐私选项
 const privacyOptions = [
@@ -130,7 +151,12 @@ const privacyOptions = [
 
 // 更新分类
 const updateCategory = (value: unknown) => {
-  formData.value.category = value ? String(value) : '';
+  const next = String(value);
+  if (
+    categoryOptions.some(option => option.value === next)
+  ) {
+    formData.value.category = next as GroupCategory;
+  }
 };
 
 const resetAvatarInput = () => {
@@ -287,7 +313,10 @@ const handleSubmit = () => {
     return;
   }
 
-  emit('create', { ...formData.value });
+  emit('create', {
+    ...formData.value,
+    tags: normalizeTags(tagsText.value)
+  });
   emit('update:open', false);
 };
 
@@ -481,6 +510,20 @@ onBeforeUnmount(() => {
               </SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <!-- 群组标签 -->
+        <div class="space-y-2">
+          <Label for="group-tags">{{ t('groups.create.tags') }}</Label>
+          <Input
+            id="group-tags"
+            v-model="tagsText"
+            :placeholder="t('groups.create.tagsPlaceholder')"
+            maxlength="160"
+          />
+          <p class="text-xs text-muted-foreground">
+            {{ t('groups.create.tagsHint') }}
+          </p>
         </div>
 
         <!-- 隐私设置 -->
