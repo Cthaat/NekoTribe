@@ -6,6 +6,7 @@
     "next": "下一页",
     "cancel": "取消",
     "delete": "删除",
+    "copy": "复制",
     "submit": "提交",
     "close": "关闭",
     "toggle": "展开/收起",
@@ -180,6 +181,10 @@
       "deleteFailed": "删除推文失败",
       "retweeted": "转发成功",
       "retweetFailed": "转发失败",
+      "replied": "回复已发布",
+      "replyFailed": "发布回复失败",
+      "likeFailed": "点赞失败",
+      "bookmarkFailed": "书签操作失败",
       "reported": "举报已提交",
       "reportFailed": "提交举报失败"
     },
@@ -191,6 +196,14 @@
       "emptyUserPosts": "该用户还没有发布任何推文",
       "emptyTitle": "这里还没有推文哦。",
       "emptyDescription": "关注更多用户或稍后再来看看新的动态。",
+      "emptyMentionTitle": "暂时没有提及你的内容",
+      "emptyMentionDescription": "当有人在推文中提到你时，这里会自动显示。你可以先去首页看看最新动态。",
+      "emptyMentionHint": "提及会在有人 {'@'}你 时自动出现",
+      "emptyBookmarkTitle": "书签还是空的",
+      "emptyBookmarkDescription": "把喜欢的内容加入书签后，它们会集中出现在这里，方便你随时回看。",
+      "emptyBookmarkHint": "书签会保存你手动收藏的内容",
+      "emptyGoHome": "回到首页",
+      "emptyExplore": "去逛逛首页",
       "searchEmptyTitle": "没有找到相关推文。",
       "searchEmptyDescription": "换个关键词试试，或稍后再搜索。",
       "unavailable": "此推文不存在或已被删除。"
@@ -207,6 +220,7 @@
       "removeMedia": "移除媒体",
       "dropHint": "松开以上传图片或视频",
       "altTextPlaceholder": "添加媒体说明（可选）",
+      "mediaDescriptionPlaceholder": "添加媒体描述（可选）",
       "replyPost": "回复推文",
       "quotePost": "引用推文",
       "addMention": "提及用户",
@@ -285,7 +299,9 @@
       "empty": "这篇文章还没有回复。",
       "loadFailed": "加载回复文章失败",
       "loadMore": "加载更多回复",
-      "loading": "正在加载..."
+      "loading": "正在加载...",
+      "composeTitle": "回复这条推文",
+      "composeDescription": "你的回复会作为推文显示在回复列表中。"
     },
     "media": {
       "thumbnailAlt": "推文媒体缩略图"
@@ -1422,6 +1438,15 @@
       "successLogin": "登录成功,即将跳转到首页...",
       "loginFailed": "登录失败,请检查您的账号和密码是否正确。",
       "unknownError": "发生未知错误，请稍后再试。",
+      "twoFactorRequired": "请输入两步验证码完成登录。",
+      "twoFactorCode": "两步验证码",
+      "twoFactorCodePlaceholder": "6 位验证码或恢复码",
+      "twoFactorCodeRequired": "请输入两步验证码",
+      "twoFactorHint": "可使用认证器验证码或一次性恢复码。",
+      "twoFactorVerify": "验证并登录",
+      "twoFactorFailed": "两步验证失败",
+      "trustDevice": "信任此设备",
+      "trustDeviceHint": "两步验证通过后，30 天内同一浏览器不再要求验证码。",
       "resetPassword": "重置密码",
       "coverImageAlt": "登录页封面图"
     },
@@ -1638,6 +1663,7 @@
       "billing": "账单",
       "profile": "个人资料",
       "posts": "推文管理",
+      "likes": "我的点赞",
       "appearance": "外观",
       "security": "安全",
       "active": "活跃设备",
@@ -1811,6 +1837,13 @@
         "othersRevoked": "其它设备已下线",
         "operationFailed": "操作失败"
       }
+    },
+    "likes": {
+      "title": "我的点赞",
+      "description": "查看你点过赞的推文，并保持点赞、书签、回复和转发状态同步。",
+      "summary": "共 {count} 条已点赞推文",
+      "emptyTitle": "还没有点过赞",
+      "emptyDescription": "当你给推文点赞后，它们会集中显示在这里。"
     },
     "statements": {
       "title": "账户状态",
@@ -2096,6 +2129,47 @@
           "captchaLabel": "验证码",
           "secondsLeft": "秒后重试",
           "sendCaptcha": "发送验证码"
+        }
+      },
+      "twoFactor": {
+        "title": "两步验证",
+        "description": "使用认证器验证码保护登录流程。",
+        "enabled": "已开启",
+        "disabled": "未开启",
+        "password": "当前密码",
+        "passwordPlaceholder": "请输入当前密码",
+        "startSetup": "生成密钥",
+        "secret": "认证器密钥",
+        "code": "验证码",
+        "codeOrRecovery": "验证码或恢复码",
+        "codePlaceholder": "6 位验证码或恢复码",
+        "confirm": "确认开启",
+        "disable": "关闭两步验证",
+        "recoveryCodes": "恢复码",
+        "feedback": {
+          "loadFailed": "加载两步验证状态失败",
+          "passwordRequired": "请输入当前密码",
+          "setupStarted": "密钥已生成",
+          "setupFailed": "生成密钥失败",
+          "codeRequired": "请输入验证码",
+          "confirmFailed": "开启两步验证失败",
+          "enabled": "两步验证已开启",
+          "disableRequired": "请输入密码和验证码",
+          "disableFailed": "关闭两步验证失败",
+          "disabled": "两步验证已关闭",
+          "copied": "密钥已复制"
+        }
+      },
+      "danger": {
+        "title": "注销账号",
+        "description": "注销后账号会停用，当前会话失效，已发布内容会被隐藏。",
+        "confirmation": "确认内容",
+        "confirmationPlaceholder": "输入用户名或 DELETE",
+        "delete": "注销账号",
+        "feedback": {
+          "required": "请输入密码和确认内容",
+          "deleted": "账号已注销",
+          "deleteFailed": "注销账号失败"
         }
       }
     }
