@@ -45,8 +45,10 @@ import GroupPostCard from './GroupPostCard.vue';
 import {
   changeGroupMemberRole,
   getGroup,
+  getGroupNotificationPreference,
   muteGroupMember,
   removeGroupMember,
+  setGroupNotificationPreference,
   unmuteGroupMember
 } from '@/services/groups';
 import type {
@@ -79,6 +81,8 @@ const activeTab = ref('about');
 
 // 通知状态
 const notificationsEnabled = ref(true);
+const notificationLoading = ref(false);
+const notificationSaving = ref(false);
 const memberActionKey = ref<string | null>(null);
 
 // 重置状态
@@ -89,6 +93,27 @@ watch(
       activeTab.value = 'about';
     }
   }
+);
+
+watch(
+  () => [props.open, props.group?.id] as const,
+  async ([isOpen, groupId]) => {
+    if (!isOpen || !groupId || !props.group?.isMember) {
+      notificationsEnabled.value = true;
+      return;
+    }
+    notificationLoading.value = true;
+    try {
+      const preference =
+        await getGroupNotificationPreference(groupId);
+      notificationsEnabled.value = preference.is_enabled;
+    } catch {
+      notificationsEnabled.value = true;
+    } finally {
+      notificationLoading.value = false;
+    }
+  },
+  { immediate: true }
 );
 
 // 获取隐私图标
@@ -119,6 +144,9 @@ const getPrivacyText = (privacy: string) => {
   }
 };
 
+const getCategoryText = (category: string) =>
+  t(`groups.filters.category.${category}`);
+
 // 格式化日期
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);
@@ -140,13 +168,32 @@ const handleJoinLeave = () => {
 };
 
 // 切换通知
-const toggleNotifications = () => {
-  notificationsEnabled.value = !notificationsEnabled.value;
-  toast.success(
-    notificationsEnabled.value
-      ? t('groups.notifications.enabled')
-      : t('groups.notifications.disabled')
-  );
+const toggleNotifications = async () => {
+  if (!props.group || notificationSaving.value) return;
+  const previous = notificationsEnabled.value;
+  const next = !previous;
+  notificationsEnabled.value = next;
+  notificationSaving.value = true;
+  try {
+    const preference = await setGroupNotificationPreference(
+      props.group.id,
+      next
+    );
+    notificationsEnabled.value = preference.is_enabled;
+    toast.success(
+      preference.is_enabled
+        ? t('groups.notifications.enabled')
+        : t('groups.notifications.disabled')
+    );
+  } catch (error) {
+    notificationsEnabled.value = previous;
+    toast.error(t('groups.notifications.updateFailed'), {
+      description:
+        error instanceof Error ? error.message : undefined
+    });
+  } finally {
+    notificationSaving.value = false;
+  }
 };
 
 // 处理邀请
@@ -280,6 +327,26 @@ function removeMember(memberId: number): void {
   );
 }
 
+function openPostComments(postId: number): void {
+  if (!props.group) return;
+  closeDialog();
+  void navigateTo(
+    localePath(
+      `/groups/posts?group=${props.group.id}&post=${postId}&comments=1`
+    )
+  );
+}
+
+function openPostReport(postId: number): void {
+  if (!props.group) return;
+  closeDialog();
+  void navigateTo(
+    localePath(
+      `/groups/posts?group=${props.group.id}&post=${postId}&report=1`
+    )
+  );
+}
+
 // 切换标签
 const handleTabChange = (value: string | number) => {
   activeTab.value = String(value);
@@ -367,6 +434,7 @@ const handleTabChange = (value: string | number) => {
               v-if="group.isMember"
               variant="ghost"
               size="icon"
+              :disabled="notificationLoading || notificationSaving"
               @click="toggleNotifications"
             >
               <component
@@ -505,7 +573,7 @@ const handleTabChange = (value: string | number) => {
                     v-if="group.category"
                     variant="outline"
                   >
-                    {{ group.category }}
+                    {{ getCategoryText(group.category) }}
                   </Badge>
                   <Badge
                     v-for="tag in group.tags"
@@ -534,6 +602,8 @@ const handleTabChange = (value: string | number) => {
                 :key="post.id"
                 :post="post"
                 :can-manage="group.isOwner || group.isAdmin"
+                @comment="openPostComments"
+                @report="openPostReport"
               />
             </TabsContent>
 

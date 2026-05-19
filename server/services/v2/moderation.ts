@@ -90,7 +90,13 @@ const CASE_STATUSES = [
   'restored'
 ] as const;
 
-const TARGET_TYPES = ['post', 'comment', 'user'] as const;
+const TARGET_TYPES = [
+  'post',
+  'comment',
+  'user',
+  'group_post',
+  'group_comment'
+] as const;
 
 interface ModerationSettingDefinition {
   key: string;
@@ -284,6 +290,43 @@ async function createTableIfMissing(
   await executeDdl(connection, sql);
 }
 
+function isConstraintDdlNoop(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /ORA-00054|ORA-02443|ORA-02264|already exists|does not exist/i.test(
+      error.message
+    )
+  );
+}
+
+async function ensureTargetTypeConstraint(
+  connection: oracledb.Connection,
+  tableName: string,
+  constraintName: string
+): Promise<void> {
+  try {
+    await executeDdl(
+      connection,
+      `ALTER TABLE ${tableName} DROP CONSTRAINT ${constraintName}`
+    );
+  } catch (error) {
+    if (!isConstraintDdlNoop(error)) throw error;
+  }
+
+  try {
+    await executeDdl(
+      connection,
+      `
+      ALTER TABLE ${tableName}
+      ADD CONSTRAINT ${constraintName}
+      CHECK (target_type IN ('post', 'comment', 'user', 'group_post', 'group_comment'))
+      `
+    );
+  } catch (error) {
+    if (!isConstraintDdlNoop(error)) throw error;
+  }
+}
+
 async function ensureDefaultSettings(
   connection: oracledb.Connection
 ): Promise<void> {
@@ -372,7 +415,7 @@ async function ensureModerationSchema(
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
       resolved_at TIMESTAMP,
-      CONSTRAINT ck_mod_reports_target CHECK (target_type IN ('post', 'comment', 'user')),
+      CONSTRAINT ck_mod_reports_target CHECK (target_type IN ('post', 'comment', 'user', 'group_post', 'group_comment')),
       CONSTRAINT ck_mod_reports_reason CHECK (reason IN ('spam', 'harassment', 'hate', 'violence', 'adult', 'misinformation', 'copyright', 'other')),
       CONSTRAINT ck_mod_reports_status CHECK (status IN ('pending', 'in_review', 'resolved', 'dismissed')),
       CONSTRAINT ck_mod_reports_priority CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
@@ -399,12 +442,23 @@ async function ensureModerationSchema(
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
       resolved_at TIMESTAMP,
       CONSTRAINT uk_mod_cases_target UNIQUE (target_type, target_id),
-      CONSTRAINT ck_mod_cases_target CHECK (target_type IN ('post', 'comment', 'user')),
+      CONSTRAINT ck_mod_cases_target CHECK (target_type IN ('post', 'comment', 'user', 'group_post', 'group_comment')),
       CONSTRAINT ck_mod_cases_status CHECK (status IN ('pending', 'approved', 'rejected', 'flagged', 'removed', 'restored')),
       CONSTRAINT ck_mod_cases_priority CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
       CONSTRAINT fk_mod_cases_assignee FOREIGN KEY (assigned_to) REFERENCES n_users(user_id)
     )
     `
+  );
+
+  await ensureTargetTypeConstraint(
+    connection,
+    'n_moderation_reports',
+    'ck_mod_reports_target'
+  );
+  await ensureTargetTypeConstraint(
+    connection,
+    'n_moderation_cases',
+    'ck_mod_cases_target'
   );
 
   await createTableIfMissing(
@@ -676,13 +730,21 @@ async function verifyTargetExists(
       ? 'n_posts'
       : targetType === 'comment'
         ? 'n_comments'
-        : 'n_users';
+        : targetType === 'group_post'
+          ? 'n_group_posts'
+          : targetType === 'group_comment'
+            ? 'n_group_comments'
+            : 'n_users';
   const column =
     targetType === 'post'
       ? 'post_id'
       : targetType === 'comment'
         ? 'comment_id'
-        : 'user_id';
+        : targetType === 'group_post'
+          ? 'post_id'
+          : targetType === 'group_comment'
+            ? 'comment_id'
+            : 'user_id';
   const total = await v2Count(
     connection,
     `SELECT COUNT(*) AS total FROM ${table} WHERE ${column} = :target_id`,

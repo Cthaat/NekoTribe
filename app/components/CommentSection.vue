@@ -25,13 +25,18 @@ const props = defineProps({
   postId: {
     type: [String, Number],
     required: true
+  },
+  enableDelete: {
+    type: Boolean,
+    default: false
   }
 });
 
 const emit = defineEmits([
   'like-comment',
   'submit-reply',
-  'send-reply'
+  'send-reply',
+  'delete-comment'
 ]);
 
 const newCommentContent = ref('');
@@ -114,6 +119,10 @@ async function handleSubmitReply({
   } finally {
     isSubmitting.value = false;
   }
+}
+
+function handleDeleteComment(commentId: string | number) {
+  emit('delete-comment', commentId);
 }
 
 async function handleSubmitTweetReply() {
@@ -214,8 +223,10 @@ function handleCommentInputBlur() {
         :key="comment.id"
         :comment="comment"
         :level="0"
+        :enable-delete="enableDelete"
         @like-comment="handleLikeComment"
         @submit-reply="handleSubmitReply"
+        @delete-comment="handleDeleteComment"
       />
     </div>
     <Card v-else class="gap-0 border-dashed py-0">

@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import AppSendButton from '@/components/app/AppSendButton.vue';
-import { Heart, MessageSquare } from 'lucide-vue-next';
+import { Heart, MessageSquare, Trash2 } from 'lucide-vue-next';
 
 const { t, locale } = useAppLocale();
 
@@ -28,10 +28,18 @@ const props = defineProps({
   level: {
     type: Number,
     default: 0
+  },
+  enableDelete: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(['like-comment', 'submit-reply']);
+const emit = defineEmits([
+  'like-comment',
+  'submit-reply',
+  'delete-comment'
+]);
 
 // --- 用于 UI 交互的本地状态 ---
 const isReplyBoxOpen = ref(false);
@@ -85,6 +93,10 @@ function handleSubmitReply() {
   // 提交后关闭回复框
   isReplyBoxOpen.value = false;
   replyContent.value = '';
+}
+
+function handleDelete() {
+  emit('delete-comment', props.comment.id);
 }
 
 function handleReplyBlur() {
@@ -167,6 +179,16 @@ function handleReplyBlur() {
           <MessageSquare class="h-4 w-4" />
           <span class="text-xs font-medium">{{ t('comment.reply') }}</span>
         </Button>
+        <Button
+          v-if="enableDelete && comment.viewer.canDelete"
+          variant="ghost"
+          size="sm"
+          class="flex items-center gap-2 text-muted-foreground hover:text-destructive transition-colors h-8 px-3"
+          @click="handleDelete"
+        >
+          <Trash2 class="h-4 w-4" />
+          <span class="text-xs font-medium">{{ t('comment.delete') }}</span>
+        </Button>
       </div>
 
       <!-- 回复框 (条件渲染) -->
@@ -238,8 +260,10 @@ function handleReplyBlur() {
         :key="childComment.id"
         :comment="childComment"
         :level="level + 1"
+        :enable-delete="enableDelete"
         @like-comment="$emit('like-comment', $event)"
         @submit-reply="$emit('submit-reply', $event)"
+        @delete-comment="$emit('delete-comment', $event)"
       />
     </div>
   </div>

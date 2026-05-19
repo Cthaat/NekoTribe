@@ -313,6 +313,7 @@
     "reply": "回复",
     "replyPlaceholder": "写下你的回复...",
     "submitReply": "提交回复",
+    "delete": "删除",
     "characterCount": "{count} / {max} 字符",
     "submit": "发布评论",
     "submitting": "发布中...",
@@ -326,6 +327,8 @@
       "replyFailed": "回复评论失败。",
       "sendFailed": "发送评论失败，请稍后重试。",
       "likeFailed": "点赞评论失败，请稍后重试。",
+      "deleted": "评论已删除",
+      "deleteFailed": "删除评论失败，请稍后重试。",
       "loadFailed": "加载评论失败"
     }
   },
@@ -516,6 +519,9 @@
       "groupDescriptionPlaceholder": "描述一下你的群组...",
       "category": "群组分类 *",
       "categoryPlaceholder": "选择分类",
+      "tags": "群组标签",
+      "tagsPlaceholder": "例如：摄影, 前端, 同城",
+      "tagsHint": "用逗号或空格分隔，最多 8 个标签。",
       "privacySettings": "隐私设置",
       "privacy": {
         "publicDescription": "任何人都可以查看和加入",
@@ -563,6 +569,8 @@
         "avatar": "头像",
         "cover": "封面",
         "privacy": "群组类型",
+        "category": "群组分类",
+        "tags": "群组标签",
         "joinApproval": "加入审批",
         "joinApprovalHint": "开启后，新成员需要管理员审批才能加入。",
         "postPermission": "发帖权限"
@@ -684,7 +692,8 @@
     },
     "notifications": {
       "enabled": "已开启通知",
-      "disabled": "已关闭通知"
+      "disabled": "已关闭通知",
+      "updateFailed": "更新群通知设置失败"
     },
     "invites": {
       "pendingCount": "共 {count} 条待处理邀请",

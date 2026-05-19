@@ -63,6 +63,390 @@ function v2PostPermission(value: string): string {
   v2BadRequest('post_permission 参数错误');
 }
 
+const groupCategoryValues = [
+  'tech',
+  'game',
+  'music',
+  'art',
+  'life',
+  'study',
+  'work',
+  'other'
+] as const;
+
+function v2GroupCategoryOrNull(
+  value: string | null
+): V2GroupCategory | null {
+  const normalized = (value ?? '').trim();
+  if (!normalized) return null;
+  if (
+    groupCategoryValues.some(
+      category => category === normalized
+    )
+  ) {
+    return normalized as V2GroupCategory;
+  }
+  v2BadRequest('category 参数错误');
+}
+
+function v2GroupTags(value: unknown): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of v2StringArray(value)) {
+    const tag = raw.replace(/^#/, '').trim().slice(0, 50);
+    const key = tag.toLowerCase();
+    if (!tag || seen.has(key)) continue;
+    seen.add(key);
+    result.push(tag);
+    if (result.length >= 8) break;
+  }
+  return result;
+}
+
+let groupFeatureSchemaReady = false;
+
+async function v2ObjectExists(
+  connection: oracledb.Connection,
+  type: 'TABLE' | 'INDEX',
+  name: string
+): Promise<boolean> {
+  const source =
+    type === 'TABLE' ? 'user_tables' : 'user_indexes';
+  const column =
+    type === 'TABLE' ? 'table_name' : 'index_name';
+  return (
+    (await v2Count(
+      connection,
+      `SELECT COUNT(*) AS total FROM ${source} WHERE ${column} = :name`,
+      { name: name.toUpperCase() }
+    )) > 0
+  );
+}
+
+async function v2ColumnExists(
+  connection: oracledb.Connection,
+  tableName: string,
+  columnName: string
+): Promise<boolean> {
+  return (
+    (await v2Count(
+      connection,
+      `
+      SELECT COUNT(*) AS total
+      FROM user_tab_columns
+      WHERE table_name = :table_name
+        AND column_name = :column_name
+      `,
+      {
+        table_name: tableName.toUpperCase(),
+        column_name: columnName.toUpperCase()
+      }
+    )) > 0
+  );
+}
+
+async function v2ExecuteDdl(
+  connection: oracledb.Connection,
+  sql: string
+): Promise<void> {
+  await connection.execute(sql);
+}
+
+function v2OracleErrorNum(error: unknown): number | null {
+  if (typeof error === 'object' && error !== null) {
+    const value = (error as { errorNum?: unknown }).errorNum;
+    if (typeof value === 'number') return value;
+  }
+  if (error instanceof Error) {
+    const match = error.message.match(/ORA-(\d+)/);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
+async function v2CreateTableIfMissing(
+  connection: oracledb.Connection,
+  name: string,
+  sql: string
+): Promise<void> {
+  if (await v2ObjectExists(connection, 'TABLE', name)) return;
+  try {
+    await v2ExecuteDdl(connection, sql);
+  } catch (error) {
+    const errorNum = v2OracleErrorNum(error);
+    if (errorNum === 955) return;
+    throw error;
+  }
+}
+
+async function v2AddColumnIfMissing(
+  connection: oracledb.Connection,
+  tableName: string,
+  columnName: string,
+  sql: string
+): Promise<void> {
+  if (await v2ColumnExists(connection, tableName, columnName)) {
+    return;
+  }
+  try {
+    await v2ExecuteDdl(connection, sql);
+  } catch (error) {
+    const errorNum = v2OracleErrorNum(error);
+    if (errorNum === 1430) return;
+    throw error;
+  }
+}
+
+async function v2EnsureGroupFeatureSchema(
+  connection: oracledb.Connection
+): Promise<void> {
+  if (groupFeatureSchemaReady) return;
+
+  await v2AddColumnIfMissing(
+    connection,
+    'n_groups',
+    'category',
+    'ALTER TABLE n_groups ADD (category VARCHAR2(30))'
+  );
+  await v2CreateTableIfMissing(
+    connection,
+    'n_group_tags',
+    `
+    CREATE TABLE n_group_tags (
+      group_id NUMBER(19) NOT NULL,
+      tag VARCHAR2(50) NOT NULL,
+      tag_lower VARCHAR2(50) NOT NULL,
+      created_at TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+      CONSTRAINT pk_group_tags PRIMARY KEY (group_id, tag_lower),
+      CONSTRAINT fk_group_tags_group FOREIGN KEY (group_id)
+        REFERENCES n_groups(group_id) ON DELETE CASCADE
+    )
+    `
+  );
+  await v2CreateTableIfMissing(
+    connection,
+    'n_group_notification_preferences',
+    `
+    CREATE TABLE n_group_notification_preferences (
+      user_id NUMBER(10) NOT NULL,
+      group_id NUMBER(19) NOT NULL,
+      is_enabled NUMBER(1) DEFAULT 1 NOT NULL,
+      updated_at TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+      CONSTRAINT pk_group_notif_prefs PRIMARY KEY (user_id, group_id),
+      CONSTRAINT ck_group_notif_prefs_enabled CHECK (is_enabled IN (0, 1)),
+      CONSTRAINT fk_group_notif_prefs_user FOREIGN KEY (user_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+      CONSTRAINT fk_group_notif_prefs_group FOREIGN KEY (group_id)
+        REFERENCES n_groups(group_id) ON DELETE CASCADE
+    )
+    `
+  );
+
+  groupFeatureSchemaReady = true;
+}
+
+async function v2ReplaceGroupTags(
+  connection: oracledb.Connection,
+  groupId: number,
+  tags: string[]
+): Promise<void> {
+  await v2EnsureGroupFeatureSchema(connection);
+  await v2Execute(
+    connection,
+    'DELETE FROM n_group_tags WHERE group_id = :group_id',
+    { group_id: groupId }
+  );
+  for (const tag of tags) {
+    await v2Execute(
+      connection,
+      `
+      INSERT INTO n_group_tags (group_id, tag, tag_lower)
+      VALUES (:group_id, :tag, :tag_lower)
+      `,
+      {
+        group_id: groupId,
+        tag,
+        tag_lower: tag.toLowerCase()
+      }
+    );
+  }
+}
+
+export async function v2GroupNotificationsEnabled(
+  connection: oracledb.Connection,
+  userId: number,
+  groupId: number
+): Promise<boolean> {
+  await v2EnsureGroupFeatureSchema(connection);
+  const row = await v2One(
+    connection,
+    `
+    SELECT is_enabled
+    FROM n_group_notification_preferences
+    WHERE user_id = :user_id
+      AND group_id = :group_id
+    `,
+    { user_id: userId, group_id: groupId }
+  );
+  return row ? v2Boolean(row.IS_ENABLED) : true;
+}
+
+async function v2GroupNotificationRecipients(
+  connection: oracledb.Connection,
+  groupId: number,
+  actorId: number
+): Promise<number[]> {
+  await v2EnsureGroupFeatureSchema(connection);
+  const rows = await v2Rows(
+    connection,
+    `
+    SELECT gm.user_id
+    FROM n_group_members gm
+    LEFT JOIN n_group_notification_preferences p
+      ON p.group_id = gm.group_id
+     AND p.user_id = gm.user_id
+    WHERE gm.group_id = :group_id
+      AND gm.status = 'active'
+      AND gm.user_id != :actor_id
+      AND NVL(p.is_enabled, 1) = 1
+    `,
+    { group_id: groupId, actor_id: actorId }
+  );
+  return rows.map(row => v2Number(row.USER_ID));
+}
+
+async function v2GroupNotificationContext(
+  connection: oracledb.Connection,
+  groupId: number,
+  actorId: number
+): Promise<{ groupName: string; actorName: string }> {
+  const row = await v2One(
+    connection,
+    `
+    SELECT
+      g.name AS group_name,
+      COALESCE(u.display_name, u.username) AS actor_name
+    FROM n_groups g
+    JOIN n_users u ON u.user_id = :actor_id
+    WHERE g.group_id = :group_id
+    `,
+    { group_id: groupId, actor_id: actorId }
+  );
+  return {
+    groupName: v2String(row?.GROUP_NAME, '群组'),
+    actorName: v2String(row?.ACTOR_NAME, '有人')
+  };
+}
+
+async function v2NotifyGroupPostCreated(
+  connection: oracledb.Connection,
+  groupId: number,
+  postId: number,
+  actorId: number,
+  content: string
+): Promise<void> {
+  const { groupName, actorName } =
+    await v2GroupNotificationContext(
+      connection,
+      groupId,
+      actorId
+    );
+  const recipients = await v2GroupNotificationRecipients(
+    connection,
+    groupId,
+    actorId
+  );
+  const message = content.trim().slice(0, 120);
+  for (const userId of recipients) {
+    await v2CreateNotification(connection, {
+      userId,
+      actorId,
+      type: 'group_post',
+      title: `${actorName} 在 ${groupName} 发布了新帖子`,
+      message: message || '群组有一条新的帖子。',
+      resourceType: 'group_post',
+      resourceId: postId,
+      priority: 'normal',
+      metadata: {
+        group_id: groupId,
+        post_id: postId,
+        event: 'group_post_created'
+      }
+    });
+  }
+}
+
+async function v2NotifyGroupCommentCreated(
+  connection: oracledb.Connection,
+  input: {
+    groupId: number;
+    postId: number;
+    commentId: number;
+    actorId: number;
+    content: string;
+    parentCommentId: number | null;
+  }
+): Promise<void> {
+  const { groupName, actorName } =
+    await v2GroupNotificationContext(
+      connection,
+      input.groupId,
+      input.actorId
+    );
+  const rows = await v2Rows(
+    connection,
+    `
+    SELECT user_id
+    FROM (
+      SELECT gp.author_id AS user_id
+      FROM n_group_posts gp
+      WHERE gp.post_id = :post_id
+      UNION
+      SELECT gc.author_id AS user_id
+      FROM n_group_comments gc
+      WHERE gc.comment_id = :parent_comment_id
+    )
+    WHERE user_id IS NOT NULL
+      AND user_id != :actor_id
+    `,
+    {
+      post_id: input.postId,
+      parent_comment_id: input.parentCommentId,
+      actor_id: input.actorId
+    }
+  );
+  const message = input.content.trim().slice(0, 120);
+  for (const row of rows) {
+    const userId = v2Number(row.USER_ID);
+    if (
+      !(await v2GroupNotificationsEnabled(
+        connection,
+        userId,
+        input.groupId
+      ))
+    ) {
+      continue;
+    }
+    await v2CreateNotification(connection, {
+      userId,
+      actorId: input.actorId,
+      type: 'group_comment',
+      title: `${actorName} 评论了 ${groupName} 的帖子`,
+      message: message || '你的群组帖子有新评论。',
+      resourceType: 'group_comment',
+      resourceId: input.commentId,
+      priority: 'normal',
+      metadata: {
+        group_id: input.groupId,
+        post_id: input.postId,
+        comment_id: input.commentId,
+        parent_comment_id: input.parentCommentId,
+        event: 'group_comment_created'
+      }
+    });
+  }
+}
+
 function v2NormalizeInviteCode(code: string): string {
   return code.trim().toUpperCase();
 }
@@ -144,21 +528,29 @@ export async function v2ListGroups(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2Response<V2Group[]>> {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
   const page = v2Page(event);
   const q = v2QueryString(event, 'q').trim().toLowerCase();
   const privacy = v2StringOrNull(
     v2QueryString(event, 'privacy')
   );
+  const category = v2GroupCategoryOrNull(
+    v2StringOrNull(v2QueryString(event, 'category'))
+  );
   const binds: Record<string, string | number | null> = {
     viewer_id: auth.userId,
     q: q ? `%${q}%` : null,
-    privacy
+    privacy,
+    category
   };
   const where = `
     WHERE is_deleted = 0
       AND is_active = 1
       AND (:privacy IS NULL OR privacy = :privacy)
+      AND (:category IS NULL OR group_id IN (
+        SELECT group_id FROM n_groups WHERE category = :category
+      ))
       AND (:q IS NULL OR LOWER(group_name) LIKE :q OR LOWER(description) LIKE :q)
       AND (privacy = 'public' OR fn_can_view_group(:viewer_id, group_id) = 1)
   `;
@@ -204,6 +596,7 @@ export async function v2PopularGroups(
 ): Promise<
   V2Response<(V2Group & { activity_score: number })[]>
 > {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
   const limit = Math.min(
     v2QueryNumber(event, 'limit', 10),
@@ -232,31 +625,56 @@ export async function v2MyGroups(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2Response<V2Group[]>> {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
   const page = v2Page(event);
+  const q = v2QueryString(event, 'q').trim().toLowerCase();
+  const privacy = v2StringOrNull(
+    v2QueryString(event, 'privacy')
+  );
+  const category = v2GroupCategoryOrNull(
+    v2StringOrNull(v2QueryString(event, 'category'))
+  );
+  const filters: Record<string, string | number | null> = {
+    user_id: auth.userId,
+    q: q ? `%${q}%` : null,
+    privacy,
+    category
+  };
+  const where = `
+    WHERE ug.user_id = :user_id
+      AND (:privacy IS NULL OR gd.privacy = :privacy)
+      AND (:category IS NULL OR gd.group_id IN (
+        SELECT group_id FROM n_groups WHERE category = :category
+      ))
+      AND (:q IS NULL OR LOWER(gd.group_name) LIKE :q OR LOWER(gd.description) LIKE :q)
+  `;
   const total = await v2Count(
     connection,
     `
     SELECT COUNT(*) AS total
-    FROM v_user_groups
-    WHERE user_id = :user_id
+    FROM v_user_groups ug
+    JOIN v_group_details gd ON gd.group_id = ug.group_id
+    ${where}
     `,
-    { user_id: auth.userId }
+    filters
   );
   const rows = await v2Rows(
     connection,
     `
-    SELECT gd.*
+    SELECT *
     FROM (
-      SELECT group_id, ROW_NUMBER() OVER (ORDER BY joined_at DESC) AS rn
-      FROM v_user_groups
-      WHERE user_id = :user_id
-    ) ug
-    JOIN v_group_details gd ON gd.group_id = ug.group_id
-    WHERE ug.rn BETWEEN :start_row AND :end_row
+      SELECT
+        gd.*,
+        ROW_NUMBER() OVER (ORDER BY ug.joined_at DESC) AS rn
+      FROM v_user_groups ug
+      JOIN v_group_details gd ON gd.group_id = ug.group_id
+      ${where}
+    )
+    WHERE rn BETWEEN :start_row AND :end_row
     `,
     {
-      user_id: auth.userId,
+      ...filters,
       start_row: page.start,
       end_row: page.end
     }
@@ -277,6 +695,7 @@ export async function v2CreateGroup(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2Response<V2Group>> {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
   const body = await v2Body(event);
   const payload: V2CreateGroupPayload = {
@@ -284,6 +703,10 @@ export async function v2CreateGroup(
     description: v2String(body.description),
     avatar_url: v2StringOrNull(body.avatar_url),
     cover_url: v2StringOrNull(body.cover_url),
+    category: v2GroupCategoryOrNull(
+      v2StringOrNull(body.category)
+    ),
+    tags: v2GroupTags(body.tags),
     privacy: v2Privacy(
       v2String(body.privacy, 'public')
     ) as V2CreateGroupPayload['privacy'],
@@ -306,6 +729,7 @@ export async function v2CreateGroup(
       description,
       avatar_url,
       cover_url,
+      category,
       owner_id,
       privacy,
       join_approval,
@@ -317,6 +741,7 @@ export async function v2CreateGroup(
       :description,
       :avatar_url,
       :cover_url,
+      :category,
       :owner_id,
       :privacy,
       :join_approval,
@@ -330,6 +755,7 @@ export async function v2CreateGroup(
       description: payload.description || null,
       avatar_url: payload.avatar_url,
       cover_url: payload.cover_url,
+      category: payload.category,
       owner_id: auth.userId,
       privacy: payload.privacy,
       join_approval: payload.join_approval ? 1 : 0,
@@ -344,6 +770,11 @@ export async function v2CreateGroup(
     `,
     { group_id: groupId, user_id: auth.userId }
   );
+  await v2ReplaceGroupTags(
+    connection,
+    groupId,
+    payload.tags ?? []
+  );
   return v2Ok(
     await v2RequireGroup(connection, auth.userId, groupId),
     'group created'
@@ -355,6 +786,7 @@ export async function v2GetGroupById(
   connection: oracledb.Connection,
   groupId: number
 ): Promise<V2Response<V2Group>> {
+  await v2EnsureGroupFeatureSchema(connection);
   return v2Ok(
     await v2RequireGroup(
       connection,
@@ -369,6 +801,7 @@ export async function v2GetGroupBySlug(
   connection: oracledb.Connection,
   slug: string
 ): Promise<V2Response<V2Group>> {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
   const row = await v2One(
     connection,
@@ -391,6 +824,7 @@ export async function v2PatchGroup(
   connection: oracledb.Connection,
   groupId: number
 ): Promise<V2Response<V2Group>> {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
   if (
     !(await v2GroupPermission(
@@ -432,6 +866,12 @@ export async function v2PatchGroup(
       v2String(body.post_permission)
     );
   }
+  if (Object.hasOwn(body, 'category')) {
+    clauses.push('category = :category');
+    binds.category = v2GroupCategoryOrNull(
+      v2StringOrNull(body.category)
+    );
+  }
   if (clauses.length > 0) {
     await v2Execute(
       connection,
@@ -442,6 +882,13 @@ export async function v2PatchGroup(
       WHERE group_id = :group_id
       `,
       binds
+    );
+  }
+  if (Object.hasOwn(body, 'tags')) {
+    await v2ReplaceGroupTags(
+      connection,
+      groupId,
+      v2GroupTags(body.tags)
     );
   }
   return v2Ok(
@@ -471,6 +918,109 @@ export async function v2DeleteGroup(
   if (updated === 0)
     v2Unprocessable('只有群主可以解散群组');
   return v2Null('group deleted');
+}
+
+export async function v2GetGroupNotificationPreference(
+  event: H3Event,
+  connection: oracledb.Connection,
+  groupId: number
+): Promise<V2Response<V2GroupNotificationPreference>> {
+  await v2EnsureGroupFeatureSchema(connection);
+  const auth = v2Auth(event);
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'member'
+    ))
+  ) {
+    v2Unprocessable('只有群组成员可以查看通知设置');
+  }
+  const row = await v2One(
+    connection,
+    `
+    SELECT user_id, group_id, is_enabled, updated_at
+    FROM n_group_notification_preferences
+    WHERE user_id = :user_id
+      AND group_id = :group_id
+    `,
+    { user_id: auth.userId, group_id: groupId }
+  );
+  return v2Ok({
+    user_id: auth.userId,
+    group_id: groupId,
+    is_enabled: row ? v2Boolean(row.IS_ENABLED) : true,
+    updated_at:
+      v2DateString(row?.UPDATED_AT) ||
+      new Date().toISOString()
+  });
+}
+
+export async function v2PutGroupNotificationPreference(
+  event: H3Event,
+  connection: oracledb.Connection,
+  groupId: number
+): Promise<V2Response<V2GroupNotificationPreference>> {
+  await v2EnsureGroupFeatureSchema(connection);
+  const auth = v2Auth(event);
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'member'
+    ))
+  ) {
+    v2Unprocessable('只有群组成员可以修改通知设置');
+  }
+  const body = await v2Body(event);
+  const isEnabled = v2Boolean(body.is_enabled);
+  await v2Execute(
+    connection,
+    `
+    MERGE INTO n_group_notification_preferences p
+    USING (
+      SELECT
+        :user_id AS user_id,
+        :group_id AS group_id,
+        :is_enabled AS is_enabled
+      FROM dual
+    ) src
+    ON (p.user_id = src.user_id AND p.group_id = src.group_id)
+    WHEN MATCHED THEN
+      UPDATE SET
+        p.is_enabled = src.is_enabled,
+        p.updated_at = SYSTIMESTAMP
+    WHEN NOT MATCHED THEN
+      INSERT (user_id, group_id, is_enabled)
+      VALUES (src.user_id, src.group_id, src.is_enabled)
+    `,
+    {
+      user_id: auth.userId,
+      group_id: groupId,
+      is_enabled: isEnabled ? 1 : 0
+    }
+  );
+  const row = await v2One(
+    connection,
+    `
+    SELECT updated_at
+    FROM n_group_notification_preferences
+    WHERE user_id = :user_id
+      AND group_id = :group_id
+    `,
+    { user_id: auth.userId, group_id: groupId }
+  );
+  return v2Ok(
+    {
+      user_id: auth.userId,
+      group_id: groupId,
+      is_enabled: isEnabled,
+      updated_at: v2DateString(row?.UPDATED_AT) || ''
+    },
+    'group notification preference updated'
+  );
 }
 
 type V2JoinGroupData = {
@@ -735,7 +1285,7 @@ export async function v2GroupMembers(
         auth.userId,
         v2Number(row.USER_ID)
       ),
-      role: v2String(row.ROLE),
+      role: v2String(row.ROLE) as V2GroupRole,
       role_desc: v2String(row.ROLE_DESC),
       status: v2String(row.STATUS),
       nickname: v2StringOrNull(row.NICKNAME),
@@ -837,10 +1387,11 @@ export async function v2ChangeMemberRole(
 ): Promise<V2Response<V2GroupMemberStatusData>> {
   const auth = v2Auth(event);
   const body = await v2Body(event);
-  const role = v2RequiredString(body, 'role');
-  if (!['admin', 'moderator', 'member'].includes(role)) {
+  const roleValue = v2RequiredString(body, 'role');
+  if (!['admin', 'moderator', 'member'].includes(roleValue)) {
     v2BadRequest('role 参数错误');
   }
+  const role = roleValue as V2GroupRole;
   if (
     !(await v2GroupPermission(
       connection,
@@ -1104,6 +1655,7 @@ export async function v2CreateGroupPost(
   connection: oracledb.Connection,
   groupId: number
 ): Promise<V2Response<V2GroupPost>> {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
   const body = await v2Body(event);
   const content = v2RequiredString(body, 'content');
@@ -1145,6 +1697,13 @@ export async function v2CreateGroupPost(
       content,
       media_urls: mediaUrls || null
     }
+  );
+  await v2NotifyGroupPostCreated(
+    connection,
+    groupId,
+    postId,
+    auth.userId,
+    content
   );
   return v2Ok(
     await v2RequireGroupPost(
@@ -1358,6 +1917,16 @@ async function v2MapGroupComment(
   row: V2DbRecord
 ): Promise<V2GroupComment> {
   const replyToId = v2Number(row.REPLY_TO_USER_ID);
+  const canDelete =
+    row.CAN_DELETE_BY_ME === undefined
+      ? v2Number(row.AUTHOR_ID) === viewerId ||
+        (await v2GroupPermission(
+          connection,
+          viewerId,
+          v2Number(row.GROUP_ID),
+          'moderator'
+        ))
+      : v2Boolean(row.CAN_DELETE_BY_ME);
   return {
     comment_id: v2Number(row.COMMENT_ID),
     post_id: v2Number(row.POST_ID),
@@ -1380,6 +1949,7 @@ async function v2MapGroupComment(
     content: v2String(row.CONTENT),
     likes_count: v2Number(row.LIKES_COUNT),
     is_liked_by_me: v2Boolean(row.IS_LIKED_BY_ME),
+    can_delete_by_me: canDelete,
     created_at: v2DateString(row.CREATED_AT) || '',
     updated_at: v2DateString(row.UPDATED_AT) || ''
   };
@@ -1390,7 +1960,30 @@ export async function v2GroupComments(
   connection: oracledb.Connection,
   postId: number
 ): Promise<V2Response<V2GroupComment[]>> {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
+  const post = await v2One(
+    connection,
+    `
+    SELECT group_id
+    FROM n_group_posts
+    WHERE post_id = :post_id
+      AND is_deleted = 0
+    `,
+    { post_id: postId }
+  );
+  if (!post) v2NotFound('群组帖子不存在');
+  const canView = await v2One(
+    connection,
+    'SELECT fn_can_view_group(:user_id, :group_id) AS allowed FROM dual',
+    {
+      user_id: auth.userId,
+      group_id: v2Number(post.GROUP_ID)
+    }
+  );
+  if (!v2Boolean(canView?.ALLOWED)) {
+    v2Unprocessable('无权查看群组评论');
+  }
   const page = v2Page(event);
   const total = await v2Count(
     connection,
@@ -1413,6 +2006,17 @@ export async function v2GroupComments(
           SELECT 1 FROM n_group_comment_likes l
           WHERE l.comment_id = v.comment_id AND l.user_id = :viewer_id
         ) THEN 1 ELSE 0 END AS is_liked_by_me,
+        CASE
+          WHEN v.author_id = :viewer_id OR EXISTS (
+            SELECT 1
+            FROM n_group_members gm
+            WHERE gm.group_id = v.group_id
+              AND gm.user_id = :viewer_id
+              AND gm.status = 'active'
+              AND gm.role IN ('owner', 'admin', 'moderator')
+          )
+          THEN 1 ELSE 0
+        END AS can_delete_by_me,
         ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
       FROM v_group_comment_details v
       WHERE post_id = :post_id
@@ -1444,7 +2048,30 @@ export async function v2CreateGroupComment(
   connection: oracledb.Connection,
   postId: number
 ): Promise<V2Response<V2GroupComment>> {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
+  const post = await v2One(
+    connection,
+    `
+    SELECT group_id
+    FROM n_group_posts
+    WHERE post_id = :post_id
+      AND is_deleted = 0
+    `,
+    { post_id: postId }
+  );
+  if (!post) v2NotFound('群组帖子不存在');
+  const groupId = v2Number(post.GROUP_ID);
+  if (
+    !(await v2GroupPermission(
+      connection,
+      auth.userId,
+      groupId,
+      'member'
+    ))
+  ) {
+    v2Unprocessable('只有群组成员可以评论');
+  }
   const body = await v2Body(event);
   const payload: V2CreateGroupCommentPayload = {
     content: v2RequiredString(body, 'content'),
@@ -1500,13 +2127,21 @@ export async function v2CreateGroupComment(
   const row = await v2One(
     connection,
     `
-    SELECT v.*, 0 AS is_liked_by_me
+    SELECT v.*, 0 AS is_liked_by_me, 1 AS can_delete_by_me
     FROM v_group_comment_details v
     WHERE comment_id = :comment_id
     `,
     { comment_id: commentId }
   );
   if (!row) v2NotFound('评论不存在');
+  await v2NotifyGroupCommentCreated(connection, {
+    groupId,
+    postId,
+    commentId,
+    actorId: auth.userId,
+    content: payload.content,
+    parentCommentId: payload.parent_comment_id ?? null
+  });
   return v2Ok(
     await v2MapGroupComment(connection, auth.userId, row),
     'group comment created'
@@ -1646,6 +2281,7 @@ export async function v2CreateGroupInvite(
   connection: oracledb.Connection,
   groupId: number
 ): Promise<V2Response<V2CreateGroupInviteData>> {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
   const body = await v2Body(event);
   const payload: V2CreateGroupInvitePayload = {
@@ -1716,7 +2352,14 @@ export async function v2CreateGroupInvite(
     `,
     { invite_id: inviteId }
   );
-  if (payload.invitee_id) {
+  if (
+    payload.invitee_id &&
+    (await v2GroupNotificationsEnabled(
+      connection,
+      payload.invitee_id,
+      groupId
+    ))
+  ) {
     const { groupName, inviterName } =
       await v2GroupInviteNotificationNames(
         connection,
@@ -1756,14 +2399,31 @@ async function v2MapInvite(
   row: V2DbRecord
 ): Promise<V2GroupInvite> {
   const inviteeId = v2Number(row.INVITEE_ID);
+  const groupId = v2Number(row.GROUP_ID);
   return {
     invite_id: v2Number(row.INVITE_ID),
     invite_code: v2StringOrNull(row.INVITE_CODE),
     status: v2String(row.STATUS),
+    message: v2StringOrNull(row.MESSAGE),
     max_uses:
       row.MAX_USES === null ? null : v2Number(row.MAX_USES),
     used_count: v2Number(row.USED_COUNT),
     expires_at: v2DateString(row.EXPIRES_AT),
+    created_at: v2DateString(row.CREATED_AT) || '',
+    group: groupId
+      ? {
+          group_id: groupId,
+          name: v2String(row.GROUP_NAME),
+          slug: v2String(row.GROUP_SLUG),
+          description: v2String(row.GROUP_DESCRIPTION),
+          avatar_url: v2StringOrNull(row.GROUP_AVATAR_URL),
+          privacy: v2String(
+            row.GROUP_PRIVACY,
+            'public'
+          ) as V2GroupPrivacy,
+          member_count: v2Number(row.GROUP_MEMBER_COUNT)
+        }
+      : null,
     inviter: await v2RequirePublicUser(
       connection,
       viewerId,
@@ -1785,6 +2445,7 @@ export async function v2GroupInvites(
   connection: oracledb.Connection,
   groupId: number
 ): Promise<V2Response<V2GroupInvite[]>> {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
   const page = v2Page(event);
   if (
@@ -1836,11 +2497,86 @@ export async function v2GroupInvites(
   );
 }
 
+export async function v2MyGroupInvites(
+  event: H3Event,
+  connection: oracledb.Connection
+): Promise<V2Response<V2GroupInvite[]>> {
+  await v2EnsureGroupFeatureSchema(connection);
+  const auth = v2Auth(event);
+  const page = v2Page(event);
+  const where = `
+    WHERE gi.invitee_id = :user_id
+      AND gi.status = 'pending'
+      AND (gi.expires_at IS NULL OR gi.expires_at >= SYSTIMESTAMP)
+      AND g.is_deleted = 0
+      AND g.is_active = 1
+  `;
+  const total = await v2Count(
+    connection,
+    `
+    SELECT COUNT(*) AS total
+    FROM n_group_invites gi
+    JOIN n_groups g ON g.group_id = gi.group_id
+    ${where}
+    `,
+    { user_id: auth.userId }
+  );
+  const rows = await v2Rows(
+    connection,
+    `
+    SELECT *
+    FROM (
+      SELECT
+        gi.invite_id,
+        gi.group_id,
+        gi.inviter_id,
+        gi.invitee_id,
+        gi.invite_code,
+        gi.status,
+        gi.message,
+        gi.max_uses,
+        gi.used_count,
+        gi.expires_at,
+        gi.created_at,
+        gi.responded_at,
+        g.name AS group_name,
+        g.slug AS group_slug,
+        g.description AS group_description,
+        g.avatar_url AS group_avatar_url,
+        g.privacy AS group_privacy,
+        g.member_count AS group_member_count,
+        1 AS is_valid,
+        ROW_NUMBER() OVER (ORDER BY gi.created_at DESC) AS rn
+      FROM n_group_invites gi
+      JOIN n_groups g ON g.group_id = gi.group_id
+      ${where}
+    )
+    WHERE rn BETWEEN :start_row AND :end_row
+    `,
+    {
+      user_id: auth.userId,
+      start_row: page.start,
+      end_row: page.end
+    }
+  );
+  const invites = await Promise.all(
+    rows.map(row =>
+      v2MapInvite(connection, auth.userId, row)
+    )
+  );
+  return v2Ok(
+    invites,
+    'success',
+    v2PageMeta(page.page, page.page_size, total)
+  );
+}
+
 export async function v2InviteCodeInfo(
   event: H3Event,
   connection: oracledb.Connection,
   code: string
 ): Promise<V2Response<V2InviteCodeData>> {
+  await v2EnsureGroupFeatureSchema(connection);
   const auth = v2Auth(event);
   const inviteCode = v2NormalizeInviteCode(code);
   if (!inviteCode) v2BadRequest('code 参数错误');

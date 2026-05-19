@@ -855,7 +855,7 @@ CREATE TABLE n_moderation_reports (
     created_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     resolved_at              TIMESTAMP,
-    CONSTRAINT ck_mod_reports_target CHECK (target_type IN ('post', 'comment', 'user')),
+    CONSTRAINT ck_mod_reports_target CHECK (target_type IN ('post', 'comment', 'user', 'group_post', 'group_comment')),
     CONSTRAINT ck_mod_reports_reason CHECK (reason IN ('spam', 'harassment', 'hate', 'violence', 'adult', 'misinformation', 'copyright', 'other')),
     CONSTRAINT ck_mod_reports_status CHECK (status IN ('pending', 'in_review', 'resolved', 'dismissed')),
     CONSTRAINT ck_mod_reports_priority CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
@@ -866,7 +866,7 @@ CREATE TABLE n_moderation_reports (
 ) TABLESPACE neko_data;
 COMMENT ON TABLE n_moderation_reports IS '内容举报记录表';
 COMMENT ON COLUMN n_moderation_reports.report_id IS '举报ID';
-COMMENT ON COLUMN n_moderation_reports.target_type IS '举报目标类型（post/comment/user）';
+COMMENT ON COLUMN n_moderation_reports.target_type IS '举报目标类型（post/comment/user/group_post/group_comment）';
 COMMENT ON COLUMN n_moderation_reports.target_id IS '举报目标ID';
 COMMENT ON COLUMN n_moderation_reports.reporter_user_id IS '举报人用户ID';
 COMMENT ON COLUMN n_moderation_reports.reason IS '举报原因';
@@ -894,7 +894,7 @@ CREATE TABLE n_moderation_cases (
     updated_at               TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     resolved_at              TIMESTAMP,
     CONSTRAINT uk_mod_cases_target UNIQUE (target_type, target_id),
-    CONSTRAINT ck_mod_cases_target CHECK (target_type IN ('post', 'comment', 'user')),
+    CONSTRAINT ck_mod_cases_target CHECK (target_type IN ('post', 'comment', 'user', 'group_post', 'group_comment')),
     CONSTRAINT ck_mod_cases_status CHECK (status IN ('pending', 'approved', 'rejected', 'flagged', 'removed', 'restored')),
     CONSTRAINT ck_mod_cases_priority CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
     CONSTRAINT fk_mod_cases_assignee FOREIGN KEY (assigned_to)
@@ -902,7 +902,7 @@ CREATE TABLE n_moderation_cases (
 ) TABLESPACE neko_data;
 COMMENT ON TABLE n_moderation_cases IS '审核案件队列表';
 COMMENT ON COLUMN n_moderation_cases.case_id IS '审核案件ID';
-COMMENT ON COLUMN n_moderation_cases.target_type IS '审核目标类型（post/comment/user）';
+COMMENT ON COLUMN n_moderation_cases.target_type IS '审核目标类型（post/comment/user/group_post/group_comment）';
 COMMENT ON COLUMN n_moderation_cases.target_id IS '审核目标ID';
 COMMENT ON COLUMN n_moderation_cases.status IS '案件状态（pending/approved/rejected/flagged/removed/restored）';
 COMMENT ON COLUMN n_moderation_cases.priority IS '优先级（low/normal/high/urgent）';
@@ -934,7 +934,7 @@ CREATE TABLE n_moderation_actions (
 COMMENT ON TABLE n_moderation_actions IS '审核操作留痕表';
 COMMENT ON COLUMN n_moderation_actions.action_id IS '审核操作ID';
 COMMENT ON COLUMN n_moderation_actions.case_id IS '关联审核案件ID';
-COMMENT ON COLUMN n_moderation_actions.target_type IS '操作目标类型（post/comment/user）';
+COMMENT ON COLUMN n_moderation_actions.target_type IS '操作目标类型（post/comment/user/group_post/group_comment）';
 COMMENT ON COLUMN n_moderation_actions.target_id IS '操作目标ID';
 COMMENT ON COLUMN n_moderation_actions.action IS '审核动作';
 COMMENT ON COLUMN n_moderation_actions.moderator_user_id IS '审核员用户ID';
@@ -1012,6 +1012,7 @@ CREATE TABLE n_groups (
     description              VARCHAR2(500),
     avatar_url               VARCHAR2(500),
     cover_url                VARCHAR2(500),
+    category                 VARCHAR2(30),
     owner_id                 NUMBER(10)      NOT NULL,
     privacy                  VARCHAR2(20)    DEFAULT 'public' NOT NULL,
     join_approval            NUMBER(1)       DEFAULT 0 NOT NULL,
@@ -1026,6 +1027,7 @@ CREATE TABLE n_groups (
         REFERENCES n_users(user_id) ON DELETE CASCADE,
     CONSTRAINT uk_groups_slug UNIQUE (slug),
     CONSTRAINT chk_groups_privacy CHECK (privacy IN ('public', 'private', 'secret')),
+    CONSTRAINT chk_groups_category CHECK (category IS NULL OR category IN ('tech', 'game', 'music', 'art', 'life', 'study', 'work', 'other')),
     CONSTRAINT chk_groups_join_approval CHECK (join_approval IN (0, 1)),
     CONSTRAINT chk_groups_post_perm CHECK (post_permission IN ('all', 'admin_only', 'moderator_up')),
     CONSTRAINT chk_groups_is_active CHECK (is_active IN (0, 1)),
@@ -1039,6 +1041,7 @@ COMMENT ON COLUMN n_groups.slug IS '短标识';
 COMMENT ON COLUMN n_groups.description IS '描述';
 COMMENT ON COLUMN n_groups.avatar_url IS '头像地址';
 COMMENT ON COLUMN n_groups.cover_url IS '封面图地址';
+COMMENT ON COLUMN n_groups.category IS '群组分类（tech/game/music/art/life/study/work/other）';
 COMMENT ON COLUMN n_groups.owner_id IS '所有者用户ID';
 COMMENT ON COLUMN n_groups.privacy IS '群组可见性（public/private/secret）';
 COMMENT ON COLUMN n_groups.join_approval IS '入群是否需审批';
@@ -1049,6 +1052,21 @@ COMMENT ON COLUMN n_groups.is_active IS '是否启用';
 COMMENT ON COLUMN n_groups.is_deleted IS '是否删除';
 COMMENT ON COLUMN n_groups.created_at IS '创建时间';
 COMMENT ON COLUMN n_groups.updated_at IS '更新时间';
+
+CREATE TABLE n_group_tags (
+    group_id                 NUMBER(19)      NOT NULL,
+    tag                      VARCHAR2(50)    NOT NULL,
+    tag_lower                VARCHAR2(50)    NOT NULL,
+    created_at               TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT pk_group_tags PRIMARY KEY (group_id, tag_lower),
+    CONSTRAINT fk_group_tags_group FOREIGN KEY (group_id)
+        REFERENCES n_groups(group_id) ON DELETE CASCADE
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_group_tags IS '群组标签关联表';
+COMMENT ON COLUMN n_group_tags.group_id IS '群组ID';
+COMMENT ON COLUMN n_group_tags.tag IS '标签显示名';
+COMMENT ON COLUMN n_group_tags.tag_lower IS '标签小写唯一键';
+COMMENT ON COLUMN n_group_tags.created_at IS '创建时间';
 
 
 CREATE TABLE n_group_members (
@@ -1085,6 +1103,24 @@ COMMENT ON COLUMN n_group_members.ban_reason IS '封禁原因';
 COMMENT ON COLUMN n_group_members.invited_by IS '邀请来源用户ID';
 COMMENT ON COLUMN n_group_members.joined_at IS '加入时间';
 COMMENT ON COLUMN n_group_members.updated_at IS '更新时间';
+
+CREATE TABLE n_group_notification_preferences (
+    user_id                  NUMBER(10)      NOT NULL,
+    group_id                 NUMBER(19)      NOT NULL,
+    is_enabled              NUMBER(1)       DEFAULT 1 NOT NULL,
+    updated_at               TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT pk_group_notification_preferences PRIMARY KEY (user_id, group_id),
+    CONSTRAINT fk_group_notif_pref_user FOREIGN KEY (user_id)
+        REFERENCES n_users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_group_notif_pref_group FOREIGN KEY (group_id)
+        REFERENCES n_groups(group_id) ON DELETE CASCADE,
+    CONSTRAINT chk_group_notif_pref_enabled CHECK (is_enabled IN (0, 1))
+) TABLESPACE neko_data;
+COMMENT ON TABLE n_group_notification_preferences IS '用户-群组通知偏好表';
+COMMENT ON COLUMN n_group_notification_preferences.user_id IS '用户ID';
+COMMENT ON COLUMN n_group_notification_preferences.group_id IS '群组ID';
+COMMENT ON COLUMN n_group_notification_preferences.is_enabled IS '是否接收该群组通知';
+COMMENT ON COLUMN n_group_notification_preferences.updated_at IS '更新时间';
 
 
 CREATE TABLE n_group_posts (
@@ -1591,15 +1627,18 @@ CREATE INDEX idx_mod_restrictions_user ON n_moderation_user_restrictions(user_id
 -- 群组索引（保留高频访问路径）
 CREATE INDEX idx_groups_owner_id ON n_groups(owner_id) TABLESPACE neko_index;
 CREATE INDEX idx_groups_privacy ON n_groups(privacy, is_active, is_deleted) TABLESPACE neko_index;
+CREATE INDEX idx_groups_category ON n_groups(category, is_active, is_deleted) TABLESPACE neko_index;
 CREATE INDEX idx_groups_created_at ON n_groups(created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_groups_member_count ON n_groups(member_count DESC) TABLESPACE neko_index;
 CREATE INDEX idx_groups_name_upper ON n_groups(UPPER(name)) TABLESPACE neko_index;
+CREATE INDEX idx_group_tags_tag_lower ON n_group_tags(tag_lower) TABLESPACE neko_index;
 
 CREATE INDEX idx_group_members_user_id ON n_group_members(user_id) TABLESPACE neko_index;
 CREATE INDEX idx_group_members_group_id ON n_group_members(group_id) TABLESPACE neko_index;
 CREATE INDEX idx_group_members_group_status ON n_group_members(group_id, status) TABLESPACE neko_index;
 CREATE INDEX idx_group_members_user_role ON n_group_members(user_id, role) TABLESPACE neko_index;
 CREATE INDEX idx_group_members_invited_by ON n_group_members(invited_by) TABLESPACE neko_index;
+CREATE INDEX idx_group_notif_pref_group ON n_group_notification_preferences(group_id, is_enabled) TABLESPACE neko_index;
 
 CREATE INDEX idx_group_posts_group_time ON n_group_posts(group_id, is_deleted, created_at DESC) TABLESPACE neko_index;
 CREATE INDEX idx_group_posts_group_pinned ON n_group_posts(group_id, is_pinned DESC, is_announcement DESC, created_at DESC) TABLESPACE neko_index;
@@ -5361,6 +5400,7 @@ SELECT
     g.description,
     g.avatar_url AS group_avatar_url,
     g.cover_url,
+    g.category,
     g.owner_id,
     g.privacy,
     fn_get_privacy_desc(g.privacy) AS privacy_desc,
@@ -5506,6 +5546,7 @@ SELECT
     gi.responded_at,
     g.name AS group_name,
     g.slug AS group_slug,
+    g.description AS group_description,
     g.avatar_url AS group_avatar_url,
     g.privacy AS group_privacy,
     g.member_count AS group_member_count,
@@ -5674,7 +5715,9 @@ GRANT SELECT ON n_moderation_actions TO neko_readonly;
 GRANT SELECT ON n_moderation_user_restrictions TO neko_readonly;
 GRANT SELECT ON n_moderation_settings TO neko_readonly;
 GRANT SELECT ON n_groups TO neko_readonly;
+GRANT SELECT ON n_group_tags TO neko_readonly;
 GRANT SELECT ON n_group_members TO neko_readonly;
+GRANT SELECT ON n_group_notification_preferences TO neko_readonly;
 GRANT SELECT ON n_group_posts TO neko_readonly;
 GRANT SELECT ON n_group_comments TO neko_readonly;
 GRANT SELECT ON n_group_invites TO neko_readonly;
@@ -5772,8 +5815,14 @@ DELETE FROM n_group_invites
 WHERE inviter_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'))
    OR invitee_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
 
+DELETE FROM n_group_notification_preferences
+WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
 DELETE FROM n_group_members
 WHERE user_id IN (SELECT user_id FROM n_users WHERE username IN ('v2_admin', 'v2_dev', 'v2_reader', 'v2_designer', 'v2_pm'));
+
+DELETE FROM n_group_tags
+WHERE group_id IN (SELECT group_id FROM n_groups WHERE slug IN ('v2-core-team', 'v2-design-lab'));
 
 DELETE FROM n_groups
 WHERE slug IN ('v2-core-team', 'v2-design-lab');

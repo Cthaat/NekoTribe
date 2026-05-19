@@ -313,6 +313,7 @@
     "reply": "Reply",
     "replyPlaceholder": "Write a reply...",
     "submitReply": "Submit reply",
+    "delete": "Delete",
     "characterCount": "{count} / {max} characters",
     "submit": "Post comment",
     "submitting": "Posting...",
@@ -326,6 +327,8 @@
       "replyFailed": "Failed to post reply.",
       "sendFailed": "Failed to send comment. Please try again later.",
       "likeFailed": "Failed to like comment. Please try again later.",
+      "deleted": "Comment deleted.",
+      "deleteFailed": "Failed to delete comment. Please try again later.",
       "loadFailed": "Failed to load comments"
     }
   },
@@ -516,6 +519,9 @@
       "groupDescriptionPlaceholder": "Describe your group...",
       "category": "Group category *",
       "categoryPlaceholder": "Select category",
+      "tags": "Group tags",
+      "tagsPlaceholder": "e.g. photography, frontend, local",
+      "tagsHint": "Separate tags with commas or spaces. Up to 8 tags.",
       "privacySettings": "Privacy settings",
       "privacy": {
         "publicDescription": "Anyone can view and join",
@@ -563,6 +569,8 @@
         "avatar": "Avatar",
         "cover": "Cover",
         "privacy": "Group type",
+        "category": "Group category",
+        "tags": "Group tags",
         "joinApproval": "Join approval",
         "joinApprovalHint": "When enabled, new members need approval before joining.",
         "postPermission": "Post permission"
@@ -684,7 +692,8 @@
     },
     "notifications": {
       "enabled": "Notifications enabled",
-      "disabled": "Notifications disabled"
+      "disabled": "Notifications disabled",
+      "updateFailed": "Failed to update group notifications"
     },
     "invites": {
       "pendingCount": "{count} pending invites",
