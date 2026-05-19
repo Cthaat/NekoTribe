@@ -51,6 +51,15 @@ export type V2GroupPrivacy =
   | 'public'
   | 'private'
   | 'secret';
+export type V2GroupCategory =
+  | 'tech'
+  | 'game'
+  | 'music'
+  | 'art'
+  | 'life'
+  | 'study'
+  | 'work'
+  | 'other';
 export type V2GroupPostPermission =
   | 'all'
   | 'admin_only'
@@ -358,7 +367,9 @@ export type V2ModerationPriority =
 export type V2ModerationTargetType =
   | 'post'
   | 'comment'
-  | 'user';
+  | 'user'
+  | 'group_post'
+  | 'group_comment';
 
 export interface V2ModerationReport {
   report_id: number;
@@ -643,6 +654,8 @@ export interface V2Group {
   description: string;
   avatar_url: string | null;
   cover_url: string | null;
+  category: V2GroupCategory | null;
+  tags: string[];
   owner: V2PublicUser;
   privacy: V2GroupPrivacy;
   privacy_desc: string;
@@ -661,6 +674,8 @@ export interface V2CreateGroupPayload {
   description?: string;
   avatar_url?: string | null;
   cover_url?: string | null;
+  category?: V2GroupCategory | null;
+  tags?: string[];
   privacy?: V2GroupPrivacy;
   join_approval?: boolean;
   post_permission?: V2GroupPostPermission;
@@ -671,6 +686,8 @@ export interface V2UpdateGroupPayload {
   description?: string;
   avatar_url?: string | null;
   cover_url?: string | null;
+  category?: V2GroupCategory | null;
+  tags?: string[];
   privacy?: V2GroupPrivacy;
   join_approval?: boolean;
   post_permission?: V2GroupPostPermission;
@@ -753,6 +770,7 @@ export interface V2GroupComment {
   content: string;
   likes_count: number;
   is_liked_by_me: boolean;
+  can_delete_by_me: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -761,6 +779,12 @@ export interface V2CreateGroupCommentPayload {
   content: string;
   parent_comment_id?: number | null;
   reply_to_user_id?: number | null;
+}
+
+export interface V2GroupCommentLikeData {
+  comment_id: number;
+  is_liked: boolean;
+  likes_count: number;
 }
 
 export interface V2CreateGroupInvitePayload {
@@ -774,9 +798,20 @@ export interface V2GroupInvite {
   invite_id: number;
   invite_code: string | null;
   status: string;
+  message: string | null;
   max_uses: number | null;
   used_count: number;
   expires_at: string | null;
+  created_at: string;
+  group: {
+    group_id: number;
+    name: string;
+    slug: string;
+    description: string;
+    avatar_url: string | null;
+    privacy: V2GroupPrivacy;
+    member_count: number;
+  } | null;
   inviter: V2PublicUser;
   invitee: V2PublicUser | null;
   is_valid: boolean;
@@ -804,6 +839,13 @@ export interface V2InviteResponseData {
   invite_id: number;
   status: string;
   group_id: number;
+}
+
+export interface V2GroupNotificationPreference {
+  user_id: number;
+  group_id: number;
+  is_enabled: boolean;
+  updated_at: string;
 }
 
 export interface V2PageQuery {
@@ -841,6 +883,7 @@ export type V2SessionListQuery = V2PageQuery;
 export interface V2GroupListQuery extends V2PageQuery {
   q?: string;
   privacy?: V2GroupPrivacy;
+  category?: V2GroupCategory;
 }
 
 export interface V2PopularGroupsQuery {
@@ -1185,7 +1228,7 @@ export type V2PopularGroupsRequest = V2PopularGroupsQuery;
 export type V2PopularGroupsResponse = V2ApiResponse<
   (V2Group & { activity_score: number })[]
 >;
-export type V2ListMyGroupsRequest = V2PageQuery;
+export type V2ListMyGroupsRequest = V2GroupListQuery;
 export type V2ListMyGroupsResponse = V2ApiResponse<
   V2Group[]
 >;
@@ -1195,6 +1238,10 @@ export type V2GetGroupResponse = V2ApiResponse<V2Group>;
 export type V2PatchGroupRequest = V2UpdateGroupPayload;
 export type V2PatchGroupResponse = V2ApiResponse<V2Group>;
 export type V2DeleteGroupResponse = V2ApiResponse<null>;
+export type V2GetGroupNotificationPreferenceResponse =
+  V2ApiResponse<V2GroupNotificationPreference>;
+export type V2PutGroupNotificationPreferenceResponse =
+  V2ApiResponse<V2GroupNotificationPreference>;
 export type V2JoinGroupRequest = V2JoinGroupPayload;
 export type V2JoinGroupResponse =
   V2ApiResponse<V2JoinGroupData>;
@@ -1217,6 +1264,14 @@ export type V2CreateGroupPostRequest =
   V2CreateGroupPostPayload;
 export type V2CreateGroupPostResponse =
   V2ApiResponse<V2GroupPost>;
+export type V2ListGroupCommentsResponse = V2ApiResponse<
+  V2GroupComment[]
+>;
+export type V2CreateGroupCommentResponse =
+  V2ApiResponse<V2GroupComment>;
+export type V2DeleteGroupCommentResponse = V2ApiResponse<null>;
+export type V2LikeGroupCommentResponse =
+  V2ApiResponse<V2GroupCommentLikeData>;
 export type V2CreateGroupInviteRequest =
   V2CreateGroupInvitePayload;
 export type V2CreateGroupInviteResponse =
