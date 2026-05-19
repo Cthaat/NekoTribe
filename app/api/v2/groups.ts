@@ -6,9 +6,12 @@ import {
 import type {
   V2CreateGroupInviteData,
   V2CreateGroupInvitePayload,
+  V2CreateGroupCommentPayload,
   V2CreateGroupPostPayload,
   V2CreateGroupPayload,
   V2Group,
+  V2GroupComment,
+  V2GroupCommentLikeData,
   V2GroupInvite,
   V2GroupInviteListQuery,
   V2GroupListQuery,
@@ -19,6 +22,7 @@ import type {
   V2GroupPostLikeData,
   V2GroupPostListQuery,
   V2GroupPostPinStatusData,
+  V2GroupNotificationPreference,
   V2JoinGroupData,
   V2JoinGroupPayload,
   V2PagedResult,
@@ -61,12 +65,12 @@ export async function v2ListPopularGroups(
 }
 
 export async function v2ListMyGroups(
-  query: V2PageQuery = {}
+  query: V2GroupListQuery = {}
 ): Promise<V2PagedResult<V2Group>> {
   const response = await v2Request<
     V2Group[],
     undefined,
-    V2PageQuery
+    V2GroupListQuery
   >('/api/v2/users/me/groups', {
     method: 'GET',
     query
@@ -115,6 +119,30 @@ export async function v2DeleteGroup(
 ): Promise<void> {
   await v2RequestData<null>(`/api/v2/groups/${groupId}`, {
     method: 'DELETE'
+  });
+}
+
+export async function v2GetGroupNotificationPreference(
+  groupId: number
+): Promise<V2GroupNotificationPreference> {
+  return await v2RequestData<V2GroupNotificationPreference>(
+    `/api/v2/groups/${groupId}/notification-preference`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export async function v2PutGroupNotificationPreference(
+  groupId: number,
+  isEnabled: boolean
+): Promise<V2GroupNotificationPreference> {
+  return await v2RequestData<
+    V2GroupNotificationPreference,
+    { is_enabled: boolean }
+  >(`/api/v2/groups/${groupId}/notification-preference`, {
+    method: 'PUT',
+    body: { is_enabled: isEnabled }
   });
 }
 
@@ -320,6 +348,63 @@ export async function v2SetGroupPostLikeStatus(
   );
 }
 
+export async function v2ListGroupPostComments(
+  groupId: number,
+  postId: number,
+  query: V2PageQuery = {}
+): Promise<V2PagedResult<V2GroupComment>> {
+  const response = await v2Request<
+    V2GroupComment[],
+    undefined,
+    V2PageQuery
+  >(`/api/v2/groups/${groupId}/posts/${postId}/comments`, {
+    method: 'GET',
+    query
+  });
+  return toV2PagedResult(response);
+}
+
+export async function v2CreateGroupPostComment(
+  groupId: number,
+  postId: number,
+  payload: V2CreateGroupCommentPayload
+): Promise<V2GroupComment> {
+  return await v2RequestData<
+    V2GroupComment,
+    V2CreateGroupCommentPayload
+  >(`/api/v2/groups/${groupId}/posts/${postId}/comments`, {
+    method: 'POST',
+    body: payload
+  });
+}
+
+export async function v2DeleteGroupPostComment(
+  groupId: number,
+  postId: number,
+  commentId: number
+): Promise<void> {
+  await v2RequestData<null>(
+    `/api/v2/groups/${groupId}/posts/${postId}/comments/${commentId}`,
+    {
+      method: 'DELETE'
+    }
+  );
+}
+
+export async function v2SetGroupCommentLikeStatus(
+  groupId: number,
+  postId: number,
+  commentId: number,
+  liked: boolean
+): Promise<V2GroupCommentLikeData> {
+  return await v2RequestData<V2GroupCommentLikeData>(
+    `/api/v2/groups/${groupId}/posts/${postId}/comments/${commentId}/likes`,
+    {
+      method: liked ? 'POST' : 'DELETE'
+    }
+  );
+}
+
 export async function v2CreateGroupInvite(
   groupId: number,
   payload: V2CreateGroupInvitePayload = {}
@@ -342,6 +427,20 @@ export async function v2ListGroupInvites(
     undefined,
     V2GroupInviteListQuery
   >(`/api/v2/groups/${groupId}/invites`, {
+    method: 'GET',
+    query
+  });
+  return toV2PagedResult(response);
+}
+
+export async function v2ListMyGroupInvites(
+  query: V2GroupInviteListQuery = {}
+): Promise<V2PagedResult<V2GroupInvite>> {
+  const response = await v2Request<
+    V2GroupInvite[],
+    undefined,
+    V2GroupInviteListQuery
+  >('/api/v2/users/me/group-invites', {
     method: 'GET',
     query
   });
