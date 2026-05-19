@@ -5,6 +5,8 @@ import {
 } from './client';
 import type {
   V2AccountStatement,
+  V2AccountDeletionData,
+  V2AccountDeletionPayload,
   V2AvatarData,
   V2ChangeEmailData,
   V2ChangeEmailPayload,
@@ -15,6 +17,12 @@ import type {
   V2StatementAppealData,
   V2StatementAppealPayload,
   V2StatementStatusData,
+  V2TwoFactorConfirmData,
+  V2TwoFactorConfirmPayload,
+  V2TwoFactorDisablePayload,
+  V2TwoFactorSetupData,
+  V2TwoFactorSetupPayload,
+  V2TwoFactorStatusData,
   V2UpdateSettingsPayload,
   V2UpdateStatementPayload,
   V2UpdateUserPayload,
@@ -41,6 +49,18 @@ export async function v2PatchMe(
     V2UpdateUserPayload
   >('/api/v2/users/me', {
     method: 'PATCH',
+    body: payload
+  });
+}
+
+export async function v2DeleteMe(
+  payload: V2AccountDeletionPayload
+): Promise<V2AccountDeletionData> {
+  return await v2RequestData<
+    V2AccountDeletionData,
+    V2AccountDeletionPayload
+  >('/api/v2/users/me', {
+    method: 'DELETE',
     body: payload
   });
 }
@@ -86,6 +106,42 @@ export async function v2PatchSettings(
     V2UpdateSettingsPayload
   >('/api/v2/users/me/settings', {
     method: 'PATCH',
+    body: payload
+  });
+}
+
+export async function v2StartTwoFactorSetup(
+  payload: V2TwoFactorSetupPayload
+): Promise<V2TwoFactorSetupData> {
+  return await v2RequestData<
+    V2TwoFactorSetupData,
+    V2TwoFactorSetupPayload
+  >('/api/v2/users/me/two-factor/setup', {
+    method: 'POST',
+    body: payload
+  });
+}
+
+export async function v2ConfirmTwoFactorSetup(
+  payload: V2TwoFactorConfirmPayload
+): Promise<V2TwoFactorConfirmData> {
+  return await v2RequestData<
+    V2TwoFactorConfirmData,
+    V2TwoFactorConfirmPayload
+  >('/api/v2/users/me/two-factor/confirm', {
+    method: 'POST',
+    body: payload
+  });
+}
+
+export async function v2DisableTwoFactor(
+  payload: V2TwoFactorDisablePayload
+): Promise<V2TwoFactorStatusData> {
+  return await v2RequestData<
+    V2TwoFactorStatusData,
+    V2TwoFactorDisablePayload
+  >('/api/v2/users/me/two-factor', {
+    method: 'DELETE',
     body: payload
   });
 }
