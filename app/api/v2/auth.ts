@@ -15,6 +15,7 @@ import type {
   V2RegistrationPayload,
   V2SessionItem,
   V2SelfUser,
+  V2TwoFactorLoginPayload,
   V2TokenData
 } from '@/types/v2';
 
@@ -66,6 +67,19 @@ export async function v2Login(
       body: payload
     }
   );
+}
+
+export async function v2CompleteTwoFactorLogin(
+  challengeId: string,
+  payload: V2TwoFactorLoginPayload
+): Promise<V2LoginData> {
+  return await v2RequestData<
+    V2LoginData,
+    V2TwoFactorLoginPayload
+  >(`/api/v2/auth/two-factor/challenges/${challengeId}`, {
+    method: 'POST',
+    body: payload
+  });
 }
 
 export async function v2RefreshCurrentToken(): Promise<V2TokenData> {
