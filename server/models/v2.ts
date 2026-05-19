@@ -553,6 +553,40 @@ export function v2MapNotification(
   };
 }
 
+async function v2GetGroupMetadata(
+  connection: oracledb.Connection,
+  groupId: number
+): Promise<{
+  category: V2Group['category'];
+  tags: string[];
+}> {
+  const group = await v2One(
+    connection,
+    `
+    SELECT category
+    FROM n_groups
+    WHERE group_id = :group_id
+    `,
+    { group_id: groupId }
+  );
+  const tagRows = await v2Rows(
+    connection,
+    `
+    SELECT tag
+    FROM n_group_tags
+    WHERE group_id = :group_id
+    ORDER BY created_at ASC, tag_lower ASC
+    `,
+    { group_id: groupId }
+  );
+  return {
+    category:
+      (v2StringOrNull(group?.CATEGORY) as V2Group['category']) ??
+      null,
+    tags: tagRows.map(row => v2String(row.TAG))
+  };
+}
+
 export async function v2MapGroup(
   connection: oracledb.Connection,
   viewerId: number,
@@ -560,6 +594,10 @@ export async function v2MapGroup(
 ): Promise<V2Group> {
   const groupId = v2Number(row.GROUP_ID);
   const ownerId = v2Number(row.OWNER_ID);
+  const metadata = await v2GetGroupMetadata(
+    connection,
+    groupId
+  );
   const membership = await v2One(
     connection,
     `
@@ -582,21 +620,28 @@ export async function v2MapGroup(
     cover_url: normalizeNullableStoragePublicUrl(
       v2StringOrNull(row.COVER_URL)
     ),
+    category: metadata.category,
+    tags: metadata.tags,
     owner: await v2RequirePublicUser(
       connection,
       viewerId,
       ownerId
     ),
-    privacy: v2String(row.PRIVACY),
+    privacy: v2String(row.PRIVACY, 'public') as V2GroupPrivacy,
     privacy_desc: v2String(row.PRIVACY_DESC),
     join_approval: v2Boolean(row.JOIN_APPROVAL),
-    post_permission: v2String(row.POST_PERMISSION),
+    post_permission: v2String(
+      row.POST_PERMISSION,
+      'all'
+    ) as V2GroupPostPermission,
     member_count: v2Number(row.MEMBER_COUNT),
     post_count: v2Number(row.POST_COUNT),
     is_active: v2Number(row.IS_ACTIVE),
     membership: {
       is_member: Boolean(membership),
-      role: membership ? v2String(rowOrNull(membership.ROLE)) : null,
+      role: membership
+        ? (v2String(rowOrNull(membership.ROLE)) as V2GroupRole)
+        : null,
       status: membership
         ? v2String(rowOrNull(membership.STATUS))
         : null,
