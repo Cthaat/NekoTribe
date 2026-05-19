@@ -1,9 +1,13 @@
 import {
   v2CreateStatementAppeal as apiCreateStatementAppeal,
+  v2ConfirmTwoFactorSetup as apiConfirmTwoFactorSetup,
+  v2DeleteMe as apiDeleteMe,
+  v2DisableTwoFactor as apiDisableTwoFactor,
   v2GetSettings as apiGetSettings,
   v2ListAccountStatements as apiListAccountStatements,
   v2PatchAccountStatement as apiPatchAccountStatement,
-  v2PatchSettings as apiPatchSettings
+  v2PatchSettings as apiPatchSettings,
+  v2StartTwoFactorSetup as apiStartTwoFactorSetup
 } from '@/api/v2/users';
 import {
   v2ListSessions as apiListSessions,
@@ -13,11 +17,15 @@ import {
 import type {
   V2AccountStatement,
   V2ApiMeta,
+  V2AccountDeletionData,
   V2PagedResult,
   V2SessionItem,
   V2StatementAppealData,
   V2StatementAppealPayload,
   V2StatementStatusData,
+  V2TwoFactorConfirmData,
+  V2TwoFactorSetupData,
+  V2TwoFactorStatusData,
   V2UpdateSettingsPayload,
   V2UpdateStatementPayload,
   V2UserSettings
@@ -25,6 +33,8 @@ import type {
 import type { PageViewModel } from '@/types/posts';
 import type {
   AccountSettingsVM,
+  AccountDeletionFormVM,
+  AccountDeletionVM,
   AccountStatementListRequestVM,
   AccountStatementPageVM,
   AccountStatementStatusVM,
@@ -34,6 +44,12 @@ import type {
   SessionVM,
   StatementAppealFormVM,
   StatementAppealVM,
+  TwoFactorConfirmFormVM,
+  TwoFactorConfirmVM,
+  TwoFactorDisableFormVM,
+  TwoFactorSetupFormVM,
+  TwoFactorSetupVM,
+  TwoFactorStatusVM,
   UpdateAccountSettingsFormVM,
   UpdateAccountStatementFormVM
 } from '@/types/account';
@@ -79,7 +95,6 @@ function mapUpdateSettingsForm(
   form: UpdateAccountSettingsFormVM
 ): V2UpdateSettingsPayload {
   return {
-    two_factor_enabled: form.twoFactorEnabled,
     login_alerts: form.loginAlerts,
     profile_visibility: form.profileVisibility,
     show_online_status: form.showOnlineStatus,
@@ -174,6 +189,41 @@ function mapSession(dto: V2SessionItem): SessionVM {
   };
 }
 
+function mapTwoFactorSetup(
+  dto: V2TwoFactorSetupData
+): TwoFactorSetupVM {
+  return {
+    secret: dto.secret,
+    otpauthUrl: dto.otpauth_url
+  };
+}
+
+function mapTwoFactorConfirm(
+  dto: V2TwoFactorConfirmData
+): TwoFactorConfirmVM {
+  return {
+    enabled: dto.enabled,
+    recoveryCodes: dto.recovery_codes
+  };
+}
+
+function mapTwoFactorStatus(
+  dto: V2TwoFactorStatusData
+): TwoFactorStatusVM {
+  return {
+    enabled: dto.enabled
+  };
+}
+
+function mapAccountDeletion(
+  dto: V2AccountDeletionData
+): AccountDeletionVM {
+  return {
+    deleted: dto.deleted,
+    userId: dto.user_id
+  };
+}
+
 export async function v2GetSettings(): Promise<AccountSettingsVM> {
   return mapSettings(await apiGetSettings());
 }
@@ -182,6 +232,48 @@ export async function v2PatchSettings(
   form: UpdateAccountSettingsFormVM
 ): Promise<AccountSettingsVM> {
   return mapSettings(await apiPatchSettings(mapUpdateSettingsForm(form)));
+}
+
+export async function v2StartTwoFactorSetup(
+  form: TwoFactorSetupFormVM
+): Promise<TwoFactorSetupVM> {
+  return mapTwoFactorSetup(
+    await apiStartTwoFactorSetup({
+      password: form.password
+    })
+  );
+}
+
+export async function v2ConfirmTwoFactorSetup(
+  form: TwoFactorConfirmFormVM
+): Promise<TwoFactorConfirmVM> {
+  return mapTwoFactorConfirm(
+    await apiConfirmTwoFactorSetup({
+      code: form.code
+    })
+  );
+}
+
+export async function v2DisableTwoFactor(
+  form: TwoFactorDisableFormVM
+): Promise<TwoFactorStatusVM> {
+  return mapTwoFactorStatus(
+    await apiDisableTwoFactor({
+      password: form.password,
+      code: form.code
+    })
+  );
+}
+
+export async function v2DeleteMe(
+  form: AccountDeletionFormVM
+): Promise<AccountDeletionVM> {
+  return mapAccountDeletion(
+    await apiDeleteMe({
+      password: form.password,
+      confirmation: form.confirmation
+    })
+  );
 }
 
 export async function v2ListAccountStatements(
