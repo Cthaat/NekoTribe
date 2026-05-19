@@ -120,9 +120,63 @@ interface V2TokenData {
   refresh_token_expires_at: string;
 }
 
-interface V2LoginData {
+interface V2LoginSuccessData {
+  two_factor_required?: false;
   user: V2SelfUser;
   tokens: V2TokenData;
+}
+
+interface V2TwoFactorLoginChallengeData {
+  two_factor_required: true;
+  challenge_id: string;
+  account: string;
+  expires_at: string;
+}
+
+type V2LoginData =
+  | V2LoginSuccessData
+  | V2TwoFactorLoginChallengeData;
+
+interface V2TwoFactorLoginPayload {
+  challenge_id?: string;
+  code: string;
+}
+
+interface V2TwoFactorSetupPayload {
+  password: string;
+}
+
+interface V2TwoFactorSetupData {
+  secret: string;
+  otpauth_url: string;
+}
+
+interface V2TwoFactorConfirmPayload {
+  code: string;
+}
+
+interface V2TwoFactorConfirmData {
+  enabled: boolean;
+  recovery_codes: string[];
+}
+
+interface V2TwoFactorDisablePayload {
+  password: string;
+  code: string;
+}
+
+interface V2TwoFactorStatusData {
+  enabled: boolean;
+}
+
+interface V2AccountDeletionPayload {
+  password: string;
+  confirmation: string;
+}
+
+interface V2AccountDeletionData {
+  deleted: boolean;
+  user_id: number;
 }
 
 interface V2PasswordResetPayload {
@@ -246,6 +300,7 @@ interface V2MediaAsset {
   duration: number | null;
   thumbnail_url: string | null;
   alt_text: string | null;
+  description: string | null;
   status: string;
   created_at: string;
 }
