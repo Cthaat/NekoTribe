@@ -105,7 +105,9 @@ const mediaItems = computed(() => {
     return {
       type: media.type,
       originalUrl: media.originalUrl,
-      thumbnailUrl: media.thumbnailUrl
+      thumbnailUrl: media.thumbnailUrl,
+      altText: media.altText,
+      description: media.description
     };
   });
 });
@@ -691,7 +693,7 @@ const relatedExcerpt = computed(() => {
             <img
               :src="item.thumbnailUrl"
               class="object-cover w-full h-full transition-transform group-hover:scale-105"
-              :alt="t('post.media.thumbnailAlt')"
+              :alt="item.altText || t('post.media.thumbnailAlt')"
             />
 
             <!-- 如果是视频，在中间叠加一个播放图标 -->
