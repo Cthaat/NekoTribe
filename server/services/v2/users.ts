@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3';
 import type { File, Files } from 'formidable';
+import bcrypt from 'bcrypt';
 import formidable from 'formidable';
 import type oracledb from 'oracledb';
 import {
@@ -35,7 +36,11 @@ import {
   v2StringOrNull,
   v2Unprocessable
 } from '~/server/utils/v2';
-import { v2VerifyOtpCode } from './auth';
+import {
+  v2ClearAuthCookies,
+  v2VerifyOtpCode,
+  v2VerifyUserPassword
+} from './auth';
 import { v2CreateNotification } from './notifications';
 import { v2PublishUserPresence } from './presence';
 import {
@@ -124,6 +129,100 @@ export async function v2PatchMe(
   return v2Ok(
     await v2RequireSelfUser(connection, auth.userId)
   );
+}
+
+export async function v2DeleteMe(
+  event: H3Event,
+  connection: oracledb.Connection
+): Promise<V2Response<V2AccountDeletionData>> {
+  const auth = v2Auth(event);
+  const body = await v2Body(event);
+  const me = await v2RequireSelfUser(connection, auth.userId);
+  const password = v2RequiredString(body, 'password');
+  const confirmation = v2RequiredString(body, 'confirmation');
+
+  if (
+    confirmation !== me.username &&
+    confirmation.toUpperCase() !== 'DELETE'
+  ) {
+    v2BadRequest('确认内容不匹配');
+  }
+
+  await v2VerifyUserPassword(connection, auth.userId, password);
+
+  const anonymizedUsername = `deleted_${auth.userId}`;
+  const anonymizedEmail = `deleted_${auth.userId}@deleted.local`;
+  const disabledPasswordHash = await bcrypt.hash(
+    `deleted-${auth.userId}-${Date.now()}`,
+    10
+  );
+
+  await v2Execute(
+    connection,
+    `
+    UPDATE n_posts
+    SET is_deleted = 1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE author_id = :user_id
+      AND is_deleted = 0
+    `,
+    { user_id: auth.userId }
+  );
+  await v2Execute(
+    connection,
+    `
+    UPDATE n_comments
+    SET is_deleted = 1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = :user_id
+      AND is_deleted = 0
+    `,
+    { user_id: auth.userId }
+  );
+  await v2Execute(
+    connection,
+    `
+    UPDATE n_auth_sessions
+    SET revoked_at = CURRENT_TIMESTAMP
+    WHERE user_id = :user_id
+      AND revoked_at IS NULL
+    `,
+    { user_id: auth.userId }
+  );
+  await v2Execute(
+    connection,
+    `
+    UPDATE n_users
+    SET email = :email,
+        username = :username,
+        password_hash = :password_hash,
+        display_name = '已注销用户',
+        bio = NULL,
+        location = NULL,
+        website = NULL,
+        phone = NULL,
+        avatar_url = NULL,
+        avatar_media_id = NULL,
+        is_active = 0,
+        status = 'disabled',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = :user_id
+    `,
+    {
+      user_id: auth.userId,
+      email: anonymizedEmail,
+      username: anonymizedUsername,
+      password_hash: disabledPasswordHash
+    }
+  );
+
+  v2ClearAuthCookies(event);
+  await v2PublishUserPresence(connection, auth.userId);
+
+  return v2Ok({
+    deleted: true,
+    user_id: auth.userId
+  });
 }
 
 export async function v2UpdateAvatar(
@@ -560,8 +659,11 @@ export async function v2PatchSettings(
   const body = await v2Body(event);
   await v2EnsureSettings(connection, auth.userId);
 
+  if (Object.hasOwn(body, 'two_factor_enabled')) {
+    v2BadRequest('请通过双因素认证设置流程修改 two_factor_enabled');
+  }
+
   const fields = [
-    'two_factor_enabled',
     'login_alerts',
     'show_online_status',
     'allow_dm_from_strangers',
