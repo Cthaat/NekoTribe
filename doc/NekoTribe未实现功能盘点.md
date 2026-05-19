@@ -1,327 +1,364 @@
 # NekoTribe 未实现功能盘点
 
-> 扫描日期：2026-05-09  
-> 扫描范围：`app/`、`server/api/v2/`、`server/services/v2/`、`server/routes/`、`doc/neko_tribe-oracle-v2.sql`、`data/oracle-init/`、现有路线图与 `package.json`。  
-> 判定口径：本盘点把“只有静态 UI/模拟数据/本地状态”“有按钮但只弹 WIP 提示”“函数空实现或返回空数组”“后端接口只是 accepted stub”“有后端但前端未接入关键动作”均视为未完成或半完成。
+> 更新日期：2026-05-19
+> 原始扫描日期：2026-05-09
+> 本次核对范围：`app/`、`server/api/v2/`、`server/services/v2/`、`server/routes/`、`doc/neko_tribe-oracle-v2.sql`、`package.json`。
+> 判定口径：页面已有入口但只改本地状态、service 空实现、后端 stub、前后端未接线、设置字段没有业务执行链路，均视为未完成或半完成。
+> 说明：原文档中“聊天、审核、实时能力完全未实现”的结论已经过期；这些模块当前已有正式实现基础，本文档改为记录当前仍然缺口明确的功能。
 
 ## 总体结论
 
-项目已经有一套 v2 社交主线能力：登录注册、发帖、删帖、点赞、收藏、评论、转发、通知列表、账户设置、会话管理、群组核心 CRUD 与加入/退出等都已有实现基础。
+项目当前已经补齐了大量 2026-05-09 扫描时缺失的 v2 能力：
 
-当前最明显的未完成区域集中在：
+- 聊天/群组频道已经有 `server/api/v2/chat` 路由、`server/services/v2/chat.ts` 服务、`n_chat_*` / `n_direct_*` 数据表，以及 `app/pages/chat.vue` 的真实 API 和 WebSocket 接入。
+- 内容审核已经有 `server/api/v2/moderation`、`server/api/v2/reports`、`server/services/v2/moderation.ts`、`n_moderation_*` 数据表，以及审核内容、用户、举报、设置页面的真实接入。
+- 实时能力已经有 v2 token/session 鉴权的 `/_ws`，通知邮箱订阅 `useRealtimeSocket`，通知实时事件、在线状态和新设备登录提醒链路也已存在。
+- 推文编辑、媒体 alt 文本、群组设置弹窗、群成员管理、群帖子点赞/置顶/删除等能力已有实现基础。
 
-1. 聊天/群组频道：仍是演示页，没有正式数据模型、业务 API、持久化和鉴权后的实时收发。
-2. 内容审核：页面大多使用 mock 或施工占位，没有 v2 审核后端闭环。
-3. 实时能力：WebSocket 是通用诊断/房间广播能力，未接入通知、在线状态、聊天业务。
-4. 群组管理细节：核心列表/加入/发帖后端存在，但成员管理、帖子管理、邀请收件箱、设置页、群通知等前端闭环缺失。
-5. 内容体验细节：推文编辑、我的点赞、回复入口、媒体 alt/description 等未补齐。
-6. 安全与治理：2FA、登录提醒、在线状态、私信开关、删除账号等多为设置字段或路线图项，缺少真正执行链路。
+当前最明显的未完成区域已经收敛为：
+
+1. 群组邀请收件箱、群通知开关、群组分类/标签、群帖子评论/举报等群组细节仍有前后端断点。
+2. 账户安全里的 2FA 和删除账号仍是字段或路线图级能力，缺少可执行闭环。
+3. 内容体验里的“我的点赞”、部分回复入口和媒体 description 仍未补齐。
+4. 推荐反馈仍是 accepted stub，没有落库或参与推荐逻辑。
+5. 诊断/测试页面仍在正式路由树中，且项目缺少 lint/test 质量闸门。
 
 ## 优先级说明
 
 | 优先级 | 含义 |
 | --- | --- |
-| P0 | 页面已有入口但无法作为真实功能使用，或缺少核心数据/API/持久化。 |
-| P1 | 主流程基本有基础，但关键动作、前后端闭环或安全约束缺失。 |
-| P2 | 体验增强、内部工具清理、推荐/质量体系等不阻塞最小可用版本但会影响长期可维护性。 |
+| P0 | 页面已有入口但用户无法真正使用，或已有 API/数据模型但前端关键入口断开。 |
+| P1 | 主流程可用，但关键体验、安全约束或数据闭环缺失。 |
+| P2 | 不阻塞核心使用，但会影响长期体验、治理质量或可维护性。 |
 
-## P0 未实现/原型态功能
+## 已不再归类为未实现的能力
 
-### 1. 聊天与群组频道
+这些是原文档中列为 P0/P1 的内容，但当前代码已经有正式实现基础；后续应作为验收/边界测试，而不是继续当作“未实现”。
 
-**当前状态**
+| 模块 | 当前实现基础 | 仍需验收重点 |
+| --- | --- | --- |
+| 聊天/群组频道 | `server/api/v2/chat`、`server/services/v2/chat.ts`、`app/api/v2/chat.ts`、`app/services/chat.ts`、`app/pages/chat.vue`；SQL 中已有 `n_chat_channels`、`n_chat_messages`、`n_chat_message_media`、`n_chat_message_reactions`、`n_chat_channel_reads`、`n_direct_conversations`、`n_direct_messages` 等表。 | 多账号实时收发、频道权限、断线重连、私信隐私、消息附件、删除/编辑/置顶/反应的跨端同步。 |
+| 内容审核中心 | `server/api/v2/moderation`、`server/api/v2/reports`、`server/services/v2/moderation.ts`；前端 `content/users/reports/settings` 页面已调用真实 service；SQL 中已有 `n_moderation_reports`、`n_moderation_cases`、`n_moderation_actions`、`n_moderation_user_restrictions`、`n_moderation_settings`。 | 审核员权限配置、批量动作、领取/释放、封禁/禁言副作用、申诉结果回写、真实统计准确性。 |
+| 实时通知与在线状态 | `server/routes/_ws.ts` 已校验 access token、session、`access_jti`；`useNotificationMailbox` 订阅 `useRealtimeSocket`；`server/services/v2/notifications.ts` 发布通知创建/已读/删除/恢复事件；`server/services/v2/presence.ts` 支持在线/离线/隐藏状态。 | 多实例 Redis fanout、页面登录态失效时的断连、隐私开关生效、通知偏好过滤。 |
+| 登录提醒 | `server/services/v2/auth.ts` 会识别新设备并调用 `v2CreateNotification()`，尊重 `login_alerts` 和邮件通知设置。 | 邮件配置、设备指纹稳定性、误报/重复提醒、提醒入口跳转。 |
+| 推文编辑 | `PUT /api/v2/posts/:id`、`server/services/v2/posts.ts::v2UpdatePost`、`app/services/posts.ts::v2UpdatePost` 和 `app/pages/account/posts.vue` 已接入。 | 时间线/详情页是否需要直接编辑入口、编辑历史、编辑窗口、通知/缓存刷新。 |
+| 媒体 alt 文本 | `TweetComposer` 已支持每个媒体草稿填写 `altText` 并随上传提交。 | 展示端可访问性、编辑媒体 alt、description 字段。 |
+| 群组管理基础 | `GroupManageModal` 已接入更新群组、删除群组、审批成员、移除成员、角色调整、禁言/解禁、转让所有权、创建/查看/复制群邀请。 | 收件箱、通知偏好、分类标签、群帖子评论/举报、管理动作权限边界。 |
+| 通知邮箱核心动作 | `MailDisplay` 当前只保留已接线的已读/未读、删除、恢复等动作，旧版“归档/稍后/转发/标签”等未接线按钮已不再作为主要问题。 | 是否需要扩展成真正邮箱式工作流。 |
 
-- `app/pages/chat.vue` 直接声明“模拟群组数据”“模拟频道分类和频道数据”，消息、频道、成员都来自页面内本地数组。
-- 发送消息只是在前端 `messages.value.push(newMessage)`，删除、置顶、表情、静音等也只改本地状态。
-- 创建频道按钮只提示 `chat.feedback.createChannelWip`。
-- `server/routes/_ws.ts` 提供通用 `join_room`、`leave_room`、`room_message`、`broadcast`，但不是聊天业务 API。
-- `server/utils/wsSession.ts` 明确说明“已移除用户认证功能”，会话只跟踪匿名连接和房间。
-- v2 Oracle SQL 里只出现 `allow_dm_from_strangers` 设置字段，没有聊天/私信/频道/消息相关表；`server/api/v2` 下也没有 chat/message/channel/conversation 目录。
+## P0 未完成/半闭环功能
 
-**证据**
-
-- `app/pages/chat.vue:18`、`app/pages/chat.vue:26`
-- `app/pages/chat.vue:461` 至 `app/pages/chat.vue:490`
-- `app/pages/chat.vue:528` 至 `app/pages/chat.vue:556`
-- `server/routes/_ws.ts:188` 至 `server/routes/_ws.ts:207`
-- `server/routes/_ws.ts:394` 至 `server/routes/_ws.ts:439`
-- `server/utils/wsSession.ts:11`
-- `doc/neko_tribe-oracle-v2.sql:749`、`doc/neko_tribe-oracle-v2.sql:762`
-
-**缺口**
-
-- 缺少聊天数据表：会话/群组频道/频道成员/消息/附件/已读回执/反应/置顶/撤回/编辑。
-- 缺少 v2 REST API：频道列表、频道创建/编辑、消息分页、发送消息、删除/撤回、反应、置顶、附件上传关联。
-- 缺少业务 WebSocket 协议：用户鉴权、房间权限校验、频道订阅、消息投递、断线重连、幂等消息 ID。
-- 缺少前端真实接入：`chat.vue` 应改为加载群组/频道/消息，并把 `ChatRoom`、`ChatInput`、`ChatChannelList` 接到 API 和 WebSocket。
-
-### 2. 内容审核中心
+### 1. 群组邀请收件箱仍为空实现
 
 **当前状态**
 
-- `app/pages/moderation/content.vue` 使用 mock 统计和 mock 推文列表。
-- 审核通过/拒绝/标记只修改本地数组和本地统计，不写入后端。
-- 刷新列表通过 `setTimeout` 重置回 mock 数据。
-- `app/pages/moderation/users.vue`、`reports.vue`、`settings.vue` 都是 `Construction` 占位卡片。
-- `server/api/v2` 顶层目录只有 `auth/comments/groups/media/notifications/posts/recommendations/tags/users`，没有 moderation/report/admin 后端模块。
+- `app/pages/groups/invites.vue` 已有“我的邀请”页面，会调用 `listMyGroupInvites()`。
+- `app/services/groups.ts` 中 `listMyGroupInvites()` 仍直接返回空数组。
+- 后端已有“某个群组的邀请列表”接口：`GET /api/v2/groups/:id/invites`，适合群管理员查看自己群内的邀请记录。
+- 但没有发现面向当前登录用户的“我收到的待处理邀请”接口，例如 `GET /api/v2/users/me/group-invites` 或 `GET /api/v2/groups/invites?scope=received`。
 
 **证据**
 
-- `app/pages/moderation/content.vue:19` 至 `app/pages/moderation/content.vue:37`
-- `app/pages/moderation/content.vue:227`
-- `app/pages/moderation/content.vue:324` 至 `app/pages/moderation/content.vue:356`
-- `app/pages/moderation/content.vue:384` 至 `app/pages/moderation/content.vue:392`
-- `app/pages/moderation/users.vue:1` 至 `app/pages/moderation/users.vue:42`
-- `app/pages/moderation/reports.vue:1` 至 `app/pages/moderation/reports.vue:42`
-- `app/pages/moderation/settings.vue:1` 至 `app/pages/moderation/settings.vue:42`
+- `app/services/groups.ts:684` 至 `app/services/groups.ts:688`
+- `app/pages/groups/invites.vue`
+- `app/api/v2/groups.ts:336` 至 `app/api/v2/groups.ts:360`
+- `server/api/v2/groups/[id]/invites.get.ts`
+- `server/api/v2/groups/invites/[invite_id]/responses.post.ts`
 
 **缺口**
 
-- 缺少举报模型：举报记录、举报原因、举报目标、举报人、状态、优先级、证据。
-- 缺少审核队列 API：待审列表、筛选、排序、领取/释放、批量处理。
-- 缺少审核动作 API：通过、拒绝、下架、恢复、封禁、禁言、备注、处罚时长。
-- 缺少治理闭环：申诉审核、操作留痕、管理员权限、规则配置、自动化风控信号。
-- 缺少真实统计：待处理数、今日处理量、平均处理时间、误判/申诉成功率。
+- 新增当前用户收到的邀请列表 API，查询 `n_group_invites.invitee_id = 当前用户` 且 `status = 'pending'`、未过期的记录。
+- 前端补齐 `listMyGroupInvites()` 映射到 `GroupInviteView[]`。
+- 接受/拒绝后刷新收件箱，并同步群组成员状态。
+- 明确公开邀请码和定向邀请的展示规则：公开邀请码不应出现在“我的邀请”收件箱里。
 
-### 3. 实时通知、在线状态与业务 WebSocket
+### 2. 群通知开关只改本地状态
 
 **当前状态**
 
-- WebSocket 页面 `app/pages/ws/index.vue` 是诊断工具，直接连接 `/_ws`，不接通知或聊天业务。
-- 通知前端通过 `v2ListNotifications` 拉列表，`useNotificationMailbox` 是分页刷新模型，没有 WebSocket/SSE 订阅。
-- `server/routes/_ws.ts` 是通用广播和房间消息，不绑定登录用户、通知资源或聊天权限。
-- 账户设置里有 `show_online_status`、`push_notification_enabled`、`login_alerts` 等字段，但没有看到业务执行链路。
+- `GroupDetailModal` 右上角有通知开关。
+- 点击后只切换本地 `notificationsEnabled` 并 toast，没有调用 API，也没有写入数据库。
+- SQL 中只有全局通知偏好 `n_notification_preferences`，没有用户-群组粒度的通知偏好表。
 
 **证据**
 
-- `app/pages/ws/index.vue:45` 至 `app/pages/ws/index.vue:54`
-- `app/services/notifications.ts:131` 至 `app/services/notifications.ts:168`
-- `app/composables/useNotificationMailbox.ts:27` 至 `app/composables/useNotificationMailbox.ts:57`
-- `server/routes/_ws.ts:119` 至 `server/routes/_ws.ts:155`
-- `server/utils/wsSession.ts:26` 至 `server/utils/wsSession.ts:30`
-- `server/services/v2/users.ts:365` 至 `server/services/v2/users.ts:383`
+- `app/components/GroupDetailModal.vue:81`
+- `app/components/GroupDetailModal.vue:143` 至 `app/components/GroupDetailModal.vue:149`
+- `doc/neko_tribe-oracle-v2.sql:739` 至 `doc/neko_tribe-oracle-v2.sql:752`
 
 **缺口**
 
-- 缺少用户级 WebSocket 鉴权和会话绑定。
-- 缺少通知实时投递：新通知、已读同步、删除/恢复同步。
-- 缺少在线状态：心跳、最后在线时间、隐私设置生效、用户资料/聊天成员在线状态展示。
-- 缺少登录提醒的触发链路：新设备登录后写通知或发邮件。
+- 设计用户-群组通知偏好，例如 `n_group_notification_preferences` 或复用现有通知偏好并扩展资源维度。
+- 新增查询/更新接口，例如 `GET/PUT /api/v2/groups/:id/notification-preference`。
+- 群组帖子、评论、邀请、聊天消息等通知生成时读取该偏好。
+- 前端打开群详情时加载真实状态，切换后持久化并处理失败回滚。
 
-## P1 未实现/半完成能力
-
-### 4. 群组模块的管理闭环
+### 3. 群组分类/标签 UI 与数据模型不一致
 
 **当前状态**
 
-- 群组发现、我的群组、创建、加入/退出、详情成员/帖子加载已接入 v2 基础 API。
-- 但邀请收件箱 `listMyGroupInvites()` 直接返回空数组。
-- 群组设置入口只弹 `settingsWip` 提示。
-- 详情弹窗里的通知开关只改本地 `notificationsEnabled`，没有 API 持久化。
-- `GroupMemberCard` 提供移除、提升、降级、禁言、取消禁言事件并直接 toast 成功，但 `GroupDetailModal` 没有把这些事件向页面/API 继续接线。
-- `GroupPostCard` 提供点赞、评论、置顶、删除、举报、分享事件并 toast，但详情页没有对应 API 处理函数。
-- 前端 `app/api/v2/groups.ts` 只封装到列表、创建、详情、加入/退出、成员列表、帖子列表、邀请创建/响应；没有封装群组帖子点赞/评论/置顶/删除、成员角色/禁言/审批等已有后端路由。
-- 创建群组 UI 要求 category，但 `createGroup()` 组装 v2 payload 时没有提交 category/tags；映射结果 `tags: []`。
-- 头像上传按钮只是一个按钮，没有文件选择/上传处理。
+- 创建群组 UI 强制填写 `category`。
+- `createGroup()` 组装 v2 payload 时没有提交 category/tags。
+- `mapV2GroupToGroup()` 返回 `tags: []`，没有真实分类/标签数据。
+- `n_groups` 表没有 `category` 或 tags 字段，也没有群组-标签关联表。
+- `filterGroups()` 只有当返回的 group 带 category 时才按分类过滤，因此当前分类筛选实际基本不会生效。
 
 **证据**
 
-- `app/services/groups.ts:344` 至 `app/services/groups.ts:357`
-- `app/pages/groups/my.vue:68` 至 `app/pages/groups/my.vue:70`
-- `app/pages/groups/discover.vue:96` 至 `app/pages/groups/discover.vue:98`
-- `app/components/GroupDetailModal.vue:122` 至 `app/components/GroupDetailModal.vue:151`
-- `app/components/GroupDetailModal.vue:411` 至 `app/components/GroupDetailModal.vue:428`
-- `app/components/GroupMemberCard.vue:40` 至 `app/components/GroupMemberCard.vue:45`
-- `app/components/GroupMemberCard.vue:99` 至 `app/components/GroupMemberCard.vue:121`
-- `app/components/GroupPostCard.vue:44` 至 `app/components/GroupPostCard.vue:51`
-- `app/components/GroupPostCard.vue:98` 至 `app/components/GroupPostCard.vue:134`
-- `app/components/CreateGroupModal.vue:119` 至 `app/components/CreateGroupModal.vue:135`
-- `app/components/CreateGroupModal.vue:154` 至 `app/components/CreateGroupModal.vue:172`
-- `app/services/groups.ts:76` 至 `app/services/groups.ts:95`
-- `app/services/groups.ts:288` 至 `app/services/groups.ts:300`
-- `app/api/v2/groups.ts:28` 至 `app/api/v2/groups.ts:200`
+- `app/components/CreateGroupModal.vue:285` 至 `app/components/CreateGroupModal.vue:290`
+- `app/services/groups.ts:100` 至 `app/services/groups.ts:122`
+- `app/services/groups.ts:229` 至 `app/services/groups.ts:247`
+- `app/services/groups.ts:350` 至 `app/services/groups.ts:362`
+- `doc/neko_tribe-oracle-v2.sql:1008` 至 `doc/neko_tribe-oracle-v2.sql:1034`
 
 **缺口**
 
-- 补齐“我的邀请”查询 API 与前端映射。
-- 补齐群组设置页/弹窗：名称、描述、封面、头像、隐私、入群审批、发帖权限。
-- 补齐群成员管理：审批、移除、角色调整、禁言/解禁、审计日志刷新。
-- 补齐群帖子管理：点赞、评论、置顶、删除、举报、分享 URL。
-- 明确 category/tags 是否进入数据库模型；若保留 UI，应扩展表和 API；若不做，应移除 UI 筛选和必填项。
-- 群通知开关需要持久化到用户-群组偏好表或通知偏好表。
+- 若产品保留群组分类/标签：扩展数据库、v2 类型、创建/更新 API、列表筛选、详情展示。
+- 若短期不做：移除创建必填 category 和相关筛选，避免用户填写后被静默丢弃。
 
-### 5. 推文/内容体验细节
+### 4. 群帖子评论/举报前端闭环不完整
 
 **当前状态**
 
-- 推文创建、删除、点赞、收藏、评论、转发已有基础 v2 流程。
-- 推文编辑未实现：`server/api/v2/posts` 下没有 PATCH 路由，前端 API/service 也没有 update/edit post 方法；路线图仍把“推文编辑”列为待补齐能力。
-- 推文详情页 `handleReplyTweet()` 是空函数；其他时间线页面点击回复只是跳转详情页，不直接打开回复 composer。
-- `TweetComposer` 对媒体上传固定追加 `altText = '111'` 和 `description = '111123'`，TODO 标注“添加描述字段”。
-- `TweetComposer` 内部回复/引用按钮区域仍注释为 TODO。
-- “我的点赞”没有导航入口，也没有 `/api/v2/users/me/likes` 类型的 v2 接口；路线图仍列为 P1。
+- 后端已有群帖子评论相关路由：列表、创建、删除、点赞/取消点赞。
+- `app/types/v2.ts` 已定义 `V2GroupComment` 和 `V2CreateGroupCommentPayload`。
+- 但 `app/api/v2/groups.ts` 没有封装群帖子评论接口，`app/services/groups.ts` 也没有暴露群帖子评论 service。
+- `GroupPostCard` 会 emit `comment` 和 `report`，但 `app/pages/groups/posts.vue` 当前只接了 `like/pin/unpin/delete/share`。
+- 举报后端已存在 `POST /api/v2/reports`，推文卡片已接入举报，但群帖子卡片的举报事件未接到该接口。
 
 **证据**
 
-- `app/components/TweetComposer.vue:145` 至 `app/components/TweetComposer.vue:169`
-- `app/components/TweetComposer.vue:387`
-- `app/pages/tweet/[id].vue:100` 至 `app/pages/tweet/[id].vue:101`
-- `app/pages/tweet/[type]/[user].vue:89` 至 `app/pages/tweet/[type]/[user].vue:92`
-- `app/pages/tweet/search/[search].vue:76` 至 `app/pages/tweet/search/[search].vue:79`
-- `app/api/v2/posts.ts:137` 至 `app/api/v2/posts.ts:163`
-- `server/api/v2/posts/` 只有 get/post/delete/likes/bookmarks/comments/replies/retweets/analytics/trending 路由，没有 patch 路由。
-- `doc/NekoTribe长期最终可执行路线图.md:298`
-- `doc/NekoTribe长期最终可执行路线图.md:578`
+- `server/api/v2/groups/[id]/posts/[post_id]/comments/index.get.ts`
+- `server/api/v2/groups/[id]/posts/[post_id]/comments/index.post.ts`
+- `server/api/v2/groups/[id]/posts/[post_id]/comments/[comment_id].delete.ts`
+- `server/api/v2/groups/[id]/posts/[post_id]/comments/[comment_id]/likes.post.ts`
+- `server/api/v2/groups/[id]/posts/[post_id]/comments/[comment_id]/likes.delete.ts`
+- `server/services/v2/groups.ts:1388` 至 `server/services/v2/groups.ts:1557`
+- `app/components/GroupPostCard.vue:51` 至 `app/components/GroupPostCard.vue:59`
+- `app/components/GroupPostCard.vue:126` 至 `app/components/GroupPostCard.vue:151`
+- `app/pages/groups/posts.vue:390` 至 `app/pages/groups/posts.vue:401`
+- `app/api/v2/moderation.ts:213` 至 `app/api/v2/moderation.ts:219`
 
 **缺口**
 
-- 补齐 `PATCH /api/v2/posts/:id`，包含编辑窗口、作者校验、编辑历史或 `edited_at`。
-- 补齐回复交互：详情页回复按钮打开回复框并带上下文；时间线可直接弹回复 composer。
-- 补齐媒体 alt/description 表单、上传 payload 与展示。
-- 补齐“我的点赞”接口、service、路由页面和导航入口。
+- 在 `app/api/v2/groups.ts` 和 `app/services/groups.ts` 补齐群帖子评论列表、发送、删除、点赞封装。
+- 页面提供评论弹窗或跳转详情页，评论数更新。
+- 群帖子举报接入 `v2CreateReport({ target_type: 'post', target_id })` 或定义专门的群帖子目标类型；如果复用 `post`，需确认 `n_group_posts.post_id` 与普通 `n_posts.post_id` 不会混淆。
 
-### 6. 通知邮箱 UI 的非通知动作
+## P1 未完成/半完成能力
+
+### 5. 2FA 仍只是设置字段
 
 **当前状态**
 
-- v2 通知列表、标记已读/未读、批量已读、删除、恢复已有服务层。
-- `MailDisplay` 中归档、移入垃圾、稍后提醒、回复、全部回复、转发、收藏线程、加标签、静音线程等按钮没有 emit，也没有 API。
-- 只有删除和恢复按钮向外发事件。
+- `n_user_settings.two_factor_enabled` 已存在。
+- 账户设置页可以保存 `two_factor_enabled`。
+- `server/services/v2/auth.ts::v2Login()` 登录时只查 `n_users`，校验密码后直接签发 token；没有读取 `two_factor_enabled`，也没有二次验证挑战。
+- 没有发现 TOTP 密钥、恢复码、信任设备、挑战 ticket 等数据模型。
 
 **证据**
 
-- `app/components/MailDisplay.vue:54`
-- `app/components/MailDisplay.vue:63` 至 `app/components/MailDisplay.vue:90`
-- `app/components/MailDisplay.vue:135` 至 `app/components/MailDisplay.vue:229`
-- `app/components/MailDisplay.vue:239` 至 `app/components/MailDisplay.vue:289`
-- `app/components/MailDisplay.vue:305` 至 `app/components/MailDisplay.vue:318`
-- `app/pages/user/[id]/notifications.vue:53` 至 `app/pages/user/[id]/notifications.vue:94`
+- `doc/neko_tribe-oracle-v2.sql:758`
+- `app/pages/account/settings.vue:243` 至 `app/pages/account/settings.vue:267`
+- `server/services/v2/users.ts:563` 至 `server/services/v2/users.ts:582`
+- `server/services/v2/auth.ts:615` 至 `server/services/v2/auth.ts:650`
 
 **缺口**
 
-- 如果这些按钮是通知中心产品功能，需要新增 API/状态字段：归档、垃圾箱、稍后提醒、标签、星标、静音。
-- 如果只是从 mail 示例组件继承来的 UI，应删除未接线按钮，避免用户误以为功能可用。
+- 启用流程：生成密钥、扫码、验证码确认、恢复码。
+- 登录流程：密码通过后若开启 2FA，返回 challenge，而不是直接签发 token。
+- 关闭流程：需要密码/验证码确认。
+- 设备信任和恢复码需要数据库模型与前端页面。
 
-### 7. 账户安全、隐私与账号生命周期
+### 6. 删除账号/注销账号流程缺失
 
 **当前状态**
 
-- v2 设置可以保存 `two_factor_enabled`、`login_alerts`、`show_online_status`、`allow_dm_from_strangers` 等字段。
-- 登录接口只校验账号密码并发 token，没有读取 `two_factor_enabled`，也没有二次验证挑战。
-- `allow_dm_from_strangers` 只有设置字段；聊天/私信功能本身尚未实现。
-- `show_online_status` 只有设置字段；在线状态服务尚未实现。
-- 没有发现删除账号/注销账号 API 或页面流程。
+- 账户页面有资料、设置、安全、会话、处置记录等页面。
+- v2 users/me 相关接口包含资料、头像、邮箱、帖子、收藏、屏蔽、静音、设置、处置记录等。
+- 没有发现删除账号、停用账号、冷静期、匿名化或软删除的 API/页面流程。
 
 **证据**
 
-- `app/pages/account/settings.vue:35` 至 `app/pages/account/settings.vue:43`
-- `app/pages/account/settings.vue:73` 至 `app/pages/account/settings.vue:87`
-- `app/pages/account/settings.vue:174` 至 `app/pages/account/settings.vue:186`
-- `app/pages/account/settings.vue:238` 至 `app/pages/account/settings.vue:248`
-- `server/services/v2/users.ts:365` 至 `server/services/v2/users.ts:383`
-- `server/services/v2/users.ts:419` 至 `server/services/v2/users.ts:468`
-- `server/services/v2/auth.ts:535` 至 `server/services/v2/auth.ts:664`
+- `server/api/v2/users/me/`
+- `app/pages/account/`
+- `doc/neko_tribe-oracle-v2.sql` 中 `n_users.status` / `is_active` 可支撑禁用，但未形成用户自助账号生命周期流程。
 
 **缺口**
 
-- 2FA：启用流程、密钥/验证码绑定、恢复码、登录挑战、信任设备、禁用校验。
-- 登录提醒：检测新设备/新 IP，写通知或发邮件，尊重用户设置。
-- 在线状态：心跳、状态存储、隐私开关生效、前端展示。
-- 私信开关：依赖私信/聊天模型，后续聊天发送权限应读取该设置。
-- 删除账号：冷静期、二次确认、数据匿名化/软删除、会话撤销。
+- 新增账号删除/停用 API，要求二次确认和密码校验。
+- 明确数据策略：软删除、匿名化、帖子保留/隐藏、会话撤销。
+- 前端在账号安全页提供危险操作区。
+
+### 7. “我的点赞”缺少页面和接口
+
+**当前状态**
+
+- 已有普通帖子点赞/取消点赞和单帖点赞用户列表。
+- 已有 `/api/v2/users/me/bookmarks` 和账户帖子管理页。
+- 没有发现 `/api/v2/users/me/likes`、`v2ListMyLikedPosts()` 或账户“我的点赞”页面。
+
+**证据**
+
+- `server/api/v2/users/me/bookmarks.get.ts`
+- `server/api/v2/users/me/posts.get.ts`
+- `server/services/v2/posts.ts:1175` 至 `server/services/v2/posts.ts:1224`
+- `app/pages/account/posts.vue`
+
+**缺口**
+
+- 新增 `GET /api/v2/users/me/likes`，按 `n_post_likes.created_at DESC` 返回已点赞帖子。
+- 前端新增账户页或用户页入口。
+- 与普通时间线的点赞/取消点赞状态同步。
+
+### 8. 推文回复入口仍不完整
+
+**当前状态**
+
+- 推文详情页有评论区，也能发送评论。
+- 推文级回复列表已经存在。
+- 但 `app/pages/tweet/[id].vue` 中 `handleReplyTweet()` 仍为空函数。
+- 列表页和搜索页点击回复只是跳转详情页，并不会直接打开回复 composer 或带入回复上下文。
+
+**证据**
+
+- `app/pages/tweet/[id].vue:202` 至 `app/pages/tweet/[id].vue:203`
+- `app/pages/tweet/[type]/[user].vue:135` 至 `app/pages/tweet/[type]/[user].vue:138`
+- `app/pages/tweet/search/[search].vue:92` 至 `app/pages/tweet/search/[search].vue:95`
+- `TweetComposer` 已支持 `replyTo`、`open-reply-dialog`、`replyToPostId`。
+
+**缺口**
+
+- 详情页回复按钮应打开回复 composer 或弹窗，并设置 `replyTo`。
+- 列表/搜索页可跳转详情页并带 query/hash，让详情页自动打开回复框。
+- 回复成功后刷新回复列表和原帖统计。
+
+### 9. 媒体 description 尚未实现
+
+**当前状态**
+
+- `TweetComposer` 已支持 alt 文本输入和提交。
+- 没有看到媒体 description 输入、上传 payload 和展示闭环。
+
+**证据**
+
+- `app/components/TweetComposer.vue:558` 至 `app/components/TweetComposer.vue:567`
+- `app/components/TweetComposer.vue:726` 至 `app/components/TweetComposer.vue:731`
+
+**缺口**
+
+- 确认 `n_media_assets` 是否需要新增/已有 description 字段。
+- 上传接口、composer 表单和展示组件统一支持 description。
 
 ## P2 待补强或应清理项
 
-### 8. 推荐反馈只是空接收
+### 10. 推荐反馈仍是 accepted stub
 
 **当前状态**
 
-- `/api/v2/recommendations/feedback` 会校验 `resource_type`、`resource_id`、`action`，然后直接返回 `{ accepted: true }`。
-- 推荐用户接口是按粉丝数/帖子数排序排除已关注/拉黑用户，可用但还不是个性化推荐。
+- `/api/v2/recommendations/feedback` 会校验 `resource_type`、`resource_id`、`action`。
+- 校验后直接返回 `{ accepted: true }`，没有落库。
+- 推荐用户接口主要按粉丝数/帖子数等基础信号排序，不消费反馈事件。
 
 **证据**
 
-- `server/services/v2/posts.ts:989` 至 `server/services/v2/posts.ts:997`
-- `server/services/v2/users.ts:783` 至 `server/services/v2/users.ts:820`
+- `server/services/v2/posts.ts:1697` 至 `server/services/v2/posts.ts:1705`
+- `server/api/v2/recommendations/feedback.post.ts`
+- `server/services/v2/users.ts` 推荐用户查询逻辑
 
 **缺口**
 
-- 需要推荐反馈表或事件日志。
-- 需要在推荐查询中消费反馈信号，例如“不感兴趣”“已隐藏”“类似内容减少”。
-- 需要推荐解释、去重、冷启动与安全过滤策略。
+- 增加推荐反馈事件表，例如 `n_recommendation_feedback`。
+- 记录“不感兴趣、隐藏、减少类似内容”等 action。
+- 推荐查询消费反馈信号，实现降权、过滤和解释。
 
-### 9. 导航与辅助入口占位
+### 11. projects 导航仍是占位数据
 
 **当前状态**
 
-- 侧边栏 secondary 的 support/feedback URL 仍是 `#`。
-- projects 导航数据存在但组件被 TODO 注释掉。
+- secondary feedback 已经是 GitHub issues，不再是 `#`。
+- `projects` 导航仍保留 design/sales/travel 三个占位项，URL 均为 `#`。
+- `NavProjects` 组件仍被 TODO 注释掉。
 
 **证据**
 
-- `app/components/AppSidebar.vue:145` 至 `app/components/AppSidebar.vue:153`
-- `app/components/AppSidebar.vue:232` 至 `app/components/AppSidebar.vue:239`
+- `app/components/AppSidebar.vue:155` 至 `app/components/AppSidebar.vue:167`
+- `app/components/AppSidebar.vue:263` 至 `app/components/AppSidebar.vue:265`
 
 **缺口**
 
-- support/feedback 若作为产品入口，需要真实页面或外链。
-- projects 若不做，应删除相关数据；若保留，应实现对应页面。
+- 若不做 projects 功能，应删除占位数据和 TODO。
+- 若保留，应实现真实页面/路由。
 
-### 10. 诊断/测试页面仍在正式路由树中
+### 12. 诊断/测试页面仍在正式路由树中
 
 **当前状态**
 
-- `app/pages/test.vue` 使用 mock 评论和 toast 测试。
+- `app/pages/test.vue` 是 toast/comment mock 测试页。
 - `app/pages/ws/index.vue` 是 WebSocket 诊断页。
-- `app/pages/test-token-refresh.vue` 是 Token 刷新诊断页。
+- `app/pages/test-token-refresh.vue` 是 token 刷新诊断页。
 
 **证据**
 
-- `app/pages/test.vue:13` 至 `app/pages/test.vue:35`
-- `app/pages/ws/index.vue:45` 至 `app/pages/ws/index.vue:54`
-- `app/pages/test-token-refresh.vue:1` 至 `app/pages/test-token-refresh.vue:107`
+- `app/pages/test.vue`
+- `app/pages/ws/index.vue`
+- `app/pages/test-token-refresh.vue`
 
 **缺口**
 
-- 生产环境需要隐藏、加权限或移动到内部 diagnostics 路由。
-- 这些页面不应被误认为产品功能完成度的一部分。
+- 生产环境隐藏这些页面，或移入需要管理员权限的 diagnostics 区域。
+- 避免被误认为正式产品功能。
 
-### 11. 自动化质量闸门不足
+### 13. 自动化质量闸门不足
 
 **当前状态**
 
-- `package.json` 只有 build/dev/generate/preview/start/typecheck/docker 等脚本，没有 test/lint 脚本。
-- 项目有 `eslint.config.mjs`，但没有标准 `lint` script。
-- 长期路线图也标注“尚未形成标准化测试脚本与质量闸门”。
+- `package.json` 只有 `build/dev/generate/preview/start/typecheck/docker` 等脚本，没有标准 `lint`、`test`、`test:e2e` 或 `check` 聚合脚本。
+- 本次运行 `yarn typecheck` 失败，错误分布在既有的 shadcn auto-form/Zod 类型、部分前端页面类型、以及大量旧 v1 API 缺失类型上。
+- 这些错误说明当前仓库无法通过统一类型闸门，也会影响后续判断新功能是否破坏构建。
 
 **证据**
 
 - `package.json:5` 至 `package.json:18`
-- `doc/NekoTribe长期最终可执行路线图.md:47`
-- `doc/NekoTribe长期最终可执行路线图.md:616`
+- `eslint.config.mjs`
+- `yarn typecheck` 当前失败，典型错误包括：
+  - `app/components/ui/auto-form/*` 依赖 Zod v3/v4 类型差异。
+  - `server/api/v1/*` 大量 `Auth`、`ErrorResponse`、旧响应类型缺失。
+  - `app/components/BirthdayCalendar.vue`、`app/components/ProfileForm.vue`、`app/composables/usePostFeed.ts` 等前端类型错误。
 
 **缺口**
 
-- 增加 `lint`、`test`、`test:e2e` 或至少 `check` 聚合脚本。
-- 为核心服务层补单元测试，为登录/发帖/群组/通知补 API 冒烟测试。
-- 为前端关键路径补 Playwright 或 Nuxt 测试，防止 mock 页面长期混入正式功能。
-
-## 已基本实现但仍需验收的能力
-
-这些能力不应再简单归类为“未实现”，但需要业务验收和边界测试：
-
-| 模块 | 当前实现基础 | 后续验收重点 |
-| --- | --- | --- |
-| 认证 | v2 OTP、注册、登录、刷新 token、退出、会话列表/撤销 | 失败重试、限流、邮件配置、2FA 接入 |
-| 帖子主线 | 列表、发布、删除、点赞、收藏、评论、回复列表、转发、热门 | 编辑、我的点赞、回复入口、媒体描述 |
-| 用户关系 | 关注、粉丝、互相关注、拉黑、静音、推荐用户 | 推荐质量、隐私设置生效 |
-| 通知 | 列表、已读/未读、批量已读、删除、恢复 | 实时推送、偏好过滤、邮箱 UI 清理 |
-| 群组基础 | 发现、我的群组、创建、加入/退出、详情、成员/帖子列表、邀请创建/响应后端 | 管理动作、设置、邀请收件箱、分类/标签 |
-| 账户 | 资料、头像、邮箱、设置、会话、处置记录、申诉 | 删除账号、2FA、在线状态、登录提醒 |
+- 修复或隔离旧 v1 类型错误。
+- 增加 `lint`、`test`、`check` 脚本。
+- 为登录、发帖、群组、通知、审核、聊天补 API 冒烟测试。
+- 为关键前端路径补 Playwright 或 Nuxt 测试。
 
 ## 建议实施顺序
 
-1. 先做 P0：聊天数据模型/API/WebSocket 鉴权、审核后端闭环、实时通知基础。
-2. 再补 P1：群组管理动作、推文编辑/回复入口/我的点赞、账户安全约束。
-3. 同步清理 P2：隐藏诊断页、去掉未接线按钮、补质量脚本。
-4. 每补一个模块都保留一条“前端入口 -> service -> API -> DB/事件 -> UI 刷新”的验收链路，避免继续出现只有 UI 或只有后端的半完成状态。
+1. 先补群组 P0 闭环：
+   - 我的群组邀请收件箱。
+   - 群通知偏好持久化。
+   - 群组分类/标签取舍。
+   - 群帖子评论和举报前端接线。
+2. 再补账户与内容体验 P1：
+   - 2FA 真正接入登录流程。
+   - 删除账号/停用账号流程。
+   - 我的点赞页面与接口。
+   - 推文回复入口。
+   - 媒体 description。
+3. 再补 P2 治理与工程质量：
+   - 推荐反馈落库并参与推荐。
+   - 清理 projects 占位和诊断页面。
+   - 修复 typecheck，补 lint/test/check。
+
+每个模块完成时都应保留一条可验证链路：
+
+`前端入口 -> service -> API -> DB/事件 -> UI 刷新/实时同步 -> 失败回滚`
+
+避免再次出现只有 UI、只有后端、或只有字段没有执行链路的半完成状态。
+
+## 当前验证记录
+
+- 已复核当前文件结构和关键调用链。
+- 已运行 `yarn typecheck`，当前失败；失败主要来自既有类型问题和旧 v1 API 类型缺失，不是本文档修改导致。
+- 本文档为盘点更新，没有修改业务代码。
