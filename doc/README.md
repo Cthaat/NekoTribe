@@ -285,7 +285,7 @@ Copy-Item .env.example .env
 | 本地开发       | `ORACLE_HOST`、`ORACLE_PORT`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`                        | 使用内置 Compose Oracle 时保持模板值：`localhost`、`5501`、`ORCLPDB1`、`neko_app`、`NekoApp2026#`。如果连接外部 Oracle，必须改成外部实例真实地址、服务名、用户名和密码。                                                              |
 | 完整 Docker 栈 | `APP_PORT`、`NGINX_PORT`、`DOCKER_PUBLIC_WS_URL`                                                             | 默认应用端口是 `30001`，Nginx 端口是 `30002`。`DOCKER_PUBLIC_WS_URL` 建议留空，让浏览器按当前页面自动使用同源 WebSocket。通过 HTTPS 或 Cloudflare Tunnel 访问时，浏览器必须使用 `wss://.../_ws`，不能使用 `ws://.../_ws`。            |
 | 完整 Docker 栈 | `DOCKER_ORACLE_HOST`、`DOCKER_ORACLE_PORT`、`DOCKER_REDIS_URL`、`DOCKER_REDIS_HOST`、`DOCKER_REDIS_PORT`     | 使用内置 Compose 服务时不要改，必须分别指向 Docker 网络内的 `oracle19c` 和 `redis`，不能写成 `localhost`。                                                                                                                            |
-| Oracle 初始化  | `ORACLE_IMAGE`、`ORACLE_PWD`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`、`DB_INIT_CHECK_TABLE` | `.env.example` 默认使用国内 Oracle 19c 镜像。`ORACLE_PWD` 是容器 `SYS/SYSTEM` 密码；`ORACLE_PASSWORD` 必须和 v2 SQL 创建的 `neko_app` 密码一致，模板值是 `NekoApp2026#`；`DB_INIT_CHECK_TABLE` 默认 `N_USERS`，用于判断是否已初始化。 |
+| Oracle 初始化/存储 | `ORACLE_IMAGE`、`ORACLE_PWD`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`、`DB_INIT_CHECK_TABLE`、`ORACLE_DATA_VOLUME`、`ORACLE_DATA_MOUNT_OPTIONS` | `.env.example` 默认使用国内 Oracle 19c 镜像。`ORACLE_PWD` 是容器 `SYS/SYSTEM` 密码；`ORACLE_PASSWORD` 必须和 v2 SQL 创建的 `neko_app` 密码一致，模板值是 `NekoApp2026#`；Oracle 数据默认使用 Docker named volume `oracle-data`，避免 Rocky Linux/SELinux 下项目目录挂载权限失败。 |
 | Redis          | `REDIS_PASSWORD`                                                                                             | 内置 Redis 服务会读取这个密码。已有 Redis 数据卷启动后再改密码，可能导致旧客户端或健康检查认证失败，需要同步清理数据卷或保持旧密码。                                                                                                  |
 | 邮件功能       | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`                                                           | 应用可以在未配置 SMTP 时启动，但注册验证码、密码重置和账号邮件依赖真实 SMTP。163/QQ/Gmail 等服务通常需要应用专用密码或授权码，不是网页登录密码。                                                                                      |
 | SentimentFlow  | `COMPOSE_PROFILES`、`SENTIMENTFLOW_ENABLED`、`SENTIMENTFLOW_HOST_PORT`、`SENTIMENTFLOW_FRONTEND_HOST_PORT`   | 保持 `COMPOSE_PROFILES=true`。将 `SENTIMENTFLOW_ENABLED=true` 时才会纳入情感分析后端和前端；设为 `false` 时，普通 Compose 启动会跳过拉取、构建和启动这些可选服务。                                                                    |
@@ -368,6 +368,8 @@ docker compose up -d
 - Oracle EM Express：`http://localhost:5500/em`
 
 Oracle 首次启动通常需要数分钟。`.env.example` 默认使用国内 Oracle 19c 镜像；如果你把 `ORACLE_IMAGE` 切换为官方镜像，请先执行 `docker login container-registry.oracle.com`，并在 Oracle Container Registry 接受数据库镜像协议。也可以改用外部 Oracle 实例，并同步更新 `.env` 中的 `ORACLE_HOST`、`ORACLE_PORT`、`ORACLE_SERVICE_NAME`、`ORACLE_USER` 和 `ORACLE_PASSWORD`。
+
+Oracle 数据默认持久化到 Docker named volume `oracle-data`。这样可以避开 Rocky Linux/SELinux 对 `./data/oracle-data` 这类项目目录 bind mount 的写入限制。如果旧目录 `./data/oracle-data` 已经存在，除非你显式设置 `ORACLE_DATA_VOLUME=./data/oracle-data`，否则 Compose 不会再使用它。
 
 ## SentimentFlow 运行方式
 
@@ -583,6 +585,8 @@ SENTIMENTFLOW_CONTAINER_PORT=8846
 | `ORACLE_EM_PORT`                                                         | Docker        | `5500`                                                  | Oracle EM Express 映射端口。                                                                                                            |
 | `ORACLE_IMAGE`                                                           | Docker        | `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c` | `oracle19c` 和 `db-init` 使用的 Oracle 镜像；也可切换为官方 Oracle Registry 镜像。                                                      |
 | `ORACLE_PWD`                                                             | Docker/初始化 | 替换为安全密码                                          | Oracle 容器 SYS/SYSTEM 密码，也是初始化脚本的 SYSDBA 密码。                                                                             |
+| `ORACLE_DATA_VOLUME`                                                     | Docker        | `oracle-data`                                           | 挂载到 `/opt/oracle/oradata` 的数据源；Rocky Linux/SELinux 环境建议保持 named volume 默认值，除非你明确要自行管理宿主机目录。         |
+| `ORACLE_DATA_MOUNT_OPTIONS`                                              | Docker/Linux  | 空                                                      | 短语法挂载选项后缀；仅当 `ORACLE_DATA_VOLUME=./data/oracle-data` 这类宿主机目录时可设为 `:Z`，named volume 必须留空。                 |
 | `ORACLE_SYS_SERVICE_NAME`                                                | 初始化        | `ORCLCDB`                                               | `db-init` 和 `scripts/init-db.*` 使用的 CDB 服务名。                                                                                    |
 | `DB_INIT_CHECK_TABLE`                                                    | 初始化        | `N_USERS`                                               | `db-init` 用来判断数据库是否已初始化的应用 schema 表。                                                                                  |
 | `DOCKER_ORACLE_HOST`                                                     | Docker        | `oracle19c`                                             | 应用容器内访问 Oracle 的主机名。                                                                                                        |
@@ -755,6 +759,37 @@ docker run --env-file .env -p 3000:3000 nekotribe:prod
 ### 应用启动后 API 请求报 Oracle 错误
 
 先用 `docker compose logs db-init` 确认 `db-init` 服务已成功退出。再确认本地开发模式使用 `ORACLE_HOST=localhost`、`ORACLE_PORT=5501`；Docker 应用模式使用 `DOCKER_ORACLE_HOST=oracle19c`、`DOCKER_ORACLE_PORT=1521`。
+
+### Rocky Linux 上 Oracle 容器提示 permission denied
+
+当前 Compose 默认把 Oracle 文件放在 Docker named volume `oracle-data`，不用再让 Oracle 直接写入项目目录，因此可以避开 SELinux relabel 和宿主机属主问题。如果你的 `.env` 里有旧的宿主机目录覆盖，删除它或改成：
+
+```env
+ORACLE_DATA_VOLUME=oracle-data
+ORACLE_DATA_MOUNT_OPTIONS=
+```
+
+然后重启 Oracle：
+
+```bash
+docker compose down
+docker compose up -d oracle19c db-init
+```
+
+只有在你明确需要把数据库文件放到仓库目录时，才使用 bind mount。Rocky Linux 下要同时处理属主和 SELinux 标签：
+
+```bash
+mkdir -p ./data/oracle-data
+sudo chown -R 54321:54321 ./data/oracle-data
+sudo chmod -R u+rwX,g+rwX ./data/oracle-data
+```
+
+```env
+ORACLE_DATA_VOLUME=./data/oracle-data
+ORACLE_DATA_MOUNT_OPTIONS=:Z
+```
+
+在 named volume 和宿主机目录之间切换前，请先备份已有数据库数据。
 
 ### Redis 认证失败
 
