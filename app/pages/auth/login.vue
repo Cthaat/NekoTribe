@@ -178,7 +178,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
         <form
           class="grid gap-4"
           :form="form"
-          @submit="onSubmit"
+          @submit.prevent="onSubmit"
         >
           <FormField
             v-slot="{ componentField }"
