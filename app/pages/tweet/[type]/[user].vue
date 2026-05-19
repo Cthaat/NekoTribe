@@ -47,14 +47,10 @@ const emptyStateMeta = computed(() => {
   if (timelineType.value === 'mention') {
     return {
       icon: AtSign,
-      title: t('post.feed.emptyMentionTitle', '暂时没有提及你的内容'),
-      description:
-        t(
-          'post.feed.emptyMentionDescription',
-          '当有人在推文中提到你时，这里会自动显示。你可以先去首页看看最新动态。'
-        ),
+      title: t('post.feed.emptyMentionTitle'),
+      description: t('post.feed.emptyMentionDescription'),
       accent: 'from-sky-500/20 via-cyan-500/10 to-transparent',
-      actionLabel: t('post.feed.emptyGoHome', '回到首页'),
+      actionLabel: t('post.feed.emptyGoHome'),
       actionTo: localePath(`/tweet/home/${requestedUserId.value}`)
     };
   }
@@ -62,14 +58,10 @@ const emptyStateMeta = computed(() => {
   if (timelineType.value === 'bookmark') {
     return {
       icon: Bookmark,
-      title: t('post.feed.emptyBookmarkTitle', '书签还是空的'),
-      description:
-        t(
-          'post.feed.emptyBookmarkDescription',
-          '把喜欢的内容加入书签后，它们会集中出现在这里，方便你随时回看。'
-        ),
+      title: t('post.feed.emptyBookmarkTitle'),
+      description: t('post.feed.emptyBookmarkDescription'),
       accent: 'from-amber-500/20 via-orange-500/10 to-transparent',
-      actionLabel: t('post.feed.emptyExplore', '去逛逛首页'),
+      actionLabel: t('post.feed.emptyExplore'),
       actionTo: localePath(`/tweet/home/${requestedUserId.value}`)
     };
   }
@@ -79,7 +71,7 @@ const emptyStateMeta = computed(() => {
     title: t('post.feed.emptyTitle'),
     description: t('post.feed.emptyDescription'),
     accent: 'from-zinc-500/20 via-transparent to-transparent',
-    actionLabel: t('post.feed.emptyExplore', '去逛逛首页'),
+    actionLabel: t('post.feed.emptyExplore'),
     actionTo: localePath(`/tweet/home/${requestedUserId.value}`)
   };
 });
@@ -133,7 +125,7 @@ async function handleDeleteTweet(tweetId: number) {
 }
 
 function handleReplyTweet(tweet: PostVM) {
-  const detailPage = localePath(`/tweet/${tweet.id}`);
+  const detailPage = localePath(`/tweet/${tweet.id}?reply=1`);
   return navigateTo(detailPage, { replace: true });
 }
 
@@ -260,8 +252,8 @@ async function handleBookmarkTweet(
           <div class="rounded-full border border-dashed border-border/70 bg-background/80 px-4 py-2 text-xs text-muted-foreground">
             {{
               timelineType === 'mention'
-                ? t('post.feed.emptyMentionHint', '提及会在有人 @你 时自动出现')
-                : t('post.feed.emptyBookmarkHint', '书签会保存你手动收藏的内容')
+                ? t('post.feed.emptyMentionHint')
+                : t('post.feed.emptyBookmarkHint')
             }}
           </div>
           <NuxtLink
