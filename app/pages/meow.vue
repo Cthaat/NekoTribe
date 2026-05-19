@@ -130,6 +130,12 @@ async function handleTweetSubmit(
       if (altText) {
         mediaFormData.append('alt_text', altText);
       }
+      const description = String(
+        formData.get(`description:${index}`) || ''
+      );
+      if (description) {
+        mediaFormData.append('description', description);
+      }
       const media = await v2UploadMedia(mediaFormData);
       mediaIds.push(media.media_id);
     }
