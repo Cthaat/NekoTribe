@@ -158,9 +158,63 @@ export interface V2TokenData {
   refresh_token_expires_at: string;
 }
 
-export interface V2LoginData {
+export interface V2LoginSuccessData {
+  two_factor_required?: false;
   user: V2SelfUser;
   tokens: V2TokenData;
+}
+
+export interface V2TwoFactorLoginChallengeData {
+  two_factor_required: true;
+  challenge_id: string;
+  account: string;
+  expires_at: string;
+}
+
+export type V2LoginData =
+  | V2LoginSuccessData
+  | V2TwoFactorLoginChallengeData;
+
+export interface V2TwoFactorLoginPayload {
+  challenge_id?: string;
+  code: string;
+}
+
+export interface V2TwoFactorSetupPayload {
+  password: string;
+}
+
+export interface V2TwoFactorSetupData {
+  secret: string;
+  otpauth_url: string;
+}
+
+export interface V2TwoFactorConfirmPayload {
+  code: string;
+}
+
+export interface V2TwoFactorConfirmData {
+  enabled: boolean;
+  recovery_codes: string[];
+}
+
+export interface V2TwoFactorDisablePayload {
+  password: string;
+  code: string;
+}
+
+export interface V2TwoFactorStatusData {
+  enabled: boolean;
+}
+
+export interface V2AccountDeletionPayload {
+  password: string;
+  confirmation: string;
+}
+
+export interface V2AccountDeletionData {
+  deleted: boolean;
+  user_id: number;
 }
 
 export interface V2PasswordResetPayload {
@@ -286,6 +340,7 @@ export interface V2MediaAsset {
   duration: number | null;
   thumbnail_url: string | null;
   alt_text: string | null;
+  description: string | null;
   status: string;
   created_at: string;
 }
@@ -1128,6 +1183,11 @@ export type V2ListMyBookmarkedPostsRequest = V2PageQuery & {
   sort?: V2PostSort;
 };
 export type V2ListMyBookmarkedPostsResponse =
+  V2ApiResponse<V2Post[]>;
+export type V2ListMyLikedPostsRequest = V2PageQuery & {
+  sort?: V2PostSort;
+};
+export type V2ListMyLikedPostsResponse =
   V2ApiResponse<V2Post[]>;
 export type V2CreatePostRequest = V2CreatePostPayload;
 export type V2CreatePostResponse = V2ApiResponse<V2Post>;
