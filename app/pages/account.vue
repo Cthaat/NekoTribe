@@ -102,6 +102,10 @@ const baseAccountTabs = [
     to: 'account-posts'
   },
   {
+    labelKey: 'account.tabs.likes',
+    to: 'account-likes'
+  },
+  {
     labelKey: 'account.tabs.appearance',
     to: 'account-appearance'
   },
