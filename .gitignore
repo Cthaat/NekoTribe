@@ -68,3 +68,5 @@ sentimentflow-models/
 .codex-logs
 
 *.pdf
+*.pptx
+outputs/
