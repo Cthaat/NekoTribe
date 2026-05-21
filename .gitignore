@@ -70,3 +70,4 @@ sentimentflow-models/
 *.pdf
 *.pptx
 outputs/
+pptx-build/
