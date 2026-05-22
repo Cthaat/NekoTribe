@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import type { PostVM } from '@/types/posts';
 import {
+  AlertTriangle,
   AtSign,
   Bookmark,
   Compass,
@@ -181,8 +182,7 @@ async function handleLikeTweet(
         likes: result.likesCount
       }
     }));
-  } catch (error) {
-    console.error('Failed to like/unlike tweet:', error);
+  } catch {
     toast.error(t('common.operationFailed'));
   }
 }
@@ -203,11 +203,7 @@ async function handleBookmarkTweet(
         hasBookmarked: result.isBookmarked
       }
     }));
-  } catch (error) {
-    console.error(
-      'Failed to bookmark/unbookmark tweet:',
-      error
-    );
+  } catch {
     toast.error(t('common.operationFailed'));
   }
 }
@@ -225,10 +221,21 @@ async function handleBookmarkTweet(
 
       <div
         v-else-if="feed.error"
-        class="text-center text-destructive"
+        class="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-rose-500/30 bg-rose-50/30 py-12 text-center dark:bg-rose-950/20"
       >
-        {{ t('post.feed.loadProblem') }}
-        <pre class="mt-2 whitespace-pre-wrap break-words text-xs">{{ feed.error }}</pre>
+        <span
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 ring-1 ring-rose-500/20"
+        >
+          <AlertTriangle class="h-5 w-5 text-rose-500" />
+        </span>
+        <div class="grid gap-1">
+          <p class="text-sm font-medium">
+            {{ t('post.feed.loadProblem') }}
+          </p>
+          <p
+            class="max-w-md whitespace-pre-wrap break-words text-xs text-muted-foreground"
+          >{{ feed.error }}</p>
+        </div>
       </div>
 
       <TweetList
