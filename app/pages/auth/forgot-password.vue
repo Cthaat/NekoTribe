@@ -204,10 +204,10 @@ const onSubmit = handleSubmit(
 </script>
 
 <template>
-  <div class="relative grid min-h-svh w-full lg:grid-cols-2">
+  <div class="relative grid min-h-svh w-full overflow-x-clip lg:grid-cols-2">
     <!-- Left: Form column -->
-    <div class="flex flex-col gap-4 p-6 md:p-10">
-      <div class="flex justify-center gap-2 md:justify-start">
+    <div class="flex min-w-0 flex-col gap-4 p-4 sm:p-6 md:p-10">
+      <div class="flex justify-center gap-2 sm:justify-start">
         <NuxtLink
           :to="localePath('/')"
           class="flex items-center gap-2 font-medium"
@@ -221,7 +221,7 @@ const onSubmit = handleSubmit(
         </NuxtLink>
       </div>
 
-      <div class="flex flex-1 items-center justify-center">
+      <div class="flex min-w-0 flex-1 items-center justify-center">
         <div class="w-full max-w-sm">
           <Card class="border-none shadow-none">
             <CardHeader class="space-y-1 px-0 text-center">
@@ -377,7 +377,7 @@ const onSubmit = handleSubmit(
                         {{ t('auth.forgotPassword.captcha') }}
                       </FormLabel>
                       <div
-                        class="grid w-full gap-2 sm:flex sm:items-center"
+                        class="grid w-full min-w-0 gap-2 sm:flex sm:items-center"
                       >
                         <FormControl>
                           <PinInput
