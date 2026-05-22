@@ -182,7 +182,7 @@ onMounted(() => {
 <template>
   <div class="grid gap-4">
     <section
-      class="grid gap-3 rounded-xl border border-border/60 bg-card p-4 shadow-none sm:flex sm:flex-wrap sm:items-center"
+      class="grid min-w-0 gap-3 rounded-xl border border-border/60 bg-card p-4 shadow-none sm:flex sm:flex-wrap sm:items-center"
     >
       <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground sm:mr-2">
         <Filter class="h-3.5 w-3.5" />
@@ -267,10 +267,10 @@ onMounted(() => {
       <article
         v-for="report in reports"
         :key="report.id"
-        class="grid gap-3 rounded-xl border border-border/60 bg-card p-5 shadow-none transition-all hover:border-border hover:shadow-md"
+        class="grid min-w-0 gap-3 overflow-hidden rounded-xl border border-border/60 bg-card p-5 shadow-none transition-all hover:border-border hover:shadow-md"
       >
         <header class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div class="flex items-start gap-3">
+          <div class="flex min-w-0 items-start gap-3">
             <span
               class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400"
             >
@@ -290,7 +290,7 @@ onMounted(() => {
               </p>
             </div>
           </div>
-          <div class="flex flex-wrap gap-2 sm:justify-end">
+          <div class="flex min-w-0 flex-wrap gap-2 sm:justify-end">
             <span :class="priorityPillClass(report.priority)">
               {{ report.priority }}
             </span>
@@ -300,7 +300,7 @@ onMounted(() => {
           </div>
         </header>
 
-        <p class="text-sm leading-relaxed">
+        <p class="break-all text-sm leading-relaxed">
           {{ report.description || t('moderation.detail.reportFallback') }}
         </p>
 
@@ -315,7 +315,7 @@ onMounted(() => {
           {{ t('moderation.reports.evidence') }}
         </a>
 
-        <div class="flex flex-wrap gap-2 border-t border-border/60 pt-3">
+        <div class="flex min-w-0 flex-wrap gap-2 border-t border-border/60 pt-3">
           <Button
             size="sm"
             variant="outline"
@@ -364,7 +364,7 @@ onMounted(() => {
     </div>
 
     <section
-      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
+      class="grid min-w-0 gap-4 overflow-hidden rounded-xl border border-border/60 bg-card p-5 shadow-none"
     >
       <header class="flex items-start gap-3">
         <span
@@ -400,12 +400,12 @@ onMounted(() => {
         <div
           v-for="appeal in appeals"
           :key="appeal.id"
-          class="grid gap-3 rounded-lg border border-border/60 bg-card p-4 shadow-xs"
+          class="grid min-w-0 gap-3 overflow-hidden rounded-lg border border-border/60 bg-card p-4 shadow-xs"
         >
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0">
-              <div class="flex items-center gap-2 text-sm font-medium">
-                <span>{{ appeal.userName }}</span>
+              <div class="flex min-w-0 items-center gap-2 text-sm font-medium">
+                <span class="min-w-0 break-all">{{ appeal.userName }}</span>
                 <span class="font-mono text-xs text-muted-foreground">
                   #{{ appeal.statementId }}
                 </span>
@@ -418,8 +418,8 @@ onMounted(() => {
               {{ appeal.status }}
             </span>
           </div>
-          <p class="text-sm leading-relaxed">{{ appeal.message }}</p>
-          <div class="flex flex-wrap gap-2 border-t border-border/60 pt-3">
+          <p class="break-all text-sm leading-relaxed">{{ appeal.message }}</p>
+          <div class="flex min-w-0 flex-wrap gap-2 border-t border-border/60 pt-3">
             <Button
               size="sm"
               class="h-8 rounded-md shadow-xs"
