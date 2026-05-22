@@ -2,21 +2,20 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import {
   FileText,
+  Loader2,
   RefreshCw,
   Search,
-  Users
+  Users,
+  X
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import GroupPostCard from '@/components/GroupPostCard.vue';
 import CommentSection from '@/components/CommentSection.vue';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle
@@ -474,108 +473,118 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-5">
-    <Card class="gap-0 bg-card/60 py-0">
-      <CardContent
-        class="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between"
+  <div class="grid gap-5">
+    <section
+      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
+    >
+      <div
+        class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
       >
-      <div class="min-w-0">
-        <div class="flex items-center gap-2">
-          <FileText class="h-4 w-4 text-primary" />
-          <h2 class="text-base font-semibold">
-            {{ t('groups.posts.title') }}
-          </h2>
+        <div class="flex items-start gap-3 min-w-0">
+          <span
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+          >
+            <FileText class="h-4 w-4" />
+          </span>
+          <div class="min-w-0 grid gap-0.5">
+            <h2 class="text-sm font-semibold tracking-tight">
+              {{ t('groups.posts.title') }}
+            </h2>
+            <p class="text-xs text-muted-foreground">
+              {{ t('groups.posts.description') }}
+            </p>
+          </div>
         </div>
-        <p class="mt-1 text-sm text-muted-foreground">
-          {{ t('groups.posts.description') }}
-        </p>
-      </div>
 
-      <div class="flex flex-col gap-2 sm:flex-row">
-        <Select v-model="selectedGroupId">
-          <SelectTrigger class="w-full sm:w-[220px]">
-            <SelectValue
-              :placeholder="t('groups.posts.groupPlaceholder')"
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <Select v-model="selectedGroupId">
+            <SelectTrigger class="h-9 w-full shadow-xs sm:w-[220px]">
+              <SelectValue
+                :placeholder="t('groups.posts.groupPlaceholder')"
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                {{ t('groups.posts.allGroups') }}
+              </SelectItem>
+              <SelectItem
+                v-for="group in groups"
+                :key="group.id"
+                :value="String(group.id)"
+              >
+                {{ group.name }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select v-model="selectedType">
+            <SelectTrigger class="h-9 w-full shadow-xs sm:w-[160px]">
+              <SelectValue
+                :placeholder="t('groups.posts.typePlaceholder')"
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                v-for="option in typeOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ t(option.labelKey) }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant="outline"
+            class="h-9 rounded-md shadow-xs"
+            :disabled="loading"
+            @click="handleRefresh"
+          >
+            <RefreshCw
+              :class="[
+                'h-3.5 w-3.5',
+                { 'animate-spin': loading }
+              ]"
             />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">
-              {{ t('groups.posts.allGroups') }}
-            </SelectItem>
-            <SelectItem
-              v-for="group in groups"
-              :key="group.id"
-              :value="String(group.id)"
-            >
-              {{ group.name }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select v-model="selectedType">
-          <SelectTrigger class="w-full sm:w-[160px]">
-            <SelectValue
-              :placeholder="t('groups.posts.typePlaceholder')"
-            />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem
-              v-for="option in typeOptions"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ t(option.labelKey) }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button
-          variant="outline"
-          :disabled="loading"
-          @click="handleRefresh"
-        >
-          <RefreshCw
-            :class="[
-              'h-4 w-4',
-              { 'animate-spin': loading }
-            ]"
-          />
-          {{ t('common.refresh') }}
-        </Button>
+            {{ t('common.refresh') }}
+          </Button>
+        </div>
       </div>
-      </CardContent>
-    </Card>
+    </section>
 
     <div
-      class="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
+      class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
     >
-      <div class="flex items-center gap-2">
-        <Badge variant="outline">
-          {{ t('groups.posts.total', { count: total }) }}
-        </Badge>
-        <Badge v-if="selectedGroup" variant="secondary">
-          {{ selectedGroup.name }}
-        </Badge>
-      </div>
+      <span
+        class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+      >
+        <span class="tabular-nums">{{ total }}</span>
+        {{ t('groups.posts.total', { count: total }) }}
+      </span>
+      <span
+        v-if="selectedGroup"
+        class="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary"
+      >
+        <Users class="h-3 w-3" />
+        {{ selectedGroup.name }}
+      </span>
     </div>
 
-    <div v-if="loading" class="space-y-4">
-      <Card
+    <div v-if="loading" class="grid gap-3">
+      <div
         v-for="index in 3"
         :key="index"
-        class="gap-0 py-0"
+        class="grid gap-4 rounded-xl border border-border/60 bg-card p-4 shadow-none"
       >
-        <CardContent class="p-4">
-          <div class="flex items-center gap-3">
-            <Skeleton class="h-10 w-10 rounded-full" />
-            <div class="flex-1 space-y-2">
-              <Skeleton class="h-4 w-32" />
-              <Skeleton class="h-3 w-48" />
-            </div>
+        <div class="flex items-center gap-3">
+          <Skeleton class="h-10 w-10 rounded-full" />
+          <div class="flex-1 grid gap-2">
+            <Skeleton class="h-4 w-32" />
+            <Skeleton class="h-3 w-48" />
           </div>
-          <Skeleton class="mt-4 h-20 w-full" />
-        </CardContent>
-      </Card>
+        </div>
+        <Skeleton class="h-20 w-full" />
+      </div>
     </div>
 
     <AppEmptyState
@@ -584,8 +593,12 @@ onMounted(async () => {
       :title="t('groups.posts.loadFailed')"
       :description="error"
     >
-      <Button variant="outline" @click="handleRefresh">
-        <RefreshCw class="h-4 w-4" />
+      <Button
+        variant="outline"
+        class="h-9 rounded-md shadow-xs"
+        @click="handleRefresh"
+      >
+        <RefreshCw class="h-3.5 w-3.5" />
         {{ t('common.refresh') }}
       </Button>
     </AppEmptyState>
@@ -604,7 +617,7 @@ onMounted(async () => {
       :description="t('groups.posts.emptyDescription')"
     />
 
-    <div v-else class="space-y-4">
+    <div v-else class="grid gap-3">
       <GroupPostCard
         v-for="post in posts"
         :key="`${post.group?.id ?? 'group'}-${post.id}`"
@@ -620,15 +633,16 @@ onMounted(async () => {
         @share="handleShare"
       />
 
-      <div v-if="hasNext" class="flex justify-center pt-2">
+      <div v-if="hasNext" class="flex justify-center pt-1">
         <Button
           variant="outline"
+          class="h-9 rounded-md shadow-xs"
           :disabled="loadingMore"
           @click="handleLoadMore"
         >
-          <RefreshCw
+          <Loader2
             v-if="loadingMore"
-            class="h-4 w-4 animate-spin"
+            class="h-3.5 w-3.5 animate-spin"
           />
           {{ t('common.loadMore') }}
         </Button>
@@ -636,48 +650,85 @@ onMounted(async () => {
     </div>
 
     <Dialog v-model:open="commentDialogOpen">
-      <DialogContent class="max-h-[88vh] max-w-3xl overflow-y-auto p-0">
-        <DialogHeader class="px-4 pt-4 sm:px-6">
-          <DialogTitle>{{ t('comment.title') }}</DialogTitle>
-          <DialogDescription v-if="commentPost?.group">
+      <DialogContent
+        class="flex max-h-[88vh] max-w-3xl flex-col overflow-hidden rounded-xl border-border/60 p-0"
+      >
+        <DialogHeader
+          class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+        >
+          <DialogTitle
+            class="flex items-center gap-2 text-base font-semibold tracking-tight"
+          >
+            <span
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary"
+            >
+              <FileText class="h-4 w-4" />
+            </span>
+            {{ t('comment.title') }}
+          </DialogTitle>
+          <p
+            v-if="commentPost?.group"
+            class="pl-9 text-xs text-muted-foreground"
+          >
             {{ commentPost.group.name }}
-          </DialogDescription>
+          </p>
         </DialogHeader>
-        <div v-if="commentsLoading" class="space-y-3 p-6">
+        <div
+          v-if="commentsLoading"
+          class="grid gap-3 p-6"
+        >
           <Skeleton class="h-20 w-full" />
           <Skeleton class="h-16 w-full" />
         </div>
-        <CommentSection
-          v-else-if="commentPost"
-          :comments="comments"
-          :post-id="commentPost.id"
-          enable-delete
-          @send-reply="handleSendComment"
-          @submit-reply="handleSubmitCommentReply"
-          @like-comment="handleLikeComment"
-          @delete-comment="handleDeleteComment"
-        />
+        <div v-else class="min-h-0 flex-1 overflow-y-auto">
+          <CommentSection
+            v-if="commentPost"
+            :comments="comments"
+            :post-id="commentPost.id"
+            enable-delete
+            @send-reply="handleSendComment"
+            @submit-reply="handleSubmitCommentReply"
+            @like-comment="handleLikeComment"
+            @delete-comment="handleDeleteComment"
+          />
+        </div>
       </DialogContent>
     </Dialog>
 
     <Dialog v-model:open="reportDialogOpen">
-      <DialogContent class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{{ t('post.report.title') }}</DialogTitle>
-          <DialogDescription>
+      <DialogContent
+        class="overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-md"
+      >
+        <DialogHeader
+          class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+        >
+          <DialogTitle
+            class="flex items-center gap-2 text-base font-semibold tracking-tight"
+          >
+            <span
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400"
+            >
+              <X class="h-4 w-4" />
+            </span>
+            {{ t('post.report.title') }}
+          </DialogTitle>
+          <p class="pl-9 text-xs text-muted-foreground">
             {{ t('post.report.description') }}
-          </DialogDescription>
+          </p>
         </DialogHeader>
 
-        <div class="space-y-4 py-2">
-          <div class="space-y-2">
-            <Label for="group-post-report-reason">
+        <div class="grid gap-4 px-5 py-4">
+          <div class="grid gap-1.5">
+            <Label
+              for="group-post-report-reason"
+              class="text-xs font-medium"
+            >
               {{ t('post.report.reasonLabel') }}
             </Label>
             <Select v-model="reportReason">
               <SelectTrigger
                 id="group-post-report-reason"
-                class="w-full"
+                class="h-9 w-full shadow-xs"
               >
                 <SelectValue
                   :placeholder="t('post.report.reasonPlaceholder')"
@@ -689,26 +740,27 @@ onMounted(async () => {
                   :key="reason"
                   :value="reason"
                 >
-                  {{
-                    t(`moderation.filters.reasons.${reason}`)
-                  }}
+                  {{ t(`moderation.filters.reasons.${reason}`) }}
                 </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div class="space-y-2">
-            <Label for="group-post-report-description">
+          <div class="grid gap-1.5">
+            <Label
+              for="group-post-report-description"
+              class="text-xs font-medium"
+            >
               {{ t('post.report.descriptionLabel') }}
             </Label>
             <Textarea
               id="group-post-report-description"
               v-model="reportDescription"
               :placeholder="t('post.report.descriptionPlaceholder')"
-              class="min-h-24 resize-none"
+              class="min-h-24 resize-none shadow-xs"
               maxlength="1000"
             />
-            <p class="text-xs text-muted-foreground">
+            <p class="text-[11px] text-muted-foreground">
               {{
                 t('post.report.descriptionHint', {
                   count: reportDescription.length
@@ -718,19 +770,28 @@ onMounted(async () => {
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter
+          class="flex flex-col-reverse gap-2 border-t border-border/60 bg-background/60 px-5 py-3 backdrop-blur sm:flex-row sm:justify-end"
+        >
           <Button
             variant="outline"
+            class="h-9 rounded-md shadow-xs"
             :disabled="isSubmittingReport"
             @click="reportDialogOpen = false"
           >
+            <X class="h-3.5 w-3.5" />
             {{ t('common.cancel') }}
           </Button>
           <Button
             variant="destructive"
+            class="h-9 rounded-md shadow-xs"
             :disabled="isSubmittingReport"
             @click="submitGroupPostReport"
           >
+            <Loader2
+              v-if="isSubmittingReport"
+              class="h-3.5 w-3.5 animate-spin"
+            />
             {{
               isSubmittingReport
                 ? t('post.report.submitting')
