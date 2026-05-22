@@ -58,6 +58,8 @@ const emit = defineEmits<{
 
 const message = ref('');
 const textareaRef = ref<TextareaRef | null>(null);
+const attachmentInputRef = ref<HTMLInputElement | null>(null);
+const imageInputRef = ref<HTMLInputElement | null>(null);
 const attachments = ref<File[]>([]);
 const isEmojiPickerOpen = ref(false);
 const isMentionPickerOpen = ref(false);
@@ -65,6 +67,34 @@ const isChannelPickerOpen = ref(false);
 const isStickerPickerOpen = ref(false);
 const mentionSearch = ref('');
 const channelSearch = ref('');
+
+const ATTACHMENT_ACCEPT = [
+  'image/*',
+  'video/*',
+  'audio/*',
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.ppt',
+  '.pptx',
+  '.txt',
+  '.md',
+  '.csv',
+  '.tsv',
+  '.json',
+  '.xml',
+  '.rtf',
+  '.odt',
+  '.ods',
+  '.odp',
+  '.zip',
+  '.rar',
+  '.7z',
+  '.tar',
+  '.gz'
+].join(',');
 
 // 常用表情
 const emojis = [
@@ -230,6 +260,16 @@ const handleInput = () => {
 };
 
 // 处理文件选择
+const openAttachmentPicker = () => {
+  if (props.disabled) return;
+  attachmentInputRef.value?.click();
+};
+
+const openImagePicker = () => {
+  if (props.disabled) return;
+  imageInputRef.value?.click();
+};
+
 const handleFileSelect = (e: Event) => {
   const input = e.target as HTMLInputElement;
   if (props.disabled) {
@@ -409,6 +449,24 @@ watch(
 
       <!-- 工具栏 -->
       <div class="flex items-center gap-1 px-1.5 py-1.5">
+        <input
+          ref="attachmentInputRef"
+          type="file"
+          multiple
+          class="hidden"
+          :accept="ATTACHMENT_ACCEPT"
+          :disabled="disabled"
+          @change="handleFileSelect"
+        />
+        <input
+          ref="imageInputRef"
+          type="file"
+          accept="image/*"
+          multiple
+          class="hidden"
+          :disabled="disabled"
+          @change="handleImageSelect"
+        />
         <TooltipProvider>
           <!-- 上传附件 -->
           <Tooltip>
@@ -417,17 +475,11 @@ watch(
                 variant="ghost"
                 size="icon"
                 class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
-                as="label"
+                type="button"
                 :disabled="disabled"
+                @click="openAttachmentPicker"
               >
                 <Paperclip class="h-4 w-4" />
-                <input
-                  type="file"
-                  multiple
-                  class="hidden"
-                  :disabled="disabled"
-                  @change="handleFileSelect"
-                />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -442,18 +494,11 @@ watch(
                 variant="ghost"
                 size="icon"
                 class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
-                as="label"
+                type="button"
                 :disabled="disabled"
+                @click="openImagePicker"
               >
                 <ImageIcon class="h-4 w-4" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  class="hidden"
-                  :disabled="disabled"
-                  @change="handleImageSelect"
-                />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -463,23 +508,19 @@ watch(
 
           <!-- 表情 -->
           <Popover v-model:open="isEmojiPickerOpen">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <PopoverTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
-                    :disabled="disabled"
-                  >
-                    <Smile class="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{{ t('chat.actions.emoji') }}</p>
-              </TooltipContent>
-            </Tooltip>
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                type="button"
+                :title="t('chat.actions.emoji')"
+                :aria-label="t('chat.actions.emoji')"
+                :disabled="disabled"
+              >
+                <Smile class="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
             <PopoverContent
               class="w-auto p-2"
               side="top"
@@ -508,23 +549,19 @@ watch(
 
           <!-- 提及用户 -->
           <Popover v-model:open="isMentionPickerOpen">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <PopoverTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
-                    :disabled="disabled"
-                  >
-                    <AtSign class="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{{ t('chat.actions.mentionUser') }}</p>
-              </TooltipContent>
-            </Tooltip>
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                type="button"
+                :title="t('chat.actions.mentionUser')"
+                :aria-label="t('chat.actions.mentionUser')"
+                :disabled="disabled"
+              >
+                <AtSign class="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
             <PopoverContent
               class="w-[min(18rem,calc(100vw-1rem))] p-2"
               side="top"
@@ -579,23 +616,19 @@ watch(
 
           <!-- 频道链接 -->
           <Popover v-model:open="isChannelPickerOpen">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <PopoverTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
-                    :disabled="disabled"
-                  >
-                    <Hash class="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{{ t('chat.actions.quoteChannel') }}</p>
-              </TooltipContent>
-            </Tooltip>
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                type="button"
+                :title="t('chat.actions.quoteChannel')"
+                :aria-label="t('chat.actions.quoteChannel')"
+                :disabled="disabled"
+              >
+                <Hash class="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
             <PopoverContent
               class="w-[min(16rem,calc(100vw-1rem))] p-2"
               side="top"
@@ -637,23 +670,19 @@ watch(
 
           <!-- 礼物/贴纸 -->
           <Popover v-model:open="isStickerPickerOpen">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <PopoverTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
-                    :disabled="disabled"
-                  >
-                    <Gift class="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{{ t('chat.actions.sendSticker') }}</p>
-              </TooltipContent>
-            </Tooltip>
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                type="button"
+                :title="t('chat.actions.sendSticker')"
+                :aria-label="t('chat.actions.sendSticker')"
+                :disabled="disabled"
+              >
+                <Gift class="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
             <PopoverContent
               class="w-56 p-2"
               side="top"
