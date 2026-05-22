@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, watch } from 'vue';
 import {
   Users,
-  FileText,
   Settings,
   UserPlus,
-  Share2,
   Bell,
   BellOff,
-  LogOut,
   Crown,
   Globe,
   Lock,
@@ -18,11 +15,7 @@ import {
 } from 'lucide-vue-next';
 import {
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
+  DialogContent
 } from '@/components/ui/dialog';
 import {
   Tabs,
@@ -36,9 +29,7 @@ import {
   AvatarImage
 } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { toast } from 'vue-sonner';
 import GroupMemberCard from './GroupMemberCard.vue';
 import GroupPostCard from './GroupPostCard.vue';
@@ -76,16 +67,13 @@ const emit = defineEmits<{
   (e: 'members-updated', id: number): void;
 }>();
 
-// 当前标签
 const activeTab = ref('about');
 
-// 通知状态
 const notificationsEnabled = ref(true);
 const notificationLoading = ref(false);
 const notificationSaving = ref(false);
 const memberActionKey = ref<string | null>(null);
 
-// 重置状态
 watch(
   () => props.open,
   isOpen => {
@@ -116,7 +104,6 @@ watch(
   { immediate: true }
 );
 
-// 获取隐私图标
 const getPrivacyIcon = (privacy: string) => {
   switch (privacy) {
     case 'public':
@@ -130,7 +117,6 @@ const getPrivacyIcon = (privacy: string) => {
   }
 };
 
-// 获取隐私文本
 const getPrivacyText = (privacy: string) => {
   switch (privacy) {
     case 'public':
@@ -147,17 +133,18 @@ const getPrivacyText = (privacy: string) => {
 const getCategoryText = (category: string) =>
   t(`groups.filters.category.${category}`);
 
-// 格式化日期
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);
-  return date.toLocaleDateString(locale.value === 'zh' ? 'zh-CN' : 'en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
+  return date.toLocaleDateString(
+    locale.value === 'zh' ? 'zh-CN' : 'en-US',
+    {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }
+  );
 };
 
-// 处理加入/离开
 const handleJoinLeave = () => {
   if (!props.group) return;
   if (props.group.isMember) {
@@ -167,7 +154,6 @@ const handleJoinLeave = () => {
   }
 };
 
-// 切换通知
 const toggleNotifications = async () => {
   if (!props.group || notificationSaving.value) return;
   const previous = notificationsEnabled.value;
@@ -196,14 +182,12 @@ const toggleNotifications = async () => {
   }
 };
 
-// 处理邀请
 const handleInvite = () => {
   if (props.group) {
     emit('invite', props.group.id);
   }
 };
 
-// 处理设置
 const handleSettings = () => {
   if (props.group) {
     emit('settings', props.group.id);
@@ -347,7 +331,6 @@ function openPostReport(postId: number): void {
   );
 }
 
-// 切换标签
 const handleTabChange = (value: string | number) => {
   activeTab.value = String(value);
 };
@@ -356,62 +339,75 @@ const handleTabChange = (value: string | number) => {
 <template>
   <Dialog :open="open" @update:open="closeDialog">
     <DialogContent
-      class="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden p-0"
+      class="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden rounded-xl border-border/60 p-0"
     >
       <template v-if="group">
-        <!-- 封面 -->
         <div
-          class="relative h-32 bg-gradient-to-r from-primary/20 to-primary/10"
+          class="relative h-32 bg-gradient-to-br from-primary/20 via-primary/10 to-background"
         >
           <img
             v-if="group.coverImage"
             :src="group.coverImage"
             :alt="group.name"
-            class="w-full h-full object-cover"
+            class="h-full w-full object-cover"
           />
         </div>
 
-        <!-- 头部信息 -->
-        <div class="relative -mt-10 px-4 pb-4 sm:px-6">
-          <div class="flex flex-col items-start gap-4 sm:flex-row sm:items-end">
+        <div class="relative -mt-10 px-5 pb-4 sm:px-6">
+          <div
+            class="flex flex-col items-start gap-4 sm:flex-row sm:items-end"
+          >
             <Avatar
-              class="h-20 w-20 border-4 border-background"
+              class="h-20 w-20 ring-4 ring-background shadow-md"
             >
               <AvatarImage
                 :src="group.avatar"
                 :alt="group.name"
               />
-              <AvatarFallback class="text-2xl">{{
-                group.name.charAt(0)
-              }}</AvatarFallback>
+              <AvatarFallback
+                class="bg-primary/10 text-2xl font-semibold text-primary"
+              >
+                {{ group.name.charAt(0) }}
+              </AvatarFallback>
             </Avatar>
             <div class="min-w-0 flex-1 pb-1">
-              <h2 class="truncate text-xl font-bold">
+              <h2
+                class="truncate text-xl font-semibold tracking-tight"
+              >
                 {{ group.name }}
               </h2>
               <div
-                class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+                class="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
               >
-                <component
-                  :is="getPrivacyIcon(group.privacy)"
-                  class="h-4 w-4"
-                />
-                <span>{{
-                  getPrivacyText(group.privacy)
-                }}</span>
-                <span>·</span>
-                <span>{{ t('groups.stats.membersCount', { count: group.memberCount }) }}</span>
+                <span
+                  class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 font-medium"
+                >
+                  <component
+                    :is="getPrivacyIcon(group.privacy)"
+                    class="h-3 w-3"
+                  />
+                  {{ getPrivacyText(group.privacy) }}
+                </span>
+                <span class="tabular-nums">
+                  {{
+                    t('groups.stats.membersCount', {
+                      count: group.memberCount
+                    })
+                  }}
+                </span>
               </div>
             </div>
           </div>
 
-          <!-- 操作按钮 -->
-          <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div
+            class="mt-4 flex flex-wrap items-center gap-2"
+          >
             <Button
               v-if="!group.isOwner"
               :variant="
                 group.isMember ? 'outline' : 'default'
               "
+              class="h-9 rounded-md shadow-xs"
               @click="handleJoinLeave"
             >
               {{
@@ -425,176 +421,237 @@ const handleTabChange = (value: string | number) => {
             <Button
               v-if="group.isMember"
               variant="outline"
+              class="h-9 rounded-md shadow-xs"
               @click="handleInvite"
             >
-              <UserPlus class="h-4 w-4 mr-2" />
+              <UserPlus class="h-3.5 w-3.5" />
               {{ t('groups.actions.invite') }}
             </Button>
-            <Button
+            <button
               v-if="group.isMember"
-              variant="ghost"
-              size="icon"
+              type="button"
+              class="flex h-9 w-9 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
               :disabled="notificationLoading || notificationSaving"
+              :aria-label="
+                notificationsEnabled
+                  ? t('groups.notifications.disabled')
+                  : t('groups.notifications.enabled')
+              "
               @click="toggleNotifications"
             >
               <component
                 :is="notificationsEnabled ? Bell : BellOff"
-                class="h-4 w-4"
+                class="h-3.5 w-3.5"
               />
-            </Button>
-            <Button
+            </button>
+            <button
               v-if="group.isOwner || group.isAdmin"
-              variant="ghost"
-              size="icon"
+              type="button"
+              class="flex h-9 w-9 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              :aria-label="t('groups.actions.settings')"
               @click="handleSettings"
             >
-              <Settings class="h-4 w-4" />
-            </Button>
+              <Settings class="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
-        <Separator />
+        <div class="border-t border-border/60" />
 
-        <!-- 标签页 -->
         <Tabs
           :model-value="activeTab"
-          class="flex-1 flex flex-col"
+          class="flex flex-1 flex-col"
           @update:model-value="handleTabChange"
         >
-          <div class="mx-4 mt-2 overflow-x-auto sm:mx-6">
-            <TabsList class="grid w-max min-w-full grid-cols-3">
-              <TabsTrigger value="about">{{ t('groups.detail.tabs.about') }}</TabsTrigger>
-              <TabsTrigger value="posts">
-                {{ t('groups.detail.tabs.posts', { count: posts?.length || 0 }) }}
+          <div class="mx-5 mt-3 overflow-x-auto sm:mx-6">
+            <TabsList
+              class="grid w-max min-w-full grid-cols-3 shadow-xs"
+            >
+              <TabsTrigger
+                value="about"
+                class="text-xs font-medium"
+              >
+                {{ t('groups.detail.tabs.about') }}
               </TabsTrigger>
-              <TabsTrigger value="members">
-                {{ t('groups.detail.tabs.members', { count: members?.length || 0 }) }}
+              <TabsTrigger
+                value="posts"
+                class="text-xs font-medium"
+              >
+                {{
+                  t('groups.detail.tabs.posts', {
+                    count: posts?.length || 0
+                  })
+                }}
+              </TabsTrigger>
+              <TabsTrigger
+                value="members"
+                class="text-xs font-medium"
+              >
+                {{
+                  t('groups.detail.tabs.members', {
+                    count: members?.length || 0
+                  })
+                }}
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <ScrollArea class="flex-1 px-4 py-4 sm:px-6">
-            <!-- 关于 -->
+          <ScrollArea class="flex-1 px-5 py-4 sm:px-6">
             <TabsContent
               value="about"
-              class="mt-0 space-y-4"
+              class="mt-0 grid gap-4"
             >
-              <div>
-                <h3 class="font-medium mb-2">{{ t('groups.detail.aboutTitle') }}</h3>
-                <p class="break-words text-sm text-muted-foreground">
+              <div class="grid gap-2">
+                <h3
+                  class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                >
+                  {{ t('groups.detail.aboutTitle') }}
+                </h3>
+                <p
+                  class="break-words text-sm leading-6 text-foreground"
+                >
                   {{ group.description }}
                 </p>
               </div>
 
-              <Separator />
+              <div class="border-t border-border/60" />
 
-              <div class="space-y-3">
+              <div class="grid gap-3">
                 <div
                   class="flex items-center gap-3 text-sm"
                 >
-                  <Calendar
-                    class="h-4 w-4 text-muted-foreground"
-                  />
                   <span
-                    >{{ t('groups.detail.createdAt', { date: formatDate(group.createdAt) }) }}</span
+                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground"
                   >
+                    <Calendar class="h-3.5 w-3.5" />
+                  </span>
+                  <span class="text-muted-foreground">
+                    {{
+                      t('groups.detail.createdAt', {
+                        date: formatDate(group.createdAt)
+                      })
+                    }}
+                  </span>
                 </div>
                 <div
                   class="flex items-center gap-3 text-sm"
                 >
-                  <Users
-                    class="h-4 w-4 text-muted-foreground"
-                  />
                   <span
-                    >{{ t('groups.stats.membersCount', { count: group.memberCount }) }}</span
+                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
                   >
+                    <Users class="h-3.5 w-3.5" />
+                  </span>
+                  <span class="tabular-nums text-muted-foreground">
+                    {{
+                      t('groups.stats.membersCount', {
+                        count: group.memberCount
+                      })
+                    }}
+                  </span>
                 </div>
                 <div
                   class="flex items-center gap-3 text-sm"
                 >
-                  <MessageSquare
-                    class="h-4 w-4 text-muted-foreground"
-                  />
-                  <span>{{ t('groups.stats.posts', { count: group.postCount }) }}</span>
+                  <span
+                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  >
+                    <MessageSquare class="h-3.5 w-3.5" />
+                  </span>
+                  <span class="tabular-nums text-muted-foreground">
+                    {{
+                      t('groups.stats.posts', {
+                        count: group.postCount
+                      })
+                    }}
+                  </span>
                 </div>
               </div>
 
-              <Separator />
+              <div class="border-t border-border/60" />
 
-              <!-- 群主信息 -->
-              <div>
-                <h3 class="font-medium mb-3">{{ t('groups.detail.owner') }}</h3>
-                <Button
+              <div class="grid gap-3">
+                <h3
+                  class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                >
+                  {{ t('groups.detail.owner') }}
+                </h3>
+                <button
                   type="button"
-                  variant="ghost"
-                  class="h-auto max-w-full justify-start gap-3 px-2 py-2 text-left"
+                  class="flex w-full items-center gap-3 rounded-lg border border-border/60 bg-card p-3 text-left transition-all hover:border-border hover:shadow-sm"
                   @click="openMemberProfile(group.owner.id)"
                 >
-                  <Avatar class="h-10 w-10">
-                    <AvatarImage
-                      :src="group.owner.avatar"
-                    />
-                    <AvatarFallback>{{
-                      group.owner.nickname.charAt(0)
-                    }}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div class="flex items-center gap-2">
-                      <span class="font-medium text-sm">{{
-                        group.owner.nickname
-                      }}</span>
-                      <Badge
-                        variant="default"
-                        class="gap-1 text-xs"
-                      >
-                        <Crown class="h-3 w-3" />
-                        {{ t('groups.detail.owner') }}
-                      </Badge>
-                    </div>
-                    <span
-                      class="text-xs text-muted-foreground"
-                      >@{{ group.owner.username }}</span
+                  <Avatar class="h-10 w-10 ring-1 ring-border">
+                    <AvatarImage :src="group.owner.avatar" />
+                    <AvatarFallback
+                      class="bg-primary/10 text-sm font-semibold text-primary"
                     >
+                      {{ group.owner.nickname.charAt(0) }}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                      <span class="truncate text-sm font-semibold tracking-tight">
+                        {{ group.owner.nickname }}
+                      </span>
+                      <span
+                        class="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200/60 bg-amber-100/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300"
+                      >
+                        <Crown class="h-2.5 w-2.5" />
+                        {{ t('groups.detail.owner') }}
+                      </span>
+                    </div>
+                    <span class="truncate text-[11px] text-muted-foreground">
+                      @{{ group.owner.username }}
+                    </span>
                   </div>
-                </Button>
+                </button>
               </div>
 
-              <!-- 分类和标签 -->
               <div
                 v-if="
                   group.category ||
                   (group.tags && group.tags.length > 0)
                 "
               >
-                <Separator class="mb-4" />
-                <h3 class="font-medium mb-3">{{ t('groups.detail.categoryAndTags') }}</h3>
-                <div class="flex flex-wrap gap-2">
-                  <Badge
-                    v-if="group.category"
-                    variant="outline"
+                <div class="border-t border-border/60" />
+                <div class="grid gap-3 pt-4">
+                  <h3
+                    class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                   >
-                    {{ getCategoryText(group.category) }}
-                  </Badge>
-                  <Badge
-                    v-for="tag in group.tags"
-                    :key="tag"
-                    variant="secondary"
-                  >
-                    #{{ tag }}
-                  </Badge>
+                    {{ t('groups.detail.categoryAndTags') }}
+                  </h3>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span
+                      v-if="group.category"
+                      class="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary"
+                    >
+                      {{ getCategoryText(group.category) }}
+                    </span>
+                    <span
+                      v-for="tag in group.tags"
+                      :key="tag"
+                      class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                    >
+                      #{{ tag }}
+                    </span>
+                  </div>
                 </div>
               </div>
             </TabsContent>
 
-            <!-- 帖子列表 -->
             <TabsContent
               value="posts"
-              class="mt-0 space-y-4"
+              class="mt-0 grid gap-3"
             >
               <div
                 v-if="!posts || posts.length === 0"
-                class="text-center py-8 text-muted-foreground"
+                class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/10 py-12 text-sm text-muted-foreground"
               >
+                <span
+                  class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+                >
+                  <MessageSquare class="h-5 w-5" />
+                </span>
                 {{ t('groups.detail.emptyPosts') }}
               </div>
               <GroupPostCard
@@ -607,15 +664,19 @@ const handleTabChange = (value: string | number) => {
               />
             </TabsContent>
 
-            <!-- 成员列表 -->
             <TabsContent value="members" class="mt-0">
               <div
                 v-if="!members || members.length === 0"
-                class="text-center py-8 text-muted-foreground"
+                class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/10 py-12 text-sm text-muted-foreground"
               >
+                <span
+                  class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+                >
+                  <Users class="h-5 w-5" />
+                </span>
                 {{ t('groups.detail.emptyMembers') }}
               </div>
-              <div v-else class="space-y-1">
+              <div v-else class="grid gap-1">
                 <GroupMemberCard
                   v-for="member in members"
                   :key="member.id"
