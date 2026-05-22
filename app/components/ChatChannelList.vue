@@ -250,6 +250,7 @@ const currentUserInitials = computed(() => {
                   v-for="channel in category.channels"
                   :key="channel.id"
                   type="button"
+                  data-chat-channel-button="true"
                   class="group/ch relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors"
                   :class="[
                     activeChannelId === channel.id
