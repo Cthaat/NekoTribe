@@ -158,6 +158,7 @@ const directMessages = ref<V2DirectMessage[]>([]);
 const isLoadingDirectConversations = ref(false);
 const isLoadingDirectMessages = ref(false);
 const isSendingDirectMessage = ref(false);
+const isMobileNavigationOpen = ref(true);
 
 const currentUserId = computed(
   () => preferenceStore.preferences.user.id
@@ -208,6 +209,14 @@ const canSubmitCreateChannel = computed(
     createChannelName.value.trim().length > 0 &&
     !isCreatingChannel.value
 );
+
+function showMobileNavigation(): void {
+  isMobileNavigationOpen.value = true;
+}
+
+function showMobileContent(): void {
+  isMobileNavigationOpen.value = false;
+}
 
 let ws: WebSocket | null = null;
 let shouldReconnectWs = true;
@@ -774,6 +783,7 @@ async function openDirectMessageFromQuery(): Promise<void> {
       target_user_id: targetUserId
     });
     await openDirectConversation(conversation);
+    showMobileContent();
     await loadDirectConversations(false);
   } catch {
     toast.error(t('chat.feedback.loadDirectMessagesFailed'));
@@ -851,6 +861,7 @@ async function handleSelectChannel(
   channel: Channel
 ): Promise<void> {
   exitDirectMessageView();
+  showMobileContent();
   if (activeChannel.value?.id === channel.id) return;
   if (activeChannel.value) {
     leaveWsChannel(activeChannel.value.id);
@@ -1250,16 +1261,19 @@ async function handleOpenDirectMessageStandalone(
   await handleOpenDirectMessage(member);
   directMessageContent.value = '';
   directMessageStandaloneTarget.value = member;
+  showMobileContent();
 }
 
 async function handleSelectDirectConversation(
   conversation: V2DirectConversation
 ): Promise<void> {
   await openDirectConversation(conversation);
+  showMobileContent();
 }
 
 function closeDirectMessageStandalone(): void {
   directMessageStandaloneTarget.value = null;
+  showMobileNavigation();
 }
 
 function exitDirectMessageView(): void {
@@ -1349,12 +1363,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 w-full flex-col overflow-hidden md:flex-row">
+  <div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden md:flex-row">
     <div
-      class="h-80 min-h-0 w-full flex-shrink-0 overflow-hidden border-b bg-muted/20 md:h-full md:w-72 md:border-b-0 md:border-r"
+      data-chat-nav-panel="true"
+      class="h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden border-b bg-muted/20 md:w-72 md:border-b-0 md:border-r"
+      :class="isMobileNavigationOpen ? 'flex' : 'hidden md:flex'"
     >
       <div class="flex h-full min-h-0 flex-col">
-        <div class="h-40 min-h-0 shrink-0 md:h-64">
+        <div class="h-64 shrink-0 max-md:h-[30dvh] max-md:min-h-44 max-md:max-h-72">
           <ChatDirectConversationList
             :conversations="directConversations"
             :active-conversation-id="directConversationId"
@@ -1469,7 +1485,7 @@ onBeforeUnmount(() => {
 
     <Dialog v-model:open="inviteDialogOpen">
       <DialogContent
-        class="flex max-h-[88vh] flex-col overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-2xl"
+        class="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-2xl"
       >
         <DialogHeader
           class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
@@ -1492,7 +1508,7 @@ onBeforeUnmount(() => {
         </DialogHeader>
 
         <div
-          class="grid flex-1 gap-5 overflow-y-auto px-5 py-4 md:grid-cols-[1.15fr_0.85fr]"
+          class="grid flex-1 gap-5 overflow-y-auto px-4 py-4 sm:px-5 md:grid-cols-[1.15fr_0.85fr]"
         >
           <div class="grid gap-4">
             <div class="grid gap-2">
@@ -1757,7 +1773,7 @@ onBeforeUnmount(() => {
 
     <Dialog v-model:open="notificationSettingsOpen">
       <DialogContent
-        class="flex max-h-[88vh] flex-col overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-lg"
+        class="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-lg"
       >
         <DialogHeader
           class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
@@ -1844,7 +1860,11 @@ onBeforeUnmount(() => {
       @deleted="handleGroupDeleted"
     />
 
-    <div class="h-full min-h-0 flex-1 min-w-0 overflow-hidden">
+    <div
+      data-chat-content-panel="true"
+      class="h-full min-h-0 flex-1 min-w-0 overflow-hidden"
+      :class="isMobileNavigationOpen ? 'hidden md:block' : 'block'"
+    >
       <div
         v-if="isLoading"
         class="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground"
@@ -2038,6 +2058,7 @@ onBeforeUnmount(() => {
           :is-loading-direct-messages="isLoadingDirectMessages"
           :is-sending-direct-message="isSendingDirectMessage"
           :channels="chatChannels"
+          :show-mobile-navigation-toggle="true"
           @send="handleSendMessage"
           @load-more="handleLoadMore"
           @react="handleReact"
@@ -2046,6 +2067,7 @@ onBeforeUnmount(() => {
           @pin="handlePinMessage"
           @toggle-mute="() => handleToggleChannelMute()"
           @search="handleSearch"
+          @show-navigation="showMobileNavigation"
           @view-profile="openMemberProfile"
           @open-direct-message="handleOpenDirectMessage"
           @open-direct-message-standalone="handleOpenDirectMessageStandalone"
