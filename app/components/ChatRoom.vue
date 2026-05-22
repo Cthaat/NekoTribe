@@ -16,6 +16,7 @@ import {
   Search,
   Phone,
   Video,
+  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   ArrowDown,
@@ -76,6 +77,7 @@ const props = defineProps<{
   isLoadingDirectMessages?: boolean;
   isSendingDirectMessage?: boolean;
   channels?: Channel[];
+  showMobileNavigationToggle?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -93,6 +95,7 @@ const emit = defineEmits<{
   (e: 'pin', messageId: number): void;
   (e: 'toggle-mute'): void;
   (e: 'search', query: string): void;
+  (e: 'show-navigation'): void;
   (e: 'view-profile', userId: number): void;
   (e: 'open-direct-message', member: ChatMember): void;
   (e: 'open-direct-message-standalone', member: ChatMember): void;
@@ -338,6 +341,18 @@ onBeforeUnmount(() => {
         class="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/60 px-3 backdrop-blur sm:px-4"
       >
         <div class="flex min-w-0 items-center gap-2">
+          <Button
+            v-if="showMobileNavigationToggle"
+            variant="ghost"
+            size="icon"
+            class="h-8 w-8 shrink-0 rounded-md text-muted-foreground hover:text-foreground md:hidden"
+            @click="emit('show-navigation')"
+          >
+            <PanelLeftOpen class="h-4 w-4" />
+            <span class="sr-only">
+              {{ t('chat.backToChannels') }}
+            </span>
+          </Button>
           <Hash class="h-4 w-4 shrink-0 text-muted-foreground" />
           <span class="truncate text-sm font-semibold">
             {{ channel.name }}
