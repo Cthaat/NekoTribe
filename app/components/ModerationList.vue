@@ -43,7 +43,7 @@ const handleViewDetail = (tweet: ModerationTweet) =>
 <template>
   <div class="rounded-xl border border-border/60 bg-card shadow-none">
     <div
-      class="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-3"
+      class="flex flex-col items-start justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-3 sm:flex-row sm:items-center"
     >
       <div class="min-w-0">
         <p class="text-sm font-semibold tracking-tight">
@@ -60,7 +60,7 @@ const handleViewDetail = (tweet: ModerationTweet) =>
       <Button
         variant="outline"
         size="sm"
-        class="h-8 rounded-md shadow-xs"
+        class="h-8 w-full rounded-md shadow-xs sm:w-auto"
         :disabled="isRefreshing"
         @click="handleRefresh"
       >
@@ -110,7 +110,7 @@ const handleViewDetail = (tweet: ModerationTweet) =>
 
     <ScrollArea
       v-else
-      class="h-[calc(100dvh-24rem)] max-h-[46rem] min-h-[420px] w-full"
+      class="h-[max(420px,calc(100dvh-24rem))] max-h-[46rem] w-full max-sm:h-[calc(100dvh-18rem)] max-sm:min-h-[360px]"
     >
       <div class="space-y-3 p-4">
         <ModerationCard
