@@ -217,7 +217,7 @@ const closeDialog = () => {
 <template>
   <Dialog :open="open" @update:open="closeDialog">
     <DialogContent
-      class="grid max-h-[92dvh] max-w-5xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0"
+      class="grid max-h-[calc(100dvh-1rem)] max-w-5xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0"
     >
       <DialogHeader
         class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur sm:px-6"
