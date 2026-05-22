@@ -261,13 +261,13 @@ watch(agreeToTermsValue, newValue => {
 </script>
 
 <template>
-  <div class="relative min-h-svh w-full bg-background">
+  <div class="relative min-h-svh w-full overflow-x-clip bg-background">
     <!-- Top bar with brand -->
     <header
       class="sticky top-0 z-20 border-b bg-background/80 backdrop-blur"
     >
       <div
-        class="mx-auto flex max-w-6xl items-center justify-between px-6 py-3"
+        class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6"
       >
         <NuxtLink
           :to="localePath('/')"
@@ -289,7 +289,7 @@ watch(agreeToTermsValue, newValue => {
       </div>
     </header>
 
-    <div class="mx-auto w-full max-w-2xl px-4 py-10 md:py-16">
+    <div class="mx-auto w-full max-w-2xl px-3 py-8 sm:px-4 sm:py-10 md:py-16">
       <div class="mb-8 space-y-2 text-center">
         <h1 class="text-3xl font-semibold tracking-tight">
           {{ t('auth.signUp.signUpPrompt') }}
@@ -302,7 +302,7 @@ watch(agreeToTermsValue, newValue => {
       <div
         class="overflow-hidden rounded-xl border border-border/60 bg-card shadow-none"
       >
-        <div class="p-6 md:p-8">
+        <div class="p-5 sm:p-6 md:p-8">
           <form class="grid gap-6" @submit="onSubmit">
             <!-- Section: Account -->
             <section class="grid gap-4">
@@ -659,7 +659,7 @@ watch(agreeToTermsValue, newValue => {
                     t('auth.signUp.captcha')
                   }}</FormLabel>
                   <div
-                    class="grid w-full gap-3 sm:flex sm:items-center"
+                    class="grid w-full min-w-0 gap-3 sm:flex sm:items-center"
                   >
                     <FormControl>
                       <PinInput
