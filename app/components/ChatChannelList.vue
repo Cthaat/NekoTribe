@@ -18,7 +18,6 @@ import {
   Check
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Collapsible,
@@ -141,26 +140,21 @@ const currentUserInitials = computed(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col overflow-hidden bg-muted/30">
-    <!-- 群组头部 -->
-    <div
-      class="shrink-0 border-b bg-background/50 p-3 backdrop-blur-sm"
-    >
+  <div class="flex h-full min-h-0 flex-col overflow-hidden bg-muted/20">
+    <div class="shrink-0 border-b border-border/60 bg-background/60 p-2 backdrop-blur">
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <Button
             variant="ghost"
-            class="w-full justify-between font-semibold text-base h-auto py-2"
+            class="h-9 w-full justify-between rounded-md px-2 text-sm font-semibold"
           >
-            <span class="truncate">{{
-              groupName || t('chat.groupFallbackName')
-            }}</span>
-            <ChevronDown
-              class="h-4 w-4 flex-shrink-0 ml-2"
-            />
+            <span class="truncate">
+              {{ groupName || t('chat.groupFallbackName') }}
+            </span>
+            <ChevronDown class="h-4 w-4 shrink-0 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent class="w-56" align="start">
+        <DropdownMenuContent class="w-60" align="start">
           <template v-if="groups?.length">
             <DropdownMenuItem
               v-for="group in groups"
@@ -168,180 +162,151 @@ const currentUserInitials = computed(() => {
               @click="emit('select-group', group.id)"
             >
               <Check
-                class="mr-2 h-4 w-4"
+                class="h-4 w-4"
                 :class="{
                   'opacity-100': group.id === activeGroupId,
                   'opacity-0': group.id !== activeGroupId
                 }"
               />
-              <span class="flex-1 truncate">{{ group.name }}</span>
-              <Badge
+              <span class="min-w-0 flex-1 truncate">
+                {{ group.name }}
+              </span>
+              <span
                 v-if="group.unreadCount"
-                variant="destructive"
-                class="ml-2 h-5 min-w-[20px] px-1.5 text-xs"
+                class="ml-2 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium tabular-nums text-primary-foreground"
               >
-                {{
-                  group.unreadCount > 99
-                    ? '99+'
-                    : group.unreadCount
-                }}
-              </Badge>
+                {{ group.unreadCount > 99 ? '99+' : group.unreadCount }}
+              </span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </template>
           <DropdownMenuItem @click="emit('invite-members')">
-            <Users class="mr-2 h-4 w-4" />
+            <Users class="h-4 w-4" />
             {{ t('chat.actions.inviteMembers') }}
           </DropdownMenuItem>
           <DropdownMenuItem
             v-if="canManage"
             @click="emit('settings')"
           >
-            <Settings class="mr-2 h-4 w-4" />
+            <Settings class="h-4 w-4" />
             {{ t('chat.actions.chatSettings') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem @click="emit('notification-settings')">
-            <Bell class="mr-2 h-4 w-4" />
+            <Bell class="h-4 w-4" />
             {{ t('chat.actions.notificationSettings') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
 
-    <!-- 频道列表 -->
     <ScrollArea class="min-h-0 flex-1">
-      <div class="py-2">
-      <div
-        v-for="category in categories"
-        :key="category.id"
-        class="mb-2"
-      >
-        <!-- 分类标题 -->
-        <Collapsible :open="!isCollapsed(category.id)">
-          <div
-            class="flex items-center justify-between px-2 py-1 group cursor-pointer"
-            @click="toggleCategory(category.id)"
-          >
-            <CollapsibleTrigger as-child>
-              <div
-                class="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
-              >
-                <ChevronRight
-                  class="h-3 w-3 transition-transform"
-                  :class="{
-                    'rotate-90': !isCollapsed(category.id)
-                  }"
-                />
-                {{ category.name }}
-              </div>
-            </CollapsibleTrigger>
+      <div class="p-2">
+        <div
+          v-for="category in categories"
+          :key="category.id"
+          class="mb-3 last:mb-0"
+        >
+          <Collapsible :open="!isCollapsed(category.id)">
+            <div
+              class="group/cat flex items-center justify-between rounded-md px-1 py-1 transition-colors hover:bg-accent/40"
+            >
+              <CollapsibleTrigger as-child>
+                <button
+                  type="button"
+                  class="flex flex-1 items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+                  @click="toggleCategory(category.id)"
+                >
+                  <ChevronRight
+                    class="h-3 w-3 transition-transform"
+                    :class="{ 'rotate-90': !isCollapsed(category.id) }"
+                  />
+                  <span class="truncate">{{ category.name }}</span>
+                </button>
+              </CollapsibleTrigger>
 
-            <TooltipProvider v-if="canManage">
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    @click.stop="
-                      emit('create-channel', category.id)
-                    "
+              <TooltipProvider v-if="canManage">
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-5 w-5 rounded opacity-0 transition-opacity group-hover/cat:opacity-100"
+                      @click.stop="emit('create-channel', category.id)"
+                    >
+                      <Plus class="h-3 w-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>{{ t('chat.actions.createChannel') }}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+
+            <CollapsibleContent>
+              <div class="mt-0.5 space-y-px">
+                <button
+                  v-for="channel in category.channels"
+                  :key="channel.id"
+                  type="button"
+                  class="group/ch relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors"
+                  :class="[
+                    activeChannelId === channel.id
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                  ]"
+                  @click="selectChannel(channel)"
+                >
+                  <span
+                    v-if="activeChannelId === channel.id"
+                    class="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary"
+                    aria-hidden="true"
+                  />
+                  <component
+                    :is="getChannelIcon(channel.type)"
+                    class="h-4 w-4 shrink-0"
+                    :class="{ 'opacity-60': channel.isMuted }"
+                  />
+                  <Lock
+                    v-if="channel.isPrivate"
+                    class="h-3 w-3 shrink-0 text-muted-foreground"
+                  />
+                  <span
+                    class="min-w-0 flex-1 truncate text-sm"
+                    :class="{ 'font-medium text-foreground': channel.unreadCount }"
                   >
-                    <Plus class="h-3 w-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>{{ t('chat.actions.createChannel') }}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+                    {{ channel.name }}
+                  </span>
+                  <BellOff
+                    v-if="channel.isMuted"
+                    class="h-3 w-3 shrink-0 text-muted-foreground"
+                  />
+                  <span
+                    v-if="channel.unreadCount && !channel.isMuted"
+                    class="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium tabular-nums text-primary-foreground"
+                  >
+                    {{ channel.unreadCount > 99 ? '99+' : channel.unreadCount }}
+                  </span>
 
-          <CollapsibleContent>
-            <!-- 频道列表 -->
-            <div class="space-y-0.5 px-2">
-              <div
-                v-for="channel in category.channels"
-                :key="channel.id"
-                class="group flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors"
-                :class="[
-                  activeChannelId === channel.id
-                    ? 'bg-muted text-foreground'
-                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                ]"
-                @click="selectChannel(channel)"
-              >
-                <!-- 频道图标 -->
-                <component
-                  :is="getChannelIcon(channel.type)"
-                  class="h-4 w-4 flex-shrink-0"
-                  :class="{ 'opacity-60': channel.isMuted }"
-                />
-
-                <!-- 私密标识 -->
-                <Lock
-                  v-if="channel.isPrivate"
-                  class="h-3 w-3 flex-shrink-0 text-muted-foreground"
-                />
-
-                <!-- 频道名称 -->
-                <span
-                  class="flex-1 truncate text-sm"
-                  :class="{
-                    'font-medium': channel.unreadCount
-                  }"
-                >
-                  {{ channel.name }}
-                </span>
-
-                <!-- 静音标识 -->
-                <BellOff
-                  v-if="channel.isMuted"
-                  class="h-3 w-3 flex-shrink-0 text-muted-foreground"
-                />
-
-                <!-- 未读计数 -->
-                <Badge
-                  v-if="
-                    channel.unreadCount && !channel.isMuted
-                  "
-                  variant="destructive"
-                  class="h-5 min-w-[20px] px-1.5 text-xs"
-                >
-                  {{
-                    channel.unreadCount > 99
-                      ? '99+'
-                      : channel.unreadCount
-                  }}
-                </Badge>
-
-                <!-- 频道操作（悬浮显示） -->
-                <div
-                  class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
                   <DropdownMenu>
                     <DropdownMenuTrigger as-child>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        class="h-5 w-5 p-0"
+                        size="icon"
+                        class="h-5 w-5 rounded opacity-0 transition-opacity group-hover/ch:opacity-100"
                         @click.stop
                       >
                         <Settings class="h-3 w-3" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" class="w-44">
                       <DropdownMenuItem
-                        @click.stop="
-                          emit('toggle-mute', channel.id)
-                        "
+                        @click.stop="emit('toggle-mute', channel.id)"
                       >
                         <component
-                          :is="
-                            channel.isMuted ? Bell : BellOff
-                          "
-                          class="mr-2 h-4 w-4"
+                          :is="channel.isMuted ? Bell : BellOff"
+                          class="h-4 w-4"
                         />
                         {{
                           channel.isMuted
@@ -352,56 +317,47 @@ const currentUserInitials = computed(() => {
                       <template v-if="canManage">
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          @click.stop="
-                            emit('edit-channel', channel)
-                          "
+                          @click.stop="emit('edit-channel', channel)"
                         >
-                          <Edit3 class="mr-2 h-4 w-4" />
+                          <Edit3 class="h-4 w-4" />
                           {{ t('chat.actions.editChannel') }}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           class="text-destructive focus:text-destructive"
-                          @click.stop="
-                            emit(
-                              'delete-channel',
-                              channel.id
-                            )
-                          "
+                          @click.stop="emit('delete-channel', channel.id)"
                         >
-                          <Trash2 class="mr-2 h-4 w-4" />
+                          <Trash2 class="h-4 w-4" />
                           {{ t('chat.actions.deleteChannel') }}
                         </DropdownMenuItem>
                       </template>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                </div>
+                </button>
               </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       </div>
     </ScrollArea>
 
-    <!-- 用户信息栏 -->
     <div
-      class="shrink-0 border-t bg-background/50 p-2 backdrop-blur-sm"
+      class="shrink-0 border-t border-border/60 bg-background/60 p-2 backdrop-blur"
     >
       <div
-        class="flex items-center gap-2 p-2 rounded-md hover:bg-muted transition-colors cursor-pointer"
+        class="flex items-center gap-2 rounded-md p-2 transition-colors hover:bg-accent/50"
       >
-        <div class="relative">
+        <div class="relative shrink-0">
           <div
-            class="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center"
+            class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
           >
-            <span class="text-sm font-medium">{{ currentUserInitials }}</span>
+            {{ currentUserInitials.toUpperCase() }}
           </div>
-          <div
-            class="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-background"
+          <span
+            class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
           />
         </div>
-        <div class="flex-1 min-w-0">
-          <div class="text-sm font-medium truncate">
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-sm font-medium">
             {{ currentUserName || t('chat.currentUser.name') }}
           </div>
           <div class="text-xs text-muted-foreground">
@@ -413,8 +369,8 @@ const currentUserInitials = computed(() => {
             <TooltipTrigger as-child>
               <Button
                 variant="ghost"
-                size="sm"
-                class="h-8 w-8 p-0"
+                size="icon"
+                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
               >
                 <Settings class="h-4 w-4" />
               </Button>
