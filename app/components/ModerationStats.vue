@@ -6,14 +6,10 @@ import {
   XCircle,
   Flag,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Gauge,
+  ShieldCheck
 } from 'lucide-vue-next';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
 
 export interface ModerationStatsData {
   pending: number;
@@ -51,98 +47,97 @@ const statsCards = computed(() => [
     title: t('moderation.stats.pending'),
     value: props.stats.pending,
     icon: Clock,
-    color: 'text-yellow-500',
-    bgColor: 'bg-yellow-500/10'
+    tone: 'amber'
   },
   {
     title: t('moderation.stats.approved'),
     value: props.stats.approved,
     icon: CheckCircle,
-    color: 'text-green-500',
-    bgColor: 'bg-green-500/10'
+    tone: 'emerald'
   },
   {
     title: t('moderation.stats.rejected'),
     value: props.stats.rejected,
     icon: XCircle,
-    color: 'text-destructive',
-    bgColor: 'bg-destructive/10'
+    tone: 'rose'
   },
   {
     title: t('moderation.stats.flagged'),
     value: props.stats.flagged,
     icon: Flag,
-    color: 'text-orange-500',
-    bgColor: 'bg-orange-500/10'
+    tone: 'orange'
   },
   {
     title: t('moderation.stats.todayProcessed'),
     value: props.stats.todayProcessed,
     icon: TrendingUp,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-500/10'
+    tone: 'sky'
   },
   {
     title: t('moderation.stats.avgProcessTime'),
     value:
       props.stats.avgProcessTime ||
       t('moderation.stats.zeroMinutes'),
-    icon: AlertTriangle,
-    color: 'text-purple-500',
-    bgColor: 'bg-purple-500/10',
+    icon: Gauge,
+    tone: 'violet',
     isText: true
   },
   {
     title: t('moderation.stats.openReports'),
     value: props.stats.openReports ?? 0,
     icon: AlertTriangle,
-    color: 'text-red-500',
-    bgColor: 'bg-red-500/10'
+    tone: 'red'
   },
   {
     title: t('moderation.stats.appealSuccessRate'),
     value: `${props.stats.appealSuccessRate ?? 0}%`,
-    icon: TrendingUp,
-    color: 'text-cyan-500',
-    bgColor: 'bg-cyan-500/10',
+    icon: ShieldCheck,
+    tone: 'cyan',
     isText: true
   }
 ]);
+
+const toneClasses: Record<string, string> = {
+  amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  rose: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  orange: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+  sky: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
+  violet: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  red: 'bg-red-500/10 text-red-600 dark:text-red-400',
+  cyan: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
+};
 </script>
 
 <template>
   <div
     class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
   >
-    <Card
+    <div
       v-for="stat in statsCards"
       :key="stat.title"
-      class="border-border/70 bg-card/70 shadow-sm transition-colors hover:bg-muted/30"
+      class="rounded-xl border border-border/60 bg-card p-4 shadow-none transition-shadow hover:shadow-md"
     >
-      <CardHeader
-        class="flex flex-row items-center justify-between space-y-0 px-4 pb-2 pt-4"
-      >
-        <CardTitle
-          class="text-sm font-medium text-muted-foreground"
-        >
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs font-medium text-muted-foreground">
           {{ stat.title }}
-        </CardTitle>
-        <div :class="[stat.bgColor, 'rounded-md p-2']">
-          <component
-            :is="stat.icon"
-            :class="['h-4 w-4', stat.color]"
-          />
+        </p>
+        <div
+          :class="[
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
+            toneClasses[stat.tone]
+          ]"
+        >
+          <component :is="stat.icon" class="h-4 w-4" />
         </div>
-      </CardHeader>
-      <CardContent class="px-4 pb-4">
-        <div class="truncate text-2xl font-semibold tracking-normal">
-          {{
-            stat.isText
-              ? stat.value
-              : stat.value.toLocaleString()
-          }}
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+      <p class="mt-2 truncate text-2xl font-semibold tracking-tight">
+        {{
+          stat.isText
+            ? stat.value
+            : Number(stat.value).toLocaleString()
+        }}
+      </p>
+    </div>
   </div>
 </template>
