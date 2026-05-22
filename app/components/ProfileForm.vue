@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { toTypedSchema } from '@vee-validate/zod';
 import { FieldArray, useForm } from 'vee-validate';
-import { h, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
+import { CalendarIcon, Globe, Trash2 } from 'lucide-vue-next';
 import {
   FormControl,
   FormDescription,
@@ -20,15 +21,6 @@ import {
 } from '@internationalized/date';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'vue-sonner';
 import {
@@ -36,12 +28,6 @@ import {
   v2PatchMe,
   type CurrentUserVM
 } from '@/services';
-
-const verifiedEmails = ref([
-  'm@example.com',
-  'm@google.com',
-  'm@support.com'
-]);
 
 const { t, locale } = useAppLocale();
 
@@ -101,21 +87,14 @@ onMounted(async () => {
     const me = await v2GetMe();
     userInfo.value = me;
 
-    // 检查 userInfo 是否存在
     if (userInfo.value) {
       resetForm({
         values: buildInitialProfileValues(userInfo.value)
       });
     }
-  } catch (error) {
-    console.error(
-      t('account.profile.profilePage.errorFetchingUserInfo'),
-      error
-    );
+  } catch {
     toast.error(
-      t(
-        'account.profile.profilePage.errorFetchingUserInfo'
-      ),
+      t('account.profile.profilePage.errorFetchingUserInfo'),
       {
         description: t(
           'account.profile.profilePage.errorFetchingUserInfoDescription'
@@ -144,14 +123,10 @@ const profileFormSchema = z.object({
     .string()
     .trim()
     .max(160, {
-      message: t(
-        'account.profile.profilePage.bioMaxLength'
-      )
+      message: t('account.profile.profilePage.bioMaxLength')
     })
     .min(4, {
-      message: t(
-        'account.profile.profilePage.bioMinLength'
-      )
+      message: t('account.profile.profilePage.bioMinLength')
     }),
   location: z.string().trim().max(30, {
     message: t(
@@ -175,55 +150,46 @@ const { handleSubmit, resetForm } =
 
 const onSubmit = handleSubmit(
   async (values: ProfileFormValues): Promise<void> => {
-  let website = '';
-
-  website = values.urls
-    .map(urlObject => urlObject.value.trim())
-    .filter(url => url.length > 0)
-    .join(',');
-  const payload = {
-    displayName: values.displayName,
-    bio: values.bio,
-    location: values.location,
-    website,
-    birthDate: values.birthDate
-      ? values.birthDate.toString()
-      : null,
-    phone: values.phone || undefined
-  };
-  toast(t('account.profile.profilePage.successMessage'), {
-    description: t(
-      'account.profile.profilePage.successDescription'
-    ),
-    duration: 3000
-  });
-  await v2PatchMe(payload);
-  // 刷新页面
-  if (process.client) {
-    window.location.reload();
-  }
+    const website = values.urls
+      .map(urlObject => urlObject.value.trim())
+      .filter(url => url.length > 0)
+      .join(',');
+    const payload = {
+      displayName: values.displayName,
+      bio: values.bio,
+      location: values.location,
+      website,
+      birthDate: values.birthDate
+        ? values.birthDate.toString()
+        : null,
+      phone: values.phone || undefined
+    };
+    toast(t('account.profile.profilePage.successMessage'), {
+      description: t(
+        'account.profile.profilePage.successDescription'
+      ),
+      duration: 3000
+    });
+    await v2PatchMe(payload);
+    if (import.meta.client) {
+      window.location.reload();
+    }
   }
 );
 
-// 创建日期格式化实例，这部分是正确的
 const df = new DateFormatter(
   locale.value === 'zh' ? 'zh-CN' : 'en-US',
-  {
-    dateStyle: 'long'
-  }
+  { dateStyle: 'long' }
 );
 </script>
 
 <template>
-  <form class="space-y-8" @submit="onSubmit">
-    <FormField
-      v-slot="{ componentField }"
-      name="displayName"
-    >
-      <FormItem>
-        <FormLabel>{{
-          t('account.profile.profilePage.displayName')
-        }}</FormLabel>
+  <form class="grid gap-5" @submit="onSubmit">
+    <FormField v-slot="{ componentField }" name="displayName">
+      <FormItem class="grid gap-2">
+        <FormLabel class="text-xs font-medium">
+          {{ t('account.profile.profilePage.displayName') }}
+        </FormLabel>
         <FormControl>
           <Input
             type="text"
@@ -233,35 +199,35 @@ const df = new DateFormatter(
               )
             "
             v-bind="componentField"
+            class="h-9 shadow-xs"
           />
         </FormControl>
-        <FormDescription>
+        <FormDescription class="text-[11px] text-muted-foreground">
           {{
             t(
               'account.profile.profilePage.displayNameDescription'
             )
           }}
         </FormDescription>
-        <FormMessage />
+        <FormMessage class="text-[11px]" />
       </FormItem>
     </FormField>
 
     <FormField v-slot="{ componentField }" name="bio">
-      <FormItem>
-        <FormLabel>{{
-          t('account.profile.profilePage.bio')
-        }}</FormLabel>
+      <FormItem class="grid gap-2">
+        <FormLabel class="text-xs font-medium">
+          {{ t('account.profile.profilePage.bio') }}
+        </FormLabel>
         <FormControl>
           <Textarea
             :placeholder="
-              t(
-                'account.profile.profilePage.bioPlaceholder'
-              )
+              t('account.profile.profilePage.bioPlaceholder')
             "
             v-bind="componentField"
+            class="min-h-[96px] resize-none rounded-md shadow-xs"
           />
         </FormControl>
-        <FormDescription>
+        <FormDescription class="text-[11px] text-muted-foreground">
           {{
             t(
               'account.profile.profilePage.bioDescription',
@@ -269,120 +235,117 @@ const df = new DateFormatter(
             )
           }}
         </FormDescription>
-        <FormMessage />
+        <FormMessage class="text-[11px]" />
       </FormItem>
     </FormField>
 
     <FormField v-slot="{ componentField }" name="location">
-      <FormItem>
-        <FormLabel>{{
-          t('account.profile.profilePage.location')
-        }}</FormLabel>
+      <FormItem class="grid gap-2">
+        <FormLabel class="text-xs font-medium">
+          {{ t('account.profile.profilePage.location') }}
+        </FormLabel>
         <FormControl>
-          <Textarea
+          <Input
+            type="text"
             :placeholder="
               t(
                 'account.profile.profilePage.locationPlaceholder'
               )
             "
             v-bind="componentField"
+            class="h-9 shadow-xs"
           />
         </FormControl>
-        <FormDescription>
+        <FormDescription class="text-[11px] text-muted-foreground">
           {{
             t(
               'account.profile.profilePage.locationDescription'
             )
           }}
         </FormDescription>
-        <FormMessage />
+        <FormMessage class="text-[11px]" />
       </FormItem>
     </FormField>
 
-    <div>
-      <FieldArray v-slot="{ fields, push }" name="urls">
-        <div
-          v-for="(field, index) in fields"
-          :key="`urls-${field.key}`"
-        >
+    <FieldArray v-slot="{ fields, push, remove }" name="urls">
+      <div class="grid gap-2">
+        <div class="flex items-center gap-2">
+          <Globe class="h-3.5 w-3.5 text-muted-foreground" />
+          <span class="text-xs font-medium">
+            {{ t('account.profile.profilePage.website') }}
+          </span>
+        </div>
+        <p class="text-[11px] text-muted-foreground">
+          {{
+            t(
+              'account.profile.profilePage.websiteDescription'
+            )
+          }}
+        </p>
+        <div class="grid gap-2">
           <FormField
+            v-for="(field, index) in fields"
+            :key="`urls-${field.key}`"
             v-slot="{ componentField }"
             :name="`urls[${index}].value`"
           >
-            <FormItem>
-              <FormLabel
-                :class="cn(index !== 0 && 'sr-only')"
-              >
-                {{
-                  t('account.profile.profilePage.website')
-                }}
-              </FormLabel>
-              <FormDescription
-                :class="cn(index !== 0 && 'sr-only')"
-              >
-                {{
-                  t(
-                    'account.profile.profilePage.websiteDescription'
-                  )
-                }}
-              </FormDescription>
-              <div class="relative flex items-center">
+            <FormItem class="grid gap-1.5">
+              <div class="flex items-center gap-2">
                 <FormControl>
                   <Input
                     type="url"
+                    placeholder="https://"
                     v-bind="componentField"
+                    class="h-9 shadow-xs"
                   />
                 </FormControl>
+                <button
+                  v-if="fields.length > 1"
+                  type="button"
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                  :aria-label="t('common.remove')"
+                  @click="remove(index)"
+                >
+                  <Trash2 class="h-3.5 w-3.5" />
+                </button>
               </div>
-              <FormMessage />
+              <FormMessage class="text-[11px]" />
             </FormItem>
           </FormField>
         </div>
-
         <Button
           type="button"
           variant="outline"
           size="sm"
-          class="text-xs w-20 mt-2"
+          class="h-8 w-fit rounded-md shadow-xs"
           @click="push({ value: '' })"
         >
           {{ t('account.profile.profilePage.addWebsite') }}
         </Button>
-      </FieldArray>
-    </div>
+      </div>
+    </FieldArray>
 
-    <!-- 生日 (日历选择器) -->
     <FormField
       v-slot="{ componentField, value }"
       name="birthDate"
     >
-      <FormItem>
-        <FormLabel>{{
-          t('auth.signUp.birthDate')
-        }}</FormLabel>
+      <FormItem class="grid gap-2">
+        <FormLabel class="text-xs font-medium">
+          {{ t('auth.signUp.birthDate') }}
+        </FormLabel>
         <Popover>
           <PopoverTrigger as-child>
             <FormControl>
-              <!-- 
-            这个按钮是用户看到的界面，它的作用是触发弹窗。
-            它的文本内容会根据当前是否有值 (value) 来动态显示。
-          -->
               <Button
                 variant="outline"
                 :class="
                   cn(
-                    'w-full justify-start text-left font-normal',
+                    'h-9 w-full justify-start rounded-md text-left font-normal shadow-xs',
                     !value && 'text-muted-foreground'
                   )
                 "
               >
-                <CalendarIcon class="mr-2 h-4 w-4" />
-                <!-- 
-              三元表达式用于显示日期：
-              - 如果 `value` 存在，就使用日期格式化工具 `df` 来显示。
-              - 注意：日历组件返回的是一个特殊的日期对象，需要用 `.toDate(getLocalTimeZone())` 转换成标准 JS Date 对象才能格式化。
-              - 如果 `value` 不存在，就显示占位符文本。
-            -->
+                <CalendarIcon class="h-3.5 w-3.5" />
                 {{
                   value
                     ? df.format(
@@ -393,60 +356,56 @@ const df = new DateFormatter(
               </Button>
             </FormControl>
           </PopoverTrigger>
-          <PopoverContent class="w-auto p-0">
-            <!-- 
-          这是核心部分：
-          `v-bind="componentField"` 是一个语法糖，它将 vee-validate 的状态
-          (包括 value, onBlur, onInput/onChange 事件) 自动绑定到 <Calendar> 组件上。
-          这使得用户在日历中选择日期时，表单状态会自动更新。
-        -->
-            <Calendar
-              v-bind="componentField"
-              initial-focus
-            />
+          <PopoverContent
+            class="w-auto rounded-xl border-border/60 p-0"
+            align="start"
+          >
+            <Calendar v-bind="componentField" initial-focus />
           </PopoverContent>
         </Popover>
-        <FormMessage />
+        <FormMessage class="text-[11px]" />
       </FormItem>
     </FormField>
 
     <FormField v-slot="{ componentField }" name="phone">
-      <FormItem>
-        <FormLabel>{{
-          t('account.profile.profilePage.phone')
-        }}</FormLabel>
+      <FormItem class="grid gap-2">
+        <FormLabel class="text-xs font-medium">
+          {{ t('account.profile.profilePage.phone') }}
+        </FormLabel>
         <FormControl>
-          <Textarea
+          <Input
+            type="tel"
+            autocomplete="tel"
             :placeholder="
               t(
                 'account.profile.profilePage.phonePlaceholder'
               )
             "
             v-bind="componentField"
+            class="h-9 shadow-xs"
           />
         </FormControl>
-        <FormDescription>
+        <FormDescription class="text-[11px] text-muted-foreground">
           {{
-            t(
-              'account.profile.profilePage.phoneDescription'
-            )
+            t('account.profile.profilePage.phoneDescription')
           }}
         </FormDescription>
-        <FormMessage />
+        <FormMessage class="text-[11px]" />
       </FormItem>
     </FormField>
 
-    <div class="flex flex-col gap-2 justify-start sm:flex-row">
-      <Button type="submit" class="w-full sm:w-auto">
-        {{
-          t('account.profile.profilePage.updateProfile')
-        }}
+    <div class="flex flex-col gap-2 pt-1 sm:flex-row">
+      <Button
+        type="submit"
+        class="h-9 w-full rounded-md shadow-xs sm:w-fit"
+      >
+        {{ t('account.profile.profilePage.updateProfile') }}
       </Button>
 
       <Button
         type="button"
         variant="outline"
-        class="w-full sm:w-auto"
+        class="h-9 w-full rounded-md shadow-xs sm:w-fit"
         @click="resetForm"
       >
         {{ t('account.profile.profilePage.resetForm') }}
@@ -454,5 +413,3 @@ const df = new DateFormatter(
     </div>
   </form>
 </template>
-
-
