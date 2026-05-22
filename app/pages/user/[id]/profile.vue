@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import { Separator } from '@/components/ui/separator';
 import { onMounted, ref, computed, watch } from 'vue';
-import { Card, CardContent } from '@/components/ui/card';
 import TweetList from '@/components/TweetList.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import {
@@ -13,6 +11,7 @@ import {
 } from '@/components/ui/pagination';
 import { toast } from 'vue-sonner';
 import { useRoute } from 'vue-router';
+import { BarChart3, FileText, Inbox, AlertTriangle } from 'lucide-vue-next';
 import type { PostVM } from '@/types/posts';
 import {
   v2BookmarkPost,
@@ -127,8 +126,7 @@ async function loadUserProfile() {
     user.value.follow = publicUser.relationship.isFollowing
       ? 'follow'
       : 'unfollow';
-  } catch (error) {
-    console.error(t('account.errors.loadUser'), error);
+  } catch {
     toast.error(t('account.errors.loadUser'));
   }
 }
@@ -150,8 +148,7 @@ async function loadUserAnalytics() {
     userAnalytics.value.engagementScore =
       analytics.engagementScore;
     user.value.point = analytics.engagementScore;
-  } catch (error) {
-    console.error(t('account.errors.loadAnalytics'), error);
+  } catch {
     toast.error(t('account.errors.loadAnalytics'));
   }
 }
@@ -168,7 +165,6 @@ async function loadTweets() {
     fullTweets.value = result.items;
     totalTweetsCount.value = result.total;
   } catch (error) {
-    console.error('Error fetching tweets:', error);
     tweetsError.value =
       error instanceof Error
         ? error.message
@@ -204,8 +200,7 @@ async function handleDeleteTweet(tweetId: number) {
       tweet => tweet.id !== tweetId
     );
     totalTweetsCount.value = Math.max(totalTweetsCount.value - 1, 0);
-  } catch (error) {
-    console.error('Error deleting tweet:', error);
+  } catch {
     toast.error(t('post.feedback.deleteFailed'));
   }
 }
@@ -247,8 +242,7 @@ async function handleLikeTweet(
         }
       };
     }
-  } catch (error) {
-    console.error('Error liking tweet:', error);
+  } catch {
     toast.error(t('common.operationFailed'));
   }
 }
@@ -276,8 +270,7 @@ async function handleBookmarkTweet(
         }
       };
     }
-  } catch (error) {
-    console.error('Error bookmarking tweet:', error);
+  } catch {
     toast.error(t('common.operationFailed'));
   }
 }
@@ -285,7 +278,7 @@ async function handleBookmarkTweet(
 function goToPage(newPage: number) {
   if (newPage >= 1 && newPage <= totalPages.value) {
     page.value = newPage;
-    if (process.client) {
+    if (import.meta.client) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }
@@ -310,15 +303,14 @@ async function followUser(targetUser: AccountHeaderUser, active: string) {
         { name: targetUser.name }
       )
     );
-  } catch (error) {
-    console.error(t('account.follow.failed'), error);
+  } catch {
     toast.error(t('account.follow.failed'));
   }
 }
 </script>
 
 <template>
-  <div class="p-4 sm:p-6 lg:p-8 space-y-8">
+  <div class="grid gap-6 p-4 sm:p-6 lg:p-8">
     <AccountHeaderCard
       :user="user"
       :account-tabs="localizedAccountTabs"
@@ -327,104 +319,119 @@ async function followUser(targetUser: AccountHeaderUser, active: string) {
       @refresh="refreshProfilePage"
     />
 
-    <Card>
-      <CardContent>
-        <div class="space-y-6 p-4 pb-8 sm:p-6 md:p-8 md:pb-16">
-          <div class="space-y-0.5">
-            <h2 class="text-2xl font-bold tracking-tight">
-              {{ t('account.overview.title') }}
-            </h2>
-            <p class="text-muted-foreground">
-              {{ t('account.overview.description') }}
-            </p>
-          </div>
-          <Separator class="my-6" />
-          <OverAllPanel :userAnalytics="userAnalytics" />
+    <section
+      class="grid gap-5 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
+    >
+      <header class="flex items-start gap-3">
+        <span
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+        >
+          <BarChart3 class="h-4 w-4" />
+        </span>
+        <div class="min-w-0 grid gap-0.5">
+          <h2 class="text-lg font-semibold tracking-tight">
+            {{ t('account.overview.title') }}
+          </h2>
+          <p class="text-xs text-muted-foreground">
+            {{ t('account.overview.description') }}
+          </p>
         </div>
-      </CardContent>
-    </Card>
+      </header>
+      <OverAllPanel :userAnalytics="userAnalytics" />
+    </section>
 
-    <Card>
-      <CardContent class="p-0">
-        <div class="space-y-4">
-          <div class="p-6 pb-4">
-            <h2 class="text-2xl font-bold tracking-tight">
-              {{ t('post.feed.title') }}
-            </h2>
-            <p class="text-muted-foreground">
-              {{
-                t('post.feed.total', {
-                  count: totalTweetsCount
-                })
-              }}
-            </p>
-          </div>
+    <section
+      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
+    >
+      <header class="flex items-start gap-3">
+        <span
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+        >
+          <FileText class="h-4 w-4" />
+        </span>
+        <div class="min-w-0 grid gap-0.5">
+          <h2 class="text-lg font-semibold tracking-tight">
+            {{ t('post.feed.title') }}
+          </h2>
+          <p class="text-xs text-muted-foreground">
+            {{
+              t('post.feed.total', {
+                count: totalTweetsCount
+              })
+            }}
+          </p>
+        </div>
+      </header>
 
-          <Separator />
+      <div
+        v-if="tweetsLoading"
+        class="grid gap-3"
+      >
+        <TweetCardSkeleton v-for="i in 3" :key="i" />
+      </div>
 
-          <div
-            v-if="tweetsLoading"
-            class="space-y-4 p-4"
-          >
-            <TweetCardSkeleton v-for="i in 3" :key="i" />
-          </div>
+      <div
+        v-else-if="tweetsError"
+        class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-rose-500/30 bg-rose-50/30 py-10 text-center dark:bg-rose-950/20"
+      >
+        <span
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 ring-1 ring-rose-500/20"
+        >
+          <AlertTriangle class="h-5 w-5 text-rose-500" />
+        </span>
+        <p class="text-sm text-rose-600 dark:text-rose-400">{{ tweetsError }}</p>
+      </div>
 
-          <div
-            v-else-if="tweetsError"
-            class="p-12 text-center text-destructive"
-          >
-            <p>{{ tweetsError }}</p>
-          </div>
+      <div v-else-if="fullTweets.length > 0">
+        <TweetList
+          :tweets="fullTweets"
+          @delete-tweet="handleDeleteTweet"
+          @reply-tweet="handleReplyTweet"
+          @retweet-tweet="handleRetweetTweet"
+          @like-tweet="handleLikeTweet"
+          @bookmark-tweet="handleBookmarkTweet"
+        />
+      </div>
 
-          <div v-else-if="fullTweets.length > 0">
-            <TweetList
-              :tweets="fullTweets"
-              @delete-tweet="handleDeleteTweet"
-              @reply-tweet="handleReplyTweet"
-              @retweet-tweet="handleRetweetTweet"
-              @like-tweet="handleLikeTweet"
-              @bookmark-tweet="handleBookmarkTweet"
-            />
-          </div>
+      <div
+        v-else
+        class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/10 py-10 text-center"
+      >
+        <span
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+        >
+          <Inbox class="h-5 w-5 text-muted-foreground" />
+        </span>
+        <p class="text-sm text-muted-foreground">
+          {{ t('post.feed.emptyUserPosts') }}
+        </p>
+      </div>
 
-          <div
-            v-else
-            class="p-12 text-center text-muted-foreground"
-          >
-            <p class="text-lg">
-              {{ t('post.feed.emptyUserPosts') }}
-            </p>
-          </div>
-
-          <div v-if="totalPages > 1" class="p-6 pt-4">
-            <Pagination
-              v-model:page="page"
-              :items-per-page="pageSize"
-              :total="totalTweetsCount"
-              class="flex justify-center"
+      <div v-if="totalPages > 1" class="pt-2">
+        <Pagination
+          v-model:page="page"
+          :items-per-page="pageSize"
+          :total="totalTweetsCount"
+          class="flex justify-center"
+        >
+          <PaginationContent v-slot="{ items }">
+            <PaginationPrevious />
+            <template
+              v-for="(item, index) in items"
+              :key="index"
             >
-              <PaginationContent v-slot="{ items }">
-                <PaginationPrevious />
-                <template
-                  v-for="(item, index) in items"
-                  :key="index"
-                >
-                  <PaginationItem
-                    v-if="item.type === 'page'"
-                    :value="item.value"
-                    :is-active="item.value === page"
-                  >
-                    {{ item.value }}
-                  </PaginationItem>
-                </template>
-                <PaginationNext />
-              </PaginationContent>
-            </Pagination>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+              <PaginationItem
+                v-if="item.type === 'page'"
+                :value="item.value"
+                :is-active="item.value === page"
+              >
+                {{ item.value }}
+              </PaginationItem>
+            </template>
+            <PaginationNext />
+          </PaginationContent>
+        </Pagination>
+      </div>
+    </section>
   </div>
 </template>
-
-
