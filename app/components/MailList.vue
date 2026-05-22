@@ -1,8 +1,6 @@
 <script lang="ts" setup>
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   onMounted,
@@ -20,7 +18,6 @@ import {
 
 interface MailListProps {
   items: MailItem[];
-  // 可选：当靠近底部时调用的加载更多函数
   loadMore?: () => void;
 }
 
@@ -31,14 +28,11 @@ const selectedMail = defineModel<string>('selectedMail', {
   required: false
 });
 
-// 本地副本：避免直接修改 props.items
 const localItems = ref<MailItem[]>([]);
 watch(
   () => props.items,
   items => {
-    // 浅克隆每个元素，确保本地修改不影响父级
     localItems.value = (items ?? []).map(it => ({ ...it }));
-    // 渲染完成后重新 observe，若仍在底部可继续触发
     nextTick(() => {
       if (observer && sentinel.value) {
         try {
@@ -53,17 +47,17 @@ watch(
   { immediate: true }
 );
 
-function getBadgeVariantFromLabel(label: string) {
-  if (['work'].includes(label.toLowerCase()))
-    return 'default';
-
-  if (['personal'].includes(label.toLowerCase()))
-    return 'outline';
-
-  return 'secondary';
+function getLabelClass(label: string) {
+  const value = label.toLowerCase();
+  if (value === 'work') {
+    return 'border-sky-200/60 bg-sky-100/60 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300';
+  }
+  if (value === 'personal') {
+    return 'border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300';
+  }
+  return 'border-border/60 bg-muted/40 text-muted-foreground';
 }
 
-// 无限滚动：观察列表底部哨兵，接近底部时触发 props.loadMore()
 const sentinel = ref<HTMLDivElement | null>(null);
 let observer: IntersectionObserver | null = null;
 let throttling = false;
@@ -80,7 +74,6 @@ function reobserveSentinel() {
 
 function setupObserver() {
   if (!sentinel.value) return;
-  // 找到 ScrollArea 的 viewport 作为 root
   const root = sentinel.value.closest(
     '[data-slot="scroll-area-viewport"]'
   ) as Element | null;
@@ -98,10 +91,8 @@ function setupObserver() {
         try {
           props.loadMore();
         } finally {
-          // 简单节流，避免抖动；父级应配合加载状态更严谨控制
           setTimeout(() => {
             throttling = false;
-            // 重新 observe，若仍在底部将继续触发
             reobserveSentinel();
           }, 600);
         }
@@ -126,7 +117,6 @@ onBeforeUnmount(() => {
 
 function selectMail(mailId: string) {
   selectedMail.value = mailId;
-  // 本地设为已读
   const target = localItems.value.find(
     m => String(m.id) === String(mailId)
   );
@@ -137,109 +127,124 @@ function selectMail(mailId: string) {
 </script>
 
 <template>
-  <ScrollArea class="flex h-[min(32rem,calc(100dvh-12rem))] md:h-screen">
-    <div class="flex-1 flex flex-col gap-2 p-4 pt-0">
+  <ScrollArea class="h-[min(32rem,calc(100dvh-12rem))] md:h-full">
+    <div class="flex flex-col gap-1 p-2">
       <TransitionGroup name="list" appear>
-        <Button
+        <button
           v-for="item of localItems"
           :key="item.id"
-          variant="ghost"
+          type="button"
           :class="
             cn(
-              'h-auto w-full flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all hover:bg-accent',
-              selectedMail === item.id && 'bg-muted'
+              'group/mail relative flex w-full items-start gap-3 rounded-lg border border-transparent p-3 text-left text-sm transition-colors',
+              selectedMail === item.id
+                ? 'border-border/60 bg-accent text-accent-foreground'
+                : 'hover:border-border/60 hover:bg-accent/50'
             )
           "
           @click="selectMail(String(item.id))"
         >
-          <div class="flex w-full gap-3">
-            <Avatar class="mt-0.5 size-9 shrink-0">
-              <AvatarImage
-                :src="item.avatar"
-                :alt="item.name"
+          <span
+            v-if="selectedMail === item.id"
+            class="absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary"
+            aria-hidden="true"
+          />
+          <Avatar class="mt-0.5 size-9 shrink-0 ring-1 ring-border">
+            <AvatarImage
+              :src="item.avatar"
+              :alt="item.name"
+            />
+            <AvatarFallback class="text-xs">
+              {{
+                (item.name || item.typeLabel)
+                  .substring(0, 2)
+                  .toUpperCase()
+              }}
+            </AvatarFallback>
+          </Avatar>
+
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span
+                v-if="!item.read"
+                class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                aria-hidden="true"
               />
-              <AvatarFallback>
+              <span
+                class="min-w-0 truncate text-sm"
+                :class="!item.read ? 'font-semibold text-foreground' : 'font-medium'"
+              >
+                {{ item.name }}
+              </span>
+              <span
+                class="ml-auto shrink-0 text-[11px] tabular-nums"
+                :class="
+                  selectedMail === item.id
+                    ? 'text-foreground/80'
+                    : 'text-muted-foreground'
+                "
+              >
                 {{
-                  (item.name || item.typeLabel)
-                    .substring(0, 2)
-                    .toUpperCase()
+                  formatDistanceToNow(new Date(item.date), {
+                    addSuffix: true
+                  })
                 }}
-              </AvatarFallback>
-            </Avatar>
+              </span>
+            </div>
 
-            <div class="min-w-0 flex-1">
-              <div class="flex w-full flex-col gap-1">
-                <div class="flex items-center gap-2">
-                  <div class="min-w-0 truncate font-semibold">
-                    {{ item.name }}
-                  </div>
-                  <span
-                    v-if="!item.read"
-                    class="flex h-2 w-2 shrink-0 rounded-full bg-blue-600"
-                  />
-                  <div
-                    :class="
-                      cn(
-                        'ml-auto shrink-0 text-xs',
-                        selectedMail === item.id
-                          ? 'text-foreground'
-                          : 'text-muted-foreground'
-                      )
-                    "
-                  >
-                    {{
-                      formatDistanceToNow(new Date(item.date), {
-                        addSuffix: true
-                      })
-                    }}
-                  </div>
-                </div>
+            <div
+              class="mt-0.5 line-clamp-1 text-xs"
+              :class="!item.read ? 'font-medium text-foreground' : 'text-muted-foreground'"
+            >
+              {{ item.subject }}
+            </div>
 
-                <div class="line-clamp-1 text-xs font-medium">
-                  {{ item.subject }}
-                </div>
+            <div
+              class="mt-1.5 line-clamp-2 text-xs text-muted-foreground"
+            >
+              {{ item.text.substring(0, 300) }}
+            </div>
+
+            <div
+              v-if="item.primaryPreview"
+              class="mt-2.5 rounded-md border border-border/60 bg-muted/30 px-2.5 py-2"
+            >
+              <div class="text-xs font-medium text-foreground">
+                {{ item.primaryPreview.title }}
               </div>
-
-              <div
-                class="mt-2 line-clamp-2 text-xs text-muted-foreground"
+              <p
+                class="mt-0.5 line-clamp-2 text-xs text-muted-foreground"
               >
-                {{ item.text.substring(0, 300) }}
-              </div>
+                {{ item.primaryPreview.text }}
+              </p>
+            </div>
 
-              <div
-                v-if="item.primaryPreview"
-                class="mt-3 min-w-0 rounded-md border bg-muted/40 p-2"
+            <div
+              v-if="item.labels?.length || item.priority !== 'normal'"
+              class="mt-2 flex flex-wrap items-center gap-1"
+            >
+              <span
+                v-for="label of item.labels"
+                :key="label"
+                :class="
+                  cn(
+                    'inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-medium',
+                    getLabelClass(label)
+                  )
+                "
               >
-                <div class="text-xs font-medium text-foreground">
-                  {{ item.primaryPreview.title }}
-                </div>
-                <p
-                  class="mt-1 line-clamp-2 text-xs text-muted-foreground"
-                >
-                  {{ item.primaryPreview.text }}
-                </p>
-              </div>
-
-              <div class="mt-3 flex flex-wrap items-center gap-2">
-                <Badge
-                  v-for="label of item.labels"
-                  :key="label"
-                  :variant="getBadgeVariantFromLabel(label)"
-                >
-                  {{ label }}
-                </Badge>
-                <Badge
-                  v-if="item.priority !== 'normal'"
-                  variant="outline"
-                >
-                  {{ item.priorityLabel }}
-                </Badge>
-              </div>
+                {{ label }}
+              </span>
+              <span
+                v-if="item.priority !== 'normal'"
+                class="inline-flex items-center rounded-full border border-border/60 bg-muted/40 px-1.5 py-0 text-[10px] font-medium text-muted-foreground"
+              >
+                {{ item.priorityLabel }}
+              </span>
             </div>
           </div>
-        </Button>
+        </button>
       </TransitionGroup>
-      <!-- 无限滚动哨兵：接近底部时触发 loadMore -->
       <div ref="sentinel" class="h-1 w-full" />
     </div>
   </ScrollArea>
@@ -249,13 +254,13 @@ function selectMail(mailId: string) {
 .list-move,
 .list-enter-active,
 .list-leave-active {
-  transition: all 0.5s ease;
+  transition: all 0.3s ease;
 }
 
 .list-enter-from,
 .list-leave-to {
   opacity: 0;
-  transform: translateY(15px);
+  transform: translateY(8px);
 }
 
 .list-leave-active {
