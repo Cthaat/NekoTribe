@@ -1,11 +1,9 @@
-<!-- 文件路径: pages/account.vue -->
 <script setup lang="ts">
 import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
@@ -24,6 +22,7 @@ import {
 import type { CreateGroupData } from '@/types/groups';
 import {
   ChevronDown,
+  Filter,
   FileText,
   ListFilter,
   Plus,
@@ -153,8 +152,7 @@ async function loadAccount(): Promise<void> {
     user.value.stats.likesCount = me.likesCount;
     const analytics = await v2GetUserAnalytics(me.id);
     user.value.point = analytics.engagementScore;
-  } catch (error) {
-    console.error(t('account.errors.loadUser'), error);
+  } catch {
     toast.error(t('account.errors.loadUser'));
   }
 }
@@ -200,48 +198,68 @@ watch(
 </script>
 
 <template>
-  <div class="p-4 sm:p-6 lg:p-8 space-y-8">
-    <!-- 1. 顶部的 Header: 标题和操作按钮 -->
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div class="min-w-0">
-        <h1 class="text-2xl font-bold tracking-tight">
-          {{ t('account.title') }} - {{ activeTab }}
+  <div class="grid gap-6 p-4 sm:p-6 lg:p-8">
+    <div
+      class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div class="min-w-0 grid gap-1">
+        <h1 class="text-xl font-semibold tracking-tight sm:text-2xl">
+          {{ t('account.title') }}
+          <span class="text-muted-foreground">·</span>
+          {{ activeTab }}
         </h1>
-        <p class="text-muted-foreground text-sm">
+        <p class="text-xs text-muted-foreground">
           {{ t('account.breadcrumb') }}
         </p>
       </div>
-      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:space-x-2">
+      <div
+        class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center"
+      >
         <Button
           variant="outline"
-          class="w-full gap-2 sm:w-auto"
+          class="h-9 w-full rounded-md shadow-xs sm:w-auto"
           @click="filterDialogOpen = true"
         >
-          <ListFilter class="h-4 w-4" />
+          <ListFilter class="h-3.5 w-3.5" />
           {{ t('common.filter') }}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button class="w-full gap-2 sm:w-auto">
-              <Plus class="h-4 w-4" />
+            <Button class="h-9 w-full rounded-md shadow-xs sm:w-auto">
+              <Plus class="h-3.5 w-3.5" />
               {{ t('common.create') }}
-              <ChevronDown class="h-4 w-4 opacity-70" />
+              <ChevronDown class="h-3.5 w-3.5 opacity-70" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="w-48">
-            <DropdownMenuItem @click="createPost">
-              <FileText class="h-4 w-4" />
+          <DropdownMenuContent
+            align="end"
+            class="w-52 rounded-xl border-border/60 p-1"
+          >
+            <DropdownMenuItem
+              class="gap-2 rounded-md"
+              @click="createPost"
+            >
+              <FileText class="h-3.5 w-3.5 text-muted-foreground" />
               {{ t('account.actions.createPost') }}
             </DropdownMenuItem>
-            <DropdownMenuItem @click="openCreateGroup">
-              <Users class="h-4 w-4" />
+            <DropdownMenuItem
+              class="gap-2 rounded-md"
+              @click="openCreateGroup"
+            >
+              <Users class="h-3.5 w-3.5 text-muted-foreground" />
               {{ t('account.actions.createGroup') }}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              @click="goToAccountTab(localePath('account-profile'), t('account.tabs.profile'))"
+              class="gap-2 rounded-md"
+              @click="
+                goToAccountTab(
+                  localePath('account-profile'),
+                  t('account.tabs.profile')
+                )
+              "
             >
-              <UserRound class="h-4 w-4" />
+              <UserRound class="h-3.5 w-3.5 text-muted-foreground" />
               {{ t('account.actions.editProfile') }}
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -260,38 +278,51 @@ watch(
       :open="filterDialogOpen"
       @update:open="filterDialogOpen = $event"
     >
-      <DialogContent class="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent
+        class="overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-lg"
+      >
+        <DialogHeader
+          class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+        >
+          <DialogTitle
+            class="flex items-center gap-2 text-base font-semibold tracking-tight"
+          >
+            <span
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary"
+            >
+              <Filter class="h-4 w-4" />
+            </span>
             {{ t('account.actions.filterTitle') }}
           </DialogTitle>
-          <DialogDescription>
+          <p class="pl-9 text-xs text-muted-foreground">
             {{ t('account.actions.filterDescription') }}
-          </DialogDescription>
+          </p>
         </DialogHeader>
-        <div class="grid gap-2 sm:grid-cols-2">
-          <Button
+        <div class="grid gap-2 px-5 py-4 sm:grid-cols-2">
+          <button
             v-for="tab in localizedAccountTabs"
             :key="tab.to"
             type="button"
-            variant="outline"
-            class="h-auto justify-start gap-3 rounded-lg px-3 py-3 text-left"
+            class="flex items-center gap-3 rounded-lg border border-border/60 bg-card p-3 text-left transition-all hover:border-border hover:bg-muted/40 hover:shadow-sm"
             @click="goToAccountTab(tab.to, tab.name)"
           >
-            <Settings
-              v-if="tab.to.includes('/settings')"
-              class="h-4 w-4 text-muted-foreground"
-            />
-            <Shield
-              v-else-if="tab.to.includes('/security')"
-              class="h-4 w-4 text-muted-foreground"
-            />
-            <UserRound
-              v-else
-              class="h-4 w-4 text-muted-foreground"
-            />
-            <span class="font-medium">{{ tab.name }}</span>
-          </Button>
+            <span
+              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground"
+            >
+              <Settings
+                v-if="tab.to.includes('/settings')"
+                class="h-4 w-4"
+              />
+              <Shield
+                v-else-if="tab.to.includes('/security')"
+                class="h-4 w-4"
+              />
+              <UserRound v-else class="h-4 w-4" />
+            </span>
+            <span class="truncate text-sm font-medium">
+              {{ tab.name }}
+            </span>
+          </button>
         </div>
       </DialogContent>
     </Dialog>
@@ -301,10 +332,8 @@ watch(
       @create="handleCreateGroup"
     />
 
-    <!-- 4. 子页面渲染出口 -->
     <div class="content-below-tabs">
       <NuxtPage />
     </div>
   </div>
 </template>
-
