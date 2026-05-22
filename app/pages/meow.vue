@@ -175,16 +175,16 @@ async function handleTweetSubmit(
 </script>
 
 <template>
-  <div class="relative min-h-screen">
+  <div class="relative min-h-screen overflow-x-clip">
     <!-- 
     我们将移除外层的 `hidden md:block`，让页面在所有设备上都可见。
     并调整一些间距，让布局更和谐。
   -->
-    <div class="space-y-6 p-4 sm:p-8">
+    <div class="space-y-6 p-3 sm:p-6 lg:p-8">
       <!-- 让标题与输入框左侧对齐：使用与编辑器相同的容器 -->
       <div class="mx-auto max-w-3xl">
         <div
-          class="flex items-center justify-between padding-bottom-4"
+          class="flex min-w-0 items-start justify-between gap-3 padding-bottom-4"
         >
           <div>
             <h2 class="text-2xl font-bold tracking-tight">
