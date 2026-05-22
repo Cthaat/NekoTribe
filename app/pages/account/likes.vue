@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { Heart, RefreshCw } from 'lucide-vue-next';
+import {
+  AlertTriangle,
+  Heart,
+  Loader2,
+  RefreshCw
+} from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -17,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import TweetList from '@/components/TweetList.vue';
 import RetweetModal from '@/components/RetweetModal.vue';
@@ -141,7 +138,7 @@ async function handleLikeTweet(
         likes: result.likesCount
       }
     }));
-  } catch (error) {
+  } catch {
     toast.error(t('post.feedback.likeFailed'));
   }
 }
@@ -162,86 +159,123 @@ async function handleBookmarkTweet(
         hasBookmarked: result.isBookmarked
       }
     }));
-  } catch (error) {
+  } catch {
     toast.error(t('post.feedback.bookmarkFailed'));
   }
 }
 </script>
 
 <template>
-  <Card>
-    <CardHeader class="gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <CardTitle>{{ t('account.likes.title') }}</CardTitle>
-        <CardDescription>
-          {{ t('account.likes.description') }}
-        </CardDescription>
-      </div>
-      <div class="flex flex-col gap-2 sm:flex-row">
-        <Select v-model="sort">
-          <SelectTrigger class="w-full sm:w-[150px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="newest">
-              {{ t('account.posts.sort.newest') }}
-            </SelectItem>
-            <SelectItem value="oldest">
-              {{ t('account.posts.sort.oldest') }}
-            </SelectItem>
-            <SelectItem value="popular">
-              {{ t('account.posts.sort.popular') }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <Button
-          variant="outline"
-          class="gap-2"
-          :disabled="feed.loading"
-          @click="feed.refresh"
-        >
-          <RefreshCw class="h-4 w-4" />
-          {{ t('common.refresh') }}
-        </Button>
-      </div>
-    </CardHeader>
-    <CardContent class="space-y-4">
-      <p class="text-sm text-muted-foreground">
-        {{ summaryText }}
-      </p>
+  <div class="grid gap-4">
+    <section
+      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
+    >
+      <header
+        class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+      >
+        <div class="flex items-start gap-3">
+          <span
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400"
+          >
+            <Heart class="h-4 w-4" />
+          </span>
+          <div class="min-w-0 grid gap-0.5">
+            <h2 class="text-lg font-semibold tracking-tight">
+              {{ t('account.likes.title') }}
+            </h2>
+            <p class="text-xs text-muted-foreground">
+              {{ t('account.likes.description') }}
+            </p>
+          </div>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <Select v-model="sort">
+            <SelectTrigger class="h-9 w-full rounded-md shadow-xs sm:w-[150px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">
+                {{ t('account.posts.sort.newest') }}
+              </SelectItem>
+              <SelectItem value="oldest">
+                {{ t('account.posts.sort.oldest') }}
+              </SelectItem>
+              <SelectItem value="popular">
+                {{ t('account.posts.sort.popular') }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            class="h-9 rounded-md shadow-xs"
+            :disabled="feed.loading"
+            @click="feed.refresh"
+          >
+            <Loader2 v-if="feed.loading" class="h-3.5 w-3.5 animate-spin" />
+            <RefreshCw v-else class="h-3.5 w-3.5" />
+            {{ t('common.refresh') }}
+          </Button>
+        </div>
+      </header>
 
       <div
-        v-if="feed.loading"
-        class="space-y-4"
+        class="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3"
       >
-        <TweetCardSkeleton v-for="item in 3" :key="item" />
+        <p class="text-[11px] uppercase tracking-wider text-muted-foreground">
+          {{ t('account.likes.title') }}
+        </p>
+        <p class="text-sm font-semibold tabular-nums">
+          {{ summaryText }}
+        </p>
       </div>
+    </section>
 
-      <p
-        v-else-if="feed.error"
-        class="text-sm text-destructive"
+    <div
+      v-if="feed.loading && feed.posts.length === 0"
+      class="grid gap-3"
+    >
+      <TweetCardSkeleton v-for="item in 3" :key="item" />
+    </div>
+
+    <div
+      v-else-if="feed.error"
+      class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 bg-muted/10 py-12 text-center"
+    >
+      <span
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 ring-1 ring-rose-200/60 dark:ring-rose-900/40"
       >
-        {{ feed.error }}
+        <AlertTriangle class="h-5 w-5 text-rose-600 dark:text-rose-400" />
+      </span>
+      <p class="text-sm text-muted-foreground">{{ feed.error }}</p>
+    </div>
+
+    <TweetList
+      v-else-if="feed.posts.length > 0"
+      :tweets="feed.posts"
+      @delete-tweet="handleDeleteTweet"
+      @reply-tweet="handleReplyTweet"
+      @retweet-tweet="handleRetweetTweet"
+      @like-tweet="handleLikeTweet"
+      @bookmark-tweet="handleBookmarkTweet"
+    />
+
+    <div
+      v-else
+      class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 bg-muted/10 py-12 text-center"
+    >
+      <span
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+      >
+        <Heart class="h-5 w-5 text-muted-foreground" />
+      </span>
+      <p class="text-sm font-medium">
+        {{ t('account.likes.emptyTitle') }}
       </p>
-
-      <TweetList
-        v-else-if="feed.posts.length > 0"
-        :tweets="feed.posts"
-        @delete-tweet="handleDeleteTweet"
-        @reply-tweet="handleReplyTweet"
-        @retweet-tweet="handleRetweetTweet"
-        @like-tweet="handleLikeTweet"
-        @bookmark-tweet="handleBookmarkTweet"
-      />
-
-      <AppEmptyState
-        v-else
-        :icon="Heart"
-        :title="t('account.likes.emptyTitle')"
-        :description="t('account.likes.emptyDescription')"
-      />
-    </CardContent>
-  </Card>
+      <p class="max-w-sm text-xs text-muted-foreground">
+        {{ t('account.likes.emptyDescription') }}
+      </p>
+    </div>
+  </div>
 
   <RetweetModal
     v-if="selectedTweetForRetweet"
