@@ -1,16 +1,7 @@
 <script setup lang="ts">
-// 无页面布局
 definePageMeta({
   layout: false
 });
-// 1. 导入所有需要的组件
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
   Alert,
@@ -69,188 +60,151 @@ const faqItems = [
 </script>
 
 <template>
-  <div class="w-full max-w-4xl mx-auto p-4 md:p-8">
-    <Card>
-      <CardHeader>
-        <div class="flex items-center gap-3 mb-2">
-          <FileText class="size-8 text-primary" />
-          <div>
-            <CardTitle class="text-3xl font-bold">
+  <div class="mx-auto w-full max-w-4xl p-4 md:p-8">
+    <article
+      class="rounded-xl border border-border/60 bg-card shadow-none"
+    >
+      <header class="px-6 py-5 sm:px-8 sm:py-6">
+        <div class="flex items-center gap-3">
+          <span
+            class="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20"
+          >
+            <FileText class="h-5 w-5" />
+          </span>
+          <div class="min-w-0">
+            <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
               {{ t('auth.terms.title') }}
-            </CardTitle>
-            <CardDescription>
+            </h1>
+            <p class="mt-1 text-sm text-muted-foreground">
               {{ t('auth.terms.description') }}
-            </CardDescription>
+            </p>
           </div>
         </div>
-        <p class="text-xs text-muted-foreground pt-2">
+        <p class="mt-3 text-[11px] text-muted-foreground">
           {{ t('auth.terms.lastUpdated') }}: 2025.7.16
         </p>
-      </CardHeader>
+      </header>
 
       <Separator />
 
-      <CardContent class="p-6 space-y-8">
-        <!-- 目录 (Table of Contents) -->
-        <div class="p-4 bg-muted/50 rounded-lg">
-          <h3 class="font-semibold mb-2">
+      <div class="grid gap-8 px-6 py-6 sm:px-8 sm:py-8">
+        <nav
+          class="rounded-lg border border-border/60 bg-muted/30 p-4"
+        >
+          <h3 class="mb-2 text-sm font-semibold tracking-tight">
             {{ t('auth.terms.toc.title') }}
           </h3>
-          <ul class="space-y-1 list-inside">
+          <ul class="grid gap-1 text-sm">
             <li v-for="item in tocItems" :key="item.id">
-              <a :href="item.id" class="hover:underline">
+              <a
+                :href="item.id"
+                class="inline-flex items-center gap-1.5 text-muted-foreground transition hover:text-foreground hover:underline"
+              >
+                <span class="text-primary">→</span>
                 {{ t(item.titleKey) }}
               </a>
             </li>
           </ul>
-        </div>
+        </nav>
 
-        <!-- 服务条款内容 -->
-        <article class="space-y-6">
-          <!-- 章节 1: 接受条款 -->
+        <article class="grid gap-8">
           <section :id="tocItems[0].id.substring(1)">
             <h2
-              class="text-2xl font-semibold border-b pb-2 mb-4"
+              class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
-              1.
-              {{
-                t('auth.terms.sections.acceptance.title')
-              }}
+              1. {{ t('auth.terms.sections.acceptance.title') }}
             </h2>
-            <p class="leading-relaxed">
-              {{
-                t('auth.terms.sections.acceptance.content')
-              }}
+            <p class="text-sm leading-relaxed text-muted-foreground">
+              {{ t('auth.terms.sections.acceptance.content') }}
             </p>
           </section>
 
-          <!-- 章节 2: 账户责任 -->
           <section :id="tocItems[1].id.substring(1)">
             <h2
-              class="text-2xl font-semibold border-b pb-2 mb-4"
+              class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
-              2.
-              {{ t('auth.terms.sections.accounts.title') }}
+              2. {{ t('auth.terms.sections.accounts.title') }}
             </h2>
-            <p class="leading-relaxed">
-              {{
-                t('auth.terms.sections.accounts.content')
-              }}
+            <p class="text-sm leading-relaxed text-muted-foreground">
+              {{ t('auth.terms.sections.accounts.content') }}
             </p>
           </section>
 
-          <!-- 章节 3: 用户行为 -->
           <section :id="tocItems[2].id.substring(1)">
             <h2
-              class="text-2xl font-semibold border-b pb-2 mb-4"
+              class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
-              3.
-              {{ t('auth.terms.sections.conduct.title') }}
+              3. {{ t('auth.terms.sections.conduct.title') }}
             </h2>
-            <p class="leading-relaxed mb-4">
-              {{
-                t('auth.terms.sections.conduct.content')
-              }}
+            <p class="mb-4 text-sm leading-relaxed text-muted-foreground">
+              {{ t('auth.terms.sections.conduct.content') }}
             </p>
 
-            <!-- 使用 Alert 组件突出显示重要信息 -->
             <Alert variant="destructive">
               <AlertTriangle class="h-4 w-4" />
               <AlertTitle>{{
                 t('auth.terms.sections.conduct.alertTitle')
               }}</AlertTitle>
               <AlertDescription>
-                <ul class="list-disc pl-5 mt-2">
+                <ul class="mt-2 list-disc space-y-1 pl-5">
                   <li>
-                    {{
-                      t(
-                        'auth.terms.sections.conduct.prohibited.item1'
-                      )
-                    }}
+                    {{ t('auth.terms.sections.conduct.prohibited.item1') }}
                   </li>
                   <li>
-                    {{
-                      t(
-                        'auth.terms.sections.conduct.prohibited.item2'
-                      )
-                    }}
+                    {{ t('auth.terms.sections.conduct.prohibited.item2') }}
                   </li>
                   <li>
-                    {{
-                      t(
-                        'auth.terms.sections.conduct.prohibited.item3'
-                      )
-                    }}
+                    {{ t('auth.terms.sections.conduct.prohibited.item3') }}
                   </li>
                 </ul>
               </AlertDescription>
             </Alert>
           </section>
 
-          <!-- 章节 4: 终止服务 -->
           <section :id="tocItems[3].id.substring(1)">
             <h2
-              class="text-2xl font-semibold border-b pb-2 mb-4"
+              class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
-              4.
-              {{
-                t('auth.terms.sections.termination.title')
-              }}
+              4. {{ t('auth.terms.sections.termination.title') }}
             </h2>
-            <p class="leading-relaxed">
-              {{
-                t(
-                  'auth.terms.sections.termination.content'
-                )
-              }}
+            <p class="text-sm leading-relaxed text-muted-foreground">
+              {{ t('auth.terms.sections.termination.content') }}
             </p>
           </section>
 
-          <!-- 章节 5: 常见问题 (FAQ) -->
           <section :id="tocItems[4].id.substring(1)">
             <h2
-              class="text-2xl font-semibold border-b pb-2 mb-4"
+              class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
               5. {{ t('auth.terms.faq.title') }}
             </h2>
-            <p class="leading-relaxed mb-4">
+            <p class="mb-4 text-sm leading-relaxed text-muted-foreground">
               {{ t('auth.terms.faq.description') }}
             </p>
-            <!-- 分割线 -->
             <Separator class="my-4" />
-            <Accordion
-              type="single"
-              collapsible
-              class="w-full"
-            >
+            <Accordion type="single" collapsible class="w-full">
               <AccordionItem
                 v-for="faq in faqItems"
                 :key="faq.value"
                 :value="faq.value"
               >
-                <AccordionTrigger>{{
-                  t(faq.questionKey)
-                }}</AccordionTrigger>
-                <AccordionContent class="text-base">
+                <AccordionTrigger>{{ t(faq.questionKey) }}</AccordionTrigger>
+                <AccordionContent class="text-sm leading-relaxed">
                   {{ t(faq.answerKey) }}
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
-            <!-- 添加返回注册的按钮，居中 -->
-            <div
-              class="mt-6 flex content-center justify-center"
-            >
+            <div class="mt-6 flex justify-center">
               <Button
-                @click="
-                  $router.push(localePath('auth-sign-up'))
-                "
+                class="h-9 rounded-md shadow-xs"
+                @click="$router.push(localePath('auth-sign-up'))"
               >
                 {{ t('auth.terms.registerButton') }}
               </Button>
             </div>
           </section>
         </article>
-      </CardContent>
-    </Card>
+      </div>
+    </article>
   </div>
 </template>
