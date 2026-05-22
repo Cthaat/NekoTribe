@@ -48,22 +48,18 @@ function handleBookmarkTweet(
 </script>
 
 <template>
-  <div class="bg-background">
-    <div
+  <div class="mx-auto max-w-2xl">
+    <TweetCard
       v-for="tweet in props.tweets"
       :key="tweet.id"
-    >
-      <TweetCard
-        @delete-tweet="handleDeleteTweet"
-        @reply-tweet="handleReplyTweet"
-        @retweet-tweet="handleRetweetTweet"
-        @like-tweet="handleLikeTweet"
-        @bookmark-tweet="handleBookmarkTweet"
-        :key="tweet.id"
-        :tweet="tweet"
-        :show-relation-context="showRelationContext"
-      />
-    </div>
+      @delete-tweet="handleDeleteTweet"
+      @reply-tweet="handleReplyTweet"
+      @retweet-tweet="handleRetweetTweet"
+      @like-tweet="handleLikeTweet"
+      @bookmark-tweet="handleBookmarkTweet"
+      :tweet="tweet"
+      :show-relation-context="showRelationContext"
+    />
   </div>
 </template>
 
