@@ -1,27 +1,16 @@
 <script setup lang="ts">
-// 无页面布局
 definePageMeta({
   layout: false
 });
 import { AlertTriangle, Home } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
 
 const { t } = useAppLocale();
 
-// Nuxt 会自动将错误信息作为 props 传入
 defineProps({
   error: Object
 });
 
-// 处理返回首页的事件
 const handleClearError = () =>
   clearError({ redirect: '/' });
 </script>
@@ -30,44 +19,55 @@ const handleClearError = () =>
   <div
     class="flex min-h-screen items-center justify-center bg-background p-4"
   >
-    <Card class="w-full max-w-md text-center shadow-lg">
-      <CardHeader>
-        <div
-          class="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-destructive/10"
-        >
-          <AlertTriangle class="size-10 text-destructive" />
-        </div>
-        <CardTitle
-          class="text-3xl font-bold tracking-tight"
+    <div
+      class="grid w-full max-w-md gap-5 rounded-xl border border-border/60 bg-card p-6 text-center shadow-none sm:p-8"
+    >
+      <div
+        class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-500/10 ring-1 ring-rose-500/20"
+      >
+        <AlertTriangle class="h-6 w-6 text-rose-500" />
+      </div>
+
+      <div class="grid gap-1.5">
+        <h1
+          class="text-2xl font-semibold tracking-tight sm:text-3xl"
         >
           {{ t('errorPage.notFound.title') }}
-        </CardTitle>
-        <CardDescription
-          class="text-lg text-muted-foreground"
-        >
+        </h1>
+        <p class="text-sm text-muted-foreground">
           {{ t('errorPage.notFound.description') }}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div
-          class="space-y-2 text-left text-sm text-muted-foreground"
-        >
-          <p>{{ t('errorPage.notFound.possibleReasons') }}</p>
-          <ul class="list-inside list-disc space-y-1">
-            <li>{{ t('errorPage.notFound.invalidUrl') }}</li>
-            <li>
-              {{ t('errorPage.notFound.movedOrDeleted') }}
-            </li>
-            <li>{{ t('errorPage.notFound.serverBusy') }}</li>
-          </ul>
-        </div>
-      </CardContent>
-      <CardFooter>
-        <Button class="w-full" @click="handleClearError">
-          <Home class="mr-2 size-4" />
-          {{ t('errorPage.notFound.backHome') }}
-        </Button>
-      </CardFooter>
-    </Card>
+        </p>
+      </div>
+
+      <div
+        class="grid gap-2 rounded-lg border border-border/60 bg-muted/20 p-4 text-left"
+      >
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {{ t('errorPage.notFound.possibleReasons') }}
+        </p>
+        <ul class="grid gap-1.5 text-xs text-muted-foreground">
+          <li class="flex items-start gap-2">
+            <span class="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+            {{ t('errorPage.notFound.invalidUrl') }}
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+            {{ t('errorPage.notFound.movedOrDeleted') }}
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+            {{ t('errorPage.notFound.serverBusy') }}
+          </li>
+        </ul>
+      </div>
+
+      <Button
+        class="h-9 w-full rounded-md shadow-xs"
+        @click="handleClearError"
+      >
+        <Home class="h-3.5 w-3.5" />
+        {{ t('errorPage.notFound.backHome') }}
+      </Button>
+    </div>
   </div>
 </template>
