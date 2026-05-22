@@ -22,10 +22,7 @@ import {
   Maximize2
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -338,16 +335,16 @@ onBeforeUnmount(() => {
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden min-w-0">
       <!-- 频道头部 -->
       <div
-        class="flex h-12 flex-shrink-0 items-center justify-between gap-2 border-b bg-background px-3 sm:px-4"
+        class="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/60 px-3 backdrop-blur sm:px-4"
       >
         <div class="flex min-w-0 items-center gap-2">
-          <Hash class="h-5 w-5 text-muted-foreground" />
-          <span class="truncate font-semibold">{{
-            channel.name
-          }}</span>
-          <div class="mx-2 hidden h-4 w-px bg-border sm:block" />
+          <Hash class="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span class="truncate text-sm font-semibold">
+            {{ channel.name }}
+          </span>
+          <span class="mx-1 hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
           <span
-            class="hidden max-w-xs truncate text-sm text-muted-foreground sm:inline"
+            class="hidden max-w-xs truncate text-xs text-muted-foreground sm:inline"
           >
             {{
               channel.lastMessage ||
@@ -356,15 +353,15 @@ onBeforeUnmount(() => {
           </span>
         </div>
 
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-0.5">
           <TooltipProvider>
             <!-- 语音通话 -->
             <Tooltip>
               <TooltipTrigger as-child>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  class="h-8 w-8 p-0"
+                  size="icon"
+                  class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
                   @click="openCallDialog('voice')"
                 >
                   <Phone class="h-4 w-4" />
@@ -380,8 +377,8 @@ onBeforeUnmount(() => {
               <TooltipTrigger as-child>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  class="h-8 w-8 p-0"
+                  size="icon"
+                  class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
                   @click="openCallDialog('video')"
                 >
                   <Video class="h-4 w-4" />
@@ -399,17 +396,16 @@ onBeforeUnmount(() => {
                   <SheetTrigger as-child>
                     <Button
                       variant="ghost"
-                      size="sm"
-                      class="h-8 w-8 p-0 relative"
+                      size="icon"
+                      class="relative h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
                     >
                       <Pin class="h-4 w-4" />
-                      <Badge
+                      <span
                         v-if="pinnedMessages?.length"
-                        variant="destructive"
-                        class="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 text-[10px]"
+                        class="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium tabular-nums text-primary-foreground"
                       >
                         {{ pinnedMessages.length }}
-                      </Badge>
+                      </span>
                     </Button>
                   </SheetTrigger>
                 </TooltipTrigger>
@@ -419,40 +415,39 @@ onBeforeUnmount(() => {
               </Tooltip>
               <SheetContent side="right" class="w-full sm:w-80">
                 <SheetHeader>
-                  <SheetTitle>{{ t('chat.message.pinnedMessages') }}</SheetTitle>
+                  <SheetTitle class="text-base font-semibold tracking-tight">
+                    {{ t('chat.message.pinnedMessages') }}
+                  </SheetTitle>
                 </SheetHeader>
-                <div class="mt-4 space-y-2">
+                <div class="mt-4 space-y-2 px-2">
                   <div
                     v-if="!pinnedMessages?.length"
-                    class="text-center text-muted-foreground py-8"
+                    class="mx-auto flex max-w-xs flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-8 text-center"
                   >
-                    {{ t('chat.message.noPinnedMessages') }}
+                    <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60">
+                      <Pin class="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('chat.message.noPinnedMessages') }}
+                    </p>
                   </div>
-                  <Card
+                  <div
                     v-for="msg in pinnedMessages"
                     :key="msg.id"
-                    class="gap-0 bg-muted/50 py-0 shadow-xs"
+                    class="rounded-lg border border-border/60 bg-card p-3 transition-colors hover:border-border hover:bg-muted/20"
                   >
-                    <CardContent class="p-3">
-                      <div
-                        class="mb-1 flex items-center gap-2"
-                      >
-                        <span class="text-sm font-medium">{{
-                          msg.author.nickname
-                        }}</span>
-                        <span
-                          class="text-xs text-muted-foreground"
-                        >
-                          {{
-                            new Date(
-                              msg.createdAt
-                            ).toLocaleDateString()
-                          }}
-                        </span>
-                      </div>
-                      <p class="text-sm">{{ msg.content }}</p>
-                    </CardContent>
-                  </Card>
+                    <div class="mb-1 flex items-center gap-2">
+                      <span class="truncate text-sm font-medium">
+                        {{ msg.author.nickname }}
+                      </span>
+                      <span class="text-[11px] tabular-nums text-muted-foreground">
+                        {{ new Date(msg.createdAt).toLocaleDateString() }}
+                      </span>
+                    </div>
+                    <p class="text-sm leading-relaxed text-foreground">
+                      {{ msg.content }}
+                    </p>
+                  </div>
                 </div>
               </SheetContent>
             </Sheet>
@@ -464,8 +459,8 @@ onBeforeUnmount(() => {
                   <SheetTrigger as-child>
                     <Button
                       variant="ghost"
-                      size="sm"
-                      class="h-8 w-8 p-0"
+                      size="icon"
+                      class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
                     >
                       <component
                         :is="channel.isMuted ? BellOff : Bell"
@@ -480,29 +475,27 @@ onBeforeUnmount(() => {
               </Tooltip>
               <SheetContent side="right" class="w-full p-6 sm:w-80">
                 <SheetHeader>
-                  <SheetTitle>
+                  <SheetTitle class="text-base font-semibold tracking-tight">
                     {{ t('chat.notifications.title') }}
                   </SheetTitle>
                 </SheetHeader>
-                <div class="mt-6 space-y-4">
-                  <Card class="gap-0 py-0">
-                    <CardContent
-                      class="flex items-center justify-between gap-4 p-3"
-                    >
-                      <div class="space-y-1">
-                        <Label>
-                          {{ t('chat.notifications.muteLabel') }}
-                        </Label>
-                        <p class="text-sm text-muted-foreground">
-                          {{ t('chat.notifications.muteDescription') }}
-                        </p>
-                      </div>
-                      <Switch
-                        :model-value="channel.isMuted"
-                        @update:model-value="emit('toggle-mute')"
-                      />
-                    </CardContent>
-                  </Card>
+                <div class="mt-6">
+                  <div
+                    class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-card p-3"
+                  >
+                    <div class="space-y-0.5">
+                      <Label class="text-sm font-medium">
+                        {{ t('chat.notifications.muteLabel') }}
+                      </Label>
+                      <p class="text-xs leading-relaxed text-muted-foreground">
+                        {{ t('chat.notifications.muteDescription') }}
+                      </p>
+                    </div>
+                    <Switch
+                      :model-value="channel.isMuted"
+                      @update:model-value="emit('toggle-mute')"
+                    />
+                  </div>
                 </div>
               </SheetContent>
             </Sheet>
@@ -512,9 +505,9 @@ onBeforeUnmount(() => {
               <TooltipTrigger as-child>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  class="h-8 w-8 p-0"
-                  :class="{ 'bg-muted': showSearch }"
+                  size="icon"
+                  class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
+                  :class="{ 'bg-accent text-accent-foreground': showSearch }"
                   @click="showSearch = !showSearch"
                 >
                   <Search class="h-4 w-4" />
@@ -530,8 +523,8 @@ onBeforeUnmount(() => {
               <TooltipTrigger as-child>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  class="h-8 w-8 p-0 lg:hidden"
+                  size="icon"
+                  class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground lg:hidden"
                   @click="mobileMemberListOpen = true"
                 >
                   <PanelRightOpen class="h-4 w-4" />
@@ -545,9 +538,9 @@ onBeforeUnmount(() => {
               <TooltipTrigger as-child>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  class="hidden h-8 w-8 p-0 lg:inline-flex"
-                  :class="{ 'bg-muted': showMemberList }"
+                  size="icon"
+                  class="hidden h-8 w-8 rounded-md text-muted-foreground hover:text-foreground lg:inline-flex"
+                  :class="{ 'bg-accent text-accent-foreground': showMemberList }"
                   @click="showMemberList = !showMemberList"
                 >
                   <component
@@ -577,16 +570,16 @@ onBeforeUnmount(() => {
       <!-- 搜索栏 -->
       <div
         v-if="showSearch"
-        class="px-4 py-2 border-b bg-muted/30 flex-shrink-0"
+        class="shrink-0 border-b border-border/60 bg-muted/20 px-3 py-2 sm:px-4"
       >
         <div class="relative max-w-md">
           <Search
-            class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+            class="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             v-model="searchQuery"
             :placeholder="t('chat.searchPlaceholder')"
-            class="pl-9"
+            class="h-9 pl-9 shadow-xs"
             @input="emit('search', searchQuery)"
           />
         </div>
@@ -602,15 +595,13 @@ onBeforeUnmount(() => {
             <!-- 加载中 -->
             <div
               v-if="isLoading"
-              class="flex justify-center py-4"
+              class="flex justify-center py-6"
             >
-              <div
-                class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"
-              />
+              <div class="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
             </div>
 
             <!-- 消息列表 -->
-            <div class="py-4">
+            <div class="py-3">
               <ChatMessage
                 v-for="(message, index) in messages"
                 :key="message.id"
@@ -634,17 +625,19 @@ onBeforeUnmount(() => {
             <!-- 空状态 -->
             <div
               v-if="messages.length === 0 && !isLoading"
-              class="flex min-h-[calc(100vh-14rem)] flex-col items-center justify-center text-muted-foreground"
+              class="flex min-h-[calc(100vh-14rem)] flex-col items-center justify-center px-6 text-center"
             >
-              <Hash class="h-16 w-16 mb-4 opacity-50" />
-              <h3 class="text-lg font-semibold mb-1">
+              <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60">
+                <Hash class="h-6 w-6 text-muted-foreground" />
+              </div>
+              <h3 class="text-base font-semibold tracking-tight">
                 {{
                   t('chat.message.emptyTitle', {
                     channel: channel.name
                   })
                 }}
               </h3>
-              <p class="text-sm">
+              <p class="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
                 {{ t('chat.message.emptyDescription') }}
               </p>
             </div>
@@ -658,10 +651,10 @@ onBeforeUnmount(() => {
         >
           <Button
             size="sm"
-            class="gap-1 shadow-lg"
+            class="h-8 gap-1.5 rounded-full px-3 shadow-md"
             @click="scrollToBottom"
           >
-            <ArrowDown class="h-4 w-4" />
+            <ArrowDown class="h-3.5 w-3.5" />
             {{ t('chat.message.newMessages') }}
           </Button>
         </div>
@@ -693,8 +686,10 @@ onBeforeUnmount(() => {
 
     <Sheet v-model:open="mobileMemberListOpen">
       <SheetContent side="right" class="flex w-full flex-col p-0 sm:w-80">
-        <SheetHeader class="border-b px-4 py-3">
-          <SheetTitle>{{ t('chat.actions.showMembers') }}</SheetTitle>
+        <SheetHeader class="border-b border-border/60 px-4 py-3">
+          <SheetTitle class="text-sm font-semibold tracking-tight">
+            {{ t('chat.actions.showMembers') }}
+          </SheetTitle>
         </SheetHeader>
         <ChatMemberList
           :members="members"
@@ -742,13 +737,11 @@ onBeforeUnmount(() => {
 
     <Sheet v-model:open="directMessageOpen">
       <SheetContent side="right" class="flex w-full flex-col p-0 sm:w-96">
-        <div class="border-b px-5 py-4">
+        <div class="border-b border-border/60 bg-background/60 px-5 py-4 backdrop-blur">
           <div class="flex items-start gap-3 pr-16">
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="icon"
-              class="h-11 w-11 shrink-0 rounded-full p-0"
+              class="shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               :disabled="!directMessageTarget"
               @click="
                 directMessageTarget &&
@@ -761,81 +754,83 @@ onBeforeUnmount(() => {
                   :src="directMessageTarget.avatar"
                   :alt="directMessageTarget?.nickname"
                 />
-                <AvatarFallback v-if="directMessageTarget">
+                <AvatarFallback v-if="directMessageTarget" class="text-sm font-medium">
                   {{ directMessageTarget.nickname.slice(0, 2) }}
                 </AvatarFallback>
               </Avatar>
-            </Button>
+            </button>
             <div class="min-w-0 flex-1">
               <div
                 v-if="directMessageTarget"
-                class="truncate text-base font-semibold leading-6"
+                class="truncate text-base font-semibold tracking-tight"
               >
                 {{ directMessageTarget.nickname }}
               </div>
               <div
                 v-if="directMessageTarget"
-                class="truncate text-sm text-muted-foreground"
+                class="truncate text-xs text-muted-foreground"
               >
                 @{{ directMessageTarget.username }}
               </div>
-              <div class="mt-1 text-xs text-muted-foreground">
+              <div class="mt-1 text-[11px] text-muted-foreground">
                 {{ t('chat.directMessage.title') }}
               </div>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              class="ml-auto mt-0.5 h-9 w-9 rounded-full"
+              class="ml-auto h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
               :disabled="!directMessageTarget"
               @click="openDirectMessageStandalone"
             >
               <Maximize2 class="h-4 w-4" />
-              <span class="sr-only">展开到主界面</span>
+              <span class="sr-only">{{ t('chat.actions.showMembers') }}</span>
             </Button>
           </div>
         </div>
 
-        <div v-if="directMessageTarget" class="flex min-h-0 flex-1 flex-col px-4 py-4 gap-4">
-          <ScrollArea class="flex-1 rounded-2xl border bg-muted/20 p-4 shadow-sm">
+        <div v-if="directMessageTarget" class="flex min-h-0 flex-1 flex-col gap-3 p-4">
+          <ScrollArea class="flex-1 rounded-xl border border-border/60 bg-muted/20 p-3">
             <div class="flex min-h-full flex-col justify-end gap-3">
               <div v-if="isLoadingDirectMessages" class="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
-                {{ t('chat.directMessage.loading') }}
+                <div class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+                <span class="ml-2">{{ t('chat.directMessage.loading') }}</span>
               </div>
 
-              <div v-else-if="!directMessages?.length" class="flex min-h-40 flex-col items-center justify-center text-center text-sm text-muted-foreground">
-                <div class="font-medium text-foreground">
+              <div v-else-if="!directMessages?.length" class="flex min-h-40 flex-col items-center justify-center px-4 text-center">
+                <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60">
+                  <Hash class="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div class="text-sm font-semibold tracking-tight">
                   {{ t('chat.directMessage.emptyTitle') }}
                 </div>
-                <div class="mt-1">
+                <div class="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {{ t('chat.directMessage.emptyDescription') }}
                 </div>
               </div>
 
-              <div v-else class="flex flex-col gap-3">
+              <div v-else class="flex flex-col gap-2.5">
                 <div
                   v-for="message in directMessages"
                   :key="message.message_id"
                   class="flex"
                   :class="{ 'justify-end': message.author.user_id === currentUserId }"
                 >
-                  <div class="max-w-[84%]">
-                    <Card
-                      class="gap-0 rounded-xl py-0 text-sm leading-6 shadow-xs"
+                  <div class="max-w-[84%] min-w-0">
+                    <div
+                      class="rounded-2xl px-3.5 py-2 text-sm leading-relaxed shadow-xs"
                       :class="
                         message.author.user_id === currentUserId
-                          ? 'ml-auto border-primary/60 bg-primary text-primary-foreground'
-                          : 'border-border/70 bg-muted text-foreground dark:bg-muted/80'
+                          ? 'rounded-br-md bg-primary text-primary-foreground'
+                          : 'rounded-bl-md border border-border/60 bg-card text-foreground'
                       "
                     >
-                      <CardContent class="px-4 py-3">
-                        <div class="whitespace-pre-wrap break-words">
-                          {{ message.content }}
-                        </div>
-                      </CardContent>
-                    </Card>
+                      <div class="whitespace-pre-wrap break-words">
+                        {{ message.content }}
+                      </div>
+                    </div>
                     <div
-                      class="mt-1 px-1 text-[11px] text-muted-foreground"
+                      class="mt-1 px-1 text-[10px] tabular-nums text-muted-foreground"
                       :class="message.author.user_id === currentUserId ? 'text-right' : 'text-left'"
                     >
                       {{ new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
@@ -846,26 +841,27 @@ onBeforeUnmount(() => {
             </div>
           </ScrollArea>
 
-          <Card class="gap-0 rounded-2xl py-0">
-            <CardContent class="p-3">
-              <div class="flex items-center gap-3 rounded-full border bg-background/90 px-3 py-2">
+          <div class="rounded-xl border border-border/60 bg-card shadow-xs transition-colors focus-within:border-ring/60 focus-within:ring-2 focus-within:ring-ring/20">
+            <div class="flex items-center gap-2 p-1.5">
               <Input
                 v-model="directMessageContent"
                 :placeholder="t('chat.directMessage.placeholder', { user: directMessageTarget.nickname })"
-                class="h-11 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
+                class="h-9 min-w-0 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
                 @keydown="handleDirectMessageKeydown"
               />
               <AppSendButton
                 :loading="isSendingDirectMessage"
                 :disabled="isLoadingDirectMessages || isSendingDirectMessage || !directMessageContent.trim()"
-                class="h-11 shrink-0 rounded-full px-4"
+                size="sm"
+                class="h-8 shrink-0 rounded-md px-3"
                 @click="submitDirectMessage"
               >
-                {{ isSendingDirectMessage ? t('common.processing') : t('chat.actions.sendMessage') }}
+                <span class="hidden sm:inline">
+                  {{ isSendingDirectMessage ? t('common.processing') : t('chat.actions.sendMessage') }}
+                </span>
               </AppSendButton>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
