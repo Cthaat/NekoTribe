@@ -202,7 +202,7 @@ onBeforeUnmount(() => {
           type="search"
           :placeholder="t('globalSearch.placeholder')"
           autocomplete="off"
-          class="h-9 rounded-md pl-9 pr-24 shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40"
+          class="h-9 rounded-md pl-9 pr-3 shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40 sm:pr-24"
           @focus="handleFocus"
           @keydown.enter.prevent="submitPostSearch"
           @keydown.esc="closeSearch"
@@ -212,7 +212,7 @@ onBeforeUnmount(() => {
           type="button"
           variant="secondary"
           size="sm"
-          class="absolute right-1 top-1/2 h-7 -translate-y-1/2 rounded-md px-2.5 text-xs"
+          class="absolute right-1 top-1/2 hidden h-7 -translate-y-1/2 rounded-md px-2.5 text-xs sm:inline-flex"
           @click="submitPostSearch"
         >
           {{ t('globalSearch.postsAction') }}
