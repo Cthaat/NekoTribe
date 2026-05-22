@@ -8,6 +8,7 @@ import {
   watch
 } from 'vue';
 import {
+  AlertTriangle,
   Camera,
   Check,
   Clock,
@@ -19,8 +20,10 @@ import {
   RefreshCw,
   Save,
   Search,
+  Settings,
   Trash2,
   UserMinus,
+  Users,
   Volume2,
   VolumeX,
   X
@@ -28,7 +31,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle
@@ -51,21 +53,12 @@ import {
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@/components/ui/tooltip';
 import { toast } from 'vue-sonner';
 import GroupAvatarCropDialog from './GroupAvatarCropDialog.vue';
 import {
@@ -228,6 +221,41 @@ const managedMembers = computed(() => {
 const activeMemberCount = computed(
   () => props.group?.memberCount ?? 0
 );
+
+const PILL_BASE =
+  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium';
+
+const privacyPillClassMap: Record<GroupPrivacy, string> = {
+  public:
+    'border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300',
+  private:
+    'border-amber-200/60 bg-amber-100/60 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300',
+  secret:
+    'border-rose-200/60 bg-rose-100/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300'
+};
+
+function privacyPillClass(privacy: GroupPrivacy): string {
+  return `${PILL_BASE} ${privacyPillClassMap[privacy]}`;
+}
+
+function statusPillClass(status: string): string {
+  if (status === 'active') {
+    return `${PILL_BASE} border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300`;
+  }
+  if (status === 'pending') {
+    return `${PILL_BASE} border-amber-200/60 bg-amber-100/60 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300`;
+  }
+  if (status === 'muted' || status === 'banned') {
+    return `${PILL_BASE} border-rose-200/60 bg-rose-100/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300`;
+  }
+  return `${PILL_BASE} border-border/60 bg-muted/40 text-muted-foreground`;
+}
+
+function invitePillClass(isValid: boolean): string {
+  return isValid
+    ? `${PILL_BASE} border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300`
+    : `${PILL_BASE} border-border/60 bg-muted/40 text-muted-foreground`;
+}
 
 function resetForm(group: Group): void {
   form.name = group.name;
@@ -542,17 +570,6 @@ function statusLabel(status: string): string {
   return t(keys[status] ?? 'groups.manage.status.unknown');
 }
 
-function statusBadgeVariant(
-  status: string
-): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'active') return 'secondary';
-  if (status === 'pending') return 'outline';
-  if (status === 'muted' || status === 'banned') {
-    return 'destructive';
-  }
-  return 'outline';
-}
-
 function positiveInteger(
   value: unknown,
   fallback: number
@@ -793,363 +810,441 @@ onBeforeUnmount(() => {
     :open="open"
     @update:open="emit('update:open', $event)"
   >
-    <DialogContent class="max-w-5xl max-h-[92vh] p-0 overflow-hidden">
+    <DialogContent
+      class="flex max-h-[92vh] max-w-5xl flex-col overflow-hidden rounded-xl border-border/60 p-0"
+    >
       <template v-if="group">
-        <DialogHeader class="px-4 pt-5 pb-4 sm:px-6 sm:pt-6">
+        <DialogHeader
+          class="border-b border-border/60 bg-background/60 px-5 py-4 backdrop-blur"
+        >
           <div class="flex items-start justify-between gap-4">
             <div class="flex min-w-0 items-center gap-3">
-              <Avatar class="h-12 w-12">
+              <Avatar class="h-12 w-12 ring-1 ring-border">
                 <AvatarImage
                   :src="group.avatar"
                   :alt="group.name"
                 />
-                <AvatarFallback>
+                <AvatarFallback
+                  class="bg-primary/10 text-base font-semibold text-primary"
+                >
                   {{ group.name.slice(0, 1) }}
                 </AvatarFallback>
               </Avatar>
-              <div class="min-w-0">
-                <DialogTitle class="truncate text-xl">
+              <div class="min-w-0 grid gap-1">
+                <DialogTitle
+                  class="truncate text-base font-semibold tracking-tight"
+                >
                   {{ t('groups.manage.title', { name: group.name }) }}
                 </DialogTitle>
-                <DialogDescription>
+                <p class="truncate text-xs text-muted-foreground">
                   {{ t('groups.manage.description') }}
-                </DialogDescription>
+                </p>
               </div>
             </div>
-            <div class="hidden items-center gap-2 md:flex">
-              <Badge variant="secondary">
+            <div class="hidden items-center gap-1.5 md:flex">
+              <span
+                class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+              >
+                <Users class="h-3 w-3" />
                 {{ t('groups.stats.membersCount', { count: activeMemberCount }) }}
-              </Badge>
-              <Badge variant="outline">
+              </span>
+              <span :class="privacyPillClass(group.privacy)">
                 {{ t(`groups.filters.privacy.${group.privacy}`) }}
-              </Badge>
+              </span>
             </div>
           </div>
         </DialogHeader>
 
-        <Separator />
-
-        <Tabs v-model="activeTab" class="flex min-h-0 flex-col">
-          <div class="overflow-x-auto px-4 pt-4 sm:px-6">
-            <TabsList class="grid w-max min-w-full grid-cols-4 sm:w-full">
-              <TabsTrigger value="settings">
+        <Tabs
+          v-model="activeTab"
+          class="flex min-h-0 flex-1 flex-col"
+        >
+          <div class="overflow-x-auto border-b border-border/60 px-5 pt-4 pb-3">
+            <TabsList
+              class="grid w-max min-w-full grid-cols-4 shadow-xs sm:w-full"
+            >
+              <TabsTrigger value="settings" class="text-xs font-medium">
                 {{ t('groups.manage.tabs.settings') }}
               </TabsTrigger>
-              <TabsTrigger value="members">
+              <TabsTrigger value="members" class="text-xs font-medium">
                 {{ t('groups.manage.tabs.members') }}
               </TabsTrigger>
-              <TabsTrigger value="invites">
+              <TabsTrigger value="invites" class="text-xs font-medium">
                 {{ t('groups.manage.tabs.invites') }}
               </TabsTrigger>
-              <TabsTrigger value="danger">
+              <TabsTrigger value="danger" class="text-xs font-medium">
                 {{ t('groups.manage.tabs.danger') }}
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <ScrollArea class="h-[62vh] px-4 py-5 sm:px-6">
-            <TabsContent value="settings" class="mt-0 space-y-5">
-              <div class="grid gap-4 md:grid-cols-2">
-                <div class="space-y-2">
-                  <Label for="manage-group-name">
-                    {{ t('groups.manage.fields.name') }}
-                  </Label>
-                  <Input
-                    id="manage-group-name"
-                    v-model="form.name"
-                    maxlength="50"
-                    :disabled="!canEditSettings"
-                  />
-                </div>
-                <div class="space-y-2">
-                  <Label>
-                    {{ t('groups.manage.fields.privacy') }}
-                  </Label>
-                  <Select
-                    :model-value="form.privacy"
-                    :disabled="!canEditSettings"
-                    @update:model-value="updatePrivacy"
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem
-                        v-for="option in privacyOptions"
-                        :key="option.value"
-                        :value="option.value"
+          <ScrollArea class="flex-1 min-h-0">
+            <div class="px-5 py-5">
+              <TabsContent value="settings" class="mt-0 grid gap-5">
+                <section
+                  class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
+                >
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                    >
+                      <Settings class="h-4 w-4" />
+                    </span>
+                    <h3 class="text-sm font-semibold tracking-tight">
+                      {{ t('groups.manage.tabs.settings') }}
+                    </h3>
+                  </div>
+
+                  <div class="grid gap-4 md:grid-cols-2">
+                    <div class="grid gap-1.5">
+                      <Label
+                        for="manage-group-name"
+                        class="text-xs font-medium"
                       >
-                        {{ t(option.labelKey) }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <Label for="manage-group-description">
-                  {{ t('groups.manage.fields.description') }}
-                </Label>
-                <Textarea
-                  id="manage-group-description"
-                  v-model="form.description"
-                  maxlength="500"
-                  class="min-h-24 resize-none"
-                  :disabled="!canEditSettings"
-                />
-              </div>
-
-              <div class="grid gap-4 md:grid-cols-2">
-                <div class="space-y-2">
-                  <Label>
-                    {{ t('groups.manage.fields.category') }}
-                  </Label>
-                  <Select
-                    :model-value="form.category ?? ''"
-                    :disabled="!canEditSettings"
-                    @update:model-value="updateCategory"
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        :placeholder="t('groups.create.categoryPlaceholder')"
+                        {{ t('groups.manage.fields.name') }}
+                      </Label>
+                      <Input
+                        id="manage-group-name"
+                        v-model="form.name"
+                        maxlength="50"
+                        class="h-9 shadow-xs"
+                        :disabled="!canEditSettings"
                       />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem
-                        v-for="option in categoryOptions"
-                        :key="option.value"
-                        :value="option.value"
+                    </div>
+                    <div class="grid gap-1.5">
+                      <Label class="text-xs font-medium">
+                        {{ t('groups.manage.fields.privacy') }}
+                      </Label>
+                      <Select
+                        :model-value="form.privacy"
+                        :disabled="!canEditSettings"
+                        @update:model-value="updatePrivacy"
                       >
-                        {{ t(option.labelKey) }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div class="space-y-2">
-                  <Label for="manage-group-tags">
-                    {{ t('groups.manage.fields.tags') }}
-                  </Label>
-                  <Input
-                    id="manage-group-tags"
-                    v-model="tagsText"
-                    :placeholder="t('groups.create.tagsPlaceholder')"
-                    maxlength="160"
-                    :disabled="!canEditSettings"
-                  />
-                  <p class="text-xs text-muted-foreground">
-                    {{ t('groups.create.tagsHint') }}
-                  </p>
-                </div>
-              </div>
-
-              <div class="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
-                <div class="space-y-2">
-                  <Label for="manage-group-avatar">
-                    {{ t('groups.manage.fields.avatar') }}
-                  </Label>
-                  <input
-                    ref="avatarInputRef"
-                    type="file"
-                    accept="image/png,image/jpeg,image/gif,image/webp"
-                    class="hidden"
-                    @change="handleAvatarSelected"
-                  >
-                  <div class="flex items-center gap-3">
-                    <Avatar class="h-16 w-16">
-                      <AvatarImage
-                        v-if="form.avatar"
-                        :src="form.avatar"
-                      />
-                      <AvatarFallback>
-                        {{ form.name.slice(0, 1) || '?' }}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div class="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        :disabled="
-                          !canEditSettings || uploadingAvatar
-                        "
-                        :aria-label="
-                          t('groups.manage.fields.avatar')
-                        "
-                        @click="triggerAvatarUpload"
-                      >
-                        <Loader2
-                          v-if="uploadingAvatar"
-                          class="h-4 w-4 animate-spin"
-                        />
-                        <Camera v-else class="h-4 w-4" />
-                      </Button>
-                      <Button
-                        v-if="form.avatar"
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        :disabled="
-                          !canEditSettings || uploadingAvatar
-                        "
-                        :aria-label="t('common.cancel')"
-                        @click="clearAvatar"
-                      >
-                        <X class="h-4 w-4" />
-                      </Button>
+                        <SelectTrigger class="h-9 shadow-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            v-for="option in privacyOptions"
+                            :key="option.value"
+                            :value="option.value"
+                          >
+                            {{ t(option.labelKey) }}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  <Input
-                    id="manage-group-avatar"
-                    v-model="form.avatar"
-                    :disabled="!canEditSettings"
-                  />
-                </div>
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between gap-3">
-                    <Label for="manage-group-cover">
-                      {{ t('groups.manage.fields.cover') }}
+
+                  <div class="grid gap-1.5">
+                    <Label
+                      for="manage-group-description"
+                      class="text-xs font-medium"
+                    >
+                      {{ t('groups.manage.fields.description') }}
                     </Label>
-                    <div class="flex shrink-0 gap-2">
+                    <Textarea
+                      id="manage-group-description"
+                      v-model="form.description"
+                      maxlength="500"
+                      class="min-h-24 resize-none shadow-xs"
+                      :disabled="!canEditSettings"
+                    />
+                  </div>
+
+                  <div class="grid gap-4 md:grid-cols-2">
+                    <div class="grid gap-1.5">
+                      <Label class="text-xs font-medium">
+                        {{ t('groups.manage.fields.category') }}
+                      </Label>
+                      <Select
+                        :model-value="form.category ?? ''"
+                        :disabled="!canEditSettings"
+                        @update:model-value="updateCategory"
+                      >
+                        <SelectTrigger class="h-9 shadow-xs">
+                          <SelectValue
+                            :placeholder="t('groups.create.categoryPlaceholder')"
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            v-for="option in categoryOptions"
+                            :key="option.value"
+                            :value="option.value"
+                          >
+                            {{ t(option.labelKey) }}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div class="grid gap-1.5">
+                      <Label
+                        for="manage-group-tags"
+                        class="text-xs font-medium"
+                      >
+                        {{ t('groups.manage.fields.tags') }}
+                      </Label>
+                      <Input
+                        id="manage-group-tags"
+                        v-model="tagsText"
+                        :placeholder="t('groups.create.tagsPlaceholder')"
+                        maxlength="160"
+                        class="h-9 shadow-xs"
+                        :disabled="!canEditSettings"
+                      />
+                      <p class="text-[11px] text-muted-foreground">
+                        {{ t('groups.create.tagsHint') }}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                <section
+                  class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
+                >
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="flex h-7 w-7 items-center justify-center rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                    >
+                      <ImagePlus class="h-4 w-4" />
+                    </span>
+                    <h3 class="text-sm font-semibold tracking-tight">
+                      {{ t('groups.manage.fields.cover') }}
+                    </h3>
+                  </div>
+
+                  <div class="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+                    <div class="grid gap-2">
+                      <Label
+                        for="manage-group-avatar"
+                        class="text-xs font-medium"
+                      >
+                        {{ t('groups.manage.fields.avatar') }}
+                      </Label>
                       <input
-                        ref="coverInputRef"
+                        ref="avatarInputRef"
                         type="file"
                         accept="image/png,image/jpeg,image/gif,image/webp"
                         class="hidden"
-                        @change="handleCoverSelected"
+                        @change="handleAvatarSelected"
                       >
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        :disabled="
-                          !canEditSettings || uploadingCover
-                        "
-                        :aria-label="
-                          t('groups.manage.fields.cover')
-                        "
-                        @click="triggerCoverUpload"
+                      <div class="flex items-center gap-3">
+                        <Avatar class="h-16 w-16 ring-1 ring-border">
+                          <AvatarImage
+                            v-if="form.avatar"
+                            :src="form.avatar"
+                          />
+                          <AvatarFallback
+                            class="bg-primary/10 text-base font-semibold text-primary"
+                          >
+                            {{ form.name.slice(0, 1) || '?' }}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div class="flex gap-2">
+                          <button
+                            type="button"
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                            :disabled="
+                              !canEditSettings || uploadingAvatar
+                            "
+                            :aria-label="
+                              t('groups.manage.fields.avatar')
+                            "
+                            @click="triggerAvatarUpload"
+                          >
+                            <Loader2
+                              v-if="uploadingAvatar"
+                              class="h-3.5 w-3.5 animate-spin"
+                            />
+                            <Camera v-else class="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            v-if="form.avatar"
+                            type="button"
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                            :disabled="
+                              !canEditSettings || uploadingAvatar
+                            "
+                            :aria-label="t('common.cancel')"
+                            @click="clearAvatar"
+                          >
+                            <X class="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <Input
+                        id="manage-group-avatar"
+                        v-model="form.avatar"
+                        class="h-9 shadow-xs"
+                        :disabled="!canEditSettings"
+                      />
+                    </div>
+                    <div class="grid gap-2">
+                      <div class="flex items-center justify-between gap-3">
+                        <Label
+                          for="manage-group-cover"
+                          class="text-xs font-medium"
+                        >
+                          {{ t('groups.manage.fields.cover') }}
+                        </Label>
+                        <div class="flex shrink-0 gap-2">
+                          <input
+                            ref="coverInputRef"
+                            type="file"
+                            accept="image/png,image/jpeg,image/gif,image/webp"
+                            class="hidden"
+                            @change="handleCoverSelected"
+                          >
+                          <button
+                            type="button"
+                            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                            :disabled="
+                              !canEditSettings || uploadingCover
+                            "
+                            :aria-label="
+                              t('groups.manage.fields.cover')
+                            "
+                            @click="triggerCoverUpload"
+                          >
+                            <Loader2
+                              v-if="uploadingCover"
+                              class="h-3.5 w-3.5 animate-spin"
+                            />
+                            <ImagePlus v-else class="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            v-if="form.coverImage"
+                            type="button"
+                            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                            :disabled="
+                              !canEditSettings || uploadingCover
+                            "
+                            :aria-label="t('common.cancel')"
+                            @click="clearCover"
+                          >
+                            <X class="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        class="relative h-32 overflow-hidden rounded-lg border border-border/60 bg-muted/40"
                       >
-                        <Loader2
-                          v-if="uploadingCover"
-                          class="h-4 w-4 animate-spin"
-                        />
-                        <ImagePlus v-else class="h-4 w-4" />
-                      </Button>
-                      <Button
-                        v-if="form.coverImage"
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        :disabled="
-                          !canEditSettings || uploadingCover
-                        "
-                        :aria-label="t('common.cancel')"
-                        @click="clearCover"
-                      >
-                        <X class="h-4 w-4" />
-                      </Button>
+                        <img
+                          v-if="form.coverImage"
+                          :src="form.coverImage"
+                          :alt="form.name"
+                          class="h-full w-full object-cover"
+                        >
+                        <div
+                          v-else
+                          class="flex h-full items-center justify-center text-muted-foreground"
+                        >
+                          <ImagePlus class="h-6 w-6" />
+                        </div>
+                      </div>
+                      <Input
+                        id="manage-group-cover"
+                        v-model="form.coverImage"
+                        class="h-9 shadow-xs"
+                        :disabled="!canEditSettings"
+                      />
                     </div>
                   </div>
-                  <div
-                    class="relative h-32 overflow-hidden rounded-lg border bg-muted/40"
-                  >
-                    <img
-                      v-if="form.coverImage"
-                      :src="form.coverImage"
-                      :alt="form.name"
-                      class="h-full w-full object-cover"
+                </section>
+
+                <section
+                  class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
+                >
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                     >
+                      <Users class="h-4 w-4" />
+                    </span>
+                    <h3 class="text-sm font-semibold tracking-tight">
+                      {{ t('groups.manage.fields.postPermission') }}
+                    </h3>
+                  </div>
+
+                  <div class="grid gap-4 md:grid-cols-2">
                     <div
-                      v-else
-                      class="flex h-full items-center justify-center text-muted-foreground"
+                      class="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3"
                     >
-                      <ImagePlus class="h-6 w-6" />
+                      <div class="min-w-0 grid gap-0.5">
+                        <Label class="text-xs font-medium">
+                          {{ t('groups.manage.fields.joinApproval') }}
+                        </Label>
+                        <p class="text-[11px] text-muted-foreground">
+                          {{ t('groups.manage.fields.joinApprovalHint') }}
+                        </p>
+                      </div>
+                      <Switch
+                        :model-value="form.joinApproval"
+                        :disabled="!canEditSettings"
+                        @update:model-value="
+                          form.joinApproval = Boolean($event)
+                        "
+                      />
+                    </div>
+
+                    <div class="grid gap-1.5">
+                      <Label class="text-xs font-medium">
+                        {{ t('groups.manage.fields.postPermission') }}
+                      </Label>
+                      <Select
+                        :model-value="form.postPermission"
+                        :disabled="!canEditSettings"
+                        @update:model-value="updatePostPermission"
+                      >
+                        <SelectTrigger class="h-9 shadow-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            v-for="option in postPermissionOptions"
+                            :key="option.value"
+                            :value="option.value"
+                          >
+                            {{ t(option.labelKey) }}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  <Input
-                    id="manage-group-cover"
-                    v-model="form.coverImage"
-                    :disabled="!canEditSettings"
-                  />
-                </div>
-              </div>
+                </section>
+              </TabsContent>
 
-              <div class="grid gap-4 md:grid-cols-2">
-                <Card class="gap-0 py-0">
-                  <CardContent
-                    class="flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div class="space-y-1">
-                      <Label>
-                        {{ t('groups.manage.fields.joinApproval') }}
-                      </Label>
-                      <p class="text-sm text-muted-foreground">
-                        {{ t('groups.manage.fields.joinApprovalHint') }}
-                      </p>
-                    </div>
-                    <Switch
-                      :model-value="form.joinApproval"
-                      :disabled="!canEditSettings"
-                      @update:model-value="
-                        form.joinApproval = Boolean($event)
-                      "
-                    />
-                  </CardContent>
-                </Card>
-
-                <div class="space-y-2">
-                  <Label>
-                    {{ t('groups.manage.fields.postPermission') }}
-                  </Label>
-                  <Select
-                    :model-value="form.postPermission"
-                    :disabled="!canEditSettings"
-                    @update:model-value="updatePostPermission"
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem
-                        v-for="option in postPermissionOptions"
-                        :key="option.value"
-                        :value="option.value"
-                      >
-                        {{ t(option.labelKey) }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="members" class="mt-0 space-y-5">
-              <div
-                v-if="pendingMembers.length > 0"
-                class="space-y-3"
-              >
-                <div class="flex items-center gap-2">
-                  <Clock class="h-4 w-4 text-muted-foreground" />
-                  <h3 class="font-medium">
-                    {{ t('groups.manage.pendingTitle', { count: pendingMembers.length }) }}
-                  </h3>
-                </div>
-                <div class="space-y-2">
-                  <Card
-                    v-for="member in pendingMembers"
-                    :key="member.id"
-                    class="gap-0 bg-muted/20 py-0 shadow-xs"
-                  >
-                    <CardContent
-                    class="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between"
+              <TabsContent value="members" class="mt-0 grid gap-5">
+                <section
+                  v-if="pendingMembers.length > 0"
+                  class="grid gap-3 rounded-xl border border-amber-500/30 bg-amber-50/40 p-4 dark:bg-amber-950/20"
+                >
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="flex h-7 w-7 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    >
+                      <Clock class="h-4 w-4" />
+                    </span>
+                    <h3 class="text-sm font-semibold tracking-tight">
+                      {{ t('groups.manage.pendingTitle', { count: pendingMembers.length }) }}
+                    </h3>
+                  </div>
+                  <div class="grid gap-2">
+                    <div
+                      v-for="member in pendingMembers"
+                      :key="member.id"
+                      class="flex flex-col gap-3 rounded-lg border border-border/60 bg-card p-3 shadow-xs sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div class="flex min-w-0 items-center gap-3">
-                        <Avatar class="h-9 w-9">
+                        <Avatar class="h-9 w-9 ring-1 ring-border">
                           <AvatarImage
                             :src="member.avatar"
                             :alt="member.nickname"
                           />
-                          <AvatarFallback>
+                          <AvatarFallback
+                            class="bg-primary/10 text-xs font-semibold text-primary"
+                          >
                             {{ member.nickname.slice(0, 1) }}
                           </AvatarFallback>
                         </Avatar>
@@ -1162,344 +1257,351 @@ onBeforeUnmount(() => {
                           </div>
                         </div>
                       </div>
-                      <div class="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:shrink-0">
+                      <div
+                        class="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:shrink-0"
+                      >
                         <Button
-                          size="sm"
                           variant="outline"
-                          :disabled="!canModerateMembers || !!actionKey"
+                          class="h-8 rounded-md shadow-xs"
+                          :disabled="
+                            !canModerateMembers || !!actionKey
+                          "
                           @click="approveMember(member, false)"
                         >
-                          <X class="mr-2 h-4 w-4" />
+                          <X class="h-3.5 w-3.5" />
                           {{ t('groups.manage.actions.reject') }}
                         </Button>
                         <Button
-                          size="sm"
-                          :disabled="!canModerateMembers || !!actionKey"
+                          class="h-8 rounded-md shadow-xs"
+                          :disabled="
+                            !canModerateMembers || !!actionKey
+                          "
                           @click="approveMember(member, true)"
                         >
-                          <Check class="mr-2 h-4 w-4" />
+                          <Check class="h-3.5 w-3.5" />
                           {{ t('groups.manage.actions.approve') }}
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
+                    </div>
+                  </div>
+                </section>
 
-              <div class="grid gap-2 sm:flex sm:items-center">
-                <div class="relative min-w-0 sm:flex-1">
-                  <Search
-                    class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                  />
-                  <Input
-                    v-model="memberSearch"
-                    class="pl-9"
-                    :placeholder="t('groups.manage.memberSearch')"
-                  />
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div class="relative min-w-0 sm:flex-1">
+                    <Search
+                      class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                    />
+                    <Input
+                      v-model="memberSearch"
+                      class="h-9 pl-9 shadow-xs"
+                      :placeholder="t('groups.manage.memberSearch')"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    class="h-9 w-full rounded-md shadow-xs sm:w-auto"
+                    :disabled="loadingMembers"
+                    @click="loadMembers"
+                  >
+                    <RefreshCw
+                      :class="[
+                        'h-3.5 w-3.5',
+                        { 'animate-spin': loadingMembers }
+                      ]"
+                    />
+                    {{ t('common.refresh') }}
+                  </Button>
                 </div>
-                <Button
-                  variant="outline"
-                  class="w-full sm:w-auto"
-                  :disabled="loadingMembers"
-                  @click="loadMembers"
-                >
-                  <RefreshCw
-                    :class="[
-                      'mr-2 h-4 w-4',
-                      { 'animate-spin': loadingMembers }
-                    ]"
-                  />
-                  {{ t('common.refresh') }}
-                </Button>
-              </div>
 
-              <div class="space-y-2">
-                <Card
-                  v-for="member in managedMembers"
-                  :key="member.id"
-                  class="gap-0 py-0"
-                >
-                  <CardContent
-                    class="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_160px_auto]"
+                <div class="grid gap-2">
+                  <div
+                    v-for="member in managedMembers"
+                    :key="member.id"
+                    class="grid gap-3 rounded-lg border border-border/60 bg-card p-3 shadow-xs transition-shadow hover:shadow-sm md:grid-cols-[minmax(0,1fr)_160px_auto]"
                   >
                     <div class="flex min-w-0 items-center gap-3">
-                    <Avatar class="h-10 w-10">
-                      <AvatarImage
-                        :src="member.avatar"
-                        :alt="member.nickname"
-                      />
-                      <AvatarFallback>
-                        {{ member.nickname.slice(0, 1) }}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div class="min-w-0">
-                      <div class="flex items-center gap-2">
-                        <span class="truncate text-sm font-medium">
-                          {{ member.nickname }}
-                        </span>
-                        <Badge
-                          :variant="statusBadgeVariant(member.status)"
+                      <Avatar class="h-10 w-10 ring-1 ring-border">
+                        <AvatarImage
+                          :src="member.avatar"
+                          :alt="member.nickname"
+                        />
+                        <AvatarFallback
+                          class="bg-primary/10 text-xs font-semibold text-primary"
                         >
-                          {{ statusLabel(member.status) }}
-                        </Badge>
+                          {{ member.nickname.slice(0, 1) }}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                          <span class="truncate text-sm font-medium">
+                            {{ member.nickname }}
+                          </span>
+                          <span :class="statusPillClass(member.status)">
+                            {{ statusLabel(member.status) }}
+                          </span>
+                        </div>
+                        <div class="truncate text-xs text-muted-foreground">
+                          @{{ member.username }} ·
+                          {{ t('groups.member.joinedAt', { date: formatDate(member.joinedAt) }) }}
+                        </div>
                       </div>
-                      <div class="truncate text-xs text-muted-foreground">
-                        @{{ member.username }} · {{ t('groups.member.joinedAt', { date: formatDate(member.joinedAt) }) }}
-                      </div>
-                    </div>
                     </div>
 
                     <Select
-                    :model-value="member.role"
-                    :disabled="
-                      !canEditSettings ||
-                      member.role === 'owner' ||
-                      !!actionKey
-                    "
-                    @update:model-value="
-                      updateMemberRole(member, $event)
-                    "
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem
-                        v-if="member.role === 'owner'"
-                        value="owner"
-                        disabled
-                      >
-                        {{ t('groups.member.roles.owner') }}
-                      </SelectItem>
-                      <template v-else>
+                      :model-value="member.role"
+                      :disabled="
+                        !canEditSettings ||
+                        member.role === 'owner' ||
+                        !!actionKey
+                      "
+                      @update:model-value="
+                        updateMemberRole(member, $event)
+                      "
+                    >
+                      <SelectTrigger class="h-8 shadow-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
                         <SelectItem
-                          v-for="option in roleOptions"
-                          :key="option.value"
-                          :value="option.value"
+                          v-if="member.role === 'owner'"
+                          value="owner"
+                          disabled
                         >
-                          {{ t(option.labelKey) }}
+                          {{ t('groups.member.roles.owner') }}
                         </SelectItem>
-                      </template>
-                    </SelectContent>
+                        <template v-else>
+                          <SelectItem
+                            v-for="option in roleOptions"
+                            :key="option.value"
+                            :value="option.value"
+                          >
+                            {{ t(option.labelKey) }}
+                          </SelectItem>
+                        </template>
+                      </SelectContent>
                     </Select>
 
-                    <TooltipProvider>
-                    <div class="flex justify-end gap-2">
-                      <Tooltip v-if="member.role !== 'owner'">
-                        <TooltipTrigger as-child>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            :aria-label="muteActionLabel(member)"
-                            :disabled="!canModerateMembers || !!actionKey"
-                            @click="toggleMute(member)"
-                          >
-                            <component
-                              :is="member.isMuted ? Volume2 : VolumeX"
-                              class="h-4 w-4"
-                            />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {{ muteActionLabel(member) }}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip
+                    <div class="flex justify-end gap-1">
+                      <button
+                        v-if="member.role !== 'owner'"
+                        type="button"
+                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                        :aria-label="muteActionLabel(member)"
+                        :title="muteActionLabel(member)"
+                        :disabled="!canModerateMembers || !!actionKey"
+                        @click="toggleMute(member)"
+                      >
+                        <component
+                          :is="member.isMuted ? Volume2 : VolumeX"
+                          class="h-3.5 w-3.5"
+                        />
+                      </button>
+                      <button
                         v-if="
                           canTransferOwnership &&
                           member.role !== 'owner'
                         "
+                        type="button"
+                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-amber-500 transition hover:bg-amber-500/10 hover:text-amber-600 disabled:opacity-50"
+                        :aria-label="
+                          t('groups.manage.actions.transferOwnership')
+                        "
+                        :title="
+                          t('groups.manage.actions.transferOwnership')
+                        "
+                        :disabled="!!actionKey"
+                        @click="transferOwnership(member)"
                       >
-                        <TooltipTrigger as-child>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            :aria-label="
-                              t('groups.manage.actions.transferOwnership')
-                            "
-                            :disabled="!!actionKey"
-                            @click="transferOwnership(member)"
-                          >
-                            <Crown class="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {{ t('groups.manage.actions.transferOwnership') }}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip v-if="member.role !== 'owner'">
-                        <TooltipTrigger as-child>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            class="text-destructive hover:text-destructive"
-                            :aria-label="t('groups.member.actions.remove')"
-                            :disabled="!canModerateMembers || !!actionKey"
-                            @click="removeMember(member)"
-                          >
-                            <UserMinus class="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {{ t('groups.member.actions.remove') }}
-                        </TooltipContent>
-                      </Tooltip>
+                        <Crown class="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        v-if="member.role !== 'owner'"
+                        type="button"
+                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-rose-500 transition hover:bg-rose-500/10 hover:text-rose-600 disabled:opacity-50"
+                        :aria-label="t('groups.member.actions.remove')"
+                        :title="t('groups.member.actions.remove')"
+                        :disabled="!canModerateMembers || !!actionKey"
+                        @click="removeMember(member)"
+                      >
+                        <UserMinus class="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                    </TooltipProvider>
-                  </CardContent>
-                </Card>
+                  </div>
 
-                <Card
-                  v-if="!loadingMembers && managedMembers.length === 0"
-                  class="gap-0 border-dashed py-0"
-                >
-                  <CardContent
-                    class="p-8 text-center text-sm text-muted-foreground"
+                  <div
+                    v-if="!loadingMembers && managedMembers.length === 0"
+                    class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/10 py-10 text-sm text-muted-foreground"
                   >
+                    <span
+                      class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+                    >
+                      <Users class="h-5 w-5" />
+                    </span>
                     {{ t('groups.manage.emptyMembers') }}
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
+                  </div>
+                </div>
+              </TabsContent>
 
-            <TabsContent value="invites" class="mt-0 space-y-5">
-              <Card class="gap-0 py-0">
-                <CardContent
-                  class="grid gap-4 p-4 md:grid-cols-[1fr_1fr_auto]"
+              <TabsContent value="invites" class="mt-0 grid gap-5">
+                <section
+                  class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
                 >
-                  <div class="space-y-2">
-                    <Label for="invite-max-uses">
-                      {{ t('groups.manage.invites.maxUses') }}
-                    </Label>
-                    <Input
-                      id="invite-max-uses"
-                      v-model.number="inviteMaxUses"
-                      type="number"
-                      min="1"
-                    />
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                    >
+                      <Link class="h-4 w-4" />
+                    </span>
+                    <h3 class="text-sm font-semibold tracking-tight">
+                      {{ t('groups.manage.invites.create') }}
+                    </h3>
                   </div>
-                  <div class="space-y-2">
-                    <Label for="invite-expire-hours">
-                      {{ t('groups.manage.invites.expireHours') }}
-                    </Label>
-                    <Input
-                      id="invite-expire-hours"
-                      v-model.number="inviteExpireHours"
-                      type="number"
-                      min="1"
-                    />
-                  </div>
-                  <div class="flex items-end">
+                  <div class="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+                    <div class="grid gap-1.5">
+                      <Label
+                        for="invite-max-uses"
+                        class="text-xs font-medium"
+                      >
+                        {{ t('groups.manage.invites.maxUses') }}
+                      </Label>
+                      <Input
+                        id="invite-max-uses"
+                        v-model.number="inviteMaxUses"
+                        type="number"
+                        min="1"
+                        class="h-9 shadow-xs tabular-nums"
+                      />
+                    </div>
+                    <div class="grid gap-1.5">
+                      <Label
+                        for="invite-expire-hours"
+                        class="text-xs font-medium"
+                      >
+                        {{ t('groups.manage.invites.expireHours') }}
+                      </Label>
+                      <Input
+                        id="invite-expire-hours"
+                        v-model.number="inviteExpireHours"
+                        type="number"
+                        min="1"
+                        class="h-9 shadow-xs tabular-nums"
+                      />
+                    </div>
                     <Button
-                      class="w-full"
+                      class="h-9 w-full rounded-md shadow-xs md:w-auto"
                       :disabled="
                         !canModerateMembers || creatingInvite
                       "
                       @click="createInvite"
                     >
-                      <Link class="mr-2 h-4 w-4" />
+                      <Loader2
+                        v-if="creatingInvite"
+                        class="h-3.5 w-3.5 animate-spin"
+                      />
+                      <Link v-else class="h-3.5 w-3.5" />
                       {{ t('groups.manage.invites.create') }}
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+                </section>
 
-              <div class="space-y-2">
-                <Card
-                  v-for="invite in invites"
-                  :key="invite.invite_id"
-                  class="gap-0 py-0"
-                >
-                  <CardContent
-                    class="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_120px_120px_auto]"
+                <div class="grid gap-2">
+                  <div
+                    v-for="invite in invites"
+                    :key="invite.invite_id"
+                    class="grid gap-3 rounded-lg border border-border/60 bg-card p-3 shadow-xs transition-shadow hover:shadow-sm md:grid-cols-[minmax(0,1fr)_120px_140px_auto] md:items-center"
                   >
-                    <div class="min-w-0">
+                    <div class="min-w-0 grid gap-1">
                       <div class="flex min-w-0 flex-wrap items-center gap-2">
-                        <span class="break-all font-mono text-sm">
+                        <span
+                          class="break-all rounded-md bg-muted/40 px-2 py-0.5 font-mono text-xs"
+                        >
                           {{ invite.invite_code || '-' }}
                         </span>
-                        <Badge
-                          :variant="
-                            invite.is_valid ? 'secondary' : 'outline'
-                          "
-                        >
+                        <span :class="invitePillClass(invite.is_valid)">
                           {{ invite.status }}
-                        </Badge>
+                        </span>
                       </div>
-                      <p class="truncate text-xs text-muted-foreground">
+                      <p class="truncate text-[11px] text-muted-foreground">
                         {{ t('groups.manage.invites.expiresAt', { date: formatDate(invite.expires_at) }) }}
                       </p>
                     </div>
-                    <div class="text-sm text-muted-foreground">
-                      {{ invite.used_count }} / {{ invite.max_uses ?? '-' }}
+                    <div class="text-xs tabular-nums text-muted-foreground">
+                      <span class="font-medium text-foreground">
+                        {{ invite.used_count }}
+                      </span>
+                      / {{ invite.max_uses ?? '-' }}
                     </div>
-                    <div class="text-sm text-muted-foreground">
+                    <div class="truncate text-xs text-muted-foreground">
                       {{ invite.inviter.display_name || invite.inviter.username }}
                     </div>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger as-child>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            :aria-label="
-                              t('groups.manage.actions.copyInvite')
-                            "
-                            :disabled="!invite.invite_code"
-                            @click="copyInvite(invite)"
-                          >
-                            <Copy class="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {{ t('groups.manage.actions.copyInvite') }}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </CardContent>
-                </Card>
-
-                <Card
-                  v-if="!loadingInvites && invites.length === 0"
-                  class="gap-0 border-dashed py-0"
-                >
-                  <CardContent
-                    class="p-8 text-center text-sm text-muted-foreground"
-                  >
-                    {{ t('groups.manage.invites.empty') }}
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="danger" class="mt-0 space-y-4">
-              <Card class="gap-0 border-destructive/30 py-0">
-                <CardContent class="p-4">
-                  <div class="flex items-start gap-3">
-                    <div class="rounded-md bg-destructive/10 p-2 text-destructive">
-                      <Trash2 class="h-5 w-5" />
+                    <div class="flex justify-end">
+                      <button
+                        type="button"
+                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                        :aria-label="
+                          t('groups.manage.actions.copyInvite')
+                        "
+                        :title="
+                          t('groups.manage.actions.copyInvite')
+                        "
+                        :disabled="!invite.invite_code"
+                        @click="copyInvite(invite)"
+                      >
+                        <Copy class="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                    <div class="space-y-2">
-                      <h3 class="font-medium">
+                  </div>
+
+                  <div
+                    v-if="!loadingInvites && invites.length === 0"
+                    class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/10 py-10 text-sm text-muted-foreground"
+                  >
+                    <span
+                      class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+                    >
+                      <Link class="h-5 w-5" />
+                    </span>
+                    {{ t('groups.manage.invites.empty') }}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="danger" class="mt-0 grid gap-4">
+                <section
+                  class="grid gap-4 rounded-xl border border-rose-500/30 bg-rose-50/40 p-5 shadow-none dark:bg-rose-950/20"
+                >
+                  <div class="flex items-start gap-3">
+                    <span
+                      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                    >
+                      <AlertTriangle class="h-4 w-4" />
+                    </span>
+                    <div class="grid gap-1">
+                      <h3 class="text-sm font-semibold tracking-tight">
                         {{ t('groups.manage.danger.title') }}
                       </h3>
-                      <p class="text-sm text-muted-foreground">
+                      <p class="text-xs text-muted-foreground">
                         {{ t('groups.manage.danger.description') }}
                       </p>
                     </div>
                   </div>
-                  <div class="mt-4 space-y-3">
-                    <Label for="delete-confirm">
+                  <div class="grid gap-2">
+                    <Label
+                      for="delete-confirm"
+                      class="text-xs font-medium"
+                    >
                       {{ t('groups.manage.danger.confirmLabel', { name: group.name }) }}
                     </Label>
                     <Input
                       id="delete-confirm"
                       v-model="deleteConfirm"
+                      class="h-9 shadow-xs"
                       :disabled="!group.isOwner"
                       :placeholder="group.name"
                     />
                     <Button
                       variant="destructive"
+                      class="h-9 rounded-md shadow-xs"
                       :disabled="
                         !group.isOwner ||
                         deleting ||
@@ -1507,29 +1609,34 @@ onBeforeUnmount(() => {
                       "
                       @click="deleteCurrentGroup"
                     >
-                      <Trash2 class="mr-2 h-4 w-4" />
+                      <Loader2
+                        v-if="deleting"
+                        class="h-3.5 w-3.5 animate-spin"
+                      />
+                      <Trash2 v-else class="h-3.5 w-3.5" />
                       {{ t('groups.manage.danger.delete') }}
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                </section>
+              </TabsContent>
+            </div>
           </ScrollArea>
         </Tabs>
 
-        <Separator />
-
-        <DialogFooter class="px-4 py-4 sm:px-6">
+        <DialogFooter
+          class="flex flex-col-reverse gap-2 border-t border-border/60 bg-background/60 px-5 py-3 backdrop-blur sm:flex-row sm:justify-end"
+        >
           <Button
             variant="outline"
-            class="w-full sm:w-auto"
+            class="h-9 rounded-md shadow-xs"
             @click="emit('update:open', false)"
           >
+            <X class="h-3.5 w-3.5" />
             {{ t('common.close') }}
           </Button>
           <Button
             v-if="activeTab === 'settings'"
-            class="w-full sm:w-auto"
+            class="h-9 rounded-md shadow-xs"
             :disabled="
               !canEditSettings ||
               saving ||
@@ -1538,7 +1645,11 @@ onBeforeUnmount(() => {
             "
             @click="saveSettings"
           >
-            <Save class="mr-2 h-4 w-4" />
+            <Loader2
+              v-if="saving"
+              class="h-3.5 w-3.5 animate-spin"
+            />
+            <Save v-else class="h-3.5 w-3.5" />
             {{
               saving
                 ? t('groups.manage.saving')
