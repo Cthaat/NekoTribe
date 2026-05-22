@@ -89,8 +89,8 @@ watch(currentPath, newPath => {
 </script>
 
 <template>
-  <ScrollArea class="h-[calc(100dvh-4rem)]">
-    <div class="mx-auto max-w-7xl space-y-5 px-3 py-3 sm:px-0 sm:py-0">
+  <ScrollArea class="h-[calc(100dvh-4rem)] mobile-scroll-safe">
+    <div class="mx-auto max-w-7xl space-y-5 px-3 py-3 sm:px-4 sm:py-4 lg:px-0 lg:py-0">
       <section
         class="flex flex-col gap-4 rounded-xl border border-border/60 bg-card p-4 shadow-none sm:flex-row sm:items-center sm:justify-between sm:p-5"
       >
@@ -115,7 +115,7 @@ watch(currentPath, newPath => {
           @update:model-value="handleTabChange"
           class="w-full overflow-x-auto sm:w-auto"
         >
-          <TabsList class="w-max min-w-full sm:w-auto sm:min-w-0">
+          <TabsList class="grid w-full grid-cols-4 sm:inline-flex sm:w-auto sm:min-w-0">
             <TabsTrigger
               v-for="tab in tabs"
               :key="tab.value"
@@ -123,7 +123,7 @@ watch(currentPath, newPath => {
               class="shrink-0 gap-2"
             >
               <component :is="tab.icon" class="h-4 w-4" />
-              <span>{{ t(tab.labelKey) }}</span>
+              <span class="hidden sm:inline">{{ t(tab.labelKey) }}</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
