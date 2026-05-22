@@ -3,15 +3,40 @@ import path from 'node:path';
 import type { StorageReadRequest, StorageReadResult } from './types';
 
 const MIME_BY_EXTENSION: Record<string, string> = {
+  '.7z': 'application/x-7z-compressed',
+  '.csv': 'text/csv',
+  '.doc': 'application/msword',
+  '.docx':
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   '.gif': 'image/gif',
+  '.gz': 'application/gzip',
   '.jpeg': 'image/jpeg',
   '.jpg': 'image/jpeg',
+  '.json': 'application/json',
+  '.md': 'text/markdown',
   '.mp3': 'audio/mpeg',
   '.mp4': 'video/mp4',
+  '.odp': 'application/vnd.oasis.opendocument.presentation',
+  '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
+  '.odt': 'application/vnd.oasis.opendocument.text',
   '.ogg': 'audio/ogg',
+  '.pdf': 'application/pdf',
   '.png': 'image/png',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx':
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.rar': 'application/vnd.rar',
+  '.rtf': 'application/rtf',
+  '.tar': 'application/x-tar',
+  '.tsv': 'text/tab-separated-values',
+  '.txt': 'text/plain',
   '.wav': 'audio/wav',
-  '.webm': 'video/webm'
+  '.webm': 'video/webm',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx':
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xml': 'application/xml',
+  '.zip': 'application/zip'
 };
 
 interface ParsedByteRange {
