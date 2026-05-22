@@ -30,13 +30,13 @@ const props = withDefaults(defineProps<Props>(), {
   >
     <Loader2
       v-if="props.loading"
-      class="h-4 w-4 animate-spin"
+      class="h-4 w-4 shrink-0 animate-spin"
       aria-hidden="true"
     />
-    <span>
-      <slot>
-        {{ props.loading ? props.loadingLabel : '' }}
-      </slot>
-    </span>
+    <slot>
+      <span v-if="props.loading && props.loadingLabel">
+        {{ props.loadingLabel }}
+      </span>
+    </slot>
   </Button>
 </template>
