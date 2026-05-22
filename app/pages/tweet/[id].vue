@@ -27,13 +27,7 @@ import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import TweetList from '@/components/TweetList.vue';
 import CommentSection from '@/components/CommentSection.vue';
 import TweetComposer from '@/components/TweetComposer.vue';
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle
-} from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -41,6 +35,12 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
+import {
+  AlertTriangle,
+  Inbox,
+  Loader2,
+  MessageSquare
+} from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { useRoute } from 'vue-router';
 import { usePreferenceStore } from '~/stores/user';
@@ -294,8 +294,8 @@ async function handleLikeTweet(
         likes: result.likesCount
       }
     }));
-  } catch (error) {
-    console.error('Failed to like/unlike tweet:', error);
+  } catch {
+    toast.error(t('common.operationFailed'));
   }
 }
 
@@ -315,11 +315,8 @@ async function handleBookmarkTweet(
         hasBookmarked: result.isBookmarked
       }
     }));
-  } catch (error) {
-    console.error(
-      'Failed to bookmark/unbookmark tweet:',
-      error
-    );
+  } catch {
+    toast.error(t('common.operationFailed'));
   }
 }
 
@@ -350,8 +347,7 @@ async function handleLikeTweetComment(
         }
       };
     }
-  } catch (error) {
-    console.error('Failed to like comment:', error);
+  } catch {
     toast.error(t('comment.feedback.likeFailed'));
   }
 }
@@ -364,8 +360,7 @@ async function handleTweetComment(content: string) {
       parentCommentId: null
     });
     await loadComments();
-  } catch (error) {
-    console.error('Failed to send tweet comment:', error);
+  } catch {
     toast.error(t('comment.feedback.sendFailed'));
   }
 }
@@ -381,8 +376,7 @@ async function handleReplyTweetComment(
       parentCommentId
     });
     await loadComments();
-  } catch (error) {
-    console.error('Failed to send tweet comment:', error);
+  } catch {
     toast.error(t('comment.feedback.sendFailed'));
   }
 }
@@ -469,12 +463,25 @@ const pending = computed(
 
     <div
       v-else-if="tweetError || commentError"
-      class="p-8 text-center text-destructive"
+      class="mx-auto max-w-2xl px-4"
     >
-      <p>{{ t('post.feed.loadFailed') }}</p>
-      <p class="text-sm mt-2">
-        {{ tweetError || commentError || '' }}
-      </p>
+      <div
+        class="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-rose-500/30 bg-rose-50/30 py-12 text-center dark:bg-rose-950/20"
+      >
+        <span
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 ring-1 ring-rose-500/20"
+        >
+          <AlertTriangle class="h-5 w-5 text-rose-500" />
+        </span>
+        <div class="grid gap-1">
+          <p class="text-sm font-medium">
+            {{ t('post.feed.loadFailed') }}
+          </p>
+          <p class="text-xs text-muted-foreground">
+            {{ tweetError || commentError || '' }}
+          </p>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="tweet">
@@ -494,57 +501,86 @@ const pending = computed(
         @submit-retweet="handleSubmitRetweet"
       />
       <Dialog v-model:open="isReplyComposerOpen">
-        <DialogContent class="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{{ t('post.replies.composeTitle') }}</DialogTitle>
-            <DialogDescription>
-              {{ t('post.replies.composeDescription') }}
-            </DialogDescription>
+        <DialogContent
+          class="flex max-h-[88vh] max-w-2xl flex-col overflow-hidden rounded-xl border-border/60 p-0"
+        >
+          <DialogHeader
+            class="border-b border-border/60 bg-background/60 px-5 py-4 backdrop-blur"
+          >
+            <div class="flex items-start gap-3">
+              <span
+                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+              >
+                <MessageSquare class="h-3.5 w-3.5" />
+              </span>
+              <div class="min-w-0 grid gap-1">
+                <DialogTitle
+                  class="text-base font-semibold tracking-tight"
+                >
+                  {{ t('post.replies.composeTitle') }}
+                </DialogTitle>
+                <DialogDescription class="text-xs">
+                  {{ t('post.replies.composeDescription') }}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
-          <TweetComposer
-            v-if="selectedTweetForReply"
-            ref="replyComposerRef"
-            :reply-to="selectedTweetForReply"
-            :is-submitting="isSubmittingReplyPost"
-            @clear-reply="closeReplyComposer"
-            @open-reply-dialog="isReplyComposerOpen = true"
-            @submit="handleSubmitPostReply"
-          />
+          <div class="overflow-y-auto px-5 py-4">
+            <TweetComposer
+              v-if="selectedTweetForReply"
+              ref="replyComposerRef"
+              :reply-to="selectedTweetForReply"
+              :is-submitting="isSubmittingReplyPost"
+              @clear-reply="closeReplyComposer"
+              @open-reply-dialog="isReplyComposerOpen = true"
+              @submit="handleSubmitPostReply"
+            />
+          </div>
         </DialogContent>
       </Dialog>
 
-      <section class="mx-auto mt-6 max-w-2xl px-4 sm:px-0">
-        <div
-          class="mb-3 flex items-center justify-between gap-3"
-        >
-          <div>
-            <h2 class="text-lg font-semibold tracking-tight">
+      <section class="mx-auto mt-6 grid max-w-2xl gap-3 px-4 sm:px-0">
+        <header class="flex items-start gap-3">
+          <span
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+          >
+            <MessageSquare class="h-4 w-4" />
+          </span>
+          <div class="min-w-0 grid gap-0.5">
+            <h2 class="text-base font-semibold tracking-tight">
               {{ t('post.replies.title') }}
             </h2>
-            <p class="text-sm text-muted-foreground">
+            <p class="text-xs text-muted-foreground">
               {{
-                t('post.replies.total', {
-                  count: repliesTotal
-                })
+                t('post.replies.total', { count: repliesTotal })
               }}
             </p>
           </div>
-        </div>
+        </header>
 
         <div
           v-if="repliesPending && replyPosts.length === 0"
-          class="space-y-4"
+          class="grid gap-3"
         >
           <TweetCardSkeleton v-for="i in 2" :key="i" />
         </div>
 
-        <Alert
+        <div
           v-else-if="repliesError && replyPosts.length === 0"
-          variant="destructive"
+          class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-rose-500/30 bg-rose-50/30 py-10 text-center dark:bg-rose-950/20"
         >
-          <AlertTitle>{{ t('post.replies.loadFailed') }}</AlertTitle>
-          <AlertDescription>{{ repliesError }}</AlertDescription>
-        </Alert>
+          <span
+            class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 ring-1 ring-rose-500/20"
+          >
+            <AlertTriangle class="h-5 w-5 text-rose-500" />
+          </span>
+          <div class="grid gap-1">
+            <p class="text-sm font-medium">
+              {{ t('post.replies.loadFailed') }}
+            </p>
+            <p class="text-xs text-muted-foreground">{{ repliesError }}</p>
+          </div>
+        </div>
 
         <TweetList
           v-else-if="replyPosts.length > 0"
@@ -557,18 +593,23 @@ const pending = computed(
           @bookmark-tweet="handleBookmarkTweet"
         />
 
-        <Card
+        <div
           v-else
-          class="gap-0 border-dashed py-0"
+          class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 bg-muted/10 py-10 text-center"
         >
-          <CardContent class="p-8 text-center text-sm text-muted-foreground">
+          <span
+            class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+          >
+            <Inbox class="h-5 w-5 text-muted-foreground" />
+          </span>
+          <p class="text-sm text-muted-foreground">
             {{ t('post.replies.empty') }}
-          </CardContent>
-        </Card>
+          </p>
+        </div>
 
         <div
           v-if="replyPosts.length > 0"
-          class="space-y-3 pt-2"
+          class="grid gap-2 pt-1"
         >
           <p
             v-if="repliesError"
@@ -579,10 +620,14 @@ const pending = computed(
           <Button
             v-if="repliesHasNext"
             variant="outline"
-            class="mx-auto flex"
+            class="mx-auto h-9 rounded-md shadow-xs"
             :disabled="repliesPending"
             @click="loadMoreReplyPosts"
           >
+            <Loader2
+              v-if="repliesPending"
+              class="h-3.5 w-3.5 animate-spin"
+            />
             {{
               repliesPending
                 ? t('post.replies.loading')
@@ -603,9 +648,20 @@ const pending = computed(
 
     <div
       v-else
-      class="p-8 text-center text-muted-foreground"
+      class="mx-auto max-w-2xl px-4"
     >
-      <p>{{ t('post.feed.unavailable') }}</p>
+      <div
+        class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 bg-muted/10 py-12 text-center"
+      >
+        <span
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+        >
+          <Inbox class="h-5 w-5 text-muted-foreground" />
+        </span>
+        <p class="text-sm text-muted-foreground">
+          {{ t('post.feed.unavailable') }}
+        </p>
+      </div>
     </div>
   </div>
 </template>
