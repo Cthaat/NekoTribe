@@ -65,8 +65,8 @@ async function handleReadMail(mailId: string) {
     await v2SetNotificationReadStatus(notificationId, {
       read: true
     });
-  } catch (error) {
-    console.error(t('notifications.mail.readFailed'), error);
+  } catch {
+    /* swallow read-status sync errors */
   }
 }
 
@@ -88,9 +88,8 @@ async function handleSetMailReadStatus({
         ? t('notifications.mail.markReadSuccess')
         : t('notifications.mail.markUnreadSuccess')
     );
-  } catch (error) {
+  } catch {
     setLocalReadStatus(notificationId, !read);
-    console.error(t('notifications.mail.readFailed'), error);
     toast.error(t('notifications.mail.readFailed'));
   }
 }
@@ -106,11 +105,7 @@ async function handleMarkAllRead() {
         read: true
       }));
     toast.success(t('notifications.mail.markAllReadSuccess'));
-  } catch (error) {
-    console.error(
-      t('notifications.mail.markAllReadFailed'),
-      error
-    );
+  } catch {
     toast.error(t('notifications.mail.markAllReadFailed'));
   }
 }
@@ -139,8 +134,7 @@ async function handleDeleteMail(mailId: string) {
         item => item.id !== notificationId
       );
     toast.success(t('notifications.mail.deleteSuccess'));
-  } catch (error) {
-    console.error(t('notifications.mail.deleteFailed'), error);
+  } catch {
     toast.error(t('notifications.mail.deleteFailed'));
   }
 }
@@ -154,8 +148,7 @@ async function handleRestoreMail(mailId: string) {
         item => item.id !== notificationId
       );
     toast.success(t('notifications.mail.restoreSuccess'));
-  } catch (error) {
-    console.error(t('notifications.mail.restoreFailed'), error);
+  } catch {
     toast.error(t('notifications.mail.restoreFailed'));
   }
 }
