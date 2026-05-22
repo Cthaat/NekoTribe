@@ -8,20 +8,18 @@ import type {
 import { toast } from 'vue-sonner';
 import { MessageSquare } from 'lucide-vue-next';
 import CommentCard from './CommentCard.vue';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import AppSendButton from '@/components/app/AppSendButton.vue';
+import { Button } from '@/components/ui/button';
 
 const { t } = useAppLocale();
 
 const props = defineProps({
-  // Service 层输出的扁平评论 VM 列表
   comments: {
     type: Array as PropType<CommentVM[]>,
     required: true
   },
-  // 这些评论所属的文章/帖子的 ID
   postId: {
     type: [String, Number],
     required: true
@@ -43,27 +41,21 @@ const newCommentContent = ref('');
 const isSubmitting = ref(false);
 const isCommentInputFocused = ref(false);
 
-/**
- * 将扁平的列表（通过 parentCommentId 关联）转换为嵌套的树状结构。
- * 这是一个非常关键的辅助函数。
- * @param list 扁平的评论数组
- */
+const MAX_LENGTH = 500;
+
 function flatToTree(list: CommentVM[]): NestedCommentVM[] {
   const map: Record<number, NestedCommentVM> = {};
   const roots: NestedCommentVM[] = [];
 
-  // 第一次遍历：将所有节点放入 map 中，并初始化 children 数组
   for (const item of list) {
     map[item.id] = { ...item, children: [] };
   }
 
-  // 第二次遍历：将每个节点连接到其父节点上
   for (const item of list) {
     const current = map[item.id];
     if (!current) continue;
 
     if (item.parentCommentId) {
-      // 如果是回复，找到它的父节点，并把自己加到父节点的 children 中
       const parent = map[item.parentCommentId];
       if (parent) {
         parent.children.push(current);
@@ -71,19 +63,15 @@ function flatToTree(list: CommentVM[]): NestedCommentVM[] {
         roots.push(current);
       }
     } else {
-      // 如果是顶级评论，直接放入 roots 数组
       roots.push(current);
     }
   }
   return roots;
 }
 
-// 这个计算属性持有最终用于渲染的、嵌套好的评论树
 const nestedComments = computed(() =>
   flatToTree(props.comments)
 );
-
-// --- API 调用处理器 ---
 
 async function handleLikeComment({
   commentId,
@@ -132,7 +120,7 @@ async function handleSubmitTweetReply() {
   try {
     toast.success(t('comment.feedback.submitted'));
     emit('send-reply', newCommentContent.value);
-    newCommentContent.value = ''; // 清空输入框
+    newCommentContent.value = '';
   } catch (err) {
     toast.error(t('comment.feedback.replyFailed'));
   } finally {
@@ -148,76 +136,61 @@ function handleCommentInputBlur() {
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-3xl px-3 py-6 font-sans sm:p-6">
-    <!-- 评论区标题 -->
-    <div class="flex items-center gap-3 mb-6">
-      <h2
-        class="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent"
-      >
+  <div class="mx-auto w-full max-w-3xl px-3 py-6 sm:p-6">
+    <div class="mb-5 flex items-center gap-2">
+      <h2 class="text-lg font-semibold tracking-tight">
         {{ t('comment.title') }}
       </h2>
-      <Badge variant="secondary">
-        {{ t('comment.count', { count: comments.length }) }}
-      </Badge>
+      <span
+        class="tabular-nums rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
+      >
+        {{ comments.length }}
+      </span>
     </div>
 
-    <!-- 发表顶级评论的表单 -->
     <Card
-      class="mb-8 gap-0 py-0 transition-all duration-300"
-      :class="
-        isCommentInputFocused
-          ? 'border-primary bg-accent/5 shadow-lg shadow-primary/10'
-          : 'border-border'
-      "
+      class="mb-6 gap-0 overflow-hidden border-border/60 py-0 shadow-none transition-colors"
+      :class="{ 'border-ring/60 ring-2 ring-ring/20': isCommentInputFocused }"
     >
-      <CardContent class="p-4">
+      <CardContent class="p-3">
         <Textarea
           v-model="newCommentContent"
           :placeholder="t('comment.placeholder')"
-          class="mb-2 border-none bg-transparent text-base focus-visible:ring-0 min-h-[80px] resize-none"
+          :maxlength="MAX_LENGTH"
+          class="min-h-[80px] resize-none border-none bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
           @focus="isCommentInputFocused = true"
           @blur="handleCommentInputBlur"
         />
-        <Transition
-          enter-active-class="transition-all duration-300 ease-out"
-          enter-from-class="opacity-0 transform translate-y-2"
-          enter-to-class="opacity-100 transform translate-y-0"
-          leave-active-class="transition-all duration-200 ease-in"
-          leave-from-class="opacity-100 transform translate-y-0"
-          leave-to-class="opacity-0 transform translate-y-2"
+        <div
+          class="mt-3 flex items-center justify-between gap-2 border-t border-border/40 pt-2"
         >
-          <div
-            v-if="isCommentInputFocused"
-          class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <span class="text-xs text-muted-foreground sm:ml-2">
-              {{
-                t('comment.characterCount', {
-                  count: newCommentContent.length,
-                  max: 500
-                })
-              }}
-            </span>
-            <AppSendButton
-              @click="handleSubmitTweetReply"
-              :disabled="
-                isSubmitting || !newCommentContent.trim()
-              "
+          <span class="text-xs tabular-nums text-muted-foreground">
+            {{ newCommentContent.length }} / {{ MAX_LENGTH }}
+          </span>
+          <div class="flex items-center gap-2">
+            <Button
+              v-if="isCommentInputFocused && newCommentContent.length > 0"
+              variant="ghost"
               size="sm"
+              class="h-8"
+              @click="newCommentContent = ''"
             >
-              {{
-                isSubmitting
-                  ? t('comment.submitting')
-                  : t('comment.submit')
-              }}
+              {{ t('common.cancel') }}
+            </Button>
+            <AppSendButton
+              size="sm"
+              class="h-8"
+              :disabled="isSubmitting || !newCommentContent.trim()"
+              @click="handleSubmitTweetReply"
+            >
+              {{ isSubmitting ? t('comment.submitting') : t('comment.submit') }}
             </AppSendButton>
           </div>
-        </Transition>
+        </div>
       </CardContent>
     </Card>
 
-    <!-- 评论列表的渲染从此开始 -->
-    <div v-if="nestedComments.length > 0" class="space-y-3">
+    <div v-if="nestedComments.length > 0" class="space-y-0.5">
       <CommentCard
         v-for="comment in nestedComments"
         :key="comment.id"
@@ -229,25 +202,21 @@ function handleCommentInputBlur() {
         @delete-comment="handleDeleteComment"
       />
     </div>
-    <Card v-else class="gap-0 border-dashed py-0">
-      <CardContent class="px-4 py-16 text-center">
-        <div
-          class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted"
-        >
-          <MessageSquare
-            class="h-8 w-8 text-muted-foreground"
-          />
-        </div>
-        <p class="mb-2 text-lg font-medium text-foreground">
-          {{ t('comment.emptyTitle') }}
-        </p>
-        <p class="text-sm text-muted-foreground">
-          {{ t('comment.emptyDescription') }}
-        </p>
-      </CardContent>
-    </Card>
+    <div
+      v-else
+      class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 px-6 py-12 text-center"
+    >
+      <div
+        class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+      >
+        <MessageSquare class="h-5 w-5 text-muted-foreground" />
+      </div>
+      <p class="text-base font-semibold tracking-tight">
+        {{ t('comment.emptyTitle') }}
+      </p>
+      <p class="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
+        {{ t('comment.emptyDescription') }}
+      </p>
+    </div>
   </div>
 </template>
-
-
-
