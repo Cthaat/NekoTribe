@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { Separator } from '@/components/ui/separator';
-import ProfileForm from '@/components/ProfileForm.vue';
 import {
   v2GetMe,
   v2GetUserAnalytics,
   v2GetUserDailyAnalytics
 } from '@/services';
 import { onMounted, ref } from 'vue';
-import { Card, CardContent } from '@/components/ui/card';
+import { BarChart3 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import type { UserDailyAnalyticsVM } from '@/types/users';
 
@@ -55,32 +53,34 @@ onMounted(async () => {
     userAnalytics.value.engagementScore =
       analytics.engagementScore;
     dailyAnalytics.value = daily;
-  } catch (error) {
-    console.error(t('account.errors.loadAnalytics'), error);
+  } catch {
     toast.error(t('account.errors.loadAnalytics'));
   }
 });
 </script>
 
 <template>
-  <Card>
-    <CardContent>
-      <div class="space-y-6 p-4 pb-8 sm:p-6 md:p-8 md:pb-16">
-        <div class="space-y-0.5">
-          <h2 class="text-2xl font-bold tracking-tight">
-            {{ t('account.overview.title') }}
-          </h2>
-          <p class="text-muted-foreground">
-            {{ t('account.overview.description') }}
-          </p>
-        </div>
-        <Separator class="my-6" />
-        <OverAllPanel
-          :userAnalytics="userAnalytics"
-          :dailyAnalytics="dailyAnalytics"
-        />
+  <section
+    class="grid gap-5 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
+  >
+    <header class="flex items-start gap-3">
+      <span
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+      >
+        <BarChart3 class="h-4 w-4" />
+      </span>
+      <div class="min-w-0 grid gap-0.5">
+        <h2 class="text-lg font-semibold tracking-tight">
+          {{ t('account.overview.title') }}
+        </h2>
+        <p class="text-xs text-muted-foreground">
+          {{ t('account.overview.description') }}
+        </p>
       </div>
-    </CardContent>
-  </Card>
+    </header>
+    <OverAllPanel
+      :userAnalytics="userAnalytics"
+      :dailyAnalytics="dailyAnalytics"
+    />
+  </section>
 </template>
-
