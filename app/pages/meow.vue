@@ -84,8 +84,7 @@ async function loadSelectableTweets(): Promise<void> {
       timeline: 'home'
     });
     selectableTweets.value = result.items;
-  } catch (err) {
-    console.error('获取可选择推文失败:', err);
+  } catch {
     dialogError.value = t('post.composePage.loadSelectableFailed');
   } finally {
     isDialogLoading.value = false;
@@ -159,11 +158,7 @@ async function handleTweetSubmit(
 
     // 跳转到推文页
     await navigateTo(localePath('/'));
-
-    // 可以在这里执行成功后的操作，比如清空编辑器或跳转页面
-    // (清空编辑器的逻辑最好还是放在 TweetComposer 内部，父组件可以调用一个子组件的方法来实现)
   } catch (err) {
-    console.error('推文提交失败:', err);
     submissionError.value =
       err instanceof Error
         ? err.message
