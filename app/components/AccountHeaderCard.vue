@@ -467,16 +467,16 @@ function followUser() {
 
 <template>
   <section
-    class="overflow-hidden rounded-xl border border-border/60 bg-card p-4 shadow-none sm:p-6"
+    class="mobile-scroll-safe rounded-xl border border-border/60 bg-card p-4 shadow-none sm:p-6"
   >
-    <div class="flex flex-col items-start gap-6 sm:flex-row">
+    <div class="flex flex-col items-stretch gap-5 sm:flex-row sm:items-start sm:gap-6">
       <AvatarUploader
         :user="avatarUploaderProps"
-        class="shrink-0"
+        class="shrink-0 self-start"
         @update:avatar="handleAvatarUpdate"
       />
 
-      <div class="min-w-0 flex-1 space-y-4">
+      <div class="w-full min-w-0 flex-1 space-y-4">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0 space-y-1.5">
               <div class="flex min-w-0 flex-wrap items-center gap-2">
@@ -508,32 +508,33 @@ function followUser() {
               >
                 <span
                   v-if="user.title"
-                  class="flex items-center gap-1.5"
+                  class="flex min-w-0 items-center gap-1.5"
                 >
                   <User class="h-3.5 w-3.5" />
-                  {{ user.title }}
+                  <span class="min-w-0 truncate">{{ user.title }}</span>
                 </span>
                 <span
                   v-if="user.location"
-                  class="flex items-center gap-1.5"
+                  class="flex min-w-0 items-center gap-1.5"
                 >
                   <MapPin class="h-3.5 w-3.5" />
-                  {{ user.location }}
+                  <span class="min-w-0 truncate">{{ user.location }}</span>
                 </span>
                 <span
                   v-if="user.email"
-                  class="flex items-center gap-1.5"
+                  class="flex min-w-0 max-w-full items-center gap-1.5"
                 >
-                  <Mail class="h-3.5 w-3.5" />
-                  {{ user.email }}
+                  <Mail class="h-3.5 w-3.5 shrink-0" />
+                  <span class="min-w-0 truncate">{{ user.email }}</span>
                 </span>
               </div>
             </div>
-            <div class="flex items-center gap-2 self-start sm:self-auto">
+            <div class="mobile-action-row w-full self-start sm:w-auto sm:flex-nowrap sm:self-auto">
               <Button
                 v-if="showFollowAction"
                 variant="secondary"
                 size="sm"
+                class="w-full sm:w-auto"
                 @click="openDirectMessage"
               >
                 <MessageCircle class="h-4 w-4" />
@@ -543,6 +544,7 @@ function followUser() {
                 v-if="showFollowAction && !isFollowing"
                 variant="default"
                 size="sm"
+                class="w-full sm:w-auto"
                 @click="followUser"
               >
                 {{ t('account.header.follow') }}
@@ -551,6 +553,7 @@ function followUser() {
                 v-else-if="showFollowAction"
                 variant="outline"
                 size="sm"
+                class="w-full sm:w-auto"
                 @click="followUser"
               >
                 {{ t('account.header.unfollow') }}
@@ -560,7 +563,7 @@ function followUser() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    class="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent"
+                    class="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-accent"
                   >
                     <MoreHorizontal class="h-4 w-4" />
                     <span class="sr-only">
@@ -673,7 +676,7 @@ function followUser() {
   <Tabs
     v-if="accountTabs.length > 0"
     :model-value="tabValue"
-    class="w-full overflow-x-auto"
+    class="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain"
     @update:model-value="handleTabChange"
   >
     <TabsList class="inline-flex h-auto min-w-full justify-start sm:min-w-0">
