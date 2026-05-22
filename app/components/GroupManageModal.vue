@@ -811,7 +811,7 @@ onBeforeUnmount(() => {
     @update:open="emit('update:open', $event)"
   >
     <DialogContent
-      class="flex max-h-[92vh] max-w-5xl flex-col overflow-hidden rounded-xl border-border/60 p-0"
+      class="flex max-h-[calc(100dvh-1rem)] max-w-5xl flex-col overflow-hidden rounded-xl border-border/60 p-0"
     >
       <template v-if="group">
         <DialogHeader
@@ -859,7 +859,7 @@ onBeforeUnmount(() => {
           v-model="activeTab"
           class="flex min-h-0 flex-1 flex-col"
         >
-          <div class="overflow-x-auto border-b border-border/60 px-5 pt-4 pb-3">
+          <div class="overflow-x-auto border-b border-border/60 px-4 pt-4 pb-3 sm:px-5">
             <TabsList
               class="grid w-max min-w-full grid-cols-4 shadow-xs sm:w-full"
             >
@@ -879,7 +879,7 @@ onBeforeUnmount(() => {
           </div>
 
           <ScrollArea class="flex-1 min-h-0">
-            <div class="px-5 py-5">
+            <div class="px-4 py-4 sm:px-5 sm:py-5">
               <TabsContent value="settings" class="mt-0 grid gap-5">
                 <section
                   class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
