@@ -1,11 +1,5 @@
 <script setup lang="ts">
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
-import {
   Table,
   TableBody,
   TableCell,
@@ -38,12 +32,12 @@ import {
   CalendarDays,
   FileText,
   Heart,
+  LineChart,
   MessageSquare,
   PieChart,
   Table2 as TableIcon,
   Send,
   Sparkles,
-  ThumbsUp,
   TrendingUp
 } from 'lucide-vue-next';
 import { useAnimatedNumber } from '~/composables/useAnimatedNumber';
@@ -123,8 +117,7 @@ const animatedTotalCommentsMade = useAnimatedNumber(
   { duration: 1200 }
 );
 
-// 格式化大数字，例如 10011 -> 10k
-const formatNumber = (num: number) => {
+const formatNumber = (num: number): string => {
   if (num >= 1000) {
     return `${(num / 1000).toFixed(1)}k`;
   }
@@ -234,46 +227,46 @@ const hasChartData = computed(() => chartData.value.length > 0);
 const chartConfig = computed(
   () =>
     ({
-  posts: {
-    label: chartText(
-      'account.overview.overallPanel.chartPosts',
-      '发帖',
-      'Posts'
-    ),
-    color: 'var(--chart-1)'
-  },
-  likes: {
-    label: chartText(
-      'account.overview.overallPanel.chartLikes',
-      '获赞',
-      'Likes'
-    ),
-    color: 'var(--chart-2)'
-  },
-  comments: {
-    label: chartText(
-      'account.overview.overallPanel.chartComments',
-      '评论',
-      'Comments'
-    ),
-    color: 'var(--chart-3)'
-  },
-  retweets: {
-    label: chartText(
-      'account.overview.overallPanel.chartRetweets',
-      '转发',
-      'Retweets'
-    ),
-    color: 'var(--chart-5)'
-  },
-  interaction: {
-    label: chartText(
-      'account.overview.overallPanel.chartInteraction',
-      '互动',
-      'Engagement'
-    ),
-    color: 'var(--chart-4)'
-  }
+      posts: {
+        label: chartText(
+          'account.overview.overallPanel.chartPosts',
+          '发帖',
+          'Posts'
+        ),
+        color: 'var(--chart-1)'
+      },
+      likes: {
+        label: chartText(
+          'account.overview.overallPanel.chartLikes',
+          '获赞',
+          'Likes'
+        ),
+        color: 'var(--chart-2)'
+      },
+      comments: {
+        label: chartText(
+          'account.overview.overallPanel.chartComments',
+          '评论',
+          'Comments'
+        ),
+        color: 'var(--chart-3)'
+      },
+      retweets: {
+        label: chartText(
+          'account.overview.overallPanel.chartRetweets',
+          '转发',
+          'Retweets'
+        ),
+        color: 'var(--chart-5)'
+      },
+      interaction: {
+        label: chartText(
+          'account.overview.overallPanel.chartInteraction',
+          '互动',
+          'Engagement'
+        ),
+        color: 'var(--chart-4)'
+      }
     }) satisfies ChartConfig
 );
 
@@ -390,30 +383,22 @@ const formatChartDay = (value: number | Date): string =>
 const chartTooltipTemplate = componentToString(
   chartConfig.value,
   ChartTooltipContent,
-  {
-    labelFormatter: formatChartDay
-  }
+  { labelFormatter: formatChartDay }
 );
 const receivedTooltipTemplate = componentToString(
   receivedChartConfig.value,
   ChartTooltipContent,
-  {
-    labelFormatter: formatChartDay
-  }
+  { labelFormatter: formatChartDay }
 );
 const outgoingTooltipTemplate = componentToString(
   outgoingChartConfig.value,
   ChartTooltipContent,
-  {
-    labelFormatter: formatChartDay
-  }
+  { labelFormatter: formatChartDay }
 );
 const scoreTooltipTemplate = componentToString(
   scoreChartConfig.value,
   ChartTooltipContent,
-  {
-    labelFormatter: formatChartDay
-  }
+  { labelFormatter: formatChartDay }
 );
 
 type CompositionKey = 'posts' | 'received' | 'outgoing' | 'score';
@@ -478,208 +463,181 @@ const tableRows = computed(() =>
 
 <template>
   <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-    <!-- 卡片 1: 总推文数 -->
-    <Card class="overflow-hidden">
-      <CardHeader
-        class="flex flex-row items-center justify-between space-y-0 pb-2"
-      >
+    <section
+      class="rounded-xl border border-border/60 bg-card p-5 shadow-none transition-shadow hover:shadow-md sm:p-6"
+    >
+      <header class="mb-4 flex items-center justify-between gap-3">
         <div class="flex items-center gap-3">
           <div
-            class="flex h-10 w-10 items-center justify-center rounded-md border bg-primary/10 text-primary"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
           >
-            <FileText class="h-5 w-5" />
+            <FileText class="h-4 w-4" />
           </div>
-          <CardTitle class="text-sm font-medium">
+          <h3 class="text-sm font-medium text-muted-foreground">
+            {{ t('account.overview.overallPanel.totalTweets') }}
+          </h3>
+        </div>
+        <TrendingUp class="h-4 w-4 text-muted-foreground" />
+      </header>
+      <div class="text-2xl font-semibold tracking-tight tabular-nums">
+        {{ animatedTotalTweets.toFixed(0) }}
+      </div>
+      <p
+        class="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground"
+      >
+        <CalendarDays class="h-3 w-3" />
+        <span>
+          {{ t('account.overview.overallPanel.tweetsThisWeek') }}
+          {{ userAnalytics.tweetsThisWeek }}
+          {{ t('account.overview.overallPanel.tweetsPiece') }}
+        </span>
+      </p>
+    </section>
+
+    <section
+      class="rounded-xl border border-border/60 bg-card p-5 shadow-none transition-shadow hover:shadow-md sm:p-6"
+    >
+      <header class="mb-4 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-rose-500/10 text-rose-500"
+          >
+            <Heart class="h-4 w-4" />
+          </div>
+          <h3 class="text-sm font-medium text-muted-foreground">
             {{
-              t('account.overview.overallPanel.totalTweets')
+              t('account.overview.overallPanel.likesReceived')
             }}
-          </CardTitle>
+          </h3>
         </div>
-        <TrendingUp class="size-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div class="text-2xl font-bold">
-          {{ animatedTotalTweets.toFixed(0) }}
+        <Sparkles class="h-4 w-4 text-muted-foreground" />
+      </header>
+      <div class="text-2xl font-semibold tracking-tight tabular-nums">
+        {{
+          formatNumber(
+            Number(animatedTotalLikesReceived.toFixed(0))
+          )
+        }}
+      </div>
+      <p
+        class="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground"
+      >
+        <Sparkles class="h-3 w-3" />
+        <span>
+          {{ t('account.overview.overallPanel.avgLikesPerTweet') }}
+          {{ animatedAvgLikesPerTweet.toFixed(1) }}
+          {{ t('account.overview.overallPanel.likesPiece') }}
+        </span>
+      </p>
+    </section>
+
+    <section
+      class="rounded-xl border border-border/60 bg-card p-5 shadow-none transition-shadow hover:shadow-md sm:p-6"
+    >
+      <header class="mb-4 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-500"
+          >
+            <Activity class="h-4 w-4" />
+          </div>
+          <h3 class="text-sm font-medium text-muted-foreground">
+            {{
+              t('account.overview.overallPanel.engagementScore')
+            }}
+          </h3>
         </div>
+        <TrendingUp class="h-4 w-4 text-muted-foreground" />
+      </header>
+      <div class="text-2xl font-semibold tracking-tight tabular-nums">
+        {{ animatedEngagementScore.toFixed(0) }}
+      </div>
+      <p class="mt-3 text-[11px] text-muted-foreground">
+        {{
+          t(
+            'account.overview.overallPanel.engagementScoreDescription'
+          )
+        }}
+      </p>
+    </section>
+
+    <section
+      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 lg:col-span-3"
+    >
+      <header class="mb-4 flex items-start gap-3">
         <div
-          class="mt-3 flex items-center gap-2 text-xs text-muted-foreground"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-500"
         >
-          <CalendarDays class="h-3.5 w-3.5" />
-          <span>
-            {{
-              t(
-                'account.overview.overallPanel.tweetsThisWeek'
-              )
-            }}
-            {{ userAnalytics.tweetsThisWeek }}
-            {{
-              t('account.overview.overallPanel.tweetsPiece')
-            }}
-          </span>
+          <Send class="h-4 w-4" />
         </div>
-      </CardContent>
-    </Card>
-
-    <!-- 卡片 2: 收到的赞 -->
-    <Card class="overflow-hidden">
-      <CardHeader
-        class="flex flex-row items-center justify-between space-y-0 pb-2"
-      >
-        <div class="flex items-center gap-3">
-          <div
-            class="flex h-10 w-10 items-center justify-center rounded-md border bg-rose-500/10 text-rose-500"
-          >
-            <Heart class="h-5 w-5" />
-          </div>
-          <CardTitle class="text-sm font-medium">
-            {{
-              t(
-                'account.overview.overallPanel.likesReceived'
-              )
-            }}
-          </CardTitle>
-        </div>
-        <ThumbsUp class="size-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div class="text-2xl font-bold">
-          {{
-            formatNumber(
-              Number(animatedTotalLikesReceived.toFixed(0))
-            )
-          }}
-        </div>
-        <div
-          class="mt-3 flex items-center gap-2 text-xs text-muted-foreground"
-        >
-          <Sparkles class="h-3.5 w-3.5" />
-          <span>
-            {{
-              t(
-                'account.overview.overallPanel.avgLikesPerTweet'
-              )
-            }}
-            {{ animatedAvgLikesPerTweet.toFixed(1) }}
-            {{
-              t('account.overview.overallPanel.likesPiece')
-            }}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-
-    <!-- 卡片 3: 互动分数 -->
-    <Card class="overflow-hidden">
-      <CardHeader
-        class="flex flex-row items-center justify-between space-y-0 pb-2"
-      >
-        <div class="flex items-center gap-3">
-          <div
-            class="flex h-10 w-10 items-center justify-center rounded-md border bg-amber-500/10 text-amber-500"
-          >
-            <Activity class="h-5 w-5" />
-          </div>
-          <CardTitle class="text-sm font-medium">
-            {{
-              t(
-                'account.overview.overallPanel.engagementScore'
-              )
-            }}
-          </CardTitle>
-        </div>
-        <TrendingUp class="size-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div class="text-2xl font-bold">
-          {{ animatedEngagementScore.toFixed(0) }}
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          {{
-            t(
-              'account.overview.overallPanel.engagementScoreDescription'
-            )
-          }}
-        </p>
-      </CardContent>
-    </Card>
-
-    <!-- 卡片 4: 发出的互动 -->
-    <Card class="overflow-hidden lg:col-span-3">
-      <CardHeader
-        class="flex flex-row items-center justify-between space-y-0 pb-2"
-      >
-        <div class="flex items-center gap-3">
-          <div
-            class="flex h-10 w-10 items-center justify-center rounded-md border bg-sky-500/10 text-sky-500"
-          >
-            <Send class="h-5 w-5" />
-          </div>
-          <CardTitle class="text-sm font-medium">
+        <div class="min-w-0 space-y-1">
+          <h3 class="text-base font-semibold tracking-tight">
             {{
               t(
                 'account.overview.overallPanel.outgoingInteractions'
               )
             }}
-          </CardTitle>
+          </h3>
         </div>
-        <MessageSquare class="size-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div class="grid gap-3 sm:grid-cols-2">
+      </header>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div
+          class="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
+        >
           <div
-            class="flex items-center gap-3 rounded-md border bg-muted/30 p-3"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-rose-500/10 text-rose-500"
           >
-            <div
-              class="flex h-9 w-9 items-center justify-center rounded-md bg-rose-500/10 text-rose-500"
-            >
-              <Heart class="h-4 w-4" />
-            </div>
-            <div>
-              <div class="text-lg font-bold">
-                {{ animatedTotalLikesGiven.toFixed(0) }}
-              </div>
-              <div class="text-xs text-muted-foreground">
-                {{
-                  t('account.overview.overallPanel.likesGiven')
-                }}
-              </div>
-            </div>
+            <Heart class="h-4 w-4" />
           </div>
-          <div
-            class="flex items-center gap-3 rounded-md border bg-muted/30 p-3"
-          >
+          <div class="min-w-0">
             <div
-              class="flex h-9 w-9 items-center justify-center rounded-md bg-violet-500/10 text-violet-500"
+              class="text-lg font-semibold tracking-tight tabular-nums"
             >
-              <MessageSquare class="h-4 w-4" />
+              {{ animatedTotalLikesGiven.toFixed(0) }}
             </div>
-            <div>
-              <div class="text-lg font-bold">
-                {{ animatedTotalCommentsMade.toFixed(0) }}
-              </div>
-              <div class="text-xs text-muted-foreground">
-                {{
-                  t(
-                    'account.overview.overallPanel.commentsMade'
-                  )
-                }}
-              </div>
+            <div class="text-[11px] text-muted-foreground">
+              {{ t('account.overview.overallPanel.likesGiven') }}
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+        <div
+          class="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
+        >
+          <div
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-500"
+          >
+            <MessageSquare class="h-4 w-4" />
+          </div>
+          <div class="min-w-0">
+            <div
+              class="text-lg font-semibold tracking-tight tabular-nums"
+            >
+              {{ animatedTotalCommentsMade.toFixed(0) }}
+            </div>
+            <div class="text-[11px] text-muted-foreground">
+              {{
+                t('account.overview.overallPanel.commentsMade')
+              }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <Card class="overflow-hidden md:col-span-2 lg:col-span-3">
-      <CardHeader
-        class="flex flex-row items-start justify-between space-y-0"
-      >
-        <div class="space-y-1">
-          <CardTitle class="flex items-center gap-2 text-base">
-            <TrendingUp class="h-4 w-4 text-primary" />
+    <section
+      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-3"
+    >
+      <header class="mb-4 flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+        >
+          <LineChart class="h-4 w-4" />
+        </div>
+        <div class="min-w-0 space-y-1">
+          <h3 class="text-base font-semibold tracking-tight">
             {{ t('account.overview.overallPanel.dailyTrend') }}
-          </CardTitle>
-          <p class="text-sm text-muted-foreground">
+          </h3>
+          <p class="text-xs text-muted-foreground">
             {{
               t(
                 'account.overview.overallPanel.dailyTrendDescription'
@@ -687,70 +645,76 @@ const tableRows = computed(() =>
             }}
           </p>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div
-          v-if="!hasChartData"
-          class="flex h-56 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
-        >
-          {{ t('account.overview.overallPanel.noTrendData') }}
-        </div>
-        <div
-          v-else
-          class="overflow-hidden rounded-lg border bg-muted/20 p-3"
-        >
-          <ChartContainer
-            :config="chartConfig"
-            :cursor="true"
-            class="h-72 w-full"
-          >
-            <VisXYContainer
-              :data="chartData"
-              :y-domain="[0, undefined]"
-            >
-              <VisLine
-                :x="chartX"
-                :y="chartY"
-                :color="chartColors"
-                :line-width="2.5"
-              />
-              <VisAxis
-                type="x"
-                :num-ticks="Math.min(6, chartData.length)"
-                :tick-format="formatChartDay"
-                :tick-line="false"
-                :domain-line="false"
-              />
-              <VisAxis
-                type="y"
-                :grid-line="true"
-                :tick-line="false"
-                :domain-line="false"
-              />
-              <ChartTooltip />
-              <ChartCrosshair
-                :template="chartTooltipTemplate"
-                :color="chartColors"
-              />
-            </VisXYContainer>
-            <ChartLegendContent
-              class="flex-wrap text-xs text-muted-foreground"
-            />
-          </ChartContainer>
-        </div>
-      </CardContent>
-    </Card>
-
-    <Card class="overflow-hidden md:col-span-2 lg:col-span-2">
-      <CardHeader
-        class="flex flex-row items-start justify-between space-y-0"
+      </header>
+      <div
+        v-if="!hasChartData"
+        class="flex h-56 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
       >
-        <div class="space-y-1">
-          <CardTitle class="flex items-center gap-2 text-base">
-            <BarChart3 class="h-4 w-4 text-primary" />
-            {{ t('account.overview.overallPanel.receivedBreakdown') }}
-          </CardTitle>
-          <p class="text-sm text-muted-foreground">
+        {{ t('account.overview.overallPanel.noTrendData') }}
+      </div>
+      <div
+        v-else
+        class="overflow-hidden rounded-lg border border-border/60 bg-muted/20 p-3"
+      >
+        <ChartContainer
+          :config="chartConfig"
+          :cursor="true"
+          class="h-72 w-full"
+        >
+          <VisXYContainer
+            :data="chartData"
+            :y-domain="[0, undefined]"
+          >
+            <VisLine
+              :x="chartX"
+              :y="chartY"
+              :color="chartColors"
+              :line-width="2.5"
+            />
+            <VisAxis
+              type="x"
+              :num-ticks="Math.min(6, chartData.length)"
+              :tick-format="formatChartDay"
+              :tick-line="false"
+              :domain-line="false"
+            />
+            <VisAxis
+              type="y"
+              :grid-line="true"
+              :tick-line="false"
+              :domain-line="false"
+            />
+            <ChartTooltip />
+            <ChartCrosshair
+              :template="chartTooltipTemplate"
+              :color="chartColors"
+            />
+          </VisXYContainer>
+          <ChartLegendContent
+            class="flex-wrap text-xs text-muted-foreground"
+          />
+        </ChartContainer>
+      </div>
+    </section>
+
+    <section
+      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-2"
+    >
+      <header class="mb-4 flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+        >
+          <BarChart3 class="h-4 w-4" />
+        </div>
+        <div class="min-w-0 space-y-1">
+          <h3 class="text-base font-semibold tracking-tight">
+            {{
+              t(
+                'account.overview.overallPanel.receivedBreakdown'
+              )
+            }}
+          </h3>
+          <p class="text-xs text-muted-foreground">
             {{
               t(
                 'account.overview.overallPanel.receivedBreakdownDescription'
@@ -758,71 +722,75 @@ const tableRows = computed(() =>
             }}
           </p>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div
-          v-if="!hasChartData"
-          class="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
-        >
-          {{ t('account.overview.overallPanel.noTrendData') }}
-        </div>
-        <div
-          v-else
-          class="overflow-hidden rounded-lg border bg-muted/20 p-3"
-        >
-          <ChartContainer
-            :config="receivedChartConfig"
-            :cursor="true"
-            class="h-64 w-full"
-          >
-            <VisXYContainer
-              :data="chartData"
-              :y-domain="[0, undefined]"
-            >
-              <VisStackedBar
-                :x="chartX"
-                :y="receivedChartY"
-                :color="receivedChartColors"
-                :bar-padding="0.12"
-                :rounded-corners="4"
-              />
-              <VisAxis
-                type="x"
-                :num-ticks="Math.min(5, chartData.length)"
-                :tick-format="formatChartDay"
-                :tick-line="false"
-                :domain-line="false"
-              />
-              <VisAxis
-                type="y"
-                :grid-line="true"
-                :tick-line="false"
-                :domain-line="false"
-              />
-              <ChartTooltip />
-              <ChartCrosshair
-                :template="receivedTooltipTemplate"
-                :color="receivedChartColors"
-              />
-            </VisXYContainer>
-            <ChartLegendContent
-              class="flex-wrap text-xs text-muted-foreground"
-            />
-          </ChartContainer>
-        </div>
-      </CardContent>
-    </Card>
-
-    <Card class="overflow-hidden md:col-span-2 lg:col-span-1">
-      <CardHeader
-        class="flex flex-row items-start justify-between space-y-0"
+      </header>
+      <div
+        v-if="!hasChartData"
+        class="flex h-64 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
       >
-        <div class="space-y-1">
-          <CardTitle class="flex items-center gap-2 text-base">
-            <Send class="h-4 w-4 text-primary" />
-            {{ t('account.overview.overallPanel.outgoingTrend') }}
-          </CardTitle>
-          <p class="text-sm text-muted-foreground">
+        {{ t('account.overview.overallPanel.noTrendData') }}
+      </div>
+      <div
+        v-else
+        class="overflow-hidden rounded-lg border border-border/60 bg-muted/20 p-3"
+      >
+        <ChartContainer
+          :config="receivedChartConfig"
+          :cursor="true"
+          class="h-64 w-full"
+        >
+          <VisXYContainer
+            :data="chartData"
+            :y-domain="[0, undefined]"
+          >
+            <VisStackedBar
+              :x="chartX"
+              :y="receivedChartY"
+              :color="receivedChartColors"
+              :bar-padding="0.12"
+              :rounded-corners="4"
+            />
+            <VisAxis
+              type="x"
+              :num-ticks="Math.min(5, chartData.length)"
+              :tick-format="formatChartDay"
+              :tick-line="false"
+              :domain-line="false"
+            />
+            <VisAxis
+              type="y"
+              :grid-line="true"
+              :tick-line="false"
+              :domain-line="false"
+            />
+            <ChartTooltip />
+            <ChartCrosshair
+              :template="receivedTooltipTemplate"
+              :color="receivedChartColors"
+            />
+          </VisXYContainer>
+          <ChartLegendContent
+            class="flex-wrap text-xs text-muted-foreground"
+          />
+        </ChartContainer>
+      </div>
+    </section>
+
+    <section
+      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-1"
+    >
+      <header class="mb-4 flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-500"
+        >
+          <Send class="h-4 w-4" />
+        </div>
+        <div class="min-w-0 space-y-1">
+          <h3 class="text-base font-semibold tracking-tight">
+            {{
+              t('account.overview.overallPanel.outgoingTrend')
+            }}
+          </h3>
+          <p class="text-xs text-muted-foreground">
             {{
               t(
                 'account.overview.overallPanel.outgoingTrendDescription'
@@ -830,72 +798,74 @@ const tableRows = computed(() =>
             }}
           </p>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div
-          v-if="!hasChartData"
-          class="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
-        >
-          {{ t('account.overview.overallPanel.noTrendData') }}
-        </div>
-        <div
-          v-else
-          class="overflow-hidden rounded-lg border bg-muted/20 p-3"
-        >
-          <ChartContainer
-            :config="outgoingChartConfig"
-            :cursor="true"
-            class="h-64 w-full"
-          >
-            <VisXYContainer
-              :data="chartData"
-              :y-domain="[0, undefined]"
-            >
-              <VisGroupedBar
-                :x="chartX"
-                :y="outgoingChartY"
-                :color="outgoingChartColors"
-                :group-padding="0.16"
-                :bar-padding="0.08"
-                :rounded-corners="4"
-              />
-              <VisAxis
-                type="x"
-                :num-ticks="Math.min(5, chartData.length)"
-                :tick-format="formatChartDay"
-                :tick-line="false"
-                :domain-line="false"
-              />
-              <VisAxis
-                type="y"
-                :grid-line="true"
-                :tick-line="false"
-                :domain-line="false"
-              />
-              <ChartTooltip />
-              <ChartCrosshair
-                :template="outgoingTooltipTemplate"
-                :color="outgoingChartColors"
-              />
-            </VisXYContainer>
-            <ChartLegendContent
-              class="flex-wrap text-xs text-muted-foreground"
-            />
-          </ChartContainer>
-        </div>
-      </CardContent>
-    </Card>
-
-    <Card class="overflow-hidden md:col-span-2 lg:col-span-3">
-      <CardHeader
-        class="flex flex-row items-start justify-between space-y-0"
+      </header>
+      <div
+        v-if="!hasChartData"
+        class="flex h-64 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
       >
-        <div class="space-y-1">
-          <CardTitle class="flex items-center gap-2 text-base">
-            <Activity class="h-4 w-4 text-primary" />
+        {{ t('account.overview.overallPanel.noTrendData') }}
+      </div>
+      <div
+        v-else
+        class="overflow-hidden rounded-lg border border-border/60 bg-muted/20 p-3"
+      >
+        <ChartContainer
+          :config="outgoingChartConfig"
+          :cursor="true"
+          class="h-64 w-full"
+        >
+          <VisXYContainer
+            :data="chartData"
+            :y-domain="[0, undefined]"
+          >
+            <VisGroupedBar
+              :x="chartX"
+              :y="outgoingChartY"
+              :color="outgoingChartColors"
+              :group-padding="0.16"
+              :bar-padding="0.08"
+              :rounded-corners="4"
+            />
+            <VisAxis
+              type="x"
+              :num-ticks="Math.min(5, chartData.length)"
+              :tick-format="formatChartDay"
+              :tick-line="false"
+              :domain-line="false"
+            />
+            <VisAxis
+              type="y"
+              :grid-line="true"
+              :tick-line="false"
+              :domain-line="false"
+            />
+            <ChartTooltip />
+            <ChartCrosshair
+              :template="outgoingTooltipTemplate"
+              :color="outgoingChartColors"
+            />
+          </VisXYContainer>
+          <ChartLegendContent
+            class="flex-wrap text-xs text-muted-foreground"
+          />
+        </ChartContainer>
+      </div>
+    </section>
+
+    <section
+      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-3"
+    >
+      <header class="mb-4 flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-500"
+        >
+          <Activity class="h-4 w-4" />
+        </div>
+        <div class="min-w-0 space-y-1">
+          <h3 class="text-base font-semibold tracking-tight">
             {{ t('account.overview.overallPanel.scoreTrend') }}
-          </CardTitle>
-          <p class="text-sm text-muted-foreground">
+          </h3>
+          <p class="text-xs text-muted-foreground">
             {{
               t(
                 'account.overview.overallPanel.scoreTrendDescription'
@@ -903,72 +873,78 @@ const tableRows = computed(() =>
             }}
           </p>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div
-          v-if="!hasChartData"
-          class="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
-        >
-          {{ t('account.overview.overallPanel.noTrendData') }}
-        </div>
-        <div
-          v-else
-          class="overflow-hidden rounded-lg border bg-muted/20 p-3"
-        >
-          <ChartContainer
-            :config="scoreChartConfig"
-            :cursor="true"
-            class="h-56 w-full"
-          >
-            <VisXYContainer
-              :data="chartData"
-              :y-domain="[0, undefined]"
-            >
-              <VisArea
-                :x="chartX"
-                :y="scoreChartY"
-                :color="scoreChartConfig.score.color"
-                :line="true"
-                :line-color="scoreChartConfig.score.color"
-                :opacity="0.18"
-              />
-              <VisAxis
-                type="x"
-                :num-ticks="Math.min(5, chartData.length)"
-                :tick-format="formatChartDay"
-                :tick-line="false"
-                :domain-line="false"
-              />
-              <VisAxis
-                type="y"
-                :grid-line="true"
-                :tick-line="false"
-                :domain-line="false"
-              />
-              <ChartTooltip />
-              <ChartCrosshair
-                :template="scoreTooltipTemplate"
-                :color="scoreChartConfig.score.color"
-              />
-            </VisXYContainer>
-            <ChartLegendContent
-              class="flex-wrap text-xs text-muted-foreground"
-            />
-          </ChartContainer>
-        </div>
-      </CardContent>
-    </Card>
-
-    <Card class="overflow-hidden md:col-span-2 lg:col-span-3">
-      <CardHeader
-        class="flex flex-row items-start justify-between space-y-0"
+      </header>
+      <div
+        v-if="!hasChartData"
+        class="flex h-64 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
       >
-        <div class="space-y-1">
-          <CardTitle class="flex items-center gap-2 text-base">
-            <PieChart class="h-4 w-4 text-primary" />
-            {{ t('account.overview.overallPanel.compositionTitle') }}
-          </CardTitle>
-          <p class="text-sm text-muted-foreground">
+        {{ t('account.overview.overallPanel.noTrendData') }}
+      </div>
+      <div
+        v-else
+        class="overflow-hidden rounded-lg border border-border/60 bg-muted/20 p-3"
+      >
+        <ChartContainer
+          :config="scoreChartConfig"
+          :cursor="true"
+          class="h-56 w-full"
+        >
+          <VisXYContainer
+            :data="chartData"
+            :y-domain="[0, undefined]"
+          >
+            <VisArea
+              :x="chartX"
+              :y="scoreChartY"
+              :color="scoreChartConfig.score.color"
+              :line="true"
+              :line-color="scoreChartConfig.score.color"
+              :opacity="0.18"
+            />
+            <VisAxis
+              type="x"
+              :num-ticks="Math.min(5, chartData.length)"
+              :tick-format="formatChartDay"
+              :tick-line="false"
+              :domain-line="false"
+            />
+            <VisAxis
+              type="y"
+              :grid-line="true"
+              :tick-line="false"
+              :domain-line="false"
+            />
+            <ChartTooltip />
+            <ChartCrosshair
+              :template="scoreTooltipTemplate"
+              :color="scoreChartConfig.score.color"
+            />
+          </VisXYContainer>
+          <ChartLegendContent
+            class="flex-wrap text-xs text-muted-foreground"
+          />
+        </ChartContainer>
+      </div>
+    </section>
+
+    <section
+      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-3"
+    >
+      <header class="mb-4 flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-500"
+        >
+          <PieChart class="h-4 w-4" />
+        </div>
+        <div class="min-w-0 space-y-1">
+          <h3 class="text-base font-semibold tracking-tight">
+            {{
+              t(
+                'account.overview.overallPanel.compositionTitle'
+              )
+            }}
+          </h3>
+          <p class="text-xs text-muted-foreground">
             {{
               t(
                 'account.overview.overallPanel.compositionDescription'
@@ -976,74 +952,90 @@ const tableRows = computed(() =>
             }}
           </p>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div
-          v-if="!hasCompositionData"
-          class="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
+      </header>
+      <div
+        v-if="!hasCompositionData"
+        class="flex h-64 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
+      >
+        {{ t('account.overview.overallPanel.noTrendData') }}
+      </div>
+      <div
+        v-else
+        class="grid gap-4 rounded-lg border border-border/60 bg-muted/20 p-4 lg:grid-cols-[minmax(14rem,18rem)_1fr]"
+      >
+        <ChartContainer
+          :config="compositionChartConfig"
+          class="h-56 w-full"
         >
-          {{ t('account.overview.overallPanel.noTrendData') }}
-        </div>
-        <div
-          v-else
-          class="grid gap-4 rounded-lg border bg-muted/20 p-4 lg:grid-cols-[minmax(14rem,18rem)_1fr]"
-        >
-          <ChartContainer
-            :config="compositionChartConfig"
-            class="h-56 w-full"
-          >
-            <VisSingleContainer :data="compositionData">
-              <VisDonut
-                :value="compositionValue"
-                :color="compositionColor"
-                :arc-width="32"
-                :corner-radius="6"
-                :pad-angle="0.025"
-                :central-label="formatNumber(compositionTotal)"
-                :central-sub-label="t('account.overview.overallPanel.compositionTotal')"
-              />
-            </VisSingleContainer>
-          </ChartContainer>
+          <VisSingleContainer :data="compositionData">
+            <VisDonut
+              :value="compositionValue"
+              :color="compositionColor"
+              :arc-width="32"
+              :corner-radius="6"
+              :pad-angle="0.025"
+              :central-label="formatNumber(compositionTotal)"
+              :central-sub-label="
+                t(
+                  'account.overview.overallPanel.compositionTotal'
+                )
+              "
+            />
+          </VisSingleContainer>
+        </ChartContainer>
 
-          <div class="grid content-center gap-3 sm:grid-cols-2">
-            <div
-              v-for="item in compositionData"
-              :key="item.key"
-              class="rounded-md border bg-background/70 p-3"
-            >
-              <div class="flex items-center justify-between gap-3">
-                <div class="flex min-w-0 items-center gap-2">
-                  <span
-                    class="h-2.5 w-2.5 shrink-0 rounded-sm"
-                    :style="{ backgroundColor: item.color }"
-                  />
-                  <span class="truncate text-sm text-muted-foreground">
-                    {{ item.label }}
-                  </span>
-                </div>
-                <span class="text-xs text-muted-foreground">
-                  {{ formatShare(item.value) }}
+        <div class="grid content-center gap-3 sm:grid-cols-2">
+          <div
+            v-for="item in compositionData"
+            :key="item.key"
+            class="rounded-lg border border-border/60 bg-background/70 p-3"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex min-w-0 items-center gap-2">
+                <span
+                  class="h-2.5 w-2.5 shrink-0 rounded-sm"
+                  :style="{ backgroundColor: item.color }"
+                />
+                <span
+                  class="truncate text-xs text-muted-foreground"
+                >
+                  {{ item.label }}
                 </span>
               </div>
-              <div class="mt-2 text-2xl font-semibold">
-                {{ formatNumber(item.value) }}
-              </div>
+              <span
+                class="text-[11px] tabular-nums text-muted-foreground"
+              >
+                {{ formatShare(item.value) }}
+              </span>
+            </div>
+            <div
+              class="mt-2 text-2xl font-semibold tracking-tight tabular-nums"
+            >
+              {{ formatNumber(item.value) }}
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
 
-    <Card class="overflow-hidden md:col-span-2 lg:col-span-3">
-      <CardHeader
-        class="flex flex-row items-start justify-between space-y-0"
-      >
-        <div class="space-y-1">
-          <CardTitle class="flex items-center gap-2 text-base">
-            <TableIcon class="h-4 w-4 text-primary" />
-            {{ t('account.overview.overallPanel.dataTableTitle') }}
-          </CardTitle>
-          <p class="text-sm text-muted-foreground">
+    <section
+      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-3"
+    >
+      <header class="mb-4 flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+        >
+          <TableIcon class="h-4 w-4" />
+        </div>
+        <div class="min-w-0 space-y-1">
+          <h3 class="text-base font-semibold tracking-tight">
+            {{
+              t(
+                'account.overview.overallPanel.dataTableTitle'
+              )
+            }}
+          </h3>
+          <p class="text-xs text-muted-foreground">
             {{
               t(
                 'account.overview.overallPanel.dataTableDescription'
@@ -1051,72 +1043,107 @@ const tableRows = computed(() =>
             }}
           </p>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div
-          v-if="!hasChartData"
-          class="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
-        >
-          {{ t('account.overview.overallPanel.noTrendData') }}
-        </div>
-        <div v-else class="overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  {{ t('account.overview.overallPanel.tableDate') }}
-                </TableHead>
-                <TableHead class="text-right">
-                  {{ t('account.overview.overallPanel.tablePosts') }}
-                </TableHead>
-                <TableHead class="text-right">
-                  {{ t('account.overview.overallPanel.tableLikes') }}
-                </TableHead>
-                <TableHead class="text-right">
-                  {{ t('account.overview.overallPanel.tableComments') }}
-                </TableHead>
-                <TableHead class="text-right">
-                  {{ t('account.overview.overallPanel.tableRetweets') }}
-                </TableHead>
-                <TableHead class="text-right">
-                  {{ t('account.overview.overallPanel.tableOutgoing') }}
-                </TableHead>
-                <TableHead class="text-right">
-                  {{ t('account.overview.overallPanel.tableScore') }}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow
-                v-for="row in tableRows"
-                :key="row.day"
+      </header>
+      <div
+        v-if="!hasChartData"
+        class="flex h-40 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
+      >
+        {{ t('account.overview.overallPanel.noTrendData') }}
+      </div>
+      <div
+        v-else
+        class="overflow-hidden rounded-lg border border-border/60"
+      >
+        <Table>
+          <TableHeader>
+            <TableRow class="bg-muted/30 hover:bg-muted/30">
+              <TableHead
+                class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
               >
-                <TableCell class="font-medium">
-                  {{ formatChartDay(row.date) }}
-                </TableCell>
-                <TableCell class="text-right">
-                  {{ formatNumber(row.posts) }}
-                </TableCell>
-                <TableCell class="text-right">
-                  {{ formatNumber(row.likes) }}
-                </TableCell>
-                <TableCell class="text-right">
-                  {{ formatNumber(row.comments) }}
-                </TableCell>
-                <TableCell class="text-right">
-                  {{ formatNumber(row.retweets) }}
-                </TableCell>
-                <TableCell class="text-right">
-                  {{ formatNumber(row.outgoing) }}
-                </TableCell>
-                <TableCell class="text-right">
-                  {{ formatNumber(row.score) }}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+                {{
+                  t('account.overview.overallPanel.tableDate')
+                }}
+              </TableHead>
+              <TableHead
+                class="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                {{
+                  t('account.overview.overallPanel.tablePosts')
+                }}
+              </TableHead>
+              <TableHead
+                class="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                {{
+                  t('account.overview.overallPanel.tableLikes')
+                }}
+              </TableHead>
+              <TableHead
+                class="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                {{
+                  t(
+                    'account.overview.overallPanel.tableComments'
+                  )
+                }}
+              </TableHead>
+              <TableHead
+                class="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                {{
+                  t(
+                    'account.overview.overallPanel.tableRetweets'
+                  )
+                }}
+              </TableHead>
+              <TableHead
+                class="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                {{
+                  t(
+                    'account.overview.overallPanel.tableOutgoing'
+                  )
+                }}
+              </TableHead>
+              <TableHead
+                class="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                {{
+                  t('account.overview.overallPanel.tableScore')
+                }}
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow
+              v-for="row in tableRows"
+              :key="row.day"
+            >
+              <TableCell class="text-sm font-medium">
+                {{ formatChartDay(row.date) }}
+              </TableCell>
+              <TableCell class="text-right text-sm tabular-nums">
+                {{ formatNumber(row.posts) }}
+              </TableCell>
+              <TableCell class="text-right text-sm tabular-nums">
+                {{ formatNumber(row.likes) }}
+              </TableCell>
+              <TableCell class="text-right text-sm tabular-nums">
+                {{ formatNumber(row.comments) }}
+              </TableCell>
+              <TableCell class="text-right text-sm tabular-nums">
+                {{ formatNumber(row.retweets) }}
+              </TableCell>
+              <TableCell class="text-right text-sm tabular-nums">
+                {{ formatNumber(row.outgoing) }}
+              </TableCell>
+              <TableCell class="text-right text-sm tabular-nums">
+                {{ formatNumber(row.score) }}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    </section>
   </div>
 </template>
