@@ -4,10 +4,8 @@ import {
   ref,
   watch
 } from 'vue';
-import AvatarUploader from '@/components/AvatarUploader.vue'; // 导入你的新组件
-// 1. 导入所有这个组件需要的依赖项
+import AvatarUploader from '@/components/AvatarUploader.vue';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -27,11 +25,6 @@ import {
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
-import {
-  Alert,
-  AlertDescription
-} from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -42,9 +35,12 @@ import {
   TabsTrigger
 } from '@/components/ui/tabs';
 import {
+  AlertTriangle,
   Copy,
   ExternalLink,
   Heart,
+  Inbox,
+  Loader2,
   Mail,
   MapPin,
   MessageCircle,
@@ -53,11 +49,12 @@ import {
   Settings,
   Shield,
   User,
-  UserRound
+  UserRound,
+  Users
 } from 'lucide-vue-next';
 import type { PropType } from 'vue';
 import { toast } from 'vue-sonner';
-import { usePreferenceStore } from '~/stores/user'; // 导入 store
+import { usePreferenceStore } from '~/stores/user';
 import {
   v2GetUserAnalytics,
   v2ListUserFollowers,
@@ -72,7 +69,9 @@ const preferenceStore = usePreferenceStore();
 const { t, locale } = useAppLocale();
 const localePath = useLocalePath();
 
-// 2. 为 props 定义清晰的 TypeScript 类型
+const PILL_BASE =
+  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium';
+
 interface UserData {
   id: number;
   name: string;
@@ -96,7 +95,6 @@ interface TabItem {
   to: string;
 }
 
-// 3. 使用 defineProps 接收从父组件传递过来的数据
 const props = defineProps({
   user: {
     type: Object as PropType<UserData>,
@@ -108,7 +106,6 @@ const props = defineProps({
   }
 });
 
-// 3.定义 emits，声明该组件会触发 'update:user' 事件
 const emit = defineEmits<{
   (e: 'update:user', user: UserData): void;
   (
@@ -136,22 +133,15 @@ const likesAnalytics = ref<UserAnalyticsVM | null>(null);
 const likesLoading = ref(false);
 const likesError = ref<string | null>(null);
 
-// 4. 处理头像更新的正确方式
 const handleAvatarUpdate = (
   newAvatarRelativePath: string
 ) => {
-  // 创建一个 props.user 的副本
   const updatedUser = { ...props.user };
-  // 更新副本的 avatar 属性 (假设后端返回的是相对路径)
-  // 你需要在这里拼接完整的 URL，或者确保你的 API 调用者来做这件事
-  const BACKEND_URL = ''; // 示例 URL
+  const BACKEND_URL = '';
   updatedUser.avatar = `${BACKEND_URL}${newAvatarRelativePath}`;
-  // c. 通过 emit 事件将整个更新后的 user 对象发送给父组件
   emit('update:user', updatedUser);
 };
 
-// 将需要传递给 AvatarUploader 的数据包装成一个 computed 属性
-//    这样可以确保当 props.user 变化时，子组件也能接收到更新
 const avatarUploaderProps = computed(() => ({
   name: props.user.name,
   avatar: props.user.avatar
@@ -161,16 +151,13 @@ const MAX_POSSIBLE_SCORE = 3000;
 
 const normalizedScore = computed(() => {
   const originalScore = props.user.point;
-  const minScore = 0; // 最小可能分数
+  const minScore = 0;
 
-  // 应用归一化公式
   let score_0_to_100 =
     ((originalScore - minScore) /
       (MAX_POSSIBLE_SCORE - minScore)) *
     100;
 
-  // 3. 确保分数不会超过 100 或低于 0（处理边界情况）
-  //    如果原始分数可能超过你设定的最大值，这一步很重要
   score_0_to_100 = Math.max(
     0,
     Math.min(score_0_to_100, 100)
@@ -324,8 +311,7 @@ async function copyProfileLink(): Promise<void> {
     ).toString();
     await navigator.clipboard.writeText(url);
     toast.success(t('account.actions.copied'));
-  } catch (error) {
-    console.error(t('common.operationFailed'), error);
+  } catch {
     toast.error(t('common.operationFailed'));
   }
 }
@@ -376,8 +362,7 @@ async function loadRelationshipUsers(
     relationshipTotal.value = result.total;
     relationshipPage.value = result.page;
     relationshipHasNext.value = result.hasNext;
-  } catch (error) {
-    console.error(t('account.stats.loadFailed'), error);
+  } catch {
     relationshipError.value = t('account.stats.loadFailed');
   } finally {
     relationshipLoading.value = false;
@@ -392,8 +377,7 @@ async function loadLikesAnalytics(): Promise<void> {
 
   try {
     likesAnalytics.value = await v2GetUserAnalytics(props.user.id);
-  } catch (error) {
-    console.error(t('account.stats.loadFailed'), error);
+  } catch {
     likesError.value = t('account.stats.loadFailed');
   } finally {
     likesLoading.value = false;
@@ -482,38 +466,32 @@ function followUser() {
 </script>
 
 <template>
-  <!-- 整个组件的最外层是一个 Card -->
-  <Card>
-    <!-- a. 卡片内容区，只包含需要内边距 (p-6) 的用户信息 -->
-    <CardContent class="p-4 sm:p-6">
-      <div
-        class="flex flex-col sm:flex-row items-start gap-6"
-      >
-        <AvatarUploader
-          :user="avatarUploaderProps"
-          class="absolute bottom-0 right-0"
-          @update:avatar="handleAvatarUpdate"
-        />
+  <section
+    class="overflow-hidden rounded-xl border border-border/60 bg-card p-4 shadow-none sm:p-6"
+  >
+    <div class="flex flex-col items-start gap-6 sm:flex-row">
+      <AvatarUploader
+        :user="avatarUploaderProps"
+        class="shrink-0"
+        @update:avatar="handleAvatarUpdate"
+      />
 
-        <!-- 右侧的所有信息，使用 space-y-4 来创建垂直间距 -->
-        <div class="min-w-0 flex-1 space-y-4">
-          <!-- 用户名和操作按钮 -->
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div class="min-w-0">
+      <div class="min-w-0 flex-1 space-y-4">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="min-w-0 space-y-1.5">
               <div class="flex min-w-0 flex-wrap items-center gap-2">
-                <h2 class="min-w-0 truncate text-xl font-semibold">
+                <h2 class="min-w-0 truncate text-xl font-semibold tracking-tight">
                   {{ user.name }}
                 </h2>
-                <Badge
-                  variant="secondary"
-                  class="gap-1.5 rounded-full px-2 py-0.5 text-xs"
+                <span
+                  class="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
                 >
                   <span
-                    class="h-2 w-2 rounded-full"
+                    class="h-1.5 w-1.5 rounded-full"
                     :class="onlineStatusClass(user.onlineStatus)"
                   />
                   {{ onlineStatusLabel(user.onlineStatus) }}
-                </Badge>
+                </span>
                 <span
                   v-if="user.onlineStatus !== 'online' && user.lastSeenAt"
                   class="text-xs text-muted-foreground"
@@ -526,33 +504,36 @@ function followUser() {
                 </span>
               </div>
               <div
-                class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1"
+                class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground"
               >
                 <span
                   v-if="user.title"
                   class="flex items-center gap-1.5"
-                  ><User class="w-4 h-4" />{{
-                    user.title
-                  }}</span
                 >
-                <span class="flex items-center gap-1.5"
-                  ><MapPin class="w-4 h-4" />{{
-                    user.location
-                  }}</span
+                  <User class="h-3.5 w-3.5" />
+                  {{ user.title }}
+                </span>
+                <span
+                  v-if="user.location"
+                  class="flex items-center gap-1.5"
                 >
+                  <MapPin class="h-3.5 w-3.5" />
+                  {{ user.location }}
+                </span>
                 <span
                   v-if="user.email"
                   class="flex items-center gap-1.5"
-                  ><Mail class="w-4 h-4" />{{
-                    user.email
-                  }}</span
                 >
+                  <Mail class="h-3.5 w-3.5" />
+                  {{ user.email }}
+                </span>
               </div>
             </div>
-            <div class="flex items-center space-x-2 self-start sm:self-auto">
+            <div class="flex items-center gap-2 self-start sm:self-auto">
               <Button
                 v-if="showFollowAction"
                 variant="secondary"
+                size="sm"
                 @click="openDirectMessage"
               >
                 <MessageCircle class="h-4 w-4" />
@@ -560,25 +541,31 @@ function followUser() {
               </Button>
               <Button
                 v-if="showFollowAction && !isFollowing"
-                variant="outline"
+                variant="default"
+                size="sm"
                 @click="followUser"
               >
                 {{ t('account.header.follow') }}
               </Button>
               <Button
                 v-else-if="showFollowAction"
-                variant="destructive"
+                variant="outline"
+                size="sm"
                 @click="followUser"
               >
                 {{ t('account.header.unfollow') }}
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
-                  <Button variant="ghost" size="icon">
-                    <MoreHorizontal class="w-4 h-4" />
-                    <span class="sr-only">{{
-                      t('account.header.moreActions')
-                    }}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent"
+                  >
+                    <MoreHorizontal class="h-4 w-4" />
+                    <span class="sr-only">
+                      {{ t('account.header.moreActions') }}
+                    </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" class="w-52">
@@ -621,92 +608,75 @@ function followUser() {
             </div>
           </div>
 
-          <!-- 分割线 -->
-          <div class="border-t" />
+          <div class="border-t border-border/60" />
 
-          <!-- 统计数据和进度条 -->
-          <div
-            class="flex flex-col sm:flex-row items-center gap-4"
-          >
-            <div class="grid flex-1 grid-cols-3 gap-2 sm:gap-4">
-              <Button
+          <div class="flex flex-col items-stretch gap-4 sm:flex-row sm:items-center">
+            <div class="grid flex-1 grid-cols-3 gap-1 sm:gap-2">
+              <button
                 type="button"
-                variant="ghost"
-                class="h-auto min-w-0 flex-col gap-0 rounded-lg px-2 py-2 text-center sm:px-3"
+                class="flex flex-col items-center gap-0.5 rounded-lg px-2 py-2 text-center transition-colors hover:bg-accent hover:text-accent-foreground"
                 @click="openStatsDialog('followers')"
               >
-                <p
-                  class="flex items-center justify-center gap-1 text-lg font-bold"
-                >
+                <span class="tabular-nums text-lg font-semibold leading-tight">
                   {{ formatNumber(user.stats.followersCount) }}
-                </p>
-                <p class="text-xs text-muted-foreground">
+                </span>
+                <span class="text-xs text-muted-foreground">
                   {{ t('account.header.followers') }}
-                </p>
-              </Button>
-              <Button
+                </span>
+              </button>
+              <button
                 type="button"
-                variant="ghost"
-                class="h-auto min-w-0 flex-col gap-0 rounded-lg px-2 py-2 text-center sm:px-3"
+                class="flex flex-col items-center gap-0.5 rounded-lg px-2 py-2 text-center transition-colors hover:bg-accent hover:text-accent-foreground"
                 @click="openStatsDialog('following')"
               >
-                <p
-                  class="flex items-center justify-center gap-1 text-lg font-bold"
-                >
+                <span class="tabular-nums text-lg font-semibold leading-tight">
                   {{ formatNumber(user.stats.followingCount) }}
-                </p>
-                <p class="text-xs text-muted-foreground">
+                </span>
+                <span class="text-xs text-muted-foreground">
                   {{ t('account.header.following') }}
-                </p>
-              </Button>
-              <Button
+                </span>
+              </button>
+              <button
                 type="button"
-                variant="ghost"
-                class="h-auto min-w-0 flex-col gap-0 rounded-lg px-2 py-2 text-center sm:px-3"
+                class="flex flex-col items-center gap-0.5 rounded-lg px-2 py-2 text-center transition-colors hover:bg-accent hover:text-accent-foreground"
                 @click="openStatsDialog('likes')"
               >
-                <p
-                  class="flex items-center justify-center gap-1 text-lg font-bold"
-                >
+                <span class="tabular-nums text-lg font-semibold leading-tight">
                   {{ formatNumber(user.stats.likesCount) }}
-                </p>
-                <p class="text-xs text-muted-foreground">
+                </span>
+                <span class="text-xs text-muted-foreground">
                   {{ t('account.header.likes') }}
-                </p>
-              </Button>
+                </span>
+              </button>
             </div>
-            <div class="w-full sm:w-1/3">
-              <Label
-                for="completion"
-                class="text-sm font-medium"
-              >
-                {{ t('account.header.activeScore') }}
-              </Label>
-              <div class="flex items-center gap-2">
-                <Progress
-                  :model-value="normalizedScore"
-                  class="w-full"
-                />
-                <span class="font-semibold text-sm">{{
-                  user.point
-                }}</span>
+            <div class="w-full space-y-1.5 sm:w-1/3">
+              <div class="flex items-center justify-between">
+                <Label
+                  for="completion"
+                  class="text-xs font-medium text-muted-foreground"
+                >
+                  {{ t('account.header.activeScore') }}
+                </Label>
+                <span class="tabular-nums text-xs font-semibold">
+                  {{ formatNumber(user.point) }}
+                </span>
               </div>
+              <Progress
+                :model-value="normalizedScore"
+                class="h-1.5 w-full"
+              />
             </div>
           </div>
-        </div>
       </div>
-    </CardContent>
-  </Card>
-  <!-- b. 账户子页面导航 -->
+    </div>
+  </section>
   <Tabs
     v-if="accountTabs.length > 0"
     :model-value="tabValue"
     class="w-full overflow-x-auto"
     @update:model-value="handleTabChange"
   >
-    <TabsList
-      class="inline-flex h-auto min-w-full justify-start sm:min-w-0"
-    >
+    <TabsList class="inline-flex h-auto min-w-full justify-start sm:min-w-0">
       <TabsTrigger
         v-for="tab in accountTabs"
         :key="tab.to"
@@ -722,15 +692,38 @@ function followUser() {
     :open="statsDialogOpen"
     @update:open="statsDialogOpen = $event"
   >
-    <DialogContent class="sm:max-w-xl">
-      <DialogHeader>
-        <DialogTitle>{{ statsDialogTitle }}</DialogTitle>
-        <DialogDescription>
+    <DialogContent
+      class="flex max-h-[88vh] max-w-xl flex-col overflow-hidden rounded-xl border-border/60 p-0"
+    >
+      <DialogHeader
+        class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+      >
+        <DialogTitle
+          class="flex items-center gap-2 text-base font-semibold tracking-tight"
+        >
+          <span
+            v-if="activeStatsType === 'likes'"
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400"
+          >
+            <Heart class="h-4 w-4" />
+          </span>
+          <span
+            v-else
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+          >
+            <Users class="h-4 w-4" />
+          </span>
+          {{ statsDialogTitle }}
+        </DialogTitle>
+        <DialogDescription class="pl-9 text-xs text-muted-foreground">
           {{ statsDialogDescription }}
         </DialogDescription>
       </DialogHeader>
 
-      <div v-if="activeStatsType === 'likes'" class="space-y-4">
+      <div
+        v-if="activeStatsType === 'likes'"
+        class="grid gap-3 px-5 py-4"
+      >
         <div
           v-if="likesLoading"
           class="grid gap-3 sm:grid-cols-2"
@@ -741,36 +734,50 @@ function followUser() {
             class="h-20 rounded-lg"
           />
         </div>
-        <Alert
+        <div
           v-else-if="likesError"
-          variant="destructive"
+          class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-rose-200/70 bg-rose-50/40 py-10 text-center dark:border-rose-500/30 dark:bg-rose-500/10"
         >
-          <AlertDescription>{{ likesError }}</AlertDescription>
-        </Alert>
+          <span
+            class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-600 ring-1 ring-rose-500/30 dark:text-rose-400"
+          >
+            <AlertTriangle class="h-5 w-5" />
+          </span>
+          <p class="text-sm font-medium">
+            {{ likesError }}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            class="h-8 rounded-md shadow-xs"
+            @click="loadLikesAnalytics"
+          >
+            <RefreshCw class="h-3.5 w-3.5" />
+            {{ t('common.refresh') }}
+          </Button>
+        </div>
         <div v-else class="grid gap-3 sm:grid-cols-2">
-          <Card
+          <div
             v-for="item in likesStatItems"
             :key="item.label"
-            class="gap-0 py-0"
+            class="rounded-lg border border-border/60 bg-muted/20 p-3"
           >
-            <CardContent class="p-4">
-              <div
-                class="flex items-center gap-2 text-sm text-muted-foreground"
-              >
-                <Heart class="h-4 w-4" />
-                {{ item.label }}
-              </div>
-              <div class="mt-2 text-2xl font-semibold">
-                {{ item.value }}
-              </div>
-            </CardContent>
-          </Card>
+            <div
+              class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
+            >
+              <Heart class="h-3 w-3" />
+              {{ item.label }}
+            </div>
+            <div class="mt-2 tabular-nums text-2xl font-semibold tracking-tight">
+              {{ item.value }}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div v-else class="space-y-4">
+      <div v-else class="flex min-h-0 flex-col gap-3 px-5 py-4">
         <div
-          class="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm"
+          class="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs"
         >
           <span class="text-muted-foreground">
             {{
@@ -779,16 +786,24 @@ function followUser() {
               })
             }}
           </span>
-          <Badge variant="secondary">
+          <span
+            :class="[
+              PILL_BASE,
+              'border-sky-200/70 bg-sky-500/10 text-sky-700 dark:border-sky-500/30 dark:text-sky-300'
+            ]"
+          >
+            <Users class="h-3 w-3" />
             {{
               activeStatsType === 'followers'
                 ? t('account.header.followers')
                 : t('account.header.following')
             }}
-          </Badge>
+          </span>
         </div>
 
-        <ScrollArea class="h-[360px] rounded-lg border">
+        <ScrollArea
+          class="min-h-[280px] flex-1 rounded-lg border border-border/60"
+        >
           <div class="space-y-1 p-2">
             <template
               v-if="relationshipLoading && relationshipUsers.length === 0"
@@ -808,60 +823,81 @@ function followUser() {
 
             <div
               v-else-if="relationshipError"
-              class="p-6 text-center text-sm text-destructive"
+              class="flex flex-col items-center justify-center gap-2 py-10 text-center"
             >
-              {{ relationshipError }}
+              <span
+                class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-600 ring-1 ring-rose-500/30 dark:text-rose-400"
+              >
+                <AlertTriangle class="h-5 w-5" />
+              </span>
+              <p class="text-sm font-medium">
+                {{ relationshipError }}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                class="h-8 rounded-md shadow-xs"
+                @click="loadRelationshipUsers(true)"
+              >
+                <RefreshCw class="h-3.5 w-3.5" />
+                {{ t('common.refresh') }}
+              </Button>
             </div>
 
             <div
               v-else-if="relationshipUsers.length === 0"
-              class="p-8 text-center text-sm text-muted-foreground"
+              class="flex flex-col items-center justify-center gap-2 py-10 text-center"
             >
-              {{
-                activeStatsType === 'followers'
-                  ? t('account.stats.emptyFollowers')
-                  : t('account.stats.emptyFollowing')
-              }}
+              <span
+                class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground ring-1 ring-border/60"
+              >
+                <Inbox class="h-5 w-5" />
+              </span>
+              <p class="text-sm font-medium">
+                {{
+                  activeStatsType === 'followers'
+                    ? t('account.stats.emptyFollowers')
+                    : t('account.stats.emptyFollowing')
+                }}
+              </p>
             </div>
 
             <template v-else>
-              <Button
+              <button
                 v-for="item in relationshipUsers"
                 :key="item.id"
                 type="button"
-                variant="ghost"
-                class="h-auto w-full justify-start gap-3 rounded-lg p-2 text-left"
+                class="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted/40"
                 @click="openUserProfile(item.id)"
               >
-                <Avatar class="h-10 w-10">
+                <Avatar class="h-10 w-10 shrink-0 ring-1 ring-border/60">
                   <AvatarImage :src="item.avatarUrl" />
-                  <AvatarFallback>
+                  <AvatarFallback class="bg-primary/10 text-xs font-semibold text-primary">
                     {{ getUserInitials(item) }}
                   </AvatarFallback>
                 </Avatar>
                 <div class="min-w-0 flex-1">
-                  <div
-                    class="truncate text-sm font-medium text-foreground"
-                  >
+                  <div class="truncate text-sm font-medium">
                     {{ item.name || item.username }}
                   </div>
-                  <div
-                    class="truncate text-xs text-muted-foreground"
-                  >
+                  <div class="truncate text-xs text-muted-foreground">
                     @{{ item.username }}
                   </div>
                 </div>
-                <Badge
+                <span
                   v-if="item.relationship.isFollowing"
-                  variant="secondary"
+                  :class="[
+                    PILL_BASE,
+                    'border-emerald-200/70 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-300'
+                  ]"
                 >
                   {{ t('account.stats.followingBadge') }}
-                </Badge>
+                </span>
                 <UserRound
                   v-else
-                  class="h-4 w-4 text-muted-foreground"
+                  class="h-4 w-4 shrink-0 text-muted-foreground"
                 />
-              </Button>
+              </button>
             </template>
           </div>
         </ScrollArea>
@@ -872,9 +908,15 @@ function followUser() {
         >
           <Button
             variant="outline"
+            size="sm"
+            class="h-8 rounded-md shadow-xs"
             :disabled="relationshipLoading"
             @click="loadRelationshipUsers(false)"
           >
+            <Loader2
+              v-if="relationshipLoading"
+              class="h-3.5 w-3.5 animate-spin"
+            />
             {{
               relationshipLoading
                 ? t('common.loading')
