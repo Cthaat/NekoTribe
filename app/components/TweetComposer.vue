@@ -621,7 +621,7 @@ defineExpose({
 
 <template>
   <div
-    class="overflow-hidden rounded-xl border border-border/60 bg-card shadow-none"
+    class="mobile-scroll-safe rounded-xl border border-border/60 bg-card shadow-none"
     @drop="handleDrop"
     @dragover.prevent="isDraggingMedia = true"
     @dragleave="isDraggingMedia = false"
@@ -809,7 +809,7 @@ defineExpose({
     <div
       class="flex flex-col gap-3 border-t border-border/60 bg-muted/10 p-3 sm:flex-row sm:items-center sm:justify-between"
     >
-      <div class="flex flex-wrap items-center gap-1.5">
+      <div class="mobile-action-row">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger as-child>
@@ -880,7 +880,7 @@ defineExpose({
           :model-value="visibility"
           @update:model-value="updateVisibility"
         >
-          <SelectTrigger class="h-8 w-[154px] shadow-xs">
+          <SelectTrigger class="h-8 w-full shadow-xs sm:w-[154px]">
             <component
               :is="selectedVisibility.icon"
               class="mr-1.5 h-3.5 w-3.5 text-muted-foreground"
