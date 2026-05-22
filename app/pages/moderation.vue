@@ -12,7 +12,6 @@ import {
   TabsList,
   TabsTrigger
 } from '@/components/ui/tabs';
-import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 const { t } = useAppLocale();
@@ -92,26 +91,25 @@ watch(currentPath, newPath => {
 <template>
   <ScrollArea class="h-[calc(100dvh-4rem)]">
     <div class="mx-auto max-w-7xl space-y-5 px-3 py-3 sm:px-0 sm:py-0">
-      <!-- 页面标题 -->
-      <Card class="gap-0 bg-card/70 py-0">
-        <CardContent
-          class="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between"
-        >
+      <section
+        class="flex flex-col gap-4 rounded-xl border border-border/60 bg-card p-4 shadow-none sm:flex-row sm:items-center sm:justify-between sm:p-5"
+      >
         <div class="flex items-center gap-3">
-          <div class="rounded-md bg-primary/10 p-2">
-            <Shield class="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 class="text-xl font-semibold tracking-normal">
+          <span
+            class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20"
+          >
+            <Shield class="h-5 w-5" />
+          </span>
+          <div class="min-w-0">
+            <h1 class="text-xl font-semibold tracking-tight">
               {{ t('moderation.title') }}
             </h1>
-            <p class="text-sm text-muted-foreground">
+            <p class="mt-0.5 text-sm text-muted-foreground">
               {{ t('moderation.description') }}
             </p>
           </div>
         </div>
 
-        <!-- 标签导航 -->
         <Tabs
           :model-value="activeTab"
           @update:model-value="handleTabChange"
@@ -129,10 +127,8 @@ watch(currentPath, newPath => {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        </CardContent>
-      </Card>
+      </section>
 
-      <!-- 子页面内容 -->
       <NuxtPage />
     </div>
   </ScrollArea>
