@@ -339,7 +339,7 @@ const handleTabChange = (value: string | number) => {
 <template>
   <Dialog :open="open" @update:open="closeDialog">
     <DialogContent
-      class="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden rounded-xl border-border/60 p-0"
+      class="flex max-h-[calc(100dvh-1rem)] max-w-2xl flex-col overflow-hidden rounded-xl border-border/60 p-0"
     >
       <template v-if="group">
         <div
@@ -400,14 +400,14 @@ const handleTabChange = (value: string | number) => {
           </div>
 
           <div
-            class="mt-4 flex flex-wrap items-center gap-2"
+            class="mobile-action-row mt-4 sm:flex-nowrap"
           >
             <Button
               v-if="!group.isOwner"
               :variant="
                 group.isMember ? 'outline' : 'default'
               "
-              class="h-9 rounded-md shadow-xs"
+              class="h-9 w-full rounded-md shadow-xs sm:w-auto"
               @click="handleJoinLeave"
             >
               {{
@@ -421,7 +421,7 @@ const handleTabChange = (value: string | number) => {
             <Button
               v-if="group.isMember"
               variant="outline"
-              class="h-9 rounded-md shadow-xs"
+              class="h-9 w-full rounded-md shadow-xs sm:w-auto"
               @click="handleInvite"
             >
               <UserPlus class="h-3.5 w-3.5" />
