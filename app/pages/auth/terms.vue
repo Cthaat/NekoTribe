@@ -40,6 +40,10 @@ const tocItems = [
   { id: '#faq', titleKey: 'auth.terms.toc.faq' }
 ];
 
+function tocSectionId(index: number): string {
+  return tocItems[index]?.id.substring(1) ?? '';
+}
+
 const faqItems = [
   {
     value: 'faq-1',
@@ -60,11 +64,11 @@ const faqItems = [
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-4xl p-4 md:p-8">
+  <div class="mx-auto w-full max-w-4xl overflow-x-clip p-3 sm:p-4 md:p-8">
     <article
       class="rounded-xl border border-border/60 bg-card shadow-none"
     >
-      <header class="px-6 py-5 sm:px-8 sm:py-6">
+      <header class="px-4 py-5 sm:px-8 sm:py-6">
         <div class="flex items-center gap-3">
           <span
             class="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20"
@@ -87,7 +91,7 @@ const faqItems = [
 
       <Separator />
 
-      <div class="grid gap-8 px-6 py-6 sm:px-8 sm:py-8">
+      <div class="grid gap-8 px-4 py-6 sm:px-8 sm:py-8">
         <nav
           class="rounded-lg border border-border/60 bg-muted/30 p-4"
         >
@@ -108,7 +112,7 @@ const faqItems = [
         </nav>
 
         <article class="grid gap-8">
-          <section :id="tocItems[0].id.substring(1)">
+          <section :id="tocSectionId(0)">
             <h2
               class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
@@ -119,7 +123,7 @@ const faqItems = [
             </p>
           </section>
 
-          <section :id="tocItems[1].id.substring(1)">
+          <section :id="tocSectionId(1)">
             <h2
               class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
@@ -130,7 +134,7 @@ const faqItems = [
             </p>
           </section>
 
-          <section :id="tocItems[2].id.substring(1)">
+          <section :id="tocSectionId(2)">
             <h2
               class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
@@ -161,7 +165,7 @@ const faqItems = [
             </Alert>
           </section>
 
-          <section :id="tocItems[3].id.substring(1)">
+          <section :id="tocSectionId(3)">
             <h2
               class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
@@ -172,7 +176,7 @@ const faqItems = [
             </p>
           </section>
 
-          <section :id="tocItems[4].id.substring(1)">
+          <section :id="tocSectionId(4)">
             <h2
               class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
