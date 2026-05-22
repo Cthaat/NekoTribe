@@ -798,6 +798,8 @@
   },
   "chat": {
     "fallbackChannel": "聊天",
+    "defaultCategoryName": "文字频道",
+    "backToChannels": "返回频道",
     "groupFallbackName": "群组名称",
     "channelDescriptionFallback": "频道描述",
     "searchPlaceholder": "搜索消息...",
