@@ -16,7 +16,7 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
     <AppSidebar />
     <SidebarInset>
       <header
-        class="flex h-16 shrink-0 items-center gap-2 px-3 sm:gap-4 sm:px-4"
+        class="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:gap-4 sm:px-4"
       >
         <div class="flex items-center gap-2">
           <SidebarTrigger class="-ml-1" />
@@ -31,7 +31,7 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
           />
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1">
           <LanguageTriggerIcon />
           <ColorModeIcon />
         </div>
