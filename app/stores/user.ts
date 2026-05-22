@@ -167,14 +167,12 @@ export const usePreferenceStore = defineStore(
       if (preferences.value.theme_mode === 'light') {
         return false;
       }
-      // 对于 'system' 模式，这段逻辑只应该在客户端运行，
-      // 因为服务器不知道用户的操作系统主题。
-      if (process.client) {
+      if (import.meta.client) {
         return window.matchMedia(
           '(prefers-color-scheme: dark)'
         ).matches;
       }
-      return false; // 在服务器端，为 'system' 模式默认返回 false
+      return false;
     });
 
     // 【修改点 2】: 新增一个 Getter 用于方便地判断登录状态
