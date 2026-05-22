@@ -239,21 +239,19 @@ const navMainWithActiveState = computed(() => {
           <SidebarMenuButton size="lg" as-child>
             <NuxtLink :to="localePath('/')">
               <div
-                class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
+                class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
               >
                 <Command class="size-4" />
               </div>
               <div
                 class="grid flex-1 text-left text-sm leading-tight"
               >
-                <span
-                  class="truncate font-medium justify-center"
-                  >{{ t('app.brand.name') }}</span
-                >
-                <span
-                  class="truncate text-xs justify-center"
-                  >{{ t('app.brand.tagline') }}</span
-                >
+                <span class="truncate font-semibold tracking-tight">
+                  {{ t('app.brand.name') }}
+                </span>
+                <span class="truncate text-xs text-muted-foreground">
+                  {{ t('app.brand.tagline') }}
+                </span>
               </div>
             </NuxtLink>
           </SidebarMenuButton>
