@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { toTypedSchema } from '@vee-validate/zod';
-import { FieldArray, useForm } from 'vee-validate';
-import { h, ref } from 'vue';
+import { useForm } from 'vee-validate';
+import { ref } from 'vue';
 import * as z from 'zod';
-import { cn } from '@/lib/utils';
 import { Eye, EyeOff } from 'lucide-vue-next';
 import {
   FormControl,
@@ -18,43 +17,18 @@ import {
   PinInputGroup,
   PinInputSlot
 } from '@/components/ui/pin-input';
-import {
-  DateFormatter,
-  type DateValue,
-  getLocalTimeZone,
-  parseDate
-} from '@internationalized/date';
-import { Button } from '@/components/ui/button';
 import AppButton from '@/components/app/AppButton.vue';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'vue-sonner';
-
-const verifiedEmails = ref([
-  'm@example.com',
-  'm@google.com',
-  'm@support.com'
-]);
 import {
   v2CreateOtp,
   v2LogoutCurrent,
   v2PasswordReset
 } from '@/services';
-import { usePreferenceStore } from '~/stores/user'; // 导入 store
+import { usePreferenceStore } from '~/stores/user';
 
 const preferenceStore = usePreferenceStore();
-
 const { t } = useAppLocale();
-
 const localePath = useLocalePath();
 
 const value = ref<string[]>([]);
@@ -64,17 +38,15 @@ const isConfirmPasswordVisible = ref(false);
 const isPasswordVisible = ref(false);
 const isLoading = ref(false);
 
-// --- 新增：为验证码按钮添加状态 ---
 const isCaptchaSending = ref(false);
 const countdown = ref(60);
-let timer: ReturnType<typeof setInterval> | null = null; // 用于存储定时器实例
+let timer: ReturnType<typeof setInterval> | null = null;
 
 async function sendCaptcha(): Promise<void> {
   const email = preferenceStore.preferences.user.email;
 
-  // 2. 进入发送状态，禁用按钮
   isCaptchaSending.value = true;
-  countdown.value = 60; // 重置倒计时
+  countdown.value = 60;
 
   try {
     const response = await v2CreateOtp({
@@ -85,9 +57,7 @@ async function sendCaptcha(): Promise<void> {
     verificationId.value = response.verificationId;
 
     toast.success(
-      t(
-        'account.security.securityPage.password.captchaSent'
-      ),
+      t('account.security.securityPage.password.captchaSent'),
       {
         description: t(
           'account.security.securityPage.password.captchaSentDescription'
@@ -95,41 +65,25 @@ async function sendCaptcha(): Promise<void> {
       }
     );
 
-    // 发送成功后，禁用按钮60秒，并且显示还剩多少时间
-
-    // 4. API 调用成功后，启动定时器
     timer = setInterval(() => {
       if (countdown.value > 0) {
         countdown.value--;
       } else {
-        // 倒计时结束
         isCaptchaSending.value = false;
         if (timer) {
           clearInterval(timer);
           timer = null;
         }
       }
-    }, 1000); // 每秒执行一次
+    }, 1000);
   } catch (error) {
     const message =
       error instanceof Error
         ? error.message
-        : t(
-            'account.security.securityPage.password.unknownError'
-          );
-    console.error(
-      t(
-        'account.security.securityPage.password.captchaSendError'
-      ),
-      error
-    );
+        : t('account.security.securityPage.password.unknownError');
     toast.error(
-      t(
-        'account.security.securityPage.password.captchaSendError'
-      ),
-      {
-        description: message
-      }
+      t('account.security.securityPage.password.captchaSendError'),
+      { description: message }
     );
   }
 }
@@ -148,170 +102,143 @@ const passwordChangeFormSchema = z
     }),
     captcha: z.string()
   })
-  .refine(
-    data => data.newPassword === data.confirmPassword,
-    {
-      message: t(
-        'account.security.securityPage.password.passwordMismatch'
-      ),
-      path: ['confirmPassword']
-    }
-  );
+  .refine(data => data.newPassword === data.confirmPassword, {
+    message: t(
+      'account.security.securityPage.password.passwordMismatch'
+    ),
+    path: ['confirmPassword']
+  });
 type PasswordChangeFormValues = z.infer<
   typeof passwordChangeFormSchema
 >;
 
-const { handleSubmit, resetForm } =
-  useForm<PasswordChangeFormValues>({
-    validationSchema: toTypedSchema(
-      passwordChangeFormSchema
-    ),
+const { handleSubmit } = useForm<PasswordChangeFormValues>({
+  validationSchema: toTypedSchema(passwordChangeFormSchema),
   initialValues: {
     newPassword: '',
     confirmPassword: '',
     captcha: ''
   }
-  });
+});
 
 const onSubmit = handleSubmit(
   async (values: PasswordChangeFormValues): Promise<void> => {
-  isLoading.value = true;
-  try {
-    if (!verificationId.value) {
-      throw new Error(
-        t(
-          'account.security.securityPage.password.captchaSendError'
-        )
-      );
-    }
-    await v2PasswordReset({
-      email: preferenceStore.preferences.user.email,
-      verificationId: verificationId.value,
-      code: value.value.join(''),
-      newPassword: values.newPassword
-    });
-    toast.success(
-      t(
-        'account.security.securityPage.password.resetPasswordSuccess'
-      ),
-      {
-        description: t(
-          'account.security.securityPage.password.resetPasswordSuccessDescription'
-        )
-      }
-    );
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : t(
-            'account.security.securityPage.password.unknownError'
-          );
-    console.error(
-      t(
-        'account.security.securityPage.password.resetPasswordError'
-      ),
-      error
-    );
-    toast.error(
-      t(
-        'account.security.securityPage.password.resetPasswordError'
-      ),
-      {
-        description: message
-      }
-    );
-  } finally {
+    isLoading.value = true;
     try {
-      preferenceStore.resetToDefaults(); // 重置用户偏好设置
-      await v2LogoutCurrent();
-      // 等待两秒
-      setTimeout(() => {
-        navigateTo(localePath('auth-login'));
-      }, 2000);
+      if (!verificationId.value) {
+        throw new Error(
+          t(
+            'account.security.securityPage.password.captchaSendError'
+          )
+        );
+      }
+      await v2PasswordReset({
+        email: preferenceStore.preferences.user.email,
+        verificationId: verificationId.value,
+        code: value.value.join(''),
+        newPassword: values.newPassword
+      });
+      toast.success(
+        t(
+          'account.security.securityPage.password.resetPasswordSuccess'
+        ),
+        {
+          description: t(
+            'account.security.securityPage.password.resetPasswordSuccessDescription'
+          )
+        }
+      );
     } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t(
+              'account.security.securityPage.password.unknownError'
+            );
       toast.error(
         t(
-          'account.security.securityPage.password.logoutError'
-        )
+          'account.security.securityPage.password.resetPasswordError'
+        ),
+        { description: message }
       );
     } finally {
-      isLoading.value = false;
+      try {
+        preferenceStore.resetToDefaults();
+        await v2LogoutCurrent();
+        setTimeout(() => {
+          navigateTo(localePath('auth-login'));
+        }, 2000);
+      } catch {
+        toast.error(
+          t('account.security.securityPage.password.logoutError')
+        );
+      } finally {
+        isLoading.value = false;
+      }
     }
-  }
   }
 );
 </script>
 
 <template>
-  <form class="space-y-8" @submit="onSubmit">
-    <FormField
-      v-slot="{ componentField }"
-      name="newPassword"
-    >
-      <FormItem>
-        <FormLabel>{{
-          t(
-            'account.security.securityPage.password.newPassword'
-          )
-        }}</FormLabel>
+  <form class="grid gap-5" @submit="onSubmit">
+    <FormField v-slot="{ componentField }" name="newPassword">
+      <FormItem class="grid gap-2">
+        <FormLabel class="text-xs font-medium">
+          {{
+            t(
+              'account.security.securityPage.password.newPassword'
+            )
+          }}
+        </FormLabel>
         <div class="relative">
           <FormControl>
             <Input
-              :type="
-                isPasswordVisible ? 'text' : 'password'
-              "
+              :type="isPasswordVisible ? 'text' : 'password'"
               :placeholder="
                 t(
                   'account.security.securityPage.password.newPassword'
                 )
               "
               v-bind="componentField"
-              class="pr-10"
+              class="h-9 pr-10 shadow-xs"
             />
           </FormControl>
-          <AppButton
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
+            class="absolute inset-y-0 right-0 flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:text-foreground"
             @click="isPasswordVisible = !isPasswordVisible"
-            class="absolute inset-y-0 right-0 h-full rounded-l-none text-muted-foreground"
           >
-            <Eye v-if="!isPasswordVisible" class="size-4" />
-            <EyeOff v-else class="size-4" />
-            <span class="sr-only"
-              >Toggle password visibility</span
-            >
-          </AppButton>
+            <Eye v-if="!isPasswordVisible" class="h-4 w-4" />
+            <EyeOff v-else class="h-4 w-4" />
+            <span class="sr-only">Toggle password visibility</span>
+          </button>
         </div>
-        <FormDescription>
+        <FormDescription class="text-[11px] text-muted-foreground">
           {{
             t(
               'account.security.securityPage.password.newPasswordDescription'
             )
           }}
         </FormDescription>
-        <FormMessage />
+        <FormMessage class="text-[11px]" />
       </FormItem>
     </FormField>
 
-    <FormField
-      v-slot="{ componentField }"
-      name="confirmPassword"
-    >
-      <FormItem>
-        <FormLabel>{{
-          t(
-            'account.security.securityPage.password.confirmPassword'
-          )
-        }}</FormLabel>
+    <FormField v-slot="{ componentField }" name="confirmPassword">
+      <FormItem class="grid gap-2">
+        <FormLabel class="text-xs font-medium">
+          {{
+            t(
+              'account.security.securityPage.password.confirmPassword'
+            )
+          }}
+        </FormLabel>
         <div class="relative">
           <FormControl>
             <Input
               :type="
-                isConfirmPasswordVisible
-                  ? 'text'
-                  : 'password'
+                isConfirmPasswordVisible ? 'text' : 'password'
               "
               :placeholder="
                 t(
@@ -319,60 +246,46 @@ const onSubmit = handleSubmit(
                 )
               "
               v-bind="componentField"
-              class="pr-10"
+              class="h-9 pr-10 shadow-xs"
             />
           </FormControl>
-          <AppButton
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
+            class="absolute inset-y-0 right-0 flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:text-foreground"
             @click="
-              isConfirmPasswordVisible =
-                !isConfirmPasswordVisible
+              isConfirmPasswordVisible = !isConfirmPasswordVisible
             "
-            class="absolute inset-y-0 right-0 h-full rounded-l-none text-muted-foreground"
           >
             <Eye
               v-if="!isConfirmPasswordVisible"
-              class="size-4"
+              class="h-4 w-4"
             />
-            <EyeOff v-else class="size-4" />
-            <span class="sr-only"
-              >Toggle password visibility</span
-            >
-          </AppButton>
+            <EyeOff v-else class="h-4 w-4" />
+            <span class="sr-only">Toggle password visibility</span>
+          </button>
         </div>
-        <FormDescription>
+        <FormDescription class="text-[11px] text-muted-foreground">
           {{
             t(
               'account.security.securityPage.password.confirmPasswordDescription'
             )
           }}
         </FormDescription>
-        <FormMessage />
+        <FormMessage class="text-[11px]" />
       </FormItem>
     </FormField>
 
-    <!-- 验证码和服务条款区域 (两列) -->
-    <FormField v-slot="{ componentField }" name="captcha">
-      <FormItem>
-        <FormLabel>{{
-          t(
-            'account.security.securityPage.password.captcha'
-          )
-        }}</FormLabel>
-        <!-- 
-      使用一个 div 作为 Flexbox 容器，
-      它将包裹输入框和按钮，让它们在同一行显示。
-    -->
+    <FormField name="captcha">
+      <FormItem class="grid gap-2">
+        <FormLabel class="text-xs font-medium">
+          {{
+            t('account.security.securityPage.password.captcha')
+          }}
+        </FormLabel>
         <div
-          class="flex w-full flex-col items-stretch justify-start gap-2 sm:flex-row sm:items-center sm:gap-x-2"
+          class="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-center"
         >
           <FormControl>
-            <!-- 
-          flex-1 是关键，它告诉输入框：
-          "占据所有可用的剩余空间"。
-        -->
             <PinInput
               id="captcha"
               v-model="value"
@@ -387,19 +300,13 @@ const onSubmit = handleSubmit(
               </PinInputGroup>
             </PinInput>
           </FormControl>
-          <!-- 
-        按钮现在是 Flexbox 的一部分，它会自动收缩以适应其内容大小。
-        type="button" 很重要，可以防止它意外触发表单提交。-->
           <AppButton
             type="button"
-            @click="sendCaptcha"
             :disabled="isCaptchaSending || isLoading"
             :loading="isCaptchaSending"
-            class="w-full sm:w-32"
+            class="h-9 w-full rounded-md shadow-xs sm:w-32"
+            @click="sendCaptcha"
           >
-            <!-- 
-    使用 v-if 和 v-else 来根据 isCaptchaSending 的状态显示不同的文本
-  -->
             <span v-if="isCaptchaSending">
               {{
                 countdown +
@@ -417,11 +324,11 @@ const onSubmit = handleSubmit(
             </span>
           </AppButton>
         </div>
-        <FormMessage />
+        <FormMessage class="text-[11px]" />
       </FormItem>
     </FormField>
 
-    <div class="flex gap-2 justify-start">
+    <div class="flex justify-start gap-2 pt-1">
       <AppButton
         type="submit"
         :loading="isLoading"
@@ -430,7 +337,7 @@ const onSubmit = handleSubmit(
             'account.security.securityPage.password.resetPassword'
           )
         "
-        class="w-full sm:w-auto"
+        class="h-9 w-full rounded-md shadow-xs sm:w-fit"
       >
         {{
           t(
@@ -441,5 +348,3 @@ const onSubmit = handleSubmit(
     </div>
   </form>
 </template>
-
-

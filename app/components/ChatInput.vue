@@ -8,7 +8,8 @@ import {
   Hash,
   X,
   Reply,
-  Gift
+  Gift,
+  FileText
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import AppSendButton from '@/components/app/AppSendButton.vue';
@@ -57,6 +58,8 @@ const emit = defineEmits<{
 
 const message = ref('');
 const textareaRef = ref<TextareaRef | null>(null);
+const attachmentInputRef = ref<HTMLInputElement | null>(null);
+const imageInputRef = ref<HTMLInputElement | null>(null);
 const attachments = ref<File[]>([]);
 const isEmojiPickerOpen = ref(false);
 const isMentionPickerOpen = ref(false);
@@ -64,6 +67,34 @@ const isChannelPickerOpen = ref(false);
 const isStickerPickerOpen = ref(false);
 const mentionSearch = ref('');
 const channelSearch = ref('');
+
+const ATTACHMENT_ACCEPT = [
+  'image/*',
+  'video/*',
+  'audio/*',
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.ppt',
+  '.pptx',
+  '.txt',
+  '.md',
+  '.csv',
+  '.tsv',
+  '.json',
+  '.xml',
+  '.rtf',
+  '.odt',
+  '.ods',
+  '.odp',
+  '.zip',
+  '.rar',
+  '.7z',
+  '.tar',
+  '.gz'
+].join(',');
 
 // 常用表情
 const emojis = [
@@ -180,7 +211,6 @@ const handleSend = () => {
   message.value = '';
   attachments.value = [];
 
-  // 重新聚焦输入框
   nextTick(() => {
     focusTextarea();
   });
@@ -230,6 +260,16 @@ const handleInput = () => {
 };
 
 // 处理文件选择
+const openAttachmentPicker = () => {
+  if (props.disabled) return;
+  attachmentInputRef.value?.click();
+};
+
+const openImagePicker = () => {
+  if (props.disabled) return;
+  imageInputRef.value?.click();
+};
+
 const handleFileSelect = (e: Event) => {
   const input = e.target as HTMLInputElement;
   if (props.disabled) {
@@ -277,6 +317,12 @@ const getFilePreview = (file: File): string | undefined => {
   return undefined;
 };
 
+const formatFileSize = (size: number) => {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 // 取消回复
 const handleCancelReply = () => {
   emit('cancel-reply');
@@ -299,115 +345,141 @@ watch(
 </script>
 
 <template>
-  <div class="border-t bg-background p-3">
+  <div class="shrink-0 border-t border-border/60 bg-background/60 p-3 backdrop-blur sm:p-4">
     <!-- 回复预览 -->
     <div
       v-if="replyTo"
-      class="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg text-sm"
+      class="mb-2 flex items-center gap-2 rounded-md border-l-2 border-primary/40 bg-muted/40 px-2.5 py-1.5 text-xs"
     >
-      <Reply
-        class="h-4 w-4 text-muted-foreground flex-shrink-0"
-      />
-      <div class="flex-1 min-w-0">
-        <span class="text-muted-foreground">{{ t('chat.replyingTo') }} </span>
-        <span class="font-medium">{{
-          replyTo.author.nickname
-        }}</span>
-        <span class="text-muted-foreground">: </span>
-        <span class="truncate">{{ replyTo.content }}</span>
+      <Reply class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <div class="min-w-0 flex-1 truncate">
+        <span class="text-muted-foreground">
+          {{ t('chat.replyingTo') }}
+        </span>
+        <span class="font-medium text-foreground">
+          {{ replyTo.author.nickname }}
+        </span>
+        <span class="text-muted-foreground">:</span>
+        <span class="ml-1 text-muted-foreground">
+          {{ replyTo.content }}
+        </span>
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        class="h-6 w-6 p-0"
+      <button
+        type="button"
+        class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        :aria-label="t('common.cancel')"
         @click="handleCancelReply"
       >
-        <X class="h-4 w-4" />
-      </Button>
+        <X class="h-3.5 w-3.5" />
+      </button>
     </div>
 
     <!-- 附件预览 -->
     <div
       v-if="attachments.length > 0"
-      class="flex flex-wrap gap-2 mb-2"
+      class="mb-2 flex flex-wrap gap-2"
     >
       <div
         v-for="(file, index) in attachments"
         :key="index"
-        class="relative group"
+        class="group/att relative"
       >
-        <!-- 图片预览 -->
         <div
           v-if="file.type.startsWith('image/')"
-          class="relative"
+          class="relative h-20 w-20 overflow-hidden rounded-lg border border-border/60"
         >
           <img
             :src="getFilePreview(file)"
             :alt="file.name"
-            class="h-20 w-20 object-cover rounded-lg"
+            class="h-full w-full object-cover"
           />
-          <Button
-            variant="destructive"
-            size="sm"
-            class="absolute -top-2 -right-2 h-5 w-5 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+          <button
+            type="button"
+            class="absolute -right-1.5 -top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-all hover:bg-destructive hover:text-destructive-foreground"
+            :aria-label="t('common.cancel')"
             @click="removeAttachment(index)"
           >
             <X class="h-3 w-3" />
-          </Button>
+          </button>
         </div>
 
-        <!-- 文件预览 -->
         <div
           v-else
-          class="flex items-center gap-2 p-2 bg-muted rounded-lg pr-8"
+          class="relative flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-2 pr-8"
         >
-          <div class="p-2 bg-background rounded">📄</div>
-          <div class="text-sm">
-            <div class="font-medium truncate max-w-[150px]">
+          <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background">
+            <FileText class="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+          <div class="min-w-0">
+            <div class="max-w-[140px] truncate text-xs font-medium">
               {{ file.name }}
             </div>
-            <div class="text-xs text-muted-foreground">
-              {{ (file.size / 1024).toFixed(1) }} KB
+            <div class="text-[10px] tabular-nums text-muted-foreground">
+              {{ formatFileSize(file.size) }}
             </div>
           </div>
-          <Button
-            variant="destructive"
-            size="sm"
-            class="absolute -top-2 -right-2 h-5 w-5 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+          <button
+            type="button"
+            class="absolute -right-1.5 -top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-all hover:bg-destructive hover:text-destructive-foreground"
+            :aria-label="t('common.cancel')"
             @click="removeAttachment(index)"
           >
             <X class="h-3 w-3" />
-          </Button>
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- 输入区域 -->
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
-      <!-- 工具按钮 -->
-      <div class="flex h-auto flex-wrap items-center gap-1 sm:h-11 sm:flex-nowrap">
+    <!-- 输入卡片 -->
+    <div
+      class="rounded-xl border border-border/60 bg-card shadow-xs transition-colors focus-within:border-ring/60 focus-within:ring-2 focus-within:ring-ring/20"
+      :class="{ 'opacity-60': disabled }"
+    >
+      <!-- 文本区 -->
+      <Textarea
+        ref="textareaRef"
+        v-model="message"
+        :placeholder="inputPlaceholder"
+        :disabled="disabled"
+        class="max-h-32 min-h-[2.5rem] resize-none border-0 bg-transparent px-3 py-2.5 text-sm leading-5 shadow-none focus-visible:ring-0"
+        rows="1"
+        @keydown="handleKeydown"
+        @input="handleInput"
+      />
+
+      <!-- 工具栏 -->
+      <div class="flex items-center gap-1 px-1.5 py-1.5">
+        <input
+          ref="attachmentInputRef"
+          type="file"
+          multiple
+          class="hidden"
+          :accept="ATTACHMENT_ACCEPT"
+          :disabled="disabled"
+          @change="handleFileSelect"
+        />
+        <input
+          ref="imageInputRef"
+          type="file"
+          accept="image/*"
+          multiple
+          class="hidden"
+          :disabled="disabled"
+          @change="handleImageSelect"
+        />
         <TooltipProvider>
           <!-- 上传附件 -->
           <Tooltip>
             <TooltipTrigger as-child>
               <Button
                 variant="ghost"
-                size="sm"
-                :class="[
-                  'h-8 w-8 p-0',
-                  disabled ? 'pointer-events-none opacity-50' : ''
-                ]"
-                as="label"
+                size="icon"
+                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                type="button"
                 :disabled="disabled"
+                @click="openAttachmentPicker"
               >
                 <Paperclip class="h-4 w-4" />
-                <Input
-                  type="file"
-                  multiple
-                  class="hidden"
-                  :disabled="disabled"
-                  @change="handleFileSelect"
-                />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -420,23 +492,13 @@ watch(
             <TooltipTrigger as-child>
               <Button
                 variant="ghost"
-                size="sm"
-                :class="[
-                  'h-8 w-8 p-0',
-                  disabled ? 'pointer-events-none opacity-50' : ''
-                ]"
-                as="label"
+                size="icon"
+                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                type="button"
                 :disabled="disabled"
+                @click="openImagePicker"
               >
                 <ImageIcon class="h-4 w-4" />
-                <Input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  class="hidden"
-                  :disabled="disabled"
-                  @change="handleImageSelect"
-                />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -446,45 +508,40 @@ watch(
 
           <!-- 表情 -->
           <Popover v-model:open="isEmojiPickerOpen">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <PopoverTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="h-8 w-8 p-0"
-                    :disabled="disabled"
-                  >
-                    <Smile class="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{{ t('chat.actions.emoji') }}</p>
-              </TooltipContent>
-            </Tooltip>
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                type="button"
+                :title="t('chat.actions.emoji')"
+                :aria-label="t('chat.actions.emoji')"
+                :disabled="disabled"
+              >
+                <Smile class="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
             <PopoverContent
               class="w-auto p-2"
               side="top"
               align="start"
             >
-              <div class="grid gap-1">
+              <div class="grid gap-0.5">
                 <div
                   v-for="(row, rowIndex) in emojis"
                   :key="rowIndex"
-                  class="flex gap-1"
+                  class="flex gap-0.5"
                 >
-                  <Button
+                  <button
                     v-for="emoji in row"
                     :key="emoji"
-                    variant="ghost"
-                    size="sm"
-                    class="h-8 w-8 p-0 text-lg hover:bg-muted"
+                    type="button"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-md text-lg transition-colors hover:bg-accent"
                     :disabled="disabled"
                     @click="insertEmoji(emoji)"
                   >
                     {{ emoji }}
-                  </Button>
+                  </button>
                 </div>
               </div>
             </PopoverContent>
@@ -492,23 +549,19 @@ watch(
 
           <!-- 提及用户 -->
           <Popover v-model:open="isMentionPickerOpen">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <PopoverTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="h-8 w-8 p-0"
-                    :disabled="disabled"
-                  >
-                    <AtSign class="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{{ t('chat.actions.mentionUser') }}</p>
-              </TooltipContent>
-            </Tooltip>
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                type="button"
+                :title="t('chat.actions.mentionUser')"
+                :aria-label="t('chat.actions.mentionUser')"
+                :disabled="disabled"
+              >
+                <AtSign class="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
             <PopoverContent
               class="w-[min(18rem,calc(100vw-1rem))] p-2"
               side="top"
@@ -518,43 +571,43 @@ watch(
                 <Input
                   v-model="mentionSearch"
                   :placeholder="t('chat.composer.searchMembers')"
-                  class="h-8"
+                  class="h-8 shadow-xs"
                   :disabled="disabled"
                 />
                 <ScrollArea class="h-64">
-                  <Button
-                    v-for="member in filteredMembers"
-                    :key="member.id"
-                    variant="ghost"
-                    class="h-auto w-full justify-start gap-2 px-2 py-2"
-                    :disabled="disabled"
-                    @click="insertMention(member)"
-                  >
-                    <Avatar class="h-7 w-7">
-                      <AvatarImage
-                        :src="member.avatar"
-                        :alt="member.nickname"
-                      />
-                      <AvatarFallback>
-                        {{ member.nickname.slice(0, 2) }}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span class="min-w-0 text-left">
-                      <span class="block truncate text-sm">
-                        {{ member.nickname }}
+                  <div class="space-y-px">
+                    <button
+                      v-for="member in filteredMembers"
+                      :key="member.id"
+                      type="button"
+                      class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent disabled:opacity-50"
+                      :disabled="disabled"
+                      @click="insertMention(member)"
+                    >
+                      <Avatar class="h-7 w-7 ring-1 ring-border">
+                        <AvatarImage
+                          :src="member.avatar"
+                          :alt="member.nickname"
+                        />
+                        <AvatarFallback class="text-[10px]">
+                          {{ member.nickname.slice(0, 2) }}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span class="min-w-0 flex-1">
+                        <span class="block truncate text-sm font-medium">
+                          {{ member.nickname }}
+                        </span>
+                        <span class="block truncate text-xs text-muted-foreground">
+                          @{{ member.username }}
+                        </span>
                       </span>
-                      <span
-                        class="block truncate text-xs text-muted-foreground"
-                      >
-                        @{{ member.username }}
-                      </span>
-                    </span>
-                  </Button>
-                  <div
-                    v-if="filteredMembers.length === 0"
-                    class="px-2 py-6 text-center text-sm text-muted-foreground"
-                  >
-                    {{ t('chat.composer.noMembers') }}
+                    </button>
+                    <div
+                      v-if="filteredMembers.length === 0"
+                      class="px-2 py-6 text-center text-xs text-muted-foreground"
+                    >
+                      {{ t('chat.composer.noMembers') }}
+                    </div>
                   </div>
                 </ScrollArea>
               </div>
@@ -563,23 +616,19 @@ watch(
 
           <!-- 频道链接 -->
           <Popover v-model:open="isChannelPickerOpen">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <PopoverTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="h-8 w-8 p-0"
-                    :disabled="disabled"
-                  >
-                    <Hash class="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{{ t('chat.actions.quoteChannel') }}</p>
-              </TooltipContent>
-            </Tooltip>
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                type="button"
+                :title="t('chat.actions.quoteChannel')"
+                :aria-label="t('chat.actions.quoteChannel')"
+                :disabled="disabled"
+              >
+                <Hash class="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
             <PopoverContent
               class="w-[min(16rem,calc(100vw-1rem))] p-2"
               side="top"
@@ -589,28 +638,30 @@ watch(
                 <Input
                   v-model="channelSearch"
                   :placeholder="t('chat.composer.searchChannels')"
-                  class="h-8"
+                  class="h-8 shadow-xs"
                   :disabled="disabled"
                 />
                 <ScrollArea class="h-64">
-                  <Button
-                    v-for="channel in filteredChannels"
-                    :key="channel.id"
-                    variant="ghost"
-                    class="h-9 w-full justify-start gap-2 px-2"
-                    :disabled="disabled"
-                    @click="insertChannel(channel)"
-                  >
-                    <Hash class="h-4 w-4 text-muted-foreground" />
-                    <span class="truncate text-sm">
-                      {{ channel.name }}
-                    </span>
-                  </Button>
-                  <div
-                    v-if="filteredChannels.length === 0"
-                    class="px-2 py-6 text-center text-sm text-muted-foreground"
-                  >
-                    {{ t('chat.composer.noChannels') }}
+                  <div class="space-y-px">
+                    <button
+                      v-for="channel in filteredChannels"
+                      :key="channel.id"
+                      type="button"
+                      class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent disabled:opacity-50"
+                      :disabled="disabled"
+                      @click="insertChannel(channel)"
+                    >
+                      <Hash class="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span class="truncate text-sm">
+                        {{ channel.name }}
+                      </span>
+                    </button>
+                    <div
+                      v-if="filteredChannels.length === 0"
+                      class="px-2 py-6 text-center text-xs text-muted-foreground"
+                    >
+                      {{ t('chat.composer.noChannels') }}
+                    </div>
                   </div>
                 </ScrollArea>
               </div>
@@ -619,73 +670,57 @@ watch(
 
           <!-- 礼物/贴纸 -->
           <Popover v-model:open="isStickerPickerOpen">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <PopoverTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="h-8 w-8 p-0"
-                    :disabled="disabled"
-                  >
-                    <Gift class="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{{ t('chat.actions.sendSticker') }}</p>
-              </TooltipContent>
-            </Tooltip>
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                type="button"
+                :title="t('chat.actions.sendSticker')"
+                :aria-label="t('chat.actions.sendSticker')"
+                :disabled="disabled"
+              >
+                <Gift class="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
             <PopoverContent
               class="w-56 p-2"
               side="top"
               align="start"
             >
               <div class="grid grid-cols-4 gap-1">
-                <Button
+                <button
                   v-for="sticker in stickers"
                   :key="sticker.value"
-                  variant="ghost"
-                  class="h-12 flex-col gap-1 p-1"
+                  type="button"
+                  class="flex h-12 flex-col items-center justify-center gap-0.5 rounded-md p-1 transition-colors hover:bg-accent disabled:opacity-50"
                   :disabled="disabled"
                   @click="insertSticker(sticker.value)"
                 >
-                  <span class="text-lg">{{ sticker.value }}</span>
-                  <span class="text-[10px] leading-none">
+                  <span class="text-lg leading-none">{{ sticker.value }}</span>
+                  <span class="text-[10px] leading-none text-muted-foreground">
                     {{ t(sticker.labelKey) }}
                   </span>
-                </Button>
+                </button>
               </div>
             </PopoverContent>
           </Popover>
         </TooltipProvider>
-      </div>
 
-      <!-- 输入框 -->
-      <div class="relative min-w-0 flex-1">
-        <Textarea
-          ref="textareaRef"
-          v-model="message"
-          :placeholder="inputPlaceholder"
-          :disabled="disabled"
-          class="min-h-11 max-h-32 resize-none px-4 py-2.5 leading-5 rounded-xl bg-card border"
-          rows="1"
-          @keydown="handleKeydown"
-          @input="handleInput"
-        />
-      </div>
-
-      <!-- 发送按钮 -->
-      <div class="flex items-center sm:shrink-0">
-        <AppSendButton
-          :aria-label="t('chat.actions.sendMessage')"
-          :disabled="!canSend || disabled"
-          variant="secondary"
-          class="h-10 w-full rounded-lg px-4 sm:w-auto"
-          @click="handleSend"
-        >
-          {{ t('chat.actions.sendMessage') }}
-        </AppSendButton>
+        <!-- 发送按钮 -->
+        <div class="ml-auto flex items-center">
+          <AppSendButton
+            :aria-label="t('chat.actions.sendMessage')"
+            :disabled="!canSend || disabled"
+            size="sm"
+            class="h-8 rounded-md px-3"
+            @click="handleSend"
+          >
+            <span class="hidden sm:inline">
+              {{ t('chat.actions.sendMessage') }}
+            </span>
+          </AppSendButton>
+        </div>
       </div>
     </div>
   </div>

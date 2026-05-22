@@ -7,7 +7,6 @@ import {
 } from 'lucide-vue-next';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -144,28 +143,25 @@ function getCategoryOptionLabel(value: string): string {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
-    <!-- 搜索和主要过滤器 -->
-    <div class="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
-      <!-- 搜索框 -->
-      <div class="relative min-w-0 sm:min-w-[200px] sm:flex-1 sm:max-w-md">
+  <div class="flex flex-col gap-3">
+    <div class="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+      <div class="relative min-w-0 sm:min-w-[220px] sm:max-w-md sm:flex-1">
         <Search
-          class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+          class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
         />
         <Input
           :model-value="localFilters.search"
-          @update:model-value="updateSearch"
           :placeholder="t('groups.filters.searchPlaceholder')"
-          class="pl-9"
+          class="h-9 pl-9 shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40"
+          @update:model-value="updateSearch"
         />
       </div>
 
-      <!-- 隐私类型 -->
       <Select
         :model-value="localFilters.privacy"
         @update:model-value="updatePrivacy"
       >
-        <SelectTrigger class="w-full sm:w-[130px]">
+        <SelectTrigger class="h-9 w-full sm:w-[140px]">
           <SelectValue :placeholder="t('groups.filters.privacyPlaceholder')" />
         </SelectTrigger>
         <SelectContent>
@@ -179,12 +175,11 @@ function getCategoryOptionLabel(value: string): string {
         </SelectContent>
       </Select>
 
-      <!-- 分类 -->
       <Select
         :model-value="localFilters.category"
         @update:model-value="updateCategory"
       >
-        <SelectTrigger class="w-full sm:w-[120px]">
+        <SelectTrigger class="h-9 w-full sm:w-[130px]">
           <SelectValue :placeholder="t('groups.filters.categoryPlaceholder')" />
         </SelectTrigger>
         <SelectContent>
@@ -198,13 +193,12 @@ function getCategoryOptionLabel(value: string): string {
         </SelectContent>
       </Select>
 
-      <!-- 排序 -->
       <Select
         :model-value="localFilters.sortBy"
         @update:model-value="updateSortBy"
       >
-        <SelectTrigger class="w-full sm:w-[120px]">
-          <SlidersHorizontal class="h-4 w-4 mr-2" />
+        <SelectTrigger class="h-9 w-full sm:w-[140px]">
+          <SlidersHorizontal class="h-3.5 w-3.5" />
           <SelectValue :placeholder="t('groups.filters.sortPlaceholder')" />
         </SelectTrigger>
         <SelectContent>
@@ -218,59 +212,57 @@ function getCategoryOptionLabel(value: string): string {
         </SelectContent>
       </Select>
 
-      <!-- 重置按钮 -->
       <Button
         v-if="hasActiveFilters()"
         variant="ghost"
         size="sm"
-        class="w-full text-muted-foreground sm:w-auto"
+        class="h-9 w-full text-muted-foreground sm:w-auto"
         @click="resetFilters"
       >
-        <X class="h-4 w-4 mr-1" />
+        <X class="h-3.5 w-3.5" />
         {{ t('common.reset') }}
       </Button>
     </div>
 
-    <!-- 活动过滤器标签 -->
     <div
       v-if="hasActiveFilters()"
-      class="flex flex-wrap items-center gap-2"
+      class="flex flex-wrap items-center gap-1.5"
     >
-      <span class="text-sm text-muted-foreground"
-        >{{ t('groups.filters.current') }}</span
-      >
+      <span class="text-xs text-muted-foreground">
+        {{ t('groups.filters.current') }}
+      </span>
 
-      <Badge
+      <button
         v-if="localFilters.search"
-        variant="secondary"
-        class="gap-1 cursor-pointer"
+        type="button"
+        class="inline-flex items-center gap-1 rounded-full border border-sky-200/60 bg-sky-100/60 px-2 py-0.5 text-[11px] font-medium text-sky-700 transition hover:bg-sky-200/60 hover:text-sky-800 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-900/40"
         @click="updateSearch('')"
       >
         {{ t('groups.filters.searchBadge', { value: localFilters.search }) }}
         <X class="h-3 w-3" />
-      </Badge>
+      </button>
 
-      <Badge
+      <button
         v-if="localFilters.privacy !== 'all'"
-        variant="secondary"
-        class="gap-1 cursor-pointer"
+        type="button"
+        class="inline-flex items-center gap-1 rounded-full border border-emerald-200/60 bg-emerald-100/60 px-2 py-0.5 text-[11px] font-medium text-emerald-700 transition hover:bg-emerald-200/60 hover:text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
         @click="updatePrivacy('all')"
       >
         {{ t('groups.filters.typeBadge') }}
         {{ getPrivacyOptionLabel(localFilters.privacy) }}
         <X class="h-3 w-3" />
-      </Badge>
+      </button>
 
-      <Badge
+      <button
         v-if="localFilters.category !== 'all'"
-        variant="secondary"
-        class="gap-1 cursor-pointer"
+        type="button"
+        class="inline-flex items-center gap-1 rounded-full border border-violet-200/60 bg-violet-100/60 px-2 py-0.5 text-[11px] font-medium text-violet-700 transition hover:bg-violet-200/60 hover:text-violet-800 dark:border-violet-900/40 dark:bg-violet-950/40 dark:text-violet-300 dark:hover:bg-violet-900/40"
         @click="updateCategory('all')"
       >
         {{ t('groups.filters.categoryBadge') }}
         {{ getCategoryOptionLabel(localFilters.category) }}
         <X class="h-3 w-3" />
-      </Badge>
+      </button>
     </div>
   </div>
 </template>

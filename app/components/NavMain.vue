@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ChevronRight, type LucideIcon } from 'lucide-vue-next'
+import { ChevronRight, type LucideIcon } from 'lucide-vue-next';
+import { useRoute } from 'vue-router';
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+  CollapsibleTrigger
+} from '@/components/ui/collapsible';
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -14,34 +15,42 @@ import {
   SidebarMenuItem,
   SidebarMenuSub,
   SidebarMenuSubButton,
-  SidebarMenuSubItem,
-} from '@/components/ui/sidebar'
-
-const localePath = useLocalePath()
+  SidebarMenuSubItem
+} from '@/components/ui/sidebar';
 
 defineProps<{
   items: {
-    title: string
-    url: string
-    icon: LucideIcon
-    isActive?: boolean
+    title: string;
+    url: string;
+    icon: LucideIcon;
+    isActive?: boolean;
     items?: {
-      title: string
-      url: string
-    }[]
-  }[]
-}>()
+      title: string;
+      url: string;
+    }[];
+  }[];
+}>();
 
-const { t } = useAppLocale()
+const { t } = useAppLocale();
+const route = useRoute();
 </script>
 
 <template>
   <SidebarGroup>
     <SidebarGroupLabel>{{ t('nav.sections.platform') }}</SidebarGroupLabel>
     <SidebarMenu>
-      <Collapsible v-for="item in items" :key="item.title" as-child :default-open="item.isActive">
+      <Collapsible
+        v-for="item in items"
+        :key="item.title"
+        as-child
+        :default-open="item.isActive"
+      >
         <SidebarMenuItem>
-          <SidebarMenuButton as-child :tooltip="item.title">
+          <SidebarMenuButton
+            as-child
+            :is-active="item.isActive"
+            :tooltip="item.title"
+          >
             <NuxtLink :to="item.url">
               <component :is="item.icon" />
               <span>{{ item.title }}</span>
@@ -56,8 +65,14 @@ const { t } = useAppLocale()
             </CollapsibleTrigger>
             <CollapsibleContent>
               <SidebarMenuSub>
-                <SidebarMenuSubItem v-for="subItem in item.items" :key="subItem.title">
-                  <SidebarMenuSubButton as-child>
+                <SidebarMenuSubItem
+                  v-for="subItem in item.items"
+                  :key="subItem.title"
+                >
+                  <SidebarMenuSubButton
+                    as-child
+                    :is-active="route.path === subItem.url"
+                  >
                     <NuxtLink :to="subItem.url">
                       <span>{{ subItem.title }}</span>
                     </NuxtLink>

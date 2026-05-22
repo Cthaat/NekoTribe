@@ -407,11 +407,11 @@ const relatedExcerpt = computed(() => {
 <template>
   <Card
     @click.stop="toTweetDetail(String(tweet.id))"
-    class="border-none max-w-2xl mx-auto my-4 rounded-xl shadow-sm cursor-pointer transition-colors duration-200 ease-in-out hover:shadow-md hover:bg-gray-50 dark:hover:bg-neutral-900"
+    class="group relative mx-auto my-3 max-w-2xl cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card py-0 shadow-none transition-all duration-200 ease-out hover:border-border hover:shadow-md focus-within:ring-2 focus-within:ring-ring/40"
   >
-    <CardHeader class="flex flex-row items-start p-4">
+    <CardHeader class="flex flex-row items-start gap-3 px-5 pb-2 pt-5 sm:gap-4">
       <Avatar
-        class="mr-3 h-10 w-10 shrink-0 sm:mr-4 sm:h-12 sm:w-12"
+        class="h-10 w-10 shrink-0 ring-1 ring-border transition-transform group-hover:scale-[1.02] sm:h-11 sm:w-11"
         @click.stop="
           () =>
             navigateTo(
@@ -423,43 +423,41 @@ const relatedExcerpt = computed(() => {
           :src="tweet.author.avatarUrl"
           :alt="tweet.author.username"
         />
-        <AvatarFallback>{{
-          tweet.author.username.substring(0, 2).toUpperCase()
-        }}</AvatarFallback>
+        <AvatarFallback class="bg-muted text-xs font-medium uppercase">
+          {{ tweet.author.username.substring(0, 2).toUpperCase() }}
+        </AvatarFallback>
       </Avatar>
       <div class="min-w-0 flex-1">
-        <div class="flex min-w-0 items-center gap-2">
-          <h3 class="truncate text-base font-bold">
+        <div class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          <span class="truncate text-sm font-semibold leading-tight">
             {{ tweet.author.name }}
-          </h3>
+          </span>
           <BadgeCheck
             v-if="tweet.author.verified"
-            class="h-5 w-5 text-blue-500"
+            class="h-4 w-4 shrink-0 text-sky-500"
           />
-          <span class="truncate text-sm text-muted-foreground"
-            >@{{ tweet.author.username }}</span
-          >
+          <span class="truncate text-xs text-muted-foreground">
+            @{{ tweet.author.username }}
+          </span>
+          <span class="text-xs text-muted-foreground">·</span>
+          <span class="text-xs text-muted-foreground">{{ formattedDate }}</span>
         </div>
-        <p class="text-xs text-muted-foreground">
-          {{ formattedDate }}
-        </p>
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <Button
             variant="ghost"
             size="icon"
-            class="h-8 w-8"
+            class="h-8 w-8 shrink-0 rounded-full text-muted-foreground opacity-70 transition-opacity hover:bg-accent hover:opacity-100"
             @click.stop="() => {}"
           >
             <MoreHorizontal class="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent>
+        <DropdownMenuContent align="end" class="w-52">
           <DropdownMenuItem
             v-if="!localIsBookmarked"
             @click.stop="handleBookmark"
-            class="text-blue-500"
           >
             <BookmarkPlus class="mr-2 h-4 w-4" />
             <span>{{ t('post.actions.addBookmark') }}</span>
@@ -468,9 +466,8 @@ const relatedExcerpt = computed(() => {
           <DropdownMenuItem
             v-else
             @click.stop="handleBookmark"
-            class="text-blue-500"
           >
-            <BookmarkCheck class="mr-2 h-4 w-4" />
+            <BookmarkCheck class="mr-2 h-4 w-4 text-sky-500" />
             <span>{{ t('post.actions.removeBookmark') }}</span>
           </DropdownMenuItem>
 
@@ -478,7 +475,6 @@ const relatedExcerpt = computed(() => {
 
           <DropdownMenuItem
             @click.stop="handleAiPrediction"
-            class="text-primary"
           >
             <BrainCircuit class="mr-2 h-4 w-4" />
             <span>{{ t('sentiment.actions.predict') }}</span>
@@ -487,7 +483,7 @@ const relatedExcerpt = computed(() => {
           <DropdownMenuItem
             v-if="isOwnTweet"
             @click.stop="handleDelete"
-            class="text-red-500"
+            class="text-destructive focus:text-destructive"
           >
             <Trash2 class="mr-2 h-4 w-4" />
             <span>{{ t('post.actions.delete') }}</span>
@@ -498,7 +494,7 @@ const relatedExcerpt = computed(() => {
           <DropdownMenuItem
             v-if="!isOwnTweet"
             @click.stop="handleReport"
-            class="text-destructive"
+            class="text-destructive focus:text-destructive"
           >
             <Flag class="mr-2 h-4 w-4" />
             <span>{{ t('post.actions.report') }}</span>
@@ -507,22 +503,20 @@ const relatedExcerpt = computed(() => {
       </DropdownMenu>
     </CardHeader>
 
-    <CardContent class="px-4 pb-2">
+    <CardContent class="space-y-3 px-5 pb-3">
       <div
         v-if="relatedTweetId"
-        class="mb-3 -mt-1 space-y-2"
+        class="space-y-2"
       >
-        <div class="flex flex-wrap items-center gap-2 text-xs">
+        <div class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <component
             :is="relatedTweetIcon"
-            class="h-4 w-4 text-muted-foreground"
+            class="h-3.5 w-3.5"
           />
           <template
             v-if="relatedTweet && !relatedLoading"
           >
-            <span class="text-muted-foreground">
-              {{ relatedTweetLabel }}
-            </span>
+            <span>{{ relatedTweetLabel }}</span>
             <NuxtLink
               :to="
                 localePath(
@@ -530,14 +524,14 @@ const relatedExcerpt = computed(() => {
                 )
               "
               @click.stop
-              class="font-medium text-primary hover:underline"
+              class="font-medium text-foreground hover:underline"
             >
               {{
                 relatedAuthorHandle ||
                 t('post.relation.unknownUserHandle')
               }}
             </NuxtLink>
-            <span class="text-muted-foreground">·</span>
+            <span>·</span>
             <NuxtLink
               :to="
                 localePath(
@@ -551,14 +545,10 @@ const relatedExcerpt = computed(() => {
             </NuxtLink>
           </template>
           <template v-else-if="relatedLoading">
-            <span class="text-muted-foreground">
-              {{ t('post.relation.loadingOriginal') }}
-            </span>
+            <span>{{ t('post.relation.loadingOriginal') }}</span>
           </template>
           <template v-else>
-            <span class="text-muted-foreground">
-              {{ relatedTweetLabel }}
-            </span>
+            <span>{{ relatedTweetLabel }}</span>
             <NuxtLink
               :to="
                 localePath(
@@ -575,7 +565,7 @@ const relatedExcerpt = computed(() => {
 
         <div
           v-if="relatedTweet && !relatedLoading"
-          class="rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-muted/50"
+          class="rounded-lg border border-border/60 bg-muted/30 p-3 transition-colors hover:border-border hover:bg-muted/50"
           @click.stop="
             toTweetDetail(
               String(relatedTweet.id),
@@ -583,13 +573,13 @@ const relatedExcerpt = computed(() => {
             )
           "
         >
-          <div class="mb-1 flex min-w-0 items-center gap-2 text-sm">
-            <Avatar class="h-6 w-6">
+          <div class="mb-1.5 flex min-w-0 items-center gap-2 text-sm">
+            <Avatar class="h-5 w-5 ring-1 ring-border">
               <AvatarImage
                 :src="relatedTweet.author.avatarUrl"
                 :alt="relatedTweet.author.username"
               />
-              <AvatarFallback>
+              <AvatarFallback class="text-[10px] uppercase">
                 {{
                   (relatedTweet.author.username || '')
                     .substring(0, 2)
@@ -603,21 +593,21 @@ const relatedExcerpt = computed(() => {
                 t('post.relation.unknownUser')
               }}
             </span>
-            <span class="truncate text-muted-foreground">
+            <span class="truncate text-xs text-muted-foreground">
               {{
                 relatedAuthorHandle ||
                 t('post.relation.unknownUserHandle')
               }}
             </span>
           </div>
-          <p class="text-sm text-foreground/90">
+          <p class="text-sm leading-relaxed text-foreground/85">
             {{ relatedExcerpt || t('post.relation.emptyContent') }}
           </p>
         </div>
 
         <div
           v-else-if="relatedError && !relatedLoading"
-          class="text-xs text-muted-foreground"
+          class="rounded-lg border border-dashed border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground"
         >
           {{ t('post.relation.originalUnavailable') }}
           <NuxtLink
@@ -632,126 +622,118 @@ const relatedExcerpt = computed(() => {
         </div>
       </div>
 
-      <div class="text-base">
+      <div class="text-[15px] leading-relaxed text-foreground/95">
         <TweetContent :content="tweet.content" />
       </div>
 
       <div
         v-if="hasPostLabels"
-        class="mt-3 flex flex-wrap gap-2"
+        class="flex flex-wrap gap-1.5"
       >
-        <Button
+        <button
           v-if="visibleLocation"
           type="button"
-          variant="outline"
-          size="sm"
-          class="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-primary"
+          class="inline-flex h-6 items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
           @click.stop="searchPosts(visibleLocation)"
         >
-          <MapPin class="h-3.5 w-3.5" />
+          <MapPin class="h-3 w-3" />
           <span class="max-w-[12rem] truncate">
             {{ visibleLocation }}
           </span>
-        </Button>
-        <Button
+        </button>
+        <button
           v-for="tag in visibleTags"
           :key="`tag-${tweet.id}-${tag}`"
           type="button"
-          variant="outline"
-          size="sm"
-          class="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-primary"
+          class="inline-flex h-6 items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
           @click.stop="searchPosts(`#${tag}`)"
         >
-          <Hash class="h-3.5 w-3.5" />
+          <Hash class="h-3 w-3" />
           <span>{{ tag }}</span>
-        </Button>
+        </button>
       </div>
 
       <!-- 媒体展示区 -->
       <div
         v-if="mediaItems.length > 0"
-        class="mt-3 rounded-lg overflow-hidden border-none"
+        class="overflow-hidden rounded-xl border border-border/60"
       >
         <div
-          class="grid gap-px"
+          class="grid gap-px bg-border"
           :class="{
             'grid-cols-1': mediaItems.length === 1,
             'grid-cols-2': mediaItems.length >= 2,
-            // 只有当图片多于 2 张时，才启用更复杂的 2x2 布局
             'grid-rows-2 h-64 sm:h-80':
               mediaItems.length > 2
           }"
         >
-          <!-- 只显示前 4 个媒体项 -->
           <div
             v-for="(item, index) in mediaItems.slice(0, 4)"
             :key="item.originalUrl"
-            class="relative group cursor-pointer bg-secondary"
+            class="group/media relative cursor-pointer overflow-hidden bg-muted"
             @click.stop="openLightbox(index)"
           >
-            <!-- 显示缩略图 -->
             <img
               :src="item.thumbnailUrl"
-              class="object-cover w-full h-full transition-transform group-hover:scale-105"
+              class="h-full w-full object-cover transition-transform duration-300 ease-out group-hover/media:scale-105"
               :alt="item.altText || t('post.media.thumbnailAlt')"
             />
 
-            <!-- 如果是视频，在中间叠加一个播放图标 -->
             <div
               v-if="item.type === 'video'"
-              class="absolute inset-0 flex items-center justify-center bg-black/30"
+              class="absolute inset-0 flex items-center justify-center bg-black/30 transition-colors group-hover/media:bg-black/40"
             >
-              <PlayCircle class="h-12 w-12 text-white/80" />
+              <PlayCircle class="h-12 w-12 text-white/90 drop-shadow-lg" />
             </div>
 
-            <!-- 如果媒体项超过 4 个，在第四个上显示“+N”遮罩 -->
             <div
               v-if="mediaItems.length > 4 && index === 3"
-              class="absolute inset-0 bg-black/60 flex items-center justify-center"
+              class="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm"
             >
-              <span class="text-white text-2xl font-bold"
-                >+{{ mediaItems.length - 4 }}</span
-              >
+              <span class="text-2xl font-semibold text-white">
+                +{{ mediaItems.length - 4 }}
+              </span>
             </div>
           </div>
         </div>
       </div>
     </CardContent>
 
-    <CardFooter class="flex justify-around p-2">
+    <CardFooter class="flex items-center justify-between gap-1 border-t border-border/40 bg-muted/20 px-2 py-1">
       <Button
         variant="ghost"
         size="sm"
-        class="flex items-center gap-2 text-muted-foreground hover:text-green-500"
+        class="group/btn flex h-9 flex-1 items-center justify-center gap-2 rounded-md text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400"
         @click.stop="handleRetweet"
       >
-        <Repeat class="h-5 w-5" />
-        <span>{{ tweet.counts.retweets }}</span>
+        <Repeat class="h-4 w-4 transition-transform group-hover/btn:scale-110" />
+        <span class="text-xs font-medium tabular-nums">{{ tweet.counts.retweets }}</span>
       </Button>
 
       <Button
         variant="ghost"
         size="sm"
-        class="flex items-center gap-2 text-muted-foreground hover:text-blue-500"
+        class="group/btn flex h-9 flex-1 items-center justify-center gap-2 rounded-md text-muted-foreground transition-colors hover:bg-sky-500/10 hover:text-sky-600 dark:hover:text-sky-400"
         @click.stop="handleReply"
       >
-        <MessageCircle class="h-5 w-5" />
-        <span>{{ tweet.counts.comments }}</span>
+        <MessageCircle class="h-4 w-4 transition-transform group-hover/btn:scale-110" />
+        <span class="text-xs font-medium tabular-nums">{{ tweet.counts.comments }}</span>
       </Button>
 
       <Button
         variant="ghost"
         size="sm"
-        class="flex items-center gap-2 text-muted-foreground hover:text-red-500"
+        class="group/btn flex h-9 flex-1 items-center justify-center gap-2 rounded-md text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
+        :class="{ 'text-rose-600 dark:text-rose-400': localLiked }"
         @click.stop="handleLike"
       >
         <Heart
-          class="h-4 w-4"
+          class="h-4 w-4 transition-all group-hover/btn:scale-110"
           :class="{
-            'fill-red-500 text-red-500': localLiked
+            'fill-rose-600 dark:fill-rose-400': localLiked
           }"
         />
-        <span>{{ likeCount }}</span>
+        <span class="text-xs font-medium tabular-nums">{{ likeCount }}</span>
       </Button>
     </CardFooter>
   </Card>
@@ -768,21 +750,42 @@ const relatedExcerpt = computed(() => {
   />
 
   <Dialog v-model:open="isDeleteDialogOpen">
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ t('post.delete.title') }}</DialogTitle>
-        <DialogDescription>
+    <DialogContent
+      class="overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-md"
+    >
+      <DialogHeader
+        class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+      >
+        <DialogTitle class="flex items-center gap-2 text-base">
+          <span
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400"
+          >
+            <Trash2 class="h-4 w-4" />
+          </span>
+          {{ t('post.delete.title') }}
+        </DialogTitle>
+        <DialogDescription class="text-xs text-muted-foreground">
           {{ t('post.delete.description') }}
         </DialogDescription>
       </DialogHeader>
-      <DialogFooter>
+      <DialogFooter
+        class="border-t border-border/60 bg-background/60 px-5 py-3"
+      >
         <AppButton
           variant="outline"
+          size="sm"
+          class="h-9 rounded-md shadow-xs"
           @click="isDeleteDialogOpen = false"
         >
           {{ t('common.cancel') }}
         </AppButton>
-        <AppButton variant="destructive" @click="confirmDelete">
+        <AppButton
+          variant="destructive"
+          size="sm"
+          class="h-9 rounded-md shadow-xs"
+          @click="confirmDelete"
+        >
+          <Trash2 class="h-3.5 w-3.5" />
           {{ t('common.delete') }}
         </AppButton>
       </DialogFooter>
@@ -790,23 +793,37 @@ const relatedExcerpt = computed(() => {
   </Dialog>
 
   <Dialog v-model:open="isReportDialogOpen">
-    <DialogContent class="sm:max-w-md">
-      <DialogHeader>
-        <DialogTitle>{{ t('post.report.title') }}</DialogTitle>
-        <DialogDescription>
+    <DialogContent
+      class="overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-md"
+    >
+      <DialogHeader
+        class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+      >
+        <DialogTitle class="flex items-center gap-2 text-base">
+          <span
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          >
+            <Flag class="h-4 w-4" />
+          </span>
+          {{ t('post.report.title') }}
+        </DialogTitle>
+        <DialogDescription class="text-xs text-muted-foreground">
           {{ t('post.report.description') }}
         </DialogDescription>
       </DialogHeader>
 
-      <div class="space-y-4 py-2">
-        <div class="space-y-2">
-          <Label for="post-report-reason">
+      <div class="grid gap-4 px-5 py-4">
+        <div class="grid gap-2">
+          <Label
+            for="post-report-reason"
+            class="text-xs font-medium"
+          >
             {{ t('post.report.reasonLabel') }}
           </Label>
           <Select v-model="reportReason">
             <SelectTrigger
               id="post-report-reason"
-              class="w-full"
+              class="h-9 w-full shadow-xs"
             >
               <SelectValue
                 :placeholder="t('post.report.reasonPlaceholder')"
@@ -826,18 +843,21 @@ const relatedExcerpt = computed(() => {
           </Select>
         </div>
 
-        <div class="space-y-2">
-          <Label for="post-report-description">
+        <div class="grid gap-2">
+          <Label
+            for="post-report-description"
+            class="text-xs font-medium"
+          >
             {{ t('post.report.descriptionLabel') }}
           </Label>
           <Textarea
             id="post-report-description"
             v-model="reportDescription"
             :placeholder="t('post.report.descriptionPlaceholder')"
-            class="min-h-24 resize-none"
+            class="min-h-24 resize-none shadow-xs"
             maxlength="1000"
           />
-          <p class="text-xs text-muted-foreground">
+          <p class="text-[11px] text-muted-foreground">
             {{
               t('post.report.descriptionHint', {
                 count: reportDescription.length
@@ -847,9 +867,13 @@ const relatedExcerpt = computed(() => {
         </div>
       </div>
 
-      <DialogFooter>
+      <DialogFooter
+        class="border-t border-border/60 bg-background/60 px-5 py-3"
+      >
         <AppButton
           variant="outline"
+          size="sm"
+          class="h-9 rounded-md shadow-xs"
           :disabled="isSubmittingReport"
           @click="isReportDialogOpen = false"
         >
@@ -857,13 +881,16 @@ const relatedExcerpt = computed(() => {
         </AppButton>
         <AppButton
           variant="destructive"
+          size="sm"
+          class="h-9 rounded-md shadow-xs"
           :disabled="isSubmittingReport"
           @click="submitReport"
         >
           <Loader2
             v-if="isSubmittingReport"
-            class="mr-2 h-4 w-4 animate-spin"
+            class="h-3.5 w-3.5 animate-spin"
           />
+          <Flag v-else class="h-3.5 w-3.5" />
           {{
             isSubmittingReport
               ? t('post.report.submitting')
@@ -876,7 +903,6 @@ const relatedExcerpt = computed(() => {
 </template>
 
 <style scoped>
-/* 添加一些额外的样式来优化布局 */
 .grid-rows-2 {
   grid-template-rows: repeat(2, minmax(0, 1fr));
 }

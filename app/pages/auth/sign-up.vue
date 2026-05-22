@@ -1,22 +1,29 @@
 <script setup lang="ts">
-// 无页面布局
 definePageMeta({
   layout: false
 });
 
-import { ref, watch } from 'vue';
+import { ref, watch, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import AppButton from '@/components/app/AppButton.vue';
-import AppCard from '@/components/app/AppCard.vue';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-// 日期选择器相关导入
+import { Textarea } from '@/components/ui/textarea';
 import {
   DateFormatter,
   type DateValue,
   getLocalTimeZone
 } from '@internationalized/date';
-import { CalendarIcon } from 'lucide-vue-next';
+import {
+  CalendarIcon,
+  Cat,
+  Eye,
+  EyeOff,
+  Mail,
+  User,
+  Lock,
+  ShieldCheck
+} from 'lucide-vue-next';
 import BirthdayCalendar from '@/components/BirthdayCalendar.vue';
 import {
   Popover,
@@ -38,7 +45,6 @@ import {
   PinInputGroup,
   PinInputSlot
 } from '@/components/ui/pin-input';
-// 从你的 UI 库中导入这些基础表单组件
 import {
   FormControl,
   FormField,
@@ -105,7 +111,6 @@ const signUpFormSchema = z
   );
 type SignUpFormValues = z.infer<typeof signUpFormSchema>;
 
-// 创建表单实例
 const form = useForm<SignUpFormValues>({
   validationSchema: toTypedSchema(signUpFormSchema),
   initialValues: {
@@ -113,27 +118,26 @@ const form = useForm<SignUpFormValues>({
     username: '',
     displayName: '',
     phone: '',
-    // 将 birthDate 的初始值设为 `undefined` 或 `null`，而不是空字符串
-    // 这与日历组件的期望值类型更匹配
     birthDate: undefined,
     location: '',
     bio: '',
     password: '',
     confirmPassword: '',
     captcha: '',
-    agreeToTerms: false // 默认同意服务条款
+    agreeToTerms: false
   }
 });
 
 const isLoading = ref(false);
+const showPassword = ref(false);
+const showConfirmPassword = ref(false);
 
 const value = ref<string[]>([]);
 const verificationId = ref('');
 
-// --- 新增：为验证码按钮添加状态 ---
 const isCaptchaSending = ref(false);
 const countdown = ref(60);
-let timer: ReturnType<typeof setInterval> | null = null; // 用于存储定时器实例
+let timer: ReturnType<typeof setInterval> | null = null;
 
 async function sendCaptcha(): Promise<void> {
   const { valid, errors } =
@@ -145,12 +149,10 @@ async function sendCaptcha(): Promise<void> {
     });
     return;
   }
-  // 获取邮箱
   const email = form.values.email;
 
-  // 2. 进入发送状态，禁用按钮
   isCaptchaSending.value = true;
-  countdown.value = 60; // 重置倒计时
+  countdown.value = 60;
 
   try {
     const response = await v2CreateOtp({
@@ -164,38 +166,28 @@ async function sendCaptcha(): Promise<void> {
       description: t('auth.signUp.captchaSentDescription')
     });
 
-    // 发送成功后，禁用按钮60秒，并且显示还剩多少时间
-
-    // 4. API 调用成功后，启动定时器
     timer = setInterval(() => {
       if (countdown.value > 0) {
         countdown.value--;
       } else {
-        // 倒计时结束
         isCaptchaSending.value = false;
         if (timer) {
           clearInterval(timer);
           timer = null;
         }
       }
-    }, 1000); // 每秒执行一次
+    }, 1000);
   } catch (error) {
     const message =
       error instanceof Error
         ? error.message
         : t('auth.signUp.unknownError');
-    console.error(
-      t('auth.signUp.captchaSendError'),
-      error
-    );
     toast.error(t('auth.signUp.captchaSendError'), {
       description: message
     });
   }
 }
 
-// 在组件卸载时清除定时器，防止内存泄漏 (最佳实践)
-import { onUnmounted } from 'vue';
 onUnmounted(() => {
   if (timer) {
     clearInterval(timer);
@@ -219,7 +211,7 @@ async function onValidSubmit(
       code: value.value.join('')
     });
 
-    const response = await v2Register({
+    await v2Register({
       email: values.email,
       username: values.username,
       password: values.password,
@@ -235,9 +227,6 @@ async function onValidSubmit(
       agreeToTerms: values.agreeToTerms
     });
 
-    // 2. 成功后，唯一要做的就是导航！
-    //    使用 await 确保导航被正确触发。
-    //    让中间件和目标页面去担心登录状态。
     toast(t('auth.signUp.successRegister'), {
       description: t('auth.signUp.redirectToLogin')
     });
@@ -247,10 +236,6 @@ async function onValidSubmit(
       error instanceof Error
         ? error.message
         : t('auth.signUp.unknownError');
-    console.error(
-      t('auth.signUp.registerFailed'),
-      error
-    );
     toast.error(t('auth.signUp.registerFailed'), {
       description: message
     });
@@ -259,7 +244,6 @@ async function onValidSubmit(
   }
 }
 
-// 创建日期格式化实例，这部分是正确的
 const df = new DateFormatter(
   locale.value === 'zh' ? 'zh-CN' : 'en-US',
   {
@@ -267,430 +251,508 @@ const df = new DateFormatter(
   }
 );
 
-// 4. 创建最终的 onSubmit 函数，它会先验证再决定是否执行 onValidSubmit
 const onSubmit = form.handleSubmit(onValidSubmit);
 
-// 手动管理 agreeToTerms 状态
 const agreeToTermsValue = ref(false);
 
-// 监听变化并同步到表单
 watch(agreeToTermsValue, newValue => {
   form.setFieldValue('agreeToTerms', newValue);
 });
-
-// 添加一个点击处理函数来调试
-const handleCheckboxChange = (checked: boolean): void => {
-  agreeToTermsValue.value = checked;
-};
 </script>
 
 <template>
-  <div
-    class="min-h-screen w-full bg-background lg:grid lg:grid-cols-2"
-  >
-    <div class="flex items-center justify-center px-4 py-12">
-      <AppCard class="w-full max-w-2xl shadow-sm" content-class="grid gap-6">
-      <!-- 使用 vee-validate 的 handleSubmit 进行提交，它会先执行验证 -->
-      <form
-        class="grid gap-6"
-        @submit="onSubmit"
+  <div class="relative min-h-svh w-full overflow-x-clip bg-background">
+    <!-- Top bar with brand -->
+    <header
+      class="sticky top-0 z-20 border-b bg-background/80 backdrop-blur"
+    >
+      <div
+        class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6"
       >
-        <div class="grid gap-2 text-center">
-          <h1 class="text-3xl font-semibold tracking-tight">
-            {{ t('auth.signUp.signUpPrompt') }}
-          </h1>
-          <p class="text-sm text-muted-foreground">
-            {{ t('auth.signUp.signUpPromptDescription') }}
-          </p>
-        </div>
-
-        <div class="grid gap-4">
-          <!-- 邮箱地址 (单列) -->
-          <FormField
-            v-slot="{ componentField }"
-            name="email"
+        <NuxtLink
+          :to="localePath('/')"
+          class="flex items-center gap-2 font-medium"
+        >
+          <div
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground"
           >
-            <FormItem>
-              <FormLabel>{{
-                t('auth.signUp.email')
-              }}</FormLabel>
-              <FormControl>
-                <Input
-                  id="email"
-                  type="email"
-                  :disabled="isLoading"
-                  :placeholder="t('auth.signUp.emailPlaceholder')"
-                  v-bind="componentField"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          </FormField>
+            <Cat class="size-4" />
+          </div>
+          <span class="text-sm">{{ t('app.brand.name') }}</span>
+        </NuxtLink>
+        <NuxtLink
+          :to="localePath('/auth/login')"
+          class="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          {{ t('auth.signUp.loginPrompt') }}
+        </NuxtLink>
+      </div>
+    </header>
 
-          <!-- 两列布局区域 -->
-          <div class="grid gap-4 md:grid-cols-2">
-            <!-- 用户名 -->
-            <FormField
-              v-slot="{ componentField }"
-              name="username"
-            >
-              <FormItem>
-                <FormLabel>{{
-                  t('auth.signUp.username')
-                }}</FormLabel>
-                <FormControl>
-                  <Input
-                    id="username"
-                    type="text"
-                    :disabled="isLoading"
-                    :placeholder="
-                      t('auth.signUp.usernamePlaceholder')
-                    "
-                    v-bind="componentField"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            </FormField>
+    <div class="mx-auto w-full max-w-2xl px-3 py-8 sm:px-4 sm:py-10 md:py-16">
+      <div class="mb-8 space-y-2 text-center">
+        <h1 class="text-3xl font-semibold tracking-tight">
+          {{ t('auth.signUp.signUpPrompt') }}
+        </h1>
+        <p class="text-balance text-sm text-muted-foreground">
+          {{ t('auth.signUp.signUpPromptDescription') }}
+        </p>
+      </div>
 
-            <!-- 显示名称 -->
-            <FormField
-              v-slot="{ componentField }"
-              name="displayName"
-            >
-              <FormItem>
-                <FormLabel>{{
-                  t('auth.signUp.displayName')
-                }}</FormLabel>
-                <FormControl>
-                  <Input
-                    id="displayName"
-                    type="text"
-                    :disabled="isLoading"
-                    :placeholder="
-                      t(
-                        'auth.signUp.displayNamePlaceholder'
-                      )
-                    "
-                    v-bind="componentField"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            </FormField>
+      <div
+        class="overflow-hidden rounded-xl border border-border/60 bg-card shadow-none"
+      >
+        <div class="p-5 sm:p-6 md:p-8">
+          <form class="grid gap-6" @submit="onSubmit">
+            <!-- Section: Account -->
+            <section class="grid gap-4">
+              <div class="flex items-start gap-3">
+                <span
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                >
+                  <Mail class="h-4 w-4" />
+                </span>
+                <div class="min-w-0 grid gap-0.5">
+                  <h3 class="text-sm font-semibold tracking-tight">
+                    {{ t('auth.signUp.email') }}
+                  </h3>
+                  <p class="text-[11px] text-muted-foreground">
+                    {{ t('auth.signUp.emailPlaceholder') }}
+                  </p>
+                </div>
+              </div>
 
-            <!-- 手机号 -->
-            <FormField
-              v-slot="{ componentField }"
-              name="phone"
-            >
-              <FormItem>
-                <FormLabel>{{
-                  t('auth.signUp.phone')
-                }}</FormLabel>
-                <FormControl>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    :disabled="isLoading"
-                    :placeholder="
-                      t('auth.signUp.phonePlaceholder')
-                    "
-                    v-bind="componentField"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            </FormField>
-
-            <!-- 生日 (日历选择器) -->
-            <FormField
-              v-slot="{ componentField, value }"
-              name="birthDate"
-            >
-              <FormItem>
-                <FormLabel>{{
-                  t('auth.signUp.birthDate')
-                }}</FormLabel>
-                <Popover>
-                  <PopoverTrigger as-child>
-                    <FormControl>
-                      <!-- 
-            这个按钮是用户看到的界面，它的作用是触发弹窗。
-            它的文本内容会根据当前是否有值 (value) 来动态显示。
-          -->
-                      <Button
-                        variant="outline"
-                        :class="
-                          cn(
-                            'w-full justify-start text-left font-normal',
-                            !value &&
-                              'text-muted-foreground'
-                          )
-                        "
-                      >
-                        <CalendarIcon
-                          class="mr-2 h-4 w-4"
-                        />
-                        <!-- 
-              三元表达式用于显示日期：
-              - 如果 `value` 存在，就使用日期格式化工具 `df` 来显示。
-              - 注意：日历组件返回的是一个特殊的日期对象，需要用 `.toDate(getLocalTimeZone())` 转换成标准 JS Date 对象才能格式化。
-              - 如果 `value` 不存在，就显示占位符文本。
-            -->
-                        {{
-                          value
-                            ? df.format(
-                                value.toDate(
-                                  getLocalTimeZone()
-                                )
-                              )
-                            : t(
-                                'auth.signUp.birthDatePlaceholder'
-                              )
-                        }}
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent class="w-auto p-0">
-                    <!-- 
-          这是核心部分：
-          `v-bind="componentField"` 是一个语法糖，它将 vee-validate 的状态
-          (包括 value, onBlur, onInput/onChange 事件) 自动绑定到 <Calendar> 组件上。
-          这使得用户在日历中选择日期时，表单状态会自动更新。
-        -->
-                    <BirthdayCalendar
+              <FormField
+                v-slot="{ componentField }"
+                name="email"
+              >
+                <FormItem>
+                  <FormLabel class="sr-only">
+                    {{ t('auth.signUp.email') }}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      id="email"
+                      type="email"
+                      autocomplete="email"
+                      :disabled="isLoading"
+                      :placeholder="t('auth.signUp.emailPlaceholder')"
                       v-bind="componentField"
                     />
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            </FormField>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              </FormField>
+            </section>
 
-            <!-- 所在地 -->
-            <FormField
-              v-slot="{ componentField }"
-              name="location"
-            >
-              <FormItem>
-                <FormLabel>{{
-                  t('auth.signUp.location')
-                }}</FormLabel>
-                <FormControl>
-                  <Input
-                    id="location"
-                    type="text"
-                    :disabled="isLoading"
-                    :placeholder="
-                      t('auth.signUp.locationPlaceholder')
-                    "
-                    v-bind="componentField"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            </FormField>
-          </div>
+            <div class="h-px w-full bg-border/60" />
 
-          <!-- 简介 (单列) -->
-          <FormField v-slot="{ componentField }" name="bio">
-            <FormItem>
-              <FormLabel>{{
-                t('auth.signUp.bio')
-              }}</FormLabel>
-              <FormControl>
-                <Input
-                  id="bio"
-                  type="text"
-                  :disabled="isLoading"
-                  :placeholder="
-                    t('auth.signUp.bioPlaceholder')
-                  "
-                  v-bind="componentField"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          </FormField>
-
-          <!-- 密码区域 (两列) -->
-          <div class="grid gap-4 md:grid-cols-2">
-            <!-- 密码 -->
-            <FormField
-              v-slot="{ componentField }"
-              name="password"
-            >
-              <FormItem>
-                <FormLabel>{{
-                  t('auth.signUp.password')
-                }}</FormLabel>
-                <FormControl>
-                  <Input
-                    id="password"
-                    type="password"
-                    :disabled="isLoading"
-                    :placeholder="
-                      t('auth.signUp.passwordPlaceholder')
-                    "
-                    v-bind="componentField"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            </FormField>
-
-            <!-- 确认密码 -->
-            <FormField
-              v-slot="{ componentField }"
-              name="confirmPassword"
-            >
-              <FormItem>
-                <FormLabel>{{
-                  t('auth.signUp.confirmPassword')
-                }}</FormLabel>
-                <FormControl>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    :disabled="isLoading"
-                    :placeholder="
-                      t(
-                        'auth.signUp.confirmPasswordPlaceholder'
-                      )
-                    "
-                    v-bind="componentField"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            </FormField>
-          </div>
-
-          <!-- 验证码和服务条款区域 (两列) -->
-          <FormField
-            v-slot="{ componentField }"
-            name="captcha"
-          >
-            <FormItem>
-              <FormLabel>{{
-                t('auth.signUp.captcha')
-              }}</FormLabel>
-              <!-- 
-      使用一个 div 作为 Flexbox 容器，
-      它将包裹输入框和按钮，让它们在同一行显示。
-    -->
-              <div class="grid w-full gap-2 sm:flex sm:items-center">
-                <FormControl>
-                  <!-- 
-          flex-1 是关键，它告诉输入框：
-          "占据所有可用的剩余空间"。
-        -->
-                  <PinInput
-                    class="justify-center sm:flex-1 sm:justify-start"
-                    id="captcha"
-                    v-model="value"
-                    placeholder="○"
-                  >
-                    <PinInputGroup>
-                      <PinInputSlot
-                        v-for="(id, index) in 6"
-                        :key="id"
-                        :index="index"
-                      />
-                    </PinInputGroup>
-                  </PinInput>
-                </FormControl>
-                <!-- 
-        按钮现在是 Flexbox 的一部分，它会自动收缩以适应其内容大小。
-        type="button" 很重要，可以防止它意外触发表单提交。
-      -->
-                <AppButton
-                  type="button"
-                  @click="sendCaptcha"
-                  :disabled="isCaptchaSending || isLoading"
-                  :loading="isCaptchaSending"
-                  class="w-full sm:w-auto"
+            <!-- Section: Identity -->
+            <section class="grid gap-4">
+              <div class="flex items-start gap-3">
+                <span
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-400"
                 >
-                  <!-- 
-    使用 v-if 和 v-else 来根据 isCaptchaSending 的状态显示不同的文本
-  -->
-                  <span v-if="isCaptchaSending">
-                    {{
-                      t('auth.signUp.captchaSecondsLeft', {
-                        count: countdown
-                      })
-                    }}
-                  </span>
-                  <span v-else>
-                    {{ t('auth.signUp.sendCaptcha') }}
-                  </span>
-                </AppButton>
+                  <User class="h-4 w-4" />
+                </span>
+                <div class="min-w-0 grid gap-0.5">
+                  <h3 class="text-sm font-semibold tracking-tight">
+                    {{ t('auth.signUp.username') }} / {{ t('auth.signUp.displayName') }}
+                  </h3>
+                  <p class="text-[11px] text-muted-foreground">
+                    {{ t('auth.signUp.usernamePlaceholder') }}
+                  </p>
+                </div>
               </div>
-              <FormMessage />
-            </FormItem>
-          </FormField>
 
-          <div>
-            <!-- 服务条款 (复选框) -->
+              <div class="grid gap-4 md:grid-cols-2">
+                <FormField
+                  v-slot="{ componentField }"
+                  name="username"
+                >
+                  <FormItem>
+                    <FormLabel>{{
+                      t('auth.signUp.username')
+                    }}</FormLabel>
+                    <FormControl>
+                      <Input
+                        id="username"
+                        type="text"
+                        :disabled="isLoading"
+                        :placeholder="
+                          t('auth.signUp.usernamePlaceholder')
+                        "
+                        v-bind="componentField"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </FormField>
+
+                <FormField
+                  v-slot="{ componentField }"
+                  name="displayName"
+                >
+                  <FormItem>
+                    <FormLabel>{{
+                      t('auth.signUp.displayName')
+                    }}</FormLabel>
+                    <FormControl>
+                      <Input
+                        id="displayName"
+                        type="text"
+                        :disabled="isLoading"
+                        :placeholder="
+                          t('auth.signUp.displayNamePlaceholder')
+                        "
+                        v-bind="componentField"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </FormField>
+
+                <FormField
+                  v-slot="{ componentField }"
+                  name="phone"
+                >
+                  <FormItem>
+                    <FormLabel>{{
+                      t('auth.signUp.phone')
+                    }}</FormLabel>
+                    <FormControl>
+                      <Input
+                        id="phone"
+                        type="tel"
+                        autocomplete="tel"
+                        :disabled="isLoading"
+                        :placeholder="
+                          t('auth.signUp.phonePlaceholder')
+                        "
+                        v-bind="componentField"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </FormField>
+
+                <FormField
+                  v-slot="{ componentField, value }"
+                  name="birthDate"
+                >
+                  <FormItem class="flex flex-col">
+                    <FormLabel>{{
+                      t('auth.signUp.birthDate')
+                    }}</FormLabel>
+                    <Popover>
+                      <PopoverTrigger as-child>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            :class="
+                              cn(
+                                'h-9 w-full justify-start text-left font-normal',
+                                !value &&
+                                  'text-muted-foreground'
+                              )
+                            "
+                          >
+                            <CalendarIcon
+                              class="mr-2 h-4 w-4"
+                            />
+                            {{
+                              value
+                                ? df.format(
+                                    value.toDate(
+                                      getLocalTimeZone()
+                                    )
+                                  )
+                                : t(
+                                    'auth.signUp.birthDatePlaceholder'
+                                  )
+                            }}
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent class="w-auto p-0">
+                        <BirthdayCalendar
+                          v-bind="componentField"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                </FormField>
+              </div>
+
+              <FormField
+                v-slot="{ componentField }"
+                name="location"
+              >
+                <FormItem>
+                  <FormLabel>{{
+                    t('auth.signUp.location')
+                  }}</FormLabel>
+                  <FormControl>
+                    <Input
+                      id="location"
+                      type="text"
+                      :disabled="isLoading"
+                      :placeholder="
+                        t('auth.signUp.locationPlaceholder')
+                      "
+                      v-bind="componentField"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              </FormField>
+
+              <FormField v-slot="{ componentField }" name="bio">
+                <FormItem>
+                  <FormLabel>{{
+                    t('auth.signUp.bio')
+                  }}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      id="bio"
+                      :disabled="isLoading"
+                      :placeholder="
+                        t('auth.signUp.bioPlaceholder')
+                      "
+                      class="min-h-20 resize-none"
+                      v-bind="componentField"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              </FormField>
+            </section>
+
+            <div class="h-px w-full bg-border/60" />
+
+            <!-- Section: Security -->
+            <section class="grid gap-4">
+              <div class="flex items-start gap-3">
+                <span
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                >
+                  <Lock class="h-4 w-4" />
+                </span>
+                <div class="min-w-0 grid gap-0.5">
+                  <h3 class="text-sm font-semibold tracking-tight">
+                    {{ t('auth.signUp.password') }}
+                  </h3>
+                  <p class="text-[11px] text-muted-foreground">
+                    {{ t('auth.signUp.passwordPlaceholder') }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="grid gap-4 md:grid-cols-2">
+                <FormField
+                  v-slot="{ componentField }"
+                  name="password"
+                >
+                  <FormItem>
+                    <FormLabel>{{
+                      t('auth.signUp.password')
+                    }}</FormLabel>
+                    <FormControl>
+                      <div class="relative">
+                        <Input
+                          id="password"
+                          :type="showPassword ? 'text' : 'password'"
+                          autocomplete="new-password"
+                          :disabled="isLoading"
+                          :placeholder="
+                            t('auth.signUp.passwordPlaceholder')
+                          "
+                          class="pr-10"
+                          v-bind="componentField"
+                        />
+                        <button
+                          type="button"
+                          tabindex="-1"
+                          class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          @click="showPassword = !showPassword"
+                        >
+                          <component
+                            :is="showPassword ? EyeOff : Eye"
+                            class="h-4 w-4"
+                          />
+                        </button>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </FormField>
+
+                <FormField
+                  v-slot="{ componentField }"
+                  name="confirmPassword"
+                >
+                  <FormItem>
+                    <FormLabel>{{
+                      t('auth.signUp.confirmPassword')
+                    }}</FormLabel>
+                    <FormControl>
+                      <div class="relative">
+                        <Input
+                          id="confirmPassword"
+                          :type="showConfirmPassword ? 'text' : 'password'"
+                          autocomplete="new-password"
+                          :disabled="isLoading"
+                          :placeholder="
+                            t(
+                              'auth.signUp.confirmPasswordPlaceholder'
+                            )
+                          "
+                          class="pr-10"
+                          v-bind="componentField"
+                        />
+                        <button
+                          type="button"
+                          tabindex="-1"
+                          class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          @click="showConfirmPassword = !showConfirmPassword"
+                        >
+                          <component
+                            :is="showConfirmPassword ? EyeOff : Eye"
+                            class="h-4 w-4"
+                          />
+                        </button>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </FormField>
+              </div>
+            </section>
+
+            <div class="h-px w-full bg-border/60" />
+
+            <!-- Section: Verification -->
+            <section class="grid gap-4">
+              <div class="flex items-start gap-3">
+                <span
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                >
+                  <ShieldCheck class="h-4 w-4" />
+                </span>
+                <div class="min-w-0 grid gap-0.5">
+                  <h3 class="text-sm font-semibold tracking-tight">
+                    {{ t('auth.signUp.captcha') }}
+                  </h3>
+                  <p class="text-[11px] text-muted-foreground">
+                    {{ t('auth.signUp.captchaSentDescription') }}
+                  </p>
+                </div>
+              </div>
+
+              <FormField
+                v-slot="{ componentField }"
+                name="captcha"
+              >
+                <FormItem>
+                  <FormLabel class="sr-only">{{
+                    t('auth.signUp.captcha')
+                  }}</FormLabel>
+                  <div
+                    class="grid w-full min-w-0 gap-3 sm:flex sm:items-center"
+                  >
+                    <FormControl>
+                      <PinInput
+                        class="justify-center sm:flex-1 sm:justify-start"
+                        id="captcha"
+                        v-model="value"
+                        placeholder="○"
+                      >
+                        <PinInputGroup>
+                          <PinInputSlot
+                            v-for="(id, index) in 6"
+                            :key="id"
+                            :index="index"
+                          />
+                        </PinInputGroup>
+                      </PinInput>
+                    </FormControl>
+                    <AppButton
+                      type="button"
+                      variant="outline"
+                      @click="sendCaptcha"
+                      :disabled="isCaptchaSending || isLoading"
+                      :loading="isCaptchaSending"
+                      class="w-full sm:w-auto"
+                    >
+                      <span v-if="isCaptchaSending">
+                        {{
+                          t('auth.signUp.captchaSecondsLeft', {
+                            count: countdown
+                          })
+                        }}
+                      </span>
+                      <span v-else>
+                        {{ t('auth.signUp.sendCaptcha') }}
+                      </span>
+                    </AppButton>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              </FormField>
+            </section>
+
+            <div class="h-px w-full bg-border/60" />
+
+            <!-- Terms -->
             <FormField name="agreeToTerms">
               <FormItem
-                class="flex flex-row items-center gap-x-2 mt-6"
+                class="flex flex-row items-start gap-3 rounded-lg border border-border/60 bg-muted/20 p-4"
               >
                 <FormControl>
-                  <!-- 使用原生的 v-model -->
-                  <Checkbox v-model="agreeToTermsValue" />
+                  <Checkbox
+                    v-model="agreeToTermsValue"
+                    class="mt-0.5"
+                  />
                 </FormControl>
                 <div class="grid gap-1.5 leading-none">
                   <FormLabel
-                    class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    class="cursor-pointer text-sm font-medium leading-relaxed peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
                     {{ t('auth.signUp.agreeToTerms') }}
                     <NuxtLink
                       :to="localePath('/auth/terms')"
-                      class="underline text-blue-600"
+                      class="text-primary underline-offset-4 hover:underline"
                     >
                       {{ t('auth.signUp.termsLink') }}
                     </NuxtLink>
                   </FormLabel>
+                  <FormMessage />
                 </div>
               </FormItem>
-              <FormMessage />
             </FormField>
-          </div>
 
-          <AppButton
-            type="submit"
-            class="w-full mt-2"
-            :loading="isLoading"
-            :loading-label="t('auth.signUp.signUpButton')"
-          >
-            {{ t('auth.signUp.signUpButton') }}
-          </AppButton>
+            <AppButton
+              type="submit"
+              class="w-full"
+              :loading="isLoading"
+              :loading-label="t('auth.signUp.signUpButton')"
+            >
+              {{ t('auth.signUp.signUpButton') }}
+            </AppButton>
+          </form>
         </div>
+      </div>
 
-        <div class="mt-4 text-center text-sm">
-          {{ t('auth.signUp.haveAccount') }}<br />
-          <NuxtLink
-            :to="localePath('/auth/login')"
-            class="underline"
-          >
-            {{ t('auth.signUp.loginPrompt') }}
-          </NuxtLink>
-        </div>
-      </form>
-      </AppCard>
-    </div>
-    <div class="hidden bg-muted lg:block">
-      <img
-        src="/placeholder.svg"
-        :alt="t('auth.signUp.coverImageAlt')"
-        width="1920"
-        height="1080"
-        class="h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-      />
+      <p class="mt-6 text-center text-sm text-muted-foreground">
+        {{ t('auth.signUp.haveAccount') }}
+        <NuxtLink
+          :to="localePath('/auth/login')"
+          class="font-medium text-foreground underline-offset-4 hover:underline"
+        >
+          {{ t('auth.signUp.loginPrompt') }}
+        </NuxtLink>
+      </p>
     </div>
   </div>
 </template>
-
-

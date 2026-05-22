@@ -41,7 +41,7 @@ provideChartContext({
     :data-chart="chartId"
     :class="
       cn(
-        '[&_.tick_text]:!fill-muted-foreground [&_.tick_line]:!stroke-border/50 flex h-full w-full flex-col aspect-video justify-center text-xs [&_[data-vis-xy-container]]:h-full [&_[data-vis-single-container]]:h-full [&_[data-vis-xy-container]]:w-full [&_[data-vis-single-container]]:w-full',
+        '[&_.tick_text]:!fill-muted-foreground [&_.tick_line]:!stroke-border/50 flex h-full w-full min-w-0 max-w-full flex-col justify-center overflow-hidden text-xs [&_[data-vis-xy-container]]:h-full [&_[data-vis-single-container]]:h-full [&_[data-vis-xy-container]]:w-full [&_[data-vis-single-container]]:w-full',
         props.class
       )
     "

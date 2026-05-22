@@ -12,7 +12,11 @@ import {
   BellOff,
   Copy,
   ArrowLeft,
+  AlertTriangle,
+  Hash,
+  Inbox,
   Link,
+  Loader2,
   Search,
   UserPlus
 } from 'lucide-vue-next';
@@ -25,9 +29,7 @@ import {
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -156,6 +158,7 @@ const directMessages = ref<V2DirectMessage[]>([]);
 const isLoadingDirectConversations = ref(false);
 const isLoadingDirectMessages = ref(false);
 const isSendingDirectMessage = ref(false);
+const isMobileNavigationOpen = ref(true);
 
 const currentUserId = computed(
   () => preferenceStore.preferences.user.id
@@ -198,7 +201,7 @@ const membersById = computed(
 );
 const createChannelCategoryName = computed(() =>
   createChannelCategoryId.value === null
-    ? '文字频道'
+    ? t('chat.defaultCategoryName')
     : findCategoryName(createChannelCategoryId.value)
 );
 const canSubmitCreateChannel = computed(
@@ -206,6 +209,14 @@ const canSubmitCreateChannel = computed(
     createChannelName.value.trim().length > 0 &&
     !isCreatingChannel.value
 );
+
+function showMobileNavigation(): void {
+  isMobileNavigationOpen.value = true;
+}
+
+function showMobileContent(): void {
+  isMobileNavigationOpen.value = false;
+}
 
 let ws: WebSocket | null = null;
 let shouldReconnectWs = true;
@@ -281,7 +292,7 @@ function findCategoryName(categoryId: number): string {
   return (
     channelCategories.value.find(
       category => category.id === categoryId
-    )?.name ?? '文字频道'
+    )?.name ?? t('chat.defaultCategoryName')
   );
 }
 
@@ -772,6 +783,7 @@ async function openDirectMessageFromQuery(): Promise<void> {
       target_user_id: targetUserId
     });
     await openDirectConversation(conversation);
+    showMobileContent();
     await loadDirectConversations(false);
   } catch {
     toast.error(t('chat.feedback.loadDirectMessagesFailed'));
@@ -849,6 +861,7 @@ async function handleSelectChannel(
   channel: Channel
 ): Promise<void> {
   exitDirectMessageView();
+  showMobileContent();
   if (activeChannel.value?.id === channel.id) return;
   if (activeChannel.value) {
     leaveWsChannel(activeChannel.value.id);
@@ -1248,16 +1261,19 @@ async function handleOpenDirectMessageStandalone(
   await handleOpenDirectMessage(member);
   directMessageContent.value = '';
   directMessageStandaloneTarget.value = member;
+  showMobileContent();
 }
 
 async function handleSelectDirectConversation(
   conversation: V2DirectConversation
 ): Promise<void> {
   await openDirectConversation(conversation);
+  showMobileContent();
 }
 
 function closeDirectMessageStandalone(): void {
   directMessageStandaloneTarget.value = null;
+  showMobileNavigation();
 }
 
 function exitDirectMessageView(): void {
@@ -1347,12 +1363,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 w-full flex-col overflow-hidden md:flex-row">
+  <div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden md:flex-row">
     <div
-      class="h-80 min-h-0 w-full flex-shrink-0 overflow-hidden border-b bg-muted/20 md:h-full md:w-72 md:border-b-0 md:border-r"
+      data-chat-nav-panel="true"
+      class="h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden border-b bg-muted/20 md:w-72 md:border-b-0 md:border-r"
+      :class="isMobileNavigationOpen ? 'flex' : 'hidden md:flex'"
     >
       <div class="flex h-full min-h-0 flex-col">
-        <div class="h-40 min-h-0 shrink-0 md:h-64">
+        <div class="h-64 shrink-0 max-md:h-[30dvh] max-md:min-h-44 max-md:max-h-72">
           <ChatDirectConversationList
             :conversations="directConversations"
             :active-conversation-id="directConversationId"
@@ -1386,12 +1404,21 @@ onBeforeUnmount(() => {
     </div>
 
     <Dialog v-model:open="createChannelDialogOpen">
-      <DialogContent class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent
+        class="overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-md"
+      >
+        <DialogHeader
+          class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+        >
+          <DialogTitle class="flex items-center gap-2 text-base">
+            <span
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+            >
+              <Hash class="h-4 w-4" />
+            </span>
             {{ t('chat.dialogs.createChannel.title') }}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription class="text-xs text-muted-foreground">
             {{
               t('chat.dialogs.createChannel.description', {
                 category: createChannelCategoryName
@@ -1401,11 +1428,14 @@ onBeforeUnmount(() => {
         </DialogHeader>
 
         <form
-          class="space-y-4"
+          class="grid gap-4 px-5 py-4"
           @submit.prevent="submitCreateChannel"
         >
-          <div class="space-y-2">
-            <Label for="create-channel-name">
+          <div class="grid gap-2">
+            <Label
+              for="create-channel-name"
+              class="text-xs font-medium"
+            >
               {{ t('chat.dialogs.createChannel.nameLabel') }}
             </Label>
             <Input
@@ -1415,13 +1445,18 @@ onBeforeUnmount(() => {
               :disabled="isCreatingChannel"
               maxlength="64"
               autocomplete="off"
+              class="h-9 shadow-xs"
             />
           </div>
 
-          <DialogFooter>
+          <DialogFooter
+            class="-mx-5 -mb-4 mt-1 border-t border-border/60 bg-background/60 px-5 py-3"
+          >
             <Button
               type="button"
               variant="outline"
+              size="sm"
+              class="h-9 rounded-md shadow-xs"
               :disabled="isCreatingChannel"
               @click="createChannelDialogOpen = false"
             >
@@ -1429,8 +1464,14 @@ onBeforeUnmount(() => {
             </Button>
             <Button
               type="submit"
+              size="sm"
+              class="h-9 rounded-md shadow-xs"
               :disabled="!canSubmitCreateChannel"
             >
+              <Loader2
+                v-if="isCreatingChannel"
+                class="h-3.5 w-3.5 animate-spin"
+              />
               {{
                 isCreatingChannel
                   ? t('common.processing')
@@ -1443,13 +1484,21 @@ onBeforeUnmount(() => {
     </Dialog>
 
     <Dialog v-model:open="inviteDialogOpen">
-      <DialogContent class="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle class="flex items-center gap-2">
-            <UserPlus class="h-5 w-5" />
+      <DialogContent
+        class="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-2xl"
+      >
+        <DialogHeader
+          class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+        >
+          <DialogTitle class="flex items-center gap-2 text-base">
+            <span
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            >
+              <UserPlus class="h-4 w-4" />
+            </span>
             {{ t('chat.invite.title') }}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription class="text-xs text-muted-foreground">
             {{
               t('chat.invite.description', {
                 group: activeGroup?.name || t('chat.groupFallbackName')
@@ -1458,36 +1507,41 @@ onBeforeUnmount(() => {
           </DialogDescription>
         </DialogHeader>
 
-        <div class="grid gap-5 md:grid-cols-[1.15fr_0.85fr]">
-          <div class="space-y-4">
-            <div class="space-y-2">
-              <Label for="chat-invite-search">
+        <div
+          class="grid flex-1 gap-5 overflow-y-auto px-4 py-4 sm:px-5 md:grid-cols-[1.15fr_0.85fr]"
+        >
+          <div class="grid gap-4">
+            <div class="grid gap-2">
+              <Label
+                for="chat-invite-search"
+                class="text-xs font-medium"
+              >
                 {{ t('chat.invite.searchLabel') }}
               </Label>
               <div class="relative">
                 <Search
-                  class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                 />
                 <Input
                   id="chat-invite-search"
                   v-model="inviteSearchQuery"
-                  class="pl-9"
+                  class="h-9 pl-9 shadow-xs"
                   :placeholder="t('chat.invite.searchPlaceholder')"
                   autocomplete="off"
                   @input="handleInviteSearchInput"
                 />
               </div>
-              <p class="text-xs text-muted-foreground">
+              <p class="text-[11px] text-muted-foreground">
                 {{ t('chat.invite.searchHint') }}
               </p>
             </div>
 
             <div
               v-if="selectedInvitee"
-              class="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3"
+              class="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
             >
               <div class="flex min-w-0 items-center gap-3">
-                <Avatar class="h-9 w-9">
+                <Avatar class="h-9 w-9 ring-1 ring-border/60">
                   <AvatarImage
                     :src="selectedInvitee.avatarUrl"
                     :alt="selectedInvitee.name"
@@ -1508,18 +1562,22 @@ onBeforeUnmount(() => {
               <Button
                 variant="ghost"
                 size="sm"
+                class="h-8 rounded-md"
                 @click="selectedInvitee = null"
               >
                 {{ t('chat.invite.clearSelection') }}
               </Button>
             </div>
 
-            <ScrollArea class="h-64 rounded-lg border">
+            <ScrollArea
+              class="h-64 rounded-lg border border-border/60 bg-card"
+            >
               <div class="p-2">
                 <div
                   v-if="isSearchingInviteUsers"
-                  class="p-6 text-center text-sm text-muted-foreground"
+                  class="flex items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground"
                 >
+                  <Loader2 class="h-3.5 w-3.5 animate-spin" />
                   {{ t('chat.invite.searching') }}
                 </div>
                 <div
@@ -1541,13 +1599,13 @@ onBeforeUnmount(() => {
                   v-for="user in inviteCandidates"
                   :key="user.id"
                   variant="ghost"
-                  class="h-auto w-full justify-start gap-3 p-2 text-left"
+                  class="h-auto w-full justify-start gap-3 rounded-md p-2 text-left"
                   :class="{
                     'bg-muted': selectedInvitee?.id === user.id
                   }"
                   @click="selectInvitee(user)"
                 >
-                  <Avatar class="h-9 w-9">
+                  <Avatar class="h-9 w-9 ring-1 ring-border/60">
                     <AvatarImage
                       :src="user.avatarUrl"
                       :alt="user.name"
@@ -1564,33 +1622,40 @@ onBeforeUnmount(() => {
                       @{{ user.username }}
                     </div>
                   </div>
-                  <Badge
+                  <span
                     v-if="selectedInvitee?.id === user.id"
-                    variant="secondary"
+                    class="inline-flex items-center rounded-full border border-emerald-200/60 bg-emerald-100/60 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
                   >
                     {{ t('chat.invite.selected') }}
-                  </Badge>
+                  </span>
                 </Button>
               </div>
             </ScrollArea>
           </div>
 
-          <div class="space-y-4">
-            <Card class="gap-0 py-0">
-              <CardContent class="p-4">
-                <div class="flex items-center gap-2 font-medium">
-                  <Link class="h-4 w-4" />
-                  {{ t('chat.invite.linkTitle') }}
-                </div>
-                <p class="mt-2 text-sm text-muted-foreground">
-                  {{ t('chat.invite.linkDescription') }}
-                </p>
-              </CardContent>
-            </Card>
+          <div class="grid gap-4">
+            <section
+              class="rounded-lg border border-border/60 bg-card p-4 shadow-none"
+            >
+              <div class="flex items-center gap-2 text-sm font-medium">
+                <span
+                  class="flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                >
+                  <Link class="h-3.5 w-3.5" />
+                </span>
+                {{ t('chat.invite.linkTitle') }}
+              </div>
+              <p class="mt-2 text-xs text-muted-foreground">
+                {{ t('chat.invite.linkDescription') }}
+              </p>
+            </section>
 
             <div class="grid grid-cols-2 gap-3">
-              <div class="space-y-2">
-                <Label for="chat-invite-max-uses">
+              <div class="grid gap-2">
+                <Label
+                  for="chat-invite-max-uses"
+                  class="text-xs font-medium"
+                >
                   {{ t('chat.invite.maxUses') }}
                 </Label>
                 <Input
@@ -1598,11 +1663,15 @@ onBeforeUnmount(() => {
                   v-model.number="inviteMaxUses"
                   type="number"
                   min="1"
+                  class="h-9 shadow-xs"
                   :disabled="!!selectedInvitee"
                 />
               </div>
-              <div class="space-y-2">
-                <Label for="chat-invite-expire-hours">
+              <div class="grid gap-2">
+                <Label
+                  for="chat-invite-expire-hours"
+                  class="text-xs font-medium"
+                >
                   {{ t('chat.invite.expireHours') }}
                 </Label>
                 <Input
@@ -1610,60 +1679,70 @@ onBeforeUnmount(() => {
                   v-model.number="inviteExpireHours"
                   type="number"
                   min="1"
+                  class="h-9 shadow-xs"
                 />
               </div>
             </div>
 
-            <div class="space-y-2">
-              <Label for="chat-invite-message">
+            <div class="grid gap-2">
+              <Label
+                for="chat-invite-message"
+                class="text-xs font-medium"
+              >
                 {{ t('chat.invite.messageLabel') }}
               </Label>
               <Textarea
                 id="chat-invite-message"
                 v-model="inviteMessage"
-                class="min-h-24 resize-none"
+                class="min-h-24 resize-none shadow-xs"
                 :placeholder="t('chat.invite.messagePlaceholder')"
                 maxlength="200"
               />
             </div>
 
-            <Card
+            <section
               v-if="createdInvite"
-              class="gap-0 bg-muted/30 py-0"
+              class="rounded-lg border border-emerald-200/60 bg-emerald-50/40 p-3 shadow-none dark:border-emerald-900/40 dark:bg-emerald-950/20"
             >
-              <CardContent class="p-3">
-                <div class="text-sm font-medium">
-                  {{ t('chat.invite.createdTitle') }}
-                </div>
-                <div
-                  v-if="inviteUrl(createdInvite)"
-                  class="mt-2 flex items-center gap-2"
+              <div class="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                {{ t('chat.invite.createdTitle') }}
+              </div>
+              <div
+                v-if="inviteUrl(createdInvite)"
+                class="mt-2 flex items-center gap-2"
+              >
+                <Input
+                  :model-value="inviteUrl(createdInvite) || ''"
+                  readonly
+                  class="h-8 text-xs shadow-xs"
+                />
+                <Button
+                  size="icon"
+                  variant="outline"
+                  class="h-8 w-8 shrink-0 rounded-md shadow-xs"
+                  @click="copyCreatedInvite"
                 >
-                  <Input
-                    :model-value="inviteUrl(createdInvite) || ''"
-                    readonly
-                    class="h-8 text-xs"
-                  />
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    @click="copyCreatedInvite"
-                  >
-                    <Copy class="h-4 w-4" />
-                  </Button>
-                </div>
-                <p v-else class="mt-2 text-sm text-muted-foreground">
-                  {{ t('chat.invite.targetedCreated') }}
-                </p>
-              </CardContent>
-            </Card>
+                  <Copy class="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <p
+                v-else
+                class="mt-2 text-xs text-emerald-700/80 dark:text-emerald-300/80"
+              >
+                {{ t('chat.invite.targetedCreated') }}
+              </p>
+            </section>
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter
+          class="border-t border-border/60 bg-background/60 px-5 py-3"
+        >
           <Button
             type="button"
             variant="outline"
+            size="sm"
+            class="h-9 rounded-md shadow-xs"
             :disabled="isCreatingInvite"
             @click="inviteDialogOpen = false"
           >
@@ -1671,9 +1750,15 @@ onBeforeUnmount(() => {
           </Button>
           <Button
             type="button"
+            size="sm"
+            class="h-9 rounded-md shadow-xs"
             :disabled="isCreatingInvite || !activeGroup"
             @click="submitInvite"
           >
+            <Loader2
+              v-if="isCreatingInvite"
+              class="h-3.5 w-3.5 animate-spin"
+            />
             {{
               isCreatingInvite
                 ? t('common.processing')
@@ -1687,13 +1772,21 @@ onBeforeUnmount(() => {
     </Dialog>
 
     <Dialog v-model:open="notificationSettingsOpen">
-      <DialogContent class="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle class="flex items-center gap-2">
-            <Bell class="h-5 w-5" />
+      <DialogContent
+        class="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-lg"
+      >
+        <DialogHeader
+          class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+        >
+          <DialogTitle class="flex items-center gap-2 text-base">
+            <span
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            >
+              <Bell class="h-4 w-4" />
+            </span>
             {{ t('chat.notifications.groupTitle') }}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription class="text-xs text-muted-foreground">
             {{
               t('chat.notifications.groupDescription', {
                 group: activeGroup?.name || t('chat.groupFallbackName')
@@ -1702,52 +1795,58 @@ onBeforeUnmount(() => {
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea class="max-h-[56vh] pr-4">
-          <div class="space-y-3">
-            <Card
+        <ScrollArea class="max-h-[56vh] flex-1 px-5 py-4">
+          <div class="grid gap-2 pr-2">
+            <div
               v-if="chatChannels.length === 0"
-              class="gap-0 border-dashed py-0"
+              class="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border/60 bg-muted/20 p-8 text-center text-sm text-muted-foreground"
             >
-              <CardContent
-                class="p-8 text-center text-sm text-muted-foreground"
+              <span
+                class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
               >
-                {{ t('chat.notifications.noChannels') }}
-              </CardContent>
-            </Card>
-            <Card
+                <BellOff class="h-5 w-5" />
+              </span>
+              {{ t('chat.notifications.noChannels') }}
+            </div>
+            <div
               v-for="channel in chatChannels"
               :key="channel.id"
-              class="gap-0 py-0"
+              class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-card p-3 shadow-none"
             >
-              <CardContent
-                class="flex items-center justify-between gap-4 p-3"
-              >
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span
+                    :class="[
+                      'flex h-7 w-7 items-center justify-center rounded-md',
+                      channel.isMuted
+                        ? 'bg-muted/60 text-muted-foreground'
+                        : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    ]"
+                  >
                     <component
                       :is="channel.isMuted ? BellOff : Bell"
-                      class="h-4 w-4 text-muted-foreground"
+                      class="h-3.5 w-3.5"
                     />
-                    <span class="truncate text-sm font-medium">
-                      # {{ channel.name }}
-                    </span>
-                  </div>
-                  <p class="mt-1 text-xs text-muted-foreground">
-                    {{
-                      channel.isMuted
-                        ? t('chat.notifications.channelMuted')
-                        : t('chat.notifications.channelUnmuted')
-                    }}
-                  </p>
+                  </span>
+                  <span class="truncate text-sm font-medium">
+                    # {{ channel.name }}
+                  </span>
                 </div>
-                <Switch
-                  :model-value="!!channel.isMuted"
-                  @update:model-value="
-                    () => handleToggleChannelMute(channel.id)
-                  "
-                />
-              </CardContent>
-            </Card>
+                <p class="mt-1 text-[11px] text-muted-foreground">
+                  {{
+                    channel.isMuted
+                      ? t('chat.notifications.channelMuted')
+                      : t('chat.notifications.channelUnmuted')
+                  }}
+                </p>
+              </div>
+              <Switch
+                :model-value="!!channel.isMuted"
+                @update:model-value="
+                  () => handleToggleChannelMute(channel.id)
+                "
+              />
+            </div>
           </div>
         </ScrollArea>
       </DialogContent>
@@ -1761,35 +1860,61 @@ onBeforeUnmount(() => {
       @deleted="handleGroupDeleted"
     />
 
-    <div class="h-full min-h-0 flex-1 min-w-0 overflow-hidden">
+    <div
+      data-chat-content-panel="true"
+      class="h-full min-h-0 flex-1 min-w-0 overflow-hidden"
+      :class="isMobileNavigationOpen ? 'hidden md:block' : 'block'"
+    >
       <div
         v-if="isLoading"
-        class="h-full flex items-center justify-center text-muted-foreground"
+        class="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground"
       >
+        <Loader2 class="h-5 w-5 animate-spin" />
         {{ t('common.loading') }}
       </div>
       <div
         v-else-if="errorMessage"
-        class="h-full flex flex-col items-center justify-center gap-3 text-muted-foreground"
+        class="flex h-full items-center justify-center p-6"
       >
-        <p>{{ errorMessage }}</p>
-        <Button
-          variant="link"
-          class="h-auto p-0"
-          @click="loadChat"
+        <div
+          class="flex max-w-md flex-col items-center gap-3 rounded-lg border border-dashed border-rose-200/60 bg-rose-50/40 p-8 text-center dark:border-rose-900/40 dark:bg-rose-950/20"
         >
-          {{ t('common.refresh') }}
-        </Button>
+          <span
+            class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-600 ring-1 ring-rose-200/60 dark:text-rose-400 dark:ring-rose-900/40"
+          >
+            <AlertTriangle class="h-5 w-5" />
+          </span>
+          <p class="text-sm text-rose-800 dark:text-rose-200">
+            {{ errorMessage }}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            class="h-8 rounded-md shadow-xs"
+            @click="loadChat"
+          >
+            {{ t('common.refresh') }}
+          </Button>
+        </div>
       </div>
       <div
         v-else-if="!activeGroup && !isDirectMessageStandalone"
-        class="h-full flex items-center justify-center text-muted-foreground"
+        class="flex h-full items-center justify-center p-6"
       >
-        {{
-          directConversations.length > 0
-            ? t('chat.empty.selectDirectConversation')
-            : t('chat.empty.noGroups')
-        }}
+        <div
+          class="flex max-w-md flex-col items-center gap-3 rounded-lg border border-dashed border-border/60 bg-muted/20 p-8 text-center text-sm text-muted-foreground"
+        >
+          <span
+            class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+          >
+            <Inbox class="h-5 w-5" />
+          </span>
+          {{
+            directConversations.length > 0
+              ? t('chat.empty.selectDirectConversation')
+              : t('chat.empty.noGroups')
+          }}
+        </div>
       </div>
       <template v-else>
         <div
@@ -1804,7 +1929,7 @@ onBeforeUnmount(() => {
               @click="closeDirectMessageStandalone"
             >
               <ArrowLeft class="h-4 w-4" />
-              <span class="sr-only">返回频道</span>
+              <span class="sr-only">{{ t('chat.backToChannels') }}</span>
             </Button>
 
             <Button
@@ -1836,12 +1961,11 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <Badge
-              variant="secondary"
-              class="rounded-full px-3 py-1 text-xs"
+            <span
+              class="inline-flex items-center gap-1 rounded-full border border-sky-200/60 bg-sky-100/60 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300"
             >
               {{ t('chat.directMessage.title') }}
-            </Badge>
+            </span>
           </div>
 
           <div class="relative min-h-0 flex-1">
@@ -1874,20 +1998,18 @@ onBeforeUnmount(() => {
                     :class="{ 'justify-end': message.author.user_id === currentUserId }"
                   >
                     <div class="max-w-[72%]">
-                      <Card
-                        class="gap-0 rounded-xl py-0 text-sm leading-6 shadow-xs"
+                      <div
+                        class="rounded-xl border px-4 py-3 text-sm leading-6 shadow-xs"
                         :class="
                           message.author.user_id === currentUserId
                             ? 'ml-auto border-primary/60 bg-primary text-primary-foreground'
                             : 'border-border/70 bg-muted text-foreground dark:bg-muted/80'
                         "
                       >
-                        <CardContent class="px-4 py-3">
-                          <div class="whitespace-pre-wrap break-words">
-                            {{ message.content }}
-                          </div>
-                        </CardContent>
-                      </Card>
+                        <div class="whitespace-pre-wrap break-words">
+                          {{ message.content }}
+                        </div>
+                      </div>
                       <div
                         class="mt-1 px-1 text-[11px] text-muted-foreground"
                         :class="message.author.user_id === currentUserId ? 'text-right' : 'text-left'"
@@ -1936,6 +2058,7 @@ onBeforeUnmount(() => {
           :is-loading-direct-messages="isLoadingDirectMessages"
           :is-sending-direct-message="isSendingDirectMessage"
           :channels="chatChannels"
+          :show-mobile-navigation-toggle="true"
           @send="handleSendMessage"
           @load-more="handleLoadMore"
           @react="handleReact"
@@ -1944,6 +2067,7 @@ onBeforeUnmount(() => {
           @pin="handlePinMessage"
           @toggle-mute="() => handleToggleChannelMute()"
           @search="handleSearch"
+          @show-navigation="showMobileNavigation"
           @view-profile="openMemberProfile"
           @open-direct-message="handleOpenDirectMessage"
           @open-direct-message-standalone="handleOpenDirectMessageStandalone"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { AlertTriangle } from 'lucide-vue-next';
+import { AlertTriangle, Trash2 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,22 +42,28 @@ async function deleteAccount(): Promise<void> {
 </script>
 
 <template>
-  <section class="space-y-4 rounded-lg border border-destructive/30 p-4">
-    <div class="flex items-start gap-3">
-      <AlertTriangle class="mt-0.5 h-4 w-4 text-destructive" />
+  <section
+    class="rounded-xl border border-destructive/30 bg-destructive/[0.02] p-5 shadow-none sm:p-6"
+  >
+    <header class="mb-5 flex items-start gap-3">
+      <div
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive"
+      >
+        <AlertTriangle class="h-4 w-4" />
+      </div>
       <div class="min-w-0 space-y-1">
-        <h2 class="text-lg font-bold tracking-tight text-destructive">
+        <h2 class="text-base font-semibold tracking-tight text-destructive">
           {{ t('account.security.danger.title') }}
         </h2>
-        <p class="text-sm text-muted-foreground">
+        <p class="text-xs text-muted-foreground">
           {{ t('account.security.danger.description') }}
         </p>
       </div>
-    </div>
+    </header>
 
     <div class="grid gap-4">
       <div class="grid gap-2">
-        <Label for="delete-account-password">
+        <Label for="delete-account-password" class="text-xs font-medium">
           {{ t('account.security.currentPassword') }}
         </Label>
         <Input
@@ -67,10 +73,11 @@ async function deleteAccount(): Promise<void> {
           autocomplete="current-password"
           :disabled="pending"
           :placeholder="t('account.security.currentPasswordPlaceholder')"
+          class="h-9 shadow-xs"
         />
       </div>
       <div class="grid gap-2">
-        <Label for="delete-account-confirmation">
+        <Label for="delete-account-confirmation" class="text-xs font-medium">
           {{ t('account.security.danger.confirmation') }}
         </Label>
         <Input
@@ -78,14 +85,16 @@ async function deleteAccount(): Promise<void> {
           v-model="confirmation"
           :disabled="pending"
           :placeholder="t('account.security.danger.confirmationPlaceholder')"
+          class="h-9 shadow-xs"
         />
       </div>
       <Button
         variant="destructive"
-        class="w-full sm:w-fit"
+        class="h-9 w-full rounded-md shadow-xs sm:w-fit"
         :disabled="pending"
         @click="deleteAccount"
       >
+        <Trash2 class="h-3.5 w-3.5" />
         {{ t('account.security.danger.delete') }}
       </Button>
     </div>

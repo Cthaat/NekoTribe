@@ -4,16 +4,16 @@ import {
   Forward,
   type LucideIcon,
   MoreHorizontal,
-  Trash2,
-} from 'lucide-vue-next'
+  Trash2
+} from 'lucide-vue-next';
 
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -21,23 +21,24 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
-} from '@/components/ui/sidebar'
+  useSidebar
+} from '@/components/ui/sidebar';
 
 defineProps<{
   projects: {
-    name: string
-    url: string
-    icon: LucideIcon
-  }[]
-}>()
+    name: string;
+    url: string;
+    icon: LucideIcon;
+  }[];
+}>();
 
-const { isMobile } = useSidebar()
+const { isMobile } = useSidebar();
+const { t } = useAppLocale();
 </script>
 
 <template>
   <SidebarGroup class="group-data-[collapsible=icon]:hidden">
-    <SidebarGroupLabel>Projects</SidebarGroupLabel>
+    <SidebarGroupLabel>{{ t('nav.sections.projects') }}</SidebarGroupLabel>
     <SidebarMenu>
       <SidebarMenuItem v-for="item in projects" :key="item.name">
         <SidebarMenuButton as-child>
@@ -50,7 +51,7 @@ const { isMobile } = useSidebar()
           <DropdownMenuTrigger as-child>
             <SidebarMenuAction show-on-hover>
               <MoreHorizontal />
-              <span class="sr-only">More</span>
+              <span class="sr-only">{{ t('common.more') }}</span>
             </SidebarMenuAction>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -59,25 +60,25 @@ const { isMobile } = useSidebar()
             :align="isMobile ? 'end' : 'start'"
           >
             <DropdownMenuItem>
-              <Folder class="text-muted-foreground" />
-              <span>View Project</span>
+              <Folder class="h-4 w-4 text-muted-foreground" />
+              <span>{{ t('nav.projects.actions.view') }}</span>
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <Forward class="text-muted-foreground" />
-              <span>Share Project</span>
+              <Forward class="h-4 w-4 text-muted-foreground" />
+              <span>{{ t('nav.projects.actions.share') }}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <Trash2 class="text-muted-foreground" />
-              <span>Delete Project</span>
+            <DropdownMenuItem class="text-destructive focus:text-destructive">
+              <Trash2 class="h-4 w-4" />
+              <span>{{ t('nav.projects.actions.delete') }}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
       <SidebarMenuItem>
-        <SidebarMenuButton>
+        <SidebarMenuButton class="text-muted-foreground">
           <MoreHorizontal />
-          <span>More</span>
+          <span>{{ t('common.more') }}</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>

@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
-import { ExternalLink, Flag } from 'lucide-vue-next';
+import { onMounted, ref, watch, computed } from 'vue';
+import {
+  ExternalLink,
+  Filter,
+  Flag,
+  Inbox,
+  Loader2,
+  MessageSquareWarning,
+  RefreshCw
+} from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
@@ -38,6 +44,46 @@ const filters = ref({
   reason: 'all',
   targetType: 'all'
 });
+
+const PILL_BASE =
+  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium';
+
+function priorityPillClass(priority: string): string {
+  switch (priority) {
+    case 'urgent':
+    case 'high':
+      return `${PILL_BASE} border-rose-200/60 bg-rose-100/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300`;
+    case 'medium':
+      return `${PILL_BASE} border-amber-200/60 bg-amber-100/60 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300`;
+    default:
+      return `${PILL_BASE} border-border/60 bg-muted/40 text-muted-foreground`;
+  }
+}
+
+function statusPillClass(status: string): string {
+  switch (status) {
+    case 'resolved':
+      return `${PILL_BASE} border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300`;
+    case 'in_review':
+      return `${PILL_BASE} border-sky-200/60 bg-sky-100/60 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300`;
+    case 'dismissed':
+      return `${PILL_BASE} border-border/60 bg-muted/40 text-muted-foreground`;
+    case 'pending':
+    default:
+      return `${PILL_BASE} border-amber-200/60 bg-amber-100/60 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300`;
+  }
+}
+
+function appealStatusPillClass(status: string): string {
+  switch (status) {
+    case 'approved':
+      return `${PILL_BASE} border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300`;
+    case 'rejected':
+      return `${PILL_BASE} border-rose-200/60 bg-rose-100/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300`;
+    default:
+      return `${PILL_BASE} border-amber-200/60 bg-amber-100/60 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300`;
+  }
+}
 
 async function loadReports(reset = true): Promise<void> {
   loading.value = true;
@@ -134,172 +180,264 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <Card>
-      <CardContent class="grid gap-3 p-4 sm:flex sm:flex-wrap">
-        <Select v-model="filters.status">
-          <SelectTrigger class="w-full sm:w-[160px]">
-            <SelectValue :placeholder="t('moderation.reports.status')" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{{ t('moderation.status.all') }}</SelectItem>
-            <SelectItem value="pending">{{ t('moderation.reportStatus.pending') }}</SelectItem>
-            <SelectItem value="in_review">{{ t('moderation.reportStatus.inReview') }}</SelectItem>
-            <SelectItem value="resolved">{{ t('moderation.reportStatus.resolved') }}</SelectItem>
-            <SelectItem value="dismissed">{{ t('moderation.reportStatus.dismissed') }}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select v-model="filters.reason">
-          <SelectTrigger class="w-full sm:w-[160px]">
-            <SelectValue :placeholder="t('moderation.filters.reportReasonPlaceholder')" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{{ t('moderation.filters.reasons.all') }}</SelectItem>
-            <SelectItem value="spam">{{ t('moderation.filters.reasons.spam') }}</SelectItem>
-            <SelectItem value="harassment">{{ t('moderation.filters.reasons.harassment') }}</SelectItem>
-            <SelectItem value="hate">{{ t('moderation.filters.reasons.hate') }}</SelectItem>
-            <SelectItem value="violence">{{ t('moderation.filters.reasons.violence') }}</SelectItem>
-            <SelectItem value="adult">{{ t('moderation.filters.reasons.adult') }}</SelectItem>
-            <SelectItem value="misinformation">{{ t('moderation.filters.reasons.misinformation') }}</SelectItem>
-            <SelectItem value="copyright">{{ t('moderation.filters.reasons.copyright') }}</SelectItem>
-            <SelectItem value="other">{{ t('moderation.filters.reasons.other') }}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select v-model="filters.targetType">
-          <SelectTrigger class="w-full sm:w-[160px]">
-            <SelectValue :placeholder="t('moderation.reports.targetType')" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{{ t('common.more') }}</SelectItem>
-            <SelectItem value="post">{{ t('moderation.reports.targetPost') }}</SelectItem>
-            <SelectItem value="comment">{{ t('moderation.reports.targetComment') }}</SelectItem>
-            <SelectItem value="user">{{ t('moderation.reports.targetUser') }}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button class="w-full sm:w-auto" variant="outline" @click="loadReports(true)">
-          {{ t('moderation.actions.refresh') }}
-        </Button>
-      </CardContent>
-    </Card>
+  <div class="grid gap-4">
+    <section
+      class="grid min-w-0 gap-3 rounded-xl border border-border/60 bg-card p-4 shadow-none sm:flex sm:flex-wrap sm:items-center"
+    >
+      <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground sm:mr-2">
+        <Filter class="h-3.5 w-3.5" />
+        <span class="uppercase tracking-wider">
+          {{ t('moderation.filters.title') }}
+        </span>
+      </div>
+      <Select v-model="filters.status">
+        <SelectTrigger class="h-9 w-full rounded-md shadow-xs sm:w-[160px]">
+          <SelectValue :placeholder="t('moderation.reports.status')" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{{ t('moderation.status.all') }}</SelectItem>
+          <SelectItem value="pending">{{ t('moderation.reportStatus.pending') }}</SelectItem>
+          <SelectItem value="in_review">{{ t('moderation.reportStatus.inReview') }}</SelectItem>
+          <SelectItem value="resolved">{{ t('moderation.reportStatus.resolved') }}</SelectItem>
+          <SelectItem value="dismissed">{{ t('moderation.reportStatus.dismissed') }}</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select v-model="filters.reason">
+        <SelectTrigger class="h-9 w-full rounded-md shadow-xs sm:w-[160px]">
+          <SelectValue :placeholder="t('moderation.filters.reportReasonPlaceholder')" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{{ t('moderation.filters.reasons.all') }}</SelectItem>
+          <SelectItem value="spam">{{ t('moderation.filters.reasons.spam') }}</SelectItem>
+          <SelectItem value="harassment">{{ t('moderation.filters.reasons.harassment') }}</SelectItem>
+          <SelectItem value="hate">{{ t('moderation.filters.reasons.hate') }}</SelectItem>
+          <SelectItem value="violence">{{ t('moderation.filters.reasons.violence') }}</SelectItem>
+          <SelectItem value="adult">{{ t('moderation.filters.reasons.adult') }}</SelectItem>
+          <SelectItem value="misinformation">{{ t('moderation.filters.reasons.misinformation') }}</SelectItem>
+          <SelectItem value="copyright">{{ t('moderation.filters.reasons.copyright') }}</SelectItem>
+          <SelectItem value="other">{{ t('moderation.filters.reasons.other') }}</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select v-model="filters.targetType">
+        <SelectTrigger class="h-9 w-full rounded-md shadow-xs sm:w-[160px]">
+          <SelectValue :placeholder="t('moderation.reports.targetType')" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{{ t('common.more') }}</SelectItem>
+          <SelectItem value="post">{{ t('moderation.reports.targetPost') }}</SelectItem>
+          <SelectItem value="comment">{{ t('moderation.reports.targetComment') }}</SelectItem>
+          <SelectItem value="user">{{ t('moderation.reports.targetUser') }}</SelectItem>
+        </SelectContent>
+      </Select>
+      <Button
+        variant="outline"
+        class="h-9 w-full rounded-md shadow-xs sm:ml-auto sm:w-auto"
+        @click="loadReports(true)"
+      >
+        <RefreshCw class="h-3.5 w-3.5" />
+        {{ t('moderation.actions.refresh') }}
+      </Button>
+    </section>
 
-    <div v-if="loading && reports.length === 0" class="space-y-3">
-      <Card v-for="item in 4" :key="item">
-        <CardContent class="p-0">
-          <Skeleton class="h-24 rounded-lg" />
-        </CardContent>
-      </Card>
+    <div v-if="loading && reports.length === 0" class="grid gap-3">
+      <div
+        v-for="item in 4"
+        :key="item"
+        class="rounded-xl border border-border/60 bg-card p-5 shadow-none"
+      >
+        <Skeleton class="h-24 rounded-lg" />
+      </div>
     </div>
 
-    <Card v-else-if="reports.length === 0" class="gap-0 py-0">
-      <CardContent class="p-10 text-center text-sm text-muted-foreground">
+    <div
+      v-else-if="reports.length === 0"
+      class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 bg-muted/10 py-12 text-center"
+    >
+      <span
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+      >
+        <Inbox class="h-5 w-5 text-muted-foreground" />
+      </span>
+      <p class="text-sm text-muted-foreground">
         {{ t('moderation.reports.empty') }}
-      </CardContent>
-    </Card>
+      </p>
+    </div>
 
     <template v-else>
-      <Card v-for="report in reports" :key="report.id">
-        <CardHeader class="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
-        <div class="min-w-0">
-          <CardTitle class="flex min-w-0 items-center gap-2 text-base">
-            <Flag class="h-4 w-4 text-destructive" />
-            <span class="truncate">#{{ report.id }} · {{ t(`moderation.filters.reasons.${report.reason}`) }}</span>
-          </CardTitle>
-          <div class="mt-1 truncate text-sm text-muted-foreground">
-            {{ report.reporterName || t('moderation.reports.anonymous') }}
-            · {{ report.targetType }} #{{ report.targetId }}
+      <article
+        v-for="report in reports"
+        :key="report.id"
+        class="grid min-w-0 gap-3 overflow-hidden rounded-xl border border-border/60 bg-card p-5 shadow-none transition-all hover:border-border hover:shadow-md"
+      >
+        <header class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div class="flex min-w-0 items-start gap-3">
+            <span
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400"
+            >
+              <Flag class="h-4 w-4" />
+            </span>
+            <div class="min-w-0">
+              <h3 class="flex min-w-0 items-center gap-2 text-base font-semibold tracking-tight">
+                <span class="font-mono text-xs text-muted-foreground">#{{ report.id }}</span>
+                <span class="truncate">
+                  {{ t(`moderation.filters.reasons.${report.reason}`) }}
+                </span>
+              </h3>
+              <p class="mt-0.5 truncate text-xs text-muted-foreground">
+                {{ report.reporterName || t('moderation.reports.anonymous') }}
+                <span class="mx-1">·</span>
+                <span class="font-mono">{{ report.targetType }} #{{ report.targetId }}</span>
+              </p>
+            </div>
           </div>
-        </div>
-        <div class="flex flex-wrap gap-2 sm:justify-end">
-          <Badge variant="outline">{{ report.priority }}</Badge>
-          <Badge>{{ report.status }}</Badge>
-        </div>
-        </CardHeader>
-        <CardContent class="space-y-4">
-        <p class="text-sm">
+          <div class="flex min-w-0 flex-wrap gap-2 sm:justify-end">
+            <span :class="priorityPillClass(report.priority)">
+              {{ report.priority }}
+            </span>
+            <span :class="statusPillClass(report.status)">
+              {{ report.status }}
+            </span>
+          </div>
+        </header>
+
+        <p class="break-all text-sm leading-relaxed">
           {{ report.description || t('moderation.detail.reportFallback') }}
         </p>
-        <Button
+
+        <a
           v-if="report.evidenceUrl"
-          as="a"
           :href="report.evidenceUrl"
           target="_blank"
           rel="noreferrer"
-          variant="link"
-          class="h-auto justify-start p-0"
+          class="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-primary underline-offset-4 hover:underline"
         >
-          <ExternalLink class="h-4 w-4" />
+          <ExternalLink class="h-3.5 w-3.5" />
           {{ t('moderation.reports.evidence') }}
-        </Button>
-        <div class="grid gap-2 sm:flex sm:flex-wrap">
-          <Button size="sm" variant="outline" @click="setReportStatus(report, 'in_review')">
+        </a>
+
+        <div class="flex min-w-0 flex-wrap gap-2 border-t border-border/60 pt-3">
+          <Button
+            size="sm"
+            variant="outline"
+            class="h-8 rounded-md shadow-xs"
+            @click="setReportStatus(report, 'in_review')"
+          >
             {{ t('moderation.reportStatus.inReview') }}
           </Button>
-          <Button size="sm" @click="setReportStatus(report, 'resolved')">
+          <Button
+            size="sm"
+            class="h-8 rounded-md shadow-xs"
+            @click="setReportStatus(report, 'resolved')"
+          >
             {{ t('moderation.reportStatus.resolved') }}
           </Button>
-          <Button size="sm" variant="secondary" @click="setReportStatus(report, 'dismissed')">
+          <Button
+            size="sm"
+            variant="secondary"
+            class="h-8 rounded-md shadow-xs"
+            @click="setReportStatus(report, 'dismissed')"
+          >
             {{ t('moderation.reportStatus.dismissed') }}
           </Button>
-          <Button size="sm" variant="ghost" @click="setReportStatus(report, 'pending')">
+          <Button
+            size="sm"
+            variant="ghost"
+            class="h-8 rounded-md"
+            @click="setReportStatus(report, 'pending')"
+          >
             {{ t('moderation.reportStatus.pending') }}
           </Button>
         </div>
-        </CardContent>
-      </Card>
+      </article>
     </template>
 
-    <div v-if="hasNext" class="flex justify-center">
-      <Button variant="outline" :disabled="loading" @click="loadReports(false)">
+    <div v-if="hasNext" class="flex justify-center pt-1">
+      <Button
+        variant="outline"
+        class="h-9 rounded-md shadow-xs"
+        :disabled="loading"
+        @click="loadReports(false)"
+      >
+        <Loader2 v-if="loading" class="h-3.5 w-3.5 animate-spin" />
         {{ loading ? t('common.loading') : t('common.loadMore') }}
       </Button>
     </div>
 
-    <Card>
-      <CardHeader>
-        <CardTitle>{{ t('moderation.appeals.title') }}</CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-3">
-        <Card
-          v-if="appeals.length === 0"
-          class="gap-0 py-0"
+    <section
+      class="grid min-w-0 gap-4 overflow-hidden rounded-xl border border-border/60 bg-card p-5 shadow-none"
+    >
+      <header class="flex items-start gap-3">
+        <span
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-400"
         >
-          <CardContent class="p-6 text-center text-sm text-muted-foreground">
-            {{ t('moderation.appeals.empty') }}
-          </CardContent>
-        </Card>
-        <template v-else>
-          <div
-            v-for="appeal in appeals"
-            :key="appeal.id"
-            class="rounded-lg border p-4"
-          >
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div class="min-w-0">
-                <div class="font-medium">
-                  {{ appeal.userName }} · #{{ appeal.statementId }}
-                </div>
-                <div class="truncate text-sm text-muted-foreground">
-                  @{{ appeal.username }} · {{ appeal.status }}
-                </div>
+          <MessageSquareWarning class="h-4 w-4" />
+        </span>
+        <div class="min-w-0 grid gap-0.5">
+          <h2 class="text-lg font-semibold tracking-tight">
+            {{ t('moderation.appeals.title') }}
+          </h2>
+          <p class="text-xs text-muted-foreground">
+            {{ t('moderation.appeals.description') }}
+          </p>
+        </div>
+      </header>
+
+      <div
+        v-if="appeals.length === 0"
+        class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/10 py-10 text-center"
+      >
+        <span
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+        >
+          <Inbox class="h-5 w-5 text-muted-foreground" />
+        </span>
+        <p class="text-sm text-muted-foreground">
+          {{ t('moderation.appeals.empty') }}
+        </p>
+      </div>
+
+      <div v-else class="grid gap-3">
+        <div
+          v-for="appeal in appeals"
+          :key="appeal.id"
+          class="grid min-w-0 gap-3 overflow-hidden rounded-lg border border-border/60 bg-card p-4 shadow-xs"
+        >
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="min-w-0">
+              <div class="flex min-w-0 items-center gap-2 text-sm font-medium">
+                <span class="min-w-0 break-all">{{ appeal.userName }}</span>
+                <span class="font-mono text-xs text-muted-foreground">
+                  #{{ appeal.statementId }}
+                </span>
               </div>
-              <Badge variant="outline">{{ appeal.status }}</Badge>
+              <p class="mt-0.5 truncate text-xs text-muted-foreground">
+                @{{ appeal.username }}
+              </p>
             </div>
-            <p class="mt-3 text-sm">{{ appeal.message }}</p>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" @click="setAppealStatus(appeal, 'approved')">
-                {{ t('moderation.appeals.approve') }}
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                @click="setAppealStatus(appeal, 'rejected')"
-              >
-                {{ t('moderation.appeals.reject') }}
-              </Button>
-            </div>
+            <span :class="appealStatusPillClass(appeal.status)">
+              {{ appeal.status }}
+            </span>
           </div>
-        </template>
-      </CardContent>
-    </Card>
+          <p class="break-all text-sm leading-relaxed">{{ appeal.message }}</p>
+          <div class="flex min-w-0 flex-wrap gap-2 border-t border-border/60 pt-3">
+            <Button
+              size="sm"
+              class="h-8 rounded-md shadow-xs"
+              @click="setAppealStatus(appeal, 'approved')"
+            >
+              {{ t('moderation.appeals.approve') }}
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              class="h-8 rounded-md shadow-xs"
+              @click="setAppealStatus(appeal, 'rejected')"
+            >
+              {{ t('moderation.appeals.reject') }}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>

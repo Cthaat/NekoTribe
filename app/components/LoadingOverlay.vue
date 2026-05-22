@@ -1,27 +1,25 @@
 <script setup lang="ts">
-import { LoaderCircle } from 'lucide-vue-next';
+import { Loader2 } from 'lucide-vue-next';
 
 defineProps<{
-  text?: string; // 允许自定义加载时显示的文字
+  text?: string;
+  variant?: 'overlay' | 'inline';
 }>();
 
 const { t } = useAppLocale();
 </script>
 
 <template>
-  <!-- 
-    使用 fixed 定位和 inset-0 来覆盖整个屏幕。
-    z-50 确保它在最高层级。
-    bg-black/70 创建一个半透明的黑色背景。
-  -->
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-md transition-opacity"
+    role="status"
+    aria-live="polite"
   >
     <div
-      class="flex flex-col items-center gap-4 text-white"
+      class="flex flex-col items-center gap-3 rounded-2xl border border-border/60 bg-card/95 px-8 py-6 shadow-xl"
     >
-      <LoaderCircle class="h-10 w-10 animate-spin" />
-      <p class="text-lg font-semibold">
+      <Loader2 class="h-7 w-7 animate-spin text-primary" />
+      <p class="text-sm font-medium text-foreground">
         {{ text || t('common.processing') }}
       </p>
     </div>

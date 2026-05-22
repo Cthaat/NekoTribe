@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import GroupCard from './GroupCard.vue';
 import type { Group } from './GroupCard.vue';
 
-const props = defineProps<{
+defineProps<{
   groups: Group[];
   loading?: boolean;
   showCreateButton?: boolean;
@@ -25,7 +25,6 @@ const emit = defineEmits<{
 const isRefreshing = ref(false);
 const { t } = useAppLocale();
 
-// 处理刷新
 const handleRefresh = async () => {
   isRefreshing.value = true;
   emit('refresh');
@@ -34,40 +33,24 @@ const handleRefresh = async () => {
   }, 1000);
 };
 
-// 处理事件
-const handleJoin = (id: number) => {
-  emit('join', id);
-};
-
-const handleLeave = (id: number) => {
-  emit('leave', id);
-};
-
-const handleViewDetail = (group: Group) => {
-  emit('view-detail', group);
-};
-
-const handleSettings = (id: number) => {
-  emit('settings', id);
-};
+const handleJoin = (id: number) => emit('join', id);
+const handleLeave = (id: number) => emit('leave', id);
+const handleViewDetail = (group: Group) => emit('view-detail', group);
+const handleSettings = (id: number) => emit('settings', id);
 </script>
 
 <template>
   <div class="space-y-4">
-    <!-- 列表头部 -->
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="text-sm text-muted-foreground">
-        {{ t('groups.list.count', { count: groups.length }) }}
+        <span class="tabular-nums font-medium text-foreground">
+          {{ groups.length }}
+        </span>
+        <span class="ml-1">
+          {{ t('groups.list.count', { count: groups.length }) }}
+        </span>
       </div>
-      <div class="grid gap-2 sm:flex sm:items-center">
-        <Button
-          v-if="showCreateButton"
-          class="w-full sm:w-auto"
-          @click="emit('create')"
-        >
-          <Plus class="h-4 w-4 mr-2" />
-          {{ t('groups.actions.create') }}
-        </Button>
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Button
           variant="outline"
           size="sm"
@@ -76,58 +59,67 @@ const handleSettings = (id: number) => {
           @click="handleRefresh"
         >
           <RefreshCw
-            :class="[
-              'h-4 w-4 mr-2',
-              { 'animate-spin': isRefreshing }
-            ]"
+            :class="['h-4 w-4', { 'animate-spin': isRefreshing }]"
           />
           {{ t('common.refresh') }}
         </Button>
-      </div>
-    </div>
-
-    <!-- 加载状态 -->
-    <div
-      v-if="loading"
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-    >
-      <Skeleton v-for="i in 6" :key="i" class="h-64 rounded-lg" />
-    </div>
-
-    <!-- 空状态 -->
-    <div
-      v-else-if="groups.length === 0"
-      class="flex flex-col items-center justify-center py-16 text-center"
-    >
-      <div class="p-4 bg-muted rounded-full mb-4">
-        <Inbox class="h-8 w-8 text-muted-foreground" />
-      </div>
-      <h3 class="text-lg font-medium mb-1">
-        {{ t('groups.empty.title') }}
-      </h3>
-      <p class="text-sm text-muted-foreground max-w-sm">
-        {{ t('groups.empty.description') }}
-      </p>
-      <div class="mt-4 grid gap-2 sm:flex">
-        <Button variant="outline" @click="handleRefresh">
-          <RefreshCw class="h-4 w-4 mr-2" />
-          {{ t('groups.actions.refreshList') }}
-        </Button>
         <Button
           v-if="showCreateButton"
+          size="sm"
           class="w-full sm:w-auto"
           @click="emit('create')"
         >
-          <Plus class="h-4 w-4 mr-2" />
+          <Plus class="h-4 w-4" />
           {{ t('groups.actions.create') }}
         </Button>
       </div>
     </div>
 
-    <!-- 群组网格 -->
+    <div
+      v-if="loading"
+      class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+    >
+      <Skeleton
+        v-for="i in 6"
+        :key="i"
+        class="h-64 rounded-xl"
+      />
+    </div>
+
+    <div
+      v-else-if="groups.length === 0"
+      class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 px-6 py-16 text-center"
+    >
+      <div
+        class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+      >
+        <Inbox class="h-5 w-5 text-muted-foreground" />
+      </div>
+      <h3 class="text-base font-semibold tracking-tight">
+        {{ t('groups.empty.title') }}
+      </h3>
+      <p class="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
+        {{ t('groups.empty.description') }}
+      </p>
+      <div class="mt-5 flex flex-col gap-2 sm:flex-row">
+        <Button variant="outline" size="sm" @click="handleRefresh">
+          <RefreshCw class="h-4 w-4" />
+          {{ t('groups.actions.refreshList') }}
+        </Button>
+        <Button
+          v-if="showCreateButton"
+          size="sm"
+          @click="emit('create')"
+        >
+          <Plus class="h-4 w-4" />
+          {{ t('groups.actions.create') }}
+        </Button>
+      </div>
+    </div>
+
     <div
       v-else
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+      class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
     >
       <GroupCard
         v-for="group in groups"
@@ -140,12 +132,11 @@ const handleSettings = (id: number) => {
       />
     </div>
 
-    <!-- 加载更多 -->
     <div
       v-if="groups.length > 0"
-      class="flex justify-center pt-4"
+      class="flex justify-center pt-2"
     >
-      <Button variant="outline" @click="emit('load-more')">
+      <Button variant="outline" size="sm" @click="emit('load-more')">
         {{ t('common.loadMore') }}
       </Button>
     </div>

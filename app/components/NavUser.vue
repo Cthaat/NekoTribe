@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import {
   BadgeCheck,
   Bell,
@@ -28,7 +29,7 @@ import {
   SidebarMenuItem,
   useSidebar
 } from '@/components/ui/sidebar';
-import { usePreferenceStore } from '~/stores/user'; // 导入 store
+import { usePreferenceStore } from '~/stores/user';
 import { v2LogoutCurrent } from '@/services';
 import { toast } from 'vue-sonner';
 
@@ -47,20 +48,23 @@ const preferenceStore = usePreferenceStore();
 const isLoading = ref(false);
 const { t } = useAppLocale();
 
+const userInitials = computed(() => {
+  const name = props.user.name || props.user.email || 'NT';
+  return name.slice(0, 2).toUpperCase();
+});
+
 async function handleLogout() {
-  if (isLoading.value) return; // 防止重复点击
+  if (isLoading.value) return;
 
   isLoading.value = true;
   try {
-    preferenceStore.resetToDefaults(); // 重置用户偏好设置
+    preferenceStore.resetToDefaults();
     await v2LogoutCurrent();
     toast(t('nav.user.logoutSuccess'));
     navigateTo(localePath('/auth/login'));
   } catch (error) {
     toast.error(t('nav.user.logoutError'));
   } finally {
-    // 无论成功与否，最终都将加载状态设为 false
-    // （虽然成功后会重定向，但这是个好习惯）
     isLoading.value = false;
   }
 }
@@ -89,13 +93,15 @@ function goToNotifications(): void {
             size="lg"
             class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
-            <Avatar class="h-8 w-8 rounded-lg">
+            <Avatar class="h-8 w-8 rounded-lg ring-1 ring-sidebar-border">
               <AvatarImage
                 :src="user.avatar"
                 :alt="user.name"
               />
-              <AvatarFallback class="rounded-lg">
-                CN
+              <AvatarFallback
+                class="rounded-lg bg-primary/10 text-xs font-semibold text-primary"
+              >
+                {{ userInitials }}
               </AvatarFallback>
             </Avatar>
             <div
@@ -104,11 +110,11 @@ function goToNotifications(): void {
               <span class="truncate font-medium">{{
                 user.name
               }}</span>
-              <span class="truncate text-xs">{{
+              <span class="truncate text-xs text-muted-foreground">{{
                 user.email
               }}</span>
             </div>
-            <ChevronsUpDown class="ml-auto size-4" />
+            <ChevronsUpDown class="ml-auto size-4 text-muted-foreground" />
           </SidebarMenuButton>
         </DropdownMenuTrigger>
 
@@ -122,13 +128,15 @@ function goToNotifications(): void {
             <div
               class="flex items-center gap-2 px-1 py-1.5 text-left text-sm"
             >
-              <Avatar class="h-8 w-8 rounded-lg">
+              <Avatar class="h-8 w-8 rounded-lg ring-1 ring-border">
                 <AvatarImage
                   :src="user.avatar"
                   :alt="user.name"
                 />
-                <AvatarFallback class="rounded-lg">
-                  CN
+                <AvatarFallback
+                  class="rounded-lg bg-primary/10 text-xs font-semibold text-primary"
+                >
+                  {{ userInitials }}
                 </AvatarFallback>
               </Avatar>
               <div
@@ -137,7 +145,7 @@ function goToNotifications(): void {
                 <span class="truncate font-semibold">{{
                   user.name
                 }}</span>
-                <span class="truncate text-xs">{{
+                <span class="truncate text-xs text-muted-foreground">{{
                   user.email
                 }}</span>
               </div>
@@ -148,7 +156,7 @@ function goToNotifications(): void {
             <DropdownMenuItem
               @select="goToUserMenuRoute('account-pro')"
             >
-              <Sparkles />
+              <Sparkles class="h-4 w-4" />
               {{ t('nav.user.upgrade') }}
             </DropdownMenuItem>
           </DropdownMenuGroup>
@@ -157,28 +165,27 @@ function goToNotifications(): void {
             <DropdownMenuItem
               @select="goToUserMenuRoute('account-overview')"
             >
-              <BadgeCheck />
+              <BadgeCheck class="h-4 w-4" />
               {{ t('nav.user.account') }}
             </DropdownMenuItem>
             <DropdownMenuItem
               @select="goToUserMenuRoute('account-billing')"
             >
-              <CreditCard />
+              <CreditCard class="h-4 w-4" />
               {{ t('nav.user.billing') }}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              @select="goToNotifications"
-            >
-              <Bell />
+            <DropdownMenuItem @select="goToNotifications">
+              <Bell class="h-4 w-4" />
               {{ t('nav.user.notifications') }}
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            @select="handleLogout"
+            class="text-destructive focus:text-destructive"
             :disabled="isLoading"
+            @select="handleLogout"
           >
-            <LogOut class="mr-2 h-4 w-4" />
+            <LogOut class="h-4 w-4" />
             {{ t('nav.user.logout') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -186,5 +193,3 @@ function goToNotifications(): void {
     </SidebarMenuItem>
   </SidebarMenu>
 </template>
-
-

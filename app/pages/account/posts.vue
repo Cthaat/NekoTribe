@@ -3,25 +3,21 @@ import { computed, onMounted, ref, watch } from 'vue';
 import {
   BarChart3,
   Eye,
+  FileText,
   Heart,
+  Inbox,
+  Loader2,
   MessageCircle,
   Pencil,
   Plus,
   RefreshCw,
   Repeat,
   Search,
+  Sparkles,
   Trash2
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,7 +36,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -78,6 +73,9 @@ interface EditForm {
   location: string;
   tags: string;
 }
+
+const PILL_BASE =
+  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium';
 
 const posts = ref<PostVM[]>([]);
 const selectedPost = ref<PostVM | null>(null);
@@ -178,6 +176,21 @@ const pageSummary = computed(() => {
     )
   };
 });
+
+function visibilityPillClass(value: string): string {
+  switch (value) {
+    case 'public':
+      return `${PILL_BASE} border-sky-200/60 bg-sky-100/60 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300`;
+    case 'followers':
+      return `${PILL_BASE} border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300`;
+    case 'mentioned':
+      return `${PILL_BASE} border-violet-200/60 bg-violet-100/60 text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/40 dark:text-violet-300`;
+    case 'private':
+      return `${PILL_BASE} border-amber-200/60 bg-amber-100/60 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300`;
+    default:
+      return `${PILL_BASE} border-border/60 bg-muted/40 text-muted-foreground`;
+  }
+}
 
 function normalizeVisibility(value: string): V2PostVisibility {
   return visibilityOptions.some(option => option.value === value)
@@ -366,159 +379,179 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-5">
-    <Card>
-      <CardContent
-        class="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between"
+  <div class="grid gap-4">
+    <section
+      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
+    >
+      <header
+        class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
       >
-        <div>
-          <h2 class="text-2xl font-semibold tracking-tight">
-            {{ t('account.posts.title') }}
-          </h2>
-          <p class="text-sm text-muted-foreground">
-            {{ t('account.posts.description') }}
-          </p>
+        <div class="flex items-start gap-3">
+          <span
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+          >
+            <FileText class="h-4 w-4" />
+          </span>
+          <div class="min-w-0 grid gap-0.5">
+            <h2 class="text-lg font-semibold tracking-tight">
+              {{ t('account.posts.title') }}
+            </h2>
+            <p class="text-xs text-muted-foreground">
+              {{ t('account.posts.description') }}
+            </p>
+          </div>
         </div>
         <div class="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            class="gap-2"
+            class="h-9 rounded-md shadow-xs"
             :disabled="loading"
             @click="loadPosts(true)"
           >
-            <RefreshCw
-              class="h-4 w-4"
-              :class="{ 'animate-spin': loading }"
-            />
+            <Loader2 v-if="loading" class="h-3.5 w-3.5 animate-spin" />
+            <RefreshCw v-else class="h-3.5 w-3.5" />
             {{ t('common.refresh') }}
           </Button>
-          <Button class="gap-2" @click="createPost">
-            <Plus class="h-4 w-4" />
+          <Button class="h-9 rounded-md shadow-xs" @click="createPost">
+            <Plus class="h-3.5 w-3.5" />
             {{ t('account.posts.create') }}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </header>
+    </section>
 
-    <div class="grid gap-3 md:grid-cols-4">
-      <Card>
-        <CardContent class="p-4">
-          <div class="text-xs text-muted-foreground">
-            {{ t('account.posts.stats.total') }}
-          </div>
-          <div class="mt-1 text-2xl font-semibold">
-            {{ pageSummary.totalPosts }}
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent class="p-4">
-          <div class="text-xs text-muted-foreground">
-            {{ t('account.posts.stats.visible') }}
-          </div>
-          <div class="mt-1 text-2xl font-semibold">
-            {{ pageSummary.visiblePosts }}
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent class="p-4">
-          <div class="text-xs text-muted-foreground">
-            {{ t('account.posts.stats.views') }}
-          </div>
-          <div class="mt-1 text-2xl font-semibold">
-            {{ pageSummary.views }}
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent class="p-4">
-          <div class="text-xs text-muted-foreground">
-            {{ t('account.posts.stats.interactions') }}
-          </div>
-          <div class="mt-1 text-2xl font-semibold">
-            {{ pageSummary.interactions }}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-
-    <Card>
-      <CardContent
-        class="grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_220px_180px_180px]"
+    <section class="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+      <article
+        class="grid gap-1.5 rounded-xl border border-border/60 bg-card p-4 shadow-none"
       >
-        <div class="relative">
-          <Search
-            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            v-model="search"
-            class="pl-9"
-            :placeholder="t('account.posts.searchPlaceholder')"
-            @keyup.enter="loadPosts(true)"
-          />
+        <div class="text-[11px] uppercase tracking-wider text-muted-foreground">
+          {{ t('account.posts.stats.total') }}
         </div>
-        <Select v-model="sort" @update:model-value="loadPosts(true)">
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="newest">
-              {{ t('account.posts.sort.newest') }}
-            </SelectItem>
-            <SelectItem value="oldest">
-              {{ t('account.posts.sort.oldest') }}
-            </SelectItem>
-            <SelectItem value="popular">
-              {{ t('account.posts.sort.popular') }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <Select v-model="visibilityFilter">
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">
-              {{ t('account.posts.visibility.all') }}
-            </SelectItem>
-            <SelectItem
-              v-for="option in visibilityOptions"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ t(option.labelKey) }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <Button variant="secondary" @click="loadPosts(true)">
-          {{ t('common.search') }}
-        </Button>
-      </CardContent>
-    </Card>
+        <div class="text-2xl font-semibold tabular-nums">
+          {{ pageSummary.totalPosts }}
+        </div>
+      </article>
+      <article
+        class="grid gap-1.5 rounded-xl border border-border/60 bg-card p-4 shadow-none"
+      >
+        <div class="text-[11px] uppercase tracking-wider text-muted-foreground">
+          {{ t('account.posts.stats.visible') }}
+        </div>
+        <div class="text-2xl font-semibold tabular-nums">
+          {{ pageSummary.visiblePosts }}
+        </div>
+      </article>
+      <article
+        class="grid gap-1.5 rounded-xl border border-border/60 bg-card p-4 shadow-none"
+      >
+        <div class="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <Eye class="h-3 w-3" />
+          {{ t('account.posts.stats.views') }}
+        </div>
+        <div class="text-2xl font-semibold tabular-nums">
+          {{ pageSummary.views }}
+        </div>
+      </article>
+      <article
+        class="grid gap-1.5 rounded-xl border border-border/60 bg-card p-4 shadow-none"
+      >
+        <div class="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <Sparkles class="h-3 w-3" />
+          {{ t('account.posts.stats.interactions') }}
+        </div>
+        <div class="text-2xl font-semibold tabular-nums">
+          {{ pageSummary.interactions }}
+        </div>
+      </article>
+    </section>
 
-    <div class="grid min-h-[620px] gap-5 xl:grid-cols-[minmax(0,1fr)_28rem]">
-      <Card class="min-w-0 gap-0 overflow-hidden py-0">
-        <CardHeader
-          class="flex flex-row items-center justify-between border-b px-4 py-3 !pb-3"
+    <section
+      class="grid gap-3 rounded-xl border border-border/60 bg-card p-4 shadow-none lg:grid-cols-[minmax(0,1fr)_200px_180px_120px]"
+    >
+      <div class="relative">
+        <Search
+          class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          v-model="search"
+          class="h-9 pl-9 shadow-xs"
+          :placeholder="t('account.posts.searchPlaceholder')"
+          @keyup.enter="loadPosts(true)"
+        />
+      </div>
+      <Select v-model="sort" @update:model-value="loadPosts(true)">
+        <SelectTrigger class="h-9 w-full rounded-md shadow-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="newest">
+            {{ t('account.posts.sort.newest') }}
+          </SelectItem>
+          <SelectItem value="oldest">
+            {{ t('account.posts.sort.oldest') }}
+          </SelectItem>
+          <SelectItem value="popular">
+            {{ t('account.posts.sort.popular') }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      <Select v-model="visibilityFilter">
+        <SelectTrigger class="h-9 w-full rounded-md shadow-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">
+            {{ t('account.posts.visibility.all') }}
+          </SelectItem>
+          <SelectItem
+            v-for="option in visibilityOptions"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ t(option.labelKey) }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      <Button
+        variant="secondary"
+        class="h-9 rounded-md shadow-xs"
+        @click="loadPosts(true)"
+      >
+        {{ t('common.search') }}
+      </Button>
+    </section>
+
+    <div
+      class="grid min-h-[620px] gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]"
+    >
+      <section
+        class="grid min-w-0 overflow-hidden rounded-xl border border-border/60 bg-card shadow-none"
+      >
+        <header
+          class="flex items-center justify-between gap-3 border-b border-border/60 bg-background/60 px-4 py-3 backdrop-blur"
         >
-          <CardTitle class="text-sm font-medium">
+          <h3 class="text-sm font-semibold tracking-tight">
             {{
               t('account.posts.listTitle', {
                 count: filteredPosts.length
               })
             }}
-          </CardTitle>
-          <Badge variant="outline">
+          </h3>
+          <span
+            :class="[
+              PILL_BASE,
+              'border-border/60 bg-muted/40 text-muted-foreground'
+            ]"
+          >
             {{ t('common.pagination', {
               page,
               totalPages: Math.max(1, Math.ceil(total / pageSize)),
               total
             }) }}
-          </Badge>
-        </CardHeader>
+          </span>
+        </header>
 
-        <CardContent class="p-3">
+        <div class="p-3">
           <div
             v-if="loading && posts.length === 0"
             class="grid gap-3"
@@ -532,36 +565,43 @@ onMounted(() => {
 
           <div
             v-else-if="filteredPosts.length === 0"
-            class="flex min-h-[360px] flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 px-6 text-center"
+            class="flex min-h-[360px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/10 px-6 py-12 text-center"
           >
-            <BarChart3 class="mb-3 h-9 w-9 text-muted-foreground" />
-            <div class="font-medium">
+            <span
+              class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+            >
+              <Inbox class="h-5 w-5 text-muted-foreground" />
+            </span>
+            <div class="text-sm font-medium">
               {{ t('account.posts.emptyTitle') }}
             </div>
-            <p class="mt-1 max-w-sm text-sm text-muted-foreground">
+            <p class="max-w-sm text-xs text-muted-foreground">
               {{ t('account.posts.emptyDescription') }}
             </p>
-            <Button class="mt-4 gap-2" @click="createPost">
-              <Plus class="h-4 w-4" />
+            <Button
+              class="mt-2 h-9 rounded-md shadow-xs"
+              @click="createPost"
+            >
+              <Plus class="h-3.5 w-3.5" />
               {{ t('account.posts.create') }}
             </Button>
           </div>
 
-          <ScrollArea v-else class="h-[640px] rounded-md">
+          <ScrollArea v-else class="h-[min(640px,calc(100dvh-16rem))] rounded-md">
             <div class="pr-3">
               <Table class="min-w-[760px]">
                 <TableHeader>
-                  <TableRow>
-                    <TableHead class="w-[42%]">
+                  <TableRow class="border-border/60 bg-muted/20 hover:bg-muted/30">
+                    <TableHead class="h-9 w-[42%] text-[11px] uppercase tracking-wider text-muted-foreground">
                       {{ t('account.posts.table.post') }}
                     </TableHead>
-                    <TableHead>
+                    <TableHead class="h-9 text-[11px] uppercase tracking-wider text-muted-foreground">
                       {{ t('account.posts.form.visibility') }}
                     </TableHead>
-                    <TableHead>
+                    <TableHead class="h-9 text-[11px] uppercase tracking-wider text-muted-foreground">
                       {{ t('account.posts.table.createdAt') }}
                     </TableHead>
-                    <TableHead class="text-right">
+                    <TableHead class="h-9 text-right text-[11px] uppercase tracking-wider text-muted-foreground">
                       {{ t('account.posts.table.metrics') }}
                     </TableHead>
                   </TableRow>
@@ -572,7 +612,12 @@ onMounted(() => {
                     :key="post.id"
                     role="button"
                     tabindex="0"
-                    class="cursor-pointer align-top"
+                    class="cursor-pointer border-border/60 align-top transition-colors hover:bg-muted/30"
+                    :class="
+                      selectedPost?.id === post.id
+                        ? 'bg-primary/5'
+                        : ''
+                    "
                     :data-state="
                       selectedPost?.id === post.id
                         ? 'selected'
@@ -586,7 +631,7 @@ onMounted(() => {
                       <div class="flex items-start gap-3">
                         <div
                           v-if="post.media.length > 0"
-                          class="hidden h-16 w-20 shrink-0 overflow-hidden rounded-md border bg-muted sm:block"
+                          class="hidden h-16 w-20 shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted sm:block"
                         >
                           <img
                             :src="post.media[0]?.thumbnailUrl || ''"
@@ -595,15 +640,20 @@ onMounted(() => {
                           />
                         </div>
                         <div class="min-w-0">
-                          <div class="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary">
+                          <div class="flex flex-wrap items-center gap-1.5">
+                            <span
+                              :class="[
+                                PILL_BASE,
+                                'border-border/60 bg-muted/40 text-muted-foreground'
+                              ]"
+                            >
                               {{ post.postType }}
-                            </Badge>
-                            <Badge variant="outline">
+                            </span>
+                            <span class="font-mono text-[11px] text-muted-foreground">
                               #{{ post.id }}
-                            </Badge>
+                            </span>
                           </div>
-                          <p class="mt-2 line-clamp-2 leading-6">
+                          <p class="mt-2 line-clamp-2 text-sm leading-relaxed">
                             {{
                               post.content ||
                               t('account.posts.emptyContent')
@@ -613,44 +663,47 @@ onMounted(() => {
                             v-if="post.tags.length > 0"
                             class="mt-2 flex flex-wrap gap-1"
                           >
-                            <Badge
+                            <span
                               v-for="tag in post.tags"
                               :key="tag"
-                              variant="outline"
+                              :class="[
+                                PILL_BASE,
+                                'border-primary/20 bg-primary/5 text-primary'
+                              ]"
                             >
                               #{{ tag }}
-                            </Badge>
+                            </span>
                           </div>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">
+                      <span :class="visibilityPillClass(post.visibility)">
                         {{ visibilityLabel(post.visibility) }}
-                      </Badge>
+                      </span>
                     </TableCell>
-                    <TableCell class="text-muted-foreground">
+                    <TableCell class="font-mono text-xs tabular-nums text-muted-foreground">
                       {{ formatDate(post.createdAt) }}
                     </TableCell>
                     <TableCell>
                       <div
                         class="grid min-w-44 grid-cols-2 gap-2 text-xs text-muted-foreground"
                       >
-                        <span class="flex items-center gap-1">
+                        <span class="flex items-center gap-1 tabular-nums">
                           <Eye class="h-3.5 w-3.5" />
                           {{ post.counts.views }}
                         </span>
-                        <span class="flex items-center gap-1">
+                        <span class="flex items-center gap-1 tabular-nums">
                           <Heart class="h-3.5 w-3.5" />
                           {{ post.counts.likes }}
                         </span>
-                        <span class="flex items-center gap-1">
+                        <span class="flex items-center gap-1 tabular-nums">
                           <MessageCircle class="h-3.5 w-3.5" />
                           {{
                             post.counts.comments + post.counts.replies
                           }}
                         </span>
-                        <span class="flex items-center gap-1">
+                        <span class="flex items-center gap-1 tabular-nums">
                           <Repeat class="h-3.5 w-3.5" />
                           {{ post.counts.retweets }}
                         </span>
@@ -663,36 +716,56 @@ onMounted(() => {
               <div v-if="hasNext" class="flex justify-center pt-4">
                 <Button
                   variant="outline"
+                  class="h-9 rounded-md shadow-xs"
                   :disabled="loading"
                   @click="loadPosts(false)"
                 >
-                  {{ t('common.loadMore') }}
+                  <Loader2 v-if="loading" class="h-3.5 w-3.5 animate-spin" />
+                  {{ loading ? t('common.loading') : t('common.loadMore') }}
                 </Button>
               </div>
             </div>
           </ScrollArea>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      <Card class="min-w-0 gap-0 overflow-hidden py-0">
-        <CardHeader class="border-b px-5 py-4 !pb-4">
-          <CardTitle class="flex items-center gap-2 text-base">
+      <section
+        class="grid min-w-0 overflow-hidden rounded-xl border border-border/60 bg-card shadow-none"
+      >
+        <header
+          class="flex items-start gap-3 border-b border-border/60 bg-background/60 px-5 py-4 backdrop-blur"
+        >
+          <span
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+          >
             <Pencil class="h-4 w-4" />
-            {{ t('account.posts.detailTitle') }}
-          </CardTitle>
-          <CardDescription>
-            {{ t('account.posts.detailDescription') }}
-          </CardDescription>
-        </CardHeader>
-        <CardContent class="p-5">
-          <div v-if="!selectedPost" class="py-16 text-center">
-            <BarChart3 class="mx-auto h-8 w-8 text-muted-foreground" />
-            <p class="mt-3 text-sm text-muted-foreground">
+          </span>
+          <div class="min-w-0 grid gap-0.5">
+            <h3 class="text-base font-semibold tracking-tight">
+              {{ t('account.posts.detailTitle') }}
+            </h3>
+            <p class="text-xs text-muted-foreground">
+              {{ t('account.posts.detailDescription') }}
+            </p>
+          </div>
+        </header>
+
+        <div class="p-5">
+          <div
+            v-if="!selectedPost"
+            class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/10 py-16 text-center"
+          >
+            <span
+              class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+            >
+              <BarChart3 class="h-5 w-5 text-muted-foreground" />
+            </span>
+            <p class="text-sm text-muted-foreground">
               {{ t('account.posts.noSelection') }}
             </p>
           </div>
 
-          <div v-else class="space-y-5">
+          <div v-else class="grid gap-5">
             <div class="grid grid-cols-2 gap-3">
               <div
                 v-for="metric in [
@@ -722,52 +795,56 @@ onMounted(() => {
                   }
                 ]"
                 :key="metric.label"
-                class="rounded-md border bg-muted/20 p-3"
+                class="grid gap-0.5 rounded-lg border border-border/60 bg-muted/20 p-3"
               >
-                <div class="text-xs text-muted-foreground">
+                <div class="text-[11px] uppercase tracking-wider text-muted-foreground">
                   {{ metric.label }}
                 </div>
-                <div class="mt-1 text-xl font-semibold">
+                <div class="text-lg font-semibold tabular-nums">
                   {{ metric.value }}
                 </div>
               </div>
             </div>
 
-            <div class="rounded-md border bg-muted/20 p-3">
-              <div class="text-xs text-muted-foreground">
+            <div class="grid gap-0.5 rounded-lg border border-border/60 bg-muted/20 p-3">
+              <div class="text-[11px] uppercase tracking-wider text-muted-foreground">
                 {{ t('account.posts.metrics.likeRate') }}
               </div>
-              <div class="mt-1 text-xl font-semibold">
+              <div class="text-lg font-semibold tabular-nums">
                 {{
                   `${Math.round((selectedStats?.likeRate ?? 0) * 100)}%`
                 }}
               </div>
               <div
                 v-if="analyticsLoading"
-                class="mt-1 text-xs text-muted-foreground"
+                class="flex items-center gap-1.5 text-[11px] text-muted-foreground"
               >
+                <Loader2 class="h-3 w-3 animate-spin" />
                 {{ t('account.posts.loadingAnalytics') }}
               </div>
             </div>
 
-            <Separator />
+            <div class="h-px w-full bg-border/60" />
 
-            <div class="space-y-2">
-              <Label for="managed-post-content">
+            <div class="grid gap-2">
+              <Label for="managed-post-content" class="text-xs font-medium">
                 {{ t('account.posts.form.content') }}
               </Label>
               <Textarea
                 id="managed-post-content"
                 v-model="editForm.content"
                 rows="7"
+                class="resize-none shadow-xs"
               />
             </div>
 
             <div class="grid gap-3 sm:grid-cols-2">
-              <div class="space-y-2">
-                <Label>{{ t('account.posts.form.visibility') }}</Label>
+              <div class="grid gap-2">
+                <Label class="text-xs font-medium">
+                  {{ t('account.posts.form.visibility') }}
+                </Label>
                 <Select v-model="editForm.visibility">
-                  <SelectTrigger>
+                  <SelectTrigger class="h-9 rounded-md shadow-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -782,10 +859,12 @@ onMounted(() => {
                 </Select>
               </div>
 
-              <div class="space-y-2">
-                <Label>{{ t('account.posts.form.language') }}</Label>
+              <div class="grid gap-2">
+                <Label class="text-xs font-medium">
+                  {{ t('account.posts.form.language') }}
+                </Label>
                 <Select v-model="editForm.language">
-                  <SelectTrigger>
+                  <SelectTrigger class="h-9 rounded-md shadow-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -801,52 +880,55 @@ onMounted(() => {
               </div>
             </div>
 
-            <div class="space-y-2">
-              <Label for="managed-post-location">
+            <div class="grid gap-2">
+              <Label for="managed-post-location" class="text-xs font-medium">
                 {{ t('account.posts.form.location') }}
               </Label>
               <Input
                 id="managed-post-location"
                 v-model="editForm.location"
+                class="h-9 shadow-xs"
                 :placeholder="t('post.composer.locationPlaceholder')"
               />
             </div>
 
-            <div class="space-y-2">
-              <Label for="managed-post-tags">
+            <div class="grid gap-2">
+              <Label for="managed-post-tags" class="text-xs font-medium">
                 {{ t('account.posts.form.tags') }}
               </Label>
               <Input
                 id="managed-post-tags"
                 v-model="editForm.tags"
+                class="h-9 shadow-xs"
                 :placeholder="t('account.posts.form.tagsPlaceholder')"
               />
             </div>
 
-            <div class="flex flex-wrap justify-between gap-2">
+            <div class="flex flex-wrap justify-between gap-2 border-t border-border/60 pt-4">
               <Button
                 variant="outline"
-                class="gap-2"
+                class="h-9 rounded-md shadow-xs"
                 @click="openSelectedPost(selectedPost)"
               >
-                <Eye class="h-4 w-4" />
+                <Eye class="h-3.5 w-3.5" />
                 {{ t('account.posts.open') }}
               </Button>
               <div class="flex flex-wrap gap-2">
                 <Button
                   variant="destructive"
-                  class="gap-2"
+                  class="h-9 rounded-md shadow-xs"
                   @click="askDelete(selectedPost)"
                 >
-                  <Trash2 class="h-4 w-4" />
+                  <Trash2 class="h-3.5 w-3.5" />
                   {{ t('common.delete') }}
                 </Button>
                 <Button
-                  class="gap-2"
+                  class="h-9 rounded-md shadow-xs"
                   :disabled="saving"
                   @click="saveSelectedPost"
                 >
-                  <Pencil class="h-4 w-4" />
+                  <Loader2 v-if="saving" class="h-3.5 w-3.5 animate-spin" />
+                  <Pencil v-else class="h-3.5 w-3.5" />
                   {{
                     saving
                       ? t('common.processing')
@@ -856,33 +938,51 @@ onMounted(() => {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
 
     <Dialog
       :open="deleteDialogOpen"
       @update:open="deleteDialogOpen = $event"
     >
-      <DialogContent class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{{ t('post.delete.title') }}</DialogTitle>
-          <DialogDescription>
+      <DialogContent
+        class="max-w-md overflow-hidden rounded-xl border-border/60 p-0"
+      >
+        <DialogHeader
+          class="border-b border-border/60 bg-background/60 px-5 py-4 backdrop-blur"
+        >
+          <DialogTitle
+            class="flex items-center gap-2 text-base font-semibold tracking-tight"
+          >
+            <span
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400"
+            >
+              <Trash2 class="h-3.5 w-3.5" />
+            </span>
+            {{ t('post.delete.title') }}
+          </DialogTitle>
+          <DialogDescription class="text-xs">
             {{ t('post.delete.description') }}
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter>
+        <DialogFooter
+          class="flex-col gap-2 border-t border-border/60 bg-muted/20 px-5 py-3 sm:flex-row"
+        >
           <Button
             variant="outline"
+            class="h-9 w-full rounded-md shadow-xs sm:w-auto"
             @click="deleteDialogOpen = false"
           >
             {{ t('common.cancel') }}
           </Button>
           <Button
             variant="destructive"
+            class="h-9 w-full rounded-md shadow-xs sm:w-auto"
             :disabled="deleting"
             @click="confirmDelete"
           >
+            <Loader2 v-if="deleting" class="h-3.5 w-3.5 animate-spin" />
             {{
               deleting ? t('common.processing') : t('common.delete')
             }}

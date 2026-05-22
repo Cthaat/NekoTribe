@@ -45,14 +45,71 @@ const RICH_MEDIA_MIME_TYPES = new Set([
   'video/ogg',
   'video/webm'
 ]);
+const DOCUMENT_MEDIA_MIME_TYPES = new Set([
+  'application/json',
+  'application/msword',
+  'application/pdf',
+  'application/rtf',
+  'application/vnd.ms-excel',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.oasis.opendocument.presentation',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'application/vnd.oasis.opendocument.text',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/xml',
+  'text/csv',
+  'text/markdown',
+  'text/plain',
+  'text/tab-separated-values',
+  'text/xml'
+]);
+const ARCHIVE_MEDIA_MIME_TYPES = new Set([
+  'application/gzip',
+  'application/vnd.rar',
+  'application/x-7z-compressed',
+  'application/x-rar-compressed',
+  'application/x-tar',
+  'application/zip'
+]);
 const MEDIA_MIME_TYPES = new Set([
   ...IMAGE_MEDIA_MIME_TYPES,
-  ...RICH_MEDIA_MIME_TYPES
+  ...RICH_MEDIA_MIME_TYPES,
+  ...DOCUMENT_MEDIA_MIME_TYPES,
+  ...ARCHIVE_MEDIA_MIME_TYPES
 ]);
 
 const AVATAR_MAX_SIZE = 10 * 1024 * 1024;
 const MEDIA_MAX_SIZE = 500 * 1024 * 1024;
 const FALLBACK_FILE_EXTENSION = '.bin';
+const MIME_BY_EXTENSION: Record<string, string> = {
+  '.7z': 'application/x-7z-compressed',
+  '.csv': 'text/csv',
+  '.doc': 'application/msword',
+  '.docx':
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.gz': 'application/gzip',
+  '.json': 'application/json',
+  '.md': 'text/markdown',
+  '.odp': 'application/vnd.oasis.opendocument.presentation',
+  '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
+  '.odt': 'application/vnd.oasis.opendocument.text',
+  '.pdf': 'application/pdf',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx':
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.rar': 'application/vnd.rar',
+  '.rtf': 'application/rtf',
+  '.tar': 'application/x-tar',
+  '.tsv': 'text/tab-separated-values',
+  '.txt': 'text/plain',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx':
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xml': 'application/xml',
+  '.zip': 'application/zip'
+};
 
 export const STORAGE_AVATAR_MAX_SIZE = AVATAR_MAX_SIZE;
 export const STORAGE_MEDIA_MAX_SIZE = MEDIA_MAX_SIZE;
@@ -109,6 +166,18 @@ function pickDetectedExtension(
   }
 
   return FALLBACK_FILE_EXTENSION;
+}
+
+function normalizeMimeType(
+  mimeType: string | null | undefined
+): string {
+  return mimeType?.split(';')[0]?.trim().toLowerCase() ?? '';
+}
+
+function inferMimeTypeFromExtension(
+  extension: string
+): string {
+  return MIME_BY_EXTENSION[extension.toLowerCase()] ?? '';
 }
 
 function inferManagedMediaType(
@@ -215,11 +284,19 @@ async function detectUploadedFile(
   const detected = await fileTypeFromFile(file.filepath);
   const originalName =
     file.originalFilename || path.basename(file.filepath);
-  const mimeType = detected?.mime || '';
   const extension = pickDetectedExtension(
     detected?.ext,
     originalName
   );
+  const detectedMimeType = normalizeMimeType(detected?.mime);
+  const uploadedMimeType = normalizeMimeType(file.mimetype);
+  const extensionMimeType = inferMimeTypeFromExtension(extension);
+  const fallbackMimeType =
+    uploadedMimeType === 'application/octet-stream'
+      ? extensionMimeType || uploadedMimeType
+      : uploadedMimeType;
+  const mimeType =
+    detectedMimeType || fallbackMimeType || extensionMimeType;
 
   return {
     extension,
@@ -476,7 +553,7 @@ export async function validateMediaFile(
   if (!MEDIA_MIME_TYPES.has(detected.mimeType)) {
     throw new StorageHttpError(
       400,
-      '仅支持图片、视频或音频文件'
+      '仅支持图片、视频、音频、文档、文本或压缩包文件'
     );
   }
 

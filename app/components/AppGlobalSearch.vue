@@ -202,7 +202,7 @@ onBeforeUnmount(() => {
           type="search"
           :placeholder="t('globalSearch.placeholder')"
           autocomplete="off"
-          class="h-10 rounded-full pl-9 pr-24"
+          class="h-9 rounded-md pl-9 pr-3 shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40 sm:pr-24"
           @focus="handleFocus"
           @keydown.enter.prevent="submitPostSearch"
           @keydown.esc="closeSearch"
@@ -212,7 +212,7 @@ onBeforeUnmount(() => {
           type="button"
           variant="secondary"
           size="sm"
-          class="absolute right-1 top-1/2 h-8 -translate-y-1/2 rounded-full px-3 text-xs"
+          class="absolute right-1 top-1/2 hidden h-7 -translate-y-1/2 rounded-md px-2.5 text-xs sm:inline-flex"
           @click="submitPostSearch"
         >
           {{ t('globalSearch.postsAction') }}
@@ -222,37 +222,42 @@ onBeforeUnmount(() => {
 
     <PopoverContent
       align="start"
-      class="w-[min(32rem,calc(100vw-2rem))] p-0"
-      :side-offset="8"
+      class="w-[min(32rem,calc(100vw-2rem))] overflow-hidden p-0 shadow-lg"
+      :side-offset="6"
     >
-      <div class="border-b px-3 py-2">
-        <div class="flex items-center justify-between gap-3">
-          <div class="flex items-center gap-2 text-sm font-medium">
-            <UserRound class="h-4 w-4 text-muted-foreground" />
-            {{ t('globalSearch.usersTitle') }}
-          </div>
-          <Badge variant="outline" class="text-[11px]">
-            {{ t('globalSearch.enterHint') }}
-          </Badge>
+      <div class="flex items-center justify-between gap-3 border-b px-3 py-2.5">
+        <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <UserRound class="h-3.5 w-3.5" />
+          <span>{{ t('globalSearch.usersTitle') }}</span>
         </div>
+        <kbd
+          class="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground"
+        >
+          {{ t('globalSearch.enterHint') }}
+        </kbd>
       </div>
 
       <div
         v-if="!canSearchUsers"
-        class="px-4 py-8 text-center text-sm text-muted-foreground"
+        class="flex flex-col items-center justify-center gap-1.5 px-4 py-10 text-center"
       >
-        {{ t('globalSearch.minHint') }}
+        <div class="rounded-full bg-muted/60 p-2">
+          <Search class="h-4 w-4 text-muted-foreground" />
+        </div>
+        <p class="text-sm text-muted-foreground">
+          {{ t('globalSearch.minHint') }}
+        </p>
       </div>
 
-      <div v-else-if="isSearchingUsers" class="space-y-3 p-3">
+      <div v-else-if="isSearchingUsers" class="space-y-1 p-2">
         <div
           v-for="index in 3"
           :key="index"
-          class="flex items-center gap-3"
+          class="flex items-center gap-3 rounded-md px-2 py-2"
         >
-          <Skeleton class="h-10 w-10 rounded-full" />
-          <div class="min-w-0 flex-1 space-y-2">
-            <Skeleton class="h-4 w-36" />
+          <Skeleton class="h-9 w-9 rounded-full" />
+          <div class="min-w-0 flex-1 space-y-1.5">
+            <Skeleton class="h-3.5 w-36" />
             <Skeleton class="h-3 w-24" />
           </div>
         </div>
@@ -267,27 +272,31 @@ onBeforeUnmount(() => {
 
       <div
         v-else-if="users.length === 0"
-        class="px-4 py-8 text-center text-sm text-muted-foreground"
+        class="flex flex-col items-center justify-center gap-1.5 px-4 py-10 text-center"
       >
-        {{ t('globalSearch.empty') }}
+        <div class="rounded-full bg-muted/60 p-2">
+          <UserRound class="h-4 w-4 text-muted-foreground" />
+        </div>
+        <p class="text-sm text-muted-foreground">
+          {{ t('globalSearch.empty') }}
+        </p>
       </div>
 
       <ScrollArea v-else class="max-h-80">
-        <div class="p-2">
-          <Button
+        <div class="p-1.5">
+          <button
             v-for="user in users"
             :key="user.id"
             type="button"
-            variant="ghost"
-            class="h-auto w-full justify-start gap-3 rounded-md p-2 text-left"
+            class="flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
             @click="openUserProfile(user)"
           >
-            <Avatar class="h-10 w-10 shrink-0">
+            <Avatar class="h-9 w-9 shrink-0 ring-1 ring-border">
               <AvatarImage
                 :src="user.avatarUrl"
                 :alt="user.name"
               />
-              <AvatarFallback>
+              <AvatarFallback class="text-xs">
                 {{ avatarFallback(user) }}
               </AvatarFallback>
             </Avatar>
@@ -298,7 +307,7 @@ onBeforeUnmount(() => {
                 </span>
                 <CheckCircle2
                   v-if="user.verified"
-                  class="h-3.5 w-3.5 shrink-0 text-primary"
+                  class="h-3.5 w-3.5 shrink-0 text-sky-500"
                 />
               </div>
               <div class="truncate text-xs text-muted-foreground">
@@ -310,7 +319,7 @@ onBeforeUnmount(() => {
                 }}
               </div>
             </div>
-          </Button>
+          </button>
         </div>
       </ScrollArea>
     </PopoverContent>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, type Component, type HTMLAttributes } from 'vue';
 import { Inbox } from 'lucide-vue-next';
-import { Card, CardContent } from '@/components/ui/card';
 
 interface Props {
   title: string;
@@ -15,32 +14,32 @@ const emptyIcon = computed(() => props.icon ?? Inbox);
 </script>
 
 <template>
-  <Card
+  <div
     :class="[
-      'mx-auto max-w-md gap-0 border-dashed bg-muted/20 py-0',
+      'mx-auto flex max-w-md flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 px-6 py-12 text-center',
       props.class
     ]"
   >
-    <CardContent
-      class="flex flex-col items-center justify-center px-6 py-10 text-center"
+    <div
+      class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
     >
       <component
         :is="emptyIcon"
-        class="mb-3 h-9 w-9 text-muted-foreground"
+        class="h-5 w-5 text-muted-foreground"
         aria-hidden="true"
       />
-      <h3 class="text-sm font-medium">
-        {{ props.title }}
-      </h3>
-      <p
-        v-if="props.description"
-        class="mt-1 text-sm text-muted-foreground"
-      >
-        {{ props.description }}
-      </p>
-      <div v-if="$slots.default" class="mt-4">
-        <slot />
-      </div>
-    </CardContent>
-  </Card>
+    </div>
+    <h3 class="text-base font-semibold tracking-tight">
+      {{ props.title }}
+    </h3>
+    <p
+      v-if="props.description"
+      class="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground"
+    >
+      {{ props.description }}
+    </p>
+    <div v-if="$slots.default" class="mt-5">
+      <slot />
+    </div>
+  </div>
 </template>

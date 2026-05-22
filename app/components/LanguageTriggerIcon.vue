@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import { Check } from 'lucide-vue-next';
 
 const { t, locale, localeOptions, setAppLocale } =
   useAppLocale();
@@ -25,14 +26,19 @@ const { t, locale, localeOptions, setAppLocale } =
         }}</span>
       </Button>
     </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
+    <DropdownMenuContent align="end" class="w-40">
       <DropdownMenuItem
         v-for="option in localeOptions"
         :key="option.code"
         :data-active="option.code === locale"
+        class="flex items-center justify-between"
         @select="() => setAppLocale(option.code)"
       >
-        {{ option.name }}
+        <span>{{ option.name }}</span>
+        <Check
+          v-if="option.code === locale"
+          class="h-4 w-4 text-primary"
+        />
       </DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>

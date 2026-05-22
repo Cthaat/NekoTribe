@@ -8,6 +8,12 @@ export interface RealtimeMessage {
 
 type RealtimeListener = (message: RealtimeMessage) => void;
 
+declare global {
+  interface Window {
+    __NEKOTRIBE_DISABLE_REALTIME__?: boolean;
+  }
+}
+
 let socket: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -130,6 +136,7 @@ function scheduleReconnect(): void {
 
 export function connectRealtimeSocket(): void {
   if (!import.meta.client || socket) return;
+  if (window.__NEKOTRIBE_DISABLE_REALTIME__) return;
 
   const preferenceStore = usePreferenceStore();
   if (!preferenceStore.isLoggedIn) return;

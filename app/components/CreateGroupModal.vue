@@ -331,7 +331,7 @@ onBeforeUnmount(() => {
 
 <template>
   <Dialog :open="open" @update:open="closeDialog">
-    <DialogContent class="max-w-lg">
+    <DialogContent class="max-w-lg sm:max-h-[90vh] sm:overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{{ t('groups.create.title') }}</DialogTitle>
         <DialogDescription>
@@ -339,9 +339,8 @@ onBeforeUnmount(() => {
         </DialogDescription>
       </DialogHeader>
 
-      <div class="space-y-6 py-4">
-        <!-- 头像上传 -->
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div class="space-y-5 py-2">
+        <div class="flex items-start gap-4">
           <div class="relative">
             <input
               ref="avatarInputRef"
@@ -350,12 +349,13 @@ onBeforeUnmount(() => {
               class="hidden"
               @change="handleAvatarSelected"
             >
-            <Avatar class="h-20 w-20">
+            <Avatar class="h-20 w-20 rounded-xl ring-1 ring-border">
               <AvatarImage
                 v-if="formData.avatar"
                 :src="formData.avatar"
+                class="rounded-xl"
               />
-              <AvatarFallback class="text-2xl">
+              <AvatarFallback class="rounded-xl bg-muted text-2xl font-semibold">
                 {{ formData.name.charAt(0) || '?' }}
               </AvatarFallback>
             </Avatar>
@@ -363,48 +363,49 @@ onBeforeUnmount(() => {
               type="button"
               variant="secondary"
               size="icon"
-              class="absolute -bottom-1 -right-1 h-8 w-8 rounded-full"
+              class="absolute -bottom-1 -right-1 h-7 w-7 rounded-full border border-border shadow-sm"
               :disabled="isAvatarUploading"
               :aria-label="t('groups.create.avatar')"
               @click="triggerAvatarUpload"
             >
               <Loader2
                 v-if="isAvatarUploading"
-                class="h-4 w-4 animate-spin"
+                class="h-3.5 w-3.5 animate-spin"
               />
-              <Camera v-else class="h-4 w-4" />
+              <Camera v-else class="h-3.5 w-3.5" />
             </Button>
-            <Button
+            <button
               v-if="formData.avatar"
               type="button"
-              variant="outline"
-              size="icon"
-              class="absolute -right-2 -top-2 h-6 w-6 rounded-full bg-background"
+              class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
               :disabled="isAvatarUploading"
               :aria-label="t('common.cancel')"
               @click="clearAvatar"
             >
               <X class="h-3 w-3" />
-            </Button>
+            </button>
           </div>
-          <div class="flex-1">
-            <Label>{{ t('groups.create.avatar') }}</Label>
-            <p class="text-sm text-muted-foreground">
+          <div class="min-w-0 flex-1">
+            <Label class="text-sm font-medium">
+              {{ t('groups.create.avatar') }}
+            </Label>
+            <p class="mt-1 text-xs text-muted-foreground">
               {{ t('groups.create.avatarDescription') }}
             </p>
           </div>
         </div>
 
-        <!-- 封面上传 -->
         <div class="space-y-2">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <Label>{{ t('groups.create.cover') }}</Label>
-              <p class="text-sm text-muted-foreground">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <Label class="text-sm font-medium">
+                {{ t('groups.create.cover') }}
+              </Label>
+              <p class="mt-1 text-xs text-muted-foreground">
                 {{ t('groups.create.coverDescription') }}
               </p>
             </div>
-            <div class="flex shrink-0 gap-2">
+            <div class="flex shrink-0 gap-1.5">
               <input
                 ref="coverInputRef"
                 type="file"
@@ -416,31 +417,33 @@ onBeforeUnmount(() => {
                 type="button"
                 variant="outline"
                 size="icon"
+                class="h-8 w-8"
                 :disabled="isCoverUploading"
                 :aria-label="t('groups.create.cover')"
                 @click="triggerCoverUpload"
               >
                 <Loader2
                   v-if="isCoverUploading"
-                  class="h-4 w-4 animate-spin"
+                  class="h-3.5 w-3.5 animate-spin"
                 />
-                <ImagePlus v-else class="h-4 w-4" />
+                <ImagePlus v-else class="h-3.5 w-3.5" />
               </Button>
               <Button
                 v-if="formData.coverImage"
                 type="button"
                 variant="outline"
                 size="icon"
+                class="h-8 w-8"
                 :disabled="isCoverUploading"
                 :aria-label="t('common.cancel')"
                 @click="clearCover"
               >
-                <X class="h-4 w-4" />
+                <X class="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
           <div
-            class="relative h-28 overflow-hidden rounded-lg border bg-muted/40"
+            class="relative h-28 overflow-hidden rounded-lg border border-border/60 bg-muted/30"
           >
             <img
               v-if="formData.coverImage"
@@ -450,54 +453,58 @@ onBeforeUnmount(() => {
             >
             <div
               v-else
-              class="flex h-full items-center justify-center text-muted-foreground"
+              class="flex h-full flex-col items-center justify-center gap-1.5 text-muted-foreground"
             >
-              <ImagePlus class="h-6 w-6" />
+              <ImagePlus class="h-5 w-5" />
+              <span class="text-xs">
+                {{ t('groups.create.coverDescription') }}
+              </span>
             </div>
           </div>
         </div>
 
-        <!-- 群组名称 -->
-        <div class="space-y-2">
-          <Label for="name">{{ t('groups.create.name') }}</Label>
+        <div class="space-y-1.5">
+          <Label for="name" class="text-sm font-medium">
+            {{ t('groups.create.name') }}
+          </Label>
           <Input
             id="name"
             v-model="formData.name"
             :placeholder="t('groups.create.namePlaceholder')"
             maxlength="50"
+            class="h-9 shadow-xs"
           />
-          <p
-            class="text-xs text-muted-foreground text-right"
-          >
-            {{ formData.name.length }}/50
+          <p class="text-right tabular-nums text-xs text-muted-foreground">
+            {{ formData.name.length }} / 50
           </p>
         </div>
 
-        <!-- 群组描述 -->
-        <div class="space-y-2">
-          <Label for="description">{{ t('groups.create.groupDescriptionLabel') }}</Label>
+        <div class="space-y-1.5">
+          <Label for="description" class="text-sm font-medium">
+            {{ t('groups.create.groupDescriptionLabel') }}
+          </Label>
           <Textarea
             id="description"
             v-model="formData.description"
             :placeholder="t('groups.create.groupDescriptionPlaceholder')"
             rows="3"
             maxlength="500"
+            class="min-h-20 resize-none shadow-xs"
           />
-          <p
-            class="text-xs text-muted-foreground text-right"
-          >
-            {{ formData.description.length }}/500
+          <p class="text-right tabular-nums text-xs text-muted-foreground">
+            {{ formData.description.length }} / 500
           </p>
         </div>
 
-        <!-- 群组分类 -->
-        <div class="space-y-2">
-          <Label>{{ t('groups.create.category') }}</Label>
+        <div class="space-y-1.5">
+          <Label class="text-sm font-medium">
+            {{ t('groups.create.category') }}
+          </Label>
           <Select
             :model-value="formData.category"
             @update:model-value="updateCategory"
           >
-            <SelectTrigger>
+            <SelectTrigger class="h-9">
               <SelectValue :placeholder="t('groups.create.categoryPlaceholder')" />
             </SelectTrigger>
             <SelectContent>
@@ -512,65 +519,70 @@ onBeforeUnmount(() => {
           </Select>
         </div>
 
-        <!-- 群组标签 -->
-        <div class="space-y-2">
-          <Label for="group-tags">{{ t('groups.create.tags') }}</Label>
+        <div class="space-y-1.5">
+          <Label for="group-tags" class="text-sm font-medium">
+            {{ t('groups.create.tags') }}
+          </Label>
           <Input
             id="group-tags"
             v-model="tagsText"
             :placeholder="t('groups.create.tagsPlaceholder')"
             maxlength="160"
+            class="h-9 shadow-xs"
           />
           <p class="text-xs text-muted-foreground">
             {{ t('groups.create.tagsHint') }}
           </p>
         </div>
 
-        <!-- 隐私设置 -->
-        <div class="space-y-3">
-          <Label>{{ t('groups.create.privacySettings') }}</Label>
+        <div class="space-y-2">
+          <Label class="text-sm font-medium">
+            {{ t('groups.create.privacySettings') }}
+          </Label>
           <RadioGroup
             v-model="formData.privacy"
             class="space-y-2"
           >
-            <div
+            <label
               v-for="option in privacyOptions"
               :key="option.value"
-              class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+              :for="option.value"
+              class="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 p-3 transition-colors hover:bg-muted/40"
               :class="{
-                'border-primary bg-primary/5':
+                'border-ring/60 bg-primary/[0.03] ring-2 ring-ring/20':
                   formData.privacy === option.value
               }"
-              @click="formData.privacy = option.value"
             >
               <RadioGroupItem
                 :value="option.value"
                 :id="option.value"
                 class="mt-0.5"
               />
-              <div class="flex-1">
+              <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
                   <component
                     :is="option.icon"
-                    class="h-4 w-4"
+                    class="h-3.5 w-3.5 text-muted-foreground"
                   />
-                  <span class="font-medium text-sm">{{
-                    t(option.labelKey)
-                  }}</span>
+                  <span class="text-sm font-medium">
+                    {{ t(option.labelKey) }}
+                  </span>
                 </div>
-                <p
-                  class="text-xs text-muted-foreground mt-0.5"
-                >
+                <p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                   {{ t(option.descriptionKey) }}
                 </p>
               </div>
-            </div>
+            </label>
           </RadioGroup>
         </div>
       </div>
 
-      <DialogFooter>
-        <Button class="w-full sm:w-auto" variant="outline" @click="closeDialog">
+      <DialogFooter class="gap-2 sm:gap-0">
+        <Button
+          class="w-full sm:w-auto"
+          variant="outline"
+          @click="closeDialog"
+        >
           {{ t('common.cancel') }}
         </Button>
         <Button

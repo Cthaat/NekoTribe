@@ -9,13 +9,14 @@ import {
   UserPlus,
   LogOut,
   Settings,
-  Eye
+  Eye,
+  Crown,
+  ShieldCheck
 } from 'lucide-vue-next';
 import {
   Card,
   CardContent,
-  CardFooter,
-  CardHeader
+  CardFooter
 } from '@/components/ui/card';
 import {
   Avatar,
@@ -47,7 +48,6 @@ const emit = defineEmits<{
   (e: 'settings', id: number): void;
 }>();
 
-// 获取隐私图标
 const privacyIcon = computed(() => {
   switch (props.group.privacy) {
     case 'public':
@@ -61,7 +61,6 @@ const privacyIcon = computed(() => {
   }
 });
 
-// 获取隐私文本
 const privacyText = computed(() => {
   switch (props.group.privacy) {
     case 'public':
@@ -75,7 +74,6 @@ const privacyText = computed(() => {
   }
 });
 
-// 格式化成员数量
 const formatMemberCount = (count: number) => {
   if (count >= 10000) {
     return t('groups.number.tenThousand', {
@@ -89,7 +87,6 @@ const formatMemberCount = (count: number) => {
   return count.toString();
 };
 
-// 处理加入/离开
 const handleJoinLeave = () => {
   if (props.group.isMember) {
     emit('leave', props.group.id);
@@ -109,60 +106,87 @@ const handleSettings = () => {
 
 <template>
   <Card
-    class="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+    class="group/card relative cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card py-0 shadow-none transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-border hover:shadow-md"
     @click="handleViewDetail"
   >
-    <!-- 封面图片 -->
+    <!-- Cover image with overlay -->
     <div
-      class="relative h-24 bg-gradient-to-r from-primary/20 to-primary/10"
+      class="relative h-28 overflow-hidden bg-gradient-to-br from-primary/15 via-primary/5 to-muted/40"
     >
       <img
         v-if="group.coverImage"
         :src="group.coverImage"
         :alt="group.name"
-        class="w-full h-full object-cover"
+        class="h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105"
       />
-      <!-- 隐私徽章 -->
-      <Badge
-        variant="secondary"
-        class="absolute top-2 right-2 gap-1"
+      <div
+        class="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/40 to-transparent"
+      />
+
+      <!-- Top right badges -->
+      <div class="absolute right-2.5 top-2.5 flex items-center gap-1.5">
+        <Badge
+          variant="secondary"
+          class="gap-1 border border-border/60 bg-background/90 px-2 text-[11px] font-medium backdrop-blur"
+        >
+          <component :is="privacyIcon" class="h-3 w-3" />
+          {{ privacyText }}
+        </Badge>
+      </div>
+
+      <!-- Owner/Admin badge top left -->
+      <div
+        v-if="group.isOwner || group.isAdmin"
+        class="absolute left-2.5 top-2.5"
       >
-        <component :is="privacyIcon" class="h-3 w-3" />
-        {{ privacyText }}
-      </Badge>
+        <Badge
+          v-if="group.isOwner"
+          class="gap-1 border-amber-200/60 bg-amber-100/90 px-2 text-[11px] font-medium text-amber-700 backdrop-blur dark:border-amber-900/40 dark:bg-amber-950/70 dark:text-amber-300"
+        >
+          <Crown class="h-3 w-3" />
+          {{ t('groups.actions.manage') }}
+        </Badge>
+        <Badge
+          v-else-if="group.isAdmin"
+          class="gap-1 border border-sky-200/60 bg-sky-100/90 px-2 text-[11px] font-medium text-sky-700 backdrop-blur dark:border-sky-900/40 dark:bg-sky-950/70 dark:text-sky-300"
+        >
+          <ShieldCheck class="h-3 w-3" />
+          Admin
+        </Badge>
+      </div>
     </div>
 
-    <CardHeader class="relative pb-2">
-      <!-- 群组头像 -->
-      <Avatar
-        class="absolute -top-8 left-4 h-16 w-16 border-4 border-background"
-      >
-        <AvatarImage
-          :src="group.avatar"
-          :alt="group.name"
-        />
-        <AvatarFallback>{{
-          group.name.charAt(0)
-        }}</AvatarFallback>
-      </Avatar>
+    <CardContent class="relative px-5 pb-3 pt-0">
+      <!-- Avatar - half overlapping with cover -->
+      <div class="relative -mt-9 mb-3 flex items-start justify-between">
+        <Avatar
+          class="h-16 w-16 shrink-0 rounded-xl border-4 border-card shadow-sm"
+        >
+          <AvatarImage
+            :src="group.avatar"
+            :alt="group.name"
+            class="rounded-lg"
+          />
+          <AvatarFallback
+            class="rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 text-lg font-semibold uppercase text-primary"
+          >
+            {{ group.name.charAt(0) }}
+          </AvatarFallback>
+        </Avatar>
 
-      <!-- 操作按钮 -->
-      <div class="flex justify-end">
         <DropdownMenu>
           <DropdownMenuTrigger as-child @click.stop>
             <Button
               variant="ghost"
               size="icon"
-              class="h-8 w-8"
+              class="mt-9 h-8 w-8 rounded-full opacity-70 transition-opacity hover:opacity-100"
             >
               <MoreHorizontal class="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              @click.stop="handleViewDetail"
-            >
-              <Eye class="h-4 w-4 mr-2" />
+          <DropdownMenuContent align="end" class="w-48">
+            <DropdownMenuItem @click.stop="handleViewDetail">
+              <Eye class="mr-2 h-4 w-4" />
               {{ t('groups.actions.viewDetail') }}
             </DropdownMenuItem>
             <DropdownMenuSeparator
@@ -172,39 +196,35 @@ const handleSettings = () => {
               v-if="group.isOwner || group.isAdmin"
               @click.stop="handleSettings"
             >
-              <Settings class="h-4 w-4 mr-2" />
+              <Settings class="mr-2 h-4 w-4" />
               {{ t('groups.actions.settings') }}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      <!-- 群组名称和描述 -->
-      <div class="mt-4">
-        <h3 class="font-semibold text-lg line-clamp-1">
+      <!-- Name + description -->
+      <div class="space-y-1">
+        <h3 class="line-clamp-1 text-base font-semibold leading-tight tracking-tight">
           {{ group.name }}
         </h3>
-        <p
-          class="text-sm text-muted-foreground line-clamp-2 mt-1"
-        >
+        <p class="line-clamp-2 min-h-[2.5rem] text-sm leading-relaxed text-muted-foreground">
           {{ group.description }}
         </p>
       </div>
-    </CardHeader>
 
-    <CardContent class="pb-3">
-      <!-- 分类和标签 -->
+      <!-- Tags -->
       <div
         v-if="
           group.category ||
           (group.tags && group.tags.length > 0)
         "
-        class="flex flex-wrap gap-1 mb-3"
+        class="mt-3 flex flex-wrap gap-1"
       >
         <Badge
           v-if="group.category"
           variant="outline"
-          class="text-xs"
+          class="rounded-full border-border/60 px-2 py-0 text-[11px] font-normal"
         >
           {{ group.category }}
         </Badge>
@@ -212,41 +232,47 @@ const handleSettings = () => {
           v-for="tag in group.tags?.slice(0, 3)"
           :key="tag"
           variant="secondary"
-          class="text-xs"
+          class="rounded-full px-2 py-0 text-[11px] font-normal"
         >
           #{{ tag }}
         </Badge>
       </div>
 
-      <!-- 统计信息 -->
+      <!-- Stats row -->
       <div
-        class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground"
+        class="mt-3 flex items-center gap-3 text-xs text-muted-foreground"
       >
-        <div class="flex items-center gap-1">
-          <Users class="h-4 w-4" />
-          <span
-            >{{
-              formatMemberCount(group.memberCount)
-            }}
-            {{ t('groups.stats.members') }}</span
-          >
+        <div class="flex items-center gap-1.5">
+          <Users class="h-3.5 w-3.5" />
+          <span class="tabular-nums font-medium text-foreground/70">
+            {{ formatMemberCount(group.memberCount) }}
+          </span>
+          <span>{{ t('groups.stats.members') }}</span>
         </div>
+        <span class="text-border">·</span>
         <div class="flex items-center gap-1">
+          <span class="tabular-nums font-medium text-foreground/70">
+            {{ group.postCount }}
+          </span>
           <span>{{ t('groups.stats.posts', { count: group.postCount }) }}</span>
         </div>
       </div>
     </CardContent>
 
-    <CardFooter class="border-t pt-3" @click.stop>
+    <CardFooter
+      class="border-t border-border/60 bg-muted/30 px-5 py-3"
+      @click.stop
+    >
       <Button
         v-if="!group.isOwner"
         :variant="group.isMember ? 'outline' : 'default'"
-        class="w-full"
+        size="sm"
+        class="h-9 w-full rounded-md shadow-xs"
         @click="handleJoinLeave"
       >
         <component
           :is="group.isMember ? LogOut : UserPlus"
-          class="h-4 w-4 mr-2"
+          class="h-3.5 w-3.5"
         />
         {{
           group.isMember
@@ -259,10 +285,11 @@ const handleSettings = () => {
       <Button
         v-else
         variant="outline"
-        class="w-full"
+        size="sm"
+        class="h-9 w-full rounded-md shadow-xs"
         @click="handleSettings"
       >
-        <Settings class="h-4 w-4 mr-2" />
+        <Settings class="h-3.5 w-3.5" />
         {{ t('groups.actions.manage') }}
       </Button>
     </CardFooter>

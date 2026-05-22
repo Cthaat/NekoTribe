@@ -1,59 +1,35 @@
 <script setup lang="ts">
-// 外观设置页面
-// - 主题（明亮/深色/跟随系统）
-// - 语言（中/英）
-// - 字体大小（小/正常/大）
-// - 紧凑模式开关
-//
-// 数值写入 Pinia 的 preference store，客户端插件会同步到 <html> 的 class/data 属性，
-// 全局 CSS 读取后实现全站即时生效。
-// 引入计算属性工具
 import { computed } from 'vue';
-// 引入偏好状态仓库（存储主题/语言/字号/紧凑模式）
+import {
+  Languages,
+  LayoutGrid,
+  Palette,
+  Type
+} from 'lucide-vue-next';
 import { usePreferenceStore } from '@/stores/user';
 import type { LanguageCode } from '@/stores/type';
-// 引入分隔线组件
-import { Separator } from '@/components/ui/separator';
-// 引入卡片组件
-import { Card, CardContent } from '@/components/ui/card';
-// 引入按钮组件
 import { Button } from '@/components/ui/button';
-// 引入颜色模式图标组件（纯展示）
-import ColorModeIcon from '@/components/ColorModeIcon.vue';
 
-// 取出偏好仓库实例
 const pref = usePreferenceStore();
 const { locale, t, setAppLocale } = useAppLocale();
 
-// 主题模式绑定：读写 store 中的 theme_mode
 const theme = computed({
-  // 读取当前主题
   get: () => pref.preferences.theme_mode,
-  // 写入并触发插件同步到 DOM
   set: v => pref.updatePreference('theme_mode', v)
 });
 
-// 紧凑模式绑定：切换后 <html> 会添加/移除 .compact
 const compact = computed({
-  // 读取当前紧凑模式
   get: () => pref.preferences.compact_mode,
-  // 写入并触发插件同步到 DOM
   set: v => pref.updatePreference('compact_mode', v)
 });
 
-// 字号绑定：会写入 <html data-font-size>
 const fontSize = computed({
-  // 读取当前字号
   get: () => pref.preferences.font_size,
-  // 写入并触发插件同步到 DOM
   set: v => pref.updatePreference('font_size', v)
 });
 
-// 语言绑定：同时更新 i18n 的 locale
 const lang = computed({
-  // 读取当前语言
   get: () => locale.value,
-  // 写入 store 并更新 vue-i18n 的 locale
   set: (v: LanguageCode) => {
     void setAppLocale(v);
   }
@@ -61,175 +37,176 @@ const lang = computed({
 </script>
 
 <template>
-  <!-- 外层卡片容器，提供面板式视觉 -->
-  <Card>
-    <!-- 卡片内容区域 -->
-    <CardContent>
-      <!-- 页面主体：桌面端使用内边距更大的容器 -->
-      <div class="space-y-6 p-4 pb-8 sm:p-6 md:p-10 md:pb-16">
-        <!-- 标题与描述容器 -->
-        <div class="space-y-0.5">
-          <!-- 页面主标题：外观设置 -->
-          <h2 class="text-2xl font-bold tracking-tight">
-            <!-- 国际化文案：标题 -->
+  <div class="grid gap-4">
+    <section
+      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
+    >
+      <header class="flex items-start gap-3">
+        <span
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+        >
+          <Palette class="h-4 w-4" />
+        </span>
+        <div class="min-w-0 grid gap-0.5">
+          <h2 class="text-lg font-semibold tracking-tight">
             {{ t('account.appearance.title') }}
           </h2>
-          <!-- 页面副标题/描述 -->
-          <p class="text-muted-foreground">
-            <!-- 国际化文案：描述 -->
+          <p class="text-xs text-muted-foreground">
             {{ t('account.appearance.description') }}
           </p>
         </div>
-        <!-- 分隔线，用于分组 -->
-        <Separator class="my-6" />
+      </header>
+    </section>
 
-        <!-- 内容网格：每个区块放一组设置 -->
-        <div class="grid gap-6">
-          <!-- 主题模式区块（按钮内容可后续补充） -->
-          <div class="space-y-2">
-            <!-- 小标题与图标 -->
-            <div class="flex items-center gap-2">
-              <ColorModeIcon />
-              <div class="font-medium">
-                {{ t('account.appearance.theme') }}
-              </div>
-            </div>
-            <!-- 主题选择按钮三连：Light / Dark / System -->
-            <div class="flex flex-wrap gap-2">
-              <!-- Light 按钮：选中时使用 default 样式 -->
-              <Button
-                :variant="
-                  theme === 'light' ? 'default' : 'outline'
-                "
-                @click="theme = 'light'"
-                >{{
-                  t('account.appearance.themeLight')
-                }}</Button
-              >
-              <!-- Dark 按钮 -->
-              <Button
-                :variant="
-                  theme === 'dark' ? 'default' : 'outline'
-                "
-                @click="theme = 'dark'"
-                >{{
-                  t('account.appearance.themeDark')
-                }}</Button
-              >
-              <!-- System 按钮：跟随系统 -->
-              <Button
-                :variant="
-                  theme === 'system' ? 'default' : 'outline'
-                "
-                @click="theme = 'system'"
-                >{{
-                  t('account.appearance.themeSystem')
-                }}</Button
-              >
-            </div>
+    <section class="grid gap-4 lg:grid-cols-2">
+      <article
+        class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
+      >
+        <header class="flex items-start gap-3">
+          <span
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          >
+            <Palette class="h-4 w-4" />
+          </span>
+          <div class="min-w-0 grid gap-0.5">
+            <h3 class="text-base font-semibold tracking-tight">
+              {{ t('account.appearance.theme') }}
+            </h3>
+            <p class="text-xs text-muted-foreground">
+              {{ t('account.appearance.description') }}
+            </p>
           </div>
-
-          <!-- 语言切换区块 -->
-          <div class="space-y-2">
-            <!-- 小标题：语言 -->
-            <div class="font-medium">
-              {{ t('account.appearance.language') }}
-            </div>
-            <!-- 语言按钮组：中文 / English -->
-            <div class="flex flex-wrap gap-2">
-              <Button
-                :variant="
-                  lang === 'zh' ? 'default' : 'outline'
-                "
-                @click="lang = 'zh'"
-                >{{ t('preferences.language.zh') }}</Button
-              >
-              <!-- English 按钮：lang === 'en' 时为选中态 -->
-              <Button
-                :variant="
-                  lang === 'en' ? 'default' : 'outline'
-                "
-                @click="lang = 'en'"
-                >{{ t('preferences.language.en') }}</Button
-              >
-            </div>
-          </div>
-
-          <!-- 字体大小区块 -->
-          <div class="space-y-2">
-            <!-- 小标题：字号 -->
-            <div class="font-medium">
-              {{ t('account.appearance.fontSize') }}
-            </div>
-            <!-- 字号按钮组：small / normal / large -->
-            <div class="flex flex-wrap gap-2">
-              <!-- small 按钮 -->
-              <Button
-                :variant="
-                  fontSize === 'small'
-                    ? 'default'
-                    : 'outline'
-                "
-                @click="fontSize = 'small'"
-                >{{
-                  t('account.appearance.fontSmall')
-                }}</Button
-              >
-              <!-- normal 按钮 -->
-              <Button
-                :variant="
-                  fontSize === 'normal'
-                    ? 'default'
-                    : 'outline'
-                "
-                @click="fontSize = 'normal'"
-                >{{
-                  t('account.appearance.fontNormal')
-                }}</Button
-              >
-              <!-- large 按钮 -->
-              <Button
-                :variant="
-                  fontSize === 'large'
-                    ? 'default'
-                    : 'outline'
-                "
-                @click="fontSize = 'large'"
-                >{{
-                  t('account.appearance.fontLarge')
-                }}</Button
-              >
-            </div>
-          </div>
-
-          <!-- 紧凑模式区块 -->
-          <div class="space-y-2">
-            <!-- 小标题：紧凑模式 -->
-            <div class="font-medium">
-              {{ t('account.appearance.compactMode') }}
-            </div>
-            <!-- 紧凑模式按钮组：开 / 关 -->
-            <div class="flex flex-wrap gap-2">
-              <!-- 开：compact === true -->
-              <Button
-                :variant="compact ? 'default' : 'outline'"
-                @click="compact = true"
-                >{{
-                  t('account.appearance.compactOn')
-                }}</Button
-              >
-              <!-- 关：compact === false -->
-              <Button
-                :variant="!compact ? 'default' : 'outline'"
-                @click="compact = false"
-                >{{
-                  t('account.appearance.compactOff')
-                }}</Button
-              >
-            </div>
-          </div>
+        </header>
+        <div class="flex flex-wrap gap-2">
+          <Button
+            class="h-9 rounded-md shadow-xs"
+            :variant="theme === 'light' ? 'default' : 'outline'"
+            @click="theme = 'light'"
+          >
+            {{ t('account.appearance.themeLight') }}
+          </Button>
+          <Button
+            class="h-9 rounded-md shadow-xs"
+            :variant="theme === 'dark' ? 'default' : 'outline'"
+            @click="theme = 'dark'"
+          >
+            {{ t('account.appearance.themeDark') }}
+          </Button>
+          <Button
+            class="h-9 rounded-md shadow-xs"
+            :variant="theme === 'system' ? 'default' : 'outline'"
+            @click="theme = 'system'"
+          >
+            {{ t('account.appearance.themeSystem') }}
+          </Button>
         </div>
-      </div>
-    </CardContent>
-  </Card>
+      </article>
+
+      <article
+        class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
+      >
+        <header class="flex items-start gap-3">
+          <span
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+          >
+            <Languages class="h-4 w-4" />
+          </span>
+          <div class="min-w-0 grid gap-0.5">
+            <h3 class="text-base font-semibold tracking-tight">
+              {{ t('account.appearance.language') }}
+            </h3>
+          </div>
+        </header>
+        <div class="flex flex-wrap gap-2">
+          <Button
+            class="h-9 rounded-md shadow-xs"
+            :variant="lang === 'zh' ? 'default' : 'outline'"
+            @click="lang = 'zh'"
+          >
+            {{ t('preferences.language.zh') }}
+          </Button>
+          <Button
+            class="h-9 rounded-md shadow-xs"
+            :variant="lang === 'en' ? 'default' : 'outline'"
+            @click="lang = 'en'"
+          >
+            {{ t('preferences.language.en') }}
+          </Button>
+        </div>
+      </article>
+
+      <article
+        class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
+      >
+        <header class="flex items-start gap-3">
+          <span
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          >
+            <Type class="h-4 w-4" />
+          </span>
+          <div class="min-w-0 grid gap-0.5">
+            <h3 class="text-base font-semibold tracking-tight">
+              {{ t('account.appearance.fontSize') }}
+            </h3>
+          </div>
+        </header>
+        <div class="flex flex-wrap gap-2">
+          <Button
+            class="h-9 rounded-md shadow-xs"
+            :variant="fontSize === 'small' ? 'default' : 'outline'"
+            @click="fontSize = 'small'"
+          >
+            {{ t('account.appearance.fontSmall') }}
+          </Button>
+          <Button
+            class="h-9 rounded-md shadow-xs"
+            :variant="fontSize === 'normal' ? 'default' : 'outline'"
+            @click="fontSize = 'normal'"
+          >
+            {{ t('account.appearance.fontNormal') }}
+          </Button>
+          <Button
+            class="h-9 rounded-md shadow-xs"
+            :variant="fontSize === 'large' ? 'default' : 'outline'"
+            @click="fontSize = 'large'"
+          >
+            {{ t('account.appearance.fontLarge') }}
+          </Button>
+        </div>
+      </article>
+
+      <article
+        class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
+      >
+        <header class="flex items-start gap-3">
+          <span
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-400"
+          >
+            <LayoutGrid class="h-4 w-4" />
+          </span>
+          <div class="min-w-0 grid gap-0.5">
+            <h3 class="text-base font-semibold tracking-tight">
+              {{ t('account.appearance.compactMode') }}
+            </h3>
+          </div>
+        </header>
+        <div class="flex flex-wrap gap-2">
+          <Button
+            class="h-9 rounded-md shadow-xs"
+            :variant="compact ? 'default' : 'outline'"
+            @click="compact = true"
+          >
+            {{ t('account.appearance.compactOn') }}
+          </Button>
+          <Button
+            class="h-9 rounded-md shadow-xs"
+            :variant="!compact ? 'default' : 'outline'"
+            @click="compact = false"
+          >
+            {{ t('account.appearance.compactOff') }}
+          </Button>
+        </div>
+      </article>
+    </section>
+  </div>
 </template>

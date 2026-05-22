@@ -9,7 +9,8 @@ import {
   UserMinus,
   Ban,
   Volume2,
-  VolumeX
+  VolumeX,
+  ChevronRight
 } from 'lucide-vue-next';
 import {
   Avatar,
@@ -98,15 +99,15 @@ const offlineMembers = computed(() => {
 const getStatusColor = (status: ChatMember['status']) => {
   switch (status) {
     case 'online':
-      return 'bg-green-500';
+      return 'bg-emerald-500';
     case 'idle':
-      return 'bg-yellow-500';
+      return 'bg-amber-500';
     case 'dnd':
-      return 'bg-red-500';
+      return 'bg-rose-500';
     case 'offline':
-      return 'bg-gray-400';
+      return 'bg-muted-foreground/60';
     default:
-      return 'bg-gray-400';
+      return 'bg-muted-foreground/60';
   }
 };
 
@@ -140,11 +141,11 @@ const getRoleIcon = (role: ChatMember['role']) => {
 const getRoleColor = (role: ChatMember['role']) => {
   switch (role) {
     case 'owner':
-      return 'text-amber-500';
+      return 'text-amber-600 dark:text-amber-400';
     case 'admin':
-      return 'text-blue-500';
+      return 'text-sky-600 dark:text-sky-400';
     case 'moderator':
-      return 'text-emerald-500';
+      return 'text-emerald-600 dark:text-emerald-400';
     default:
       return '';
   }
@@ -153,291 +154,267 @@ const getRoleColor = (role: ChatMember['role']) => {
 
 <template>
   <div
-    class="flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-l bg-muted/30 lg:w-60"
+    class="flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 lg:w-60"
   >
     <!-- 搜索框 -->
-    <div class="shrink-0 border-b p-3">
+    <div class="shrink-0 border-b border-border/60 bg-background/60 p-2 backdrop-blur">
       <div class="relative">
         <Search
-          class="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+          class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
         />
         <Input
           v-model="searchQuery"
           :placeholder="t('chat.members.searchPlaceholder')"
-          class="pl-8 h-8 text-sm"
+          class="h-8 pl-8 text-sm shadow-xs"
         />
       </div>
     </div>
 
     <!-- 成员列表 -->
     <ScrollArea class="min-h-0 flex-1">
-      <div class="py-2">
-      <!-- 在线成员 -->
-      <Collapsible
-        v-model:open="isOnlineExpanded"
-        class="mb-2"
-      >
-        <CollapsibleTrigger
-          class="flex items-center justify-between w-full px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
+      <div class="p-2">
+        <!-- 在线成员 -->
+        <Collapsible
+          v-model:open="isOnlineExpanded"
+          class="mb-3"
         >
-          <span>{{ t('chat.members.onlineCount', { count: onlineMembers.length }) }}</span>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div class="px-2 space-y-0.5">
-            <div
-              v-for="member in onlineMembers"
-              :key="member.id"
-              class="group flex items-center gap-1 rounded-md transition-colors hover:bg-muted/50"
-            >
-              <Button
-                type="button"
-                variant="ghost"
-                class="h-auto min-w-0 flex-1 justify-start gap-2 p-2 text-left"
-                @click="emit('view-profile', member)"
+          <CollapsibleTrigger
+            class="flex w-full items-center gap-1 rounded-md px-1 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ChevronRight
+              class="h-3 w-3 transition-transform"
+              :class="{ 'rotate-90': isOnlineExpanded }"
+            />
+            <span>
+              {{ t('chat.members.onlineCount', { count: onlineMembers.length }) }}
+            </span>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div class="mt-0.5 space-y-px">
+              <div
+                v-for="member in onlineMembers"
+                :key="member.id"
+                class="group/mem flex items-center rounded-md transition-colors hover:bg-accent/50"
               >
-                <!-- 头像 -->
-                <div class="relative flex-shrink-0">
-                  <Avatar class="h-8 w-8">
-                    <AvatarImage
-                      :src="member.avatar"
-                      :alt="member.nickname"
-                    />
-                    <AvatarFallback>{{
-                      member.nickname.slice(0, 2)
-                    }}</AvatarFallback>
-                  </Avatar>
-                  <div
-                    class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background"
-                    :class="getStatusColor(member.status)"
-                  />
-                </div>
-
-                <!-- 用户信息 -->
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-1">
-                    <!-- 角色图标 -->
-                    <component
-                      :is="getRoleIcon(member.role)"
-                      v-if="getRoleIcon(member.role)"
-                      class="h-3 w-3 flex-shrink-0"
-                      :class="getRoleColor(member.role)"
-                    />
-                    <span
-                      class="truncate text-sm font-medium"
-                      :class="getRoleColor(member.role)"
-                    >
-                      {{ member.nickname }}
-                    </span>
-                  </div>
-                  <div
-                    v-if="member.statusText"
-                    class="truncate text-xs text-muted-foreground"
-                  >
-                    {{ member.statusText }}
-                  </div>
-                </div>
-
-                <!-- 语音状态 -->
-                <div
-                  v-if="member.isInVoice"
-                  class="flex items-center gap-0.5"
+                <button
+                  type="button"
+                  class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left"
+                  @click="emit('view-profile', member)"
                 >
-                  <component
-                    :is="member.isMuted ? VolumeX : Volume2"
-                    class="h-3 w-3 text-muted-foreground"
-                  />
-                </div>
-              </Button>
-
-              <!-- 操作按钮 -->
-              <div
-                class="opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <DropdownMenu>
-                  <DropdownMenuTrigger as-child>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="h-6 w-6 p-0"
-                      @click.stop
-                    >
-                      <MoreHorizontal class="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      :disabled="member.id === currentUserId"
-                      @click.stop="emit('message', member)"
-                    >
-                      <MessageSquare class="mr-2 h-4 w-4" />
-                      {{ t('chat.actions.sendMessage') }}
-                    </DropdownMenuItem>
-                    <template
-                      v-if="
-                        canManage &&
-                        !['owner', 'admin'].includes(
-                          member.role
-                        )
-                      "
-                    >
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        @click.stop="
-                          emit('kick', member.id)
-                        "
-                      >
-                        <UserMinus class="mr-2 h-4 w-4" />
-                        {{ t('chat.actions.kick') }}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        class="text-destructive focus:text-destructive"
-                        @click.stop="emit('ban', member.id)"
-                      >
-                        <Ban class="mr-2 h-4 w-4" />
-                        {{ t('chat.actions.ban') }}
-                      </DropdownMenuItem>
-                    </template>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-            <div
-              v-if="onlineMembers.length === 0"
-              class="text-xs text-muted-foreground text-center py-4"
-            >
-              {{ t('chat.members.noOnline') }}
-            </div>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-
-      <!-- 离线成员 -->
-      <Collapsible v-model:open="isOfflineExpanded">
-        <CollapsibleTrigger
-          class="flex items-center justify-between w-full px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
-        >
-          <span>{{ t('chat.members.offlineCount', { count: offlineMembers.length }) }}</span>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div class="px-2 space-y-0.5">
-            <div
-              v-for="member in offlineMembers"
-              :key="member.id"
-              class="group flex items-center gap-1 rounded-md opacity-60 transition-colors hover:bg-muted/50"
-            >
-              <Button
-                type="button"
-                variant="ghost"
-                class="h-auto min-w-0 flex-1 justify-start gap-2 p-2 text-left"
-                @click="emit('view-profile', member)"
-              >
-                <!-- 头像 -->
-                <div class="relative flex-shrink-0">
-                  <Avatar class="h-8 w-8 grayscale">
-                    <AvatarImage
-                      :src="member.avatar"
-                      :alt="member.nickname"
-                    />
-                    <AvatarFallback>{{
-                      member.nickname.slice(0, 2)
-                    }}</AvatarFallback>
-                  </Avatar>
-                  <div
-                    class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-gray-400"
-                  />
-                </div>
-
-                <!-- 用户信息 -->
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-1">
-                    <component
-                      :is="getRoleIcon(member.role)"
-                      v-if="getRoleIcon(member.role)"
-                      class="h-3 w-3 flex-shrink-0"
-                      :class="getRoleColor(member.role)"
-                    />
+                  <div class="relative shrink-0">
+                    <Avatar class="h-7 w-7 ring-1 ring-border">
+                      <AvatarImage
+                        :src="member.avatar"
+                        :alt="member.nickname"
+                      />
+                      <AvatarFallback class="text-[10px]">
+                        {{ member.nickname.slice(0, 2) }}
+                      </AvatarFallback>
+                    </Avatar>
                     <span
-                      class="truncate text-sm font-medium"
-                    >
-                      {{ member.nickname }}
-                    </span>
+                      class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-background"
+                      :class="getStatusColor(member.status)"
+                    />
                   </div>
-                  <div
-                    v-if="member.lastSeenAt"
-                    class="truncate text-xs text-muted-foreground"
-                  >
-                    {{
-                      t('chat.status.lastSeen', {
-                        time: formatLastSeen(member.lastSeenAt)
-                      })
-                    }}
-                  </div>
-                </div>
-              </Button>
 
-              <!-- 操作按钮 -->
-              <div
-                class="opacity-0 group-hover:opacity-100 transition-opacity"
-              >
+                  <div class="min-w-0 flex-1">
+                    <div class="flex min-w-0 items-center gap-1">
+                      <component
+                        :is="getRoleIcon(member.role)"
+                        v-if="getRoleIcon(member.role)"
+                        class="h-3 w-3 shrink-0"
+                        :class="getRoleColor(member.role)"
+                      />
+                      <span
+                        class="truncate text-sm font-medium"
+                        :class="getRoleColor(member.role)"
+                      >
+                        {{ member.nickname }}
+                      </span>
+                    </div>
+                    <div
+                      v-if="member.statusText"
+                      class="truncate text-[11px] text-muted-foreground"
+                    >
+                      {{ member.statusText }}
+                    </div>
+                  </div>
+
+                  <component
+                    v-if="member.isInVoice"
+                    :is="member.isMuted ? VolumeX : Volume2"
+                    class="h-3 w-3 shrink-0 text-muted-foreground"
+                  />
+                </button>
+
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>
                     <Button
                       variant="ghost"
-                      size="sm"
-                      class="h-6 w-6 p-0"
+                      size="icon"
+                      class="mr-1 h-6 w-6 rounded opacity-0 transition-opacity group-hover/mem:opacity-100"
                       @click.stop
                     >
-                      <MoreHorizontal class="h-4 w-4" />
+                      <MoreHorizontal class="h-3.5 w-3.5" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" class="w-44">
                     <DropdownMenuItem
                       :disabled="member.id === currentUserId"
                       @click.stop="emit('message', member)"
                     >
-                      <MessageSquare class="mr-2 h-4 w-4" />
+                      <MessageSquare class="h-4 w-4" />
                       {{ t('chat.actions.sendMessage') }}
                     </DropdownMenuItem>
                     <template
                       v-if="
                         canManage &&
-                        !['owner', 'admin'].includes(
-                          member.role
-                        )
+                        !['owner', 'admin'].includes(member.role)
                       "
                     >
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        @click.stop="
-                          emit('kick', member.id)
-                        "
-                      >
-                        <UserMinus class="mr-2 h-4 w-4" />
+                      <DropdownMenuItem @click.stop="emit('kick', member.id)">
+                        <UserMinus class="h-4 w-4" />
                         {{ t('chat.actions.kick') }}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         class="text-destructive focus:text-destructive"
                         @click.stop="emit('ban', member.id)"
                       >
-                        <Ban class="mr-2 h-4 w-4" />
+                        <Ban class="h-4 w-4" />
                         {{ t('chat.actions.ban') }}
                       </DropdownMenuItem>
                     </template>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-            </div>
 
-            <div
-              v-if="offlineMembers.length === 0"
-              class="text-xs text-muted-foreground text-center py-4"
-            >
-              {{ t('chat.members.noOffline') }}
+              <div
+                v-if="onlineMembers.length === 0"
+                class="px-2 py-3 text-center text-[11px] text-muted-foreground"
+              >
+                {{ t('chat.members.noOnline') }}
+              </div>
             </div>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+          </CollapsibleContent>
+        </Collapsible>
+
+        <!-- 离线成员 -->
+        <Collapsible v-model:open="isOfflineExpanded">
+          <CollapsibleTrigger
+            class="flex w-full items-center gap-1 rounded-md px-1 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ChevronRight
+              class="h-3 w-3 transition-transform"
+              :class="{ 'rotate-90': isOfflineExpanded }"
+            />
+            <span>
+              {{ t('chat.members.offlineCount', { count: offlineMembers.length }) }}
+            </span>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div class="mt-0.5 space-y-px">
+              <div
+                v-for="member in offlineMembers"
+                :key="member.id"
+                class="group/mem flex items-center rounded-md opacity-60 transition-all hover:bg-accent/50 hover:opacity-100"
+              >
+                <button
+                  type="button"
+                  class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left"
+                  @click="emit('view-profile', member)"
+                >
+                  <div class="relative shrink-0">
+                    <Avatar class="h-7 w-7 ring-1 ring-border grayscale">
+                      <AvatarImage
+                        :src="member.avatar"
+                        :alt="member.nickname"
+                      />
+                      <AvatarFallback class="text-[10px]">
+                        {{ member.nickname.slice(0, 2) }}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span
+                      class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-muted-foreground/60 ring-2 ring-background"
+                    />
+                  </div>
+
+                  <div class="min-w-0 flex-1">
+                    <div class="flex min-w-0 items-center gap-1">
+                      <component
+                        :is="getRoleIcon(member.role)"
+                        v-if="getRoleIcon(member.role)"
+                        class="h-3 w-3 shrink-0"
+                        :class="getRoleColor(member.role)"
+                      />
+                      <span class="truncate text-sm font-medium">
+                        {{ member.nickname }}
+                      </span>
+                    </div>
+                    <div
+                      v-if="member.lastSeenAt"
+                      class="truncate text-[11px] text-muted-foreground"
+                    >
+                      {{
+                        t('chat.status.lastSeen', {
+                          time: formatLastSeen(member.lastSeenAt)
+                        })
+                      }}
+                    </div>
+                  </div>
+                </button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="mr-1 h-6 w-6 rounded opacity-0 transition-opacity group-hover/mem:opacity-100"
+                      @click.stop
+                    >
+                      <MoreHorizontal class="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" class="w-44">
+                    <DropdownMenuItem
+                      :disabled="member.id === currentUserId"
+                      @click.stop="emit('message', member)"
+                    >
+                      <MessageSquare class="h-4 w-4" />
+                      {{ t('chat.actions.sendMessage') }}
+                    </DropdownMenuItem>
+                    <template
+                      v-if="
+                        canManage &&
+                        !['owner', 'admin'].includes(member.role)
+                      "
+                    >
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem @click.stop="emit('kick', member.id)">
+                        <UserMinus class="h-4 w-4" />
+                        {{ t('chat.actions.kick') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        class="text-destructive focus:text-destructive"
+                        @click.stop="emit('ban', member.id)"
+                      >
+                        <Ban class="h-4 w-4" />
+                        {{ t('chat.actions.ban') }}
+                      </DropdownMenuItem>
+                    </template>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div
+                v-if="offlineMembers.length === 0"
+                class="px-2 py-3 text-center text-[11px] text-muted-foreground"
+              >
+                {{ t('chat.members.noOffline') }}
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </ScrollArea>
   </div>

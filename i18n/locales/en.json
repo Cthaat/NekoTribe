@@ -798,6 +798,8 @@
   },
   "chat": {
     "fallbackChannel": "chat",
+    "defaultCategoryName": "Text channels",
+    "backToChannels": "Back to channels",
     "groupFallbackName": "Group name",
     "channelDescriptionFallback": "Channel description",
     "searchPlaceholder": "Search messages...",

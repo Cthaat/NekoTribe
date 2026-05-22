@@ -11,14 +11,13 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
 </script>
 
 <template>
-  <SidebarProvider class="h-dvh min-h-0 overflow-hidden">
+  <SidebarProvider class="h-dvh min-h-0 w-full overflow-hidden overflow-x-clip">
     <AppSidebar />
     <SidebarInset
-      class="flex h-dvh min-h-0 max-h-dvh flex-col overflow-hidden md:h-[calc(100dvh_-_1rem)] md:max-h-[calc(100dvh_-_1rem)]"
+      class="flex h-dvh min-h-0 max-h-dvh min-w-0 flex-col overflow-hidden overflow-x-clip md:h-[calc(100dvh_-_1rem)] md:max-h-[calc(100dvh_-_1rem)]"
     >
-      <!-- 紧凑的顶部栏 -->
       <header
-        class="flex h-12 shrink-0 items-center justify-between gap-2 px-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        class="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/80 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/60"
       >
         <div class="flex items-center gap-2">
           <SidebarTrigger class="-ml-1" />
@@ -31,7 +30,6 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
           <ColorModeIcon />
         </div>
       </header>
-      <!-- 内容区域 - 占据剩余全部空间 -->
       <main class="min-h-0 flex-1 overflow-hidden">
         <slot />
       </main>

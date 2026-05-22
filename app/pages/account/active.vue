@@ -1,23 +1,20 @@
 <script setup lang="ts">
-// 活跃会话页面
-// - 展示当前账号的所有登录会话（设备）
-// - 支持注销单个会话、注销除当前设备外的所有会话
-// 导入 Vue 的响应式工具 ref 和生命周期钩子 onMounted
 import { ref, onMounted } from 'vue';
+import {
+  Inbox,
+  Loader2,
+  Monitor,
+  RefreshCw,
+  ShieldOff,
+  Smartphone
+} from 'lucide-vue-next';
 import {
   v2ListSessions,
   v2RevokeOtherSessions,
   v2RevokeSession,
   type SessionVM
 } from '@/services';
-// 导入分隔线 UI 组件
-import { Separator } from '@/components/ui/separator';
-// 导入卡片 UI 组件
-import { Card, CardContent } from '@/components/ui/card';
-// 导入按钮 UI 组件
 import { Button } from '@/components/ui/button';
-// 导入徽章 UI 组件
-import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -26,191 +23,208 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-// 导入通知/吐司组件
 import { toast } from 'vue-sonner';
 
 const { t } = useAppLocale();
 
-// 加载状态，避免重复操作与控制按钮禁用态
+const PILL_BASE =
+  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium';
+
 const loading = ref(false);
-// 会话列表数据
 const sessions = ref<SessionVM[]>([]);
 
-// 拉取会话列表
-// - 从后端读取当前用户会话
-// - currentSuffix 用于标注“当前设备”
-async function load() {
-  // 进入加载状态
+async function load(): Promise<void> {
   loading.value = true;
   try {
     const result = await v2ListSessions();
     sessions.value = result.items;
-  } catch (e) {
-    // 失败提示
+  } catch {
     toast.error(t('account.active.feedback.loadFailed'));
   } finally {
-    // 结束加载状态
     loading.value = false;
   }
 }
 
-// 注销单个会话
-async function revoke(id: string) {
+async function revoke(id: string): Promise<void> {
   try {
     await v2RevokeSession(id);
     toast.success(t('account.active.feedback.revoked'));
     await load();
-  } catch (e) {
-    // 失败提示
+  } catch {
     toast.error(t('account.active.feedback.operationFailed'));
   }
 }
 
-// 注销除当前设备外的所有会话
-async function revokeOthers() {
+async function revokeOthers(): Promise<void> {
   try {
     await v2RevokeOtherSessions();
     toast.success(t('account.active.feedback.othersRevoked'));
     await load();
-  } catch (e) {
-    // 失败提示
+  } catch {
     toast.error(t('account.active.feedback.operationFailed'));
   }
 }
 
-// 组件挂载后立即拉取会话
+function isMobileDevice(info: string): boolean {
+  const lower = (info || '').toLowerCase();
+  return (
+    lower.includes('mobile') ||
+    lower.includes('android') ||
+    lower.includes('iphone') ||
+    lower.includes('ipad')
+  );
+}
+
 onMounted(load);
 </script>
 
 <template>
-  <!-- 外层卡片容器，提供面板式视觉 -->
-  <Card>
-    <!-- 卡片内容区域 -->
-    <CardContent>
-      <!-- 页面主体：桌面端使用内边距更大的容器 -->
-      <div class="space-y-6 p-4 pb-8 sm:p-6 md:p-10 md:pb-16">
-        <!-- 标题与描述容器 -->
-        <div class="space-y-0.5">
-          <!-- 页面主标题：活跃会话 -->
-          <h2 class="text-2xl font-bold tracking-tight">
-            <!-- 国际化文案：标题 -->
-            {{ t('account.active.title') }}
-          </h2>
-          <!-- 页面副标题/描述 -->
-          <p class="text-muted-foreground">
-            <!-- 国际化文案：描述 -->
-            {{ t('account.active.description') }}
-          </p>
-        </div>
-        <!-- 分隔线，用于分组 -->
-        <Separator class="my-6" />
-
-        <!-- 顶部工具栏：刷新/注销其它设备 -->
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <!-- 左侧说明文字 -->
-          <div class="text-sm text-muted-foreground">
-            <!-- 国际化：同描述 -->
-            {{ t('account.active.description') }}
-          </div>
-          <!-- 右侧按钮组 -->
-          <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <!-- 刷新按钮：重新加载会话列表 -->
-            <Button
-              variant="outline"
-              class="w-full sm:w-auto"
-              :disabled="loading"
-              @click="load()"
-              >{{ t('common.refresh') }}</Button
-            >
-            <!-- 注销其它设备按钮：删除除当前设备外的所有会话 -->
-            <Button
-              variant="destructive"
-              class="w-full sm:w-auto"
-              :disabled="loading || !sessions.length"
-              @click="revokeOthers()"
-              >{{
-                t('account.active.revokeOthers')
-              }}</Button
-            >
+  <div class="grid gap-4">
+    <section
+      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
+    >
+      <header
+        class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+      >
+        <div class="flex items-start gap-3">
+          <span
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+          >
+            <Monitor class="h-4 w-4" />
+          </span>
+          <div class="min-w-0 grid gap-0.5">
+            <h2 class="text-lg font-semibold tracking-tight">
+              {{ t('account.active.title') }}
+            </h2>
+            <p class="text-xs text-muted-foreground">
+              {{ t('account.active.description') }}
+            </p>
           </div>
         </div>
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <Button
+            variant="outline"
+            class="h-9 rounded-md shadow-xs"
+            :disabled="loading"
+            @click="load()"
+          >
+            <Loader2 v-if="loading" class="h-3.5 w-3.5 animate-spin" />
+            <RefreshCw v-else class="h-3.5 w-3.5" />
+            {{ t('common.refresh') }}
+          </Button>
+          <Button
+            variant="destructive"
+            class="h-9 rounded-md shadow-xs"
+            :disabled="loading || !sessions.length"
+            @click="revokeOthers()"
+          >
+            <ShieldOff class="h-3.5 w-3.5" />
+            {{ t('account.active.revokeOthers') }}
+          </Button>
+        </div>
+      </header>
+    </section>
 
-        <div class="mt-4 rounded-md border">
-          <Table class="min-w-[700px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  {{ t('account.active.thisDevice') }}
-                </TableHead>
-                <TableHead>
-                  {{ t('account.active.description') }}
-                </TableHead>
-                <TableHead>Session</TableHead>
-                <TableHead class="text-right">
-                  {{ t('account.active.revoke') }}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-if="!sessions.length">
-                <TableCell
-                  colspan="4"
-                  class="h-24 text-center text-muted-foreground"
+    <div
+      v-if="!sessions.length"
+      class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 bg-muted/10 py-12 text-center"
+    >
+      <span
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+      >
+        <Inbox class="h-5 w-5 text-muted-foreground" />
+      </span>
+      <p class="text-sm text-muted-foreground">
+        {{ t('common.empty') }}
+      </p>
+    </div>
+
+    <section
+      v-else
+      class="mobile-scroll-safe rounded-xl border border-border/60 bg-card shadow-none"
+    >
+      <Table class="min-w-[760px]">
+        <TableHeader>
+          <TableRow class="border-border/60 bg-muted/20 hover:bg-muted/30">
+            <TableHead class="h-9 text-[11px] uppercase tracking-wider text-muted-foreground">
+              {{ t('account.active.thisDevice') }}
+            </TableHead>
+            <TableHead class="h-9 text-[11px] uppercase tracking-wider text-muted-foreground">
+              {{ t('account.active.description') }}
+            </TableHead>
+            <TableHead class="h-9 text-[11px] uppercase tracking-wider text-muted-foreground">
+              Session
+            </TableHead>
+            <TableHead class="h-9 text-right text-[11px] uppercase tracking-wider text-muted-foreground">
+              {{ t('account.active.revoke') }}
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow
+            v-for="s in sessions"
+            :key="s.id"
+            class="border-border/60 align-top"
+            :class="s.current ? 'bg-primary/5' : ''"
+          >
+            <TableCell>
+              <span
+                :class="
+                  s.current
+                    ? `${PILL_BASE} border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300`
+                    : `${PILL_BASE} border-border/60 bg-muted/40 text-muted-foreground`
+                "
+              >
+                {{
+                  s.current
+                    ? t('account.active.thisDevice')
+                    : t('account.active.otherDevice')
+                }}
+              </span>
+            </TableCell>
+            <TableCell>
+              <div class="flex items-start gap-3">
+                <span
+                  class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/50 text-muted-foreground"
                 >
-                  {{ t('common.empty') }}
-                </TableCell>
-              </TableRow>
-              <TableRow v-for="s in sessions" :key="s.id">
-                <TableCell>
-                  <Badge
-                    :variant="
-                      s.current ? 'secondary' : 'outline'
-                    "
-                  >
-                    {{
-                      s.current
-                        ? t('account.active.thisDevice')
-                        : t('account.active.otherDevice')
-                    }}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div class="space-y-1">
-                    <div class="font-medium">
-                      {{ s.deviceInfo }}
-                    </div>
-                    <div class="text-xs text-muted-foreground">
-                      {{ s.ipAddress }} · —
-                    </div>
-                    <div class="text-xs text-muted-foreground">
-                      {{
-                        new Date(
-                          s.lastAccessedAt
-                        ).toLocaleString()
-                      }}
-                    </div>
+                  <Smartphone
+                    v-if="isMobileDevice(s.deviceInfo)"
+                    class="h-3.5 w-3.5"
+                  />
+                  <Monitor v-else class="h-3.5 w-3.5" />
+                </span>
+                <div class="grid gap-0.5">
+                  <div class="text-sm font-medium">
+                    {{ s.deviceInfo }}
                   </div>
-                </TableCell>
-                <TableCell class="max-w-[18rem] truncate font-mono text-xs">
-                  {{ s.id }}
-                </TableCell>
-                <TableCell class="text-right">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    :disabled="s.current || loading"
-                    @click="revoke(s.id)"
-                  >
-                    {{ t('account.active.revoke') }}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
+                  <div class="font-mono text-[11px] text-muted-foreground">
+                    {{ s.ipAddress }}
+                  </div>
+                  <div class="font-mono text-[11px] tabular-nums text-muted-foreground">
+                    {{ new Date(s.lastAccessedAt).toLocaleString() }}
+                  </div>
+                </div>
+              </div>
+            </TableCell>
+            <TableCell
+              class="max-w-[18rem] truncate font-mono text-xs text-muted-foreground"
+            >
+              {{ s.id }}
+            </TableCell>
+            <TableCell class="text-right">
+              <Button
+                size="sm"
+                variant="outline"
+                class="h-8 rounded-md shadow-xs"
+                :disabled="s.current || loading"
+                @click="revoke(s.id)"
+              >
+                {{ t('account.active.revoke') }}
+              </Button>
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </section>
+  </div>
 </template>
-
-

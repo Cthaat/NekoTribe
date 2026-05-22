@@ -175,8 +175,33 @@
     @apply border-border outline-ring/50;
   }
 
+  html,
+  body,
+  #__nuxt {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  @supports not (overflow: clip) {
+    html,
+    body,
+    #__nuxt {
+      overflow-x: hidden;
+    }
+  }
+
   body {
     @apply bg-background text-foreground;
+    min-height: 100dvh;
+    text-wrap: pretty;
+  }
+
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
   }
 
   html {
@@ -244,6 +269,38 @@
   - 不要求组件内改类名，直接通过父选择器覆盖
 */
 @layer utilities {
+  .mobile-scroll-safe {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+    overscroll-behavior-inline: contain;
+  }
+
+  @supports not (overflow: clip) {
+    .mobile-scroll-safe {
+      overflow-x: hidden;
+    }
+  }
+
+  .mobile-action-row {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  @media (max-width: 640px) {
+    .mobile-action-row > :is(button, a, [role='button']) {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    [data-slot='dialog-footer'] > :is(button, a, [role='button']) {
+      width: 100%;
+    }
+  }
 
   /* Card layout tightening */
   .compact [data-slot='card'] {

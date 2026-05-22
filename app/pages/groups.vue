@@ -87,9 +87,9 @@ watch(currentPath, newPath => {
 </script>
 
 <template>
-  <div class="container mx-auto py-6 px-4 max-w-7xl">
+  <div class="container mx-auto max-w-7xl overflow-x-clip px-3 py-4 sm:px-4 sm:py-6">
     <!-- 页面标题 -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="mb-6 flex min-w-0 items-start justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="p-2 bg-primary/10 rounded-lg">
           <Users class="h-6 w-6 text-primary" />
@@ -106,11 +106,11 @@ watch(currentPath, newPath => {
     <!-- 标签导航 -->
     <Tabs
       :model-value="activeTab"
-      class="mb-6"
+      class="mb-6 overflow-x-auto"
       @update:model-value="handleTabChange"
     >
       <TabsList
-        class="grid w-full grid-cols-4 lg:w-auto lg:inline-grid"
+        class="grid w-max min-w-full grid-cols-4 lg:inline-grid lg:w-auto lg:min-w-0"
       >
         <TabsTrigger
           v-for="tab in tabs"

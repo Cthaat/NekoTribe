@@ -7,12 +7,12 @@ import {
   Flag,
   CheckCircle,
   XCircle,
-  Clock,
   AlertTriangle,
   Calendar,
   Eye,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Sparkles
 } from 'lucide-vue-next';
 import {
   Dialog,
@@ -28,9 +28,6 @@ import {
   AvatarImage
 } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -53,11 +50,9 @@ const emit = defineEmits<{
 
 const { t, locale } = useAppLocale();
 
-// 本地状态
 const moderationNote = ref('');
 const selectedImageIndex = ref(0);
 
-// 重置状态
 watch(
   () => props.open,
   isOpen => {
@@ -68,7 +63,6 @@ watch(
   }
 );
 
-// 格式化时间
 const formatTime = (dateStr: string): string => {
   const date = new Date(dateStr);
   return date.toLocaleString(locale.value, {
@@ -80,55 +74,54 @@ const formatTime = (dateStr: string): string => {
   });
 };
 
-// 获取状态信息
-const getStatusInfo = (status: string) => {
+const statusBadge = computed(() => {
+  const status = props.tweet?.status;
   switch (status) {
     case 'pending':
       return {
-        text: t('moderation.status.pending'),
-        variant: 'secondary' as const,
-        color: 'text-yellow-500'
+        label: t('moderation.status.pending'),
+        class:
+          'border-amber-200/60 bg-amber-100/60 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300'
       };
     case 'approved':
       return {
-        text: t('moderation.status.approved'),
-        variant: 'destructive' as const,
-        color: 'text-destructive'
+        label: t('moderation.status.approved'),
+        class:
+          'border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300'
       };
     case 'rejected':
       return {
-        text: t('moderation.status.rejected'),
-        variant: 'outline' as const,
-        color: 'text-muted-foreground'
+        label: t('moderation.status.rejected'),
+        class:
+          'border-border/60 bg-muted/40 text-muted-foreground'
       };
     case 'flagged':
       return {
-        text: t('moderation.status.flagged'),
-        variant: 'outline' as const,
-        color: 'text-orange-500'
+        label: t('moderation.status.flagged'),
+        class:
+          'border-orange-200/60 bg-orange-100/60 text-orange-700 dark:border-orange-900/40 dark:bg-orange-950/40 dark:text-orange-300'
       };
     case 'removed':
       return {
-        text: t('moderation.status.removed'),
-        variant: 'destructive' as const,
-        color: 'text-destructive'
+        label: t('moderation.status.removed'),
+        class:
+          'border-rose-200/60 bg-rose-100/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300'
       };
     case 'restored':
       return {
-        text: t('moderation.status.restored'),
-        variant: 'default' as const,
-        color: 'text-green-500'
+        label: t('moderation.status.restored'),
+        class:
+          'border-sky-200/60 bg-sky-100/60 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300'
       };
     default:
       return {
-        text: t('moderation.status.unknown'),
-        variant: 'secondary' as const,
-        color: 'text-muted-foreground'
+        label: t('moderation.status.unknown'),
+        class:
+          'border-border/60 bg-muted/40 text-muted-foreground'
       };
   }
-};
+});
 
-// 举报原因详情
 const reportReasonDetails: Record<
   ModerationReportReason,
   { titleKey: string; descriptionKey: string }
@@ -180,7 +173,6 @@ const selectedMedia = computed(
   () => props.tweet?.media?.[selectedImageIndex.value] ?? null
 );
 
-// 图片导航
 const prevImage = () => {
   if (props.tweet?.media && selectedImageIndex.value > 0) {
     selectedImageIndex.value--;
@@ -196,7 +188,6 @@ const nextImage = () => {
   }
 };
 
-// 处理审核操作
 const handleApprove = () => {
   if (props.tweet) {
     emit('approve', props.tweet.id, moderationNote.value);
@@ -226,97 +217,101 @@ const closeDialog = () => {
 <template>
   <Dialog :open="open" @update:open="closeDialog">
     <DialogContent
-      class="grid max-h-[92dvh] max-w-5xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0"
+      class="grid max-h-[calc(100dvh-1rem)] max-w-5xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0"
     >
-      <DialogHeader class="border-b px-4 py-4 sm:px-6">
-        <DialogTitle class="flex items-center gap-2">
-          <Eye class="h-5 w-5" />
+      <DialogHeader
+        class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur sm:px-6"
+      >
+        <DialogTitle class="flex items-center gap-2 text-base tracking-tight">
+          <Eye class="h-4 w-4" />
           {{ t('moderation.detail.title') }}
         </DialogTitle>
-        <DialogDescription>
+        <DialogDescription class="text-xs">
           {{ t('moderation.detail.description') }}
         </DialogDescription>
       </DialogHeader>
 
-      <ScrollArea v-if="tweet" class="min-h-0 px-4 py-4 sm:px-6">
-        <div class="space-y-5 pr-2 sm:pr-4">
-          <!-- 用户信息区域 -->
+      <ScrollArea v-if="tweet" class="min-h-0">
+        <div class="space-y-5 px-5 py-5 sm:px-6">
           <div
-            class="flex items-start gap-3 rounded-lg border bg-muted/30 p-3 sm:gap-4 sm:p-4"
+            class="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-3 sm:gap-4 sm:p-4"
           >
-            <Avatar class="h-12 w-12 shrink-0 sm:h-14 sm:w-14">
+            <Avatar
+              class="h-12 w-12 shrink-0 ring-1 ring-border sm:h-14 sm:w-14"
+            >
               <AvatarImage
                 :src="tweet.author.avatar"
                 :alt="tweet.author.nickname"
               />
-              <AvatarFallback>{{
-                tweet.author.nickname.charAt(0)
+              <AvatarFallback class="text-sm">{{
+                tweet.author.nickname.charAt(0).toUpperCase()
               }}</AvatarFallback>
             </Avatar>
             <div class="min-w-0 flex-1">
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="font-semibold">{{
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="text-sm font-semibold">{{
                   tweet.author.nickname
                 }}</span>
-                <span
+                <Sparkles
                   v-if="tweet.author.isVerified"
-                  class="text-primary"
+                  class="h-3.5 w-3.5 text-sky-500"
+                />
+                <span
+                  :class="[
+                    'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium',
+                    statusBadge.class
+                  ]"
                 >
-                  <CheckCircle class="h-4 w-4" />
+                  {{ statusBadge.label }}
                 </span>
-                <Badge
-                  :variant="
-                    getStatusInfo(tweet.status).variant
-                  "
-                >
-                  {{ getStatusInfo(tweet.status).text }}
-                </Badge>
               </div>
-              <span class="text-sm text-muted-foreground"
-                >@{{ tweet.author.username }}</span
-              >
+              <span class="text-xs text-muted-foreground">
+                @{{ tweet.author.username }}
+              </span>
               <div
-                class="mt-2 flex flex-wrap items-center gap-4 text-xs text-muted-foreground"
+                class="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground"
               >
                 <div class="flex items-center gap-1">
                   <Calendar class="h-3 w-3" />
-                  <span
-                    >{{
-                      t('moderation.detail.publishedAt', {
-                        time: formatTime(tweet.createdAt)
-                      })
-                    }}</span
-                  >
+                  <span>{{
+                    t('moderation.detail.publishedAt', {
+                      time: formatTime(tweet.createdAt)
+                    })
+                  }}</span>
                 </div>
                 <div class="flex items-center gap-1">
                   <Flag class="h-3 w-3" />
-                  <span
-                    >{{
-                      t('moderation.detail.reportedAt', {
-                        time: formatTime(tweet.reportedAt)
-                      })
-                    }}</span
-                  >
+                  <span>{{
+                    t('moderation.detail.reportedAt', {
+                      time: formatTime(tweet.reportedAt)
+                    })
+                  }}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- 推文内容 -->
           <div>
-            <h4 class="text-sm font-medium mb-2">
+            <h4
+              class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               {{ t('moderation.detail.postContent') }}
             </h4>
-            <div class="rounded-lg border bg-background p-4">
-              <p class="break-words whitespace-pre-wrap leading-7">
+            <div
+              class="rounded-xl border border-border/60 bg-card p-4"
+            >
+              <p
+                class="whitespace-pre-wrap break-words text-sm leading-6 text-foreground"
+              >
                 {{ tweet.content }}
               </p>
             </div>
           </div>
 
-          <!-- 媒体内容 -->
           <div v-if="tweet.media && tweet.media.length > 0">
-            <h4 class="text-sm font-medium mb-2">
+            <h4
+              class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               {{
                 t('moderation.detail.mediaContent', {
                   current: selectedImageIndex + 1,
@@ -326,25 +321,24 @@ const closeDialog = () => {
             </h4>
             <div class="relative">
               <div
-                class="aspect-video overflow-hidden rounded-lg border bg-muted"
+                class="aspect-video overflow-hidden rounded-xl border border-border/60 bg-muted/40"
               >
                 <img
                   v-if="selectedMedia"
                   :src="selectedMedia.url"
                   :alt="t('moderation.detail.mediaAlt')"
-                  class="w-full h-full object-contain"
+                  class="h-full w-full object-contain"
                 />
               </div>
 
-              <!-- 图片导航 -->
               <div
                 v-if="tweet.media.length > 1"
-                class="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-2"
+                class="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center justify-between px-2"
               >
                 <Button
                   variant="secondary"
                   size="icon"
-                  class="rounded-full opacity-80 hover:opacity-100"
+                  class="pointer-events-auto h-8 w-8 rounded-full shadow-md"
                   :disabled="selectedImageIndex === 0"
                   @click="prevImage"
                 >
@@ -353,7 +347,7 @@ const closeDialog = () => {
                 <Button
                   variant="secondary"
                   size="icon"
-                  class="rounded-full opacity-80 hover:opacity-100"
+                  class="pointer-events-auto h-8 w-8 rounded-full shadow-md"
                   :disabled="
                     selectedImageIndex ===
                     tweet.media.length - 1
@@ -364,40 +358,38 @@ const closeDialog = () => {
                 </Button>
               </div>
 
-              <!-- 缩略图导航 -->
               <div
                 v-if="tweet.media.length > 1"
-                class="mt-2 flex justify-center gap-2 overflow-x-auto pb-1"
+                class="mt-2 flex justify-center gap-1.5 overflow-x-auto pb-1"
               >
-                <Button
+                <button
                   v-for="(media, index) in tweet.media"
                   :key="index"
-                  variant="ghost"
-                  class="h-12 w-16 shrink-0 overflow-hidden rounded border-2 transition-colors"
+                  type="button"
+                  class="h-12 w-16 shrink-0 overflow-hidden rounded-md border-2 transition-colors"
                   :class="
                     selectedImageIndex === index
                       ? 'border-primary'
-                      : 'border-transparent opacity-60 hover:opacity-100'
+                      : 'border-border/60 opacity-60 hover:opacity-100'
                   "
                   @click="selectedImageIndex = index"
                 >
                   <img
                     :src="media.thumbnail || media.url"
                     alt=""
-                    class="w-full h-full object-cover"
+                    class="h-full w-full object-cover"
                   />
-                </Button>
+                </button>
               </div>
             </div>
           </div>
 
-          <!-- 举报信息 -->
           <div>
             <h4
-              class="text-sm font-medium mb-2 flex items-center gap-2"
+              class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
             >
               <AlertTriangle
-                class="h-4 w-4 text-destructive"
+                class="h-3 w-3 text-rose-500"
               />
               {{
                 t('moderation.detail.reportInfo', {
@@ -406,81 +398,88 @@ const closeDialog = () => {
               }}
             </h4>
             <div class="space-y-2">
-              <Card
+              <div
                 v-for="reason in tweet.reportReasons"
                 :key="reason"
-                class="gap-0 bg-destructive/5 py-0"
+                class="rounded-lg border border-rose-200/60 bg-rose-50/60 p-3 dark:border-rose-900/40 dark:bg-rose-950/30"
               >
-                <CardContent class="p-3">
-                  <div class="text-sm font-medium">
-                    {{ getReportReasonTitle(reason) }}
-                  </div>
-                  <div
-                    class="mt-1 text-xs text-muted-foreground"
-                  >
-                    {{ getReportReasonDescription(reason) }}
-                  </div>
-                </CardContent>
-              </Card>
+                <div
+                  class="text-sm font-medium text-rose-800 dark:text-rose-200"
+                >
+                  {{ getReportReasonTitle(reason) }}
+                </div>
+                <div
+                  class="mt-1 text-xs text-rose-700/80 dark:text-rose-300/80"
+                >
+                  {{ getReportReasonDescription(reason) }}
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- 互动数据 -->
           <div>
-            <h4 class="text-sm font-medium mb-2">
+            <h4
+              class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               {{ t('moderation.detail.engagement') }}
             </h4>
-            <Card class="gap-0 py-0">
-              <CardContent
-                class="flex flex-wrap items-center gap-6 p-4"
-              >
-                <div class="flex items-center gap-2">
-                  <Heart class="h-5 w-5 text-pink-500" />
-                  <span class="font-medium">{{
-                    tweet.likes
-                  }}</span>
-                  <span class="text-sm text-muted-foreground"
-                    >{{ t('moderation.detail.likes') }}</span
-                  >
+            <div
+              class="grid grid-cols-3 gap-3 rounded-xl border border-border/60 bg-card p-4"
+            >
+              <div class="flex flex-col items-center gap-1">
+                <div
+                  class="flex h-9 w-9 items-center justify-center rounded-full bg-rose-500/10"
+                >
+                  <Heart class="h-4 w-4 text-rose-500" />
                 </div>
-                <div class="flex items-center gap-2">
-                  <Repeat class="h-5 w-5 text-green-500" />
-                  <span class="font-medium">{{
-                    tweet.retweets
-                  }}</span>
-                  <span class="text-sm text-muted-foreground"
-                    >{{ t('moderation.detail.retweets') }}</span
-                  >
+                <span class="text-base font-semibold tabular-nums">
+                  {{ tweet.likes }}
+                </span>
+                <span class="text-xs text-muted-foreground">
+                  {{ t('moderation.detail.likes') }}
+                </span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <div
+                  class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/10"
+                >
+                  <Repeat class="h-4 w-4 text-emerald-500" />
                 </div>
-                <div class="flex items-center gap-2">
-                  <MessageCircle
-                    class="h-5 w-5 text-blue-500"
-                  />
-                  <span class="font-medium">{{
-                    tweet.replies
-                  }}</span>
-                  <span class="text-sm text-muted-foreground"
-                    >{{ t('moderation.detail.replies') }}</span
-                  >
+                <span class="text-base font-semibold tabular-nums">
+                  {{ tweet.retweets }}
+                </span>
+                <span class="text-xs text-muted-foreground">
+                  {{ t('moderation.detail.retweets') }}
+                </span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <div
+                  class="flex h-9 w-9 items-center justify-center rounded-full bg-sky-500/10"
+                >
+                  <MessageCircle class="h-4 w-4 text-sky-500" />
                 </div>
-              </CardContent>
-            </Card>
+                <span class="text-base font-semibold tabular-nums">
+                  {{ tweet.replies }}
+                </span>
+                <span class="text-xs text-muted-foreground">
+                  {{ t('moderation.detail.replies') }}
+                </span>
+              </div>
+            </div>
           </div>
 
-          <Separator />
-
-          <!-- 审核备注 -->
           <div>
             <Label
               for="moderation-note"
-              class="text-sm font-medium"
-              >{{ t('moderation.detail.note') }}</Label
+              class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
             >
+              {{ t('moderation.detail.note') }}
+            </Label>
             <Textarea
               id="moderation-note"
               v-model="moderationNote"
               :placeholder="t('moderation.detail.notePlaceholder')"
-              class="mt-2"
+              class="mt-2 min-h-[88px] resize-none shadow-xs"
               rows="3"
             />
           </div>
@@ -488,25 +487,40 @@ const closeDialog = () => {
       </ScrollArea>
 
       <DialogFooter
-        class="grid gap-2 border-t bg-background/95 px-4 py-4 sm:flex sm:px-6"
+        class="flex flex-col-reverse gap-2 border-t border-border/60 bg-background/60 px-5 py-3 backdrop-blur sm:flex-row sm:justify-end sm:px-6"
       >
-        <Button variant="outline" @click="closeDialog">
+        <Button
+          variant="ghost"
+          size="sm"
+          class="h-9 rounded-md"
+          @click="closeDialog"
+        >
           {{ t('common.cancel') }}
         </Button>
         <Button
           variant="outline"
-          class="text-yellow-600 hover:text-yellow-700"
+          size="sm"
+          class="h-9 rounded-md text-amber-600 shadow-xs hover:bg-amber-500/10 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
           @click="handleFlag"
         >
-          <Flag class="h-4 w-4 mr-2" />
+          <Flag class="h-4 w-4" />
           {{ t('moderation.actions.flag') }}
         </Button>
-        <Button variant="outline" @click="handleReject">
-          <XCircle class="h-4 w-4 mr-2" />
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-9 rounded-md shadow-xs"
+          @click="handleReject"
+        >
+          <XCircle class="h-4 w-4" />
           {{ t('moderation.actions.reject') }}
         </Button>
-        <Button variant="destructive" @click="handleApprove">
-          <CheckCircle class="h-4 w-4 mr-2" />
+        <Button
+          size="sm"
+          class="h-9 rounded-md shadow-xs"
+          @click="handleApprove"
+        >
+          <CheckCircle class="h-4 w-4" />
           {{ t('moderation.actions.approve') }}
         </Button>
       </DialogFooter>

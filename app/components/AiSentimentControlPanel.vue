@@ -19,13 +19,15 @@ import {
   Square,
   TestTube2
 } from 'lucide-vue-next';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle
+} from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -76,11 +78,13 @@ import type {
   SentimentFlowTrainingStatusData
 } from '@/services';
 
-type BadgeVariant =
-  | 'default'
-  | 'secondary'
-  | 'destructive'
-  | 'outline';
+type StatusTone =
+  | 'primary'
+  | 'emerald'
+  | 'sky'
+  | 'amber'
+  | 'rose'
+  | 'muted';
 type TrainingStatusFilter =
   | 'all'
   | 'queued'
@@ -182,6 +186,19 @@ const probabilityItems = computed(() => {
     .sort((a, b) => b.score - a.score);
 });
 
+const statusPillClassMap: Record<StatusTone, string> = {
+  primary:
+    'border-primary/30 bg-primary/10 text-primary',
+  emerald:
+    'border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300',
+  sky: 'border-sky-200/60 bg-sky-100/60 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300',
+  amber:
+    'border-amber-200/60 bg-amber-100/60 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300',
+  rose: 'border-rose-200/60 bg-rose-100/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300',
+  muted:
+    'border-border/60 bg-muted/40 text-muted-foreground'
+};
+
 function errorText(error: unknown): string {
   return error instanceof Error
     ? error.message
@@ -261,21 +278,21 @@ function statusLabel(status: string): string {
   return t(`sentiment.trainingStatus.${status}`);
 }
 
-function statusVariant(status: string): BadgeVariant {
-  if (status === 'succeeded') {
-    return 'default';
-  }
+function statusTone(status: string): StatusTone {
+  if (status === 'succeeded') return 'emerald';
   if (
     status === 'failed' ||
     status === 'cancelled' ||
     status === 'cancelling'
-  ) {
-    return 'destructive';
-  }
-  if (status === 'running' || status === 'queued') {
-    return 'secondary';
-  }
-  return 'outline';
+  )
+    return 'rose';
+  if (status === 'running') return 'sky';
+  if (status === 'queued') return 'amber';
+  return 'muted';
+}
+
+function statusPillClass(status: string): string {
+  return statusPillClassMap[statusTone(status)];
 }
 
 function applySettings(settings: AccountSettingsVM): void {
@@ -641,54 +658,82 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="space-y-4 rounded-md border p-3 sm:p-4">
+  <section
+    class="grid gap-5 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
+  >
     <div
       class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
     >
-      <div class="space-y-1">
-        <div class="flex items-center gap-2">
-          <BrainCircuit class="h-5 w-5 text-primary" />
-          <h3 class="text-lg font-semibold">
-            {{ t('sentiment.panel.title') }}
-          </h3>
-          <Badge
-            :variant="canUseUpstream ? 'default' : 'secondary'"
-          >
-            {{
-              canUseUpstream
-                ? t('sentiment.panel.statusReady')
-                : t('sentiment.panel.statusOffline')
-            }}
-          </Badge>
+      <div class="flex items-start gap-3">
+        <span
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-400"
+        >
+          <BrainCircuit class="h-5 w-5" />
+        </span>
+        <div class="grid gap-1">
+          <div class="flex items-center gap-2">
+            <h3 class="text-base font-semibold tracking-tight">
+              {{ t('sentiment.panel.title') }}
+            </h3>
+            <span
+              class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
+              :class="
+                canUseUpstream
+                  ? statusPillClassMap.emerald
+                  : statusPillClassMap.muted
+              "
+            >
+              <span
+                class="size-1.5 rounded-full"
+                :class="
+                  canUseUpstream
+                    ? 'bg-emerald-500'
+                    : 'bg-muted-foreground/60'
+                "
+              />
+              {{
+                canUseUpstream
+                  ? t('sentiment.panel.statusReady')
+                  : t('sentiment.panel.statusOffline')
+              }}
+            </span>
+          </div>
+          <p class="text-xs text-muted-foreground">
+            {{ t('sentiment.panel.description') }}
+          </p>
         </div>
-        <p class="text-sm text-muted-foreground">
-          {{ t('sentiment.panel.description') }}
-        </p>
       </div>
       <Button
         variant="outline"
         size="sm"
-        class="w-full gap-2 sm:w-auto"
+        class="h-8 w-full rounded-md shadow-xs sm:w-auto"
         :disabled="loading"
         @click="refreshAll"
       >
         <Loader2
           v-if="loading"
-          class="h-4 w-4 animate-spin"
+          class="h-3.5 w-3.5 animate-spin"
         />
-        <RefreshCw v-else class="h-4 w-4" />
+        <RefreshCw v-else class="h-3.5 w-3.5" />
         {{ t('common.refresh') }}
       </Button>
     </div>
 
-    <Alert v-if="loadError" variant="destructive">
+    <Alert
+      v-if="loadError"
+      variant="destructive"
+      class="rounded-lg"
+    >
       <AlertTitle>
         {{ t('sentiment.panel.feedback.loadFailed') }}
       </AlertTitle>
       <AlertDescription>{{ loadError }}</AlertDescription>
     </Alert>
 
-    <Alert v-else-if="upstreamError">
+    <Alert
+      v-else-if="upstreamError"
+      class="rounded-lg border-border/60"
+    >
       <CircleOff class="h-4 w-4" />
       <AlertTitle>
         {{ t('sentiment.panel.upstreamWarningTitle') }}
@@ -698,48 +743,56 @@ onBeforeUnmount(() => {
 
     <Tabs default-value="overview" class="w-full">
       <div class="overflow-x-auto">
-        <TabsList class="grid w-max min-w-full grid-cols-3">
-          <TabsTrigger value="overview">
+        <TabsList class="grid w-max min-w-full grid-cols-3 shadow-xs">
+          <TabsTrigger value="overview" class="text-xs font-medium">
             {{ t('sentiment.panel.tabs.overview') }}
           </TabsTrigger>
-          <TabsTrigger value="prediction">
+          <TabsTrigger value="prediction" class="text-xs font-medium">
             {{ t('sentiment.panel.tabs.prediction') }}
           </TabsTrigger>
-          <TabsTrigger value="training">
+          <TabsTrigger value="training" class="text-xs font-medium">
             {{ t('sentiment.panel.tabs.training') }}
           </TabsTrigger>
         </TabsList>
       </div>
 
-      <TabsContent value="overview" class="space-y-5 pt-4">
+      <TabsContent value="overview" class="grid gap-4 pt-4">
         <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-          <div class="space-y-4 rounded-md border p-4">
-            <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <Label class="font-medium">
+          <div
+            class="grid gap-4 rounded-xl border border-border/60 bg-background p-4"
+          >
+            <div
+              class="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div class="grid gap-1">
+                <Label class="text-xs font-medium">
                   {{ t('sentiment.panel.enableLabel') }}
                 </Label>
-                <p class="text-xs text-muted-foreground">
+                <p class="text-[11px] text-muted-foreground">
                   {{ t('sentiment.panel.enableDescription') }}
                 </p>
               </div>
-              <Switch
-                v-model:checked="aiSentimentEnabled"
-              />
+              <Switch v-model:checked="aiSentimentEnabled" />
             </div>
 
-            <Separator />
+            <div class="border-t border-border/60" />
 
             <div class="grid gap-4 md:grid-cols-2">
-              <div class="space-y-2">
-                <Label for="ai-sentiment-model">
+              <div class="grid gap-2">
+                <Label
+                  for="ai-sentiment-model"
+                  class="text-xs font-medium"
+                >
                   {{ t('sentiment.panel.defaultModel') }}
                 </Label>
                 <Select
                   v-model="defaultModelValue"
                   :disabled="models.length === 0"
                 >
-                  <SelectTrigger id="ai-sentiment-model">
+                  <SelectTrigger
+                    id="ai-sentiment-model"
+                    class="h-9 shadow-xs"
+                  >
                     <SelectValue
                       :placeholder="
                         t('sentiment.panel.defaultModel')
@@ -761,13 +814,16 @@ onBeforeUnmount(() => {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <p class="text-xs text-muted-foreground">
+                <p class="text-[11px] text-muted-foreground">
                   {{ selectedModelName }}
                 </p>
               </div>
 
-              <div class="space-y-2">
-                <Label for="ai-sentiment-top-k">
+              <div class="grid gap-2">
+                <Label
+                  for="ai-sentiment-top-k"
+                  class="text-xs font-medium"
+                >
                   {{ t('sentiment.panel.topK') }}
                 </Label>
                 <Input
@@ -776,23 +832,26 @@ onBeforeUnmount(() => {
                   min="1"
                   max="10"
                   :model-value="topK"
+                  class="h-9 shadow-xs"
                   @update:model-value="updateTopK"
                 />
-                <p class="text-xs text-muted-foreground">
+                <p class="text-[11px] text-muted-foreground">
                   {{ t('sentiment.panel.topKDescription') }}
                 </p>
               </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <Label class="font-medium">
+            <div class="grid gap-3 md:grid-cols-2">
+              <div
+                class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 p-3"
+              >
+                <div class="grid gap-1">
+                  <Label class="text-xs font-medium">
                     {{
                       t('sentiment.panel.returnProbabilities')
                     }}
                   </Label>
-                  <p class="text-xs text-muted-foreground">
+                  <p class="text-[11px] text-muted-foreground">
                     {{
                       t(
                         'sentiment.panel.returnProbabilitiesDesc'
@@ -804,12 +863,14 @@ onBeforeUnmount(() => {
                   v-model:checked="returnProbabilities"
                 />
               </div>
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <Label class="font-medium">
+              <div
+                class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 p-3"
+              >
+                <div class="grid gap-1">
+                  <Label class="text-xs font-medium">
                     {{ t('sentiment.panel.includeMetadata') }}
                   </Label>
-                  <p class="text-xs text-muted-foreground">
+                  <p class="text-[11px] text-muted-foreground">
                     {{
                       t('sentiment.panel.includeMetadataDesc')
                     }}
@@ -819,30 +880,34 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="grid sm:flex sm:justify-end">
+            <div class="flex justify-end">
               <Button
-                class="w-full gap-2 sm:w-auto"
+                class="h-9 w-full rounded-md shadow-xs sm:w-auto"
                 :disabled="saving"
                 @click="saveAiSettings"
               >
                 <Loader2
                   v-if="saving"
-                  class="h-4 w-4 animate-spin"
+                  class="h-3.5 w-3.5 animate-spin"
                 />
-                <Save v-else class="h-4 w-4" />
+                <Save v-else class="h-3.5 w-3.5" />
                 {{ t('sentiment.actions.saveSettings') }}
               </Button>
             </div>
           </div>
 
-          <div class="space-y-3 rounded-md border p-4 text-sm">
-            <div class="flex items-center gap-2 font-medium">
-              <Activity class="h-4 w-4 text-primary" />
+          <div
+            class="grid gap-3 rounded-xl border border-border/60 bg-background p-4 text-sm"
+          >
+            <div
+              class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
+              <Activity class="h-3.5 w-3.5 text-violet-500" />
               {{ t('sentiment.panel.runtimeTitle') }}
             </div>
             <div class="grid gap-3">
-              <div>
-                <div class="text-muted-foreground">
+              <div class="grid gap-1">
+                <div class="text-[11px] text-muted-foreground">
                   {{ t('sentiment.panel.activeModel') }}
                 </div>
                 <div class="font-medium">
@@ -854,28 +919,32 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <div class="text-muted-foreground">
+                <div class="grid gap-1">
+                  <div class="text-[11px] text-muted-foreground">
                     {{ t('sentiment.panel.totalPredictions') }}
                   </div>
-                  <div class="text-lg font-semibold">
+                  <div
+                    class="text-xl font-semibold tabular-nums tracking-tight"
+                  >
                     {{ stats?.total_predictions ?? 0 }}
                   </div>
                 </div>
-                <div>
-                  <div class="text-muted-foreground">
+                <div class="grid gap-1">
+                  <div class="text-[11px] text-muted-foreground">
                     {{ t('sentiment.panel.totalTrainingJobs') }}
                   </div>
-                  <div class="text-lg font-semibold">
+                  <div
+                    class="text-xl font-semibold tabular-nums tracking-tight"
+                  >
                     {{ stats?.total_training_jobs ?? 0 }}
                   </div>
                 </div>
               </div>
-              <div>
-                <div class="text-muted-foreground">
+              <div class="grid gap-1">
+                <div class="text-[11px] text-muted-foreground">
                   {{ t('sentiment.panel.timeout') }}
                 </div>
-                <div>
+                <div class="tabular-nums">
                   {{ integrationConfig?.timeoutMs ?? '-' }} ms
                 </div>
               </div>
@@ -883,20 +952,30 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="rounded-md border">
+        <div
+          class="overflow-hidden rounded-xl border border-border/60 bg-background"
+        >
           <Table class="min-w-[640px]">
             <TableHeader>
-              <TableRow>
-                <TableHead>
+              <TableRow class="bg-muted/30 hover:bg-muted/30">
+                <TableHead
+                  class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                >
                   {{ t('sentiment.panel.models.name') }}
                 </TableHead>
-                <TableHead>
+                <TableHead
+                  class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                >
                   {{ t('sentiment.panel.models.type') }}
                 </TableHead>
-                <TableHead>
+                <TableHead
+                  class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                >
                   {{ t('sentiment.panel.models.status') }}
                 </TableHead>
-                <TableHead class="text-right">
+                <TableHead
+                  class="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                >
                   {{ t('sentiment.panel.models.action') }}
                 </TableHead>
               </TableRow>
@@ -916,15 +995,18 @@ onBeforeUnmount(() => {
                   <div class="font-medium">
                     {{ model.name }}
                   </div>
-                  <div class="text-xs text-muted-foreground">
+                  <div class="text-[11px] text-muted-foreground">
                     {{ model.model_id }} · v{{ model.version }}
                   </div>
                 </TableCell>
-                <TableCell>{{ model.type }}</TableCell>
+                <TableCell class="text-sm">{{ model.type }}</TableCell>
                 <TableCell>
-                  <Badge
-                    :variant="
-                      model.is_active ? 'default' : 'secondary'
+                  <span
+                    class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
+                    :class="
+                      model.is_active
+                        ? statusPillClassMap.emerald
+                        : statusPillClassMap.muted
                     "
                   >
                     {{
@@ -932,12 +1014,13 @@ onBeforeUnmount(() => {
                         ? t('sentiment.panel.models.active')
                         : t('sentiment.panel.models.standby')
                     }}
-                  </Badge>
+                  </span>
                 </TableCell>
                 <TableCell class="text-right">
                   <Button
                     variant="outline"
                     size="sm"
+                    class="h-8 rounded-md shadow-xs"
                     :disabled="
                       model.is_active ||
                       activeModelUpdating === model.model_id
@@ -948,9 +1031,9 @@ onBeforeUnmount(() => {
                       v-if="
                         activeModelUpdating === model.model_id
                       "
-                      class="mr-2 h-4 w-4 animate-spin"
+                      class="h-3.5 w-3.5 animate-spin"
                     />
-                    <CheckCircle2 v-else class="mr-2 h-4 w-4" />
+                    <CheckCircle2 v-else class="h-3.5 w-3.5" />
                     {{
                       t('sentiment.actions.setActiveModel')
                     }}
@@ -962,63 +1045,70 @@ onBeforeUnmount(() => {
         </div>
       </TabsContent>
 
-      <TabsContent value="prediction" class="space-y-4 pt-4">
+      <TabsContent value="prediction" class="grid gap-4 pt-4">
         <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-          <div class="space-y-3">
-            <Label for="ai-sentiment-test-text">
+          <div class="grid gap-3">
+            <Label
+              for="ai-sentiment-test-text"
+              class="text-xs font-medium"
+            >
               {{ t('sentiment.panel.testText') }}
             </Label>
             <Textarea
               id="ai-sentiment-test-text"
               v-model="testText"
-              class="min-h-32 resize-none"
+              class="min-h-32 resize-none rounded-md shadow-xs"
               maxlength="2000"
             />
-            <div class="grid sm:flex sm:justify-end">
+            <div class="flex justify-end">
               <Button
-                class="w-full gap-2 sm:w-auto"
+                class="h-9 w-full rounded-md shadow-xs sm:w-auto"
                 :disabled="testing || !canUseUpstream"
                 @click="runTestPrediction"
               >
                 <Loader2
                   v-if="testing"
-                  class="h-4 w-4 animate-spin"
+                  class="h-3.5 w-3.5 animate-spin"
                 />
-                <TestTube2 v-else class="h-4 w-4" />
+                <TestTube2 v-else class="h-3.5 w-3.5" />
                 {{ t('sentiment.actions.testPrediction') }}
               </Button>
             </div>
           </div>
 
-          <div class="rounded-md border p-4 text-sm">
-            <div class="mb-3 flex items-center gap-2 font-medium">
+          <div
+            class="rounded-xl border border-border/60 bg-background p-4 text-sm"
+          >
+            <div
+              class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               <SlidersHorizontal
-                class="h-4 w-4 text-primary"
+                class="h-3.5 w-3.5 text-violet-500"
               />
               {{ t('sentiment.panel.currentPayload') }}
             </div>
-            <div class="space-y-2 text-muted-foreground">
-              <div>
-                model_id:
-                <span class="text-foreground">
+            <div class="grid gap-2 text-xs text-muted-foreground">
+              <div class="flex items-center justify-between">
+                <span>model_id</span>
+                <span class="font-mono text-foreground">
                   {{ selectedModelId || 'active' }}
                 </span>
               </div>
-              <div>
-                return_probabilities:
-                <span class="text-foreground">
+              <div class="flex items-center justify-between">
+                <span>return_probabilities</span>
+                <span class="font-mono text-foreground">
                   {{ returnProbabilities }}
                 </span>
               </div>
-              <div>
-                include_metadata:
-                <span class="text-foreground">
+              <div class="flex items-center justify-between">
+                <span>include_metadata</span>
+                <span class="font-mono text-foreground">
                   {{ includeMetadata }}
                 </span>
               </div>
-              <div>
-                top_k:
-                <span class="text-foreground">{{ topK }}</span>
+              <div class="flex items-center justify-between">
+                <span>top_k</span>
+                <span class="font-mono tabular-nums text-foreground">{{ topK }}</span>
               </div>
             </div>
           </div>
@@ -1026,21 +1116,26 @@ onBeforeUnmount(() => {
 
         <div
           v-if="testPrediction"
-          class="grid gap-4 rounded-md border p-4 lg:grid-cols-2"
+          class="grid gap-4 rounded-xl border border-border/60 bg-background p-4 lg:grid-cols-2"
         >
-          <div class="space-y-2">
-            <div class="text-sm text-muted-foreground">
+          <div class="grid gap-2">
+            <div
+              class="text-[11px] uppercase tracking-wider text-muted-foreground"
+            >
               {{ t('sentiment.prediction.primaryLabel') }}
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <Badge>
+              <span
+                class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                :class="statusPillClassMap.primary"
+              >
                 {{
                   sentimentLabel(
                     testPrediction.prediction.label
                   )
                 }}
-              </Badge>
-              <span class="text-sm font-medium">
+              </span>
+              <span class="text-sm font-semibold tabular-nums">
                 {{
                   formatPercent(
                     testPrediction.prediction.confidence
@@ -1048,52 +1143,69 @@ onBeforeUnmount(() => {
                 }}
               </span>
             </div>
-            <p class="text-xs text-muted-foreground">
+            <p class="text-[11px] text-muted-foreground">
               {{ testPrediction.model.name }} ·
-              {{ testPrediction.timing_ms }} ms
+              <span class="tabular-nums">
+                {{ testPrediction.timing_ms }} ms
+              </span>
             </p>
           </div>
 
           <div
             v-if="probabilityItems.length > 0"
-            class="space-y-3"
+            class="grid gap-3"
           >
             <div
               v-for="item in probabilityItems"
               :key="item.label"
-              class="space-y-1.5"
+              class="grid gap-1.5"
             >
               <div class="flex justify-between text-sm">
                 <span>{{ sentimentLabel(item.label) }}</span>
-                <span>{{ formatPercent(item.score) }}</span>
+                <span class="font-medium tabular-nums">{{
+                  formatPercent(item.score)
+                }}</span>
               </div>
               <Progress
                 :model-value="Math.round(item.score * 100)"
+                class="h-1.5"
               />
             </div>
           </div>
         </div>
       </TabsContent>
 
-      <TabsContent value="training" class="space-y-5 pt-4">
+      <TabsContent value="training" class="grid gap-4 pt-4">
         <div class="grid gap-4 lg:grid-cols-2">
-          <div class="space-y-4 rounded-md border p-4">
+          <div
+            class="grid gap-4 rounded-xl border border-border/60 bg-background p-4"
+          >
             <div class="grid gap-4 md:grid-cols-2">
-              <div class="space-y-2 md:col-span-2">
-                <Label for="sentiment-dataset-path">
+              <div class="grid gap-2 md:col-span-2">
+                <Label
+                  for="sentiment-dataset-path"
+                  class="text-xs font-medium"
+                >
                   {{ t('sentiment.panel.training.dataset') }}
                 </Label>
                 <Input
                   id="sentiment-dataset-path"
                   v-model="trainDatasetPath"
+                  class="h-9 shadow-xs"
                 />
               </div>
-              <div class="space-y-2">
-                <Label for="sentiment-model-type">
+              <div class="grid gap-2">
+                <Label
+                  for="sentiment-model-type"
+                  class="text-xs font-medium"
+                >
                   {{ t('sentiment.panel.training.modelType') }}
                 </Label>
                 <Select v-model="trainModelType">
-                  <SelectTrigger id="sentiment-model-type">
+                  <SelectTrigger
+                    id="sentiment-model-type"
+                    class="h-9 shadow-xs"
+                  >
                     <SelectValue placeholder="bert" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1102,8 +1214,11 @@ onBeforeUnmount(() => {
                   </SelectContent>
                 </Select>
               </div>
-              <div class="space-y-2">
-                <Label for="sentiment-epochs">
+              <div class="grid gap-2">
+                <Label
+                  for="sentiment-epochs"
+                  class="text-xs font-medium"
+                >
                   {{ t('sentiment.panel.training.epochs') }}
                 </Label>
                 <Input
@@ -1111,11 +1226,15 @@ onBeforeUnmount(() => {
                   type="number"
                   min="1"
                   :model-value="trainEpochs"
+                  class="h-9 shadow-xs"
                   @update:model-value="updateEpochs"
                 />
               </div>
-              <div class="space-y-2">
-                <Label for="sentiment-batch-size">
+              <div class="grid gap-2">
+                <Label
+                  for="sentiment-batch-size"
+                  class="text-xs font-medium"
+                >
                   {{ t('sentiment.panel.training.batchSize') }}
                 </Label>
                 <Input
@@ -1123,50 +1242,60 @@ onBeforeUnmount(() => {
                   type="number"
                   min="1"
                   :model-value="trainBatchSize"
+                  class="h-9 shadow-xs"
                   @update:model-value="updateBatchSize"
                 />
               </div>
-              <div class="space-y-2">
-                <Label for="sentiment-learning-rate">
+              <div class="grid gap-2">
+                <Label
+                  for="sentiment-learning-rate"
+                  class="text-xs font-medium"
+                >
                   {{ t('sentiment.panel.training.learningRate') }}
                 </Label>
                 <Input
                   id="sentiment-learning-rate"
                   v-model="trainLearningRate"
+                  class="h-9 shadow-xs"
                 />
               </div>
-              <div class="space-y-2 md:col-span-2">
-                <Label for="sentiment-notes">
+              <div class="grid gap-2 md:col-span-2">
+                <Label
+                  for="sentiment-notes"
+                  class="text-xs font-medium"
+                >
                   {{ t('sentiment.panel.training.notes') }}
                 </Label>
                 <Textarea
                   id="sentiment-notes"
                   v-model="trainNotes"
-                  class="min-h-20 resize-none"
+                  class="min-h-20 resize-none rounded-md shadow-xs"
                 />
               </div>
             </div>
-            <div class="grid sm:flex sm:justify-end">
+            <div class="flex justify-end">
               <Button
-                class="w-full gap-2 sm:w-auto"
+                class="h-9 w-full rounded-md shadow-xs sm:w-auto"
                 :disabled="startingTraining || !canUseUpstream"
                 @click="startTraining"
               >
                 <Loader2
                   v-if="startingTraining"
-                  class="h-4 w-4 animate-spin"
+                  class="h-3.5 w-3.5 animate-spin"
                 />
-                <Play v-else class="h-4 w-4" />
+                <Play v-else class="h-3.5 w-3.5" />
                 {{ t('sentiment.actions.startTraining') }}
               </Button>
             </div>
           </div>
 
-          <div class="space-y-4 rounded-md border p-4">
+          <div
+            class="grid gap-4 rounded-xl border border-border/60 bg-background p-4"
+          >
             <div
               class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div class="font-medium">
+              <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {{ t('sentiment.panel.training.statusTitle') }}
               </div>
               <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex">
@@ -1174,7 +1303,9 @@ onBeforeUnmount(() => {
                   v-model="trainingStatusFilter"
                   @update:model-value="refreshTrainingJobs"
                 >
-                  <SelectTrigger class="w-full sm:w-32">
+                  <SelectTrigger
+                    class="h-8 w-full rounded-md shadow-xs sm:w-32"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1187,42 +1318,48 @@ onBeforeUnmount(() => {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <Button
-                  variant="outline"
-                  size="icon"
+                <button
+                  type="button"
+                  class="flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
                   :disabled="!canUseUpstream"
                   @click="refreshTrainingJobs"
                 >
-                  <RefreshCw class="h-4 w-4" />
-                </Button>
+                  <RefreshCw class="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
 
             <div
               v-if="selectedTrainingStatus"
-              class="space-y-3 rounded-md bg-muted/40 p-3"
+              class="grid gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
             >
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <span class="break-all font-medium">
+              <div
+                class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <span class="break-all font-mono text-xs">
                   {{ selectedTrainingStatus.job_id }}
                 </span>
-                <Badge
-                  :variant="
-                    statusVariant(selectedTrainingStatus.status)
+                <span
+                  class="inline-flex w-fit items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
+                  :class="
+                    statusPillClass(selectedTrainingStatus.status)
                   "
                 >
                   {{
                     statusLabel(selectedTrainingStatus.status)
                   }}
-                </Badge>
+                </span>
               </div>
               <Progress
                 :model-value="
                   selectedTrainingStatus.progress?.percent ?? 0
                 "
+                class="h-1.5"
               />
-              <div class="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                <span>
+              <div
+                class="grid gap-2 text-[11px] text-muted-foreground sm:grid-cols-2"
+              >
+                <span class="tabular-nums">
                   epoch:
                   {{
                     selectedTrainingStatus.progress?.epoch ??
@@ -1232,7 +1369,7 @@ onBeforeUnmount(() => {
                       ?.total_epochs ?? '-'
                   }}
                 </span>
-                <span>
+                <span class="tabular-nums">
                   val_accuracy:
                   {{
                     selectedTrainingStatus.metrics
@@ -1242,17 +1379,25 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="max-h-72 overflow-auto rounded-md border">
+            <div
+              class="max-h-72 overflow-auto rounded-lg border border-border/60"
+            >
               <Table class="min-w-[640px]">
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>
+                  <TableRow class="bg-muted/30 hover:bg-muted/30">
+                    <TableHead
+                      class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                    >
                       {{ t('sentiment.panel.training.job') }}
                     </TableHead>
-                    <TableHead>
+                    <TableHead
+                      class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                    >
                       {{ t('sentiment.panel.training.status') }}
                     </TableHead>
-                    <TableHead class="text-right">
+                    <TableHead
+                      class="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                    >
                       {{ t('sentiment.panel.training.action') }}
                     </TableHead>
                   </TableRow>
@@ -1269,48 +1414,52 @@ onBeforeUnmount(() => {
                     :key="job.job_id"
                   >
                     <TableCell>
-                      <div class="font-medium">
+                      <div class="font-mono text-xs font-medium">
                         {{ job.job_id }}
                       </div>
-                      <div class="text-xs text-muted-foreground">
+                      <div class="text-[11px] text-muted-foreground">
                         {{ job.model_type }} ·
                         {{ formatDate(job.created_at) }}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge :variant="statusVariant(job.status)">
+                      <span
+                        class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
+                        :class="statusPillClass(job.status)"
+                      >
                         {{ statusLabel(job.status) }}
-                      </Badge>
+                      </span>
                     </TableCell>
                     <TableCell class="text-right">
-                      <div class="flex justify-end gap-2">
+                      <div class="flex justify-end gap-1.5">
                         <Button
                           variant="outline"
                           size="sm"
+                          class="h-8 rounded-md shadow-xs"
                           @click="
                             refreshTrainingStatus(job.job_id)
                           "
                         >
                           {{ t('sentiment.actions.viewStatus') }}
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
+                        <button
+                          type="button"
+                          class="flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground"
                           @click="openTrainingStream(job.job_id)"
                         >
-                          <Activity class="h-4 w-4" />
-                        </Button>
-                        <Button
+                          <Activity class="h-3.5 w-3.5" />
+                        </button>
+                        <button
                           v-if="
                             job.status === 'queued' ||
                             job.status === 'running'
                           "
-                          variant="destructive"
-                          size="icon"
+                          type="button"
+                          class="flex h-8 w-8 items-center justify-center rounded-md border border-rose-500/30 bg-rose-500/10 text-rose-600 transition hover:bg-rose-500/20 dark:text-rose-400"
                           @click="cancelTraining(job.job_id)"
                         >
-                          <Square class="h-4 w-4" />
-                        </Button>
+                          <Square class="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1322,28 +1471,30 @@ onBeforeUnmount(() => {
 
         <div
           v-if="selectedTrainingJobId"
-          class="rounded-md border p-4"
+          class="grid gap-3 rounded-xl border border-border/60 bg-background p-4"
         >
-          <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+          >
             <div class="min-w-0">
-              <div class="font-medium">
+              <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {{ t('sentiment.panel.training.streamTitle') }}
               </div>
-              <div class="break-all text-xs text-muted-foreground">
+              <div class="break-all font-mono text-xs text-foreground">
                 {{ selectedTrainingJobId }}
               </div>
             </div>
             <Button
               variant="outline"
               size="sm"
-              class="w-full sm:w-auto"
+              class="h-8 w-full rounded-md shadow-xs sm:w-auto"
               @click="closeTrainingStream"
             >
               {{ t('common.close') }}
             </Button>
           </div>
           <div
-            class="max-h-56 space-y-2 overflow-auto rounded-md bg-muted/40 p-3 text-xs"
+            class="max-h-56 grid gap-2 overflow-auto rounded-lg border border-border/60 bg-muted/30 p-3 text-xs"
           >
             <div
               v-if="trainingLogs.length === 0"
@@ -1356,11 +1507,11 @@ onBeforeUnmount(() => {
               :key="item.id"
               class="grid gap-2 sm:grid-cols-[5rem_9rem_minmax(0,1fr)]"
             >
-              <span class="text-muted-foreground">
+              <span class="font-mono text-muted-foreground tabular-nums">
                 {{ item.time }}
               </span>
-              <span class="font-medium">{{ item.event }}</span>
-              <span class="break-words">{{ item.message }}</span>
+              <span class="font-mono font-medium">{{ item.event }}</span>
+              <span class="break-words font-mono">{{ item.message }}</span>
             </div>
           </div>
         </div>
