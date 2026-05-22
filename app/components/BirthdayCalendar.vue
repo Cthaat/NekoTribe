@@ -7,7 +7,6 @@ import {
   today
 } from '@internationalized/date';
 import {
-  Calendar,
   CalendarCell,
   CalendarCellTrigger,
   CalendarGrid,
@@ -35,7 +34,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: DateValue | undefined): void;
 }>();
 
-const { t, locale } = useAppLocale();
+const { locale } = useAppLocale();
 
 const todayDate = today(getLocalTimeZone());
 const maxYear = computed(() => props.maxYear ?? todayDate.year);
@@ -91,16 +90,20 @@ function onMonthChange(value: string | number): void {
     v-slot="{ grid, weekDays }"
     :model-value="props.modelValue"
     :placeholder="placeholder"
-    class="p-3"
+    class="grid gap-3 p-3"
     @update:model-value="emit('update:modelValue', $event as DateValue | undefined)"
     @update:placeholder="placeholder = $event"
   >
-    <div class="flex items-center justify-center gap-2 pt-1">
+    <div
+      class="flex items-center justify-center gap-2 border-b border-border/60 pb-3"
+    >
       <Select
         :model-value="String(placeholder.month)"
         @update:model-value="onMonthChange"
       >
-        <SelectTrigger class="h-8 w-[110px]">
+        <SelectTrigger
+          class="h-8 w-[120px] rounded-md text-xs font-medium shadow-xs"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -117,7 +120,9 @@ function onMonthChange(value: string | number): void {
         :model-value="String(placeholder.year)"
         @update:model-value="onYearChange"
       >
-        <SelectTrigger class="h-8 w-[90px]">
+        <SelectTrigger
+          class="h-8 w-[96px] rounded-md text-xs font-medium tabular-nums shadow-xs"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent class="max-h-64">
@@ -125,6 +130,7 @@ function onMonthChange(value: string | number): void {
             v-for="y in years"
             :key="y"
             :value="String(y)"
+            class="tabular-nums"
           >
             {{ y }}
           </SelectItem>
@@ -133,7 +139,7 @@ function onMonthChange(value: string | number): void {
     </div>
 
     <div
-      class="flex flex-col gap-y-4 mt-4 sm:flex-row sm:gap-x-4 sm:gap-y-0"
+      class="flex flex-col gap-y-4 sm:flex-row sm:gap-x-4 sm:gap-y-0"
     >
       <CalendarGrid
         v-for="month in grid"
@@ -141,7 +147,11 @@ function onMonthChange(value: string | number): void {
       >
         <CalendarGridHead>
           <CalendarGridRow>
-            <CalendarHeadCell v-for="day in weekDays" :key="day">
+            <CalendarHeadCell
+              v-for="day in weekDays"
+              :key="day"
+              class="text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
+            >
               {{ day }}
             </CalendarHeadCell>
           </CalendarGridRow>
