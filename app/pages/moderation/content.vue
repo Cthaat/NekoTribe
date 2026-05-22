@@ -200,17 +200,14 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <!-- 统计面板 -->
+  <div class="grid gap-6">
     <ModerationStats :stats="localizedStatsData" />
 
-    <!-- 过滤器 -->
     <ModerationFilters
       v-model="filters"
       @reset="handleResetFilters"
     />
 
-    <!-- 审核列表 -->
     <ModerationList
       :tweets="tweets"
       :loading="loading"
@@ -223,7 +220,6 @@ onMounted(() => {
       @load-more="handleLoadMore"
     />
 
-    <!-- 详情弹窗 -->
     <ModerationDetailModal
       v-model:open="detailModalOpen"
       :tweet="selectedTweet"
