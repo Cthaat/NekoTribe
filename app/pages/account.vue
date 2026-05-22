@@ -198,9 +198,9 @@ watch(
 </script>
 
 <template>
-  <div class="grid gap-6 p-4 sm:p-6 lg:p-8">
+  <div class="grid w-full min-w-0 max-w-full gap-6 overflow-x-clip p-3 sm:p-6 lg:p-8">
     <div
-      class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+      class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
     >
       <div class="min-w-0 grid gap-1">
         <h1 class="text-xl font-semibold tracking-tight sm:text-2xl">
@@ -267,12 +267,14 @@ watch(
       </div>
     </div>
 
-    <AccountHeaderCard
-      :user="user"
-      :account-tabs="localizedAccountTabs"
-      v-model="activeTab"
-      @refresh="loadAccount"
-    />
+    <div class="min-w-0">
+      <AccountHeaderCard
+        :user="user"
+        :account-tabs="localizedAccountTabs"
+        v-model="activeTab"
+        @refresh="loadAccount"
+      />
+    </div>
 
     <Dialog
       :open="filterDialogOpen"
@@ -332,7 +334,7 @@ watch(
       @create="handleCreateGroup"
     />
 
-    <div class="content-below-tabs">
+    <div class="content-below-tabs min-w-0">
       <NuxtPage />
     </div>
   </div>
