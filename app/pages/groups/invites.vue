@@ -10,17 +10,11 @@ import {
   Inbox
 } from 'lucide-vue-next';
 import {
-  Card,
-  CardFooter,
-  CardHeader
-} from '@/components/ui/card';
-import {
   Avatar,
   AvatarFallback,
   AvatarImage
 } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   listMyGroupInvites,
   respondGroupInvite
@@ -123,22 +117,25 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <!-- 头部 -->
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div class="text-sm text-muted-foreground">
+  <div class="grid gap-4">
+    <div
+      class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <span
+        class="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground"
+      >
+        <Inbox class="h-3 w-3" />
         {{ t('groups.invites.pendingCount', { count: invites.length }) }}
-      </div>
+      </span>
       <Button
         variant="outline"
-        size="sm"
-        class="w-full sm:w-auto"
+        class="h-9 w-full rounded-md shadow-xs sm:w-auto"
         :disabled="isRefreshing"
         @click="handleRefresh"
       >
         <RefreshCw
           :class="[
-            'h-4 w-4 mr-2',
+            'h-3.5 w-3.5',
             { 'animate-spin': isRefreshing }
           ]"
         />
@@ -146,130 +143,126 @@ onMounted(() => {
       </Button>
     </div>
 
-    <!-- 空状态 -->
     <div
       v-if="invites.length === 0"
-      class="flex flex-col items-center justify-center py-16 text-center"
+      class="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/10 py-16 text-center"
     >
-      <div class="p-4 bg-muted rounded-full mb-4">
-        <Inbox class="h-8 w-8 text-muted-foreground" />
+      <span
+        class="flex h-14 w-14 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+      >
+        <Inbox class="h-6 w-6 text-muted-foreground" />
+      </span>
+      <div class="grid gap-1">
+        <h3 class="text-sm font-semibold tracking-tight">
+          {{ t('groups.invites.emptyTitle') }}
+        </h3>
+        <p class="max-w-sm text-xs text-muted-foreground">
+          {{ t('groups.invites.emptyDescription') }}
+        </p>
       </div>
-      <h3 class="text-lg font-medium mb-1">
-        {{ t('groups.invites.emptyTitle') }}
-      </h3>
-      <p class="text-sm text-muted-foreground max-w-sm">
-        {{ t('groups.invites.emptyDescription') }}
-      </p>
     </div>
 
-    <!-- 邀请列表 -->
-    <div v-else class="space-y-4">
-      <Card
+    <div v-else class="grid gap-3">
+      <article
         v-for="invite in invites"
         :key="invite.id"
-        class="hover:shadow-md transition-shadow"
+        class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none transition-all hover:border-border hover:shadow-md"
       >
-        <CardHeader class="pb-3">
-          <div class="flex items-start gap-3 sm:gap-4">
-            <!-- 群组头像 -->
-            <Avatar class="h-12 w-12 shrink-0 sm:h-14 sm:w-14">
-              <AvatarImage
-                :src="invite.group.avatar"
-                :alt="invite.group.name"
-              />
-              <AvatarFallback>{{
-                invite.group.name.charAt(0)
-              }}</AvatarFallback>
-            </Avatar>
+        <div class="flex items-start gap-3 sm:gap-4">
+          <Avatar class="h-12 w-12 shrink-0 ring-1 ring-border sm:h-14 sm:w-14">
+            <AvatarImage
+              :src="invite.group.avatar"
+              :alt="invite.group.name"
+            />
+            <AvatarFallback
+              class="bg-primary/10 text-base font-semibold text-primary"
+            >
+              {{ invite.group.name.charAt(0) }}
+            </AvatarFallback>
+          </Avatar>
 
-            <div class="min-w-0 flex-1">
-              <!-- 群组信息 -->
-              <div class="flex min-w-0 flex-wrap items-center gap-2">
-                <h3 class="min-w-0 truncate font-semibold">
-                  {{ invite.group.name }}
-                </h3>
-                <Badge variant="secondary" class="gap-1">
-                  <Users class="h-3 w-3" />
-                  {{ invite.group.memberCount }}
-                </Badge>
-              </div>
-              <p
-                class="text-sm text-muted-foreground mt-1 line-clamp-2"
+          <div class="min-w-0 flex-1 grid gap-2">
+            <div class="flex min-w-0 flex-wrap items-center gap-2">
+              <h3 class="min-w-0 truncate text-base font-semibold tracking-tight">
+                {{ invite.group.name }}
+              </h3>
+              <span
+                class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
               >
-                {{ invite.group.description }}
-              </p>
-
-              <!-- 邀请者信息 -->
-              <div class="flex items-center gap-2 mt-3">
-                <Avatar class="h-6 w-6">
-                  <AvatarImage
-                    :src="invite.inviter.avatar"
-                  />
-                  <AvatarFallback>{{
-                    invite.inviter.nickname.charAt(0)
-                  }}</AvatarFallback>
-                </Avatar>
-                <span class="text-sm">
-                  <span class="font-medium">{{
-                    invite.inviter.nickname
-                  }}</span>
-                  <span class="text-muted-foreground">
-                    {{ t('groups.invites.invitedYou') }}</span
-                  >
-                </span>
-              </div>
-
-              <!-- 邀请消息 -->
-              <div
-                v-if="invite.message"
-                class="mt-3 p-3 bg-muted/50 rounded-lg text-sm italic text-muted-foreground"
-              >
-                "{{ invite.message }}"
-              </div>
+                <Users class="h-3 w-3" />
+                <span class="tabular-nums">{{ invite.group.memberCount }}</span>
+              </span>
             </div>
-          </div>
-        </CardHeader>
+            <p class="line-clamp-2 text-sm text-muted-foreground">
+              {{ invite.group.description }}
+            </p>
 
-        <CardFooter
-          class="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between"
+            <div class="flex items-center gap-2 text-xs">
+              <Avatar class="h-6 w-6 ring-1 ring-border">
+                <AvatarImage :src="invite.inviter.avatar" />
+                <AvatarFallback
+                  class="bg-primary/10 text-[10px] font-semibold text-primary"
+                >
+                  {{ invite.inviter.nickname.charAt(0) }}
+                </AvatarFallback>
+              </Avatar>
+              <span class="text-foreground">
+                <span class="font-medium">{{ invite.inviter.nickname }}</span>
+                <span class="text-muted-foreground">
+                  {{ t('groups.invites.invitedYou') }}
+                </span>
+              </span>
+            </div>
+
+            <blockquote
+              v-if="invite.message"
+              class="rounded-lg border-l-2 border-primary/40 bg-muted/30 px-3 py-2 text-sm italic text-muted-foreground"
+            >
+              {{ invite.message }}
+            </blockquote>
+          </div>
+        </div>
+
+        <div
+          class="flex flex-col gap-3 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between"
         >
-          <!-- 时间信息 -->
           <div
-            class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground"
+            class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground"
           >
-            <div class="flex items-center gap-1">
+            <span class="inline-flex items-center gap-1">
               <Clock class="h-3 w-3" />
               {{ formatTime(invite.createdAt) }}
-            </div>
-            <div
+            </span>
+            <span
               v-if="invite.expiresAt"
-              class="flex items-center gap-1 text-yellow-600"
+              class="inline-flex items-center gap-1 rounded-full border border-amber-200/60 bg-amber-100/60 px-2 py-0.5 font-medium text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300"
             >
               <Clock class="h-3 w-3" />
               {{ getRemainingTime(invite.expiresAt) }}
-            </div>
+            </span>
           </div>
 
-          <!-- 操作按钮 -->
-          <div class="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:items-center">
+          <div
+            class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center"
+          >
             <Button
               variant="outline"
-              size="sm"
+              class="h-8 rounded-md shadow-xs"
               @click="handleReject(invite.id)"
             >
-              <XCircle class="h-4 w-4 mr-1" />
+              <XCircle class="h-3.5 w-3.5" />
               {{ t('groups.invites.reject') }}
             </Button>
             <Button
-              size="sm"
+              class="h-8 rounded-md shadow-xs"
               @click="handleAccept(invite.id)"
             >
-              <CheckCircle class="h-4 w-4 mr-1" />
+              <CheckCircle class="h-3.5 w-3.5" />
               {{ t('groups.invites.accept') }}
             </Button>
           </div>
-        </CardFooter>
-      </Card>
+        </div>
+      </article>
     </div>
   </div>
 </template>
