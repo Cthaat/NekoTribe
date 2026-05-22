@@ -340,7 +340,7 @@ onBeforeUnmount(() => {
       </DialogHeader>
 
       <div class="space-y-5 py-2">
-        <div class="flex items-center gap-4">
+        <div class="flex items-start gap-4">
           <div class="relative">
             <input
               ref="avatarInputRef"
@@ -385,7 +385,7 @@ onBeforeUnmount(() => {
               <X class="h-3 w-3" />
             </button>
           </div>
-          <div class="flex-1">
+          <div class="min-w-0 flex-1">
             <Label class="text-sm font-medium">
               {{ t('groups.create.avatar') }}
             </Label>
@@ -396,8 +396,8 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="space-y-2">
-          <div class="flex items-center justify-between gap-3">
-            <div>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
               <Label class="text-sm font-medium">
                 {{ t('groups.create.cover') }}
               </Label>
