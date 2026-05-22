@@ -265,7 +265,7 @@ const invoices = computed<InvoiceRow[]>(() => [
         </header>
 
         <div class="overflow-hidden rounded-lg border border-border/60">
-          <Table>
+          <Table class="min-w-[560px]">
             <TableHeader>
               <TableRow class="border-border/60 bg-muted/20 hover:bg-muted/30">
                 <TableHead class="h-9 text-[11px] uppercase tracking-wider text-muted-foreground">
