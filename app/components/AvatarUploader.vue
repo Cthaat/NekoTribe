@@ -440,7 +440,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="group/avatar relative cursor-pointer"
+    class="group/avatar relative w-fit cursor-pointer"
     @click="triggerFileUpload"
   >
     <Avatar class="h-24 w-24 ring-2 ring-border ring-offset-2 ring-offset-background">
