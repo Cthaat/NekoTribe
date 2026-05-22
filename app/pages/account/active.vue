@@ -141,7 +141,7 @@ onMounted(load);
 
     <section
       v-else
-      class="overflow-hidden rounded-xl border border-border/60 bg-card shadow-none"
+      class="mobile-scroll-safe rounded-xl border border-border/60 bg-card shadow-none"
     >
       <Table class="min-w-[760px]">
         <TableHeader>
