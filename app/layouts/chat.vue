@@ -11,10 +11,10 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
 </script>
 
 <template>
-  <SidebarProvider class="h-dvh min-h-0 overflow-hidden">
+  <SidebarProvider class="h-dvh min-h-0 w-full overflow-hidden overflow-x-clip">
     <AppSidebar />
     <SidebarInset
-      class="flex h-dvh min-h-0 max-h-dvh flex-col overflow-hidden md:h-[calc(100dvh_-_1rem)] md:max-h-[calc(100dvh_-_1rem)]"
+      class="flex h-dvh min-h-0 max-h-dvh min-w-0 flex-col overflow-hidden overflow-x-clip md:h-[calc(100dvh_-_1rem)] md:max-h-[calc(100dvh_-_1rem)]"
     >
       <header
         class="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/80 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/60"
