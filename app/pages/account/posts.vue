@@ -587,7 +587,7 @@ onMounted(() => {
             </Button>
           </div>
 
-          <ScrollArea v-else class="h-[640px] rounded-md">
+          <ScrollArea v-else class="h-[min(640px,calc(100dvh-16rem))] rounded-md">
             <div class="pr-3">
               <Table class="min-w-[760px]">
                 <TableHeader>
