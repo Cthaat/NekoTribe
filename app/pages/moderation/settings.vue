@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { Save } from 'lucide-vue-next';
+import { Loader2, Save, Settings as SettingsIcon } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
@@ -70,49 +69,79 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <Card>
-      <CardHeader class="flex flex-row items-center justify-between space-y-0">
-        <div>
-          <CardTitle>{{ t('moderation.settings.title') }}</CardTitle>
-          <CardDescription>{{ t('moderation.settings.description') }}</CardDescription>
+  <div class="grid gap-4">
+    <section
+      class="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div class="flex items-start gap-3">
+        <span
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+        >
+          <SettingsIcon class="h-4 w-4" />
+        </span>
+        <div class="min-w-0 grid gap-0.5">
+          <h2 class="text-lg font-semibold tracking-tight">
+            {{ t('moderation.settings.title') }}
+          </h2>
+          <p class="text-xs text-muted-foreground">
+            {{ t('moderation.settings.description') }}
+          </p>
         </div>
-        <Button class="gap-2" :disabled="saving" @click="saveSettings">
-          <Save class="h-4 w-4" />
-          {{ saving ? t('common.processing') : t('common.submit') }}
-        </Button>
-      </CardHeader>
-    </Card>
+      </div>
+      <Button
+        class="h-9 rounded-md shadow-xs sm:w-auto"
+        :disabled="saving"
+        @click="saveSettings"
+      >
+        <Loader2 v-if="saving" class="h-3.5 w-3.5 animate-spin" />
+        <Save v-else class="h-3.5 w-3.5" />
+        {{ saving ? t('common.processing') : t('common.submit') }}
+      </Button>
+    </section>
 
     <div v-if="loading" class="grid gap-4 md:grid-cols-2">
-      <Card v-for="item in 4" :key="item">
-        <CardContent class="p-0">
-          <Skeleton class="h-32 rounded-lg" />
-        </CardContent>
-      </Card>
+      <div
+        v-for="item in 4"
+        :key="item"
+        class="rounded-xl border border-border/60 bg-card p-5 shadow-none"
+      >
+        <Skeleton class="h-32 rounded-lg" />
+      </div>
     </div>
 
     <div v-else class="grid gap-4 md:grid-cols-2">
-      <Card v-for="setting in settings" :key="setting.key">
-        <CardHeader>
-          <CardTitle class="text-base">{{ settingLabel(setting) }}</CardTitle>
-          <CardDescription>{{ settingDescription(setting) }}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div v-if="setting.valueType === 'boolean'" class="flex items-center justify-between">
-            <span class="text-sm text-muted-foreground">{{ setting.key }}</span>
-            <Switch
-              :model-value="boolValue(setting.value)"
-              @update:model-value="updateBool(setting, Boolean($event))"
-            />
-          </div>
-          <Input
-            v-else
-            v-model="setting.value"
-            :type="setting.valueType === 'number' ? 'number' : 'text'"
+      <article
+        v-for="setting in settings"
+        :key="setting.key"
+        class="grid gap-3 rounded-xl border border-border/60 bg-card p-5 shadow-none transition-all hover:border-border hover:shadow-md"
+      >
+        <header class="grid gap-1">
+          <h3 class="text-sm font-semibold tracking-tight">
+            {{ settingLabel(setting) }}
+          </h3>
+          <p class="text-xs text-muted-foreground">
+            {{ settingDescription(setting) }}
+          </p>
+        </header>
+        <div
+          v-if="setting.valueType === 'boolean'"
+          class="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3"
+        >
+          <span class="font-mono text-xs text-muted-foreground">
+            {{ setting.key }}
+          </span>
+          <Switch
+            :model-value="boolValue(setting.value)"
+            @update:model-value="updateBool(setting, Boolean($event))"
           />
-        </CardContent>
-      </Card>
+        </div>
+        <Input
+          v-else
+          v-model="setting.value"
+          class="h-9 shadow-xs"
+          :type="setting.valueType === 'number' ? 'number' : 'text'"
+        />
+      </article>
     </div>
   </div>
 </template>
