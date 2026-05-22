@@ -11,9 +11,7 @@ import type {
   PreviewPostVM
 } from '@/types/posts';
 import type { V2PostVisibility } from '@/types/v2';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -28,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Tooltip,
@@ -179,8 +176,10 @@ const parsedTags = computed(() =>
 );
 
 const tagNames = computed(() =>
-  uniqueValues([...parsedTags.value, ...manualTags.value])
-    .slice(0, MAX_TAGS)
+  uniqueValues([...parsedTags.value, ...manualTags.value]).slice(
+    0,
+    MAX_TAGS
+  )
 );
 
 const activeMentions = computed(() =>
@@ -240,6 +239,10 @@ const contextLabel = computed(() =>
   props.replyTo
     ? t('post.composer.replyingTo')
     : t('post.composer.quoting')
+);
+
+const contextIcon = computed(() =>
+  props.replyTo ? MessageSquareReply : MessageSquareQuote
 );
 
 const mediaGridClass = computed(() => ({
@@ -617,42 +620,41 @@ defineExpose({
 </script>
 
 <template>
-  <Card
-    class="gap-0 overflow-hidden py-0"
+  <div
+    class="overflow-hidden rounded-xl border border-border/60 bg-card shadow-none"
     @drop="handleDrop"
     @dragover.prevent="isDraggingMedia = true"
     @dragleave="isDraggingMedia = false"
   >
-    <CardContent class="space-y-4 p-4 sm:p-5">
+    <div class="space-y-4 p-4 sm:p-5">
       <div
         v-if="contextPost"
-        class="relative rounded-lg border bg-muted/30 p-3"
+        class="rounded-lg border border-border/60 bg-muted/30 p-3"
       >
         <div class="mb-2 flex items-center justify-between gap-3">
-          <Badge variant="secondary" class="gap-1">
-            <component
-              :is="replyTo ? MessageSquareReply : MessageSquareQuote"
-              class="h-3.5 w-3.5"
-            />
+          <span
+            class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+          >
+            <component :is="contextIcon" class="h-3 w-3" />
             {{ contextLabel }}
-          </Badge>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7"
+          </span>
+          <button
+            type="button"
+            class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
             :aria-label="t('post.composer.clearContext')"
             @click="clearContext"
           >
             <X class="h-4 w-4" />
-          </Button>
+          </button>
         </div>
         <TweetPreviewCard :tweet="contextPost" />
       </div>
 
       <div
-        class="relative rounded-lg border bg-background/60 transition-colors"
+        class="relative rounded-lg border border-border/60 bg-muted/20 transition-colors focus-within:border-ring/60 focus-within:ring-2 focus-within:ring-ring/20"
         :class="{
-          'border-primary ring-2 ring-primary/20': isDraggingMedia
+          'border-primary/50 bg-primary/5 ring-2 ring-primary/15':
+            isDraggingMedia
         }"
       >
         <Textarea
@@ -688,7 +690,7 @@ defineExpose({
         <div
           v-for="(draft, index) in mediaDrafts"
           :key="draft.id"
-          class="group overflow-hidden rounded-lg border bg-muted/20"
+          class="group/media overflow-hidden rounded-lg border border-border/60 bg-muted/20"
         >
           <div class="relative aspect-video bg-muted">
             <img
@@ -706,26 +708,27 @@ defineExpose({
             />
             <div
               v-if="draft.kind === 'video'"
-              class="absolute inset-0 flex items-center justify-center bg-black/20"
+              class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25"
             >
               <PlayCircle class="h-10 w-10 text-white/90" />
             </div>
-            <Button
-              variant="secondary"
-              size="icon"
-              class="absolute right-2 top-2 h-8 w-8 rounded-full opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+            <button
+              type="button"
+              class="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-background/90 text-foreground opacity-0 shadow-sm ring-1 ring-border/60 transition group-hover/media:opacity-100 hover:bg-background"
               :aria-label="t('post.composer.removeMedia')"
               @click="removeMedia(index)"
             >
-              <X class="h-4 w-4" />
-            </Button>
+              <X class="h-3.5 w-3.5" />
+            </button>
           </div>
           <div class="space-y-2 p-3">
             <div class="flex items-center justify-between gap-2">
-              <span class="truncate text-xs text-muted-foreground">
+              <span class="truncate text-[11px] text-muted-foreground">
                 {{ draft.file.name }}
               </span>
-              <span class="shrink-0 text-xs text-muted-foreground">
+              <span
+                class="shrink-0 text-[11px] tabular-nums text-muted-foreground"
+              >
                 {{ formatFileSize(draft.file.size) }}
               </span>
             </div>
@@ -733,13 +736,15 @@ defineExpose({
               v-model="draft.altText"
               :placeholder="t('post.composer.altTextPlaceholder')"
               maxlength="120"
-              class="h-8 text-xs"
+              class="h-8 text-xs shadow-xs"
             />
             <Input
               v-model="draft.description"
-              :placeholder="t('post.composer.mediaDescriptionPlaceholder')"
+              :placeholder="
+                t('post.composer.mediaDescriptionPlaceholder')
+              "
               maxlength="240"
-              class="h-8 text-xs"
+              class="h-8 text-xs shadow-xs"
             />
           </div>
         </div>
@@ -751,82 +756,71 @@ defineExpose({
           activeMentions.length > 0 ||
           location.trim()
         "
-        class="flex flex-wrap gap-2"
+        class="flex flex-wrap gap-1.5"
       >
-        <Badge
+        <span
           v-for="tag in tagNames"
           :key="`tag-${tag}`"
-          variant="outline"
-          class="gap-1"
+          class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
         >
           <Hash class="h-3 w-3" />
           {{ tag }}
-          <Button
+          <button
             v-if="manualTags.includes(tag)"
             type="button"
-            variant="ghost"
-            size="icon"
-            class="ml-1 size-4 rounded-full text-muted-foreground hover:text-foreground"
+            class="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
             @click="removeManualTag(tag)"
           >
             <X class="h-3 w-3" />
-          </Button>
-        </Badge>
-        <Badge
+          </button>
+        </span>
+        <span
           v-for="mention in activeMentions"
           :key="`mention-${mention.userId}`"
-          variant="secondary"
-          class="gap-1"
+          class="inline-flex items-center gap-1 rounded-full border border-sky-200/60 bg-sky-100/60 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300"
         >
           <AtSign class="h-3 w-3" />
           {{ mention.displayName }}
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
-            class="ml-1 size-4 rounded-full text-muted-foreground hover:text-foreground"
+            class="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full transition hover:bg-sky-200/60 dark:hover:bg-sky-900/40"
             @click="removeMention(mention.username)"
           >
             <X class="h-3 w-3" />
-          </Button>
-        </Badge>
-        <Badge
+          </button>
+        </span>
+        <span
           v-if="location.trim()"
-          variant="outline"
-          class="gap-1"
+          class="inline-flex items-center gap-1 rounded-full border border-emerald-200/60 bg-emerald-100/60 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
         >
           <MapPin class="h-3 w-3" />
           {{ location.trim() }}
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
-            class="ml-1 size-4 rounded-full text-muted-foreground hover:text-foreground"
+            class="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full transition hover:bg-emerald-200/60 dark:hover:bg-emerald-900/40"
             @click="location = ''"
           >
             <X class="h-3 w-3" />
-          </Button>
-        </Badge>
+          </button>
+        </span>
       </div>
-    </CardContent>
+    </div>
 
-    <Separator />
-
-    <CardContent
-      class="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between"
+    <div
+      class="flex flex-col gap-3 border-t border-border/60 bg-muted/10 p-3 sm:flex-row sm:items-center sm:justify-between"
     >
       <div class="flex flex-wrap items-center gap-1.5">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon"
+              <button
+                type="button"
+                class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
                 :aria-label="t('post.composer.addMedia')"
                 @click="triggerFileInput"
               >
                 <ImageUp class="h-4 w-4" />
-              </Button>
+              </button>
             </TooltipTrigger>
             <TooltipContent>
               {{ t('post.composer.addMedia') }}
@@ -835,14 +829,14 @@ defineExpose({
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon"
+              <button
+                type="button"
+                class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
                 :aria-label="t('post.composer.replyPost')"
                 @click="emit('open-reply-dialog')"
               >
                 <MessageSquareReply class="h-4 w-4" />
-              </Button>
+              </button>
             </TooltipTrigger>
             <TooltipContent>
               {{ t('post.composer.replyPost') }}
@@ -851,14 +845,14 @@ defineExpose({
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon"
+              <button
+                type="button"
+                class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
                 :aria-label="t('post.composer.quotePost')"
                 @click="emit('open-quote-dialog')"
               >
                 <MessageSquareQuote class="h-4 w-4" />
-              </Button>
+              </button>
             </TooltipTrigger>
             <TooltipContent>
               {{ t('post.composer.quotePost') }}
@@ -867,14 +861,14 @@ defineExpose({
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon"
+              <button
+                type="button"
+                class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
                 :aria-label="t('post.composer.addMention')"
                 @click="startMention"
               >
                 <AtSign class="h-4 w-4" />
-              </Button>
+              </button>
             </TooltipTrigger>
             <TooltipContent>
               {{ t('post.composer.addMention') }}
@@ -886,10 +880,10 @@ defineExpose({
           :model-value="visibility"
           @update:model-value="updateVisibility"
         >
-          <SelectTrigger class="h-9 w-[154px]">
+          <SelectTrigger class="h-8 w-[154px] shadow-xs">
             <component
               :is="selectedVisibility.icon"
-              class="mr-2 h-4 w-4 text-muted-foreground"
+              class="mr-1.5 h-3.5 w-3.5 text-muted-foreground"
             />
             <SelectValue />
           </SelectTrigger>
@@ -906,30 +900,41 @@ defineExpose({
 
         <Popover>
           <PopoverTrigger as-child>
-            <Button variant="outline" size="sm" class="gap-2">
-              <Hash class="h-4 w-4" />
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-8 gap-1.5 rounded-md shadow-xs"
+            >
+              <Hash class="h-3.5 w-3.5" />
               {{ t('post.composer.addTag') }}
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            class="w-[min(18rem,calc(100vw-1rem))]"
+            class="w-[min(18rem,calc(100vw-1rem))] rounded-xl border-border/60 p-3"
             align="start"
           >
-            <div class="space-y-3">
-              <Label for="post-tag-input">
+            <div class="grid gap-2">
+              <Label
+                for="post-tag-input"
+                class="text-xs font-medium"
+              >
                 {{ t('post.composer.tagLabel') }}
               </Label>
               <div class="flex gap-2">
                 <Input
                   id="post-tag-input"
                   v-model="tagInput"
-                  :placeholder="t('post.composer.tagPlaceholder')"
+                  :placeholder="
+                    t('post.composer.tagPlaceholder')
+                  "
                   maxlength="32"
+                  class="h-9 shadow-xs"
                   @keydown.enter.prevent="addManualTag"
                 />
                 <Button
                   type="button"
                   size="icon"
+                  class="h-9 w-9 shrink-0 rounded-md shadow-xs"
                   @click="addManualTag"
                 >
                   <Plus class="h-4 w-4" />
@@ -941,24 +946,34 @@ defineExpose({
 
         <Popover>
           <PopoverTrigger as-child>
-            <Button variant="outline" size="sm" class="gap-2">
-              <MapPin class="h-4 w-4" />
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-8 gap-1.5 rounded-md shadow-xs"
+            >
+              <MapPin class="h-3.5 w-3.5" />
               {{ t('post.composer.addLocation') }}
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            class="w-[min(20rem,calc(100vw-1rem))]"
+            class="w-[min(20rem,calc(100vw-1rem))] rounded-xl border-border/60 p-3"
             align="start"
           >
-            <div class="space-y-3">
-              <Label for="post-location-input">
+            <div class="grid gap-2">
+              <Label
+                for="post-location-input"
+                class="text-xs font-medium"
+              >
                 {{ t('post.composer.locationLabel') }}
               </Label>
               <Input
                 id="post-location-input"
                 v-model="location"
                 :maxlength="MAX_LOCATION_LENGTH"
-                :placeholder="t('post.composer.locationPlaceholder')"
+                :placeholder="
+                  t('post.composer.locationPlaceholder')
+                "
+                class="h-9 shadow-xs"
               />
             </div>
           </PopoverContent>
@@ -966,30 +981,36 @@ defineExpose({
 
         <Popover>
           <PopoverTrigger as-child>
-            <Button variant="ghost" size="icon">
+            <button
+              type="button"
+              class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              :aria-label="t('post.composer.addMention')"
+            >
               <SmilePlus class="h-4 w-4" />
-            </Button>
+            </button>
           </PopoverTrigger>
           <PopoverContent
-            class="w-[min(16rem,calc(100vw-1rem))]"
+            class="w-[min(16rem,calc(100vw-1rem))] rounded-xl border-border/60 p-2"
             align="start"
           >
             <div class="grid grid-cols-4 gap-1">
-              <Button
+              <button
                 v-for="emoji in quickEmojis"
                 :key="emoji"
-                variant="ghost"
-                class="text-lg"
+                type="button"
+                class="flex h-9 items-center justify-center rounded-md text-lg transition hover:bg-muted"
                 @click="insertAtCursor(emoji)"
               >
                 {{ emoji }}
-              </Button>
+              </button>
             </div>
           </PopoverContent>
         </Popover>
       </div>
 
-      <div class="flex w-full items-center justify-end gap-3 sm:w-auto">
+      <div
+        class="flex w-full items-center justify-end gap-3 sm:w-auto"
+      >
         <div class="relative h-8 w-8">
           <svg class="h-full w-full" viewBox="0 0 32 32">
             <circle
@@ -1016,7 +1037,7 @@ defineExpose({
           </svg>
           <span
             v-if="remainingCharacters <= 20"
-            class="absolute inset-0 flex items-center justify-center text-[10px] font-semibold"
+            class="absolute inset-0 flex items-center justify-center text-[10px] font-semibold tabular-nums"
             :class="progressColorClass"
           >
             {{ remainingCharacters }}
@@ -1024,7 +1045,7 @@ defineExpose({
         </div>
 
         <AppSendButton
-          class="h-10 flex-1 px-5 font-semibold sm:flex-none"
+          class="h-9 flex-1 rounded-md px-5 font-medium shadow-xs sm:flex-none"
           :loading="isSubmitting"
           :disabled="isTweetDisabled"
           @click="handleSubmit"
@@ -1036,7 +1057,7 @@ defineExpose({
           }}
         </AppSendButton>
       </div>
-    </CardContent>
+    </div>
 
     <input
       ref="fileInputRef"
@@ -1046,5 +1067,5 @@ defineExpose({
       class="hidden"
       @change="handleFileSelect"
     />
-  </Card>
+  </div>
 </template>
