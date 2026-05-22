@@ -108,10 +108,11 @@ function formatConversationTime(value: string | undefined): string {
         </div>
 
         <template v-else>
-          <button
+          <div
             v-for="conversation in conversations"
             :key="conversation.conversation_id"
-            type="button"
+            role="button"
+            tabindex="0"
             class="group/conv relative flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition-colors"
             :class="[
               conversation.conversation_id === activeConversationId
@@ -119,6 +120,8 @@ function formatConversationTime(value: string | undefined): string {
                 : 'text-foreground hover:bg-accent/50'
             ]"
             @click="emit('select', conversation)"
+            @keydown.enter.prevent="emit('select', conversation)"
+            @keydown.space.prevent="emit('select', conversation)"
           >
             <span
               v-if="conversation.conversation_id === activeConversationId"
@@ -195,7 +198,7 @@ function formatConversationTime(value: string | undefined): string {
                 </span>
               </div>
             </div>
-          </button>
+          </div>
         </template>
       </div>
     </ScrollArea>
