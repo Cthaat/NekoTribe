@@ -12,9 +12,9 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
 </script>
 
 <template>
-  <SidebarProvider>
+  <SidebarProvider class="min-h-dvh w-full overflow-x-clip">
     <AppSidebar />
-    <SidebarInset>
+    <SidebarInset class="flex min-h-dvh min-w-0 flex-col overflow-x-clip">
       <header
         class="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:gap-4 sm:px-4"
       >
@@ -36,7 +36,9 @@ import ColorModeIcon from '@/components/ColorModeIcon.vue';
           <ColorModeIcon />
         </div>
       </header>
-      <slot />
+      <main class="min-w-0 flex-1 overflow-x-clip">
+        <slot />
+      </main>
     </SidebarInset>
   </SidebarProvider>
 </template>
