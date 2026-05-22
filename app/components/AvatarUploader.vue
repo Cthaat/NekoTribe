@@ -14,7 +14,6 @@ import {
   AvatarImage
 } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -25,10 +24,13 @@ import {
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import {
+  Camera,
+  Crop,
   Loader2,
   Minus,
   Plus,
-  RotateCcw
+  RotateCcw,
+  X
 } from 'lucide-vue-next';
 import { v2UpdateAvatar } from '@/services';
 import { usePreferenceStore } from '~/stores/user';
@@ -75,8 +77,13 @@ let dragStartY = 0;
 let dragStartOffsetX = 0;
 let dragStartOffsetY = 0;
 
-const displayAvatarUrl = computed(() => {
-  return previewUrl.value || props.user.avatar;
+const displayAvatarUrl = computed(
+  () => previewUrl.value || props.user.avatar
+);
+
+const userInitials = computed(() => {
+  const name = props.user.name || 'NT';
+  return name.slice(0, 2).toUpperCase();
 });
 
 const cropImageStyle = computed<CSSProperties>(() => {
@@ -99,9 +106,9 @@ const zoomValue = computed<number[]>({
   }
 });
 
-const zoomPercent = computed(() => {
-  return `${Math.round(cropZoom.value * 100)}%`;
-});
+const zoomPercent = computed(
+  () => `${Math.round(cropZoom.value * 100)}%`
+);
 
 const cropMaskStyle = computed<CSSProperties>(() => ({
   inset: `${CROP_MASK_INSET}px`
@@ -196,10 +203,7 @@ function getCropFrameCenter(): number {
 }
 
 function getBaseScale(): number {
-  if (
-    !imageNaturalWidth.value ||
-    !imageNaturalHeight.value
-  ) {
+  if (!imageNaturalWidth.value || !imageNaturalHeight.value) {
     return 1;
   }
 
@@ -230,10 +234,7 @@ function clampCropOffset(
   const displayWidth = imageNaturalWidth.value * scale;
   const displayHeight = imageNaturalHeight.value * scale;
   const maxX = Math.max(0, (displayWidth - cropBoxSize) / 2);
-  const maxY = Math.max(
-    0,
-    (displayHeight - cropBoxSize) / 2
-  );
+  const maxY = Math.max(0, (displayHeight - cropBoxSize) / 2);
   const clampedOffset = {
     x: clamp(nextOffset.x, -maxX, maxX),
     y: clamp(nextOffset.y, -maxY, maxY)
@@ -377,8 +378,7 @@ function createCroppedAvatarBlob(): Promise<Blob> {
 
 function buildCroppedFile(blob: Blob): File {
   const rawName =
-    selectedFileName.value.replace(/\.[^.]+$/, '') ||
-    'avatar';
+    selectedFileName.value.replace(/\.[^.]+$/, '') || 'avatar';
   return new File([blob], `${rawName}-cropped.jpg`, {
     type: 'image/jpeg'
   });
@@ -392,7 +392,6 @@ async function applyCrop(): Promise<void> {
     setPreviewUrl(URL.createObjectURL(croppedFile));
     await uploadAvatar(croppedFile);
   } catch (error) {
-    console.error(t('avatar.feedback.uploadFailed'), error);
     toast.error(t('avatar.feedback.uploadFailed'));
   }
 }
@@ -412,17 +411,14 @@ async function uploadAvatar(file: File): Promise<void> {
         ...preferenceStore.preferences.user,
         avatarUrl: response.avatarUrl
       });
-      if (process.client) {
+      if (import.meta.client) {
         window.location.reload();
       }
       toast(t('avatar.feedback.updated'));
     } else {
-      throw new Error(
-        'API did not return a new avatar URL.'
-      );
+      throw new Error('API did not return a new avatar URL.');
     }
   } catch (error) {
-    console.error(t('avatar.feedback.uploadFailed'), error);
     toast.error(t('avatar.feedback.uploadFailed'));
     setPreviewUrl(null);
   } finally {
@@ -444,24 +440,30 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="relative cursor-pointer"
+    class="group/avatar relative cursor-pointer"
     @click="triggerFileUpload"
   >
-    <Avatar class="h-24 w-24 border">
-      <AvatarImage
-        :src="displayAvatarUrl"
-        :alt="user.name"
-      />
-      <AvatarFallback>{{
-        user.name?.slice(0, 2).toUpperCase()
-      }}</AvatarFallback>
+    <Avatar class="h-24 w-24 ring-2 ring-border ring-offset-2 ring-offset-background">
+      <AvatarImage :src="displayAvatarUrl" :alt="user.name" />
+      <AvatarFallback
+        class="bg-primary/10 text-lg font-semibold text-primary"
+      >
+        {{ userInitials }}
+      </AvatarFallback>
     </Avatar>
 
     <div
-      v-if="isUploading"
-      class="absolute inset-0 flex items-center justify-center rounded-full bg-black/50"
+      v-if="!isUploading"
+      class="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/0 opacity-0 transition-all group-hover/avatar:bg-black/40 group-hover/avatar:opacity-100"
     >
-      <Loader2 class="size-8 animate-spin text-white" />
+      <Camera class="h-6 w-6 text-white" />
+    </div>
+
+    <div
+      v-if="isUploading"
+      class="absolute inset-0 flex items-center justify-center rounded-full bg-black/55 backdrop-blur-sm"
+    >
+      <Loader2 class="h-6 w-6 animate-spin text-white" />
     </div>
 
     <input
@@ -474,15 +476,28 @@ onBeforeUnmount(() => {
   </div>
 
   <Dialog v-model:open="cropDialogOpen">
-    <DialogContent class="sm:max-w-xl">
-      <DialogHeader>
-        <DialogTitle>{{ t('avatar.crop.title') }}</DialogTitle>
+    <DialogContent
+      class="overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-xl"
+    >
+      <DialogHeader
+        class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+      >
+        <DialogTitle
+          class="flex items-center gap-2 text-base font-semibold tracking-tight"
+        >
+          <span
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary"
+          >
+            <Crop class="h-4 w-4" />
+          </span>
+          {{ t('avatar.crop.title') }}
+        </DialogTitle>
       </DialogHeader>
 
-      <div class="space-y-5">
+      <div class="grid gap-4 px-5 py-4">
         <div
           ref="cropFrameRef"
-          class="relative mx-auto aspect-square w-full max-w-80 touch-none select-none overflow-hidden rounded-md border border-border bg-muted/40 shadow-inner"
+          class="relative mx-auto aspect-square w-full max-w-80 touch-none select-none overflow-hidden rounded-xl border border-border/60 bg-muted/40 shadow-inner"
           :class="
             imageLoaded && !isUploading
               ? isDragging
@@ -513,7 +528,7 @@ onBeforeUnmount(() => {
             class="absolute inset-0 flex items-center justify-center"
           >
             <Loader2
-              class="size-6 animate-spin text-muted-foreground"
+              class="h-5 w-5 animate-spin text-muted-foreground"
             />
           </div>
           <div
@@ -525,32 +540,34 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <Card class="gap-0 bg-card/60 py-0 shadow-xs">
-          <CardContent class="space-y-3 p-3">
+        <div
+          class="grid gap-3 rounded-xl border border-border/60 bg-muted/20 p-3"
+        >
           <div class="flex items-center justify-between gap-3">
-            <Label for="avatar-crop-zoom">
+            <Label
+              for="avatar-crop-zoom"
+              class="text-xs font-medium"
+            >
               {{ t('avatar.crop.zoom') }}
             </Label>
             <span
-              class="rounded-md border bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground"
+              class="rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground"
             >
               {{ zoomPercent }}
             </span>
           </div>
           <div class="flex items-center gap-2">
-            <Button
+            <button
               type="button"
-              variant="outline"
-              size="icon"
-              class="size-8"
+              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
               :disabled="!imageLoaded || isUploading"
               @click.stop="stepZoom(-1)"
             >
-              <Minus class="size-4" />
+              <Minus class="h-3.5 w-3.5" />
               <span class="sr-only">{{
                 t('avatar.crop.zoomOut')
               }}</span>
-            </Button>
+            </button>
             <Slider
               id="avatar-crop-zoom"
               v-model="zoomValue"
@@ -561,54 +578,56 @@ onBeforeUnmount(() => {
               :disabled="!imageLoaded || isUploading"
               :aria-label="t('avatar.crop.zoom')"
             />
-            <Button
+            <button
               type="button"
-              variant="outline"
-              size="icon"
-              class="size-8"
+              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
               :disabled="!imageLoaded || isUploading"
               @click.stop="stepZoom(1)"
             >
-              <Plus class="size-4" />
+              <Plus class="h-3.5 w-3.5" />
               <span class="sr-only">{{
                 t('avatar.crop.zoomIn')
               }}</span>
-            </Button>
+            </button>
           </div>
           <div class="flex justify-end">
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
+              class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
               :disabled="!imageLoaded || isUploading"
               @click="resetCropTransform"
             >
-              <RotateCcw class="size-4" />
+              <RotateCcw class="h-3 w-3" />
               {{ t('avatar.crop.reset') }}
-            </Button>
+            </button>
           </div>
-          </CardContent>
-        </Card>
+        </div>
       </div>
 
-      <DialogFooter>
+      <DialogFooter
+        class="flex flex-col-reverse gap-2 border-t border-border/60 bg-background/60 px-5 py-3 backdrop-blur sm:flex-row sm:justify-end"
+      >
         <Button
           type="button"
           variant="outline"
+          class="h-9 rounded-md shadow-xs"
           :disabled="isUploading"
           @click="closeCropDialog"
         >
+          <X class="h-3.5 w-3.5" />
           {{ t('common.cancel') }}
         </Button>
         <Button
           type="button"
+          class="h-9 rounded-md shadow-xs"
           :disabled="!imageLoaded || isUploading"
           @click="applyCrop"
         >
           <Loader2
             v-if="isUploading"
-            class="size-4 animate-spin"
+            class="h-3.5 w-3.5 animate-spin"
           />
+          <Crop v-else class="h-3.5 w-3.5" />
           {{ t('avatar.crop.apply') }}
         </Button>
       </DialogFooter>
