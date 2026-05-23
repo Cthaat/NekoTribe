@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { resolveRealtimeUrl } from '@/utils/apiBase';
 
 type ConnectionStatus =
   | 'disconnected'
@@ -107,10 +108,7 @@ const connectWebSocket = (): void => {
   }
 
   connectionStatus.value = 'connecting';
-  const protocol =
-    window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/_ws`;
-  ws.value = new WebSocket(wsUrl);
+  ws.value = new WebSocket(resolveRealtimeUrl());
 
   ws.value.onopen = () => {
     connectionStatus.value = 'connected';
