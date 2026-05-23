@@ -27,9 +27,9 @@
       "id": "rust-direct",
       "label": "Rust 后端直连 (30003)",
       "description": "跳过 Nginx，直接连接 Rust V2 后端。便于排查代理层问题。",
-      "apiBaseUrl": "http://localhost:30003",
-      "wsBaseUrl": "ws://localhost:30003",
-      "storageBaseUrl": "http://localhost:30003"
+      "apiBaseUrl": "http://localhost:30002",
+      "wsBaseUrl": "ws://localhost:30002",
+      "storageBaseUrl": "http://localhost:30002"
     }
   ]
 }
