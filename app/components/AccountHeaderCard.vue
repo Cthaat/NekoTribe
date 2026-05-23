@@ -137,8 +137,7 @@ const handleAvatarUpdate = (
   newAvatarRelativePath: string
 ) => {
   const updatedUser = { ...props.user };
-  const BACKEND_URL = '';
-  updatedUser.avatar = `${BACKEND_URL}${newAvatarRelativePath}`;
+  updatedUser.avatar = newAvatarRelativePath;
   emit('update:user', updatedUser);
 };
 
