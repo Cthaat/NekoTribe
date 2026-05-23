@@ -143,7 +143,10 @@ class _JsonAdapter implements HttpClientAdapter {
     return ResponseBody.fromString(
       jsonEncode(response.body),
       response.statusCode,
-      headers: response.headers,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+        ...response.headers,
+      },
     );
   }
 
@@ -155,9 +158,7 @@ class _JsonResponse {
   const _JsonResponse({
     required this.statusCode,
     required this.body,
-    this.headers = const {
-      Headers.contentTypeHeader: [Headers.jsonContentType],
-    },
+    this.headers = const {},
   });
 
   final int statusCode;
