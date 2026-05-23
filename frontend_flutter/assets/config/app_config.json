@@ -1,0 +1,35 @@
+{
+  "$schema": "./app_config.schema.json",
+  "defaults": {
+    "presetId": "entry",
+    "apiBaseUrl": "http://localhost:30001",
+    "wsBaseUrl": "ws://localhost:30001",
+    "storageBaseUrl": "http://localhost:30001"
+  },
+  "presets": [
+    {
+      "id": "entry",
+      "label": "主入口 (Nginx Proxy 30001)",
+      "description": "Nuxt 兜底 + Rust 反代统一入口；推荐生产部署使用。",
+      "apiBaseUrl": "http://localhost:30001",
+      "wsBaseUrl": "ws://localhost:30001",
+      "storageBaseUrl": "http://localhost:30001"
+    },
+    {
+      "id": "nginx-dev",
+      "label": "Nginx Dev (30002)",
+      "description": "本地开发环境的 nginx 反向代理实例。",
+      "apiBaseUrl": "http://localhost:30002",
+      "wsBaseUrl": "ws://localhost:30002",
+      "storageBaseUrl": "http://localhost:30002"
+    },
+    {
+      "id": "rust-direct",
+      "label": "Rust 后端直连 (30003)",
+      "description": "跳过 Nginx，直接连接 Rust V2 后端。便于排查代理层问题。",
+      "apiBaseUrl": "http://localhost:30003",
+      "wsBaseUrl": "ws://localhost:30003",
+      "storageBaseUrl": "http://localhost:30003"
+    }
+  ]
+}
