@@ -1,4 +1,5 @@
 import { usePreferenceStore } from '@/stores/user';
+import { resolveRealtimeUrl } from '@/utils/apiBase';
 
 export interface RealtimeMessage {
   type: string;
@@ -20,87 +21,6 @@ let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let shouldReconnect = true;
 
 const listeners = new Set<RealtimeListener>();
-
-function normalizedHostname(hostname: string): string {
-  return hostname.trim().replace(/^\[|\]$/g, '').toLowerCase();
-}
-
-function isLocalOnlyHostname(hostname: string): boolean {
-  const normalized = normalizedHostname(hostname);
-  return (
-    !normalized ||
-    normalized === 'localhost' ||
-    normalized === '0.0.0.0' ||
-    normalized === '::' ||
-    normalized === '::1' ||
-    normalized.startsWith('127.')
-  );
-}
-
-function browserRealtimeUrl(): string {
-  const protocol =
-    window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}/_ws`;
-}
-
-function browserReachableHostname(): string {
-  const hostname = window.location.hostname;
-  if (isLocalOnlyHostname(hostname)) {
-    return 'localhost';
-  }
-  return hostname;
-}
-
-function normalizeConfiguredRealtimeUrl(
-  configured: string
-): string | null {
-  if (!configured || configured.includes('localhost:3000')) {
-    return null;
-  }
-
-  try {
-    const url = new URL(configured, window.location.origin);
-    if (url.protocol === 'http:') url.protocol = 'ws:';
-    if (url.protocol === 'https:') url.protocol = 'wss:';
-
-    const configuredHostIsLocal = isLocalOnlyHostname(
-      url.hostname
-    );
-    const browserHostIsLocal = isLocalOnlyHostname(
-      window.location.hostname
-    );
-
-    if (configuredHostIsLocal && !browserHostIsLocal) {
-      return null;
-    }
-
-    if (
-      ['0.0.0.0', '::', '[::]'].includes(url.hostname)
-    ) {
-      url.hostname = browserReachableHostname();
-    }
-
-    if (
-      window.location.protocol === 'https:' &&
-      url.protocol === 'ws:'
-    ) {
-      url.protocol = 'wss:';
-    }
-
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
-function resolveRealtimeUrl(): string {
-  const config = useRuntimeConfig();
-  const configured = String(config.public.wsUrl || '').trim();
-  return (
-    normalizeConfiguredRealtimeUrl(configured) ||
-    browserRealtimeUrl()
-  );
-}
 
 function emitRealtimeMessage(message: RealtimeMessage): void {
   for (const listener of listeners) {
