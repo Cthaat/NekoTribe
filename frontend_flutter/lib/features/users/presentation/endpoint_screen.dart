@@ -53,8 +53,7 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
 
     if (!ok(_apiCtl.text) || !ok(_wsCtl.text) || !ok(_storageCtl.text)) {
       setState(() {
-        _pendingError =
-            '请填写完整的 URL（包含 scheme + host），例如 http://localhost:30001';
+        _pendingError = '请填写完整的 URL（包含 scheme + host），例如 http://host:port';
       });
       return false;
     }
