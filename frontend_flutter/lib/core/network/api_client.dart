@@ -129,11 +129,15 @@ class ApiClient {
           ? ApiMeta.fromJson(metaJson)
           : null;
       if (status >= 200 && status < 300 && code < 30000) {
-        final decoded = decode == null ? raw as T : decode(raw);
+        final effectiveRaw = _mergeAuthCookiesIntoData(
+          path: path,
+          data: raw,
+          response: response,
+        );
         return ApiResponse<T>(
           code: code,
           message: message,
-          data: decoded,
+          data: decode == null ? effectiveRaw as T : decode(effectiveRaw),
           meta: meta,
         );
       }
@@ -258,14 +262,23 @@ class ApiClient {
     final response = await _dio.patch<dynamic>(
       ApiPaths.authTokensCurrent,
       data: {'refresh_token': pair.refreshToken},
+      options: Options(
+        headers: {'Cookie': 'refresh_token=${pair.refreshToken}'},
+      ),
     );
     final body = response.data;
     if (body is Map<String, dynamic> && body['code'] == 200) {
       final data = body['data'] as Map<String, dynamic>?;
       if (data != null) {
-        final accessToken = data['access_token'] as String? ?? pair.accessToken;
+        final cookies = _authCookiesFromResponse(response);
+        final accessToken =
+            cookies.accessToken ??
+            data['access_token'] as String? ??
+            pair.accessToken;
         final refreshToken =
-            data['refresh_token'] as String? ?? pair.refreshToken;
+            cookies.refreshToken ??
+            data['refresh_token'] as String? ??
+            pair.refreshToken;
         final accessExpStr = data['access_token_expires_at'] as String?;
         final refreshExpStr = data['refresh_token_expires_at'] as String?;
         final updated = TokenPair(
@@ -311,4 +324,80 @@ class ApiClient {
       return 'flutter-unknown';
     }
   }
+
+  dynamic _mergeAuthCookiesIntoData({
+    required String path,
+    required dynamic data,
+    required Response<dynamic> response,
+  }) {
+    if (data is! Map) return data;
+    final cookies = _authCookiesFromResponse(response);
+    if (cookies.isEmpty) return data;
+
+    final normalized = Map<String, dynamic>.from(data);
+    if (ApiPaths.isRefreshPath(path)) {
+      _putCookieTokens(normalized, cookies);
+      return normalized;
+    }
+
+    if (!ApiPaths.isAuthEntryPath(path)) return data;
+    final tokens = normalized['tokens'];
+    if (tokens is Map) {
+      final tokenMap = Map<String, dynamic>.from(tokens);
+      _putCookieTokens(tokenMap, cookies);
+      normalized['tokens'] = tokenMap;
+    }
+    return normalized;
+  }
+
+  void _putCookieTokens(Map<String, dynamic> target, _AuthCookies cookies) {
+    final accessToken = cookies.accessToken;
+    final refreshToken = cookies.refreshToken;
+    if (accessToken != null && accessToken.isNotEmpty) {
+      target['access_token'] = accessToken;
+    }
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      target['refresh_token'] = refreshToken;
+    }
+  }
+
+  _AuthCookies _authCookiesFromResponse(Response<dynamic> response) {
+    String? accessToken;
+    String? refreshToken;
+    for (final header in _setCookieHeaderValues(response)) {
+      accessToken ??= _cookieValue(header, 'access_token');
+      refreshToken ??= _cookieValue(header, 'refresh_token');
+    }
+    return _AuthCookies(accessToken: accessToken, refreshToken: refreshToken);
+  }
+
+  List<String> _setCookieHeaderValues(Response<dynamic> response) {
+    final direct = response.headers['set-cookie'];
+    if (direct != null && direct.isNotEmpty) return direct;
+    for (final entry in response.headers.map.entries) {
+      if (entry.key.toLowerCase() == 'set-cookie') {
+        return entry.value;
+      }
+    }
+    return const [];
+  }
+
+  String? _cookieValue(String setCookieHeader, String name) {
+    final pair = setCookieHeader.split(';').first.trim();
+    final equals = pair.indexOf('=');
+    if (equals <= 0) return null;
+    if (pair.substring(0, equals).trim() != name) return null;
+    return pair.substring(equals + 1).trim();
+  }
+}
+
+class _AuthCookies {
+  const _AuthCookies({this.accessToken, this.refreshToken});
+
+  final String? accessToken;
+  final String? refreshToken;
+
+  bool get isEmpty =>
+      (accessToken == null || accessToken!.isEmpty) &&
+      (refreshToken == null || refreshToken!.isEmpty);
 }
