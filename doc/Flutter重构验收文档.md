@@ -133,7 +133,7 @@ frontend_flutter/
 
 | 维度 | 实现方式 |
 | --- | --- |
-| BaseURL | `--dart-define=API_BASE_URL=http://localhost:30001`，默认指向 nginx 入口 |
+| BaseURL | 由 `assets/config/app_config.json` 集中管理；运行时通过 `/settings/endpoint` 切换。`--dart-define=API_BASE_URL=...` 仍可在编译期覆盖（CI 友好）。**源码内无任何硬编码 URL**。 |
 | 统一响应 | `{ code, message, data, meta }`；HTTP 2xx + `code < 30000` 视为成功，否则抛 `ApiException(code, message, data)` |
 | 鉴权 Header | `Authorization: Bearer <access_token>`；登录入口路径列表 `ApiPaths.isAuthEntryPath` 强制不带 Token |
 | 设备标识 | 每请求注入 `x-request-id` (uuid v4)、`x-client-platform`、`x-device-fingerprint`、`x-device-info` |
@@ -144,6 +144,68 @@ frontend_flutter/
 | Token 续签 | `PATCH /auth/tokens/current` 直接覆盖原 `_dio.fetch` 重试，避免对调用方暴露 |
 
 > ⚠️ 全程**不修改任何后端接口**。如出现 4xx/5xx 错误，由后端 V2 envelope 负责输出，前端只做 UI 提示。
+
+---
+
+## 四.五、端点配置（无硬编码 + 运行时切换）
+
+按用户要求："**所有接口都不准硬编码，要由配置文件统一管理，让我可以随时切换 baseurl**"。
+
+### 配置源优先级（高 → 低）
+
+1. **SharedPreferences override** —— 由 `/settings/endpoint` 写入；持久化在 key `nekotribe.endpoint_override`。
+2. **`--dart-define`** —— CI / 命令行 `API_BASE_URL` / `WS_BASE_URL` / `STORAGE_BASE_URL`，主要用于打包流水线。
+3. **`assets/config/app_config.json`** —— 项目级默认值与预置列表，源码不含任何 URL 字符串。
+
+### `assets/config/app_config.json` 结构
+
+```json
+{
+  "defaults": {
+    "presetId": "entry",
+    "apiBaseUrl": "http://localhost:30001",
+    "wsBaseUrl": "ws://localhost:30001",
+    "storageBaseUrl": "http://localhost:30001"
+  },
+  "presets": [
+    { "id": "entry",       "label": "主入口 (Nginx Proxy 30001)", ... },
+    { "id": "nginx-dev",   "label": "Nginx Dev (30002)",        ... },
+    { "id": "rust-direct", "label": "Rust 后端直连 (30003)",     ... }
+  ]
+}
+```
+
+### 核心代码入口
+
+| 文件 | 角色 |
+| --- | --- |
+| `lib/core/config/app_config.dart` | `EndpointPreset` / `AppConfigBundle` / `AppConfig` / `AppConfigLoader` |
+| `lib/shared/providers/providers.dart` | `appConfigProvider = StateNotifierProvider<AppConfigController, AppConfig>` |
+| `lib/main.dart` | `WidgetsFlutterBinding.ensureInitialized()` → `loadBundle` + `initialConfig` → `ProviderScope.overrides` |
+| `lib/features/users/presentation/endpoint_screen.dart` | UI：当前端点 + 预设列表 + 自定义表单 + 一键恢复 |
+| `lib/features/users/presentation/settings_screen.dart` | "Server endpoint" 入口（展示当前 API URL，点进切换页） |
+
+### 运行时切换流程
+
+1. 用户进入「设置 → 服务器端点」。
+2. 点击预设单元（如 "Rust 后端直连 (30003)"）或填写自定义三段 URL → 点击「保存自定义」。
+3. `AppConfigController.selectPreset(...)` / `setCustom(...)` 更新 `state` 并 `AppConfigLoader.writeOverride(...)` 持久化。
+4. Riverpod 自动重建依赖 `appConfigProvider` 的所有 Provider：
+   - `apiClientProvider` 用新 `baseUrl` 创建新的 `Dio` 实例；
+   - `realtimeServiceProvider` 自动 `disconnect()` 旧连接并对新地址重连；
+   - `assetUrlResolverProvider` 重新解析 `/storage` 域名。
+5. 用户可即时验证新地址（无需重启 App）。
+
+### 校验脚本
+
+```
+> flutter test
+00:00 +5: All tests passed!     # 含 AppConfigBundle.fromJson / copyWith / toJson 轮回测试
+> flutter analyze
+No issues found! (ran in 3.3s)
+> Get-ChildItem -Recurse lib | Select-String -Pattern 'localhost|30001|30002|30003' -SimpleMatch
+# 空：lib/ 下无任何端口 / 域名硬编码（assets 中的 JSON 是数据，不属于源码）
+```
 
 ---
 
