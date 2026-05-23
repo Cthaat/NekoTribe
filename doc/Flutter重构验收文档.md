@@ -369,6 +369,11 @@ No issues found! (ran in 2.5s)
 - 实时：`frontend_flutter/lib/features/realtime/data/realtime_service.dart`
 - 主题：`frontend_flutter/lib/shared/theme/app_theme.dart`
 - 国际化：`frontend_flutter/lib/shared/i18n/app_localizations.dart`
+- **端点配置**（NEW）：
+  - 配置源：`frontend_flutter/assets/config/app_config.json`
+  - 模型 + 加载器：`frontend_flutter/lib/core/config/app_config.dart`
+  - StateNotifier：`frontend_flutter/lib/shared/providers/providers.dart` (`appConfigProvider`)
+  - 切换 UI：`frontend_flutter/lib/features/users/presentation/endpoint_screen.dart`
 
 ---
 
@@ -376,10 +381,11 @@ No issues found! (ran in 2.5s)
 
 ✅ **通过**
 
-- 全部 14 阶段实施完成。
-- `flutter analyze` 与 `flutter test` 全部成功。
+- 全部 15 阶段实施完成（其中 15 为运行时端点切换专项扩展）。
+- `flutter analyze` 与 `flutter test`（5/5）全部成功。
 - 与 Rust 后端 + Oracle 19c (5501) + Redis (6379) 的 V2 envelope 协议完全兼容。
 - 接口契约、字段命名、错误码、WebSocket、鉴权刷新流程一致，未对后端做任何改动。
 - 多端可编译：Windows / Web / Android 默认即支持，桌面端 + 移动端代码同源复用。
+- **所有 baseurl 不再硬编码**：源码层（`lib/**.dart`）完全无 `localhost:300xx` 字面量；唯一的字面量出现在 `assets/config/app_config.json`（数据文件）。运行时通过 `/settings/endpoint` 一键切换，立即重建 Dio 与 WebSocket。
 
 如有验收异议或追加需求，可在本仓 `frontend_flutter/` 子目录直接迭代，已具备完整 CI 友好的 Flutter 项目结构。
