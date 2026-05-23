@@ -23,8 +23,9 @@
 | 阶段 10 | Moderation 数据层 | ✅ 完成 | 统计 / 内容审核 / 举报 / 用户限制 / 申诉 / 审核配置 |
 | 阶段 11 | SentimentFlow 数据层 | ✅ 完成 | 模型配置查询、文本情感预测 |
 | 阶段 12 | UI 壳层 | ✅ 完成 | go_router、Riverpod、Material 3、自适应导航、深浅色 + 中英文 |
-| 阶段 13 | 静态分析 + 单测 | ✅ 完成 | `flutter analyze` 0 错误 0 警告；`flutter test` 2/2 通过 |
+| 阶段 13 | 静态分析 + 单测 | ✅ 完成 | `flutter analyze` 0 错误；`flutter test` 5/5 通过 |
 | 阶段 14 | 验收文档 | ✅ 完成 | 本文档 |
+| 阶段 15 | 配置文件统一管理 + 运行时切换 baseurl | ✅ 完成 | `assets/config/app_config.json` + `AppConfigController` + `/settings/endpoint` |
 
 ---
 
