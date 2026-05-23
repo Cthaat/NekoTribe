@@ -16,4 +16,7 @@ class StorageKeys {
   static const String themeMode = 'nekotribe.theme_mode';
   static const String locale = 'nekotribe.locale';
   static const String draftPost = 'nekotribe.draft_post';
+
+  // Shared preferences (network endpoint override)
+  static const String endpointOverride = 'nekotribe.endpoint_override';
 }
