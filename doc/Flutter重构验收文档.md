@@ -220,7 +220,17 @@ No issues found! (ran in 3.3s)
 | `nekotribe-nginx-dev` | 30002 | nginx 反代 |
 | `nekotribe-sentimentflow-*` | 内部 | 情感分析 |
 
-Flutter 客户端默认指向 `http://localhost:30001`，已通过最近的 nginx commit (`ab45d49`) 把 `/api/`、`/uploads/` 转发到 Rust 后端 + V2 envelope；如需直连 Rust 后端，可：
+Flutter 客户端默认指向 `http://localhost:30001`（来源于 `assets/config/app_config.json` 的 `defaults`），已通过最近的 nginx commit (`ab45d49`) 把 `/api/`、`/uploads/` 转发到 Rust 后端 + V2 envelope。如需切换至其他端点，提供以下三种方式：
+
+**1. 运行时切换（推荐）**
+
+启动 App → 设置（`/me` → ⚙）→ 服务器端点 → 选择预设 / 填写自定义 URL。修改后立即生效，Dio + WebSocket 自动重建；选择会持久化到 SharedPreferences（key: `nekotribe.endpoint_override`）。
+
+**2. 部署期配置**
+
+修改 `frontend_flutter/assets/config/app_config.json` 的 `defaults` 与 `presets` 后重新打包即可。无需改动任何 Dart 源码。
+
+**3. CI / 编译期覆盖**
 
 ```bash
 flutter run -d windows \
