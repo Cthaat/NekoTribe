@@ -9,6 +9,10 @@ dist
 # Node dependencies
 node_modules
 
+# Rust build outputs
+target
+backend-rust/target/
+
 # Logs
 logs
 *.log
