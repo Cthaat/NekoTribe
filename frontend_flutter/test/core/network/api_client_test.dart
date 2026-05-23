@@ -9,6 +9,8 @@ import 'package:nekotribe/core/config/app_config.dart';
 import 'package:nekotribe/core/constants/api_paths.dart';
 import 'package:nekotribe/core/network/api_client.dart';
 import 'package:nekotribe/core/network/api_exception.dart';
+import 'package:nekotribe/features/auth/data/auth_api.dart';
+import 'package:nekotribe/features/auth/data/auth_repository.dart';
 
 void main() {
   test(
@@ -18,11 +20,7 @@ void main() {
         ..httpClientAdapter = _JsonAdapter(
           (options) => _JsonResponse(
             statusCode: 401,
-            body: {
-              'code': 40101,
-              'message': '请先登录',
-              'data': null,
-            },
+            body: {'code': 40101, 'message': '请先登录', 'data': null},
           ),
         );
       final tokenStore = _FakeTokenStore();
@@ -33,25 +31,63 @@ void main() {
       );
       final unhandledErrors = <Object>[];
 
-      await runZonedGuarded(
-        () async {
-          await expectLater(
-            client.requestData<dynamic>(ApiPaths.posts),
-            throwsA(
-              isA<ApiException>()
-                  .having((e) => e.code, 'code', 40101)
-                  .having((e) => e.statusCode, 'statusCode', 401),
-            ),
-          );
-          await Future<void>.delayed(Duration.zero);
-        },
-        (error, _) => unhandledErrors.add(error),
-      );
+      await runZonedGuarded(() async {
+        await expectLater(
+          client.requestData<dynamic>(ApiPaths.posts),
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.code, 'code', 40101)
+                .having((e) => e.statusCode, 'statusCode', 401),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+      }, (error, _) => unhandledErrors.add(error));
 
       expect(unhandledErrors, isEmpty);
       expect(tokenStore.clearCount, 1);
     },
   );
+
+  test('login persists auth tokens from Set-Cookie headers', () async {
+    final dio = Dio()
+      ..httpClientAdapter = _JsonAdapter(
+        (options) => _JsonResponse(
+          statusCode: 200,
+          headers: {
+            'set-cookie': [
+              'access_token=access.jwt; Path=/; HttpOnly; SameSite=Lax',
+              'refresh_token=refresh.jwt; Path=/; HttpOnly; SameSite=Lax',
+            ],
+          },
+          body: {
+            'code': 200,
+            'message': 'login success',
+            'data': {
+              'two_factor_required': false,
+              'user': _selfUserJson,
+              'tokens': {
+                'session_id': 'session-1',
+                'access_token_expires_at': '2026-05-23T12:00:00.000Z',
+                'refresh_token_expires_at': '2026-06-23T12:00:00.000Z',
+              },
+            },
+          },
+        ),
+      );
+    final tokenStore = _FakeTokenStore();
+    final client = ApiClient(
+      config: _testConfig,
+      tokenStore: tokenStore,
+      dio: dio,
+    );
+    final repo = AuthRepository(api: AuthApi(client), tokenStore: tokenStore);
+
+    await repo.login(account: 'edge', password: 'password');
+
+    expect(tokenStore.writtenPair?.accessToken, 'access.jwt');
+    expect(tokenStore.writtenPair?.refreshToken, 'refresh.jwt');
+    expect(tokenStore.writtenPair?.sessionId, 'session-1');
+  });
 }
 
 const _testConfig = AppConfig(
@@ -64,12 +100,15 @@ class _FakeTokenStore extends TokenStore {
   _FakeTokenStore() : super();
 
   int clearCount = 0;
+  TokenPair? writtenPair;
 
   @override
-  Future<TokenPair?> read() async => null;
+  Future<TokenPair?> read() async => writtenPair;
 
   @override
-  Future<void> write(TokenPair pair) async {}
+  Future<void> write(TokenPair pair) async {
+    writtenPair = pair;
+  }
 
   @override
   Future<void> updateAccess({
@@ -82,6 +121,7 @@ class _FakeTokenStore extends TokenStore {
   @override
   Future<void> clear() async {
     clearCount += 1;
+    writtenPair = null;
   }
 
   @override
@@ -103,9 +143,7 @@ class _JsonAdapter implements HttpClientAdapter {
     return ResponseBody.fromString(
       jsonEncode(response.body),
       response.statusCode,
-      headers: {
-        Headers.contentTypeHeader: [Headers.jsonContentType],
-      },
+      headers: response.headers,
     );
   }
 
@@ -117,8 +155,43 @@ class _JsonResponse {
   const _JsonResponse({
     required this.statusCode,
     required this.body,
+    this.headers = const {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    },
   });
 
   final int statusCode;
   final Map<String, dynamic> body;
+  final Map<String, List<String>> headers;
 }
+
+const _selfUserJson = {
+  'user_id': 1,
+  'username': 'edge',
+  'display_name': 'Edge',
+  'avatar_url': '',
+  'bio': '',
+  'location': '',
+  'website': '',
+  'is_verified': 0,
+  'followers_count': 0,
+  'following_count': 0,
+  'posts_count': 0,
+  'likes_count': 0,
+  'relationship': {
+    'is_self': true,
+    'is_following': false,
+    'is_blocked': false,
+    'is_blocking': false,
+    'relation': 'self',
+  },
+  'online_status': 'online',
+  'email': 'edge@example.test',
+  'phone': '',
+  'birth_date': null,
+  'email_verified_at': '2026-05-23T12:00:00.000Z',
+  'is_active': 1,
+  'status': 'active',
+  'created_at': '2026-05-23T12:00:00.000Z',
+  'updated_at': '2026-05-23T12:00:00.000Z',
+};
