@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
@@ -36,7 +35,7 @@ class ApiClient {
   final Dio _dio;
   final _uuid = const Uuid();
 
-  Completer<void>? _refreshCompleter;
+  Future<void>? _refreshFuture;
 
   Dio get raw => _dio;
 
@@ -49,10 +48,7 @@ class ApiClient {
     T Function(dynamic data)? decode,
     bool sendAuth = true,
   }) async {
-    final options = Options(
-      method: method,
-      headers: headers,
-    );
+    final options = Options(method: method, headers: headers);
     final response = await _dio.request<dynamic>(
       path,
       data: data,
@@ -121,7 +117,9 @@ class ApiClient {
 
     // 401 自动刷新逻辑：通过 interceptor 实现，这里只处理统一响应
     if (body is Map<String, dynamic>) {
-      final code = (body['code'] is num) ? (body['code'] as num).toInt() : status;
+      final code = (body['code'] is num)
+          ? (body['code'] as num).toInt()
+          : status;
       final message = (body['message'] is String)
           ? body['message'] as String
           : 'request failed';
@@ -149,11 +147,7 @@ class ApiClient {
 
     if (status >= 200 && status < 300) {
       final decoded = decode == null ? body as T : decode(body);
-      return ApiResponse<T>(
-        code: status,
-        message: 'OK',
-        data: decoded,
-      );
+      return ApiResponse<T>(code: status, message: 'OK', data: decoded);
     }
 
     throw ApiException(
@@ -171,14 +165,14 @@ class ApiClient {
         options.headers['x-request-id'] = _uuid.v4();
         options.headers['x-client-platform'] = _platformTag();
         try {
-          options.headers['x-device-fingerprint'] =
-              await tokenStore.deviceFingerprint();
+          options.headers['x-device-fingerprint'] = await tokenStore
+              .deviceFingerprint();
         } catch (_) {}
         options.headers['x-device-info'] = _deviceInfo();
 
         final shouldSendAuth =
             !ApiPaths.isAuthEntryPath(options.path) ||
-                ApiPaths.isRefreshPath(options.path);
+            ApiPaths.isRefreshPath(options.path);
         // refresh path 也需要 access token；登录入口不需要
 
         if (shouldSendAuth) {
@@ -239,64 +233,61 @@ class ApiClient {
     );
   }
 
-  Future<void> _refreshToken() async {
-    if (_refreshCompleter != null) {
-      return _refreshCompleter!.future;
-    }
-    final completer = Completer<void>();
-    _refreshCompleter = completer;
-    try {
-      final pair = await tokenStore.read();
-      if (pair == null) {
-        throw ApiException(
-          code: 40101,
-          message: 'No refresh token',
-          statusCode: 401,
-        );
+  Future<void> _refreshToken() {
+    final existing = _refreshFuture;
+    if (existing != null) return existing;
+    late final Future<void> refresh;
+    refresh = _performRefreshToken().whenComplete(() {
+      if (identical(_refreshFuture, refresh)) {
+        _refreshFuture = null;
       }
-      final response = await _dio.patch<dynamic>(
-        ApiPaths.authTokensCurrent,
-        data: {
-          'refresh_token': pair.refreshToken,
-        },
+    });
+    _refreshFuture = refresh;
+    return refresh;
+  }
+
+  Future<void> _performRefreshToken() async {
+    final pair = await tokenStore.read();
+    if (pair == null) {
+      throw ApiException(
+        code: 40101,
+        message: 'No refresh token',
+        statusCode: 401,
       );
-      final body = response.data;
-      if (body is Map<String, dynamic> && body['code'] == 200) {
-        final data = body['data'] as Map<String, dynamic>?;
-        if (data != null) {
-          final accessToken = data['access_token'] as String? ?? pair.accessToken;
-          final refreshToken =
-              data['refresh_token'] as String? ?? pair.refreshToken;
-          final accessExpStr = data['access_token_expires_at'] as String?;
-          final refreshExpStr = data['refresh_token_expires_at'] as String?;
-          final updated = TokenPair(
-            accessToken: accessToken,
-            refreshToken: refreshToken,
-            sessionId:
-                (data['session_id'] as String?) ?? pair.sessionId,
-            accessTokenExpiresAt: accessExpStr == null
-                ? pair.accessTokenExpiresAt
-                : DateTime.tryParse(accessExpStr),
-            refreshTokenExpiresAt: refreshExpStr == null
-                ? pair.refreshTokenExpiresAt
-                : DateTime.tryParse(refreshExpStr),
-          );
-          await tokenStore.write(updated);
-        }
-      } else {
-        throw ApiException(
-          code: 40101,
-          message: 'Refresh failed',
-          statusCode: 401,
-          data: body,
+    }
+    final response = await _dio.patch<dynamic>(
+      ApiPaths.authTokensCurrent,
+      data: {'refresh_token': pair.refreshToken},
+    );
+    final body = response.data;
+    if (body is Map<String, dynamic> && body['code'] == 200) {
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        final accessToken = data['access_token'] as String? ?? pair.accessToken;
+        final refreshToken =
+            data['refresh_token'] as String? ?? pair.refreshToken;
+        final accessExpStr = data['access_token_expires_at'] as String?;
+        final refreshExpStr = data['refresh_token_expires_at'] as String?;
+        final updated = TokenPair(
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          sessionId: (data['session_id'] as String?) ?? pair.sessionId,
+          accessTokenExpiresAt: accessExpStr == null
+              ? pair.accessTokenExpiresAt
+              : DateTime.tryParse(accessExpStr),
+          refreshTokenExpiresAt: refreshExpStr == null
+              ? pair.refreshTokenExpiresAt
+              : DateTime.tryParse(refreshExpStr),
         );
+        await tokenStore.write(updated);
       }
-      completer.complete();
-    } catch (e, st) {
-      completer.completeError(e, st);
-      rethrow;
-    } finally {
-      _refreshCompleter = null;
+    } else {
+      throw ApiException(
+        code: 40101,
+        message: 'Refresh failed',
+        statusCode: 401,
+        data: body,
+      );
     }
   }
 
