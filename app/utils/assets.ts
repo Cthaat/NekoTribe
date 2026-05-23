@@ -1,8 +1,17 @@
-const STORAGE_PUBLIC_BASE = '/storage';
-const DEFAULT_AVATAR_URL = `${STORAGE_PUBLIC_BASE}/default-avatar.png`;
+import { joinApiBaseUrl } from './apiBase';
 
-function storageUrlForKey(key: string): string {
+const STORAGE_PUBLIC_BASE = '/storage';
+const DEFAULT_AVATAR_PATH = `${STORAGE_PUBLIC_BASE}/default-avatar.png`;
+
+function storagePathForKey(key: string): string {
   return `${STORAGE_PUBLIC_BASE}/${key.replace(/^\/+/, '')}`;
+}
+
+function withApiBase(path: string): string {
+  if (!path.startsWith(`${STORAGE_PUBLIC_BASE}/`)) {
+    return path;
+  }
+  return joinApiBaseUrl(path);
 }
 
 export function normalizeAssetUrl(url: string): string {
@@ -12,35 +21,39 @@ export function normalizeAssetUrl(url: string): string {
     trimmed === '/default-avatar.png' ||
     trimmed === 'default-avatar.png'
   ) {
-    return DEFAULT_AVATAR_URL;
+    return withApiBase(DEFAULT_AVATAR_PATH);
   }
 
   if (trimmed.startsWith(`${STORAGE_PUBLIC_BASE}/`)) {
-    return trimmed;
+    return withApiBase(trimmed);
   }
 
   if (trimmed.startsWith('/uploads/')) {
-    return storageUrlForKey(
-      trimmed.slice('/uploads/'.length)
+    return withApiBase(
+      storagePathForKey(trimmed.slice('/uploads/'.length))
     );
   }
 
   if (trimmed.startsWith('/upload/')) {
-    return storageUrlForKey(
-      trimmed.slice('/upload/'.length)
+    return withApiBase(
+      storagePathForKey(trimmed.slice('/upload/'.length))
     );
   }
 
   try {
     const parsed = new URL(trimmed);
     if (parsed.pathname.startsWith('/uploads/')) {
-      return storageUrlForKey(
-        parsed.pathname.slice('/uploads/'.length)
+      return withApiBase(
+        storagePathForKey(
+          parsed.pathname.slice('/uploads/'.length)
+        )
       );
     }
     if (parsed.pathname.startsWith('/upload/')) {
-      return storageUrlForKey(
-        parsed.pathname.slice('/upload/'.length)
+      return withApiBase(
+        storagePathForKey(
+          parsed.pathname.slice('/upload/'.length)
+        )
       );
     }
   } catch {
