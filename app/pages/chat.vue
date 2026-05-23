@@ -84,6 +84,7 @@ import {
 import type { ChatGroupVM } from '@/services/chat';
 import { v2SearchUsers } from '@/services/users';
 import { usePreferenceStore } from '@/stores/user';
+import { resolveRealtimeUrl } from '@/utils/apiBase';
 import type { Group } from '@/types/groups';
 import type {
   V2CreateGroupInviteData,
@@ -644,9 +645,7 @@ function handleWsMessage(event: MessageEvent<string>): void {
 function connectWs(): void {
   if (!import.meta.client || ws) return;
 
-  const protocol =
-    window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${protocol}//${window.location.host}/_ws`);
+  ws = new WebSocket(resolveRealtimeUrl());
   ws.onopen = () => {
     startWsHeartbeat();
     if (activeChannel.value) {
