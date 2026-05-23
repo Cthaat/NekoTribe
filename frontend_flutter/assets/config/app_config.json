@@ -2,9 +2,9 @@
   "$schema": "./app_config.schema.json",
   "defaults": {
     "presetId": "entry",
-    "apiBaseUrl": "http://localhost:30001",
-    "wsBaseUrl": "ws://localhost:30001",
-    "storageBaseUrl": "http://localhost:30001"
+    "apiBaseUrl": "http://localhost:30002",
+    "wsBaseUrl": "ws://localhost:30002",
+    "storageBaseUrl": "http://localhost:30002"
   },
   "presets": [
     {
