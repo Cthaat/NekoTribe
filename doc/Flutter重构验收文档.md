@@ -257,7 +257,10 @@ No issues found! (ran in 2.5s)
 > flutter test
 00:00 +0: AppLocalizations exposes localized strings
 00:00 +1: AppLocalizations falls back to key when missing
-00:00 +2: All tests passed!
+00:00 +2: AppConfigBundle.fromJson parses defaults + presets
+00:00 +3: AppConfig.copyWith preserves and overrides fields
+00:00 +4: AppConfig roundtrips via toJson/fromJson
+00:00 +5: All tests passed!
 ```
 
 ### 6.3 接口连通性（容器内 V2 envelope 流通验证）
