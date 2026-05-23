@@ -1,0 +1,22 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    invalid_annotation_target: ignore
+    unused_import: warning
+    use_null_aware_elements: ignore
+    unnecessary_underscores: ignore
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+
+linter:
+  rules:
+    avoid_print: true
+    prefer_const_constructors: false
+    prefer_const_literals_to_create_immutables: false
+    use_build_context_synchronously: false
+    library_private_types_in_public_api: false
+    use_null_aware_elements: false
+    no_wildcard_variable_uses: false
+    unnecessary_underscores: false
