@@ -1,0 +1,312 @@
+import '../../../core/constants/api_paths.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/network/api_response.dart';
+import '../../../core/utils/json_utils.dart';
+import '../domain/post_models.dart';
+
+class PostsApi {
+  PostsApi(this._client);
+
+  final ApiClient _client;
+
+  Future<PagedResult<V2Post>> getFeed({
+    String mode = 'home',
+    int page = 1,
+    int size = 20,
+    String? cursor,
+    String? language,
+  }) {
+    final query = <String, dynamic>{
+      'mode': mode,
+      'page': page,
+      'size': size,
+    };
+    if (cursor != null) query['cursor'] = cursor;
+    if (language != null) query['language'] = language;
+    return _client.requestData<PagedResult<V2Post>>(
+      ApiPaths.posts,
+      query: query,
+      decode: (data) => _decodePostPage(data),
+    );
+  }
+
+  Future<PagedResult<V2Post>> getUserPosts(
+    String username, {
+    int page = 1,
+    int size = 20,
+    String mode = 'posts',
+  }) {
+    return _client.requestData<PagedResult<V2Post>>(
+      '${ApiPaths.users}/$username/posts',
+      query: {'page': page, 'size': size, 'mode': mode},
+      decode: (data) => _decodePostPage(data),
+    );
+  }
+
+  Future<PagedResult<V2Post>> getMyPosts({
+    int page = 1,
+    int size = 20,
+    String mode = 'posts',
+  }) {
+    return _client.requestData<PagedResult<V2Post>>(
+      ApiPaths.usersMePosts,
+      query: {'page': page, 'size': size, 'mode': mode},
+      decode: (data) => _decodePostPage(data),
+    );
+  }
+
+  Future<PagedResult<V2Post>> getMyLikes({int page = 1, int size = 20}) {
+    return _client.requestData<PagedResult<V2Post>>(
+      ApiPaths.usersMeLikes,
+      query: {'page': page, 'size': size},
+      decode: (data) => _decodePostPage(data),
+    );
+  }
+
+  Future<PagedResult<V2Post>> getMyBookmarks({int page = 1, int size = 20}) {
+    return _client.requestData<PagedResult<V2Post>>(
+      ApiPaths.usersMeBookmarks,
+      query: {'page': page, 'size': size},
+      decode: (data) => _decodePostPage(data),
+    );
+  }
+
+  Future<V2Post> getPost(int postId) {
+    return _client.requestData<V2Post>(
+      '${ApiPaths.posts}/$postId',
+      decode: (data) => V2Post.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2Post> createPost({
+    required String content,
+    String postType = 'normal',
+    String visibility = 'public',
+    String? language,
+    String? location,
+    int? replyToPostId,
+    int? quotedPostId,
+    int? repostOfPostId,
+    List<int> mediaIds = const [],
+    List<String> tags = const [],
+  }) {
+    final body = <String, dynamic>{
+      'content': content,
+      'post_type': postType,
+      'visibility': visibility,
+      if (language != null) 'language': language,
+      if (location != null) 'location': location,
+      if (replyToPostId != null) 'reply_to_post_id': replyToPostId,
+      if (quotedPostId != null) 'quoted_post_id': quotedPostId,
+      if (repostOfPostId != null) 'repost_of_post_id': repostOfPostId,
+      if (mediaIds.isNotEmpty) 'media_ids': mediaIds,
+      if (tags.isNotEmpty) 'tags': tags,
+    };
+    return _client.requestData<V2Post>(
+      ApiPaths.posts,
+      method: 'POST',
+      data: body,
+      decode: (data) => V2Post.fromJson(toMap(data)),
+    );
+  }
+
+  Future<void> deletePost(int postId) async {
+    await _client.request<void>(
+      '${ApiPaths.posts}/$postId',
+      method: 'DELETE',
+      decode: (_) {},
+    );
+  }
+
+  Future<V2ViewerPostState> likePost(int postId) {
+    return _client.requestData<V2ViewerPostState>(
+      '${ApiPaths.posts}/$postId/like',
+      method: 'PUT',
+      decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2ViewerPostState> unlikePost(int postId) {
+    return _client.requestData<V2ViewerPostState>(
+      '${ApiPaths.posts}/$postId/like',
+      method: 'DELETE',
+      decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2ViewerPostState> bookmarkPost(int postId) {
+    return _client.requestData<V2ViewerPostState>(
+      '${ApiPaths.posts}/$postId/bookmark',
+      method: 'PUT',
+      decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2ViewerPostState> unbookmarkPost(int postId) {
+    return _client.requestData<V2ViewerPostState>(
+      '${ApiPaths.posts}/$postId/bookmark',
+      method: 'DELETE',
+      decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
+    );
+  }
+
+  Future<PagedResult<V2Comment>> getComments(
+    int postId, {
+    int page = 1,
+    int size = 20,
+  }) {
+    return _client.requestData<PagedResult<V2Comment>>(
+      '${ApiPaths.posts}/$postId/comments',
+      query: {'page': page, 'size': size},
+      decode: (data) {
+        final map = toMap(data);
+        final items = toList(
+          map['items'],
+          (e) => V2Comment.fromJson(toMap(e)),
+        );
+        final meta = map['meta'] is Map<String, dynamic>
+            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
+            : null;
+        return PagedResult<V2Comment>(items: items, meta: meta);
+      },
+    );
+  }
+
+  Future<V2Comment> createComment({
+    required int postId,
+    required String content,
+    int? parentCommentId,
+  }) {
+    final body = <String, dynamic>{
+      'content': content,
+      if (parentCommentId != null) 'parent_comment_id': parentCommentId,
+    };
+    return _client.requestData<V2Comment>(
+      '${ApiPaths.posts}/$postId/comments',
+      method: 'POST',
+      data: body,
+      decode: (data) => V2Comment.fromJson(toMap(data)),
+    );
+  }
+
+  Future<void> deleteComment(int commentId) async {
+    await _client.request<void>(
+      '${ApiPaths.comments}/$commentId',
+      method: 'DELETE',
+      decode: (_) {},
+    );
+  }
+
+  Future<void> likeComment(int commentId) async {
+    await _client.request<void>(
+      '${ApiPaths.comments}/$commentId/like',
+      method: 'PUT',
+      decode: (_) {},
+    );
+  }
+
+  Future<void> unlikeComment(int commentId) async {
+    await _client.request<void>(
+      '${ApiPaths.comments}/$commentId/like',
+      method: 'DELETE',
+      decode: (_) {},
+    );
+  }
+
+  Future<PagedResult<V2Post>> searchPosts({
+    required String query,
+    int page = 1,
+    int size = 20,
+  }) {
+    return _client.requestData<PagedResult<V2Post>>(
+      '${ApiPaths.posts}/search',
+      query: {'q': query, 'page': page, 'size': size},
+      decode: (data) => _decodePostPage(data),
+    );
+  }
+
+  Future<List<V2Post>> getTrending({int limit = 10}) {
+    return _client.requestData<List<V2Post>>(
+      ApiPaths.postsTrending,
+      query: {'limit': limit},
+      decode: (data) {
+        final map = toMap(data);
+        return toList(
+          map['items'],
+          (e) => V2Post.fromJson(toMap(e)),
+        );
+      },
+    );
+  }
+
+  Future<List<V2TagItem>> getTrendingTags({int limit = 10}) {
+    return _client.requestData<List<V2TagItem>>(
+      ApiPaths.tagsTrending,
+      query: {'limit': limit},
+      decode: (data) {
+        final map = toMap(data);
+        return toList(
+          map['items'],
+          (e) => V2TagItem.fromJson(toMap(e)),
+        );
+      },
+    );
+  }
+
+  Future<PagedResult<V2Post>> getPostsByTag(
+    String tag, {
+    int page = 1,
+    int size = 20,
+  }) {
+    return _client.requestData<PagedResult<V2Post>>(
+      '${ApiPaths.tags}/$tag/posts',
+      query: {'page': page, 'size': size},
+      decode: (data) => _decodePostPage(data),
+    );
+  }
+
+  Future<void> reportContent({
+    required String targetType,
+    required int targetId,
+    required String reason,
+    String? description,
+    String? evidenceUrl,
+  }) async {
+    await _client.request<void>(
+      ApiPaths.reports,
+      method: 'POST',
+      data: {
+        'target_type': targetType,
+        'target_id': targetId,
+        'reason': reason,
+        if (description != null) 'description': description,
+        if (evidenceUrl != null) 'evidence_url': evidenceUrl,
+      },
+      decode: (_) {},
+    );
+  }
+
+  Future<void> recordRecommendationFeedback({
+    required int postId,
+    required String feedback,
+  }) async {
+    await _client.request<void>(
+      ApiPaths.recommendationsFeedback,
+      method: 'POST',
+      data: {'post_id': postId, 'feedback': feedback},
+      decode: (_) {},
+    );
+  }
+
+  PagedResult<V2Post> _decodePostPage(dynamic data) {
+    final map = toMap(data);
+    final items = toList(
+      map['items'],
+      (e) => V2Post.fromJson(toMap(e)),
+    );
+    final meta = map['meta'] is Map<String, dynamic>
+        ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
+        : null;
+    return PagedResult<V2Post>(items: items, meta: meta);
+  }
+}
