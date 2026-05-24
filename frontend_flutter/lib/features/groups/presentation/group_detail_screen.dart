@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/status_views.dart';
@@ -76,26 +77,27 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 
   Future<void> _composePost() async {
     final controller = TextEditingController();
+    final l10n = AppLocalizations.of(context);
     final result = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('New post'),
+        title: Text(l10n.t('group.new_post')),
         content: TextField(
           controller: controller,
           maxLines: 5,
-          decoration: const InputDecoration(
-            hintText: 'Share something with the group...',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: l10n.t('group.compose_hint'),
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.t('common.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Post'),
+            child: Text(l10n.t('common.post')),
           ),
         ],
       ),
@@ -116,9 +118,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_group?.name ?? 'Group'),
+        title: Text(_group?.name ?? l10n.t('group.group')),
         actions: [
           if (_group != null && _group!.membership.isMember)
             IconButton(
@@ -165,7 +168,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '${_group!.memberCount} members · ${_group!.privacyDesc.isEmpty ? _group!.privacy : _group!.privacyDesc}',
+                                '${_group!.memberCount} ${l10n.t('group.members')} · ${_group!.privacyDesc.isEmpty ? _group!.privacy : _group!.privacyDesc}',
                               ),
                             ],
                           ),
@@ -173,7 +176,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                         FilledButton(
                           onPressed: _busy ? null : _toggleMembership,
                           child: Text(
-                            _group!.membership.isMember ? 'Leave' : 'Join',
+                            _group!.membership.isMember
+                                ? l10n.t('group.leave')
+                                : l10n.t('group.join'),
                           ),
                         ),
                       ],
@@ -197,9 +202,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                     ),
                   const Divider(),
                   if (_posts.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(child: Text('No posts in this group')),
+                    Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Center(child: Text(l10n.t('group.no_posts'))),
                     )
                   else
                     ..._posts.map(
