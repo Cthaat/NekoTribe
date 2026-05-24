@@ -43,9 +43,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           .read(authRepositoryProvider)
           .requestOtp(account: _account.text.trim(), purpose: 'register');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('OTP sent')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('OTP sent')));
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = ErrorView.describe(context, e));
@@ -60,7 +60,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _error = null;
     });
     try {
-      await ref.read(authRepositoryProvider).register(
+      await ref
+          .read(authRepositoryProvider)
+          .register(
             account: _account.text.trim(),
             username: _username.text.trim(),
             displayName: _displayName.text.trim(),
@@ -120,8 +122,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           ? const SizedBox(
                               height: 16,
                               width: 16,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2))
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : Text(l10n.t('auth.send_otp')),
                     ),
                   ],
@@ -164,7 +166,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   Text(
                     _error!,
                     style: TextStyle(
-                        color: Theme.of(context).colorScheme.error),
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -174,7 +177,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ? const SizedBox(
                           height: 18,
                           width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : Text(l10n.t('auth.register')),
                 ),
                 TextButton(
