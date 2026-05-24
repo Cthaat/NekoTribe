@@ -32,8 +32,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       _error = null;
     });
     try {
-      final user =
-          await ref.read(usersRepositoryProvider).getCurrentUser();
+      final user = await ref.read(usersRepositoryProvider).getCurrentUser();
       if (!mounted) return;
       setState(() {
         _user = user;
@@ -71,104 +70,108 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : _user == null
-                  ? const SizedBox.shrink()
-                  : ListView(
-                      children: [
-                        const SizedBox(height: 16),
-                        Center(
-                          child: AppAvatar(url: _user!.avatarUrl, size: 88),
-                        ),
-                        const SizedBox(height: 8),
-                        Center(
-                          child: Text(_user!.displayName,
-                              style:
-                                  Theme.of(context).textTheme.titleLarge),
-                        ),
-                        Center(child: Text('@${_user!.username}')),
-                        const SizedBox(height: 16),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _Stat(
-                                  label: l10n.t('profile.followers'),
-                                  value: _user!.followersCount),
-                              _Stat(
-                                  label: l10n.t('profile.following'),
-                                  value: _user!.followingCount),
-                              _Stat(
-                                  label: l10n.t('profile.posts'),
-                                  value: _user!.postsCount),
-                              _Stat(
-                                  label: l10n.t('profile.likes'),
-                                  value: _user!.likesCount),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        ListTile(
-                          leading: const Icon(Icons.person),
-                          title: const Text('Profile'),
-                          onTap: () => context
-                              .push('/users/${_user!.userId}'),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.edit_outlined),
-                          title: const Text('Edit profile'),
-                          onTap: () => context.push('/account/profile'),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.group),
-                          title: const Text('Groups'),
-                          onTap: () => context.push('/groups'),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.article_outlined),
-                          title: const Text('My posts'),
-                          onTap: () => context.push('/account/posts'),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.favorite_outline),
-                          title: const Text('Liked posts'),
-                          onTap: () => context.push('/account/likes'),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.bookmark_border),
-                          title: const Text('Bookmarks'),
-                          onTap: () => context.push('/account/bookmarks'),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.shield),
-                          title: Text(l10n.t('moderation.title')),
-                          onTap: () => context.push('/moderation'),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.psychology),
-                          title: Text(l10n.t('sentiment.title')),
-                          onTap: () => context.push('/sentiment'),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.settings),
-                          title: Text(l10n.t('common.settings')),
-                          onTap: () => context.push('/settings'),
-                        ),
-                        const Divider(),
-                        ListTile(
-                          leading: Icon(Icons.logout,
-                              color: Theme.of(context).colorScheme.error),
-                          title: Text(l10n.t('auth.logout'),
-                              style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .error)),
-                          onTap: _logout,
-                        ),
-                      ],
+          ? ErrorView(error: _error!, onRetry: _load)
+          : _user == null
+          ? const SizedBox.shrink()
+          : ListView(
+              children: [
+                const SizedBox(height: 16),
+                Center(child: AppAvatar(url: _user!.avatarUrl, size: 88)),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    _user!.displayName,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                Center(child: Text('@${_user!.username}')),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _Stat(
+                        label: l10n.t('profile.followers'),
+                        value: _user!.followersCount,
+                      ),
+                      _Stat(
+                        label: l10n.t('profile.following'),
+                        value: _user!.followingCount,
+                      ),
+                      _Stat(
+                        label: l10n.t('profile.posts'),
+                        value: _user!.postsCount,
+                      ),
+                      _Stat(
+                        label: l10n.t('profile.likes'),
+                        value: _user!.likesCount,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ListTile(
+                  leading: const Icon(Icons.person),
+                  title: const Text('Profile'),
+                  onTap: () => context.push('/users/${_user!.userId}'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('Edit profile'),
+                  onTap: () => context.push('/account/profile'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.group),
+                  title: const Text('Groups'),
+                  onTap: () => context.push('/groups'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.article_outlined),
+                  title: const Text('My posts'),
+                  onTap: () => context.push('/account/posts'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.favorite_outline),
+                  title: const Text('Liked posts'),
+                  onTap: () => context.push('/account/likes'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.bookmark_border),
+                  title: const Text('Bookmarks'),
+                  onTap: () => context.push('/account/bookmarks'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.shield),
+                  title: Text(l10n.t('moderation.title')),
+                  onTap: () => context.push('/moderation'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.psychology),
+                  title: Text(l10n.t('sentiment.title')),
+                  onTap: () => context.push('/sentiment'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.settings),
+                  title: Text(l10n.t('common.settings')),
+                  onTap: () => context.push('/settings'),
+                ),
+                const Divider(),
+                ListTile(
+                  leading: Icon(
+                    Icons.logout,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  title: Text(
+                    l10n.t('auth.logout'),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                     ),
+                  ),
+                  onTap: _logout,
+                ),
+              ],
+            ),
     );
   }
 }
@@ -182,10 +185,8 @@ class _Stat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text('$value',
-            style: Theme.of(context).textTheme.titleMedium),
-        Text(label,
-            style: Theme.of(context).textTheme.bodySmall),
+        Text('$value', style: Theme.of(context).textTheme.titleMedium),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
       ],
     );
   }
