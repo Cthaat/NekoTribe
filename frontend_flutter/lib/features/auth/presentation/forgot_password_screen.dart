@@ -38,9 +38,10 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           .read(authRepositoryProvider)
           .requestOtp(account: _account.text.trim(), purpose: 'password_reset');
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('OTP sent')));
+      ).showSnackBar(SnackBar(content: Text(l10n.t('auth.otp_sent'))));
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = ErrorView.describe(context, e));
@@ -63,9 +64,10 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             newPassword: _password.text,
           );
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Password reset')));
+      ).showSnackBar(SnackBar(content: Text(l10n.t('auth.password_reset'))));
       context.go('/auth/login');
     } catch (e) {
       if (!mounted) return;
