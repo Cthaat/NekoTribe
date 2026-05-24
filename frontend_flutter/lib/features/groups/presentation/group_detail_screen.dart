@@ -66,9 +66,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -102,16 +102,15 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     );
     if (result == null || result.isEmpty) return;
     try {
-      await ref.read(groupsApiProvider).createPost(
-            groupId: _group!.groupId,
-            content: result,
-          );
+      await ref
+          .read(groupsApiProvider)
+          .createPost(groupId: _group!.groupId, content: result);
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -128,95 +127,92 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             ),
         ],
       ),
-      floatingActionButton:
-          _group != null && _group!.membership.isMember
-              ? FloatingActionButton(
-                  onPressed: _composePost,
-                  child: const Icon(Icons.edit),
-                )
-              : null,
+      floatingActionButton: _group != null && _group!.membership.isMember
+          ? FloatingActionButton(
+              onPressed: _composePost,
+              child: const Icon(Icons.edit),
+            )
+          : null,
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : _group == null
-                  ? const SizedBox.shrink()
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView(
-                        children: [
-                          if (_group!.coverUrl != null)
-                            AppMediaImage(
-                              url: _group!.coverUrl!,
-                              height: 180,
-                              borderRadius: BorderRadius.zero,
-                            ),
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Row(
-                              children: [
-                                AppAvatar(url: _group!.avatarUrl, size: 56),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(_group!.name,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleLarge),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                          '${_group!.memberCount} members · ${_group!.privacyDesc.isEmpty ? _group!.privacy : _group!.privacyDesc}'),
-                                    ],
-                                  ),
-                                ),
-                                FilledButton(
-                                  onPressed: _busy ? null : _toggleMembership,
-                                  child: Text(_group!.membership.isMember
-                                      ? 'Leave'
-                                      : 'Join'),
-                                ),
-                              ],
-                            ),
+          ? ErrorView(error: _error!, onRetry: _load)
+          : _group == null
+          ? const SizedBox.shrink()
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                children: [
+                  if (_group!.coverUrl != null)
+                    AppMediaImage(
+                      url: _group!.coverUrl!,
+                      height: 180,
+                      borderRadius: BorderRadius.zero,
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        AppAvatar(url: _group!.avatarUrl, size: 56),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _group!.name,
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${_group!.memberCount} members · ${_group!.privacyDesc.isEmpty ? _group!.privacy : _group!.privacyDesc}',
+                              ),
+                            ],
                           ),
-                          if (_group!.description.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16),
-                              child: Text(_group!.description),
-                            ),
-                          if (_group!.tags.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: _group!.tags
-                                    .map((t) => Chip(label: Text('#$t')))
-                                    .toList(),
-                              ),
-                            ),
-                          const Divider(),
-                          if (_posts.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.all(32),
-                              child:
-                                  Center(child: Text('No posts in this group')),
-                            )
-                          else
-                            ..._posts.map(
-                              (p) => _GroupPostTile(
-                                post: p,
-                                onTap: () => context.push(
-                                  '/groups/${widget.slug}/posts/${p.postId}',
-                                ),
-                              ),
-                            ),
-                        ],
+                        ),
+                        FilledButton(
+                          onPressed: _busy ? null : _toggleMembership,
+                          child: Text(
+                            _group!.membership.isMember ? 'Leave' : 'Join',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_group!.description.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(_group!.description),
+                    ),
+                  if (_group!.tags.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: _group!.tags
+                            .map((t) => Chip(label: Text('#$t')))
+                            .toList(),
                       ),
                     ),
+                  const Divider(),
+                  if (_posts.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Center(child: Text('No posts in this group')),
+                    )
+                  else
+                    ..._posts.map(
+                      (p) => _GroupPostTile(
+                        post: p,
+                        onTap: () => context.push(
+                          '/groups/${widget.slug}/posts/${p.postId}',
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
     );
   }
 }
@@ -239,65 +235,74 @@ class _GroupPostTile extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              AppAvatar(url: post.author.avatarUrl, size: 36),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(post.author.displayName,
-                        style: Theme.of(context).textTheme.titleSmall),
-                    Text(_formatDate(post.createdAt),
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ],
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                AppAvatar(url: post.author.avatarUrl, size: 36),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        post.author.displayName,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      Text(
+                        _formatDate(post.createdAt),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              if (post.isPinned)
-                const Icon(Icons.push_pin, size: 16),
-              if (post.isAnnouncement)
-                const Icon(Icons.campaign, size: 16),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(post.content),
-          if (post.mediaUrls.isNotEmpty) ...[
+                if (post.isPinned) const Icon(Icons.push_pin, size: 16),
+                if (post.isAnnouncement) const Icon(Icons.campaign, size: 16),
+              ],
+            ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: post.mediaUrls
-                  .map((url) => AppMediaImage(
-                        url: url,
-                        width: 120,
-                        height: 120,
-                      ))
-                  .toList(),
+            Text(post.content),
+            if (post.mediaUrls.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: post.mediaUrls
+                    .map(
+                      (url) => AppMediaImage(url: url, width: 120, height: 120),
+                    )
+                    .toList(),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(
+                  Icons.favorite_border,
+                  size: 16,
+                  color: Theme.of(context).hintColor,
+                ),
+                const SizedBox(width: 4),
+                Text('${post.likesCount}'),
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.comment_outlined,
+                  size: 16,
+                  color: Theme.of(context).hintColor,
+                ),
+                const SizedBox(width: 4),
+                Text('${post.commentsCount}'),
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.visibility_outlined,
+                  size: 16,
+                  color: Theme.of(context).hintColor,
+                ),
+                const SizedBox(width: 4),
+                Text('${post.viewsCount}'),
+              ],
             ),
           ],
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Icon(Icons.favorite_border,
-                  size: 16, color: Theme.of(context).hintColor),
-              const SizedBox(width: 4),
-              Text('${post.likesCount}'),
-              const SizedBox(width: 12),
-              Icon(Icons.comment_outlined,
-                  size: 16, color: Theme.of(context).hintColor),
-              const SizedBox(width: 4),
-              Text('${post.commentsCount}'),
-              const SizedBox(width: 12),
-              Icon(Icons.visibility_outlined,
-                  size: 16, color: Theme.of(context).hintColor),
-              const SizedBox(width: 4),
-              Text('${post.viewsCount}'),
-            ],
-          ),
-        ],
         ),
       ),
     );
