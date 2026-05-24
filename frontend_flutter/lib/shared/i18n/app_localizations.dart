@@ -153,6 +153,8 @@ class AppLocalizations {
       'settings.account.edit_profile': '编辑资料',
       'settings.account.groups': '群组',
       'settings.account.my_posts': '我的推文',
+      'settings.section.content': '内容',
+      'settings.section.tools': '工具与设置',
       'settings.account.liked_posts': '已点赞推文',
       'settings.account.bookmarks': '收藏',
       'settings.account.pro': 'NekoTribe Pro',
