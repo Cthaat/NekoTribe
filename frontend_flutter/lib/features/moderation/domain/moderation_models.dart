@@ -82,8 +82,7 @@ class V2ModerationReport {
       status: toStr(json['status']),
       priority: toStr(json['priority'], defaultValue: 'normal'),
       handledBy: json['handled_by'] is Map<String, dynamic>
-          ? V2PublicUser.fromJson(
-              json['handled_by'] as Map<String, dynamic>)
+          ? V2PublicUser.fromJson(json['handled_by'] as Map<String, dynamic>)
           : null,
       createdAt: toStr(json['created_at']),
       updatedAt: toStr(json['updated_at']),
@@ -137,10 +136,7 @@ class V2ModerationContentItem {
       postId: toInt(json['post_id']) ?? 0,
       content: toStr(json['content']),
       author: V2PublicUser.fromJson(toMap(json['author'])),
-      media: toList(
-        json['media'],
-        (e) => V2MediaAsset.fromJson(toMap(e)),
-      ),
+      media: toList(json['media'], (e) => V2MediaAsset.fromJson(toMap(e))),
       reportCount: toInt(json['report_count']) ?? 0,
       reportReasons: toList(json['report_reasons'], (e) => toStr(e)),
       reports: toList(
@@ -150,8 +146,7 @@ class V2ModerationContentItem {
       status: toStr(json['status']),
       priority: toStr(json['priority'], defaultValue: 'normal'),
       assignedTo: json['assigned_to'] is Map<String, dynamic>
-          ? V2PublicUser.fromJson(
-              json['assigned_to'] as Map<String, dynamic>)
+          ? V2PublicUser.fromJson(json['assigned_to'] as Map<String, dynamic>)
           : null,
       createdAt: toStr(json['created_at']),
       updatedAt: toStr(json['updated_at']),
