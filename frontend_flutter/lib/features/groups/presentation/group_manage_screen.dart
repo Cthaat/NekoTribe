@@ -21,9 +21,11 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   final _name = TextEditingController();
   final _description = TextEditingController();
   V2Group? _group;
+  V2GroupNotificationPreference? _notificationPreference;
   List<V2GroupMember> _members = [];
   bool _loading = true;
   bool _saving = false;
+  bool _notificationSaving = false;
   Object? _error;
 
   @override
@@ -48,9 +50,14 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
       final api = ref.read(groupsApiProvider);
       final group = await api.getGroup(widget.slug);
       final members = await api.members(group.groupId);
+      V2GroupNotificationPreference? preference;
+      try {
+        preference = await api.getNotificationPreference(group.groupId);
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _group = group;
+        _notificationPreference = preference;
         _members = members.items;
         _name.text = group.name;
         _description.text = group.description;
@@ -86,6 +93,102 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _setNotifications(bool enabled) async {
+    if (_group == null || _notificationSaving) return;
+    setState(() => _notificationSaving = true);
+    try {
+      final next = await ref.read(groupsApiProvider).setNotificationPreference(
+            groupId: _group!.groupId,
+            isEnabled: enabled,
+          );
+      if (!mounted) return;
+      setState(() => _notificationPreference = next);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (mounted) setState(() => _notificationSaving = false);
+    }
+  }
+
+  Future<void> _changeMemberRole(V2GroupMember member, String role) async {
+    if (_group == null) return;
+    try {
+      await ref.read(groupsApiProvider).changeMemberRole(
+            groupId: _group!.groupId,
+            userId: member.user.userId,
+            role: role,
+          );
+      await _load();
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.t('group.member_updated'))));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
+  }
+
+  Future<void> _muteMember(V2GroupMember member) async {
+    if (_group == null) return;
+    try {
+      await ref.read(groupsApiProvider).muteMember(
+            groupId: _group!.groupId,
+            userId: member.user.userId,
+            durationHours: 24,
+          );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
+  }
+
+  Future<void> _unmuteMember(V2GroupMember member) async {
+    if (_group == null) return;
+    try {
+      await ref.read(groupsApiProvider).unmuteMember(
+            groupId: _group!.groupId,
+            userId: member.user.userId,
+          );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
+  }
+
+  Future<void> _removeMember(V2GroupMember member) async {
+    if (_group == null) return;
+    try {
+      await ref.read(groupsApiProvider).removeMember(
+            groupId: _group!.groupId,
+            userId: member.user.userId,
+          );
+      await _load();
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.t('group.member_removed'))));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -138,6 +241,18 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                         labelText: l10n.t('group.description'),
                       ),
                     ),
+                    if (_notificationPreference != null) ...[
+                      const SizedBox(height: 12),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(l10n.t('group.notifications')),
+                        subtitle: Text(l10n.t('group.notifications_hint')),
+                        value: _notificationPreference!.isEnabled,
+                        onChanged: _notificationSaving
+                            ? null
+                            : (value) => _setNotifications(value),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     Row(
                       children: [
@@ -190,6 +305,14 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                                 color: theme.dividerColor,
                               ),
                             _MemberRow(member: _members[i]),
+                            _MemberRow(
+                              member: _members[i],
+                              onRoleSelected: (role) =>
+                                  _changeMemberRole(_members[i], role),
+                              onMute: () => _muteMember(_members[i]),
+                              onUnmute: () => _unmuteMember(_members[i]),
+                              onRemove: () => _removeMember(_members[i]),
+                            ),
                           ],
                         ],
                       ),
@@ -203,8 +326,18 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
 }
 
 class _MemberRow extends StatelessWidget {
-  const _MemberRow({required this.member});
+  const _MemberRow({
+    required this.member,
+    required this.onRoleSelected,
+    required this.onMute,
+    required this.onUnmute,
+    required this.onRemove,
+  });
   final V2GroupMember member;
+  final ValueChanged<String> onRoleSelected;
+  final VoidCallback onMute;
+  final VoidCallback onUnmute;
+  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -240,21 +373,80 @@ class _MemberRow extends StatelessWidget {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              member.role,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+          _RoleChip(role: member.role),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_horiz),
+            onSelected: (value) {
+              switch (value) {
+                case 'role:admin':
+                  onRoleSelected('admin');
+                case 'role:moderator':
+                  onRoleSelected('moderator');
+                case 'role:member':
+                  onRoleSelected('member');
+                case 'mute':
+                  onMute();
+                case 'unmute':
+                  onUnmute();
+                case 'remove':
+                  onRemove();
+              }
+            },
+            itemBuilder: (context) {
+              final l10n = AppLocalizations.of(context);
+              final muted = member.muteUntil != null && member.muteUntil!.isNotEmpty;
+              return [
+                PopupMenuItem(
+                  value: 'role:admin',
+                  child: Text('${l10n.t('group.change_role')}: admin'),
+                ),
+                PopupMenuItem(
+                  value: 'role:moderator',
+                  child: Text('${l10n.t('group.change_role')}: moderator'),
+                ),
+                PopupMenuItem(
+                  value: 'role:member',
+                  child: Text('${l10n.t('group.change_role')}: member'),
+                ),
+                PopupMenuItem(
+                  value: muted ? 'unmute' : 'mute',
+                  child: Text(
+                    muted ? l10n.t('group.unmute') : l10n.t('group.mute'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'remove',
+                  child: Text(l10n.t('group.remove_member')),
+                ),
+              ];
+            },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RoleChip extends StatelessWidget {
+  const _RoleChip({required this.role});
+
+  final String role;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        role,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
