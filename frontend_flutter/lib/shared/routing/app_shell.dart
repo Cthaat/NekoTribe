@@ -25,7 +25,12 @@ class AppShell extends ConsumerWidget {
     ..._primaryTabs,
     ('/groups', Icons.groups_outlined, Icons.groups, 'group.title'),
     ('/moderation', Icons.shield_outlined, Icons.shield, 'moderation.title'),
-    ('/sentiment', Icons.psychology_outlined, Icons.psychology, 'sentiment.title'),
+    (
+      '/sentiment',
+      Icons.psychology_outlined,
+      Icons.psychology,
+      'sentiment.title',
+    ),
   ];
 
   int _indexFor(
