@@ -100,7 +100,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
     if (_group == null || _notificationSaving) return;
     setState(() => _notificationSaving = true);
     try {
-      final next = await ref.read(groupsApiProvider).setNotificationPreference(
+      final next = await ref
+          .read(groupsApiProvider)
+          .setNotificationPreference(
             groupId: _group!.groupId,
             isEnabled: enabled,
           );
@@ -119,7 +121,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   Future<void> _changeMemberRole(V2GroupMember member, String role) async {
     if (_group == null) return;
     try {
-      await ref.read(groupsApiProvider).changeMemberRole(
+      await ref
+          .read(groupsApiProvider)
+          .changeMemberRole(
             groupId: _group!.groupId,
             userId: member.user.userId,
             role: role,
@@ -141,7 +145,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   Future<void> _muteMember(V2GroupMember member) async {
     if (_group == null) return;
     try {
-      await ref.read(groupsApiProvider).muteMember(
+      await ref
+          .read(groupsApiProvider)
+          .muteMember(
             groupId: _group!.groupId,
             userId: member.user.userId,
             durationHours: 24,
@@ -158,10 +164,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   Future<void> _unmuteMember(V2GroupMember member) async {
     if (_group == null) return;
     try {
-      await ref.read(groupsApiProvider).unmuteMember(
-            groupId: _group!.groupId,
-            userId: member.user.userId,
-          );
+      await ref
+          .read(groupsApiProvider)
+          .unmuteMember(groupId: _group!.groupId, userId: member.user.userId);
       await _load();
     } catch (e) {
       if (!mounted) return;
@@ -174,10 +179,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   Future<void> _removeMember(V2GroupMember member) async {
     if (_group == null) return;
     try {
-      await ref.read(groupsApiProvider).removeMember(
-            groupId: _group!.groupId,
-            userId: member.user.userId,
-          );
+      await ref
+          .read(groupsApiProvider)
+          .removeMember(groupId: _group!.groupId, userId: member.user.userId);
       await _load();
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
@@ -230,7 +234,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                   children: [
                     TextField(
                       controller: _name,
-                      decoration: InputDecoration(labelText: l10n.t('group.name')),
+                      decoration: InputDecoration(
+                        labelText: l10n.t('group.name'),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
