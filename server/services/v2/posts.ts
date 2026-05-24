@@ -19,12 +19,14 @@ import {
   v2One,
   v2Page,
   v2PageMeta,
+  v2OptionalAuth,
   v2QueryString,
   v2RequiredNumber,
   v2RequiredString,
   v2Rows,
   v2String,
   v2StringArray,
+  v2Unauthorized,
   v2Unprocessable
 } from '~/server/utils/v2';
 import {
@@ -366,7 +368,8 @@ export async function v2ListPosts(
   connection: oracledb.Connection,
   options: V2PostListOptions = { mode: 'all' }
 ): Promise<V2Response<V2Post[]>> {
-  const auth = v2Auth(event);
+  const auth = v2OptionalAuth(event);
+  const viewerId = auth?.userId ?? null;
   const page = v2Page(event);
   const sort =
     options.mode === 'trending'
@@ -376,9 +379,16 @@ export async function v2ListPosts(
   const q = v2QueryString(event, 'q').trim().toLowerCase();
   const tagSearch = q.replace(/^#+/, '').trim();
   const binds: Record<string, string | number | null> = {
-    viewer_id: auth.userId
+    viewer_id: viewerId
   };
   const where: string[] = [];
+  const requiresAuth =
+    ['me', 'bookmarks', 'likes'].includes(options.mode) ||
+    ['mentions', 'following'].includes(timeline);
+
+  if (requiresAuth && !auth) {
+    v2Unauthorized();
+  }
 
   if (options.mode === 'user' && options.user_id) {
     where.push('AND v.author_id = :author_id');
@@ -386,7 +396,7 @@ export async function v2ListPosts(
   }
   if (options.mode === 'me') {
     where.push('AND v.author_id = :author_id');
-    binds.author_id = auth.userId;
+    binds.author_id = auth!.userId;
   }
   if (options.mode === 'bookmarks') {
     where.push(`
@@ -438,6 +448,17 @@ export async function v2ListPosts(
       )
     `);
   }
+  if (timeline === 'following') {
+    where.push(`
+      AND EXISTS (
+        SELECT 1
+        FROM n_user_follows f
+        WHERE f.follower_id = :viewer_id
+          AND f.following_id = v.author_id
+          AND f.status = 'active'
+      )
+    `);
+  }
   if (q) {
     where.push(`
       AND (
@@ -477,7 +498,7 @@ export async function v2ListPosts(
     }
   );
   const posts = await Promise.all(
-    rows.map(row => v2MapPost(connection, auth.userId, row))
+    rows.map(row => v2MapPost(connection, viewerId, row))
   );
   return v2Ok(
     posts,
@@ -1126,10 +1147,10 @@ export async function v2GetPost(
   connection: oracledb.Connection,
   postId: number
 ): Promise<V2Response<V2Post>> {
-  const auth = v2Auth(event);
+  const auth = v2OptionalAuth(event);
   const post = await v2RequirePostById(
     connection,
-    auth.userId,
+    auth?.userId ?? null,
     postId
   );
   await v2Execute(
