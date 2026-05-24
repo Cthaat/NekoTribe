@@ -86,6 +86,7 @@ class BillingScreen extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              // 'billing.history' i18n key registered in app_localizations
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
