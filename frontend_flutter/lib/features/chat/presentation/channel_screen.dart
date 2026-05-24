@@ -47,10 +47,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   @override
   void dispose() {
     ref.read(realtimeServiceProvider)
-      ..send({
-        'type': 'chat_leave_channel',
-        'channel_id': widget.channelId,
-      })
+      ..send({'type': 'chat_leave_channel', 'channel_id': widget.channelId})
       ..removeListener(_onRealtime);
     _composer.dispose();
     _scroll.dispose();
@@ -76,19 +73,22 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       _error = null;
     });
     try {
-      final page = await ref.read(chatApiProvider).listMessages(
-            channelId: widget.channelId,
-          );
+      final page = await ref
+          .read(chatApiProvider)
+          .listMessages(channelId: widget.channelId);
       if (!mounted) return;
       setState(() {
         _messages = page.items.reversed.toList();
         _loading = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
-      await ref.read(chatApiProvider).setChannelReadStatus(
+      await ref
+          .read(chatApiProvider)
+          .setChannelReadStatus(
             channelId: widget.channelId,
-            lastReadMessageId:
-                _messages.isEmpty ? null : _messages.last.messageId,
+            lastReadMessageId: _messages.isEmpty
+                ? null
+                : _messages.last.messageId,
           );
     } catch (e) {
       if (!mounted) return;
@@ -113,10 +113,9 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
-      final message = await ref.read(chatApiProvider).sendChannelMessage(
-            channelId: widget.channelId,
-            content: text,
-          );
+      final message = await ref
+          .read(chatApiProvider)
+          .sendChannelMessage(channelId: widget.channelId, content: text);
       if (!mounted) return;
       setState(() {
         _messages.add(message);
@@ -125,9 +124,9 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -135,16 +134,15 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
 
   Future<void> _react(V2ChatMessage message) async {
     try {
-      await ref.read(chatApiProvider).reactMessage(
-            messageId: message.messageId,
-            emoji: '👍',
-          );
+      await ref
+          .read(chatApiProvider)
+          .reactMessage(messageId: message.messageId, emoji: '👍');
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -159,9 +157,9 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -181,46 +179,43 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
             child: _loading
                 ? const LoadingView()
                 : _error != null
-                    ? ErrorView(error: _error!, onRetry: _load)
-                    : _messages.isEmpty
-                        ? const EmptyView(message: 'No messages yet')
-                        : ListView.builder(
-                            controller: _scroll,
-                            padding: const EdgeInsets.all(12),
-                            itemCount: _messages.length,
-                            itemBuilder: (_, i) {
-                              final m = _messages[i];
-                              return Card(
-                                child: ListTile(
-                                  leading: AppAvatar(
-                                    url: m.author.avatarUrl,
-                                    size: 36,
+                ? ErrorView(error: _error!, onRetry: _load)
+                : _messages.isEmpty
+                ? const EmptyView(message: 'No messages yet')
+                : ListView.builder(
+                    controller: _scroll,
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _messages.length,
+                    itemBuilder: (_, i) {
+                      final m = _messages[i];
+                      return Card(
+                        child: ListTile(
+                          leading: AppAvatar(url: m.author.avatarUrl, size: 36),
+                          title: Text(m.author.displayName),
+                          subtitle: Text(m.isDeleted ? '(deleted)' : m.content),
+                          trailing: Wrap(
+                            spacing: 2,
+                            children: [
+                              Text(_time(m.createdAt)),
+                              IconButton(
+                                icon: const Icon(Icons.thumb_up_alt_outlined),
+                                onPressed: () => _react(m),
+                              ),
+                              if (m.canPin)
+                                IconButton(
+                                  icon: Icon(
+                                    m.isPinned
+                                        ? Icons.push_pin
+                                        : Icons.push_pin_outlined,
                                   ),
-                                  title: Text(m.author.displayName),
-                                  subtitle: Text(
-                                    m.isDeleted ? '(deleted)' : m.content,
-                                  ),
-                                  trailing: Wrap(
-                                    spacing: 2,
-                                    children: [
-                                      Text(_time(m.createdAt)),
-                                      IconButton(
-                                        icon: const Icon(Icons.thumb_up_alt_outlined),
-                                        onPressed: () => _react(m),
-                                      ),
-                                      if (m.canPin)
-                                        IconButton(
-                                          icon: Icon(m.isPinned
-                                              ? Icons.push_pin
-                                              : Icons.push_pin_outlined),
-                                          onPressed: () => _pin(m),
-                                        ),
-                                    ],
-                                  ),
+                                  onPressed: () => _pin(m),
                                 ),
-                              );
-                            },
+                            ],
                           ),
+                        ),
+                      );
+                    },
+                  ),
           ),
           SafeArea(
             top: false,
