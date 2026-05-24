@@ -122,6 +122,27 @@ void main() {
     expect(tokenStore.writtenPair?.refreshToken, 'refresh.jwt');
     expect(tokenStore.writtenPair?.sessionId, 'session-1');
   });
+
+  test('requests opt into browser credentials for cookie auth', () async {
+    RequestOptions? captured;
+    final dio = Dio()
+      ..httpClientAdapter = _JsonAdapter((options) {
+        captured = options;
+        return const _JsonResponse(
+          statusCode: 200,
+          body: {'code': 200, 'message': 'ok', 'data': <String, Object>{}},
+        );
+      });
+    final client = ApiClient(
+      config: _testConfig,
+      tokenStore: _FakeTokenStore(),
+      dio: dio,
+    );
+
+    await client.requestData<dynamic>(ApiPaths.health);
+
+    expect(captured?.extra['withCredentials'], isTrue);
+  });
 }
 
 const _testConfig = AppConfig(
