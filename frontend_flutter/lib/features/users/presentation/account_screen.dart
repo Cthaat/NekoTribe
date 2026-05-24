@@ -122,6 +122,21 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                           onTap: () => context.push('/groups'),
                         ),
                         ListTile(
+                          leading: const Icon(Icons.article_outlined),
+                          title: const Text('My posts'),
+                          onTap: () => context.push('/account/posts'),
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.favorite_outline),
+                          title: const Text('Liked posts'),
+                          onTap: () => context.push('/account/likes'),
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.bookmark_border),
+                          title: const Text('Bookmarks'),
+                          onTap: () => context.push('/account/bookmarks'),
+                        ),
+                        ListTile(
                           leading: const Icon(Icons.shield),
                           title: Text(l10n.t('moderation.title')),
                           onTap: () => context.push('/moderation'),
