@@ -28,6 +28,11 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('注册'), findsWidgets);
     expect(find.text('获取验证码'), findsOneWidget);
+    final sendButton = tester.getRect(
+      find.widgetWithText(OutlinedButton, '获取验证码'),
+    );
+    expect(sendButton.right, lessThanOrEqualTo(390));
+    expect(sendButton.left, greaterThanOrEqualTo(0));
   });
 
   testWidgets('register verifies OTP and submits verification id', (
