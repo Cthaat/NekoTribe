@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_exception.dart';
 import '../i18n/app_localizations.dart';
@@ -19,14 +20,21 @@ class ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final isAuthError =
+        error is ApiException &&
+        ((error as ApiException).code == 40101 ||
+            (error as ApiException).statusCode == 401);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline,
-                size: 56, color: Theme.of(context).colorScheme.error),
+            Icon(
+              Icons.error_outline,
+              size: 56,
+              color: Theme.of(context).colorScheme.error,
+            ),
             const SizedBox(height: 12),
             Text(
               describe(context, error),
@@ -38,6 +46,13 @@ class ErrorView extends StatelessWidget {
               ElevatedButton(
                 onPressed: onRetry,
                 child: Text(l10n.t('common.retry')),
+              ),
+            ],
+            if (isAuthError) ...[
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: () => context.push('/auth/login'),
+                child: Text(l10n.t('auth.login')),
               ),
             ],
           ],
@@ -65,10 +80,7 @@ class EmptyView extends StatelessWidget {
             color: Theme.of(context).disabledColor,
           ),
           const SizedBox(height: 8),
-          Text(
-            message,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          Text(message, style: Theme.of(context).textTheme.bodyMedium),
         ],
       ),
     );
