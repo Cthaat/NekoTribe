@@ -8,6 +8,7 @@ import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../posts/presentation/report_dialog.dart';
 import '../domain/group_models.dart';
 
 class GroupPostsScreen extends ConsumerStatefulWidget {
@@ -103,6 +104,23 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
     await _load();
   }
 
+  Future<void> _deletePost(V2GroupPost post) async {
+    try {
+      await ref
+          .read(groupsApiProvider)
+          .deleteGroupPost(groupId: post.groupId, postId: post.postId);
+      if (!mounted) return;
+      setState(() {
+        _posts.removeWhere((item) => item.postId == post.postId);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -158,6 +176,13 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
                               },
                               onLike: () => _toggleLike(post),
                               onPin: () => _togglePin(post),
+                              onDelete: () => _deletePost(post),
+                              onReport: () => showReportDialog(
+                                context,
+                                ref,
+                                targetType: 'group_post',
+                                targetId: post.postId,
+                              ),
                             );
                           },
                         ),
@@ -256,6 +281,8 @@ class _GroupFeedPostTile extends StatelessWidget {
     required this.onTap,
     required this.onLike,
     required this.onPin,
+    required this.onDelete,
+    required this.onReport,
   });
 
   final V2GroupPost post;
@@ -263,6 +290,8 @@ class _GroupFeedPostTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLike;
   final VoidCallback onPin;
+  final VoidCallback onDelete;
+  final VoidCallback onReport;
 
   String _formatDate(String iso) {
     final dt = DateTime.tryParse(iso);
@@ -374,6 +403,23 @@ class _GroupFeedPostTile extends StatelessWidget {
                   icon: Icon(
                     post.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
                   ),
+                ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_horiz),
+                  onSelected: (value) {
+                    if (value == 'delete') onDelete();
+                    if (value == 'report') onReport();
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'report',
+                      child: Text(l10n.t('common.report')),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(l10n.t('common.delete')),
+                    ),
+                  ],
                 ),
               ],
             ),
