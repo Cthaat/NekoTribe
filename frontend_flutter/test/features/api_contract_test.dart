@@ -351,7 +351,7 @@ class _ApiRecorder implements HttpClientAdapter {
     if (path == '/api/v2/groups') {
       return <Object>[_groupJson];
     }
-    if (path == '/api/v2/chat/direct/conversations') {
+    if (path == '/api/v2/chat/direct-conversations') {
       return <Object>[_directConversationJson];
     }
     if (path == '/api/v2/chat/groups') {
