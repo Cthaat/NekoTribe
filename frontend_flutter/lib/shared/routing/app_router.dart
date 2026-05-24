@@ -120,10 +120,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/auth/login',
-        builder: (_, __) => const LoginScreen(),
-      ),
+      GoRoute(path: '/auth/login', builder: (_, __) => const LoginScreen()),
       GoRoute(
         path: '/auth/register',
         builder: (_, __) => const RegisterScreen(),
@@ -132,10 +129,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/auth/forgot',
         builder: (_, __) => const ForgotPasswordScreen(),
       ),
-      GoRoute(
-        path: '/auth/terms',
-        builder: (_, __) => const TermsScreen(),
-      ),
+      GoRoute(path: '/auth/terms', builder: (_, __) => const TermsScreen()),
       GoRoute(
         path: '/auth/2fa',
         builder: (_, state) {
@@ -149,30 +143,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
         routes: [
-          GoRoute(
-            path: '/feed',
-            builder: (_, __) => const FeedScreen(),
-          ),
-          GoRoute(
-            path: '/discover',
-            builder: (_, __) => const SearchScreen(),
-          ),
+          GoRoute(path: '/feed', builder: (_, __) => const FeedScreen()),
+          GoRoute(path: '/discover', builder: (_, __) => const SearchScreen()),
           GoRoute(
             path: '/notifications',
             builder: (_, __) => const NotificationsScreen(),
           ),
-          GoRoute(
-            path: '/chat',
-            builder: (_, __) => const ChatHomeScreen(),
-          ),
-          GoRoute(
-            path: '/me',
-            builder: (_, __) => const AccountScreen(),
-          ),
-          GoRoute(
-            path: '/about',
-            builder: (_, __) => const AboutScreen(),
-          ),
+          GoRoute(path: '/chat', builder: (_, __) => const ChatHomeScreen()),
+          GoRoute(path: '/me', builder: (_, __) => const AccountScreen()),
+          GoRoute(path: '/about', builder: (_, __) => const AboutScreen()),
         ],
       ),
       GoRoute(
@@ -199,21 +178,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/users/:userId',
         builder: (_, state) {
-          final userId = int.tryParse(state.pathParameters['userId'] ?? '') ?? 0;
+          final userId =
+              int.tryParse(state.pathParameters['userId'] ?? '') ?? 0;
           return ProfileScreen(userId: userId);
         },
       ),
       GoRoute(
         path: '/users/:userId/posts',
         builder: (_, state) {
-          final userId = int.tryParse(state.pathParameters['userId'] ?? '') ?? 0;
+          final userId =
+              int.tryParse(state.pathParameters['userId'] ?? '') ?? 0;
           return UserPostsScreen(userId: userId);
         },
       ),
-      GoRoute(
-        path: '/settings',
-        builder: (_, __) => const SettingsScreen(),
-      ),
+      GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(
         path: '/settings/appearance',
         builder: (_, __) => const AppearanceScreen(),
@@ -222,10 +200,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/settings/billing',
         builder: (_, __) => const BillingScreen(),
       ),
-      GoRoute(
-        path: '/settings/pro',
-        builder: (_, __) => const ProScreen(),
-      ),
+      GoRoute(path: '/settings/pro', builder: (_, __) => const ProScreen()),
       GoRoute(
         path: '/settings/security',
         builder: (_, __) => const SecurityScreen(),
@@ -242,10 +217,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/settings/endpoint',
         builder: (_, __) => const EndpointScreen(),
       ),
-      GoRoute(
-        path: '/account',
-        builder: (_, __) => const AccountScreen(),
-      ),
+      GoRoute(path: '/account', builder: (_, __) => const AccountScreen()),
       GoRoute(
         path: '/account/overview',
         builder: (_, __) => const AccountScreen(),
@@ -266,10 +238,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/account/billing',
         builder: (_, __) => const BillingScreen(),
       ),
-      GoRoute(
-        path: '/account/pro',
-        builder: (_, __) => const ProScreen(),
-      ),
+      GoRoute(path: '/account/pro', builder: (_, __) => const ProScreen()),
       GoRoute(
         path: '/account/security',
         builder: (_, __) => const SecurityScreen(),
@@ -284,20 +253,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/account/posts',
-        builder: (_, __) => const AccountPostsScreen(kind: AccountPostsKind.posts),
+        builder: (_, __) =>
+            const AccountPostsScreen(kind: AccountPostsKind.posts),
       ),
       GoRoute(
         path: '/account/likes',
-        builder: (_, __) => const AccountPostsScreen(kind: AccountPostsKind.likes),
+        builder: (_, __) =>
+            const AccountPostsScreen(kind: AccountPostsKind.likes),
       ),
       GoRoute(
         path: '/account/bookmarks',
-        builder: (_, __) => const AccountPostsScreen(kind: AccountPostsKind.bookmarks),
+        builder: (_, __) =>
+            const AccountPostsScreen(kind: AccountPostsKind.bookmarks),
       ),
-      GoRoute(
-        path: '/groups',
-        builder: (_, __) => const GroupsScreen(),
-      ),
+      GoRoute(path: '/groups', builder: (_, __) => const GroupsScreen()),
       GoRoute(
         path: '/groups/:slug',
         builder: (_, state) {
@@ -316,22 +285,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/groups/:slug/posts/:postId',
         builder: (_, state) {
           final slug = state.pathParameters['slug'] ?? '';
-          final postId = int.tryParse(state.pathParameters['postId'] ?? '') ?? 0;
+          final postId =
+              int.tryParse(state.pathParameters['postId'] ?? '') ?? 0;
           return GroupPostDetailScreen(slug: slug, postId: postId);
         },
       ),
       GoRoute(
         path: '/chat/conversation/:id',
         builder: (_, state) {
-          final id =
-              int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
           return ConversationScreen(conversationId: id);
         },
       ),
       GoRoute(
         path: '/chat/groups/:groupId/channels/:channelId',
         builder: (_, state) {
-          final groupId = int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0;
+          final groupId =
+              int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0;
           final channelId =
               int.tryParse(state.pathParameters['channelId'] ?? '') ?? 0;
           return ChannelScreen(groupId: groupId, channelId: channelId);
@@ -361,14 +331,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/moderation/settings',
         builder: (_, __) => const ModerationScreen(initialTab: 5),
       ),
-      GoRoute(
-        path: '/sentiment',
-        builder: (_, __) => const SentimentScreen(),
-      ),
+      GoRoute(path: '/sentiment', builder: (_, __) => const SentimentScreen()),
     ],
-    errorBuilder: (context, state) => Scaffold(
-      body: Center(child: Text('Route not found: ${state.uri}')),
-    ),
+    errorBuilder: (context, state) =>
+        Scaffold(body: Center(child: Text('Route not found: ${state.uri}'))),
   );
 });
 
