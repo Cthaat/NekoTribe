@@ -10,7 +10,9 @@ import '../../../shared/widgets/status_views.dart';
 import '../domain/group_models.dart';
 
 class GroupsScreen extends ConsumerStatefulWidget {
-  const GroupsScreen({super.key});
+  const GroupsScreen({super.key, this.initialTab = 0});
+
+  final int initialTab;
 
   @override
   ConsumerState<GroupsScreen> createState() => _GroupsScreenState();
@@ -28,7 +30,11 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
+    _tabController = TabController(
+      length: _tabs.length,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, _tabs.length - 1),
+    );
   }
 
   @override
