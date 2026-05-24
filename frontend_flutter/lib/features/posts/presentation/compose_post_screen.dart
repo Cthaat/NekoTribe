@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../sentiment_flow/presentation/sentiment_prediction_dialog.dart';
 import '../domain/post_models.dart';
 
 class ComposePostScreen extends ConsumerStatefulWidget {
@@ -93,6 +95,14 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _analyzeSentiment() async {
+    if (!requireAuthenticatedAction(context, ref)) return;
+    await showSentimentPredictionDialog(
+      context: context,
+      text: _controller.text,
+    );
   }
 
   @override
@@ -210,6 +220,14 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                               Icons.photo_outlined,
                               color: theme.colorScheme.primary,
                             ),
+                    ),
+                    IconButton(
+                      onPressed: _busy ? null : _analyzeSentiment,
+                      tooltip: l10n.t('sentiment.actions.predict'),
+                      icon: Icon(
+                        Icons.psychology_alt_outlined,
+                        color: theme.colorScheme.primary,
+                      ),
                     ),
                     const Spacer(),
                     Icon(
