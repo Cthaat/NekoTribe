@@ -61,7 +61,9 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
     if (_saving) return;
     setState(() => _saving = true);
     try {
-      await ref.read(postsApiProvider).updatePost(
+      await ref
+          .read(postsApiProvider)
+          .updatePost(
             postId: widget.postId,
             content: _controller.text.trim(),
             visibility: _visibility,
@@ -70,9 +72,9 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -99,49 +101,46 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextField(
-                        controller: _controller,
-                        minLines: 5,
-                        maxLines: 10,
-                        maxLength: 2000,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          labelText: 'Content',
-                        ),
+          ? ErrorView(error: _error!, onRetry: _load)
+          : Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _controller,
+                    minLines: 5,
+                    maxLines: 10,
+                    maxLength: 2000,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Content',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _visibility,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Visibility',
+                    ),
+                    onChanged: (value) =>
+                        setState(() => _visibility = value ?? 'public'),
+                    items: const [
+                      DropdownMenuItem(value: 'public', child: Text('Public')),
+                      DropdownMenuItem(
+                        value: 'followers',
+                        child: Text('Followers'),
                       ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: _visibility,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          labelText: 'Visibility',
-                        ),
-                        onChanged: (value) =>
-                            setState(() => _visibility = value ?? 'public'),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'public',
-                            child: Text('Public'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'followers',
-                            child: Text('Followers'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'private',
-                            child: Text('Private'),
-                          ),
-                        ],
+                      DropdownMenuItem(
+                        value: 'private',
+                        child: Text('Private'),
                       ),
                     ],
                   ),
-                ),
+                ],
+              ),
+            ),
     );
   }
 }
