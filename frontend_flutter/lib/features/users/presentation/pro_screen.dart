@@ -23,17 +23,20 @@ class ProScreen extends StatelessWidget {
           const _FeatureTile(
             icon: Icons.psychology_outlined,
             title: 'AI sentiment workflows',
-            subtitle: 'Tune model output from account settings and composer flows.',
+            subtitle:
+                'Tune model output from account settings and composer flows.',
           ),
           const _FeatureTile(
             icon: Icons.forum_outlined,
             title: 'Realtime community tools',
-            subtitle: 'Direct messages and group channels stay available on every platform.',
+            subtitle:
+                'Direct messages and group channels stay available on every platform.',
           ),
           const _FeatureTile(
             icon: Icons.shield_outlined,
             title: 'Safety dashboard',
-            subtitle: 'Moderation queues, appeals, and reports share one mobile-friendly surface.',
+            subtitle:
+                'Moderation queues, appeals, and reports share one mobile-friendly surface.',
           ),
           const SizedBox(height: 8),
           FilledButton.icon(
