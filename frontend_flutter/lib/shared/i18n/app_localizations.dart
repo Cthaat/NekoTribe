@@ -510,6 +510,8 @@ class AppLocalizations {
       'settings.account.edit_profile': 'Edit profile',
       'settings.account.groups': 'Groups',
       'settings.account.my_posts': 'My posts',
+      'settings.section.content': 'Content',
+      'settings.section.tools': 'Tools & settings',
       'settings.account.liked_posts': 'Liked posts',
       'settings.account.bookmarks': 'Bookmarks',
       'settings.account.pro': 'NekoTribe Pro',
