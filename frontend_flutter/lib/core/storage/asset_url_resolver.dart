@@ -12,8 +12,7 @@ class AssetUrlResolver {
       return _join(config.storageBaseUrl, defaultAvatarPath);
     }
     final trimmed = url.trim();
-    if (trimmed == '/default-avatar.png' ||
-        trimmed == 'default-avatar.png') {
+    if (trimmed == '/default-avatar.png' || trimmed == 'default-avatar.png') {
       return _join(config.storageBaseUrl, defaultAvatarPath);
     }
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
