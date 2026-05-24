@@ -82,7 +82,9 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
       if (!mounted) return;
       if (channels.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No channels in this group')),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).t('chat.no_channels')),
+          ),
         );
         return;
       }
@@ -106,9 +108,9 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
         title: Text(l10n.t('tab.messages')),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'Direct'),
-            Tab(text: 'Groups'),
+          tabs: [
+            Tab(text: l10n.t('chat.direct')),
+            Tab(text: l10n.t('chat.groups')),
           ],
         ),
       ),
@@ -165,7 +167,7 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                         ),
                       ),
                 _groups.isEmpty
-                    ? const EmptyView(message: 'No groups')
+                    ? EmptyView(message: l10n.t('chat.no_groups'))
                     : RefreshIndicator(
                         onRefresh: _load,
                         child: ListView.separated(
@@ -177,7 +179,13 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                               leading: AppAvatar(url: g.avatarUrl, size: 48),
                               title: Text(g.name),
                               subtitle: Text(
-                                '${g.memberCount} members · ${g.channelCount} channels',
+                                l10n
+                                    .t('chat.members_channels')
+                                    .replaceAll('{members}', '${g.memberCount}')
+                                    .replaceAll(
+                                      '{channels}',
+                                      '${g.channelCount}',
+                                    ),
                               ),
                               trailing: g.unreadCount > 0
                                   ? Badge(label: Text('${g.unreadCount}'))
