@@ -25,6 +25,18 @@ class V2Relationship {
     );
   }
 
+  factory V2Relationship.fromFollowJson(Map<String, dynamic> json) {
+    final relation = toStrOrNull(json['relationship']);
+    final isFollowing = toBool(json['is_following']) || relation == 'following';
+    return V2Relationship(
+      isSelf: false,
+      isFollowing: isFollowing,
+      isBlocked: false,
+      isBlocking: false,
+      relation: relation ?? (isFollowing ? 'following' : 'stranger'),
+    );
+  }
+
   static V2Relationship empty() => V2Relationship(
         isSelf: false,
         isFollowing: false,
