@@ -12,8 +12,7 @@ class ConversationScreen extends ConsumerStatefulWidget {
   final int conversationId;
 
   @override
-  ConsumerState<ConversationScreen> createState() =>
-      _ConversationScreenState();
+  ConsumerState<ConversationScreen> createState() => _ConversationScreenState();
 }
 
 class _ConversationScreenState extends ConsumerState<ConversationScreen> {
@@ -43,9 +42,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       _error = null;
     });
     try {
-      final page = await ref.read(chatApiProvider).listDirectMessages(
-            conversationId: widget.conversationId,
-          );
+      final page = await ref
+          .read(chatApiProvider)
+          .listDirectMessages(conversationId: widget.conversationId);
       if (!mounted) return;
       setState(() {
         _messages = page.items.reversed.toList();
@@ -75,7 +74,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
-      final message = await ref.read(chatApiProvider).sendDirectMessage(
+      final message = await ref
+          .read(chatApiProvider)
+          .sendDirectMessage(
             conversationId: widget.conversationId,
             content: text,
           );
@@ -87,9 +88,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -102,9 +103,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       setState(() => _messages.removeWhere((x) => x.messageId == m.messageId));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -124,22 +125,21 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             child: _loading
                 ? const LoadingView()
                 : _error != null
-                    ? ErrorView(error: _error!, onRetry: _load)
-                    : _messages.isEmpty
-                        ? const EmptyView(message: 'No messages yet')
-                        : ListView.builder(
-                            controller: _scrollController,
-                            padding: const EdgeInsets.all(12),
-                            itemCount: _messages.length,
-                            itemBuilder: (_, i) =>
-                                _MessageBubble(
-                              message: _messages[i],
-                              onDelete: _messages[i].canDelete
-                                  ? () => _deleteMessage(_messages[i])
-                                  : null,
-                              formatTime: _formatTime,
-                            ),
-                          ),
+                ? ErrorView(error: _error!, onRetry: _load)
+                : _messages.isEmpty
+                ? const EmptyView(message: 'No messages yet')
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _messages.length,
+                    itemBuilder: (_, i) => _MessageBubble(
+                      message: _messages[i],
+                      onDelete: _messages[i].canDelete
+                          ? () => _deleteMessage(_messages[i])
+                          : null,
+                      formatTime: _formatTime,
+                    ),
+                  ),
           ),
           SafeArea(
             top: false,
@@ -166,7 +166,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                         ? const SizedBox(
                             height: 18,
                             width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2))
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Icon(Icons.send),
                     onPressed: _sending ? null : _send,
                   ),
@@ -212,7 +213,9 @@ class _MessageBubble extends StatelessWidget {
                 onLongPress: onDelete,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelf
                         ? theme.colorScheme.primary
@@ -232,11 +235,10 @@ class _MessageBubble extends StatelessWidget {
                       Text(
                         message.isDeleted ? '(deleted)' : message.content,
                         style: TextStyle(
-                          color: isSelf
-                              ? theme.colorScheme.onPrimary
+                          color: isSelf ? theme.colorScheme.onPrimary : null,
+                          fontStyle: message.isDeleted
+                              ? FontStyle.italic
                               : null,
-                          fontStyle:
-                              message.isDeleted ? FontStyle.italic : null,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -244,8 +246,9 @@ class _MessageBubble extends StatelessWidget {
                         formatTime(message.createdAt),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: isSelf
-                              ? theme.colorScheme.onPrimary
-                                  .withValues(alpha: 0.7)
+                              ? theme.colorScheme.onPrimary.withValues(
+                                  alpha: 0.7,
+                                )
                               : null,
                         ),
                       ),
