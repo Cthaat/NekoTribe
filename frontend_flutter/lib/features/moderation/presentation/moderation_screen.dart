@@ -72,13 +72,13 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
-          tabs: const [
-            Tab(text: 'Overview'),
-            Tab(text: 'Content'),
-            Tab(text: 'Reports'),
-            Tab(text: 'Users'),
-            Tab(text: 'Appeals'),
-            Tab(text: 'Settings'),
+          tabs: [
+            Tab(text: l10n.t('moderation.tabs.overview')),
+            Tab(text: l10n.t('moderation.tabs.content')),
+            Tab(text: l10n.t('moderation.tabs.reports')),
+            Tab(text: l10n.t('moderation.tabs.users')),
+            Tab(text: l10n.t('moderation.tabs.appeals')),
+            Tab(text: l10n.t('moderation.tabs.settings')),
           ],
         ),
       ),
@@ -117,10 +117,11 @@ class _OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (loading) return const LoadingView();
     if (error != null) return ErrorView(error: error!, onRetry: onRetry);
     if (stats == null) {
-      return const EmptyView(message: 'No stats');
+      return EmptyView(message: l10n.t('moderation.stats.empty'));
     }
     return RefreshIndicator(
       onRefresh: () async => onRetry(),
@@ -131,21 +132,36 @@ class _OverviewTab extends StatelessWidget {
         mainAxisSpacing: 12,
         childAspectRatio: 2,
         children: [
-          _StatCard(label: 'Pending', value: '${stats!.pending}'),
-          _StatCard(label: 'Approved', value: '${stats!.approved}'),
-          _StatCard(label: 'Rejected', value: '${stats!.rejected}'),
-          _StatCard(label: 'Flagged', value: '${stats!.flagged}'),
           _StatCard(
-            label: 'Today processed',
+            label: l10n.t('moderation.stats.pending'),
+            value: '${stats!.pending}',
+          ),
+          _StatCard(
+            label: l10n.t('moderation.stats.approved'),
+            value: '${stats!.approved}',
+          ),
+          _StatCard(
+            label: l10n.t('moderation.stats.rejected'),
+            value: '${stats!.rejected}',
+          ),
+          _StatCard(
+            label: l10n.t('moderation.stats.flagged'),
+            value: '${stats!.flagged}',
+          ),
+          _StatCard(
+            label: l10n.t('moderation.stats.today_processed'),
             value: '${stats!.todayProcessed}',
           ),
-          _StatCard(label: 'Open reports', value: '${stats!.openReports}'),
           _StatCard(
-            label: 'Avg minutes',
+            label: l10n.t('moderation.stats.open_reports'),
+            value: '${stats!.openReports}',
+          ),
+          _StatCard(
+            label: l10n.t('moderation.stats.avg_minutes'),
             value: stats!.avgProcessMinutes.toStringAsFixed(1),
           ),
           _StatCard(
-            label: 'Appeal success',
+            label: l10n.t('moderation.stats.appeal_success'),
             value: '${(stats!.appealSuccessRate * 100).toStringAsFixed(1)}%',
           ),
         ],
@@ -247,21 +263,32 @@ class _ContentTabState extends ConsumerState<_ContentTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(8),
           child: SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'pending', label: Text('Pending')),
-              ButtonSegment(value: 'approved', label: Text('Approved')),
-              ButtonSegment(value: 'rejected', label: Text('Rejected')),
-            ],
             selected: {_status},
+            showSelectedIcon: false,
             onSelectionChanged: (s) {
               setState(() => _status = s.first);
               _load();
             },
+            segments: [
+              ButtonSegment(
+                value: 'pending',
+                label: Text(l10n.t('moderation.pending')),
+              ),
+              ButtonSegment(
+                value: 'approved',
+                label: Text(l10n.t('moderation.approved')),
+              ),
+              ButtonSegment(
+                value: 'rejected',
+                label: Text(l10n.t('moderation.rejected')),
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -270,7 +297,7 @@ class _ContentTabState extends ConsumerState<_ContentTab>
               : _error != null
               ? ErrorView(error: _error!, onRetry: _load)
               : _items.isEmpty
-              ? const EmptyView(message: 'No items')
+              ? EmptyView(message: l10n.t('moderation.content.empty'))
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView.separated(
@@ -396,10 +423,11 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final l10n = AppLocalizations.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
-      return const EmptyView(message: 'No open reports');
+      return EmptyView(message: l10n.t('moderation.reports.empty'));
     }
     return RefreshIndicator(
       onRefresh: _load,
@@ -507,10 +535,11 @@ class _UsersTabState extends ConsumerState<_UsersTab>
   Future<void> _moderateUser(V2ModerationUserItem user, String action) async {
     final reason = TextEditingController();
     final duration = TextEditingController(text: '24');
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('${action.toUpperCase()} @${user.username}'),
+        title: Text('${_actionLabel(l10n, action)} @${user.username}'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -519,9 +548,9 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                 controller: reason,
                 minLines: 2,
                 maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Reason / note',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: l10n.t('moderation.users.reason_note'),
+                  border: const OutlineInputBorder(),
                 ),
               ),
               if (action == 'ban' || action == 'mute') ...[
@@ -529,9 +558,9 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                 TextField(
                   controller: duration,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Duration hours',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.t('moderation.users.duration_hours'),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
               ],
@@ -541,11 +570,11 @@ class _UsersTabState extends ConsumerState<_UsersTab>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.t('common.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm'),
+            child: Text(l10n.t('common.confirm')),
           ),
         ],
       ),
@@ -580,6 +609,7 @@ class _UsersTabState extends ConsumerState<_UsersTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         Padding(
@@ -593,20 +623,29 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                 width: 260,
                 child: TextField(
                   controller: _keywordController,
-                  decoration: const InputDecoration(
-                    labelText: 'Search users',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.t('moderation.users.search'),
+                    prefixIcon: const Icon(Icons.search),
+                    border: const OutlineInputBorder(),
                     isDense: true,
                   ),
                   onSubmitted: (_) => _load(),
                 ),
               ),
               SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'all', label: Text('All')),
-                  ButtonSegment(value: 'active', label: Text('Active')),
-                  ButtonSegment(value: 'suspended', label: Text('Suspended')),
+                segments: [
+                  ButtonSegment(
+                    value: 'all',
+                    label: Text(l10n.t('common.all')),
+                  ),
+                  ButtonSegment(
+                    value: 'active',
+                    label: Text(l10n.t('moderation.users.active')),
+                  ),
+                  ButtonSegment(
+                    value: 'suspended',
+                    label: Text(l10n.t('moderation.users.suspended')),
+                  ),
                 ],
                 selected: {_status},
                 onSelectionChanged: (value) {
@@ -623,7 +662,7 @@ class _UsersTabState extends ConsumerState<_UsersTab>
               : _error != null
               ? ErrorView(error: _error!, onRetry: _load)
               : _items.isEmpty
-              ? const EmptyView(message: 'No users')
+              ? EmptyView(message: l10n.t('moderation.users.empty'))
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView.separated(
@@ -640,7 +679,7 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                               : user.displayName,
                         ),
                         subtitle: Text(
-                          '@${user.username} · ${user.status} · reports ${user.reportCount} · restriction $restriction',
+                          '@${user.username} · ${user.status} · ${l10n.t('moderation.users.reports')} ${user.reportCount} · ${l10n.t('moderation.users.restriction')} $restriction',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -648,29 +687,29 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                         trailing: PopupMenuButton<String>(
                           onSelected: (action) => _moderateUser(user, action),
                           itemBuilder: (_) => [
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'note',
-                              child: Text('Add note'),
+                              child: Text(l10n.t('moderation.users.add_note')),
                             ),
                             if (user.activeRestriction != 'ban')
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'ban',
-                                child: Text('Ban'),
+                                child: Text(l10n.t('moderation.users.ban')),
                               ),
                             if (user.activeRestriction == 'ban')
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'unban',
-                                child: Text('Unban'),
+                                child: Text(l10n.t('moderation.users.unban')),
                               ),
                             if (user.activeRestriction != 'mute')
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'mute',
-                                child: Text('Mute'),
+                                child: Text(l10n.t('moderation.users.mute')),
                               ),
                             if (user.activeRestriction == 'mute')
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'unmute',
-                                child: Text('Unmute'),
+                                child: Text(l10n.t('moderation.users.unmute')),
                               ),
                           ],
                         ),
@@ -681,6 +720,17 @@ class _UsersTabState extends ConsumerState<_UsersTab>
         ),
       ],
     );
+  }
+
+  String _actionLabel(AppLocalizations l10n, String action) {
+    return switch (action) {
+      'note' => l10n.t('moderation.users.add_note'),
+      'ban' => l10n.t('moderation.users.ban'),
+      'unban' => l10n.t('moderation.users.unban'),
+      'mute' => l10n.t('moderation.users.mute'),
+      'unmute' => l10n.t('moderation.users.unmute'),
+      _ => action,
+    };
   }
 }
 
@@ -731,26 +781,31 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
 
   Future<void> _decide(V2ModerationAppeal a, String status) async {
     final controller = TextEditingController();
+    final l10n = AppLocalizations.of(context);
     final response = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(status == 'approved' ? 'Approve appeal' : 'Reject appeal'),
+        title: Text(
+          status == 'approved'
+              ? l10n.t('moderation.appeals.approve')
+              : l10n.t('moderation.appeals.reject'),
+        ),
         content: TextField(
           controller: controller,
           maxLines: 3,
-          decoration: const InputDecoration(
-            hintText: 'Optional admin response',
+          decoration: InputDecoration(
+            hintText: l10n.t('moderation.appeals.response_hint'),
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.t('common.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Confirm'),
+            child: Text(l10n.t('common.confirm')),
           ),
         ],
       ),
@@ -777,10 +832,11 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final l10n = AppLocalizations.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
-      return const EmptyView(message: 'No pending appeals');
+      return EmptyView(message: l10n.t('moderation.appeals.empty'));
     }
     return RefreshIndicator(
       onRefresh: _load,
@@ -829,6 +885,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
     with AutomaticKeepAliveClientMixin {
   List<V2ModerationSetting> _items = [];
   bool _loading = true;
+  bool _saving = false;
   Object? _error;
 
   @override
@@ -861,26 +918,155 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
     }
   }
 
+  bool _boolValue(String value) {
+    return value == 'true' || value == '1';
+  }
+
+  String _settingText(
+    AppLocalizations l10n,
+    V2ModerationSetting item,
+    String field,
+  ) {
+    final key = 'moderation.settings.definitions.${item.key}.$field';
+    final text = l10n.t(key);
+    if (text != key) return text;
+    if (field == 'label') {
+      return item.label.isEmpty ? item.key : item.label;
+    }
+    return item.description;
+  }
+
+  void _setValue(V2ModerationSetting setting, String value) {
+    setState(() {
+      _items = _items
+          .map(
+            (item) =>
+                item.key == setting.key ? item.copyWith(value: value) : item,
+          )
+          .toList(growable: false);
+    });
+  }
+
+  Future<void> _save() async {
+    final l10n = AppLocalizations.of(context);
+    setState(() => _saving = true);
+    try {
+      final updated = await ref.read(moderationApiProvider).updateSettings({
+        'settings': _items
+            .map((item) => {'key': item.key, 'value': item.value})
+            .toList(growable: false),
+      });
+      if (!mounted) return;
+      setState(() => _items = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.t('moderation.settings.saved'))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final l10n = AppLocalizations.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
-    if (_items.isEmpty) return const EmptyView(message: 'No settings');
+    if (_items.isEmpty) {
+      return EmptyView(message: l10n.t('moderation.settings.empty'));
+    }
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.separated(
-        itemCount: _items.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
-        itemBuilder: (_, i) {
-          final item = _items[i];
-          return ListTile(
-            leading: const Icon(Icons.tune),
-            title: Text(item.label.isEmpty ? item.key : item.label),
-            subtitle: Text(item.description),
-            trailing: Text(item.value),
-          );
-        },
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.settings_outlined),
+            title: Text(l10n.t('moderation.settings.title')),
+            subtitle: Text(l10n.t('moderation.settings.description')),
+            trailing: FilledButton.icon(
+              key: const Key('moderation-settings-save'),
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: Text(
+                _saving ? l10n.t('common.loading') : l10n.t('common.save'),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ..._items.map(
+            (item) => Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      _settingText(l10n, item, 'label'),
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _settingText(l10n, item, 'description'),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 12),
+                    if (item.valueType == 'boolean')
+                      SwitchListTile(
+                        key: Key('moderation-setting-${item.key}'),
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(item.key),
+                        value: _boolValue(item.value),
+                        onChanged: _saving
+                            ? null
+                            : (value) =>
+                                  _setValue(item, value ? 'true' : 'false'),
+                      )
+                    else
+                      TextFormField(
+                        key: Key('moderation-setting-${item.key}'),
+                        initialValue: item.value,
+                        enabled: !_saving,
+                        keyboardType: item.valueType == 'number'
+                            ? TextInputType.number
+                            : TextInputType.text,
+                        decoration: InputDecoration(
+                          labelText: item.key,
+                          border: const OutlineInputBorder(),
+                        ),
+                        onChanged: (value) => _setValue(item, value.trim()),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            key: const Key('moderation-settings-save-bottom'),
+            onPressed: _saving ? null : _save,
+            icon: _saving
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save_outlined),
+            label: Text(
+              _saving ? l10n.t('common.loading') : l10n.t('common.save'),
+            ),
+          ),
+        ],
       ),
     );
   }
