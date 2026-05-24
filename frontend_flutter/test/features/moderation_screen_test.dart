@@ -43,7 +43,7 @@ void main() {
     );
     await tester.drag(find.byType(ListView).last, const Offset(0, -300));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('moderation-settings-save-bottom')));
+    await tester.tap(find.byKey(const Key('moderation-settings-save')));
     await tester.pumpAndSettle();
 
     expect(api.savedBody, {
