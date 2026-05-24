@@ -5,27 +5,88 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
+import '../../features/auth/presentation/terms_screen.dart';
 import '../../features/auth/presentation/two_factor_screen.dart';
+import '../../features/chat/presentation/channel_screen.dart';
 import '../../features/chat/presentation/chat_home_screen.dart';
 import '../../features/chat/presentation/conversation_screen.dart';
+import '../../features/groups/presentation/group_manage_screen.dart';
 import '../../features/groups/presentation/group_detail_screen.dart';
+import '../../features/groups/presentation/group_post_detail_screen.dart';
 import '../../features/groups/presentation/groups_screen.dart';
 import '../../features/moderation/presentation/moderation_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
+import '../../features/posts/presentation/edit_post_screen.dart';
 import '../../features/posts/presentation/feed_screen.dart';
 import '../../features/posts/presentation/post_detail_screen.dart';
 import '../../features/posts/presentation/search_screen.dart';
 import '../../features/posts/presentation/tag_screen.dart';
 import '../../features/sentiment_flow/presentation/sentiment_screen.dart';
+import '../../features/users/presentation/about_screen.dart';
 import '../../features/users/presentation/account_screen.dart';
+import '../../features/users/presentation/account_posts_screen.dart';
+import '../../features/users/presentation/appearance_screen.dart';
+import '../../features/users/presentation/billing_screen.dart';
 import '../../features/users/presentation/endpoint_screen.dart';
 import '../../features/users/presentation/profile_screen.dart';
+import '../../features/users/presentation/pro_screen.dart';
 import '../../features/users/presentation/security_screen.dart';
 import '../../features/users/presentation/sessions_screen.dart';
 import '../../features/users/presentation/settings_screen.dart';
 import '../../features/users/presentation/statements_screen.dart';
+import '../../features/users/presentation/user_posts_screen.dart';
 import '../providers/providers.dart';
 import 'app_shell.dart';
+
+const productionRoutePaths = <String>{
+  '/feed',
+  '/discover',
+  '/notifications',
+  '/chat',
+  '/me',
+  '/auth/login',
+  '/auth/register',
+  '/auth/forgot',
+  '/auth/2fa',
+  '/auth/terms',
+  '/posts/:postId',
+  '/posts/:postId/edit',
+  '/tags/:tag',
+  '/users/:userId',
+  '/users/:userId/posts',
+  '/groups',
+  '/groups/:slug',
+  '/groups/:slug/manage',
+  '/groups/:slug/posts/:postId',
+  '/chat/conversation/:id',
+  '/chat/groups/:groupId/channels/:channelId',
+  '/settings',
+  '/settings/appearance',
+  '/settings/billing',
+  '/settings/pro',
+  '/settings/security',
+  '/settings/sessions',
+  '/settings/statements',
+  '/settings/endpoint',
+  '/moderation',
+  '/moderation/content',
+  '/moderation/reports',
+  '/moderation/users',
+  '/moderation/settings',
+  '/sentiment',
+  '/about',
+};
+
+bool isPublicRoutePath(String path) {
+  final uriPath = Uri.tryParse(path)?.path ?? path;
+  if (uriPath.startsWith('/auth')) return true;
+  return uriPath == '/feed' ||
+      uriPath == '/discover' ||
+      uriPath == '/about' ||
+      uriPath.startsWith('/posts/') ||
+      uriPath.startsWith('/tags/') ||
+      uriPath.startsWith('/users/');
+}
 
 final routerProvider = Provider<GoRouter>((ref) {
   final session = ref.watch(authSessionProvider);
@@ -38,7 +99,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final loggedIn = session.isAuthenticated;
       final path = state.matchedLocation;
       final isAuthPath = path.startsWith('/auth');
-      if (!loggedIn && !isAuthPath) return '/auth/login';
+      final isPublicPath = isPublicRoutePath(state.uri.path);
+      if (!loggedIn && !isAuthPath && !isPublicPath) return '/auth/login';
       if (loggedIn && isAuthPath) return '/feed';
       return null;
     },
@@ -54,6 +116,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/auth/forgot',
         builder: (_, __) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/auth/terms',
+        builder: (_, __) => const TermsScreen(),
       ),
       GoRoute(
         path: '/auth/2fa',
@@ -88,6 +154,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/me',
             builder: (_, __) => const AccountScreen(),
           ),
+          GoRoute(
+            path: '/about',
+            builder: (_, __) => const AboutScreen(),
+          ),
         ],
       ),
       GoRoute(
@@ -95,6 +165,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) {
           final id = int.tryParse(state.pathParameters['postId'] ?? '') ?? 0;
           return PostDetailScreen(postId: id);
+        },
+      ),
+      GoRoute(
+        path: '/posts/:postId/edit',
+        builder: (_, state) {
+          final id = int.tryParse(state.pathParameters['postId'] ?? '') ?? 0;
+          return EditPostScreen(postId: id);
         },
       ),
       GoRoute(
@@ -112,8 +189,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/users/:userId/posts',
+        builder: (_, state) {
+          final userId = int.tryParse(state.pathParameters['userId'] ?? '') ?? 0;
+          return UserPostsScreen(userId: userId);
+        },
+      ),
+      GoRoute(
         path: '/settings',
         builder: (_, __) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/appearance',
+        builder: (_, __) => const AppearanceScreen(),
+      ),
+      GoRoute(
+        path: '/settings/billing',
+        builder: (_, __) => const BillingScreen(),
+      ),
+      GoRoute(
+        path: '/settings/pro',
+        builder: (_, __) => const ProScreen(),
       ),
       GoRoute(
         path: '/settings/security',
@@ -132,6 +228,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const EndpointScreen(),
       ),
       GoRoute(
+        path: '/account/posts',
+        builder: (_, __) => const AccountPostsScreen(kind: AccountPostsKind.posts),
+      ),
+      GoRoute(
+        path: '/account/likes',
+        builder: (_, __) => const AccountPostsScreen(kind: AccountPostsKind.likes),
+      ),
+      GoRoute(
+        path: '/account/bookmarks',
+        builder: (_, __) => const AccountPostsScreen(kind: AccountPostsKind.bookmarks),
+      ),
+      GoRoute(
         path: '/groups',
         builder: (_, __) => const GroupsScreen(),
       ),
@@ -143,6 +251,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/groups/:slug/manage',
+        builder: (_, state) {
+          final slug = state.pathParameters['slug'] ?? '';
+          return GroupManageScreen(slug: slug);
+        },
+      ),
+      GoRoute(
+        path: '/groups/:slug/posts/:postId',
+        builder: (_, state) {
+          final slug = state.pathParameters['slug'] ?? '';
+          final postId = int.tryParse(state.pathParameters['postId'] ?? '') ?? 0;
+          return GroupPostDetailScreen(slug: slug, postId: postId);
+        },
+      ),
+      GoRoute(
         path: '/chat/conversation/:id',
         builder: (_, state) {
           final id =
@@ -151,8 +274,33 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/chat/groups/:groupId/channels/:channelId',
+        builder: (_, state) {
+          final groupId = int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0;
+          final channelId =
+              int.tryParse(state.pathParameters['channelId'] ?? '') ?? 0;
+          return ChannelScreen(groupId: groupId, channelId: channelId);
+        },
+      ),
+      GoRoute(
         path: '/moderation',
         builder: (_, __) => const ModerationScreen(),
+      ),
+      GoRoute(
+        path: '/moderation/content',
+        builder: (_, __) => const ModerationScreen(initialTab: 1),
+      ),
+      GoRoute(
+        path: '/moderation/reports',
+        builder: (_, __) => const ModerationScreen(initialTab: 2),
+      ),
+      GoRoute(
+        path: '/moderation/users',
+        builder: (_, __) => const ModerationScreen(initialTab: 3),
+      ),
+      GoRoute(
+        path: '/moderation/settings',
+        builder: (_, __) => const ModerationScreen(initialTab: 4),
       ),
       GoRoute(
         path: '/sentiment',
