@@ -33,13 +33,16 @@ class AppThemePreference {
 
 class ThemeController extends StateNotifier<AppThemePreference> {
   ThemeController() : super(AppTheme.defaultPreference) {
-    _load();
+    loaded = _load();
   }
+
+  late final Future<void> loaded;
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final mode = _parseMode(prefs.getString(StorageKeys.themeMode));
     final seedColor = _parseSeedColor(prefs.getInt(StorageKeys.themeSeedColor));
+    if (!mounted) return;
     state = AppThemePreference(mode: mode, seedColor: seedColor);
   }
 
