@@ -174,6 +174,20 @@ class V2SelfUser extends V2PublicUser {
   }
 }
 
+class V2AvatarData {
+  V2AvatarData({required this.avatarUrl, this.avatarMediaId});
+
+  final String avatarUrl;
+  final int? avatarMediaId;
+
+  factory V2AvatarData.fromJson(Map<String, dynamic> json) {
+    return V2AvatarData(
+      avatarUrl: toStr(json['avatar_url']),
+      avatarMediaId: toInt(json['avatar_media_id']),
+    );
+  }
+}
+
 class V2UserSettings {
   V2UserSettings({
     required this.userId,
