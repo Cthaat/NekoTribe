@@ -28,11 +28,11 @@ class _AccountPostsScreenState extends ConsumerState<AccountPostsScreen> {
   String _title(AppLocalizations l10n) {
     switch (widget.kind) {
       case AccountPostsKind.likes:
-        return l10n.t('account.likes');
+        return l10n.t('settings.account.liked_posts');
       case AccountPostsKind.bookmarks:
-        return l10n.t('account.bookmarks');
+        return l10n.t('settings.account.bookmarks');
       case AccountPostsKind.posts:
-        return l10n.t('account.my_posts');
+        return l10n.t('settings.account.my_posts');
     }
   }
 
