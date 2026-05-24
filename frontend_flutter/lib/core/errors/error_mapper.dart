@@ -11,17 +11,18 @@ class ErrorMapper {
       final status = error.response?.statusCode ?? 0;
       final body = error.response?.data;
       if (body is Map<String, dynamic>) {
-        final code = (body['code'] is num)
-            ? (body['code'] as num).toInt()
+        final envelope = _v2Envelope(body);
+        final code = (envelope['code'] is num)
+            ? (envelope['code'] as num).toInt()
             : status;
-        final message = (body['message'] is String)
-            ? body['message'] as String
+        final message = (envelope['message'] is String)
+            ? envelope['message'] as String
             : error.message ?? 'Network error';
         return ApiException(
           code: code,
           statusCode: status,
           message: message,
-          data: body['data'],
+          data: envelope['data'],
           cause: error,
         );
       }
@@ -56,5 +57,15 @@ class ErrorMapper {
       default:
         return error.message ?? 'Unknown network error';
     }
+  }
+
+  static Map<String, dynamic> _v2Envelope(Map<String, dynamic> body) {
+    if (body['code'] is num || body.containsKey('meta')) return body;
+    final nested = body['data'];
+    if (nested is Map<String, dynamic> &&
+        (nested['code'] is num || nested.containsKey('meta'))) {
+      return nested;
+    }
+    return body;
   }
 }
