@@ -32,17 +32,18 @@ final appConfigInitialProvider = Provider<AppConfig>((ref) {
 });
 
 /// 运行时可切换的端点配置；UI 通过 `ref.read(appConfigProvider.notifier)` 修改。
-final appConfigProvider =
-    StateNotifierProvider<AppConfigController, AppConfig>((ref) {
-  return AppConfigController(
-    bundle: ref.watch(appConfigBundleProvider),
-    initial: ref.watch(appConfigInitialProvider),
-  );
-});
+final appConfigProvider = StateNotifierProvider<AppConfigController, AppConfig>(
+  (ref) {
+    return AppConfigController(
+      bundle: ref.watch(appConfigBundleProvider),
+      initial: ref.watch(appConfigInitialProvider),
+    );
+  },
+);
 
 class AppConfigController extends StateNotifier<AppConfig> {
   AppConfigController({required this.bundle, required AppConfig initial})
-      : super(initial);
+    : super(initial);
 
   final AppConfigBundle bundle;
 
@@ -213,5 +214,5 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
 
 final authSessionProvider =
     StateNotifierProvider<AuthSessionController, AuthSessionState>((ref) {
-  return AuthSessionController(ref.watch(tokenStoreProvider));
-});
+      return AuthSessionController(ref.watch(tokenStoreProvider));
+    });
