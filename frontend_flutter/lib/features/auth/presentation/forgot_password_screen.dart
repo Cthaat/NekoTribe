@@ -111,130 +111,136 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   vertical: 24,
                 ),
                 child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Icon(
-                    Icons.lock_reset_outlined,
-                    size: 36,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  l10n.t('auth.forgot_password'),
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _account,
-                  decoration: InputDecoration(
-                    labelText: l10n.t('auth.account'),
-                    prefixIcon: const Icon(Icons.alternate_email),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _otp,
-                        decoration: InputDecoration(
-                          labelText: l10n.t('auth.otp'),
-                          prefixIcon: const Icon(Icons.pin_outlined),
+                    Container(
+                      width: 72,
+                      height: 72,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.12,
                         ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Icon(
+                        Icons.lock_reset_outlined,
+                        size: 36,
+                        color: theme.colorScheme.primary,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      height: 48,
-                      child: OutlinedButton(
-                        onPressed: _sending ? null : _sendOtp,
-                        child: _sending
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(l10n.t('auth.send_otp')),
+                    const SizedBox(height: 16),
+                    Text(
+                      l10n.t('auth.forgot_password'),
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: _account,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('auth.account'),
+                        prefixIcon: const Icon(Icons.alternate_email),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _password,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: l10n.t('auth.password'),
-                    prefixIcon: const Icon(Icons.lock_outline),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _confirmPassword,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: l10n.t('auth.confirm_password'),
-                    prefixIcon: const Icon(Icons.lock_reset_outlined),
-                  ),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.error.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
+                    const SizedBox(height: 12),
+                    Row(
                       children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 18,
-                          color: theme.colorScheme.error,
-                        ),
-                        const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
-                            _error!,
-                            style: TextStyle(color: theme.colorScheme.error),
+                          child: TextField(
+                            controller: _otp,
+                            decoration: InputDecoration(
+                              labelText: l10n.t('auth.otp'),
+                              prefixIcon: const Icon(Icons.pin_outlined),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          height: 48,
+                          child: OutlinedButton(
+                            onPressed: _sending ? null : _sendOtp,
+                            child: _sending
+                                ? const SizedBox(
+                                    height: 16,
+                                    width: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(l10n.t('auth.send_otp')),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                SizedBox(
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: _busy ? null : _reset,
-                    child: _busy
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(l10n.t('auth.submit')),
-                  ),
-                ),
-              ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _password,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('auth.password'),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _confirmPassword,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('auth.confirm_password'),
+                        prefixIcon: const Icon(Icons.lock_reset_outlined),
+                      ),
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 18,
+                              color: theme.colorScheme.error,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: TextStyle(
+                                  color: theme.colorScheme.error,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      height: 48,
+                      child: FilledButton(
+                        onPressed: _busy ? null : _reset,
+                        child: _busy
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(l10n.t('auth.submit')),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
