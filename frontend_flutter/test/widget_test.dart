@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nekotribe/core/config/app_config.dart';
+import 'package:nekotribe/core/constants/storage_keys.dart';
 import 'package:nekotribe/shared/i18n/app_localizations.dart';
+import 'package:nekotribe/shared/theme/app_theme.dart';
 
 void main() {
   test('AppLocalizations exposes localized strings', () {
@@ -12,6 +16,61 @@ void main() {
     expect(en.t('app.title'), 'NekoTribe');
     expect(zh.t('common.settings'), '设置');
     expect(en.t('common.settings'), 'Settings');
+  });
+
+  test('AppLocalizations covers visible Flutter shell and settings copy', () {
+    final zh = AppLocalizations(const Locale('zh'));
+    final en = AppLocalizations(const Locale('en'));
+
+    expect(zh.t('feed.tab.home'), '首页');
+    expect(zh.t('feed.tab.discover'), '发现');
+    expect(zh.t('feed.tab.following'), '关注');
+    expect(zh.t('settings.section.appearance'), '外观');
+    expect(zh.t('settings.appearance.workspace'), '外观工作台');
+    expect(zh.t('settings.account.my_posts'), '我的推文');
+    expect(zh.t('settings.account.liked_posts'), '已点赞推文');
+    expect(zh.t('settings.option.system'), '跟随系统');
+    expect(zh.t('post.delete.title'), '删除推文');
+
+    expect(en.t('feed.tab.home'), 'Home');
+    expect(en.t('settings.section.appearance'), 'Appearance');
+    expect(en.t('settings.account.my_posts'), 'My posts');
+    expect(en.t('settings.option.system'), 'System');
+    expect(en.t('post.delete.title'), 'Delete post');
+  });
+
+  test('theme preferences persist mode and seed color', () async {
+    SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    expect(container.read(themeProvider).mode, ThemeMode.system);
+    expect(container.read(themeProvider).seedColor, AppTheme.defaultSeedColor);
+
+    await container.read(themeProvider.notifier).setMode(ThemeMode.dark);
+    await container
+        .read(themeProvider.notifier)
+        .setSeedColor(const Color(0xFF2563EB));
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(StorageKeys.themeMode), 'dark');
+    expect(prefs.getInt(StorageKeys.themeSeedColor), 0xFF2563EB);
+    expect(container.read(themeProvider).mode, ThemeMode.dark);
+    expect(container.read(themeProvider).seedColor, const Color(0xFF2563EB));
+  });
+
+  test('theme preferences fall back when saved seed color is invalid', () async {
+    SharedPreferences.setMockInitialValues({
+      StorageKeys.themeMode: 'light',
+      StorageKeys.themeSeedColor: -1,
+    });
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(themeProvider).mode, ThemeMode.light);
+    expect(container.read(themeProvider).seedColor, AppTheme.defaultSeedColor);
   });
 
   test('AppLocalizations falls back to key when missing', () {
