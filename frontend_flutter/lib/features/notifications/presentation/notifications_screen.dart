@@ -188,7 +188,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         ),
         actions: [
           PopupMenuButton<String>(
-            tooltip: 'Filter',
+            tooltip: l10n.t('notification.filter'),
             icon: const Icon(Icons.filter_list),
             onSelected: (value) {
               if (value == 'all') {
@@ -197,20 +197,41 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 _setType(value);
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'all', child: Text('All types')),
-              PopupMenuItem(value: 'follow', child: Text('Follows')),
-              PopupMenuItem(value: 'like', child: Text('Likes')),
-              PopupMenuItem(value: 'comment', child: Text('Comments')),
-              PopupMenuItem(value: 'mention', child: Text('Mentions')),
-              PopupMenuItem(value: 'group', child: Text('Groups')),
-              PopupMenuItem(value: 'system', child: Text('System')),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'all',
+                child: Text(l10n.t('notification.filter.all_types')),
+              ),
+              PopupMenuItem(
+                value: 'follow',
+                child: Text(l10n.t('notification.filter.follows')),
+              ),
+              PopupMenuItem(
+                value: 'like',
+                child: Text(l10n.t('notification.filter.likes')),
+              ),
+              PopupMenuItem(
+                value: 'comment',
+                child: Text(l10n.t('notification.filter.comments')),
+              ),
+              PopupMenuItem(
+                value: 'mention',
+                child: Text(l10n.t('notification.filter.mentions')),
+              ),
+              PopupMenuItem(
+                value: 'group',
+                child: Text(l10n.t('notification.filter.groups')),
+              ),
+              PopupMenuItem(
+                value: 'system',
+                child: Text(l10n.t('notification.filter.system')),
+              ),
             ],
           ),
           IconButton(
             onPressed: _markAllRead,
             icon: const Icon(Icons.done_all),
-            tooltip: 'Mark all read',
+            tooltip: l10n.t('notification.mark_all_read'),
           ),
         ],
       ),
@@ -219,9 +240,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('All')),
-                ButtonSegment(value: true, label: Text('Unread')),
+              segments: [
+                ButtonSegment(
+                  value: false,
+                  label: Text(l10n.t('common.all')),
+                ),
+                ButtonSegment(
+                  value: true,
+                  label: Text(l10n.t('common.unread')),
+                ),
               ],
               selected: {_unreadOnly},
               onSelectionChanged: (value) {
@@ -263,7 +290,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                             children: [
                               Text(
                                 n.isDeleted
-                                    ? 'Deleted'
+                                    ? l10n.t('notification.deleted')
                                     : _formatDate(n.createdAt),
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
@@ -276,24 +303,26 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                 },
                                 itemBuilder: (_) => [
                                   if (!n.readFlag && !n.isDeleted)
-                                    const PopupMenuItem(
+                                    PopupMenuItem(
                                       value: 'read',
-                                      child: Text('Mark read'),
+                                      child: Text(l10n.t('common.mark_read')),
                                     ),
                                   if (n.readFlag && !n.isDeleted)
-                                    const PopupMenuItem(
+                                    PopupMenuItem(
                                       value: 'unread',
-                                      child: Text('Mark unread'),
+                                      child: Text(
+                                        l10n.t('common.mark_unread'),
+                                      ),
                                     ),
                                   if (!n.isDeleted)
-                                    const PopupMenuItem(
+                                    PopupMenuItem(
                                       value: 'delete',
-                                      child: Text('Delete'),
+                                      child: Text(l10n.t('common.delete')),
                                     ),
                                   if (n.isDeleted)
-                                    const PopupMenuItem(
+                                    PopupMenuItem(
                                       value: 'restore',
-                                      child: Text('Restore'),
+                                      child: Text(l10n.t('common.restore')),
                                     ),
                                 ],
                               ),
