@@ -73,27 +73,26 @@ class _AccountPostsScreenState extends ConsumerState<AccountPostsScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : _items.isEmpty
-                  ? EmptyView(message: 'No $_title yet')
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView.separated(
-                        itemCount: _items.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (_, i) => PostCard(
-                          post: _items[i],
-                          onChanged: (updated) =>
-                              setState(() => _items[i] = updated),
-                          onReport: () => showReportDialog(
-                            context,
-                            ref,
-                            targetType: 'post',
-                            targetId: _items[i].postId,
-                          ),
-                        ),
-                      ),
-                    ),
+          ? ErrorView(error: _error!, onRetry: _load)
+          : _items.isEmpty
+          ? EmptyView(message: 'No $_title yet')
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.separated(
+                itemCount: _items.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, i) => PostCard(
+                  post: _items[i],
+                  onChanged: (updated) => setState(() => _items[i] = updated),
+                  onReport: () => showReportDialog(
+                    context,
+                    ref,
+                    targetType: 'post',
+                    targetId: _items[i].postId,
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }
