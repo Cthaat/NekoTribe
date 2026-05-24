@@ -11,7 +11,9 @@ import 'post_card.dart';
 import 'report_dialog.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+  const SearchScreen({super.key, this.initialQuery});
+
+  final String? initialQuery;
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -27,7 +29,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void initState() {
     super.initState();
+    final query = widget.initialQuery?.trim();
+    if (query != null && query.isNotEmpty) {
+      _controller.text = query;
+    }
     _loadTrending();
+    if (_controller.text.isNotEmpty) {
+      Future<void>.microtask(_search);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final next = widget.initialQuery?.trim() ?? '';
+    final previous = oldWidget.initialQuery?.trim() ?? '';
+    if (next != previous && next.isNotEmpty) {
+      _controller.text = next;
+      _search();
+    }
   }
 
   @override
