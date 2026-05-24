@@ -70,7 +70,9 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
       _prediction = null;
     });
     try {
-      final p = await ref.read(sentimentFlowApiProvider).predict(
+      final p = await ref
+          .read(sentimentFlowApiProvider)
+          .predict(
             text: text,
             modelId: _selectedModel,
             returnProbabilities: _returnProbabilities,
@@ -98,78 +100,71 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
       body: _loadingConfig
           ? const LoadingView()
           : _configError != null
-              ? ErrorView(error: _configError!, onRetry: _loadConfig)
-              : _config == null || !_config!.enabled
-                  ? const EmptyView(
-                      message: 'SentimentFlow is not enabled on this server')
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        if (_config!.availableModels.isNotEmpty)
-                          DropdownButtonFormField<String>(
-                            initialValue: _selectedModel,
-                            decoration: const InputDecoration(
-                              labelText: 'Model',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: _config!.availableModels
-                                .map((m) => DropdownMenuItem(
-                                      value: m,
-                                      child: Text(m),
-                                    ))
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _selectedModel = v),
-                          ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _textController,
-                          maxLines: 6,
-                          decoration: const InputDecoration(
-                            labelText: 'Text to analyze',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SwitchListTile(
-                          title: const Text('Return probabilities'),
-                          value: _returnProbabilities,
-                          onChanged: (v) =>
-                              setState(() => _returnProbabilities = v),
-                        ),
-                        SwitchListTile(
-                          title: const Text('Include metadata'),
-                          value: _includeMetadata,
-                          onChanged: (v) =>
-                              setState(() => _includeMetadata = v),
-                        ),
-                        const SizedBox(height: 8),
-                        FilledButton(
-                          onPressed: _predicting ? null : _predict,
-                          child: _predicting
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2),
-                                )
-                              : Text(l10n.t('sentiment.predict')),
-                        ),
-                        const SizedBox(height: 16),
-                        if (_predictError != null)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              ErrorView.describe(context, _predictError!),
-                              style: TextStyle(
-                                color:
-                                    Theme.of(context).colorScheme.error,
-                              ),
-                            ),
-                          ),
-                        if (_prediction != null) _PredictionView(p: _prediction!),
-                      ],
+          ? ErrorView(error: _configError!, onRetry: _loadConfig)
+          : _config == null || !_config!.enabled
+          ? const EmptyView(
+              message: 'SentimentFlow is not enabled on this server',
+            )
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (_config!.availableModels.isNotEmpty)
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedModel,
+                    decoration: const InputDecoration(
+                      labelText: 'Model',
+                      border: OutlineInputBorder(),
                     ),
+                    items: _config!.availableModels
+                        .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedModel = v),
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _textController,
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Text to analyze',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  title: const Text('Return probabilities'),
+                  value: _returnProbabilities,
+                  onChanged: (v) => setState(() => _returnProbabilities = v),
+                ),
+                SwitchListTile(
+                  title: const Text('Include metadata'),
+                  value: _includeMetadata,
+                  onChanged: (v) => setState(() => _includeMetadata = v),
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: _predicting ? null : _predict,
+                  child: _predicting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(l10n.t('sentiment.predict')),
+                ),
+                const SizedBox(height: 16),
+                if (_predictError != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      ErrorView.describe(context, _predictError!),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                if (_prediction != null) _PredictionView(p: _prediction!),
+              ],
+            ),
     );
   }
 }
@@ -188,18 +183,18 @@ class _PredictionView extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text('Label: ',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text('Label: ', style: Theme.of(context).textTheme.titleMedium),
                 Chip(label: Text(p.label)),
                 const SizedBox(width: 8),
-                Text(
-                    'Confidence: ${(p.confidence * 100).toStringAsFixed(1)}%'),
+                Text('Confidence: ${(p.confidence * 100).toStringAsFixed(1)}%'),
               ],
             ),
             if (p.probabilities != null) ...[
               const Divider(height: 24),
-              Text('Probabilities',
-                  style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                'Probabilities',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
               const SizedBox(height: 8),
               ...p.probabilities!.entries.map((e) {
                 final v = (e.value as num?)?.toDouble() ?? 0;
@@ -223,8 +218,7 @@ class _PredictionView extends StatelessWidget {
             ],
             if (p.metadata != null) ...[
               const Divider(height: 24),
-              Text('Metadata',
-                  style: Theme.of(context).textTheme.titleSmall),
+              Text('Metadata', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 8),
               ...p.metadata!.entries.map(
                 (e) => Padding(
