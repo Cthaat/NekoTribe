@@ -77,9 +77,7 @@ class GroupsApi {
     );
   }
 
-  Future<V2GroupNotificationPreference> getNotificationPreference(
-    int groupId,
-  ) {
+  Future<V2GroupNotificationPreference> getNotificationPreference(int groupId) {
     return _client.requestData<V2GroupNotificationPreference>(
       '${ApiPaths.groups}/$groupId/notification-preference',
       decode: (data) => V2GroupNotificationPreference.fromJson(toMap(data)),
@@ -143,10 +141,7 @@ class GroupsApi {
     );
   }
 
-  Future<void> removeMember({
-    required int groupId,
-    required int userId,
-  }) async {
+  Future<void> removeMember({required int groupId, required int userId}) async {
     await _client.request<void>(
       '${ApiPaths.groups}/$groupId/members/$userId',
       method: 'DELETE',
