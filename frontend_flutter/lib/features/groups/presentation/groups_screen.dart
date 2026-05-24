@@ -120,9 +120,9 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
       context.push('/groups/${group.slug}');
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 }
@@ -267,18 +267,16 @@ class _InvitesListState extends ConsumerState<_InvitesList>
 
   Future<void> _respond(V2GroupInvite invite, String action) async {
     try {
-      await ref.read(groupsApiProvider).respondInvite(
-            inviteId: invite.inviteId,
-            action: action,
-          );
+      await ref
+          .read(groupsApiProvider)
+          .respondInvite(inviteId: invite.inviteId, action: action);
       if (!mounted) return;
-      setState(() => _items
-          .removeWhere((i) => i.inviteId == invite.inviteId));
+      setState(() => _items.removeWhere((i) => i.inviteId == invite.inviteId));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -300,12 +298,15 @@ class _InvitesListState extends ConsumerState<_InvitesList>
           final group = inv.group;
           return ListTile(
             leading: AppAvatar(
-                url: group != null ? group['avatar_url'] as String? : null,
-                size: 48),
+              url: group != null ? group['avatar_url'] as String? : null,
+              size: 48,
+            ),
             title: Text(
-                group != null ? (group['name'] as String? ?? '') : 'Group'),
+              group != null ? (group['name'] as String? ?? '') : 'Group',
+            ),
             subtitle: Text(
-                'From @${inv.inviter.username} · ${inv.message ?? ''}'),
+              'From @${inv.inviter.username} · ${inv.message ?? ''}',
+            ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
