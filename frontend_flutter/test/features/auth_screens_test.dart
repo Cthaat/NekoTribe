@@ -14,6 +14,22 @@ import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
+  testWidgets('register layout fits mobile width without overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final auth = _FakeAuthRepository();
+    await _pumpAuthRoute(tester, auth, const RegisterScreen(), loginText: '');
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('注册'), findsWidgets);
+    expect(find.text('获取验证码'), findsOneWidget);
+  });
+
   testWidgets('register verifies OTP and submits verification id', (
     tester,
   ) async {
