@@ -21,9 +21,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tab;
   final Map<int, _FeedTabState> _tabs = {
-    0: _FeedTabState(mode: 'home'),
-    1: _FeedTabState(mode: 'discover'),
-    2: _FeedTabState(mode: 'following'),
+    0: _FeedTabState(mode: 'home', sort: 'newest'),
+    1: _FeedTabState(mode: 'home', sort: 'popular'),
+    2: _FeedTabState(mode: 'following', sort: 'newest', requiresAuth: true),
   };
 
   @override
@@ -41,13 +41,16 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
 
   Future<void> _loadInitial(int idx) async {
     final state = _tabs[idx]!;
+    if (state.requiresAuth && !ref.read(authSessionProvider).isAuthenticated) {
+      return;
+    }
     if (state.items.isNotEmpty || state.loading) return;
     state.loading = true;
     if (mounted) setState(() {});
     try {
       final page = await ref
           .read(postsApiProvider)
-          .getFeed(mode: state.mode, page: 1, size: 20);
+          .getFeed(mode: state.mode, page: 1, size: 20, sort: state.sort);
       state.items = page.items;
       state.page = 1;
       state.hasMore = page.hasNext;
@@ -62,6 +65,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
 
   Future<void> _loadMore(int idx) async {
     final state = _tabs[idx]!;
+    if (state.requiresAuth && !ref.read(authSessionProvider).isAuthenticated) {
+      return;
+    }
     if (state.loadingMore || !state.hasMore) return;
     state.loadingMore = true;
     if (mounted) setState(() {});
@@ -69,7 +75,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       final next = state.page + 1;
       final page = await ref
           .read(postsApiProvider)
-          .getFeed(mode: state.mode, page: next, size: 20);
+          .getFeed(mode: state.mode, page: next, size: 20, sort: state.sort);
       state.items.addAll(page.items);
       state.page = next;
       state.hasMore = page.hasNext;
@@ -103,16 +109,17 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final session = ref.watch(authSessionProvider);
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.t('app.title')),
         bottom: TabBar(
           controller: _tab,
           onTap: (idx) => _loadInitial(idx),
-          tabs: const [
-            Tab(text: 'Home'),
-            Tab(text: 'Discover'),
-            Tab(text: 'Following'),
+          tabs: [
+            Tab(text: l10n.t('feed.tab.home')),
+            Tab(text: l10n.t('feed.tab.discover')),
+            Tab(text: l10n.t('feed.tab.following')),
           ],
         ),
       ),
@@ -122,13 +129,20 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       ),
       body: TabBarView(
         controller: _tab,
-        children: [for (var i = 0; i < 3; i++) _buildFeedTab(i)],
+        children: [
+          for (var i = 0; i < 3; i++) _buildFeedTab(i, session),
+        ],
       ),
     );
   }
 
-  Widget _buildFeedTab(int idx) {
+  Widget _buildFeedTab(int idx, AuthSessionState session) {
     final state = _tabs[idx]!;
+    if (state.requiresAuth && !session.isAuthenticated) {
+      if (session.loading) return const LoadingView();
+      final l10n = AppLocalizations.of(context);
+      return EmptyView(message: l10n.t('feed.following_auth_required'));
+    }
     if (state.loading && state.items.isEmpty) {
       return const LoadingView();
     }
@@ -186,8 +200,15 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
 }
 
 class _FeedTabState {
-  _FeedTabState({required this.mode});
+  _FeedTabState({
+    required this.mode,
+    required this.sort,
+    this.requiresAuth = false,
+  });
+
   final String mode;
+  final String sort;
+  final bool requiresAuth;
   List<V2Post> items = [];
   int page = 0;
   bool hasMore = true;
