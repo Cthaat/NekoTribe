@@ -113,32 +113,32 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 const SizedBox(height: 24),
                 ListTile(
                   leading: const Icon(Icons.person),
-                  title: const Text('Profile'),
+                  title: Text(l10n.t('settings.account.profile')),
                   onTap: () => context.push('/users/${_user!.userId}'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.edit_outlined),
-                  title: const Text('Edit profile'),
+                  title: Text(l10n.t('settings.account.edit_profile')),
                   onTap: () => context.push('/account/profile'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.group),
-                  title: const Text('Groups'),
+                  title: Text(l10n.t('settings.account.groups')),
                   onTap: () => context.push('/groups'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.article_outlined),
-                  title: const Text('My posts'),
+                  title: Text(l10n.t('settings.account.my_posts')),
                   onTap: () => context.push('/account/posts'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.favorite_outline),
-                  title: const Text('Liked posts'),
+                  title: Text(l10n.t('settings.account.liked_posts')),
                   onTap: () => context.push('/account/likes'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.bookmark_border),
-                  title: const Text('Bookmarks'),
+                  title: Text(l10n.t('settings.account.bookmarks')),
                   onTap: () => context.push('/account/bookmarks'),
                 ),
                 ListTile(
