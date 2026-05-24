@@ -20,6 +20,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   List<V2Notification> _items = [];
   bool _loading = true;
   Object? _error;
+  bool _unreadOnly = false;
+  String? _type;
+  int? _unreadCount;
 
   @override
   void initState() {
@@ -33,10 +36,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       _error = null;
     });
     try {
-      final page = await ref.read(notificationsApiProvider).list();
+      final api = ref.read(notificationsApiProvider);
+      final page = await api.list(type: _type, unreadOnly: _unreadOnly);
+      final unreadCount = await api.unreadCount();
       if (!mounted) return;
       setState(() {
         _items = page.items;
+        _unreadCount = unreadCount;
         _loading = false;
       });
     } catch (e) {
@@ -56,20 +62,97 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           .map((n) =>
               n.copyWith(isRead: 1, readAt: DateTime.now().toIso8601String()))
           .toList());
+      _unreadCount = 0;
     } catch (_) {}
   }
 
+  Future<void> _setRead(V2Notification n, bool isRead) async {
+    try {
+      await ref.read(notificationsApiProvider).setReadStatus(
+            notificationId: n.notificationId,
+            isRead: isRead,
+          );
+      if (!mounted) return;
+      setState(() {
+        _items = _items
+            .map((item) => item.notificationId == n.notificationId
+                ? item.copyWith(
+                    isRead: isRead ? 1 : 0,
+                    readAt: isRead ? DateTime.now().toIso8601String() : '',
+                  )
+                : item)
+            .toList();
+        final current = _unreadCount ?? 0;
+        _unreadCount = isRead ? (current - 1).clamp(0, 1 << 30) : current + 1;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorView.describe(context, e))),
+      );
+    }
+  }
+
+  Future<void> _delete(V2Notification n) async {
+    try {
+      await ref.read(notificationsApiProvider).deleteNotification(n.notificationId);
+      if (!mounted) return;
+      setState(() {
+        _items = _items
+            .map((item) => item.notificationId == n.notificationId
+                ? item.copyWith(deletedAt: DateTime.now().toIso8601String())
+                : item)
+            .toList();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorView.describe(context, e))),
+      );
+    }
+  }
+
+  Future<void> _restore(V2Notification n) async {
+    try {
+      await ref.read(notificationsApiProvider).restoreNotification(n.notificationId);
+      if (!mounted) return;
+      setState(() {
+        _items = _items
+            .map((item) => item.notificationId == n.notificationId
+                ? item.copyWith(deletedAt: '')
+                : item)
+            .toList();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorView.describe(context, e))),
+      );
+    }
+  }
+
   void _onTap(V2Notification n) {
+    if (n.isDeleted) return;
     if (n.resourceType == 'post' && n.resourceId != null) {
       context.push('/posts/${n.resourceId}');
     } else if (n.resourceType == 'user' && n.actor != null) {
       context.push('/users/${n.actor!.userId}');
+    } else if (n.resourceType == 'group' && n.metadata is Map) {
+      final slug = (n.metadata as Map)['group_slug'];
+      if (slug is String && slug.isNotEmpty) context.push('/groups/$slug');
     }
     if (!n.readFlag) {
-      ref
-          .read(notificationsApiProvider)
-          .markRead([n.notificationId]).catchError((_) {});
+      _setRead(n, true);
     }
+  }
+
+  void _setType(String? type) {
+    setState(() {
+      _type = type;
+      _items = [];
+      _loading = true;
+    });
+    _load();
   }
 
   String _formatDate(String iso) {
@@ -83,8 +166,30 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.t('tab.notifications')),
+        title: Text(_unreadCount == null
+            ? l10n.t('tab.notifications')
+            : '${l10n.t('tab.notifications')} ($_unreadCount)'),
         actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Filter',
+            icon: const Icon(Icons.filter_list),
+            onSelected: (value) {
+              if (value == 'all') {
+                _setType(null);
+              } else {
+                _setType(value);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'all', child: Text('All types')),
+              PopupMenuItem(value: 'follow', child: Text('Follows')),
+              PopupMenuItem(value: 'like', child: Text('Likes')),
+              PopupMenuItem(value: 'comment', child: Text('Comments')),
+              PopupMenuItem(value: 'mention', child: Text('Mentions')),
+              PopupMenuItem(value: 'group', child: Text('Groups')),
+              PopupMenuItem(value: 'system', child: Text('System')),
+            ],
+          ),
           IconButton(
             onPressed: _markAllRead,
             icon: const Icon(Icons.done_all),
@@ -92,7 +197,28 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           ),
         ],
       ),
-      body: _loading
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('All')),
+                ButtonSegment(value: true, label: Text('Unread')),
+              ],
+              selected: {_unreadOnly},
+              onSelectionChanged: (value) {
+                setState(() {
+                  _unreadOnly = value.first;
+                  _items = [];
+                  _loading = true;
+                });
+                _load();
+              },
+            ),
+          ),
+          Expanded(
+            child: _loading
           ? const LoadingView()
           : _error != null
               ? ErrorView(error: _error!, onRetry: _load)
@@ -106,6 +232,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         itemBuilder: (_, i) {
                           final n = _items[i];
                           return ListTile(
+                            enabled: !n.isDeleted,
                             tileColor: n.readFlag
                                 ? null
                                 : Theme.of(context)
@@ -114,15 +241,55 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                             leading: const Icon(Icons.notifications),
                             title: Text(n.title.isEmpty ? n.type : n.title),
                             subtitle: Text(n.message),
-                            trailing: Text(
-                              _formatDate(n.createdAt),
-                              style: Theme.of(context).textTheme.bodySmall,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  n.isDeleted
+                                      ? 'Deleted'
+                                      : _formatDate(n.createdAt),
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    if (value == 'read') _setRead(n, true);
+                                    if (value == 'unread') _setRead(n, false);
+                                    if (value == 'delete') _delete(n);
+                                    if (value == 'restore') _restore(n);
+                                  },
+                                  itemBuilder: (_) => [
+                                    if (!n.readFlag && !n.isDeleted)
+                                      const PopupMenuItem(
+                                        value: 'read',
+                                        child: Text('Mark read'),
+                                      ),
+                                    if (n.readFlag && !n.isDeleted)
+                                      const PopupMenuItem(
+                                        value: 'unread',
+                                        child: Text('Mark unread'),
+                                      ),
+                                    if (!n.isDeleted)
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Delete'),
+                                      ),
+                                    if (n.isDeleted)
+                                      const PopupMenuItem(
+                                        value: 'restore',
+                                        child: Text('Restore'),
+                                      ),
+                                  ],
+                                ),
+                              ],
                             ),
                             onTap: () => _onTap(n),
                           );
                         },
                       ),
                     ),
+          ),
+        ],
+      ),
     );
   }
 }
