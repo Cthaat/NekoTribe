@@ -125,10 +125,7 @@ class AuthApi {
       ApiPaths.authSessions,
       decode: (data) {
         final map = toMap(data);
-        return toList(
-          map['items'],
-          (e) => V2SessionItem.fromJson(toMap(e)),
-        );
+        return toList(map['items'], (e) => V2SessionItem.fromJson(toMap(e)));
       },
     );
     return res;
