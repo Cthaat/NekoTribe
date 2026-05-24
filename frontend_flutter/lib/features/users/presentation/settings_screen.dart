@@ -8,6 +8,7 @@ import '../../../shared/theme/app_theme.dart';
 import '../../../shared/theme/theme_color_picker.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../sentiment_flow/data/sentiment_flow_api.dart';
 import '../domain/user_models.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -19,6 +20,10 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   V2UserSettings? _settings;
+  V2SentimentFlowConfig? _sentimentConfig;
+  V2SentimentModelsData? _sentimentModels;
+  V2SentimentStatsOverview? _sentimentStats;
+  Object? _sentimentError;
   bool _loading = true;
   Object? _error;
 
@@ -35,9 +40,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
     try {
       final s = await ref.read(usersRepositoryProvider).getSettings();
+      V2SentimentFlowConfig? sentimentConfig;
+      V2SentimentModelsData? sentimentModels;
+      V2SentimentStatsOverview? sentimentStats;
+      Object? sentimentError;
+      try {
+        final api = ref.read(sentimentFlowApiProvider);
+        sentimentConfig = await api.config();
+        if (sentimentConfig.enabled && sentimentConfig.baseUrlConfigured) {
+          sentimentModels = await api.listModels();
+          sentimentStats = await api.statsOverview();
+        }
+      } catch (e) {
+        sentimentError = e;
+      }
       if (!mounted) return;
       setState(() {
         _settings = s;
+        _sentimentConfig = sentimentConfig;
+        _sentimentModels = sentimentModels;
+        _sentimentStats = sentimentStats;
+        _sentimentError = sentimentError;
         _loading = false;
       });
     } catch (e) {
@@ -67,6 +90,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final l10n = AppLocalizations.of(context);
     final themePreference = ref.watch(themeProvider);
     final locale = ref.watch(localeProvider);
+    final sentimentModels =
+        _sentimentModels?.items ?? const <V2SentimentModelItem>[];
+    final configuredModelId = _settings?.aiSentimentModelId;
+    final selectedModelId =
+        sentimentModels.any((m) => m.modelId == configuredModelId)
+        ? configuredModelId!
+        : (sentimentModels.isNotEmpty ? sentimentModels.first.modelId : null);
+    final topKOptions =
+        <int>{1, 2, 3, 5, _settings?.aiSentimentTopK ?? 3}.toList()..sort();
+    final selectedTopK = topKOptions.contains(_settings?.aiSentimentTopK)
+        ? _settings!.aiSentimentTopK!
+        : 3;
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('common.settings'))),
       body: _loading
@@ -270,6 +305,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     _SectionHeader(title: l10n.t('settings.section.sentiment')),
                     _Group(
                       children: [
+                        _SentimentStatusPanel(
+                          config: _sentimentConfig,
+                          stats: _sentimentStats,
+                          error: _sentimentError,
+                        ),
+                        _Divider(),
                         _SwitchRow(
                           icon: Icons.psychology_outlined,
                           label: l10n.t('settings.sentiment.enable'),
@@ -294,6 +335,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               _settings?.aiSentimentIncludeMetadata ?? false,
                           onChanged: (v) =>
                               _patch({'ai_sentiment_include_metadata': v}),
+                        ),
+                        if (selectedModelId != null) ...[
+                          _Divider(),
+                          _DropdownRow<String>(
+                            icon: Icons.memory_outlined,
+                            label: l10n.t('settings.sentiment.model'),
+                            value: selectedModelId,
+                            items: sentimentModels
+                                .map(
+                                  (m) => DropdownMenuItem<String>(
+                                    value: m.modelId,
+                                    child: Text(m.name),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (v) {
+                              if (v != null) {
+                                _patch({'ai_sentiment_model_id': v});
+                              }
+                            },
+                          ),
+                        ],
+                        _Divider(),
+                        _DropdownRow<int>(
+                          icon: Icons.format_list_numbered,
+                          label: l10n.t('settings.sentiment.top_k'),
+                          value: selectedTopK,
+                          items: topKOptions
+                              .map(
+                                (v) => DropdownMenuItem<int>(
+                                  value: v,
+                                  child: Text('$v'),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (v) {
+                            if (v != null) {
+                              _patch({'ai_sentiment_top_k': v});
+                            }
+                          },
                         ),
                       ],
                     ),
