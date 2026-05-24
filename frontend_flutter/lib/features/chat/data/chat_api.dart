@@ -10,22 +10,16 @@ class ChatApi {
   final ApiClient _client;
 
   Future<List<V2ChatGroup>> listChatGroups() {
-    return _client.requestData<List<V2ChatGroup>>(
+    return _client.requestList<V2ChatGroup>(
       ApiPaths.chatGroups,
-      decode: (data) {
-        final map = toMap(data);
-        return toList(map['items'], (e) => V2ChatGroup.fromJson(toMap(e)));
-      },
+      decodeItem: (item) => V2ChatGroup.fromJson(toMap(item)),
     );
   }
 
   Future<List<V2ChatChannel>> listChannels(int groupId) {
-    return _client.requestData<List<V2ChatChannel>>(
+    return _client.requestList<V2ChatChannel>(
       '${ApiPaths.chatGroups}/$groupId/channels',
-      decode: (data) {
-        final map = toMap(data);
-        return toList(map['items'], (e) => V2ChatChannel.fromJson(toMap(e)));
-      },
+      decodeItem: (item) => V2ChatChannel.fromJson(toMap(item)),
     );
   }
 
@@ -57,20 +51,10 @@ class ChatApi {
   }) {
     final query = <String, dynamic>{'page': page, 'page_size': size};
     if (beforeMessageId != null) query['before'] = beforeMessageId;
-    return _client.requestData<PagedResult<V2ChatMessage>>(
+    return _client.requestPaged<V2ChatMessage>(
       '${ApiPaths.chatChannels}/$channelId/messages',
       query: query,
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2ChatMessage.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2ChatMessage>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2ChatMessage.fromJson(toMap(item)),
     );
   }
 
@@ -181,15 +165,9 @@ class ChatApi {
   }
 
   Future<List<V2DirectConversation>> listConversations() {
-    return _client.requestData<List<V2DirectConversation>>(
+    return _client.requestList<V2DirectConversation>(
       ApiPaths.chatDirectConversations,
-      decode: (data) {
-        final map = toMap(data);
-        return toList(
-          map['items'],
-          (e) => V2DirectConversation.fromJson(toMap(e)),
-        );
-      },
+      decodeItem: (item) => V2DirectConversation.fromJson(toMap(item)),
     );
   }
 
@@ -210,20 +188,10 @@ class ChatApi {
   }) {
     final query = <String, dynamic>{'page': page, 'page_size': size};
     if (beforeMessageId != null) query['before'] = beforeMessageId;
-    return _client.requestData<PagedResult<V2DirectMessage>>(
+    return _client.requestPaged<V2DirectMessage>(
       '${ApiPaths.chatDirectConversations}/$conversationId/messages',
       query: query,
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2DirectMessage.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2DirectMessage>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2DirectMessage.fromJson(toMap(item)),
     );
   }
 
