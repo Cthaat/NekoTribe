@@ -11,6 +11,7 @@ import 'package:nekotribe/features/groups/data/groups_api.dart';
 import 'package:nekotribe/features/moderation/data/moderation_api.dart';
 import 'package:nekotribe/features/notifications/data/notifications_api.dart';
 import 'package:nekotribe/features/posts/data/posts_api.dart';
+import 'package:nekotribe/features/users/data/users_api.dart';
 
 void main() {
   group('PostsApi v2 contract', () {
@@ -135,6 +136,61 @@ void main() {
       );
     });
   });
+
+  group('UsersApi v2 contract', () {
+    test('profile, follow, and email endpoints match current server API', () async {
+      final recorder = _ApiRecorder();
+      final api = UsersApi(_client(recorder));
+
+      await api.getUserById(12);
+      recorder.expectLast(method: 'GET', path: '/api/v2/users/12');
+
+      await api.followUser(12);
+      recorder.expectLast(method: 'POST', path: '/api/v2/users/12/followers');
+
+      await api.unfollowUser(12);
+      recorder.expectLast(method: 'DELETE', path: '/api/v2/users/12/followers');
+
+      await api.updateEmail(
+        newEmail: 'edge@example.test',
+        verificationId: 'verify-1',
+        code: '123456',
+      );
+      recorder.expectLast(
+        method: 'PATCH',
+        path: '/api/v2/users/me/email',
+        body: {
+          'new_email': 'edge@example.test',
+          'verification_id': 'verify-1',
+          'code': '123456',
+        },
+      );
+    });
+
+    test('block and mute actions use page_size and POST resources', () async {
+      final recorder = _ApiRecorder();
+      final api = UsersApi(_client(recorder));
+
+      await api.getBlocks(page: 3, size: 10);
+      recorder.expectLast(
+        method: 'GET',
+        path: '/api/v2/users/me/blocks',
+        query: {'page': 3, 'page_size': 10},
+      );
+
+      await api.blockUser(12);
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/users/me/blocks/12',
+      );
+
+      await api.muteUser(12);
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/users/me/mutes/12',
+      );
+    });
+  });
 }
 
 const _testConfig = AppConfig(
@@ -208,6 +264,9 @@ class _ApiRecorder implements HttpClientAdapter {
     }
     if (path.contains('/by-slug/')) {
       return _groupJson;
+    }
+    if (path.startsWith('/api/v2/users/')) {
+      return _publicUserJson;
     }
     return {
       'items': <Object>[],
