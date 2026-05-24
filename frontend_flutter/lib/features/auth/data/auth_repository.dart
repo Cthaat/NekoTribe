@@ -1,4 +1,5 @@
 import '../../../core/auth/token_store.dart';
+import '../../users/domain/user_models.dart';
 import '../domain/auth_models.dart';
 import 'auth_api.dart';
 
@@ -20,29 +21,35 @@ class AuthRepository {
   Future<V2AuthOtpVerificationData> verifyOtp({
     required String account,
     required String purpose,
+    required String verificationId,
     required String code,
   }) {
-    return _api.verifyOtp(account: account, purpose: purpose, code: code);
+    return _api.verifyOtp(
+      account: account,
+      purpose: purpose,
+      verificationId: verificationId,
+      code: code,
+    );
   }
 
-  Future<V2LoginSuccess> register({
-    required String account,
+  Future<V2SelfUser> register({
+    required String email,
     required String username,
     required String displayName,
     required String password,
-    required String otpCode,
-    String? inviteCode,
-  }) async {
-    final result = await _api.register(
-      account: account,
+    required String confirmPassword,
+    required String verificationId,
+    required bool agreeToTerms,
+  }) {
+    return _api.register(
+      email: email,
       username: username,
       displayName: displayName,
       password: password,
-      otpCode: otpCode,
-      inviteCode: inviteCode,
+      confirmPassword: confirmPassword,
+      verificationId: verificationId,
+      agreeToTerms: agreeToTerms,
     );
-    await _persistTokens(result.tokens);
-    return result;
   }
 
   Future<V2LoginResult> login({
@@ -74,13 +81,15 @@ class AuthRepository {
   }
 
   Future<void> requestPasswordReset({
-    required String account,
-    required String otpCode,
+    required String email,
+    required String verificationId,
+    required String code,
     required String newPassword,
   }) {
     return _api.requestPasswordReset(
-      account: account,
-      otpCode: otpCode,
+      email: email,
+      verificationId: verificationId,
+      code: code,
       newPassword: newPassword,
     );
   }
