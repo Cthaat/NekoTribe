@@ -42,9 +42,7 @@ class UsersApi {
     );
   }
 
-  Future<V2SelfUser> uploadAvatar({
-    required int mediaId,
-  }) {
+  Future<V2SelfUser> uploadAvatar({required int mediaId}) {
     return _client.requestData<V2SelfUser>(
       ApiPaths.usersMeAvatar,
       method: 'PUT',
@@ -238,10 +236,7 @@ class UsersApi {
       query: {'limit': limit},
       decode: (data) {
         final map = toMap(data);
-        return toList(
-          map['items'],
-          (e) => V2PublicUser.fromJson(toMap(e)),
-        );
+        return toList(map['items'], (e) => V2PublicUser.fromJson(toMap(e)));
       },
     );
   }
