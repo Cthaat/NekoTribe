@@ -72,6 +72,7 @@ const productionRoutePaths = <String>{
   '/moderation/content',
   '/moderation/reports',
   '/moderation/users',
+  '/moderation/appeals',
   '/moderation/settings',
   '/sentiment',
   '/about',
@@ -299,8 +300,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const ModerationScreen(initialTab: 3),
       ),
       GoRoute(
-        path: '/moderation/settings',
+        path: '/moderation/appeals',
         builder: (_, __) => const ModerationScreen(initialTab: 4),
+      ),
+      GoRoute(
+        path: '/moderation/settings',
+        builder: (_, __) => const ModerationScreen(initialTab: 5),
       ),
       GoRoute(
         path: '/sentiment',
