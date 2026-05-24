@@ -11,6 +11,7 @@ import 'shared/i18n/app_localizations.dart';
 import 'shared/providers/providers.dart';
 import 'shared/routing/app_router.dart';
 import 'shared/theme/app_theme.dart';
+import 'shared/window/desktop_window_frame.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,10 +37,14 @@ Future<WindowOptions?> _desktopWindowOptions() async {
   }
 
   await windowManager.ensureInitialized();
+  if (!isDesktopWindowFrameSupported) {
+    return const WindowOptions(title: 'NekoTribe');
+  }
+
   return const WindowOptions(
     title: 'NekoTribe',
     titleBarStyle: TitleBarStyle.hidden,
-    windowButtonVisibility: true,
+    windowButtonVisibility: false,
   );
 }
 
@@ -73,6 +78,10 @@ class NekoTribeApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      builder: (context, child) => DesktopWindowFrame(
+        enabled: isDesktopWindowFrameSupported,
+        child: child ?? const SizedBox.shrink(),
+      ),
       routerConfig: router,
     );
   }
