@@ -56,6 +56,20 @@ void main() {
   });
 
   group('GroupsApi v2 contract', () {
+    test('group pages decode v2 list data from envelope meta', () async {
+      final recorder = _ApiRecorder();
+      final api = GroupsApi(_client(recorder));
+
+      final page = await api.list(mode: 'discover', page: 1, size: 20);
+
+      expect(page.items, hasLength(1));
+      expect(page.items.single.groupId, 42);
+      expect(page.items.single.name, 'Cat Town');
+      expect(page.page, 1);
+      expect(page.pageSize, 20);
+      expect(page.total, 1);
+    });
+
     test('slug lookup stays separate from id-based member actions', () async {
       final recorder = _ApiRecorder();
       final api = GroupsApi(_client(recorder));
@@ -118,6 +132,21 @@ void main() {
   });
 
   group('ChatApi v2 contract', () {
+    test('chat lists decode v2 list data from envelope meta', () async {
+      final recorder = _ApiRecorder();
+      final api = ChatApi(_client(recorder));
+
+      final conversations = await api.listConversations();
+      expect(conversations, hasLength(1));
+      expect(conversations.single.conversationId, 77);
+      expect(conversations.single.lastMessage?.content, 'hello');
+
+      final groups = await api.listChatGroups();
+      expect(groups, hasLength(1));
+      expect(groups.single.groupId, 42);
+      expect(groups.single.channelCount, 1);
+    });
+
     test('message reactions and pinning match server route names', () async {
       final recorder = _ApiRecorder();
       final api = ChatApi(_client(recorder));
@@ -165,6 +194,19 @@ void main() {
   });
 
   group('NotificationsApi v2 contract', () {
+    test('notification pages decode v2 list data from envelope meta', () async {
+      final recorder = _ApiRecorder();
+      final api = NotificationsApi(_client(recorder));
+
+      final page = await api.list(page: 1, size: 20);
+
+      expect(page.items, hasLength(1));
+      expect(page.items.single.notificationId, 3001);
+      expect(page.items.single.title, 'New reply');
+      expect(page.page, 1);
+      expect(page.total, 1);
+    });
+
     test('single read status and restore endpoints are exposed', () async {
       final recorder = _ApiRecorder();
       final api = NotificationsApi(_client(recorder));
@@ -306,6 +348,18 @@ class _ApiRecorder implements HttpClientAdapter {
     if (path == '/api/v2/posts') {
       return <Object>[_postJson];
     }
+    if (path == '/api/v2/groups') {
+      return <Object>[_groupJson];
+    }
+    if (path == '/api/v2/chat/direct/conversations') {
+      return <Object>[_directConversationJson];
+    }
+    if (path == '/api/v2/chat/groups') {
+      return <Object>[_chatGroupJson];
+    }
+    if (path == '/api/v2/notifications') {
+      return <Object>[_notificationJson];
+    }
     if (path.endsWith('/likes')) {
       return {'is_liked': true, 'is_bookmarked': false, 'can_delete': true};
     }
@@ -339,6 +393,10 @@ class _ApiRecorder implements HttpClientAdapter {
 
   Map<String, Object>? _metaFor(RequestOptions options) {
     if (options.path == '/api/v2/posts') {
+      return {'page': 1, 'page_size': 20, 'total': 1, 'has_next': false};
+    }
+    if (options.path == '/api/v2/groups' ||
+        options.path == '/api/v2/notifications') {
       return {'page': 1, 'page_size': 20, 'total': 1, 'has_next': false};
     }
     return null;
@@ -402,6 +460,46 @@ const _groupJson = {
   'membership': {'is_member': false},
   'created_at': '2026-05-24T00:00:00.000Z',
   'updated_at': '2026-05-24T00:00:00.000Z',
+};
+
+const _chatGroupJson = {
+  'group_id': 42,
+  'name': 'Cat Town',
+  'avatar_url': '',
+  'member_count': 3,
+  'channel_count': 1,
+  'unread_count': 2,
+  'membership': {'role': 'member', 'can_manage': false},
+};
+
+const _directConversationJson = {
+  'conversation_id': 77,
+  'participant': _publicUserJson,
+  'unread_count': 1,
+  'last_message': {
+    'message_id': 7001,
+    'content': 'hello',
+    'author_name': 'Edge',
+    'created_at': '2026-05-24T00:00:00.000Z',
+  },
+  'created_at': '2026-05-24T00:00:00.000Z',
+  'updated_at': '2026-05-24T00:00:00.000Z',
+};
+
+const _notificationJson = {
+  'notification_id': 3001,
+  'type': 'comment',
+  'title': 'New reply',
+  'message': 'Edge replied to you',
+  'resource_type': 'post',
+  'resource_id': 100001,
+  'priority': 'normal',
+  'is_read': 0,
+  'read_at': null,
+  'deleted_at': null,
+  'actor': _publicUserJson,
+  'metadata': <String, Object>{},
+  'created_at': '2026-05-24T00:00:00.000Z',
 };
 
 const _groupCommentJson = {
