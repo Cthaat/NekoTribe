@@ -83,14 +83,14 @@ class V2Group {
       privacy: toStr(json['privacy'], defaultValue: 'public'),
       privacyDesc: toStr(json['privacy_desc']),
       joinApproval: toBool(json['join_approval']),
-      postPermission:
-          toStr(json['post_permission'], defaultValue: 'all'),
+      postPermission: toStr(json['post_permission'], defaultValue: 'all'),
       memberCount: toInt(json['member_count']) ?? 0,
       postCount: toInt(json['post_count']) ?? 0,
       isActive: toInt(json['is_active']) ?? 1,
       membership: json['membership'] is Map<String, dynamic>
           ? V2GroupMembership.fromJson(
-              json['membership'] as Map<String, dynamic>)
+              json['membership'] as Map<String, dynamic>,
+            )
           : V2GroupMembership.empty(),
       createdAt: toStr(json['created_at']),
       updatedAt: toStr(json['updated_at']),
