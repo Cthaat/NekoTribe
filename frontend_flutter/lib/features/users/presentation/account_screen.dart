@@ -114,7 +114,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                           leading: const Icon(Icons.person),
                           title: const Text('Profile'),
                           onTap: () => context
-                              .push('/users/${_user!.username}'),
+                              .push('/users/${_user!.userId}'),
                         ),
                         ListTile(
                           leading: const Icon(Icons.group),
