@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/user_models.dart';
 
@@ -101,6 +102,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.t('account.sessions.title')),
@@ -118,47 +120,160 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
           ? ErrorView(error: _error!, onRetry: _load)
           : _items.isEmpty
           ? EmptyView(message: l10n.t('account.sessions.empty'))
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.separated(
-                itemCount: _items.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (_, i) {
-                  final s = _items[i];
-                  return ListTile(
-                    leading: Icon(
-                      s.isCurrent ? Icons.smartphone : Icons.devices_other,
-                      color: s.isCurrent
-                          ? Theme.of(context).colorScheme.primary
-                          : null,
-                    ),
-                    title: Text(
-                      s.deviceInfo.isEmpty
-                          ? l10n.t('account.sessions.unknown_device')
-                          : s.deviceInfo,
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${l10n.t('account.sessions.ip')}: ${s.ipAddress}',
-                        ),
-                        Text(
-                          '${l10n.t('account.sessions.last')}: ${_formatDate(s.lastAccessedAt)}',
-                        ),
-                      ],
-                    ),
-                    trailing: s.isCurrent
-                        ? Chip(label: Text(l10n.t('common.current')))
-                        : IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => _revoke(s),
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.contentMaxWidth,
+                ),
+                child: RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _items.length,
+                    itemBuilder: (_, i) {
+                      final s = _items[i];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: theme.cardTheme.color,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: s.isCurrent
+                                  ? theme.colorScheme.primary
+                                  : theme.dividerColor,
+                              width: s.isCurrent ? 1.5 : 1,
+                            ),
                           ),
-                    isThreeLine: true,
-                  );
-                },
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: (s.isCurrent
+                                          ? theme.colorScheme.primary
+                                          : theme.colorScheme.onSurfaceVariant)
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  s.isCurrent
+                                      ? Icons.smartphone
+                                      : Icons.devices_other,
+                                  color: s.isCurrent
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurfaceVariant,
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            s.deviceInfo.isEmpty
+                                                ? l10n.t(
+                                                    'account.sessions.unknown_device',
+                                                  )
+                                                : s.deviceInfo,
+                                            style: theme.textTheme.titleSmall
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (s.isCurrent)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 3,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.primary,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              l10n.t('common.current'),
+                                              style: theme.textTheme.labelSmall
+                                                  ?.copyWith(
+                                                    color: theme
+                                                        .colorScheme
+                                                        .onPrimary,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _MetaLine(
+                                      icon: Icons.public,
+                                      text:
+                                          '${l10n.t('account.sessions.ip')}: ${s.ipAddress}',
+                                    ),
+                                    const SizedBox(height: 2),
+                                    _MetaLine(
+                                      icon: Icons.schedule,
+                                      text:
+                                          '${l10n.t('account.sessions.last')}: ${_formatDate(s.lastAccessedAt)}',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (!s.isCurrent)
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.delete_outline,
+                                    color: theme.colorScheme.error,
+                                  ),
+                                  onPressed: () => _revoke(s),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
+    );
+  }
+}
+
+class _MetaLine extends StatelessWidget {
+  const _MetaLine({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 12, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }
