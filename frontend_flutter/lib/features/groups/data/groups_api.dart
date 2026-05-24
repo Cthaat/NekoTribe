@@ -34,10 +34,7 @@ class GroupsApi {
       query: {'limit': limit},
       decode: (data) {
         final map = toMap(data);
-        return toList(
-          map['items'],
-          (e) => V2Group.fromJson(toMap(e)),
-        );
+        return toList(map['items'], (e) => V2Group.fromJson(toMap(e)));
       },
     );
   }
@@ -139,10 +136,7 @@ class GroupsApi {
     );
   }
 
-  Future<V2GroupPost> getPost({
-    required int groupId,
-    required int postId,
-  }) {
+  Future<V2GroupPost> getPost({required int groupId, required int postId}) {
     return _client.requestData<V2GroupPost>(
       '${ApiPaths.groups}/$groupId/posts/$postId',
       decode: (data) => V2GroupPost.fromJson(toMap(data)),
@@ -167,10 +161,7 @@ class GroupsApi {
     );
   }
 
-  Future<PagedResult<V2GroupInvite>> myInvites({
-    int page = 1,
-    int size = 20,
-  }) {
+  Future<PagedResult<V2GroupInvite>> myInvites({int page = 1, int size = 20}) {
     return _client.requestData<PagedResult<V2GroupInvite>>(
       ApiPaths.usersMeGroupInvites,
       query: {'page': page, 'page_size': size},
@@ -316,10 +307,7 @@ class GroupsApi {
 
   PagedResult<V2Group> _decodeGroupPage(dynamic data) {
     final map = toMap(data);
-    final items = toList(
-      map['items'],
-      (e) => V2Group.fromJson(toMap(e)),
-    );
+    final items = toList(map['items'], (e) => V2Group.fromJson(toMap(e)));
     final meta = map['meta'] is Map<String, dynamic>
         ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
         : null;
