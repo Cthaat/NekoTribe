@@ -129,9 +129,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       ),
       body: TabBarView(
         controller: _tab,
-        children: [
-          for (var i = 0; i < 3; i++) _buildFeedTab(i, session),
-        ],
+        children: [for (var i = 0; i < 3; i++) _buildFeedTab(i, session)],
       ),
     );
   }
