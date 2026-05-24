@@ -25,7 +25,7 @@ class ModerationApi {
     final query = <String, dynamic>{
       'status': status,
       'page': page,
-      'size': size,
+      'page_size': size,
     };
     if (priority != null) query['priority'] = priority;
     return _client.requestData<PagedResult<V2ModerationContentItem>>(
@@ -51,8 +51,8 @@ class ModerationApi {
     String? note,
   }) async {
     await _client.request<void>(
-      '${ApiPaths.moderationContent}/$caseId',
-      method: 'PATCH',
+      '${ApiPaths.moderationContent}/$caseId/actions',
+      method: 'POST',
       data: {
         'action': action,
         if (note != null) 'note': note,
@@ -70,7 +70,7 @@ class ModerationApi {
       ApiPaths.moderationContentBulkActions,
       method: 'POST',
       data: {
-        'case_ids': caseIds,
+        'post_ids': caseIds,
         'action': action,
         if (note != null) 'note': note,
       },
@@ -86,7 +86,7 @@ class ModerationApi {
   }) {
     final query = <String, dynamic>{
       'page': page,
-      'size': size,
+      'page_size': size,
     };
     if (status != null) query['status'] = status;
     if (priority != null) query['priority'] = priority;
@@ -129,7 +129,7 @@ class ModerationApi {
     int size = 20,
     String? keyword,
   }) {
-    final query = <String, dynamic>{'page': page, 'size': size};
+    final query = <String, dynamic>{'page': page, 'page_size': size};
     if (status != null) query['status'] = status;
     if (keyword != null) query['keyword'] = keyword;
     return _client.requestData<PagedResult<V2ModerationUserItem>>(
@@ -156,7 +156,7 @@ class ModerationApi {
     String? note,
   }) async {
     await _client.request<void>(
-      '${ApiPaths.moderationUsers}/$userId/restrictions',
+      '${ApiPaths.moderationUsers}/$userId/actions',
       method: 'POST',
       data: {
         'action': action,
@@ -172,7 +172,7 @@ class ModerationApi {
     int page = 1,
     int size = 20,
   }) {
-    final query = <String, dynamic>{'page': page, 'size': size};
+    final query = <String, dynamic>{'page': page, 'page_size': size};
     if (status != null) query['status'] = status;
     return _client.requestData<PagedResult<V2ModerationAppeal>>(
       ApiPaths.moderationAppeals,
@@ -223,6 +223,12 @@ class ModerationApi {
     return _client.requestData<List<V2ModerationSetting>>(
       ApiPaths.moderationSettings,
       decode: (data) {
+        if (data is List) {
+          return toList(
+            data,
+            (e) => V2ModerationSetting.fromJson(toMap(e)),
+          );
+        }
         final map = toMap(data);
         return toList(
           map['items'],
