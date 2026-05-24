@@ -33,35 +33,38 @@ void main() {
       );
     });
 
-    test('registration uses verified email payload without token assumptions', () async {
-      final recorder = _ApiRecorder();
-      final api = AuthApi(_client(recorder));
+    test(
+      'registration uses verified email payload without token assumptions',
+      () async {
+        final recorder = _ApiRecorder();
+        final api = AuthApi(_client(recorder));
 
-      final user = await api.register(
-        email: 'edge@example.test',
-        username: 'edge',
-        displayName: 'Edge',
-        password: 'password-1',
-        confirmPassword: 'password-1',
-        verificationId: 'otp-1',
-        agreeToTerms: true,
-      );
+        final user = await api.register(
+          email: 'edge@example.test',
+          username: 'edge',
+          displayName: 'Edge',
+          password: 'password-1',
+          confirmPassword: 'password-1',
+          verificationId: 'otp-1',
+          agreeToTerms: true,
+        );
 
-      expect(user.email, 'edge@example.test');
-      recorder.expectLast(
-        method: 'POST',
-        path: '/api/v2/auth/registration',
-        body: {
-          'email': 'edge@example.test',
-          'username': 'edge',
-          'display_name': 'Edge',
-          'password': 'password-1',
-          'confirm_password': 'password-1',
-          'verification_id': 'otp-1',
-          'agree_to_terms': true,
-        },
-      );
-    });
+        expect(user.email, 'edge@example.test');
+        recorder.expectLast(
+          method: 'POST',
+          path: '/api/v2/auth/registration',
+          body: {
+            'email': 'edge@example.test',
+            'username': 'edge',
+            'display_name': 'Edge',
+            'password': 'password-1',
+            'confirm_password': 'password-1',
+            'verification_id': 'otp-1',
+            'agree_to_terms': true,
+          },
+        );
+      },
+    );
 
     test('password reset uses verification id and code payload', () async {
       final recorder = _ApiRecorder();
@@ -433,6 +436,16 @@ class _ApiRecorder implements HttpClientAdapter {
     if (path == '/api/v2/notifications') {
       return <Object>[_notificationJson];
     }
+    if (path == '/api/v2/auth/otp') {
+      return {
+        'account': options.data['account'],
+        'verification_id': 'otp-1',
+        'expires_at': '2026-05-24T00:05:00.000Z',
+      };
+    }
+    if (path == '/api/v2/auth/registration') {
+      return {'user': _selfUserJson};
+    }
     if (path.endsWith('/likes')) {
       return {'is_liked': true, 'is_bookmarked': false, 'can_delete': true};
     }
@@ -511,6 +524,18 @@ const _publicUserJson = {
     'relation': 'none',
   },
   'online_status': 'online',
+};
+
+const _selfUserJson = {
+  ..._publicUserJson,
+  'email': 'edge@example.test',
+  'phone': '',
+  'birth_date': null,
+  'email_verified_at': '2026-05-24T00:00:00.000Z',
+  'is_active': 1,
+  'status': 'active',
+  'created_at': '2026-05-24T00:00:00.000Z',
+  'updated_at': '2026-05-24T00:00:00.000Z',
 };
 
 const _groupJson = {
