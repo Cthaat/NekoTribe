@@ -6,6 +6,7 @@ import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../posts/domain/post_models.dart';
 import '../../posts/presentation/post_card.dart';
@@ -128,6 +129,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _user == null
               ? l10n.t('settings.account.profile')
               : '@${_user!.username}',
+          overflow: TextOverflow.ellipsis,
         ),
       ),
       body: _loading
@@ -136,89 +138,205 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ? ErrorView(error: _error!, onRetry: _load)
           : _user == null
           ? const SizedBox.shrink()
-          : ListView(
-              children: [
-                const SizedBox(height: 12),
-                Center(child: AppAvatar(url: _user!.avatarUrl, size: 88)),
-                const SizedBox(height: 8),
-                Center(
-                  child: Text(
-                    _user!.displayName,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.contentMaxWidth,
                 ),
-                Center(child: Text('@${_user!.username}')),
-                if (_user!.bio.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(_user!.bio, textAlign: TextAlign.center),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _ProfileStat(
-                        label: l10n.t('profile.followers'),
-                        value: _user!.followersCount,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  children: [
+                    _ProfileHeader(
+                      user: _user!,
+                      onFollow: _toggleFollow,
+                      onMessage: _openDirectMessage,
+                    ),
+                    Divider(
+                      height: 1,
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    for (var i = 0; i < _posts.length; i++) ...[
+                      PostCard(
+                        key: ValueKey(_posts[i].postId),
+                        post: _posts[i],
+                        onChanged: (u) => setState(() => _posts[i] = u),
+                        onDeleted: () {
+                          _posts.removeAt(i);
+                          setState(() {});
+                        },
+                        onReport: () => showReportDialog(
+                          context,
+                          ref,
+                          targetType: 'post',
+                          targetId: _posts[i].postId,
+                        ),
                       ),
-                      _ProfileStat(
-                        label: l10n.t('profile.following'),
-                        value: _user!.followingCount,
-                      ),
-                      _ProfileStat(
-                        label: l10n.t('profile.posts'),
-                        value: _user!.postsCount,
+                      Divider(
+                        height: 1,
+                        color: Theme.of(context).dividerColor,
                       ),
                     ],
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                if (!_user!.relationship.isSelf)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: _toggleFollow,
-                            child: Text(
-                              _user!.relationship.isFollowing
-                                  ? l10n.t('common.unfollow')
-                                  : l10n.t('common.follow'),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _openDirectMessage,
-                            icon: const Icon(Icons.mail_outline),
-                            label: Text(l10n.t('profile.message')),
-                          ),
-                        ),
-                      ],
+              ),
+            ),
+    );
+  }
+}
+
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({
+    required this.user,
+    required this.onFollow,
+    required this.onMessage,
+  });
+
+  final V2PublicUser user;
+  final VoidCallback onFollow;
+  final VoidCallback onMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppAvatar(url: user.avatarUrl, size: 88),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.displayName.isEmpty
+                          ? user.username
+                          : user.displayName,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                const Divider(),
-                for (var i = 0; i < _posts.length; i++)
-                  PostCard(
-                    key: ValueKey(_posts[i].postId),
-                    post: _posts[i],
-                    onChanged: (u) => setState(() => _posts[i] = u),
-                    onDeleted: () {
-                      _posts.removeAt(i);
-                      setState(() {});
-                    },
-                    onReport: () => showReportDialog(
-                      context,
-                      ref,
-                      targetType: 'post',
-                      targetId: _posts[i].postId,
+                    const SizedBox(height: 2),
+                    Text(
+                      '@${user.username}',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (user.bio.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(user.bio, style: theme.textTheme.bodyMedium),
+          ],
+          if (user.location.isNotEmpty || user.website.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 16,
+              runSpacing: 6,
+              children: [
+                if (user.location.isNotEmpty)
+                  _MetaItem(icon: Icons.place_outlined, text: user.location),
+                if (user.website.isNotEmpty)
+                  _MetaItem(icon: Icons.link, text: user.website),
               ],
             ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _ProfileStat(
+                label: l10n.t('profile.following'),
+                value: user.followingCount,
+              ),
+              const SizedBox(width: 20),
+              _ProfileStat(
+                label: l10n.t('profile.followers'),
+                value: user.followersCount,
+              ),
+              const SizedBox(width: 20),
+              _ProfileStat(
+                label: l10n.t('profile.posts'),
+                value: user.postsCount,
+              ),
+            ],
+          ),
+          if (!user.relationship.isSelf) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: user.relationship.isFollowing
+                      ? OutlinedButton(
+                          onPressed: onFollow,
+                          child: Text(l10n.t('common.unfollow')),
+                        )
+                      : FilledButton(
+                          onPressed: onFollow,
+                          child: Text(l10n.t('common.follow')),
+                        ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onMessage,
+                    icon: const Icon(Icons.mail_outline, size: 18),
+                    label: Text(
+                      l10n.t('profile.message'),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MetaItem extends StatelessWidget {
+  const _MetaItem({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 4),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 280),
+          child: Text(
+            text,
+            style: theme.textTheme.bodySmall,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -230,10 +348,25 @@ class _ProfileStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: [
-        Text('$value', style: Theme.of(context).textTheme.titleMedium),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        Text(
+          '$value',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
       ],
     );
   }
