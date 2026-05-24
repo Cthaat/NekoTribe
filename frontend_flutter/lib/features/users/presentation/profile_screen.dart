@@ -11,8 +11,8 @@ import '../../posts/presentation/report_dialog.dart';
 import '../domain/user_models.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
-  const ProfileScreen({super.key, required this.username});
-  final String username;
+  const ProfileScreen({super.key, required this.userId});
+  final int userId;
 
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
@@ -37,9 +37,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     });
     try {
       final user =
-          await ref.read(usersRepositoryProvider).getUser(widget.username);
+          await ref.read(usersRepositoryProvider).getUserById(widget.userId);
       final posts =
-          await ref.read(postsApiProvider).getUserPosts(widget.username);
+          await ref.read(postsApiProvider).getUserPostsById(widget.userId);
       if (!mounted) return;
       setState(() {
         _user = user;
@@ -61,8 +61,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     try {
       final repo = ref.read(usersRepositoryProvider);
       final rel = wasFollowing
-          ? await repo.unfollow(widget.username)
-          : await repo.follow(widget.username);
+          ? await repo.unfollow(_user!.userId)
+          : await repo.follow(_user!.userId);
       if (!mounted) return;
       setState(() {
         _user = V2PublicUser(
@@ -100,7 +100,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text('@${widget.username}')),
+      appBar: AppBar(title: Text(_user == null ? 'Profile' : '@${_user!.username}')),
       body: _loading
           ? const LoadingView()
           : _error != null
