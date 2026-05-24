@@ -54,6 +54,24 @@ void main() {
     expect(find.byKey(desktopWindowMaximizeButtonKey), findsNothing);
     expect(find.byKey(desktopWindowCloseButtonKey), findsNothing);
   });
+
+  testWidgets('desktop frame can wrap a MaterialApp builder child', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => DesktopWindowFrame(
+          controls: _FakeWindowControls(),
+          child: child ?? const SizedBox.shrink(),
+        ),
+        home: const Text('app body'),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('app body'), findsOneWidget);
+    expect(find.byKey(desktopWindowCloseButtonKey), findsOneWidget);
+  });
 }
 
 class _FakeWindowControls implements WindowControls {
