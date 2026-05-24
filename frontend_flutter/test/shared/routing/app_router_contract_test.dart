@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nekotribe/shared/routing/app_shell.dart';
 import 'package:nekotribe/shared/routing/app_router.dart';
 
 void main() {
@@ -84,5 +85,21 @@ void main() {
     ]) {
       expect(isPublicRoutePath(path), isFalse, reason: path);
     }
+  });
+
+  test('desktop shell exposes core functional areas', () {
+    expect(
+      desktopAppShellPaths,
+      containsAll(<String>{
+        '/feed',
+        '/discover',
+        '/notifications',
+        '/chat',
+        '/me',
+        '/groups',
+        '/moderation',
+        '/sentiment',
+      }),
+    );
   });
 }
