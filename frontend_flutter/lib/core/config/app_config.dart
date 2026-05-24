@@ -38,10 +38,7 @@ class EndpointPreset {
 /// 从 `assets/config/app_config.json` 加载得到的不可变包，
 /// 包含默认值（首次启动 fallback）和预置端点列表。
 class AppConfigBundle {
-  const AppConfigBundle({
-    required this.defaults,
-    required this.presets,
-  });
+  const AppConfigBundle({required this.defaults, required this.presets});
 
   final AppConfig defaults;
   final List<EndpointPreset> presets;
@@ -97,11 +94,11 @@ class AppConfig {
   }
 
   Map<String, dynamic> toJson() => {
-        'presetId': presetId,
-        'apiBaseUrl': apiBaseUrl,
-        'wsBaseUrl': wsBaseUrl,
-        'storageBaseUrl': storageBaseUrl,
-      };
+    'presetId': presetId,
+    'apiBaseUrl': apiBaseUrl,
+    'wsBaseUrl': wsBaseUrl,
+    'storageBaseUrl': storageBaseUrl,
+  };
 
   static AppConfig fromJson(Map<String, dynamic> json) {
     return AppConfig(
@@ -123,12 +120,18 @@ class AppConfigLoader {
   static const String assetPath = 'assets/config/app_config.json';
 
   /// 编译期 `--dart-define` 覆盖，依然支持作为最高优先级（CI 部署用）。
-  static const String _envApi =
-      String.fromEnvironment('API_BASE_URL', defaultValue: '');
-  static const String _envWs =
-      String.fromEnvironment('WS_BASE_URL', defaultValue: '');
-  static const String _envStorage =
-      String.fromEnvironment('STORAGE_BASE_URL', defaultValue: '');
+  static const String _envApi = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: '',
+  );
+  static const String _envWs = String.fromEnvironment(
+    'WS_BASE_URL',
+    defaultValue: '',
+  );
+  static const String _envStorage = String.fromEnvironment(
+    'STORAGE_BASE_URL',
+    defaultValue: '',
+  );
 
   static Future<AppConfigBundle> loadBundle() async {
     try {
@@ -141,11 +144,7 @@ class AppConfigLoader {
       // ignore — fall through to safe defaults
     }
     return const AppConfigBundle(
-      defaults: AppConfig(
-        apiBaseUrl: '',
-        wsBaseUrl: '',
-        storageBaseUrl: '',
-      ),
+      defaults: AppConfig(apiBaseUrl: '', wsBaseUrl: '', storageBaseUrl: ''),
       presets: [],
     );
   }
