@@ -13,14 +13,17 @@ import '../../features/chat/presentation/conversation_screen.dart';
 import '../../features/groups/presentation/group_manage_screen.dart';
 import '../../features/groups/presentation/group_detail_screen.dart';
 import '../../features/groups/presentation/group_post_detail_screen.dart';
+import '../../features/groups/presentation/group_posts_screen.dart';
 import '../../features/groups/presentation/groups_screen.dart';
 import '../../features/moderation/presentation/moderation_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
+import '../../features/posts/presentation/compose_post_screen.dart';
 import '../../features/posts/presentation/edit_post_screen.dart';
 import '../../features/posts/presentation/feed_screen.dart';
 import '../../features/posts/presentation/post_detail_screen.dart';
 import '../../features/posts/presentation/search_screen.dart';
 import '../../features/posts/presentation/tag_screen.dart';
+import '../../features/posts/presentation/tweet_timeline_screen.dart';
 import '../../features/sentiment_flow/presentation/sentiment_screen.dart';
 import '../../features/users/presentation/about_screen.dart';
 import '../../features/users/presentation/account_screen.dart';
@@ -47,15 +50,27 @@ const productionRoutePaths = <String>{
   '/me',
   '/auth/login',
   '/auth/register',
+  '/auth/sign-up',
   '/auth/forgot',
+  '/auth/forgot-password',
   '/auth/2fa',
   '/auth/terms',
+  '/meow',
   '/posts/:postId',
   '/posts/:postId/edit',
+  '/tweet/:postId',
+  '/tweet/search/:search',
+  '/tweet/:type/:userId',
   '/tags/:tag',
+  '/user/:userId/profile',
+  '/user/:userId/notifications',
   '/users/:userId',
   '/users/:userId/posts',
   '/groups',
+  '/groups/discover',
+  '/groups/my',
+  '/groups/invites',
+  '/groups/posts',
   '/groups/:slug',
   '/groups/:slug/manage',
   '/groups/:slug/posts/:postId',
@@ -99,7 +114,9 @@ bool isPublicRoutePath(String path) {
       uriPath == '/discover' ||
       uriPath == '/about' ||
       uriPath.startsWith('/posts/') ||
+      uriPath.startsWith('/tweet/') ||
       uriPath.startsWith('/tags/') ||
+      (uriPath.startsWith('/user/') && uriPath.endsWith('/profile')) ||
       uriPath.startsWith('/users/');
 }
 
@@ -126,7 +143,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const RegisterScreen(),
       ),
       GoRoute(
+        path: '/auth/sign-up',
+        builder: (_, __) => const RegisterScreen(),
+      ),
+      GoRoute(
         path: '/auth/forgot',
+        builder: (_, __) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/auth/forgot-password',
         builder: (_, __) => const ForgotPasswordScreen(),
       ),
       GoRoute(path: '/auth/terms', builder: (_, __) => const TermsScreen()),
