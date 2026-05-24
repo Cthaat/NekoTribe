@@ -105,7 +105,8 @@ class V2ChatChannel {
       unreadCount: toInt(json['unread_count']) ?? 0,
       lastMessage: json['last_message'] is Map<String, dynamic>
           ? V2ChatLastMessage.fromJson(
-              json['last_message'] as Map<String, dynamic>)
+              json['last_message'] as Map<String, dynamic>,
+            )
           : null,
       createdAt: toStr(json['created_at']),
       updatedAt: toStr(json['updated_at']),
@@ -203,12 +204,10 @@ class V2ChatMessage {
       author: V2PublicUser.fromJson(toMap(json['author'])),
       replyTo: json['reply_to'] is Map<String, dynamic>
           ? V2ChatMessageReply.fromJson(
-              json['reply_to'] as Map<String, dynamic>)
+              json['reply_to'] as Map<String, dynamic>,
+            )
           : null,
-      media: toList(
-        json['media'],
-        (e) => V2MediaAsset.fromJson(toMap(e)),
-      ),
+      media: toList(json['media'], (e) => V2MediaAsset.fromJson(toMap(e))),
       reactions: toList(
         json['reactions'],
         (e) => V2ChatReactionSummary.fromJson(toMap(e)),
@@ -249,7 +248,8 @@ class V2DirectConversation {
       unreadCount: toInt(json['unread_count']) ?? 0,
       lastMessage: json['last_message'] is Map<String, dynamic>
           ? V2ChatLastMessage.fromJson(
-              json['last_message'] as Map<String, dynamic>)
+              json['last_message'] as Map<String, dynamic>,
+            )
           : null,
       createdAt: toStr(json['created_at']),
       updatedAt: toStr(json['updated_at']),
