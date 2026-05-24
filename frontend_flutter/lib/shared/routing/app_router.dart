@@ -29,6 +29,7 @@ import '../../features/users/presentation/appearance_screen.dart';
 import '../../features/users/presentation/billing_screen.dart';
 import '../../features/users/presentation/endpoint_screen.dart';
 import '../../features/users/presentation/profile_screen.dart';
+import '../../features/users/presentation/profile_edit_screen.dart';
 import '../../features/users/presentation/pro_screen.dart';
 import '../../features/users/presentation/security_screen.dart';
 import '../../features/users/presentation/sessions_screen.dart';
@@ -68,6 +69,19 @@ const productionRoutePaths = <String>{
   '/settings/sessions',
   '/settings/statements',
   '/settings/endpoint',
+  '/account',
+  '/account/overview',
+  '/account/profile',
+  '/account/settings',
+  '/account/appearance',
+  '/account/billing',
+  '/account/pro',
+  '/account/security',
+  '/account/active',
+  '/account/statements',
+  '/account/posts',
+  '/account/likes',
+  '/account/bookmarks',
   '/moderation',
   '/moderation/content',
   '/moderation/reports',
@@ -227,6 +241,46 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/endpoint',
         builder: (_, __) => const EndpointScreen(),
+      ),
+      GoRoute(
+        path: '/account',
+        builder: (_, __) => const AccountScreen(),
+      ),
+      GoRoute(
+        path: '/account/overview',
+        builder: (_, __) => const AccountScreen(),
+      ),
+      GoRoute(
+        path: '/account/profile',
+        builder: (_, __) => const ProfileEditScreen(),
+      ),
+      GoRoute(
+        path: '/account/settings',
+        builder: (_, __) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/account/appearance',
+        builder: (_, __) => const AppearanceScreen(),
+      ),
+      GoRoute(
+        path: '/account/billing',
+        builder: (_, __) => const BillingScreen(),
+      ),
+      GoRoute(
+        path: '/account/pro',
+        builder: (_, __) => const ProScreen(),
+      ),
+      GoRoute(
+        path: '/account/security',
+        builder: (_, __) => const SecurityScreen(),
+      ),
+      GoRoute(
+        path: '/account/active',
+        builder: (_, __) => const SessionsScreen(),
+      ),
+      GoRoute(
+        path: '/account/statements',
+        builder: (_, __) => const StatementsScreen(),
       ),
       GoRoute(
         path: '/account/posts',
