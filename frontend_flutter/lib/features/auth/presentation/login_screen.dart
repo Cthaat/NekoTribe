@@ -111,7 +111,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       onChanged: (v) =>
                           setState(() => _rememberMe = v ?? false),
                     ),
-                    const Text('Remember me'),
+                    Text(l10n.t('auth.remember_me')),
                     const Spacer(),
                     TextButton(
                       onPressed: () => context.push('/auth/forgot'),
