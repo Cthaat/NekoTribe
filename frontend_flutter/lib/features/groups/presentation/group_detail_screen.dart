@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../shared/providers/providers.dart';
@@ -117,7 +118,16 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_group?.name ?? 'Group')),
+      appBar: AppBar(
+        title: Text(_group?.name ?? 'Group'),
+        actions: [
+          if (_group != null && _group!.membership.isMember)
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: () => context.push('/groups/${widget.slug}/manage'),
+            ),
+        ],
+      ),
       floatingActionButton:
           _group != null && _group!.membership.isMember
               ? FloatingActionButton(
@@ -196,7 +206,14 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                                   Center(child: Text('No posts in this group')),
                             )
                           else
-                            ..._posts.map((p) => _GroupPostTile(post: p)),
+                            ..._posts.map(
+                              (p) => _GroupPostTile(
+                                post: p,
+                                onTap: () => context.push(
+                                  '/groups/${widget.slug}/posts/${p.postId}',
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -205,8 +222,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 }
 
 class _GroupPostTile extends StatelessWidget {
-  const _GroupPostTile({required this.post});
+  const _GroupPostTile({required this.post, required this.onTap});
   final V2GroupPost post;
+  final VoidCallback onTap;
 
   String _formatDate(String iso) {
     final dt = DateTime.tryParse(iso);
@@ -216,9 +234,11 @@ class _GroupPostTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -278,6 +298,7 @@ class _GroupPostTile extends StatelessWidget {
             ],
           ),
         ],
+        ),
       ),
     );
   }
