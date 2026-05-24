@@ -26,6 +26,7 @@ class ApiClient {
       ..sendTimeout = const Duration(seconds: 60)
       ..responseType = ResponseType.json
       ..validateStatus = (_) => true;
+    _dio.options.extra['withCredentials'] = true;
     _dio.interceptors.add(_buildInterceptor());
   }
 
