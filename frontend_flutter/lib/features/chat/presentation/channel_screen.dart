@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/chat_models.dart';
 
@@ -171,85 +173,182 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text('Channel #${widget.channelId}')),
-      body: Column(
-        children: [
-          Expanded(
-            child: _loading
-                ? const LoadingView()
-                : _error != null
-                ? ErrorView(error: _error!, onRetry: _load)
-                : _messages.isEmpty
-                ? const EmptyView(message: 'No messages yet')
-                : ListView.builder(
-                    controller: _scroll,
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _messages.length,
-                    itemBuilder: (_, i) {
-                      final m = _messages[i];
-                      return Card(
-                        child: ListTile(
-                          leading: AppAvatar(url: m.author.avatarUrl, size: 36),
-                          title: Text(m.author.displayName),
-                          subtitle: Text(m.isDeleted ? '(deleted)' : m.content),
-                          trailing: Wrap(
-                            spacing: 2,
-                            children: [
-                              Text(_time(m.createdAt)),
-                              IconButton(
-                                icon: const Icon(Icons.thumb_up_alt_outlined),
-                                onPressed: () => _react(m),
-                              ),
-                              if (m.canPin)
-                                IconButton(
-                                  icon: Icon(
-                                    m.isPinned
-                                        ? Icons.push_pin
-                                        : Icons.push_pin_outlined,
-                                  ),
-                                  onPressed: () => _pin(m),
-                                ),
-                            ],
+      appBar: AppBar(title: Text('#${widget.channelId}')),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.contentMaxWidth,
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: _loading
+                    ? const LoadingView()
+                    : _error != null
+                    ? ErrorView(error: _error!, onRetry: _load)
+                    : _messages.isEmpty
+                    ? EmptyView(message: l10n.t('chat.empty_messages'))
+                    : ListView.builder(
+                        controller: _scroll,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        itemCount: _messages.length,
+                        itemBuilder: (_, i) => _ChannelMessageTile(
+                          message: _messages[i],
+                          timeLabel: _time(_messages[i].createdAt),
+                          onReact: () => _react(_messages[i]),
+                          onPin: _messages[i].canPin
+                              ? () => _pin(_messages[i])
+                              : null,
+                        ),
+                      ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: theme.scaffoldBackgroundColor,
+                  border: Border(top: BorderSide(color: theme.dividerColor)),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _composer,
+                            minLines: 1,
+                            maxLines: 5,
+                            decoration: InputDecoration(
+                              hintText: l10n.t('chat.message_hint'),
+                              isDense: true,
+                            ),
+                            onSubmitted: (_) => _send(),
                           ),
                         ),
-                      );
-                    },
-                  ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _composer,
-                      minLines: 1,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText: 'Message',
-                      ),
-                      onSubmitted: (_) => _send(),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: _sending ? null : _send,
+                          icon: _sending
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.send_rounded,
+                                  color: theme.colorScheme.primary,
+                                ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: _sending ? null : _send,
-                    icon: _sending
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.send),
-                  ),
-                ],
+                ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelMessageTile extends StatelessWidget {
+  const _ChannelMessageTile({
+    required this.message,
+    required this.timeLabel,
+    required this.onReact,
+    this.onPin,
+  });
+
+  final V2ChatMessage message;
+  final String timeLabel;
+  final VoidCallback onReact;
+  final VoidCallback? onPin;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppAvatar(url: message.author.avatarUrl, size: 36),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        message.author.displayName.isEmpty
+                            ? message.author.username
+                            : message.author.displayName,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      timeLabel,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (message.isPinned) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.push_pin,
+                        size: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message.isDeleted ? '(deleted)' : message.content,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontStyle: message.isDeleted ? FontStyle.italic : null,
+                    color: message.isDeleted
+                        ? theme.colorScheme.onSurfaceVariant
+                        : null,
+                  ),
+                ),
+              ],
             ),
           ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            iconSize: 18,
+            tooltip: '👍',
+            icon: const Icon(Icons.thumb_up_alt_outlined),
+            onPressed: onReact,
+          ),
+          if (onPin != null)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
+              icon: Icon(
+                message.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+              ),
+              onPressed: onPin,
+            ),
         ],
       ),
     );
