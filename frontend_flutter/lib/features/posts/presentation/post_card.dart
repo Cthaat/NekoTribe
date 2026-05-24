@@ -8,6 +8,7 @@ import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../sentiment_flow/presentation/sentiment_prediction_dialog.dart';
 import '../domain/post_models.dart';
 
 class PostCard extends ConsumerStatefulWidget {
@@ -213,6 +214,15 @@ class _PostCardState extends ConsumerState<PostCard> {
     }
   }
 
+  Future<void> _showSentimentPrediction() async {
+    if (!requireAuthenticatedAction(context, ref)) return;
+    await showSentimentPredictionDialog(
+      context: context,
+      text: _post.content,
+      postId: _post.postId,
+    );
+  }
+
   void _handleMenu(String value) {
     switch (value) {
       case 'edit':
@@ -229,6 +239,9 @@ class _PostCardState extends ConsumerState<PostCard> {
       case 'not_interested':
       case 'show_less':
         _sendFeedback(value);
+        break;
+      case 'sentiment':
+        _showSentimentPrediction();
         break;
       case 'report':
         if (requireAuthenticatedAction(context, ref)) {
@@ -340,6 +353,10 @@ class _PostCardState extends ConsumerState<PostCard> {
                             PopupMenuItem(
                               value: 'show_less',
                               child: Text(l10n.t('post.feedback.show_less')),
+                            ),
+                            PopupMenuItem(
+                              value: 'sentiment',
+                              child: Text(l10n.t('sentiment.actions.predict')),
                             ),
                             PopupMenuItem(
                               value: 'report',
