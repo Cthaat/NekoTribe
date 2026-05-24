@@ -151,6 +151,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(path: '/chat', builder: (_, __) => const ChatHomeScreen()),
           GoRoute(path: '/me', builder: (_, __) => const AccountScreen()),
+          GoRoute(path: '/groups', builder: (_, __) => const GroupsScreen()),
+          GoRoute(
+            path: '/moderation',
+            builder: (_, __) => const ModerationScreen(),
+          ),
+          GoRoute(
+            path: '/sentiment',
+            builder: (_, __) => const SentimentScreen(),
+          ),
           GoRoute(path: '/about', builder: (_, __) => const AboutScreen()),
         ],
       ),
@@ -266,7 +275,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, __) =>
             const AccountPostsScreen(kind: AccountPostsKind.bookmarks),
       ),
-      GoRoute(path: '/groups', builder: (_, __) => const GroupsScreen()),
       GoRoute(
         path: '/groups/:slug',
         builder: (_, state) {
@@ -308,10 +316,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        path: '/moderation',
-        builder: (_, __) => const ModerationScreen(),
-      ),
-      GoRoute(
         path: '/moderation/content',
         builder: (_, __) => const ModerationScreen(initialTab: 1),
       ),
@@ -331,7 +335,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/moderation/settings',
         builder: (_, __) => const ModerationScreen(initialTab: 5),
       ),
-      GoRoute(path: '/sentiment', builder: (_, __) => const SentimentScreen()),
     ],
     errorBuilder: (context, state) =>
         Scaffold(body: Center(child: Text('Route not found: ${state.uri}'))),
