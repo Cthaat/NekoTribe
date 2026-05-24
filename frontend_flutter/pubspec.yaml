@@ -44,6 +44,9 @@ dependencies:
   collection: ^1.18.0
   window_manager: ^0.5.1
 
+  # Typography
+  google_fonts: ^6.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
