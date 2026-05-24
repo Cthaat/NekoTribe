@@ -57,7 +57,8 @@ class MediaApi {
     String? description,
     void Function(int sent, int total)? onProgress,
   }) async {
-    final mime = mimeType ??
+    final mime =
+        mimeType ??
         lookupMimeType(fileName, headerBytes: bytes.take(16).toList()) ??
         'application/octet-stream';
     final form = FormData.fromMap({
