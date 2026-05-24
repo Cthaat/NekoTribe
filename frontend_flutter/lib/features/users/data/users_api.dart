@@ -42,6 +42,18 @@ class UsersApi {
     );
   }
 
+  Future<Map<String, dynamic>> deleteMe({
+    required String password,
+    required String confirmation,
+  }) {
+    return _client.requestData<Map<String, dynamic>>(
+      ApiPaths.usersMe,
+      method: 'DELETE',
+      data: {'password': password, 'confirmation': confirmation},
+      decode: (data) => toMap(data),
+    );
+  }
+
   Future<V2SelfUser> uploadAvatar({required int mediaId}) {
     return _client.requestData<V2SelfUser>(
       ApiPaths.usersMeAvatar,
