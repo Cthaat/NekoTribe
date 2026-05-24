@@ -38,12 +38,12 @@ class V2Relationship {
   }
 
   static V2Relationship empty() => V2Relationship(
-        isSelf: false,
-        isFollowing: false,
-        isBlocked: false,
-        isBlocking: false,
-        relation: 'stranger',
-      );
+    isSelf: false,
+    isFollowing: false,
+    isBlocked: false,
+    isBlocking: false,
+    relation: 'stranger',
+  );
 }
 
 class V2PublicUser {
@@ -99,7 +99,8 @@ class V2PublicUser {
       likesCount: toInt(json['likes_count']) ?? 0,
       relationship: json['relationship'] is Map<String, dynamic>
           ? V2Relationship.fromJson(
-              json['relationship'] as Map<String, dynamic>)
+              json['relationship'] as Map<String, dynamic>,
+            )
           : V2Relationship.empty(),
       onlineStatus: toStr(json['online_status'], defaultValue: 'offline'),
       lastSeenAt: toStrOrNull(json['last_seen_at']),
@@ -213,8 +214,10 @@ class V2UserSettings {
           ? null
           : toBool(json['two_factor_enabled']),
       loginAlerts: toBool(json['login_alerts']),
-      profileVisibility:
-          toStr(json['profile_visibility'], defaultValue: 'public'),
+      profileVisibility: toStr(
+        json['profile_visibility'],
+        defaultValue: 'public',
+      ),
       showOnlineStatus: json['show_online_status'] == null
           ? null
           : toBool(json['show_online_status']),
@@ -233,12 +236,11 @@ class V2UserSettings {
       aiSentimentModelId: toStrOrNull(json['ai_sentiment_model_id']),
       aiSentimentReturnProbabilities:
           json['ai_sentiment_return_probabilities'] == null
-              ? null
-              : toBool(json['ai_sentiment_return_probabilities']),
-      aiSentimentIncludeMetadata:
-          json['ai_sentiment_include_metadata'] == null
-              ? null
-              : toBool(json['ai_sentiment_include_metadata']),
+          ? null
+          : toBool(json['ai_sentiment_return_probabilities']),
+      aiSentimentIncludeMetadata: json['ai_sentiment_include_metadata'] == null
+          ? null
+          : toBool(json['ai_sentiment_include_metadata']),
       aiSentimentTopK: toInt(json['ai_sentiment_top_k']),
       updatedAt: toStr(json['updated_at']),
     );
