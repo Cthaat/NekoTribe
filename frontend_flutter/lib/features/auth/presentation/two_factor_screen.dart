@@ -37,7 +37,9 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
       _error = null;
     });
     try {
-      await ref.read(authRepositoryProvider).completeTwoFactor(
+      await ref
+          .read(authRepositoryProvider)
+          .completeTwoFactor(
             challengeId: widget.challengeId,
             code: _code.text.trim(),
           );
@@ -66,8 +68,10 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(widget.account,
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  widget.account,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _code,
@@ -82,7 +86,8 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                   Text(
                     _error!,
                     style: TextStyle(
-                        color: Theme.of(context).colorScheme.error),
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -92,7 +97,8 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                       ? const SizedBox(
                           height: 18,
                           width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : Text(l10n.t('auth.submit')),
                 ),
               ],
