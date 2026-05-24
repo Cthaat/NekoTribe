@@ -123,6 +123,28 @@ class PostsApi {
     );
   }
 
+  Future<V2Post> updatePost({
+    required int postId,
+    String? content,
+    String? visibility,
+    String? language,
+    String? location,
+    List<String>? tags,
+  }) {
+    return _client.requestData<V2Post>(
+      '${ApiPaths.posts}/$postId',
+      method: 'PUT',
+      data: {
+        if (content != null) 'content': content,
+        if (visibility != null) 'visibility': visibility,
+        if (language != null) 'language': language,
+        if (location != null) 'location': location,
+        if (tags != null) 'tag_names': tags,
+      },
+      decode: (data) => V2Post.fromJson(toMap(data)),
+    );
+  }
+
   Future<void> deletePost(int postId) async {
     await _client.request<void>(
       '${ApiPaths.posts}/$postId',
