@@ -74,7 +74,9 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
   Future<void> _applyCustom() async {
     if (!_validate()) return;
     setState(() => _saving = true);
-    await ref.read(appConfigProvider.notifier).setCustom(
+    await ref
+        .read(appConfigProvider.notifier)
+        .setCustom(
           apiBaseUrl: _apiCtl.text,
           wsBaseUrl: _wsCtl.text,
           storageBaseUrl: _storageCtl.text,
@@ -145,9 +147,11 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
                         Text(
                           cfg.isCustom
                               ? l10n.t('endpoint.custom')
-                              : (controller.presetById(cfg.presetId ?? '')?.label ??
-                                  cfg.presetId ??
-                                  ''),
+                              : (controller
+                                        .presetById(cfg.presetId ?? '')
+                                        ?.label ??
+                                    cfg.presetId ??
+                                    ''),
                         ),
                       ],
                     ),
@@ -189,8 +193,7 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
                             children: [
                               Text(
                                 p.label,
-                                style:
-                                    Theme.of(context).textTheme.titleSmall,
+                                style: Theme.of(context).textTheme.titleSmall,
                               ),
                               if (p.description != null &&
                                   p.description!.isNotEmpty)
@@ -203,15 +206,19 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
                                 child: Text(
                                   'API: ${p.apiBaseUrl}\nWS:  ${p.wsBaseUrl}\nFile: ${p.storageBaseUrl}',
                                   style: const TextStyle(
-                                      fontFamily: 'monospace', fontSize: 12),
+                                    fontFamily: 'monospace',
+                                    fontSize: 12,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
                         if (selected)
-                          Icon(Icons.check_circle,
-                              color: Theme.of(context).colorScheme.primary),
+                          Icon(
+                            Icons.check_circle,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                       ],
                     ),
                   ),
@@ -261,8 +268,7 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   _pendingError!,
-                  style:
-                      TextStyle(color: Theme.of(context).colorScheme.error),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
             const SizedBox(height: 16),
@@ -293,12 +299,12 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline,
-                        color: Theme.of(context).colorScheme.tertiary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(l10n.t('endpoint.hint')),
+                    Icon(
+                      Icons.info_outline,
+                      color: Theme.of(context).colorScheme.tertiary,
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(l10n.t('endpoint.hint'))),
                   ],
                 ),
               ),
@@ -324,8 +330,7 @@ class _KvRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 64,
-            child: Text(label,
-                style: Theme.of(context).textTheme.labelMedium),
+            child: Text(label, style: Theme.of(context).textTheme.labelMedium),
           ),
           Expanded(
             child: SelectableText(
