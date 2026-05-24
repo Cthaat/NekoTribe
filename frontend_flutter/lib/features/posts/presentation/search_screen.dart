@@ -102,6 +102,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           post: p,
                           onChanged: (u) =>
                               setState(() => _posts[i] = u),
+                          onDeleted: () {
+                            _posts.removeAt(i);
+                            setState(() {});
+                          },
                           onReport: () => showReportDialog(
                             context,
                             ref,
