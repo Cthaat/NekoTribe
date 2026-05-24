@@ -9,7 +9,8 @@ import '../../../shared/widgets/status_views.dart';
 import '../domain/moderation_models.dart';
 
 class ModerationScreen extends ConsumerStatefulWidget {
-  const ModerationScreen({super.key});
+  const ModerationScreen({super.key, this.initialTab = 0});
+  final int initialTab;
 
   @override
   ConsumerState<ModerationScreen> createState() => _ModerationScreenState();
@@ -26,7 +27,11 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(
+      length: 5,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 4),
+    );
     _loadStats();
   }
 
@@ -71,6 +76,7 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
             Tab(text: 'Content'),
             Tab(text: 'Reports'),
             Tab(text: 'Appeals'),
+            Tab(text: 'Settings'),
           ],
         ),
       ),
@@ -86,6 +92,7 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
           const _ContentTab(),
           const _ReportsTab(),
           const _AppealsTab(),
+          const _SettingsTab(),
         ],
       ),
     );
@@ -550,6 +557,74 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
               ],
             ),
             isThreeLine: true,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SettingsTab extends ConsumerStatefulWidget {
+  const _SettingsTab();
+
+  @override
+  ConsumerState<_SettingsTab> createState() => _SettingsTabState();
+}
+
+class _SettingsTabState extends ConsumerState<_SettingsTab>
+    with AutomaticKeepAliveClientMixin {
+  List<V2ModerationSetting> _items = [];
+  bool _loading = true;
+  Object? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final settings = await ref.read(moderationApiProvider).settings();
+      if (!mounted) return;
+      setState(() {
+        _items = settings;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_loading) return const LoadingView();
+    if (_error != null) return ErrorView(error: _error!, onRetry: _load);
+    if (_items.isEmpty) return const EmptyView(message: 'No settings');
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        itemCount: _items.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (_, i) {
+          final item = _items[i];
+          return ListTile(
+            leading: const Icon(Icons.tune),
+            title: Text(item.label.isEmpty ? item.key : item.label),
+            subtitle: Text(item.description),
+            trailing: Text(item.value),
           );
         },
       ),
