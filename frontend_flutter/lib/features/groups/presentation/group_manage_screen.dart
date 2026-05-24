@@ -68,21 +68,18 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
     try {
       final next = await ref.read(groupsApiProvider).updateGroup(
         _group!.groupId,
-        {
-          'name': _name.text.trim(),
-          'description': _description.text.trim(),
-        },
+        {'name': _name.text.trim(), 'description': _description.text.trim()},
       );
       if (!mounted) return;
       setState(() => _group = next);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Group updated')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Group updated')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -93,14 +90,14 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
     try {
       await ref.read(groupsApiProvider).createInvite(_group!.groupId, {});
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invite created')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invite created')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -111,55 +108,52 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    TextField(
-                      controller: _name,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Name',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _description,
-                      minLines: 3,
-                      maxLines: 5,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Description',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: _saving ? null : _save,
-                      icon: const Icon(Icons.save),
-                      label: const Text('Save'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _createInvite,
-                      icon: const Icon(Icons.mail_outline),
-                      label: const Text('Create invite'),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Members',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    for (final member in _members)
-                      Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.person_outline),
-                          title: Text(member.user.displayName),
-                          subtitle: Text('@${member.user.username}'),
-                          trailing: Text(member.role),
-                        ),
-                      ),
-                  ],
+          ? ErrorView(error: _error!, onRetry: _load)
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                TextField(
+                  controller: _name,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Name',
+                  ),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _description,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Description',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: const Icon(Icons.save),
+                  label: const Text('Save'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _createInvite,
+                  icon: const Icon(Icons.mail_outline),
+                  label: const Text('Create invite'),
+                ),
+                const SizedBox(height: 20),
+                Text('Members', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                for (final member in _members)
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.person_outline),
+                      title: Text(member.user.displayName),
+                      subtitle: Text('@${member.user.username}'),
+                      trailing: Text(member.role),
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 }
