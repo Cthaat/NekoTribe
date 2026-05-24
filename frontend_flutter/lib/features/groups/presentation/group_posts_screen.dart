@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/media_lightbox.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../posts/presentation/report_dialog.dart';
@@ -366,16 +367,28 @@ class _GroupFeedPostTile extends StatelessWidget {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: post.mediaUrls
-                    .map(
-                      (url) => AppMediaImage(
-                        url: url,
-                        width: 108,
-                        height: 108,
+                children: [
+                  for (var i = 0; i < post.mediaUrls.length; i++)
+                    Tooltip(
+                      message: l10n.t('media.open'),
+                      child: InkWell(
                         borderRadius: BorderRadius.circular(8),
+                        onTap: () => showMediaLightbox(
+                          context: context,
+                          items: post.mediaUrls
+                              .map((url) => MediaLightboxItem(url: url))
+                              .toList(growable: false),
+                          initialIndex: i,
+                        ),
+                        child: AppMediaImage(
+                          url: post.mediaUrls[i],
+                          width: 108,
+                          height: 108,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                    )
-                    .toList(),
+                    ),
+                ],
               ),
             ],
             const SizedBox(height: 6),
