@@ -135,16 +135,19 @@ class _OverviewTab extends StatelessWidget {
           _StatCard(label: 'Approved', value: '${stats!.approved}'),
           _StatCard(label: 'Rejected', value: '${stats!.rejected}'),
           _StatCard(label: 'Flagged', value: '${stats!.flagged}'),
-          _StatCard(label: 'Today processed', value: '${stats!.todayProcessed}'),
           _StatCard(
-              label: 'Open reports', value: '${stats!.openReports}'),
+            label: 'Today processed',
+            value: '${stats!.todayProcessed}',
+          ),
+          _StatCard(label: 'Open reports', value: '${stats!.openReports}'),
           _StatCard(
-              label: 'Avg minutes',
-              value: stats!.avgProcessMinutes.toStringAsFixed(1)),
+            label: 'Avg minutes',
+            value: stats!.avgProcessMinutes.toStringAsFixed(1),
+          ),
           _StatCard(
-              label: 'Appeal success',
-              value:
-                  '${(stats!.appealSuccessRate * 100).toStringAsFixed(1)}%'),
+            label: 'Appeal success',
+            value: '${(stats!.appealSuccessRate * 100).toStringAsFixed(1)}%',
+          ),
         ],
       ),
     );
@@ -167,10 +170,12 @@ class _StatCard extends StatelessWidget {
           children: [
             Text(value, style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 4),
-            Text(label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).hintColor,
-                    )),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).hintColor,
+              ),
+            ),
           ],
         ),
       ),
@@ -230,13 +235,12 @@ class _ContentTabState extends ConsumerState<_ContentTab>
           .read(moderationApiProvider)
           .resolveContent(caseId: item.caseId, action: action);
       if (!mounted) return;
-      setState(
-          () => _items.removeWhere((x) => x.caseId == item.caseId));
+      setState(() => _items.removeWhere((x) => x.caseId == item.caseId));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -264,61 +268,59 @@ class _ContentTabState extends ConsumerState<_ContentTab>
           child: _loading
               ? const LoadingView()
               : _error != null
-                  ? ErrorView(error: _error!, onRetry: _load)
-                  : _items.isEmpty
-                      ? const EmptyView(message: 'No items')
-                      : RefreshIndicator(
-                          onRefresh: _load,
-                          child: ListView.separated(
-                            itemCount: _items.length,
-                            separatorBuilder: (_, _) =>
-                                const Divider(height: 1),
-                            itemBuilder: (_, i) {
-                              final item = _items[i];
-                              return ListTile(
-                                leading:
-                                    AppAvatar(url: item.author.avatarUrl),
-                                title: Text(item.author.displayName),
-                                subtitle: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(item.content,
-                                        maxLines: 3,
-                                        overflow:
-                                            TextOverflow.ellipsis),
-                                    Text(
-                                      'Reports: ${item.reportCount} · ${item.reportReasons.join(', ')}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall,
-                                    ),
-                                  ],
-                                ),
-                                trailing: _status == 'pending'
-                                    ? Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.check,
-                                                color: Colors.green),
-                                            onPressed: () =>
-                                                _resolve(item, 'approve'),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.close,
-                                                color: Colors.red),
-                                            onPressed: () =>
-                                                _resolve(item, 'reject'),
-                                          ),
-                                        ],
-                                      )
-                                    : null,
-                                isThreeLine: true,
-                              );
-                            },
-                          ),
+              ? ErrorView(error: _error!, onRetry: _load)
+              : _items.isEmpty
+              ? const EmptyView(message: 'No items')
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    itemCount: _items.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final item = _items[i];
+                      return ListTile(
+                        leading: AppAvatar(url: item.author.avatarUrl),
+                        title: Text(item.author.displayName),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.content,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Reports: ${item.reportCount} · ${item.reportReasons.join(', ')}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
                         ),
+                        trailing: _status == 'pending'
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.check,
+                                      color: Colors.green,
+                                    ),
+                                    onPressed: () => _resolve(item, 'approve'),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () => _resolve(item, 'reject'),
+                                  ),
+                                ],
+                              )
+                            : null,
+                        isThreeLine: true,
+                      );
+                    },
+                  ),
+                ),
         ),
       ],
     );
@@ -353,8 +355,9 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
       _error = null;
     });
     try {
-      final page =
-          await ref.read(moderationApiProvider).reports(status: 'open');
+      final page = await ref
+          .read(moderationApiProvider)
+          .reports(status: 'open');
       if (!mounted) return;
       setState(() {
         _items = page.items;
@@ -378,9 +381,9 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
       setState(() => _items.removeWhere((x) => x.reportId == r.reportId));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -411,10 +414,15 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(r.description,
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                Text(_formatDate(r.createdAt),
-                    style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  r.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  _formatDate(r.createdAt),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ],
             ),
             trailing: Row(
@@ -474,7 +482,9 @@ class _UsersTabState extends ConsumerState<_UsersTab>
       _error = null;
     });
     try {
-      final page = await ref.read(moderationApiProvider).users(
+      final page = await ref
+          .read(moderationApiProvider)
+          .users(
             status: _status == 'all' ? null : _status,
             keyword: _keywordController.text.trim().isEmpty
                 ? null
@@ -494,10 +504,7 @@ class _UsersTabState extends ConsumerState<_UsersTab>
     }
   }
 
-  Future<void> _moderateUser(
-    V2ModerationUserItem user,
-    String action,
-  ) async {
+  Future<void> _moderateUser(V2ModerationUserItem user, String action) async {
     final reason = TextEditingController();
     final duration = TextEditingController(text: '24');
     final confirmed = await showDialog<bool>(
@@ -550,20 +557,23 @@ class _UsersTabState extends ConsumerState<_UsersTab>
     if (confirmed != true) return;
 
     try {
-      await ref.read(moderationApiProvider).restrictUser(
+      await ref
+          .read(moderationApiProvider)
+          .restrictUser(
             userId: user.userId,
             action: action,
-            reason: reasonText.isEmpty ? null : reasonText,
-            note: action == 'note' && reasonText.isNotEmpty ? reasonText : null,
-            durationHours:
-                action == 'ban' || action == 'mute' ? durationHours : null,
+            reason: action == 'note' || reasonText.isEmpty ? null : reasonText,
+            note: reasonText.isEmpty ? null : reasonText,
+            durationHours: action == 'ban' || action == 'mute'
+                ? durationHours
+                : null,
           );
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -611,66 +621,63 @@ class _UsersTabState extends ConsumerState<_UsersTab>
           child: _loading
               ? const LoadingView()
               : _error != null
-                  ? ErrorView(error: _error!, onRetry: _load)
-                  : _items.isEmpty
-                      ? const EmptyView(message: 'No users')
-                      : RefreshIndicator(
-                          onRefresh: _load,
-                          child: ListView.separated(
-                            itemCount: _items.length,
-                            separatorBuilder: (_, _) =>
-                                const Divider(height: 1),
-                            itemBuilder: (_, i) {
-                              final user = _items[i];
-                              final restriction =
-                                  user.activeRestriction ?? 'none';
-                              return ListTile(
-                                leading: AppAvatar(
-                                    url: user.avatarUrl, size: 44),
-                                title: Text(user.displayName.isEmpty
-                                    ? '@${user.username}'
-                                    : user.displayName),
-                                subtitle: Text(
-                                  '@${user.username} · ${user.status} · reports ${user.reportCount} · restriction $restriction',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                onTap: () =>
-                                    context.push('/users/${user.userId}'),
-                                trailing: PopupMenuButton<String>(
-                                  onSelected: (action) =>
-                                      _moderateUser(user, action),
-                                  itemBuilder: (_) => [
-                                    const PopupMenuItem(
-                                      value: 'note',
-                                      child: Text('Add note'),
-                                    ),
-                                    if (user.activeRestriction != 'ban')
-                                      const PopupMenuItem(
-                                        value: 'ban',
-                                        child: Text('Ban'),
-                                      ),
-                                    if (user.activeRestriction == 'ban')
-                                      const PopupMenuItem(
-                                        value: 'unban',
-                                        child: Text('Unban'),
-                                      ),
-                                    if (user.activeRestriction != 'mute')
-                                      const PopupMenuItem(
-                                        value: 'mute',
-                                        child: Text('Mute'),
-                                      ),
-                                    if (user.activeRestriction == 'mute')
-                                      const PopupMenuItem(
-                                        value: 'unmute',
-                                        child: Text('Unmute'),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
+              ? ErrorView(error: _error!, onRetry: _load)
+              : _items.isEmpty
+              ? const EmptyView(message: 'No users')
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    itemCount: _items.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final user = _items[i];
+                      final restriction = user.activeRestriction ?? 'none';
+                      return ListTile(
+                        leading: AppAvatar(url: user.avatarUrl, size: 44),
+                        title: Text(
+                          user.displayName.isEmpty
+                              ? '@${user.username}'
+                              : user.displayName,
                         ),
+                        subtitle: Text(
+                          '@${user.username} · ${user.status} · reports ${user.reportCount} · restriction $restriction',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () => context.push('/users/${user.userId}'),
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (action) => _moderateUser(user, action),
+                          itemBuilder: (_) => [
+                            const PopupMenuItem(
+                              value: 'note',
+                              child: Text('Add note'),
+                            ),
+                            if (user.activeRestriction != 'ban')
+                              const PopupMenuItem(
+                                value: 'ban',
+                                child: Text('Ban'),
+                              ),
+                            if (user.activeRestriction == 'ban')
+                              const PopupMenuItem(
+                                value: 'unban',
+                                child: Text('Unban'),
+                              ),
+                            if (user.activeRestriction != 'mute')
+                              const PopupMenuItem(
+                                value: 'mute',
+                                child: Text('Mute'),
+                              ),
+                            if (user.activeRestriction == 'mute')
+                              const PopupMenuItem(
+                                value: 'unmute',
+                                child: Text('Unmute'),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
         ),
       ],
     );
@@ -750,7 +757,9 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
     );
     if (response == null) return;
     try {
-      await ref.read(moderationApiProvider).updateAppeal(
+      await ref
+          .read(moderationApiProvider)
+          .updateAppeal(
             appealId: a.appealId,
             status: status,
             response: response,
@@ -759,9 +768,9 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
       setState(() => _items.removeWhere((x) => x.appealId == a.appealId));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -783,8 +792,11 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
           return ListTile(
             leading: AppAvatar(url: a.user.avatarUrl),
             title: Text('@${a.user.username} · #${a.statementId}'),
-            subtitle: Text(a.appealMessage,
-                maxLines: 3, overflow: TextOverflow.ellipsis),
+            subtitle: Text(
+              a.appealMessage,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
