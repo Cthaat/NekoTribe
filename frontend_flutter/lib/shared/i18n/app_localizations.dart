@@ -672,7 +672,8 @@ class AppLocalizations {
       'group.pin': 'Pin',
       'group.unpin': 'Unpin',
       'group.notifications': 'Group notifications',
-      'group.notifications_hint': 'Receive post and comment notifications from this group',
+      'group.notifications_hint':
+          'Receive post and comment notifications from this group',
       'group.member_updated': 'Member updated',
       'group.member_removed': 'Member removed',
       'group.change_role': 'Change role',
@@ -858,15 +859,18 @@ class AppLocalizations {
           'Default number of hours for user mute actions.',
       'sentiment.title': 'Sentiment',
       'sentiment.predict': 'Analyze',
-      'sentiment.intro': 'Analyze sentiment of text using SentimentFlow models.',
+      'sentiment.intro':
+          'Analyze sentiment of text using SentimentFlow models.',
       'sentiment.disabled': 'SentimentFlow is not enabled on this server.',
       'sentiment.model': 'Model',
       'sentiment.text_to_analyze': 'Text to analyze',
       'sentiment.text_hint': 'Enter the content you want to analyze…',
       'sentiment.return_probs': 'Return probabilities',
-      'sentiment.return_probs_hint': 'Include per-class probability distribution.',
+      'sentiment.return_probs_hint':
+          'Include per-class probability distribution.',
       'sentiment.include_metadata': 'Include metadata',
-      'sentiment.include_metadata_hint': 'Attach inference details from the model.',
+      'sentiment.include_metadata_hint':
+          'Attach inference details from the model.',
       'sentiment.result': 'Result',
       'sentiment.confidence': 'Confidence',
       'sentiment.probabilities': 'Probabilities',
