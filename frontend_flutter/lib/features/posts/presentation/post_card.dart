@@ -129,7 +129,7 @@ class _PostCardState extends ConsumerState<PostCard> {
           children: [
             GestureDetector(
               onTap: () =>
-                  context.push('/users/${_post.author.username}'),
+                  context.push('/users/${_post.author.userId}'),
               child: AppAvatar(url: _post.author.avatarUrl, size: 44),
             ),
             const SizedBox(width: 12),
