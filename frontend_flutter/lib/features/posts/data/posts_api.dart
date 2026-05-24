@@ -17,9 +17,9 @@ class PostsApi {
     String? language,
   }) {
     final query = <String, dynamic>{
-      'mode': mode,
+      'timeline': mode,
       'page': page,
-      'size': size,
+      'page_size': size,
     };
     if (cursor != null) query['cursor'] = cursor;
     if (language != null) query['language'] = language;
@@ -38,7 +38,20 @@ class PostsApi {
   }) {
     return _client.requestData<PagedResult<V2Post>>(
       '${ApiPaths.users}/$username/posts',
-      query: {'page': page, 'size': size, 'mode': mode},
+      query: {'page': page, 'page_size': size, 'sort': mode},
+      decode: (data) => _decodePostPage(data),
+    );
+  }
+
+  Future<PagedResult<V2Post>> getUserPostsById(
+    int userId, {
+    int page = 1,
+    int size = 20,
+    String sort = 'newest',
+  }) {
+    return _client.requestData<PagedResult<V2Post>>(
+      '${ApiPaths.users}/$userId/posts',
+      query: {'page': page, 'page_size': size, 'sort': sort},
       decode: (data) => _decodePostPage(data),
     );
   }
@@ -50,7 +63,7 @@ class PostsApi {
   }) {
     return _client.requestData<PagedResult<V2Post>>(
       ApiPaths.usersMePosts,
-      query: {'page': page, 'size': size, 'mode': mode},
+      query: {'page': page, 'page_size': size, 'sort': mode},
       decode: (data) => _decodePostPage(data),
     );
   }
@@ -58,7 +71,7 @@ class PostsApi {
   Future<PagedResult<V2Post>> getMyLikes({int page = 1, int size = 20}) {
     return _client.requestData<PagedResult<V2Post>>(
       ApiPaths.usersMeLikes,
-      query: {'page': page, 'size': size},
+      query: {'page': page, 'page_size': size},
       decode: (data) => _decodePostPage(data),
     );
   }
@@ -66,7 +79,7 @@ class PostsApi {
   Future<PagedResult<V2Post>> getMyBookmarks({int page = 1, int size = 20}) {
     return _client.requestData<PagedResult<V2Post>>(
       ApiPaths.usersMeBookmarks,
-      query: {'page': page, 'size': size},
+      query: {'page': page, 'page_size': size},
       decode: (data) => _decodePostPage(data),
     );
   }
@@ -120,15 +133,15 @@ class PostsApi {
 
   Future<V2ViewerPostState> likePost(int postId) {
     return _client.requestData<V2ViewerPostState>(
-      '${ApiPaths.posts}/$postId/like',
-      method: 'PUT',
+      '${ApiPaths.posts}/$postId/likes',
+      method: 'POST',
       decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
     );
   }
 
   Future<V2ViewerPostState> unlikePost(int postId) {
     return _client.requestData<V2ViewerPostState>(
-      '${ApiPaths.posts}/$postId/like',
+      '${ApiPaths.posts}/$postId/likes',
       method: 'DELETE',
       decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
     );
@@ -136,17 +149,43 @@ class PostsApi {
 
   Future<V2ViewerPostState> bookmarkPost(int postId) {
     return _client.requestData<V2ViewerPostState>(
-      '${ApiPaths.posts}/$postId/bookmark',
-      method: 'PUT',
+      '${ApiPaths.posts}/$postId/bookmarks',
+      method: 'POST',
       decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
     );
   }
 
   Future<V2ViewerPostState> unbookmarkPost(int postId) {
     return _client.requestData<V2ViewerPostState>(
-      '${ApiPaths.posts}/$postId/bookmark',
+      '${ApiPaths.posts}/$postId/bookmarks',
       method: 'DELETE',
       decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2Post> createRetweet({
+    required int postId,
+    required String content,
+    String visibility = 'public',
+  }) {
+    return _client.requestData<V2Post>(
+      '${ApiPaths.posts}/$postId/retweets',
+      method: 'POST',
+      data: {'content': content, 'visibility': visibility},
+      decode: (data) => V2Post.fromJson(toMap(data)),
+    );
+  }
+
+  Future<PagedResult<V2Post>> getReplies(
+    int postId, {
+    int page = 1,
+    int size = 20,
+    String sort = 'newest',
+  }) {
+    return _client.requestData<PagedResult<V2Post>>(
+      '${ApiPaths.posts}/$postId/replies',
+      query: {'page': page, 'page_size': size, 'sort': sort},
+      decode: (data) => _decodePostPage(data),
     );
   }
 
@@ -157,7 +196,7 @@ class PostsApi {
   }) {
     return _client.requestData<PagedResult<V2Comment>>(
       '${ApiPaths.posts}/$postId/comments',
-      query: {'page': page, 'size': size},
+      query: {'page': page, 'page_size': size},
       decode: (data) {
         final map = toMap(data);
         final items = toList(
@@ -199,15 +238,15 @@ class PostsApi {
 
   Future<void> likeComment(int commentId) async {
     await _client.request<void>(
-      '${ApiPaths.comments}/$commentId/like',
-      method: 'PUT',
+      '${ApiPaths.comments}/$commentId/likes',
+      method: 'POST',
       decode: (_) {},
     );
   }
 
   Future<void> unlikeComment(int commentId) async {
     await _client.request<void>(
-      '${ApiPaths.comments}/$commentId/like',
+      '${ApiPaths.comments}/$commentId/likes',
       method: 'DELETE',
       decode: (_) {},
     );
@@ -219,8 +258,8 @@ class PostsApi {
     int size = 20,
   }) {
     return _client.requestData<PagedResult<V2Post>>(
-      '${ApiPaths.posts}/search',
-      query: {'q': query, 'page': page, 'size': size},
+      ApiPaths.posts,
+      query: {'q': query, 'page': page, 'page_size': size},
       decode: (data) => _decodePostPage(data),
     );
   }
@@ -260,7 +299,7 @@ class PostsApi {
   }) {
     return _client.requestData<PagedResult<V2Post>>(
       '${ApiPaths.tags}/$tag/posts',
-      query: {'page': page, 'size': size},
+      query: {'page': page, 'page_size': size},
       decode: (data) => _decodePostPage(data),
     );
   }
