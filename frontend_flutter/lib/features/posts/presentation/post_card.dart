@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/status_views.dart';
 import '../domain/post_models.dart';
 
 class PostCard extends ConsumerStatefulWidget {
@@ -14,11 +16,13 @@ class PostCard extends ConsumerStatefulWidget {
     required this.post,
     this.onChanged,
     this.onReport,
+    this.onDeleted,
   });
 
   final V2Post post;
   final void Function(V2Post updated)? onChanged;
   final VoidCallback? onReport;
+  final VoidCallback? onDeleted;
 
   @override
   ConsumerState<PostCard> createState() => _PostCardState();
@@ -37,6 +41,7 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   Future<void> _toggleLike() async {
     if (_busyLike) return;
+    if (!requireAuthenticatedAction(context, ref)) return;
     setState(() => _busyLike = true);
     final api = ref.read(postsApiProvider);
     final wasLiked = _post.viewerState.isLiked;
@@ -75,6 +80,7 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   Future<void> _toggleBookmark() async {
     if (_busyBookmark) return;
+    if (!requireAuthenticatedAction(context, ref)) return;
     setState(() => _busyBookmark = true);
     final api = ref.read(postsApiProvider);
     final wasBookmarked = _post.viewerState.isBookmarked;
@@ -99,6 +105,132 @@ class _PostCardState extends ConsumerState<PostCard> {
           ));
     } finally {
       if (mounted) setState(() => _busyBookmark = false);
+    }
+  }
+
+  Future<void> _deletePost() async {
+    if (!requireAuthenticatedAction(context, ref)) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete post'),
+        content: const Text('This post will be removed from NekoTribe.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(postsApiProvider).deletePost(_post.postId);
+      if (!mounted) return;
+      widget.onDeleted?.call();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Post deleted')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorView.describe(context, e))),
+      );
+    }
+  }
+
+  Future<void> _quotePost() async {
+    if (!requireAuthenticatedAction(context, ref)) return;
+    final controller = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Quote post'),
+        content: TextField(
+          controller: controller,
+          minLines: 3,
+          maxLines: 6,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            hintText: 'Add your comment',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Post'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (text == null) return;
+    try {
+      await ref.read(postsApiProvider).createRetweet(
+            postId: _post.postId,
+            content: text,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Quote posted')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorView.describe(context, e))),
+      );
+    }
+  }
+
+  Future<void> _sendFeedback(String feedback) async {
+    if (!requireAuthenticatedAction(context, ref)) return;
+    try {
+      await ref.read(postsApiProvider).recordRecommendationFeedback(
+            postId: _post.postId,
+            feedback: feedback,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Feedback saved')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorView.describe(context, e))),
+      );
+    }
+  }
+
+  void _handleMenu(String value) {
+    switch (value) {
+      case 'edit':
+        if (requireAuthenticatedAction(context, ref)) {
+          context.push('/posts/${_post.postId}/edit');
+        }
+        break;
+      case 'delete':
+        _deletePost();
+        break;
+      case 'quote':
+        _quotePost();
+        break;
+      case 'not_interested':
+      case 'show_less':
+        _sendFeedback(value);
+        break;
+      case 'report':
+        if (requireAuthenticatedAction(context, ref)) {
+          widget.onReport?.call();
+        }
+        break;
     }
   }
 
@@ -168,10 +300,30 @@ class _PostCardState extends ConsumerState<PostCard> {
                       const Spacer(),
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_horiz),
-                        onSelected: (v) {
-                          if (v == 'report') widget.onReport?.call();
-                        },
+                        onSelected: _handleMenu,
                         itemBuilder: (_) => [
+                          if (_post.viewerState.canDelete) ...[
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Text(l10n.t('common.edit')),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text(l10n.t('common.delete')),
+                            ),
+                          ],
+                          const PopupMenuItem(
+                            value: 'quote',
+                            child: Text('Quote'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'not_interested',
+                            child: Text('Not interested'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'show_less',
+                            child: Text('Show less like this'),
+                          ),
                           PopupMenuItem(
                               value: 'report',
                               child: Text(l10n.t('common.report'))),
