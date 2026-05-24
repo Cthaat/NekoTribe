@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nekotribe/shared/window/desktop_window_frame.dart';
 
 void main() {
-  testWidgets('desktop frame provides drag and window controls', (tester) async {
+  testWidgets('desktop frame provides drag and window controls', (
+    tester,
+  ) async {
     final controls = _FakeWindowControls();
 
     await tester.pumpWidget(
@@ -27,6 +29,7 @@ void main() {
     );
     await gesture.moveBy(const Offset(20, 0));
     await gesture.up();
+    await tester.pump(const Duration(milliseconds: 50));
     expect(controls.dragStarts, 1);
 
     await tester.tap(find.byKey(desktopWindowMinimizeButtonKey));
