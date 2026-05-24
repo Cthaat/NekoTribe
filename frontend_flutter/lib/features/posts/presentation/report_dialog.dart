@@ -18,83 +18,93 @@ Future<void> showReportDialog(
   final saved = await showDialog<bool>(
     context: context,
     builder: (ctx) {
-      return StatefulBuilder(builder: (ctx, setLocal) {
-        return AlertDialog(
-          title: Text(l10n.t('common.report')),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: selectedReason,
-                  items: const [
-                    DropdownMenuItem(value: 'spam', child: Text('Spam')),
-                    DropdownMenuItem(
-                        value: 'abuse', child: Text('Abuse / Harassment')),
-                    DropdownMenuItem(
-                        value: 'hate', child: Text('Hate speech')),
-                    DropdownMenuItem(
-                        value: 'sexual', child: Text('Sexual content')),
-                    DropdownMenuItem(
-                        value: 'violence', child: Text('Violence')),
-                    DropdownMenuItem(
+      return StatefulBuilder(
+        builder: (ctx, setLocal) {
+          return AlertDialog(
+            title: Text(l10n.t('common.report')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedReason,
+                    items: const [
+                      DropdownMenuItem(value: 'spam', child: Text('Spam')),
+                      DropdownMenuItem(
+                        value: 'abuse',
+                        child: Text('Abuse / Harassment'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'hate',
+                        child: Text('Hate speech'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'sexual',
+                        child: Text('Sexual content'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'violence',
+                        child: Text('Violence'),
+                      ),
+                      DropdownMenuItem(
                         value: 'misinformation',
-                        child: Text('Misinformation')),
-                    DropdownMenuItem(value: 'other', child: Text('Other')),
-                  ],
-                  onChanged: (v) => setLocal(() => selectedReason = v),
-                  decoration: const InputDecoration(labelText: 'Reason'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: descController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Details',
-                    border: OutlineInputBorder(),
+                        child: Text('Misinformation'),
+                      ),
+                      DropdownMenuItem(value: 'other', child: Text('Other')),
+                    ],
+                    onChanged: (v) => setLocal(() => selectedReason = v),
+                    decoration: const InputDecoration(labelText: 'Reason'),
                   ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text(l10n.t('common.cancel')),
-            ),
-            FilledButton(
-              onPressed: () async {
-                try {
-                  await ref.read(postsApiProvider).reportContent(
-                        targetType: targetType,
-                        targetId: targetId,
-                        reason: selectedReason ?? 'other',
-                        description: descController.text.trim().isEmpty
-                            ? null
-                            : descController.text.trim(),
-                      );
-                  if (ctx.mounted) Navigator.of(ctx).pop(true);
-                } catch (e) {
-                  if (!ctx.mounted) return;
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(
-                      content:
-                          Text(ErrorView.describe(ctx, e)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: descController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Details',
+                      border: OutlineInputBorder(),
                     ),
-                  );
-                }
-              },
-              child: Text(l10n.t('common.confirm')),
+                  ),
+                ],
+              ),
             ),
-          ],
-        );
-      });
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(l10n.t('common.cancel')),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  try {
+                    await ref
+                        .read(postsApiProvider)
+                        .reportContent(
+                          targetType: targetType,
+                          targetId: targetId,
+                          reason: selectedReason ?? 'other',
+                          description: descController.text.trim().isEmpty
+                              ? null
+                              : descController.text.trim(),
+                        );
+                    if (ctx.mounted) Navigator.of(ctx).pop(true);
+                  } catch (e) {
+                    if (!ctx.mounted) return;
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text(ErrorView.describe(ctx, e))),
+                    );
+                  }
+                },
+                child: Text(l10n.t('common.confirm')),
+              ),
+            ],
+          );
+        },
+      );
     },
   );
   if (saved == true && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Report submitted')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Report submitted')));
   }
   reasonController.dispose();
   descController.dispose();
