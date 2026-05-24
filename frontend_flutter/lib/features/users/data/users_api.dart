@@ -188,32 +188,33 @@ class UsersApi {
     );
   }
 
-  Future<Map<String, dynamic>> setupTwoFactor() {
+  Future<Map<String, dynamic>> setupTwoFactor({required String password}) {
     return _client.requestData<Map<String, dynamic>>(
       ApiPaths.usersMeTwoFactorSetup,
       method: 'POST',
+      data: {'password': password},
       decode: (data) => toMap(data),
     );
   }
 
-  Future<void> confirmTwoFactor({
-    required String secret,
-    required String code,
-  }) async {
-    await _client.request<void>(
+  Future<Map<String, dynamic>> confirmTwoFactor({required String code}) {
+    return _client.requestData<Map<String, dynamic>>(
       ApiPaths.usersMeTwoFactorConfirm,
       method: 'POST',
-      data: {'secret': secret, 'code': code},
-      decode: (_) {},
+      data: {'code': code},
+      decode: (data) => toMap(data),
     );
   }
 
-  Future<void> disableTwoFactor({required String password}) async {
-    await _client.request<void>(
+  Future<Map<String, dynamic>> disableTwoFactor({
+    required String password,
+    required String code,
+  }) {
+    return _client.requestData<Map<String, dynamic>>(
       ApiPaths.usersMeTwoFactor,
       method: 'DELETE',
-      data: {'password': password},
-      decode: (_) {},
+      data: {'password': password, 'code': code},
+      decode: (data) => toMap(data),
     );
   }
 }
