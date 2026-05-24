@@ -34,11 +34,7 @@ class ErrorMapper {
         cause: error,
       );
     }
-    return ApiException(
-      code: 50001,
-      message: error.toString(),
-      cause: error,
-    );
+    return ApiException(code: 50001, message: error.toString(), cause: error);
   }
 
   static String _describeDio(DioException error) {
