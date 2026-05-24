@@ -43,9 +43,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           .read(authRepositoryProvider)
           .requestOtp(account: _account.text.trim(), purpose: 'register');
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('OTP sent')));
+      ).showSnackBar(SnackBar(content: Text(l10n.t('auth.otp_sent'))));
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = ErrorView.describe(context, e));
@@ -156,9 +157,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _inviteCode,
-                  decoration: const InputDecoration(
-                    labelText: 'Invite code (optional)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.t('auth.invite_code_optional'),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 if (_error != null) ...[
