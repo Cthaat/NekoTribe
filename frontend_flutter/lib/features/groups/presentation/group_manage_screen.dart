@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/group_models.dart';
 
@@ -107,60 +109,153 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('group.manage'))),
       body: _loading
           ? const LoadingView()
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                TextField(
-                  controller: _name,
-                  decoration: InputDecoration(
-                    border: const OutlineInputBorder(),
-                    labelText: l10n.t('group.name'),
-                  ),
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.contentMaxWidth,
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _description,
-                  minLines: 3,
-                  maxLines: 5,
-                  decoration: InputDecoration(
-                    border: const OutlineInputBorder(),
-                    labelText: l10n.t('group.description'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: _saving ? null : _save,
-                  icon: const Icon(Icons.save),
-                  label: Text(l10n.t('common.save')),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _createInvite,
-                  icon: const Icon(Icons.mail_outline),
-                  label: Text(l10n.t('group.create_invite')),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  l10n.t('group.members_title'),
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                for (final member in _members)
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.person_outline),
-                      title: Text(member.user.displayName),
-                      subtitle: Text('@${member.user.username}'),
-                      trailing: Text(member.role),
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    TextField(
+                      controller: _name,
+                      decoration: InputDecoration(labelText: l10n.t('group.name')),
                     ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _description,
+                      minLines: 3,
+                      maxLines: 6,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('group.description'),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _saving ? null : _save,
+                            icon: _saving
+                                ? const SizedBox(
+                                    height: 16,
+                                    width: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_outlined),
+                            label: Text(l10n.t('common.save')),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _createInvite,
+                            icon: const Icon(Icons.mail_outline),
+                            label: Text(l10n.t('group.create_invite')),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      l10n.t('group.members_title'),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: theme.cardTheme.color,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: theme.dividerColor),
+                      ),
+                      child: Column(
+                        children: [
+                          for (var i = 0; i < _members.length; i++) ...[
+                            if (i > 0)
+                              Divider(
+                                height: 1,
+                                indent: 60,
+                                color: theme.dividerColor,
+                              ),
+                            _MemberRow(member: _members[i]),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+class _MemberRow extends StatelessWidget {
+  const _MemberRow({required this.member});
+  final V2GroupMember member;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        children: [
+          AppAvatar(url: member.user.avatarUrl, size: 36),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  member.user.displayName.isEmpty
+                      ? member.user.username
+                      : member.user.displayName,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '@${member.user.username}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              member.role,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
