@@ -667,6 +667,10 @@ class AppLocalizations {
       'account.security.disable_2fa': 'Disable 2FA',
       'account.security.code_or_recovery': 'Code or recovery code',
       'account.security.recovery_codes': 'Recovery codes',
+      'account.security.recovery_codes_hint':
+          'Save these recovery codes securely. Each can be used only once.',
+      'account.security.status_on': 'Enabled',
+      'account.security.status_off': 'Disabled',
       'account.security.password_required': 'Enter your current password',
       'account.security.disable_required':
           'Enter your current password and code',
