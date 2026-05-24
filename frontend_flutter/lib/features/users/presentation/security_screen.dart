@@ -44,18 +44,18 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
           .read(usersRepositoryProvider)
           .confirmTwoFactor(secret: _twoFactorSecret!, code: code);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('2FA enabled')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('2FA enabled')));
       setState(() {
         _twoFactorSecret = null;
         _qrUri = null;
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -68,19 +68,22 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(_error!,
-                  style:
-                      TextStyle(color: Theme.of(context).colorScheme.error)),
+              child: Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             ),
           ListTile(
             title: const Text('Setup Two-Factor Authentication'),
-            subtitle:
-                const Text('Use an authenticator app like Google Authenticator'),
+            subtitle: const Text(
+              'Use an authenticator app like Google Authenticator',
+            ),
             trailing: _busy
                 ? const SizedBox(
                     height: 18,
                     width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.chevron_right),
             onTap: _busy ? null : _setup2fa,
           ),
