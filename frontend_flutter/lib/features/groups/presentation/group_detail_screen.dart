@@ -36,7 +36,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     try {
       final api = ref.read(groupsApiProvider);
       final group = await api.getGroup(widget.slug);
-      final posts = await api.posts(widget.slug);
+      final posts = await api.posts(group.groupId);
       if (!mounted) return;
       setState(() {
         _group = group;
@@ -58,9 +58,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     try {
       final api = ref.read(groupsApiProvider);
       if (_group!.membership.isMember) {
-        await api.leaveGroup(widget.slug);
+        await api.leaveGroup(_group!.groupId);
       } else {
-        await api.joinGroup(widget.slug);
+        await api.joinGroup(_group!.groupId);
       }
       await _load();
     } catch (e) {
@@ -102,7 +102,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     if (result == null || result.isEmpty) return;
     try {
       await ref.read(groupsApiProvider).createPost(
-            slug: widget.slug,
+            groupId: _group!.groupId,
             content: result,
           );
       await _load();
