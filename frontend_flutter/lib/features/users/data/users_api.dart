@@ -165,30 +165,37 @@ class UsersApi {
     );
   }
 
-  Future<V2Relationship> followUser(String username) {
-    return _client.requestData<V2Relationship>(
-      '${ApiPaths.users}/$username/relationships/following',
-      method: 'PUT',
-      decode: (data) => V2Relationship.fromJson(toMap(data)),
+  Future<V2PublicUser> getUserById(int userId) {
+    return _client.requestData<V2PublicUser>(
+      '${ApiPaths.users}/$userId',
+      decode: (data) => V2PublicUser.fromJson(toMap(data)),
     );
   }
 
-  Future<V2Relationship> unfollowUser(String username) {
+  Future<V2Relationship> followUser(int userId) {
     return _client.requestData<V2Relationship>(
-      '${ApiPaths.users}/$username/relationships/following',
+      '${ApiPaths.users}/$userId/followers',
+      method: 'POST',
+      decode: (data) => V2Relationship.fromFollowJson(toMap(data)),
+    );
+  }
+
+  Future<V2Relationship> unfollowUser(int userId) {
+    return _client.requestData<V2Relationship>(
+      '${ApiPaths.users}/$userId/followers',
       method: 'DELETE',
-      decode: (data) => V2Relationship.fromJson(toMap(data)),
+      decode: (data) => V2Relationship.fromFollowJson(toMap(data)),
     );
   }
 
   Future<PagedResult<V2PublicUser>> getFollowers(
-    String username, {
+    int userId, {
     int page = 1,
     int size = 20,
   }) {
     return _client.requestData<PagedResult<V2PublicUser>>(
-      '${ApiPaths.users}/$username/followers',
-      query: {'page': page, 'size': size},
+      '${ApiPaths.users}/$userId/followers',
+      query: {'page': page, 'page_size': size},
       decode: (data) {
         final map = toMap(data);
         final items = toList(
@@ -204,13 +211,13 @@ class UsersApi {
   }
 
   Future<PagedResult<V2PublicUser>> getFollowing(
-    String username, {
+    int userId, {
     int page = 1,
     int size = 20,
   }) {
     return _client.requestData<PagedResult<V2PublicUser>>(
-      '${ApiPaths.users}/$username/following',
-      query: {'page': page, 'size': size},
+      '${ApiPaths.users}/$userId/following',
+      query: {'page': page, 'page_size': size},
       decode: (data) {
         final map = toMap(data);
         final items = toList(
