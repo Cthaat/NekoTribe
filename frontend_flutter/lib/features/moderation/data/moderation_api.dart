@@ -28,20 +28,10 @@ class ModerationApi {
       'page_size': size,
     };
     if (priority != null) query['priority'] = priority;
-    return _client.requestData<PagedResult<V2ModerationContentItem>>(
+    return _client.requestPaged<V2ModerationContentItem>(
       ApiPaths.moderationContent,
       query: query,
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2ModerationContentItem.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2ModerationContentItem>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2ModerationContentItem.fromJson(toMap(item)),
     );
   }
 
@@ -84,20 +74,10 @@ class ModerationApi {
     final query = <String, dynamic>{'page': page, 'page_size': size};
     if (status != null) query['status'] = status;
     if (priority != null) query['priority'] = priority;
-    return _client.requestData<PagedResult<V2ModerationReport>>(
+    return _client.requestPaged<V2ModerationReport>(
       ApiPaths.moderationReports,
       query: query,
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2ModerationReport.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2ModerationReport>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2ModerationReport.fromJson(toMap(item)),
     );
   }
 
@@ -126,20 +106,10 @@ class ModerationApi {
     final query = <String, dynamic>{'page': page, 'page_size': size};
     if (status != null) query['status'] = status;
     if (keyword != null) query['keyword'] = keyword;
-    return _client.requestData<PagedResult<V2ModerationUserItem>>(
+    return _client.requestPaged<V2ModerationUserItem>(
       ApiPaths.moderationUsers,
       query: query,
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2ModerationUserItem.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2ModerationUserItem>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2ModerationUserItem.fromJson(toMap(item)),
     );
   }
 
@@ -170,20 +140,10 @@ class ModerationApi {
   }) {
     final query = <String, dynamic>{'page': page, 'page_size': size};
     if (status != null) query['status'] = status;
-    return _client.requestData<PagedResult<V2ModerationAppeal>>(
+    return _client.requestPaged<V2ModerationAppeal>(
       ApiPaths.moderationAppeals,
       query: query,
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2ModerationAppeal.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2ModerationAppeal>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2ModerationAppeal.fromJson(toMap(item)),
     );
   }
 
@@ -213,18 +173,9 @@ class ModerationApi {
   }
 
   Future<List<V2ModerationSetting>> settings() {
-    return _client.requestData<List<V2ModerationSetting>>(
+    return _client.requestList<V2ModerationSetting>(
       ApiPaths.moderationSettings,
-      decode: (data) {
-        if (data is List) {
-          return toList(data, (e) => V2ModerationSetting.fromJson(toMap(e)));
-        }
-        final map = toMap(data);
-        return toList(
-          map['items'],
-          (e) => V2ModerationSetting.fromJson(toMap(e)),
-        );
-      },
+      decodeItem: (item) => V2ModerationSetting.fromJson(toMap(item)),
     );
   }
 
