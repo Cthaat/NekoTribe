@@ -81,6 +81,13 @@ void main() {
         'terms.title',
         'about.title',
         'pro.view_billing',
+        'moderation.tabs.overview',
+        'moderation.reports.empty',
+        'moderation.users.search',
+        'moderation.appeals.empty',
+        'moderation.settings.title',
+        'moderation.settings.definitions.auto_hide_report_threshold.label',
+        'moderation.settings.definitions.require_note_on_reject.label',
       ];
 
       for (final key in keys) {
