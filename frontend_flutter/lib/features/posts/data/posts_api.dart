@@ -221,10 +221,7 @@ class PostsApi {
       query: {'page': page, 'page_size': size},
       decode: (data) {
         final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2Comment.fromJson(toMap(e)),
-        );
+        final items = toList(map['items'], (e) => V2Comment.fromJson(toMap(e)));
         final meta = map['meta'] is Map<String, dynamic>
             ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
             : null;
@@ -292,10 +289,7 @@ class PostsApi {
       query: {'limit': limit},
       decode: (data) {
         final map = toMap(data);
-        return toList(
-          map['items'],
-          (e) => V2Post.fromJson(toMap(e)),
-        );
+        return toList(map['items'], (e) => V2Post.fromJson(toMap(e)));
       },
     );
   }
@@ -306,10 +300,7 @@ class PostsApi {
       query: {'limit': limit},
       decode: (data) {
         final map = toMap(data);
-        return toList(
-          map['items'],
-          (e) => V2TagItem.fromJson(toMap(e)),
-        );
+        return toList(map['items'], (e) => V2TagItem.fromJson(toMap(e)));
       },
     );
   }
@@ -361,10 +352,7 @@ class PostsApi {
 
   PagedResult<V2Post> _decodePostPage(dynamic data) {
     final map = toMap(data);
-    final items = toList(
-      map['items'],
-      (e) => V2Post.fromJson(toMap(e)),
-    );
+    final items = toList(map['items'], (e) => V2Post.fromJson(toMap(e)));
     final meta = map['meta'] is Map<String, dynamic>
         ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
         : null;
