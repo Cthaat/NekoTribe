@@ -69,6 +69,35 @@ class GroupsApi {
     );
   }
 
+  Future<void> deleteGroup(int groupId) async {
+    await _client.request<void>(
+      '${ApiPaths.groups}/$groupId',
+      method: 'DELETE',
+      decode: (_) {},
+    );
+  }
+
+  Future<V2GroupNotificationPreference> getNotificationPreference(
+    int groupId,
+  ) {
+    return _client.requestData<V2GroupNotificationPreference>(
+      '${ApiPaths.groups}/$groupId/notification-preference',
+      decode: (data) => V2GroupNotificationPreference.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2GroupNotificationPreference> setNotificationPreference({
+    required int groupId,
+    required bool isEnabled,
+  }) {
+    return _client.requestData<V2GroupNotificationPreference>(
+      '${ApiPaths.groups}/$groupId/notification-preference',
+      method: 'PUT',
+      data: {'is_enabled': isEnabled},
+      decode: (data) => V2GroupNotificationPreference.fromJson(toMap(data)),
+    );
+  }
+
   Future<V2GroupMembership> joinGroup(int groupId, {String? message}) {
     return _client.requestData<V2GroupMembership>(
       '${ApiPaths.groups}/$groupId/members/current',
@@ -101,14 +130,94 @@ class GroupsApi {
     );
   }
 
+  Future<V2GroupMemberStatus> approveMember({
+    required int groupId,
+    required int memberId,
+    required bool approved,
+  }) {
+    return _client.requestData<V2GroupMemberStatus>(
+      '${ApiPaths.groups}/$groupId/members/$memberId/approval-status',
+      method: 'PUT',
+      data: {'approved': approved},
+      decode: (data) => V2GroupMemberStatus.fromJson(toMap(data)),
+    );
+  }
+
+  Future<void> removeMember({
+    required int groupId,
+    required int userId,
+  }) async {
+    await _client.request<void>(
+      '${ApiPaths.groups}/$groupId/members/$userId',
+      method: 'DELETE',
+      decode: (_) {},
+    );
+  }
+
+  Future<V2GroupMemberStatus> changeMemberRole({
+    required int groupId,
+    required int userId,
+    required String role,
+  }) {
+    return _client.requestData<V2GroupMemberStatus>(
+      '${ApiPaths.groups}/$groupId/members/$userId/role',
+      method: 'PATCH',
+      data: {'role': role},
+      decode: (data) => V2GroupMemberStatus.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2GroupMemberStatus> muteMember({
+    required int groupId,
+    required int userId,
+    required int durationHours,
+    String? reason,
+  }) {
+    return _client.requestData<V2GroupMemberStatus>(
+      '${ApiPaths.groups}/$groupId/members/$userId/mute-status',
+      method: 'PUT',
+      data: {
+        'duration_hours': durationHours,
+        if (reason != null) 'reason': reason,
+      },
+      decode: (data) => V2GroupMemberStatus.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2GroupMemberStatus> unmuteMember({
+    required int groupId,
+    required int userId,
+  }) {
+    return _client.requestData<V2GroupMemberStatus>(
+      '${ApiPaths.groups}/$groupId/members/$userId/mute-status',
+      method: 'DELETE',
+      decode: (data) => V2GroupMemberStatus.fromJson(toMap(data)),
+    );
+  }
+
+  Future<void> transferOwnership({
+    required int groupId,
+    required int newOwnerId,
+  }) async {
+    await _client.request<void>(
+      '${ApiPaths.groups}/$groupId/ownership',
+      method: 'PUT',
+      data: {'new_owner_id': newOwnerId},
+      decode: (_) {},
+    );
+  }
+
   Future<PagedResult<V2GroupPost>> posts(
     int groupId, {
     int page = 1,
     int size = 20,
+    String type = 'all',
   }) {
+    final query = <String, dynamic>{'page': page, 'page_size': size};
+    if (type != 'all') query['type'] = type;
     return _client.requestPaged<V2GroupPost>(
       '${ApiPaths.groups}/$groupId/posts',
-      query: {'page': page, 'page_size': size},
+      query: query,
       decodeItem: (item) => V2GroupPost.fromJson(toMap(item)),
     );
   }
@@ -152,6 +261,18 @@ class GroupsApi {
       method: 'POST',
       data: body,
       decode: (data) => V2GroupInvite.fromJson(toMap(data)),
+    );
+  }
+
+  Future<PagedResult<V2GroupInvite>> groupInvites(
+    int groupId, {
+    int page = 1,
+    int size = 20,
+  }) {
+    return _client.requestPaged<V2GroupInvite>(
+      '${ApiPaths.groups}/$groupId/invites',
+      query: {'page': page, 'page_size': size},
+      decodeItem: (item) => V2GroupInvite.fromJson(toMap(item)),
     );
   }
 
