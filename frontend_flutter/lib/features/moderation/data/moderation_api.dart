@@ -53,10 +53,7 @@ class ModerationApi {
     await _client.request<void>(
       '${ApiPaths.moderationContent}/$caseId/actions',
       method: 'POST',
-      data: {
-        'action': action,
-        if (note != null) 'note': note,
-      },
+      data: {'action': action, if (note != null) 'note': note},
       decode: (_) {},
     );
   }
@@ -84,10 +81,7 @@ class ModerationApi {
     int page = 1,
     int size = 20,
   }) {
-    final query = <String, dynamic>{
-      'page': page,
-      'page_size': size,
-    };
+    final query = <String, dynamic>{'page': page, 'page_size': size};
     if (status != null) query['status'] = status;
     if (priority != null) query['priority'] = priority;
     return _client.requestData<PagedResult<V2ModerationReport>>(
@@ -201,10 +195,7 @@ class ModerationApi {
     await _client.request<void>(
       '${ApiPaths.moderationAppeals}/$appealId',
       method: 'PATCH',
-      data: {
-        'status': status,
-        if (response != null) 'response': response,
-      },
+      data: {'status': status, if (response != null) 'response': response},
       decode: (_) {},
     );
   }
@@ -226,10 +217,7 @@ class ModerationApi {
       ApiPaths.moderationSettings,
       decode: (data) {
         if (data is List) {
-          return toList(
-            data,
-            (e) => V2ModerationSetting.fromJson(toMap(e)),
-          );
+          return toList(data, (e) => V2ModerationSetting.fromJson(toMap(e)));
         }
         final map = toMap(data);
         return toList(
