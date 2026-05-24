@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/post_models.dart';
@@ -82,9 +83,10 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit post'),
+        title: Text(l10n.t('post.edit_title')),
         actions: [
           TextButton(
             onPressed: _saving || _post == null ? null : _save,
@@ -94,7 +96,7 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Save'),
+                : Text(l10n.t('common.save')),
           ),
         ],
       ),
@@ -112,29 +114,32 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
                     minLines: 5,
                     maxLines: 10,
                     maxLength: 2000,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: 'Content',
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      labelText: l10n.t('post.content'),
                     ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: _visibility,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: 'Visibility',
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      labelText: l10n.t('post.visibility'),
                     ),
                     onChanged: (value) =>
                         setState(() => _visibility = value ?? 'public'),
-                    items: const [
-                      DropdownMenuItem(value: 'public', child: Text('Public')),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'public',
+                        child: Text(l10n.t('common.public')),
+                      ),
                       DropdownMenuItem(
                         value: 'followers',
-                        child: Text('Followers'),
+                        child: Text(l10n.t('common.followers_only')),
                       ),
                       DropdownMenuItem(
                         value: 'private',
-                        child: Text('Private'),
+                        child: Text(l10n.t('common.private')),
                       ),
                     ],
                   ),
