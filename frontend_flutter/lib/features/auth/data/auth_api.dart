@@ -12,11 +12,12 @@ class AuthApi {
   Future<V2AuthOtpData> requestOtp({
     required String account,
     required String purpose,
+    String channel = 'email',
   }) {
     return _client.requestData<V2AuthOtpData>(
       ApiPaths.authOtp,
       method: 'POST',
-      data: {'account': account, 'purpose': purpose},
+      data: {'account': account, 'type': purpose, 'channel': channel},
       sendAuth: false,
       decode: (data) => V2AuthOtpData.fromJson(toMap(data)),
     );
@@ -25,44 +26,54 @@ class AuthApi {
   Future<V2AuthOtpVerificationData> verifyOtp({
     required String account,
     required String purpose,
+    required String verificationId,
     required String code,
   }) {
     return _client.requestData<V2AuthOtpVerificationData>(
       ApiPaths.authOtpVerification,
       method: 'POST',
-      data: {'account': account, 'purpose': purpose, 'code': code},
+      data: {
+        'account': account,
+        'type': purpose,
+        'verification_id': verificationId,
+        'code': code,
+      },
       sendAuth: false,
       decode: (data) => V2AuthOtpVerificationData.fromJson(toMap(data)),
     );
   }
 
-  Future<V2LoginSuccess> register({
-    required String account,
+  Future<V2SelfUser> register({
+    required String email,
     required String username,
     required String displayName,
     required String password,
-    required String otpCode,
-    String? inviteCode,
+    required String confirmPassword,
+    required String verificationId,
+    required bool agreeToTerms,
+    String? bio,
+    String? location,
+    String? phone,
+    String? birthDate,
   }) {
-    return _client.requestData<V2LoginSuccess>(
+    return _client.requestData<V2SelfUser>(
       ApiPaths.authRegistration,
       method: 'POST',
       data: {
-        'account': account,
+        'email': email,
         'username': username,
-        'display_name': displayName,
         'password': password,
-        'otp_code': otpCode,
-        if (inviteCode != null && inviteCode.isNotEmpty)
-          'invite_code': inviteCode,
+        'confirm_password': confirmPassword,
+        'display_name': displayName,
+        if (bio != null && bio.isNotEmpty) 'bio': bio,
+        if (location != null && location.isNotEmpty) 'location': location,
+        if (phone != null && phone.isNotEmpty) 'phone': phone,
+        if (birthDate != null && birthDate.isNotEmpty) 'birth_date': birthDate,
+        'verification_id': verificationId,
+        'agree_to_terms': agreeToTerms,
       },
       sendAuth: false,
-      decode: (data) {
-        final map = toMap(data);
-        final user = V2SelfUser.fromJson(toMap(map['user']));
-        final tokens = V2TokenData.fromJson(toMap(map['tokens']));
-        return V2LoginSuccess(user: user, tokens: tokens);
-      },
+      decode: (data) => V2SelfUser.fromJson(toMap(toMap(data)['user'])),
     );
   }
 
@@ -148,16 +159,18 @@ class AuthApi {
   }
 
   Future<void> requestPasswordReset({
-    required String account,
-    required String otpCode,
+    required String email,
+    required String verificationId,
+    required String code,
     required String newPassword,
   }) async {
     await _client.request<void>(
       ApiPaths.authPasswordReset,
       method: 'POST',
       data: {
-        'account': account,
-        'otp_code': otpCode,
+        'email': email,
+        'verification_id': verificationId,
+        'code': code,
         'new_password': newPassword,
       },
       sendAuth: false,
