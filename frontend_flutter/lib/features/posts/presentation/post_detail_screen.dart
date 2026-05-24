@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/post_models.dart';
 import 'post_card.dart';
@@ -61,6 +62,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 
   Future<void> _submitReply() async {
+    if (!requireAuthenticatedAction(context, ref)) return;
     final text = _replyController.text.trim();
     if (text.isEmpty) return;
     try {
@@ -81,6 +83,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 
   Future<void> _openCompose() async {
+    if (!requireAuthenticatedAction(context, ref)) return;
     final created = await Navigator.of(context).push<V2Post>(
       MaterialPageRoute(
         builder: (_) => ComposePostScreen(replyToPostId: widget.postId),
@@ -108,6 +111,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               PostCard(
                                 post: _post!,
                                 onChanged: (p) => setState(() => _post = p),
+                                onDeleted: () =>
+                                    Navigator.of(context).maybePop(),
                                 onReport: () => showReportDialog(
                                   context,
                                   ref,
