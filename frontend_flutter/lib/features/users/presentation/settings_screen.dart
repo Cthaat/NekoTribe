@@ -76,6 +76,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     _Section(title: 'Appearance'),
                     ListTile(
+                      leading: const Icon(Icons.palette_outlined),
+                      title: const Text('Appearance workspace'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.push('/settings/appearance'),
+                    ),
+                    ListTile(
                       leading: const Icon(Icons.brightness_6),
                       title: Text(l10n.t('common.theme')),
                       trailing: DropdownButton<ThemeMode>(
@@ -118,6 +124,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               value: 'en', child: Text('English')),
                         ],
                       ),
+                    ),
+                    const Divider(),
+                    _Section(title: 'Account surfaces'),
+                    ListTile(
+                      leading: const Icon(Icons.article_outlined),
+                      title: const Text('My posts'),
+                      onTap: () => context.push('/account/posts'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.favorite_outline),
+                      title: const Text('Liked posts'),
+                      onTap: () => context.push('/account/likes'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.bookmark_border),
+                      title: const Text('Bookmarks'),
+                      onTap: () => context.push('/account/bookmarks'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.workspace_premium_outlined),
+                      title: const Text('NekoTribe Pro'),
+                      onTap: () => context.push('/settings/pro'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.receipt_long_outlined),
+                      title: const Text('Billing'),
+                      onTap: () => context.push('/settings/billing'),
                     ),
                     const Divider(),
                     _Section(title: 'Account & Privacy'),
