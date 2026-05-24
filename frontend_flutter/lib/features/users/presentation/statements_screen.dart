@@ -31,8 +31,9 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
       _error = null;
     });
     try {
-      final PagedResult<V2AccountStatement> page =
-          await ref.read(usersRepositoryProvider).statements();
+      final PagedResult<V2AccountStatement> page = await ref
+          .read(usersRepositoryProvider)
+          .statements();
       if (!mounted) return;
       setState(() {
         _items = page.items;
@@ -75,19 +76,18 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
     );
     if (result == null || result.isEmpty) return;
     try {
-      await ref.read(moderationApiProvider).submitAppeal(
-            statementId: statement.statementId,
-            message: result,
-          );
+      await ref
+          .read(moderationApiProvider)
+          .submitAppeal(statementId: statement.statementId, message: result);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Appeal submitted')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Appeal submitted')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -118,57 +118,55 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : _items.isEmpty
-                  ? const EmptyView(message: 'No statements')
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView.separated(
-                        itemCount: _items.length,
-                        separatorBuilder: (_, _) =>
-                            const Divider(height: 1),
-                        itemBuilder: (_, i) {
-                          final s = _items[i];
-                          return ListTile(
-                            leading: const Icon(Icons.gavel),
-                            title: Text(
-                                s.title.isEmpty ? s.type : s.title),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(s.message),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Chip(
-                                      label: Text(s.status,
-                                          style: TextStyle(
-                                              color: _statusColor(
-                                                  context, s.status))),
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      _formatDate(s.createdAt),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall,
-                                    ),
-                                  ],
+          ? ErrorView(error: _error!, onRetry: _load)
+          : _items.isEmpty
+          ? const EmptyView(message: 'No statements')
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.separated(
+                itemCount: _items.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final s = _items[i];
+                  return ListTile(
+                    leading: const Icon(Icons.gavel),
+                    title: Text(s.title.isEmpty ? s.type : s.title),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s.message),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Chip(
+                              label: Text(
+                                s.status,
+                                style: TextStyle(
+                                  color: _statusColor(context, s.status),
                                 ),
-                              ],
+                              ),
+                              visualDensity: VisualDensity.compact,
                             ),
-                            isThreeLine: true,
-                            trailing: s.status == 'active'
-                                ? TextButton(
-                                    onPressed: () => _appeal(s),
-                                    child: const Text('Appeal'),
-                                  )
-                                : null,
-                          );
-                        },
-                      ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _formatDate(s.createdAt),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
+                    isThreeLine: true,
+                    trailing: s.status == 'active'
+                        ? TextButton(
+                            onPressed: () => _appeal(s),
+                            child: const Text('Appeal'),
+                          )
+                        : null,
+                  );
+                },
+              ),
+            ),
     );
   }
 }
