@@ -35,6 +35,8 @@ void main() {
     await tester.enterText(find.byType(TextField).at(3), 'Edge');
     await tester.enterText(find.byType(TextField).at(4), 'password-1');
     await tester.enterText(find.byType(TextField).at(5), 'password-1');
+    await tester.ensureVisible(find.text('我已阅读并同意服务条款'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('我已阅读并同意服务条款'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.widgetWithText(FilledButton, '注册'));
