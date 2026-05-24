@@ -17,7 +17,7 @@ class NotificationsApi {
   }) {
     final query = <String, dynamic>{
       'page': page,
-      'size': size,
+      'page_size': size,
     };
     if (type != null) query['type'] = type;
     if (unreadOnly != null) query['unread_only'] = unreadOnly;
@@ -57,6 +57,18 @@ class NotificationsApi {
     );
   }
 
+  Future<void> setReadStatus({
+    required int notificationId,
+    required bool isRead,
+  }) async {
+    await _client.request<void>(
+      '${ApiPaths.notifications}/$notificationId/read-status',
+      method: 'PUT',
+      data: {'is_read': isRead},
+      decode: (_) {},
+    );
+  }
+
   Future<void> markAllRead() async {
     await _client.request<void>(
       ApiPaths.notificationsReadStatus,
@@ -70,6 +82,14 @@ class NotificationsApi {
     await _client.request<void>(
       '${ApiPaths.notifications}/$id',
       method: 'DELETE',
+      decode: (_) {},
+    );
+  }
+
+  Future<void> restoreNotification(int id) async {
+    await _client.request<void>(
+      '${ApiPaths.notifications}/$id/restore-status',
+      method: 'PUT',
       decode: (_) {},
     );
   }
