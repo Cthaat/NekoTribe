@@ -74,6 +74,26 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
     return DateFormat.Md().format(localDt);
   }
 
+  Future<void> _openGroup(V2ChatGroup group) async {
+    try {
+      final channels = await ref.read(chatApiProvider).listChannels(group.groupId);
+      if (!mounted) return;
+      if (channels.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No channels in this group')),
+        );
+        return;
+      }
+      final channel = channels.first;
+      context.push('/chat/groups/${group.groupId}/channels/${channel.channelId}');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorView.describe(context, e))),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -160,6 +180,7 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                                   trailing: g.unreadCount > 0
                                       ? Badge(label: Text('${g.unreadCount}'))
                                       : null,
+                                  onTap: () => _openGroup(g),
                                 );
                               },
                             ),
