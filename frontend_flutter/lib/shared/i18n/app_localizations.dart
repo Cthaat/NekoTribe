@@ -336,6 +336,7 @@ class AppLocalizations {
       'billing.active': '正常',
       'billing.pending': '待处理',
       'billing.paid': '已支付',
+      'billing.history': '账单历史',
       'pro.workspace': '可升级工作台',
       'pro.description': '启用账单后，NekoTribe Pro 会提供 AI 辅助、实时协作、高级安全工具和更高操作额度。',
       'pro.ai_title': 'AI 情感工作流',
@@ -718,6 +719,7 @@ class AppLocalizations {
       'billing.active': 'Active',
       'billing.pending': 'Pending',
       'billing.paid': 'Paid',
+      'billing.history': 'Billing history',
       'pro.workspace': 'Upgrade-ready workspace',
       'pro.description':
           'NekoTribe Pro surfaces AI assistance, realtime collaboration, advanced safety tooling, and higher operational limits when billing is enabled.',
