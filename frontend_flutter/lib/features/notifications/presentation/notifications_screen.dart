@@ -63,7 +63,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (n.resourceType == 'post' && n.resourceId != null) {
       context.push('/posts/${n.resourceId}');
     } else if (n.resourceType == 'user' && n.actor != null) {
-      context.push('/users/${n.actor!.username}');
+      context.push('/users/${n.actor!.userId}');
     }
     if (!n.readFlag) {
       ref
