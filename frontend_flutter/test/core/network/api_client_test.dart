@@ -48,6 +48,40 @@ void main() {
     },
   );
 
+  test('unwraps Nuxt error envelope around v2 responses', () async {
+    final dio = Dio()
+      ..httpClientAdapter = _JsonAdapter(
+        (options) => _JsonResponse(
+          statusCode: 401,
+          body: {
+            'error': true,
+            'statusCode': 401,
+            'message': '请先登录',
+            'data': {
+              'code': 40101,
+              'message': '请先登录',
+              'data': null,
+              'meta': null,
+            },
+          },
+        ),
+      );
+    final client = ApiClient(
+      config: _testConfig,
+      tokenStore: _FakeTokenStore(),
+      dio: dio,
+    );
+
+    await expectLater(
+      client.requestData<dynamic>(ApiPaths.posts),
+      throwsA(
+        isA<ApiException>()
+            .having((e) => e.code, 'code', 40101)
+            .having((e) => e.message, 'message', '请先登录'),
+      ),
+    );
+  });
+
   test('login persists auth tokens from Set-Cookie headers', () async {
     final dio = Dio()
       ..httpClientAdapter = _JsonAdapter(
