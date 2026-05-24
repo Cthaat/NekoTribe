@@ -128,6 +128,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     const Divider(),
                     _Section(title: 'Account surfaces'),
                     ListTile(
+                      leading: const Icon(Icons.edit_outlined),
+                      title: const Text('Edit profile'),
+                      onTap: () => context.push('/account/profile'),
+                    ),
+                    ListTile(
                       leading: const Icon(Icons.article_outlined),
                       title: const Text('My posts'),
                       onTap: () => context.push('/account/posts'),
