@@ -236,101 +236,135 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: SegmentedButton<bool>(
-              segments: [
-                ButtonSegment(value: false, label: Text(l10n.t('common.all'))),
-                ButtonSegment(
-                  value: true,
-                  label: Text(l10n.t('common.unread')),
-                ),
-              ],
-              selected: {_unreadOnly},
-              onSelectionChanged: (value) {
-                setState(() {
-                  _unreadOnly = value.first;
-                  _items = [];
-                  _loading = true;
-                });
-                _load();
-              },
-            ),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.contentMaxWidth,
           ),
-          Expanded(
-            child: _loading
-                ? const LoadingView()
-                : _error != null
-                ? ErrorView(error: _error!, onRetry: _load)
-                : _items.isEmpty
-                ? EmptyView(message: l10n.t('notification.empty'))
-                : RefreshIndicator(
-                    onRefresh: _load,
-                    child: ListView.separated(
-                      itemCount: _items.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (_, i) {
-                        final n = _items[i];
-                        return ListTile(
-                          enabled: !n.isDeleted,
-                          tileColor: n.readFlag
-                              ? null
-                              : Theme.of(
-                                  context,
-                                ).colorScheme.surfaceContainerHighest,
-                          leading: const Icon(Icons.notifications),
-                          title: Text(n.title.isEmpty ? n.type : n.title),
-                          subtitle: Text(n.message),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                n.isDeleted
-                                    ? l10n.t('notification.deleted')
-                                    : _formatDate(n.createdAt),
-                                style: Theme.of(context).textTheme.bodySmall,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: SegmentedButton<bool>(
+                  segments: [
+                    ButtonSegment(
+                      value: false,
+                      label: Text(l10n.t('common.all')),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      label: Text(l10n.t('common.unread')),
+                    ),
+                  ],
+                  selected: {_unreadOnly},
+                  onSelectionChanged: (value) {
+                    setState(() {
+                      _unreadOnly = value.first;
+                      _items = [];
+                      _loading = true;
+                    });
+                    _load();
+                  },
+                ),
+              ),
+              Expanded(
+                child: _loading
+                    ? const LoadingView()
+                    : _error != null
+                    ? ErrorView(error: _error!, onRetry: _load)
+                    : _items.isEmpty
+                    ? EmptyView(message: l10n.t('notification.empty'))
+                    : RefreshIndicator(
+                        onRefresh: _load,
+                        child: ListView.separated(
+                          itemCount: _items.length,
+                          separatorBuilder: (_, _) => Divider(
+                            height: 1,
+                            color: Theme.of(context).dividerColor,
+                          ),
+                          itemBuilder: (_, i) {
+                            final n = _items[i];
+                            return ListTile(
+                              enabled: !n.isDeleted,
+                              tileColor: n.readFlag
+                                  ? null
+                                  : Theme.of(context).colorScheme.primary
+                                        .withValues(alpha: 0.05),
+                              leading: Icon(
+                                Icons.notifications_outlined,
+                                color: n.readFlag
+                                    ? Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant
+                                    : Theme.of(context).colorScheme.primary,
                               ),
-                              PopupMenuButton<String>(
-                                onSelected: (value) {
-                                  if (value == 'read') _setRead(n, true);
-                                  if (value == 'unread') _setRead(n, false);
-                                  if (value == 'delete') _delete(n);
-                                  if (value == 'restore') _restore(n);
-                                },
-                                itemBuilder: (_) => [
-                                  if (!n.readFlag && !n.isDeleted)
-                                    PopupMenuItem(
-                                      value: 'read',
-                                      child: Text(l10n.t('common.mark_read')),
-                                    ),
-                                  if (n.readFlag && !n.isDeleted)
-                                    PopupMenuItem(
-                                      value: 'unread',
-                                      child: Text(l10n.t('common.mark_unread')),
-                                    ),
-                                  if (!n.isDeleted)
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text(l10n.t('common.delete')),
-                                    ),
-                                  if (n.isDeleted)
-                                    PopupMenuItem(
-                                      value: 'restore',
-                                      child: Text(l10n.t('common.restore')),
-                                    ),
+                              title: Text(
+                                n.title.isEmpty ? n.type : n.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                n.message,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    n.isDeleted
+                                        ? l10n.t('notification.deleted')
+                                        : _formatDate(n.createdAt),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                  PopupMenuButton<String>(
+                                    onSelected: (value) {
+                                      if (value == 'read') _setRead(n, true);
+                                      if (value == 'unread') _setRead(n, false);
+                                      if (value == 'delete') _delete(n);
+                                      if (value == 'restore') _restore(n);
+                                    },
+                                    itemBuilder: (_) => [
+                                      if (!n.readFlag && !n.isDeleted)
+                                        PopupMenuItem(
+                                          value: 'read',
+                                          child: Text(
+                                            l10n.t('common.mark_read'),
+                                          ),
+                                        ),
+                                      if (n.readFlag && !n.isDeleted)
+                                        PopupMenuItem(
+                                          value: 'unread',
+                                          child: Text(
+                                            l10n.t('common.mark_unread'),
+                                          ),
+                                        ),
+                                      if (!n.isDeleted)
+                                        PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text(l10n.t('common.delete')),
+                                        ),
+                                      if (n.isDeleted)
+                                        PopupMenuItem(
+                                          value: 'restore',
+                                          child: Text(l10n.t('common.restore')),
+                                        ),
+                                    ],
+                                  ),
                                 ],
                               ),
-                            ],
-                          ),
-                          onTap: () => _onTap(n),
-                        );
-                      },
-                    ),
-                  ),
+                              onTap: () => _onTap(n),
+                            );
+                          },
+                        ),
+                      ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
