@@ -17,7 +17,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [chatApiProvider.overrideWithValue(api)],
+        overrides: [
+          appConfigBundleProvider.overrideWithValue(_testBundle),
+          appConfigInitialProvider.overrideWithValue(_testConfig),
+          chatApiProvider.overrideWithValue(api),
+        ],
         child: const MaterialApp(home: ChatHomeScreen()),
       ),
     );
@@ -96,6 +100,8 @@ const _testConfig = AppConfig(
   wsBaseUrl: 'ws://example.test',
   storageBaseUrl: 'http://example.test',
 );
+
+const _testBundle = AppConfigBundle(defaults: _testConfig, presets: []);
 
 class _FakeTokenStore extends TokenStore {
   @override
