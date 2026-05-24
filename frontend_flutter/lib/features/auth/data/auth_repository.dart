@@ -3,11 +3,9 @@ import '../domain/auth_models.dart';
 import 'auth_api.dart';
 
 class AuthRepository {
-  AuthRepository({
-    required AuthApi api,
-    required TokenStore tokenStore,
-  })  : _api = api,
-        _tokenStore = tokenStore;
+  AuthRepository({required AuthApi api, required TokenStore tokenStore})
+    : _api = api,
+      _tokenStore = tokenStore;
 
   final AuthApi _api;
   final TokenStore _tokenStore;
@@ -114,10 +112,12 @@ class AuthRepository {
         accessToken: accessToken,
         refreshToken: refreshToken,
         sessionId: tokens.sessionId,
-        accessTokenExpiresAt:
-            accessExp == null ? null : DateTime.tryParse(accessExp),
-        refreshTokenExpiresAt:
-            refreshExp == null ? null : DateTime.tryParse(refreshExp),
+        accessTokenExpiresAt: accessExp == null
+            ? null
+            : DateTime.tryParse(accessExp),
+        refreshTokenExpiresAt: refreshExp == null
+            ? null
+            : DateTime.tryParse(refreshExp),
       ),
     );
   }
