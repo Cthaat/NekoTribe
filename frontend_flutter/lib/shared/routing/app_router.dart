@@ -105,10 +105,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        path: '/users/:username',
+        path: '/users/:userId',
         builder: (_, state) {
-          final username = state.pathParameters['username'] ?? '';
-          return ProfileScreen(username: username);
+          final userId = int.tryParse(state.pathParameters['userId'] ?? '') ?? 0;
+          return ProfileScreen(userId: userId);
         },
       ),
       GoRoute(
