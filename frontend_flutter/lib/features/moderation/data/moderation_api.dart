@@ -179,12 +179,12 @@ class ModerationApi {
     );
   }
 
-  Future<void> updateSettings(Map<String, dynamic> body) async {
-    await _client.request<void>(
+  Future<List<V2ModerationSetting>> updateSettings(Map<String, dynamic> body) {
+    return _client.requestList<V2ModerationSetting>(
       ApiPaths.moderationSettings,
       method: 'PATCH',
       data: body,
-      decode: (_) {},
+      decodeItem: (item) => V2ModerationSetting.fromJson(toMap(item)),
     );
   }
 }
