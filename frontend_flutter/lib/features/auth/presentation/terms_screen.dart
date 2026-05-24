@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
+
 class TermsScreen extends StatelessWidget {
   const TermsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Terms of Service'),
+        title: Text(l10n.t('terms.title')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () =>
@@ -19,34 +22,29 @@ class TermsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text('NekoTribe Terms', style: theme.textTheme.headlineSmall),
+          Text(l10n.t('terms.heading'), style: theme.textTheme.headlineSmall),
           const SizedBox(height: 8),
-          Text('Last updated: 2025-07-16', style: theme.textTheme.bodySmall),
+          Text(l10n.t('terms.updated'), style: theme.textTheme.bodySmall),
           const SizedBox(height: 20),
-          const _Section(
-            title: '1. Acceptance',
-            body:
-                'By using NekoTribe, you agree to follow these terms and the community rules that keep the service safe.',
+          _Section(
+            title: l10n.t('terms.acceptance.title'),
+            body: l10n.t('terms.acceptance.body'),
           ),
-          const _Section(
-            title: '2. Accounts',
-            body:
-                'You are responsible for your account activity, credentials, and the information you choose to publish.',
+          _Section(
+            title: l10n.t('terms.accounts.title'),
+            body: l10n.t('terms.accounts.body'),
           ),
-          const _Section(
-            title: '3. Conduct',
-            body:
-                'Do not harass others, publish illegal content, abuse platform features, or evade moderation actions.',
+          _Section(
+            title: l10n.t('terms.conduct.title'),
+            body: l10n.t('terms.conduct.body'),
           ),
-          const _Section(
-            title: '4. Termination',
-            body:
-                'Accounts or content may be limited when they violate safety, legal, or platform integrity requirements.',
+          _Section(
+            title: l10n.t('terms.termination.title'),
+            body: l10n.t('terms.termination.body'),
           ),
-          const _Section(
-            title: '5. Questions',
-            body:
-                'Use the feedback links in the About page or account statements flow if you need review or support.',
+          _Section(
+            title: l10n.t('terms.questions.title'),
+            body: l10n.t('terms.questions.body'),
           ),
         ],
       ),
