@@ -33,7 +33,7 @@ class TokenPair {
 
 class TokenStore {
   TokenStore({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _storage;
   TokenPair? _cached;
@@ -62,28 +62,24 @@ class TokenStore {
       accessToken: access,
       refreshToken: refresh,
       sessionId: session,
-      accessTokenExpiresAt:
-          accessExp == null ? null : DateTime.tryParse(accessExp),
-      refreshTokenExpiresAt:
-          refreshExp == null ? null : DateTime.tryParse(refreshExp),
+      accessTokenExpiresAt: accessExp == null
+          ? null
+          : DateTime.tryParse(accessExp),
+      refreshTokenExpiresAt: refreshExp == null
+          ? null
+          : DateTime.tryParse(refreshExp),
     );
     return _cached;
   }
 
   Future<void> write(TokenPair pair) async {
     _cached = pair;
-    await _storage.write(
-      key: StorageKeys.accessToken,
-      value: pair.accessToken,
-    );
+    await _storage.write(key: StorageKeys.accessToken, value: pair.accessToken);
     await _storage.write(
       key: StorageKeys.refreshToken,
       value: pair.refreshToken,
     );
-    await _storage.write(
-      key: StorageKeys.sessionId,
-      value: pair.sessionId,
-    );
+    await _storage.write(key: StorageKeys.sessionId, value: pair.sessionId);
     if (pair.accessTokenExpiresAt != null) {
       await _storage.write(
         key: StorageKeys.accessTokenExpiresAt,
