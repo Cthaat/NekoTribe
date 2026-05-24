@@ -76,9 +76,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -100,93 +100,93 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : _post == null
-                  ? EmptyView(message: l10n.t('feed.empty'))
-                  : Column(
-                      children: [
-                        Expanded(
-                          child: ListView(
-                            children: [
-                              PostCard(
-                                post: _post!,
-                                onChanged: (p) => setState(() => _post = p),
-                                onDeleted: () =>
-                                    Navigator.of(context).maybePop(),
-                                onReport: () => showReportDialog(
-                                  context,
-                                  ref,
-                                  targetType: 'post',
-                                  targetId: _post!.postId,
-                                ),
-                              ),
-                              const Divider(height: 1),
-                              if (_comments.isEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child:
-                                      EmptyView(message: l10n.t('feed.empty')),
-                                )
-                              else
-                                ..._comments.map(
-                                  (c) => ListTile(
-                                    title: Text(
-                                        c.author.displayName.isEmpty
-                                            ? c.author.username
-                                            : c.author.displayName),
-                                    subtitle: Text(c.content),
-                                    trailing: c.canDelete
-                                        ? IconButton(
-                                            icon: const Icon(Icons.delete_outline),
-                                            onPressed: () async {
-                                              try {
-                                                await ref
-                                                    .read(postsApiProvider)
-                                                    .deleteComment(c.commentId);
-                                                if (!mounted) return;
-                                                setState(() => _comments
-                                                    .removeWhere((x) =>
-                                                        x.commentId ==
-                                                        c.commentId));
-                                              } catch (_) {}
-                                            },
-                                          )
-                                        : null,
-                                  ),
-                                ),
-                            ],
+          ? ErrorView(error: _error!, onRetry: _load)
+          : _post == null
+          ? EmptyView(message: l10n.t('feed.empty'))
+          : Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    children: [
+                      PostCard(
+                        post: _post!,
+                        onChanged: (p) => setState(() => _post = p),
+                        onDeleted: () => Navigator.of(context).maybePop(),
+                        onReport: () => showReportDialog(
+                          context,
+                          ref,
+                          targetType: 'post',
+                          targetId: _post!.postId,
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      if (_comments.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: EmptyView(message: l10n.t('feed.empty')),
+                        )
+                      else
+                        ..._comments.map(
+                          (c) => ListTile(
+                            title: Text(
+                              c.author.displayName.isEmpty
+                                  ? c.author.username
+                                  : c.author.displayName,
+                            ),
+                            subtitle: Text(c.content),
+                            trailing: c.canDelete
+                                ? IconButton(
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () async {
+                                      try {
+                                        await ref
+                                            .read(postsApiProvider)
+                                            .deleteComment(c.commentId);
+                                        if (!mounted) return;
+                                        setState(
+                                          () => _comments.removeWhere(
+                                            (x) => x.commentId == c.commentId,
+                                          ),
+                                        );
+                                      } catch (_) {}
+                                    },
+                                  )
+                                : null,
                           ),
                         ),
-                        SafeArea(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _replyController,
-                                    decoration: InputDecoration(
-                                      hintText: l10n.t('common.comment'),
-                                      border: const OutlineInputBorder(),
-                                      isDense: true,
-                                    ),
-                                    onSubmitted: (_) => _submitReply(),
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: _submitReply,
-                                  icon: const Icon(Icons.send),
-                                ),
-                                IconButton(
-                                  onPressed: _openCompose,
-                                  icon: const Icon(Icons.reply),
-                                ),
-                              ],
+                    ],
+                  ),
+                ),
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _replyController,
+                            decoration: InputDecoration(
+                              hintText: l10n.t('common.comment'),
+                              border: const OutlineInputBorder(),
+                              isDense: true,
                             ),
+                            onSubmitted: (_) => _submitReply(),
                           ),
+                        ),
+                        IconButton(
+                          onPressed: _submitReply,
+                          icon: const Icon(Icons.send),
+                        ),
+                        IconButton(
+                          onPressed: _openCompose,
+                          icon: const Icon(Icons.reply),
                         ),
                       ],
                     ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
