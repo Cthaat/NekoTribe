@@ -118,199 +118,285 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
     final controller = ref.read(appConfigProvider.notifier);
     final presets = controller.presets;
 
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('endpoint.title'))),
       body: AbsorbPointer(
         absorbing: _saving,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.t('endpoint.current'),
-                      style: Theme.of(context).textTheme.titleMedium,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppBreakpoints.contentMaxWidth,
+            ),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.2),
                     ),
-                    const SizedBox(height: 8),
-                    _KvRow(label: 'API', value: cfg.apiBaseUrl),
-                    _KvRow(label: 'WS', value: cfg.wsBaseUrl),
-                    _KvRow(label: 'Storage', value: cfg.storageBaseUrl),
-                    const SizedBox(height: 8),
-                    Row(
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.dns_outlined,
+                            size: 18,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            l10n.t('endpoint.current'),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              cfg.isCustom
+                                  ? l10n.t('endpoint.custom')
+                                  : (controller
+                                            .presetById(cfg.presetId ?? '')
+                                            ?.label ??
+                                        cfg.presetId ??
+                                        ''),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _KvRow(label: 'API', value: cfg.apiBaseUrl),
+                      _KvRow(label: 'WS', value: cfg.wsBaseUrl),
+                      _KvRow(label: 'Storage', value: cfg.storageBaseUrl),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  l10n.t('endpoint.presets'),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...presets.map((p) {
+                  final selected = p.id == cfg.presetId;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: InkWell(
+                      onTap: _saving ? null : () => _applyPreset(p.id),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: theme.cardTheme.color,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: selected
+                                ? theme.colorScheme.primary
+                                : theme.dividerColor,
+                            width: selected ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2, right: 8),
+                              child: Icon(
+                                selected
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_unchecked,
+                                color: selected
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.outline,
+                              ),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    p.label,
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  if (p.description != null &&
+                                      p.description!.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        p.description!,
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                      ),
+                                    ),
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      'API: ${p.apiBaseUrl}\nWS:  ${p.wsBaseUrl}\nFile: ${p.storageBaseUrl}',
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 12,
+                                        color: theme
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.t('endpoint.custom_section'),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _apiCtl,
+                  decoration: const InputDecoration(
+                    labelText: 'API Base URL',
+                    hintText: 'http://host:port',
+                    prefixIcon: Icon(Icons.link),
+                  ),
+                  keyboardType: TextInputType.url,
+                  autocorrect: false,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _wsCtl,
+                  decoration: const InputDecoration(
+                    labelText: 'WebSocket Base URL',
+                    hintText: 'ws://host:port',
+                    prefixIcon: Icon(Icons.swap_horiz),
+                  ),
+                  keyboardType: TextInputType.url,
+                  autocorrect: false,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _storageCtl,
+                  decoration: const InputDecoration(
+                    labelText: 'Storage Base URL',
+                    hintText: 'http://host:port',
+                    prefixIcon: Icon(Icons.storage_outlined),
+                  ),
+                  keyboardType: TextInputType.url,
+                  autocorrect: false,
+                ),
+                if (_pendingError != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
                       children: [
-                        const Icon(Icons.label_outline, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          cfg.isCustom
-                              ? l10n.t('endpoint.custom')
-                              : (controller
-                                        .presetById(cfg.presetId ?? '')
-                                        ?.label ??
-                                    cfg.presetId ??
-                                    ''),
+                        Icon(
+                          Icons.error_outline,
+                          size: 18,
+                          color: theme.colorScheme.error,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _pendingError!,
+                            style: TextStyle(color: theme.colorScheme.error),
+                          ),
                         ),
                       ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _saving ? null : _applyCustom,
+                        icon: const Icon(Icons.save_outlined),
+                        label: Text(l10n.t('endpoint.apply_custom')),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _saving ? null : _reset,
+                        icon: const Icon(Icons.restore),
+                        label: Text(l10n.t('endpoint.reset')),
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              l10n.t('endpoint.presets'),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            ...presets.map((p) {
-              final selected = p.id == cfg.presetId;
-              return Card(
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: _saving ? null : () => _applyPreset(p.id),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2, right: 8),
-                          child: Icon(
-                            selected
-                                ? Icons.radio_button_checked
-                                : Icons.radio_button_unchecked,
-                            color: selected
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                p.label,
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                              if (p.description != null &&
-                                  p.description!.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(p.description!),
-                                ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 6),
-                                child: Text(
-                                  'API: ${p.apiBaseUrl}\nWS:  ${p.wsBaseUrl}\nFile: ${p.storageBaseUrl}',
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (selected)
-                          Icon(
-                            Icons.check_circle,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                      ],
-                    ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.tertiary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                ),
-              );
-            }),
-            const SizedBox(height: 16),
-            Text(
-              l10n.t('endpoint.custom_section'),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _apiCtl,
-              decoration: const InputDecoration(
-                labelText: 'API Base URL',
-                hintText: 'http://host:port',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.url,
-              autocorrect: false,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _wsCtl,
-              decoration: const InputDecoration(
-                labelText: 'WebSocket Base URL',
-                hintText: 'ws://host:port',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.url,
-              autocorrect: false,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _storageCtl,
-              decoration: const InputDecoration(
-                labelText: 'Storage Base URL',
-                hintText: 'http://host:port',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.url,
-              autocorrect: false,
-            ),
-            if (_pendingError != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  _pendingError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _saving ? null : _applyCustom,
-                    icon: const Icon(Icons.save_outlined),
-                    label: Text(l10n.t('endpoint.apply_custom')),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _saving ? null : _reset,
-                    icon: const Icon(Icons.restore),
-                    label: Text(l10n.t('endpoint.reset')),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: theme.colorScheme.tertiary,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          l10n.t('endpoint.hint'),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            Card(
-              color: Theme.of(context).colorScheme.tertiaryContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Theme.of(context).colorScheme.tertiary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(l10n.t('endpoint.hint'))),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
