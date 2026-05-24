@@ -1,3 +1,9 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+import 'package:mime/mime.dart';
+
 import '../../../core/constants/api_paths.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_response.dart';
@@ -54,13 +60,50 @@ class UsersApi {
     );
   }
 
-  Future<V2SelfUser> uploadAvatar({required int mediaId}) {
-    return _client.requestData<V2SelfUser>(
+  Future<V2AvatarData> uploadAvatarFile({required File file}) async {
+    final mime = lookupMimeType(file.path) ?? 'application/octet-stream';
+    final form = FormData.fromMap({
+      'avatar': await MultipartFile.fromFile(
+        file.path,
+        filename: file.uri.pathSegments.last,
+        contentType: _parseContentType(mime),
+      ),
+    });
+    return _uploadAvatarForm(form);
+  }
+
+  Future<V2AvatarData> uploadAvatarBytes({
+    required Uint8List bytes,
+    required String fileName,
+    String? mimeType,
+  }) async {
+    final mime =
+        mimeType ??
+        lookupMimeType(fileName, headerBytes: bytes.take(16).toList()) ??
+        'application/octet-stream';
+    final form = FormData.fromMap({
+      'avatar': MultipartFile.fromBytes(
+        bytes,
+        filename: fileName,
+        contentType: _parseContentType(mime),
+      ),
+    });
+    return _uploadAvatarForm(form);
+  }
+
+  Future<V2AvatarData> _uploadAvatarForm(FormData form) async {
+    final res = await _client.raw.put<dynamic>(
       ApiPaths.usersMeAvatar,
-      method: 'PUT',
-      data: {'media_id': mediaId},
-      decode: (data) => V2SelfUser.fromJson(toMap(data)),
+      data: form,
     );
+    final body = res.data;
+    if (body is Map<String, dynamic> && body['code'] is num) {
+      final code = (body['code'] as num).toInt();
+      if (code >= 200 && code < 30000) {
+        return V2AvatarData.fromJson(toMap(body['data']));
+      }
+    }
+    throw Exception('avatar upload failed: ${res.statusCode}');
   }
 
   Future<V2UserSettings> getSettings() {
@@ -228,5 +271,13 @@ class UsersApi {
       data: {'password': password, 'code': code},
       decode: (data) => toMap(data),
     );
+  }
+
+  DioMediaType _parseContentType(String mime) {
+    final parts = mime.split('/');
+    if (parts.length == 2) {
+      return DioMediaType(parts[0], parts[1]);
+    }
+    return DioMediaType('application', 'octet-stream');
   }
 }
