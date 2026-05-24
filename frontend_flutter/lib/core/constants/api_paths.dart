@@ -27,8 +27,7 @@ class ApiPaths {
   static const String usersMeBookmarks = '/api/v2/users/me/bookmarks';
   static const String usersMeGroups = '/api/v2/users/me/groups';
   static const String usersMeGroupInvites = '/api/v2/users/me/group-invites';
-  static const String usersMeStatements =
-      '/api/v2/users/me/account-statements';
+  static const String usersMeStatements = '/api/v2/users/me/account-statements';
   static const String usersMeTwoFactorSetup =
       '/api/v2/users/me/two-factor/setup';
   static const String usersMeTwoFactorConfirm =
@@ -97,8 +96,9 @@ class ApiPaths {
       return true;
     }
     // /api/v2/auth/two-factor/challenges/{id}
-    return RegExp(r'^/api/v2/auth/two-factor/challenges/[^/]+$')
-        .hasMatch(normalized);
+    return RegExp(
+      r'^/api/v2/auth/two-factor/challenges/[^/]+$',
+    ).hasMatch(normalized);
   }
 
   static bool isRefreshPath(String path) {
