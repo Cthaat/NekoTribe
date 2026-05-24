@@ -1,45 +1,48 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
+
 class BillingScreen extends StatelessWidget {
   const BillingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Billing')),
+      appBar: AppBar(title: Text(l10n.t('settings.account.billing'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
-        children: const [
+        children: [
           _MetricTile(
             icon: Icons.wallet_outlined,
-            label: 'Current plan',
-            value: 'Free',
+            label: l10n.t('billing.current_plan'),
+            value: l10n.t('billing.free'),
           ),
           _MetricTile(
             icon: Icons.event_outlined,
-            label: 'Next billing date',
+            label: l10n.t('billing.next_date'),
             value: '2026-06-18',
           ),
           _MetricTile(
             icon: Icons.verified_user_outlined,
-            label: 'Billing status',
-            value: 'Active',
+            label: l10n.t('billing.status'),
+            value: l10n.t('billing.active'),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Card(
             child: ListTile(
-              leading: Icon(Icons.receipt_long_outlined),
-              title: Text('NT-2026-005'),
-              subtitle: Text('2026-05-18'),
-              trailing: Text('Pending'),
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: const Text('NT-2026-005'),
+              subtitle: const Text('2026-05-18'),
+              trailing: Text(l10n.t('billing.pending')),
             ),
           ),
           Card(
             child: ListTile(
-              leading: Icon(Icons.receipt_long_outlined),
-              title: Text('NT-2026-004'),
-              subtitle: Text('2026-04-18'),
-              trailing: Text('Paid'),
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: const Text('NT-2026-004'),
+              subtitle: const Text('2026-04-18'),
+              trailing: Text(l10n.t('billing.paid')),
             ),
           ),
         ],
