@@ -31,8 +31,9 @@ class ThemeController extends StateNotifier<ThemeMode> {
   }
 }
 
-final themeProvider =
-    StateNotifierProvider<ThemeController, ThemeMode>((ref) => ThemeController());
+final themeProvider = StateNotifierProvider<ThemeController, ThemeMode>(
+  (ref) => ThemeController(),
+);
 
 class AppTheme {
   AppTheme._();
@@ -43,10 +44,7 @@ class AppTheme {
       brightness: Brightness.light,
       colorSchemeSeed: const Color(0xFFEC4899),
       visualDensity: VisualDensity.adaptivePlatformDensity,
-      appBarTheme: const AppBarTheme(
-        centerTitle: false,
-        elevation: 0,
-      ),
+      appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
     );
   }
 
@@ -56,10 +54,7 @@ class AppTheme {
       brightness: Brightness.dark,
       colorSchemeSeed: const Color(0xFFEC4899),
       visualDensity: VisualDensity.adaptivePlatformDensity,
-      appBarTheme: const AppBarTheme(
-        centerTitle: false,
-        elevation: 0,
-      ),
+      appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
     );
   }
 }
