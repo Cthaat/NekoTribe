@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import '../../../core/network/api_response.dart';
 import '../domain/user_models.dart';
 import 'users_api.dart';
@@ -25,8 +28,23 @@ class UsersRepository {
     return _api.updateMe(body);
   }
 
-  Future<V2SelfUser> changeAvatar(int mediaId) =>
-      _api.uploadAvatar(mediaId: mediaId);
+  Future<V2SelfUser> changeAvatarFile(File file) async {
+    await _api.uploadAvatarFile(file: file);
+    return _api.getMe();
+  }
+
+  Future<V2SelfUser> changeAvatarBytes({
+    required Uint8List bytes,
+    required String fileName,
+    String? mimeType,
+  }) async {
+    await _api.uploadAvatarBytes(
+      bytes: bytes,
+      fileName: fileName,
+      mimeType: mimeType,
+    );
+    return _api.getMe();
+  }
 
   Future<void> changeEmail({
     required String newEmail,
