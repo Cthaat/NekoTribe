@@ -351,5 +351,4 @@ class PostsApi {
       decode: (_) {},
     );
   }
-
 }
