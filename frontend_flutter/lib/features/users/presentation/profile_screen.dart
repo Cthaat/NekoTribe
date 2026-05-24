@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../posts/domain/post_models.dart';
@@ -57,6 +59,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _toggleFollow() async {
     if (_user == null) return;
+    if (!requireAuthenticatedAction(context, ref)) return;
     final wasFollowing = _user!.relationship.isFollowing;
     try {
       final repo = ref.read(usersRepositoryProvider);
@@ -88,6 +91,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           lastSeenAt: _user!.lastSeenAt,
         );
       });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorView.describe(context, e))),
+      );
+    }
+  }
+
+  Future<void> _openDirectMessage() async {
+    if (_user == null) return;
+    if (!requireAuthenticatedAction(context, ref)) return;
+    try {
+      final conversation = await ref
+          .read(chatApiProvider)
+          .openConversation(userId: _user!.userId);
+      if (!mounted) return;
+      context.push('/chat/conversation/${conversation.conversationId}');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -146,11 +166,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         if (!_user!.relationship.isSelf)
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 32),
-                            child: FilledButton(
-                              onPressed: _toggleFollow,
-                              child: Text(_user!.relationship.isFollowing
-                                  ? l10n.t('common.unfollow')
-                                  : l10n.t('common.follow')),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: _toggleFollow,
+                                    child: Text(_user!.relationship.isFollowing
+                                        ? l10n.t('common.unfollow')
+                                        : l10n.t('common.follow')),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _openDirectMessage,
+                                    icon: const Icon(Icons.mail_outline),
+                                    label: const Text('Message'),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         const Divider(),
@@ -160,6 +194,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             post: _posts[i],
                             onChanged: (u) =>
                                 setState(() => _posts[i] = u),
+                            onDeleted: () {
+                              _posts.removeAt(i);
+                              setState(() {});
+                            },
                             onReport: () => showReportDialog(
                               context,
                               ref,
