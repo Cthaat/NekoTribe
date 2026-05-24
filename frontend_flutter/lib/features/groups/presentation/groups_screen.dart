@@ -33,7 +33,11 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
     _tabController = TabController(
       length: _tabs.length,
       vsync: this,
-      initialIndex: widget.initialTab.clamp(0, _tabs.length - 1),
+      initialIndex: widget.initialTab < 0
+          ? 0
+          : widget.initialTab >= _tabs.length
+          ? _tabs.length - 1
+          : widget.initialTab,
     );
   }
 
