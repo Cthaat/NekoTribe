@@ -62,88 +62,150 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('auth.login'))),
       body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Icon(
-                  Icons.pets,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  l10n.t('app.title'),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _account,
-                  decoration: InputDecoration(
-                    labelText: l10n.t('auth.account'),
-                    border: const OutlineInputBorder(),
-                  ),
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _password,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: l10n.t('auth.password'),
-                    border: const OutlineInputBorder(),
-                  ),
-                  onSubmitted: (_) => _login(),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _rememberMe,
-                      onChanged: (v) =>
-                          setState(() => _rememberMe = v ?? false),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    Text(l10n.t('auth.remember_me')),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: () => context.push('/auth/forgot'),
-                      child: Text(l10n.t('auth.forgot_password')),
+                    child: Icon(
+                      Icons.pets,
+                      size: 36,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    l10n.t('app.title'),
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.t('auth.login'),
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  TextField(
+                    controller: _account,
+                    decoration: InputDecoration(
+                      labelText: l10n.t('auth.account'),
+                      prefixIcon: const Icon(Icons.person_outline, size: 20),
+                    ),
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _password,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: l10n.t('auth.password'),
+                      prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                    ),
+                    onSubmitted: (_) => _login(),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _rememberMe,
+                        onChanged: (v) =>
+                            setState(() => _rememberMe = v ?? false),
+                      ),
+                      Expanded(
+                        child: Text(
+                          l10n.t('auth.remember_me'),
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => context.push('/auth/forgot'),
+                        child: Text(l10n.t('auth.forgot_password')),
+                      ),
+                    ],
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.errorContainer.withValues(
+                          alpha: 0.5,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 18,
+                            color: theme.colorScheme.error,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _error!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
-                ),
-                if (_error != null) ...[
-                  Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: _busy ? null : _login,
+                    child: _busy
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(l10n.t('auth.login')),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        l10n.t('auth.no_account'),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => context.push('/auth/register'),
+                        child: Text(l10n.t('auth.register')),
+                      ),
+                    ],
+                  ),
                 ],
-                FilledButton(
-                  onPressed: _busy ? null : _login,
-                  child: _busy
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(l10n.t('auth.login')),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => context.push('/auth/register'),
-                  child: Text(l10n.t('auth.register')),
-                ),
-              ],
+              ),
             ),
           ),
         ),
