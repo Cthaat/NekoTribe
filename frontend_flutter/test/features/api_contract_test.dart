@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nekotribe/core/auth/token_store.dart';
 import 'package:nekotribe/core/config/app_config.dart';
 import 'package:nekotribe/core/network/api_client.dart';
+import 'package:nekotribe/features/auth/data/auth_api.dart';
 import 'package:nekotribe/features/chat/data/chat_api.dart';
 import 'package:nekotribe/features/groups/data/groups_api.dart';
 import 'package:nekotribe/features/moderation/data/moderation_api.dart';
@@ -14,6 +15,78 @@ import 'package:nekotribe/features/posts/data/posts_api.dart';
 import 'package:nekotribe/features/users/data/users_api.dart';
 
 void main() {
+  group('AuthApi v2 contract', () {
+    test('otp requests use current type and channel payload', () async {
+      final recorder = _ApiRecorder();
+      final api = AuthApi(_client(recorder));
+
+      await api.requestOtp(account: 'edge@example.test', purpose: 'register');
+
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/auth/otp',
+        body: {
+          'account': 'edge@example.test',
+          'type': 'register',
+          'channel': 'email',
+        },
+      );
+    });
+
+    test('registration uses verified email payload without token assumptions', () async {
+      final recorder = _ApiRecorder();
+      final api = AuthApi(_client(recorder));
+
+      final user = await api.register(
+        email: 'edge@example.test',
+        username: 'edge',
+        displayName: 'Edge',
+        password: 'password-1',
+        confirmPassword: 'password-1',
+        verificationId: 'otp-1',
+        agreeToTerms: true,
+      );
+
+      expect(user.email, 'edge@example.test');
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/auth/registration',
+        body: {
+          'email': 'edge@example.test',
+          'username': 'edge',
+          'display_name': 'Edge',
+          'password': 'password-1',
+          'confirm_password': 'password-1',
+          'verification_id': 'otp-1',
+          'agree_to_terms': true,
+        },
+      );
+    });
+
+    test('password reset uses verification id and code payload', () async {
+      final recorder = _ApiRecorder();
+      final api = AuthApi(_client(recorder));
+
+      await api.requestPasswordReset(
+        email: 'edge@example.test',
+        verificationId: 'otp-1',
+        code: '123456',
+        newPassword: 'password-2',
+      );
+
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/auth/password-reset',
+        body: {
+          'email': 'edge@example.test',
+          'verification_id': 'otp-1',
+          'code': '123456',
+          'new_password': 'password-2',
+        },
+      );
+    });
+  });
+
   group('PostsApi v2 contract', () {
     test('feed uses timeline and page_size query keys', () async {
       final recorder = _ApiRecorder();
