@@ -39,6 +39,8 @@ void main() {
     );
     expect(find.text('Top-K 结果数'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('BERT v1'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('BERT v1'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('LSTM v1').last);
@@ -46,6 +48,8 @@ void main() {
 
     expect(users.lastPatch?['ai_sentiment_model_id'], 'lstm-v1');
 
+    await tester.ensureVisible(find.text('2').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('2').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('5').last);
