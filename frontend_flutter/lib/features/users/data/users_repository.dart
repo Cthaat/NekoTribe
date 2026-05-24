@@ -29,14 +29,14 @@ class UsersRepository {
       _api.uploadAvatar(mediaId: mediaId);
 
   Future<void> changeEmail({
-    required String email,
-    required String otpCode,
-    required String password,
+    required String newEmail,
+    required String verificationId,
+    required String code,
   }) {
     return _api.updateEmail(
-      email: email,
-      otpCode: otpCode,
-      password: password,
+      newEmail: newEmail,
+      verificationId: verificationId,
+      code: code,
     );
   }
 
@@ -45,24 +45,22 @@ class UsersRepository {
   Future<V2UserSettings> updateSettings(Map<String, dynamic> body) =>
       _api.updateSettings(body);
 
-  Future<V2PublicUser> getUser(String username) =>
-      _api.getUserByUsername(username);
+  Future<V2PublicUser> getUserById(int userId) => _api.getUserById(userId);
 
-  Future<V2Relationship> follow(String username) => _api.followUser(username);
-  Future<V2Relationship> unfollow(String username) =>
-      _api.unfollowUser(username);
+  Future<V2Relationship> follow(int userId) => _api.followUser(userId);
+  Future<V2Relationship> unfollow(int userId) => _api.unfollowUser(userId);
 
   Future<PagedResult<V2PublicUser>> followers(
-    String username, {
+    int userId, {
     int page = 1,
     int size = 20,
-  }) => _api.getFollowers(username, page: page, size: size);
+  }) => _api.getFollowers(userId, page: page, size: size);
 
   Future<PagedResult<V2PublicUser>> following(
-    String username, {
+    int userId, {
     int page = 1,
     int size = 20,
-  }) => _api.getFollowing(username, page: page, size: size);
+  }) => _api.getFollowing(userId, page: page, size: size);
 
   Future<PagedResult<V2PublicUser>> blocks({int page = 1, int size = 20}) =>
       _api.getBlocks(page: page, size: size);
