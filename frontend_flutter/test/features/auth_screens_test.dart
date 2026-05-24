@@ -9,6 +9,7 @@ import 'package:nekotribe/features/auth/data/auth_api.dart';
 import 'package:nekotribe/features/auth/data/auth_repository.dart';
 import 'package:nekotribe/features/auth/domain/auth_models.dart';
 import 'package:nekotribe/features/auth/presentation/forgot_password_screen.dart';
+import 'package:nekotribe/features/auth/presentation/login_screen.dart';
 import 'package:nekotribe/features/auth/presentation/register_screen.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
@@ -33,6 +34,24 @@ void main() {
     );
     expect(sendButton.right, lessThanOrEqualTo(390));
     expect(sendButton.left, greaterThanOrEqualTo(0));
+    expect(sendButton.width, greaterThanOrEqualTo(120));
+  });
+
+  testWidgets('login layout fits mobile width without clipping actions', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final auth = _FakeAuthRepository();
+    await _pumpAuthRoute(tester, auth, const LoginScreen(), loginText: '');
+
+    expect(tester.takeException(), isNull);
+    final forgotButton = tester.getRect(find.text('忘记密码'));
+    expect(forgotButton.right, lessThanOrEqualTo(390));
+    expect(forgotButton.left, greaterThanOrEqualTo(0));
   });
 
   testWidgets('register verifies OTP and submits verification id', (
