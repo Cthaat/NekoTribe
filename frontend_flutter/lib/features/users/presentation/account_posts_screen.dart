@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../posts/domain/post_models.dart';
 import '../../posts/presentation/post_card.dart';
@@ -23,14 +25,14 @@ class _AccountPostsScreenState extends ConsumerState<AccountPostsScreen> {
   bool _loading = true;
   Object? _error;
 
-  String get _title {
+  String _title(AppLocalizations l10n) {
     switch (widget.kind) {
       case AccountPostsKind.likes:
-        return 'Liked posts';
+        return l10n.t('account.likes');
       case AccountPostsKind.bookmarks:
-        return 'Bookmarks';
+        return l10n.t('account.bookmarks');
       case AccountPostsKind.posts:
-        return 'My posts';
+        return l10n.t('account.my_posts');
     }
   }
 
@@ -68,27 +70,39 @@ class _AccountPostsScreenState extends ConsumerState<AccountPostsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(_title)),
+      appBar: AppBar(title: Text(_title(l10n))),
       body: _loading
           ? const LoadingView()
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
           : _items.isEmpty
-          ? EmptyView(message: 'No $_title yet')
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.separated(
-                itemCount: _items.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (_, i) => PostCard(
-                  post: _items[i],
-                  onChanged: (updated) => setState(() => _items[i] = updated),
-                  onReport: () => showReportDialog(
-                    context,
-                    ref,
-                    targetType: 'post',
-                    targetId: _items[i].postId,
+          ? EmptyView(message: l10n.t('feed.empty'))
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.contentMaxWidth,
+                ),
+                child: RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    itemCount: _items.length,
+                    separatorBuilder: (_, _) =>
+                        Divider(height: 1, color: theme.dividerColor),
+                    itemBuilder: (_, i) => PostCard(
+                      post: _items[i],
+                      onChanged: (updated) =>
+                          setState(() => _items[i] = updated),
+                      onReport: () => showReportDialog(
+                        context,
+                        ref,
+                        targetType: 'post',
+                        targetId: _items[i].postId,
+                      ),
+                    ),
                   ),
                 ),
               ),
