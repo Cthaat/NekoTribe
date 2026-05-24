@@ -51,8 +51,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _error = null;
     });
     try {
-      final result =
-          await ref.read(postsApiProvider).searchPosts(query: q);
+      final result = await ref.read(postsApiProvider).searchPosts(query: q);
       if (!mounted) return;
       setState(() {
         _posts = result.items;
@@ -81,63 +80,59 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           onSubmitted: (_) => _search(),
         ),
         actions: [
-          IconButton(
-            onPressed: _search,
-            icon: const Icon(Icons.search),
-          ),
+          IconButton(onPressed: _search, icon: const Icon(Icons.search)),
         ],
       ),
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _search)
-              : _posts.isNotEmpty
-                  ? ListView.separated(
-                      itemCount: _posts.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (_, i) {
-                        final p = _posts[i];
-                        return PostCard(
-                          key: ValueKey(p.postId),
-                          post: p,
-                          onChanged: (u) =>
-                              setState(() => _posts[i] = u),
-                          onDeleted: () {
-                            _posts.removeAt(i);
-                            setState(() {});
-                          },
-                          onReport: () => showReportDialog(
-                            context,
-                            ref,
-                            targetType: 'post',
-                            targetId: p.postId,
-                          ),
-                        );
-                      },
-                    )
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Trending tags',
-                              style:
-                                  Theme.of(context).textTheme.titleMedium),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            children: [
-                              for (final t in _trendingTags)
-                                ActionChip(
-                                  label: Text('#${t.name}'),
-                                  onPressed: () =>
-                                      context.push('/tags/${t.name}'),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+          ? ErrorView(error: _error!, onRetry: _search)
+          : _posts.isNotEmpty
+          ? ListView.separated(
+              itemCount: _posts.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (_, i) {
+                final p = _posts[i];
+                return PostCard(
+                  key: ValueKey(p.postId),
+                  post: p,
+                  onChanged: (u) => setState(() => _posts[i] = u),
+                  onDeleted: () {
+                    _posts.removeAt(i);
+                    setState(() {});
+                  },
+                  onReport: () => showReportDialog(
+                    context,
+                    ref,
+                    targetType: 'post',
+                    targetId: p.postId,
+                  ),
+                );
+              },
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Trending tags',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final t in _trendingTags)
+                        ActionChip(
+                          label: Text('#${t.name}'),
+                          onPressed: () => context.push('/tags/${t.name}'),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }
