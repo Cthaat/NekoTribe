@@ -139,6 +139,16 @@ class GroupsApi {
     );
   }
 
+  Future<V2GroupPost> getPost({
+    required int groupId,
+    required int postId,
+  }) {
+    return _client.requestData<V2GroupPost>(
+      '${ApiPaths.groups}/$groupId/posts/$postId',
+      decode: (data) => V2GroupPost.fromJson(toMap(data)),
+    );
+  }
+
   Future<V2GroupPost> createPost({
     required int groupId,
     required String content,
@@ -232,6 +242,73 @@ class GroupsApi {
   }) async {
     await _client.request<void>(
       '${ApiPaths.groups}/$groupId/posts/$postId/likes',
+      method: liked ? 'POST' : 'DELETE',
+      decode: (_) {},
+    );
+  }
+
+  Future<PagedResult<V2GroupComment>> comments({
+    required int groupId,
+    required int postId,
+    int page = 1,
+    int size = 20,
+  }) {
+    return _client.requestData<PagedResult<V2GroupComment>>(
+      '${ApiPaths.groups}/$groupId/posts/$postId/comments',
+      query: {'page': page, 'page_size': size},
+      decode: (data) {
+        final map = toMap(data);
+        final items = toList(
+          map['items'],
+          (e) => V2GroupComment.fromJson(toMap(e)),
+        );
+        final meta = map['meta'] is Map<String, dynamic>
+            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
+            : null;
+        return PagedResult<V2GroupComment>(items: items, meta: meta);
+      },
+    );
+  }
+
+  Future<V2GroupComment> createComment({
+    required int groupId,
+    required int postId,
+    required String content,
+    int? parentCommentId,
+    int? replyToUserId,
+  }) {
+    return _client.requestData<V2GroupComment>(
+      '${ApiPaths.groups}/$groupId/posts/$postId/comments',
+      method: 'POST',
+      data: {
+        'content': content,
+        if (parentCommentId != null) 'parent_comment_id': parentCommentId,
+        if (replyToUserId != null) 'reply_to_user_id': replyToUserId,
+      },
+      decode: (data) => V2GroupComment.fromJson(toMap(data)),
+    );
+  }
+
+  Future<void> deleteComment({
+    required int groupId,
+    required int postId,
+    required int commentId,
+  }) async {
+    await _client.request<void>(
+      '${ApiPaths.groups}/$groupId/posts/$postId/comments/$commentId',
+      method: 'DELETE',
+      decode: (_) {},
+    );
+  }
+
+  Future<void> setCommentLikeStatus({
+    required int groupId,
+    required int postId,
+    required int commentId,
+    required bool liked,
+  }) async {
+    await _client.request<void>(
+      '${ApiPaths.groups}/$groupId/posts/$postId/comments/$commentId/likes',
       method: liked ? 'POST' : 'DELETE',
       decode: (_) {},
     );
