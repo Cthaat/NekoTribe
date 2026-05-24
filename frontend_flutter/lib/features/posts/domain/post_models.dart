@@ -184,10 +184,7 @@ class V2Post {
       replyToPostId: toInt(json['reply_to_post_id']),
       repostOfPostId: toInt(json['repost_of_post_id']),
       quotedPostId: toInt(json['quoted_post_id']),
-      media: toList(
-        json['media'],
-        (e) => V2MediaAsset.fromJson(toMap(e)),
-      ),
+      media: toList(json['media'], (e) => V2MediaAsset.fromJson(toMap(e))),
       tags: toList(json['tags'], (e) => toStr(e)),
       mentions: toList(
         json['mentions'],
@@ -200,10 +197,7 @@ class V2Post {
     );
   }
 
-  V2Post copyWith({
-    V2PostStats? stats,
-    V2ViewerPostState? viewerState,
-  }) {
+  V2Post copyWith({V2PostStats? stats, V2ViewerPostState? viewerState}) {
     return V2Post(
       postId: postId,
       author: author,
