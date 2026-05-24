@@ -39,6 +39,36 @@ void main() {
     expect(en.t('post.delete.title'), 'Delete post');
   });
 
+  test(
+    'AppLocalizations covers account, group, auth, and notification copy',
+    () {
+      final zh = AppLocalizations(const Locale('zh'));
+      final en = AppLocalizations(const Locale('en'));
+      const keys = [
+        'auth.otp_sent',
+        'auth.remember_me',
+        'profile.saved',
+        'profile.message',
+        'notification.filter.all_types',
+        'notification.mark_all_read',
+        'group.create_title',
+        'group.manage',
+        'group.no_posts',
+        'account.sessions.title',
+        'account.security.setup_2fa',
+        'account.statements.submit_appeal',
+        'terms.title',
+        'about.title',
+        'pro.view_billing',
+      ];
+
+      for (final key in keys) {
+        expect(zh.t(key), isNot(key), reason: 'missing zh key: $key');
+        expect(en.t(key), isNot(key), reason: 'missing en key: $key');
+      }
+    },
+  );
+
   test('theme preferences persist mode and seed color', () async {
     SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer();
@@ -59,19 +89,25 @@ void main() {
     expect(container.read(themeProvider).seedColor, const Color(0xFF2563EB));
   });
 
-  test('theme preferences fall back when saved seed color is invalid', () async {
-    SharedPreferences.setMockInitialValues({
-      StorageKeys.themeMode: 'light',
-      StorageKeys.themeSeedColor: -1,
-    });
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
+  test(
+    'theme preferences fall back when saved seed color is invalid',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        StorageKeys.themeMode: 'light',
+        StorageKeys.themeSeedColor: -1,
+      });
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
 
-    await container.read(themeProvider.notifier).loaded;
+      await container.read(themeProvider.notifier).loaded;
 
-    expect(container.read(themeProvider).mode, ThemeMode.light);
-    expect(container.read(themeProvider).seedColor, AppTheme.defaultSeedColor);
-  });
+      expect(container.read(themeProvider).mode, ThemeMode.light);
+      expect(
+        container.read(themeProvider).seedColor,
+        AppTheme.defaultSeedColor,
+      );
+    },
+  );
 
   test('AppLocalizations falls back to key when missing', () {
     final loc = AppLocalizations(const Locale('zh'));
