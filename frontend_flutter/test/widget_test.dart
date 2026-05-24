@@ -71,6 +71,8 @@ void main() {
         'discover.trending_tags',
         'account.sessions.title',
         'account.security.setup_2fa',
+        'account.security.disable_2fa',
+        'account.security.recovery_codes',
         'account.statements.submit_appeal',
         'terms.title',
         'about.title',
