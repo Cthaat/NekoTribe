@@ -88,6 +88,58 @@ class ApiClient {
     return res.data;
   }
 
+  Future<PagedResult<T>> requestPaged<T>(
+    String path, {
+    String method = 'GET',
+    Object? data,
+    Map<String, dynamic>? query,
+    Map<String, String>? headers,
+    required T Function(dynamic item) decodeItem,
+    bool sendAuth = true,
+  }) async {
+    final res = await request<dynamic>(
+      path,
+      method: method,
+      data: data,
+      query: query,
+      headers: headers,
+      sendAuth: sendAuth,
+    );
+    return PagedResult<T>(
+      items: _decodePagedItems(res.data, decodeItem),
+      meta: res.meta ?? _decodePagedMeta(res.data),
+    );
+  }
+
+  List<T> _decodePagedItems<T>(
+    dynamic raw,
+    T Function(dynamic item) decodeItem,
+  ) {
+    if (raw is List) {
+      return raw.map(decodeItem).toList();
+    }
+    if (raw is Map) {
+      final items = raw['items'];
+      if (items is List) {
+        return items.map(decodeItem).toList();
+      }
+    }
+    return <T>[];
+  }
+
+  ApiMeta? _decodePagedMeta(dynamic raw) {
+    if (raw is Map) {
+      final meta = raw['meta'];
+      if (meta is Map<String, dynamic>) {
+        return ApiMeta.fromJson(meta);
+      }
+      if (meta is Map) {
+        return ApiMeta.fromJson(Map<String, dynamic>.from(meta));
+      }
+    }
+    return null;
+  }
+
   Map<String, dynamic>? _sanitizeQuery(Map<String, dynamic>? query) {
     if (query == null) return null;
     final result = <String, dynamic>{};
