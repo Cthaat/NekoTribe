@@ -63,7 +63,7 @@ class ChatApi {
   }) {
     final query = <String, dynamic>{
       'page': page,
-      'size': size,
+      'page_size': size,
     };
     if (beforeMessageId != null) query['before'] = beforeMessageId;
     return _client.requestData<PagedResult<V2ChatMessage>>(
@@ -129,7 +129,7 @@ class ChatApi {
   }) async {
     await _client.request<void>(
       '${ApiPaths.chatMessages}/$messageId/reactions',
-      method: 'PUT',
+      method: 'POST',
       data: {'emoji': emoji},
       decode: (_) {},
     );
@@ -149,16 +149,42 @@ class ChatApi {
 
   Future<void> pinMessage(int messageId) async {
     await _client.request<void>(
-      '${ApiPaths.chatMessages}/$messageId/pin',
+      '${ApiPaths.chatMessages}/$messageId/pin-status',
       method: 'PUT',
+      data: {'is_pinned': true},
       decode: (_) {},
     );
   }
 
   Future<void> unpinMessage(int messageId) async {
     await _client.request<void>(
-      '${ApiPaths.chatMessages}/$messageId/pin',
-      method: 'DELETE',
+      '${ApiPaths.chatMessages}/$messageId/pin-status',
+      method: 'PUT',
+      data: {'is_pinned': false},
+      decode: (_) {},
+    );
+  }
+
+  Future<void> setChannelReadStatus({
+    required int channelId,
+    int? lastReadMessageId,
+  }) async {
+    await _client.request<void>(
+      '${ApiPaths.chatChannels}/$channelId/read-status',
+      method: 'PUT',
+      data: {'last_read_message_id': lastReadMessageId},
+      decode: (_) {},
+    );
+  }
+
+  Future<void> setChannelMuteStatus({
+    required int channelId,
+    required bool isMuted,
+  }) async {
+    await _client.request<void>(
+      '${ApiPaths.chatChannels}/$channelId/mute-status',
+      method: 'PUT',
+      data: {'is_muted': isMuted},
       decode: (_) {},
     );
   }
@@ -193,7 +219,7 @@ class ChatApi {
   }) {
     final query = <String, dynamic>{
       'page': page,
-      'size': size,
+      'page_size': size,
     };
     if (beforeMessageId != null) query['before'] = beforeMessageId;
     return _client.requestData<PagedResult<V2DirectMessage>>(
