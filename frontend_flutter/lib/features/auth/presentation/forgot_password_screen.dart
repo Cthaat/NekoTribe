@@ -94,21 +94,45 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('auth.forgot_password'))),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
+          constraints: const BoxConstraints(maxWidth: 440),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    Icons.lock_reset_outlined,
+                    size: 36,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.t('auth.forgot_password'),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
                 TextField(
                   controller: _account,
                   decoration: InputDecoration(
                     labelText: l10n.t('auth.account'),
-                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.alternate_email),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -119,20 +143,25 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                         controller: _otp,
                         decoration: InputDecoration(
                           labelText: l10n.t('auth.otp'),
-                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.pin_outlined),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    OutlinedButton(
-                      onPressed: _sending ? null : _sendOtp,
-                      child: _sending
-                          ? const SizedBox(
-                              height: 16,
-                              width: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(l10n.t('auth.send_otp')),
+                    SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: _sending ? null : _sendOtp,
+                        child: _sending
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(l10n.t('auth.send_otp')),
+                      ),
                     ),
                   ],
                 ),
@@ -142,7 +171,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   obscureText: true,
                   decoration: InputDecoration(
                     labelText: l10n.t('auth.password'),
-                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock_outline),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -151,28 +180,51 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   obscureText: true,
                   decoration: InputDecoration(
                     labelText: l10n.t('auth.confirm_password'),
-                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock_reset_outlined),
                   ),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 18,
+                          color: theme.colorScheme.error,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: TextStyle(color: theme.colorScheme.error),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _busy ? null : _reset,
-                  child: _busy
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(l10n.t('auth.submit')),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: _busy ? null : _reset,
+                    child: _busy
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(l10n.t('auth.submit')),
+                  ),
                 ),
               ],
             ),
