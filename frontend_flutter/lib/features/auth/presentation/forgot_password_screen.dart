@@ -34,14 +34,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     if (_account.text.trim().isEmpty) return;
     setState(() => _sending = true);
     try {
-      await ref.read(authRepositoryProvider).requestOtp(
-            account: _account.text.trim(),
-            purpose: 'password_reset',
-          );
+      await ref
+          .read(authRepositoryProvider)
+          .requestOtp(account: _account.text.trim(), purpose: 'password_reset');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('OTP sent')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('OTP sent')));
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = ErrorView.describe(context, e));
@@ -56,15 +55,17 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       _error = null;
     });
     try {
-      await ref.read(authRepositoryProvider).requestPasswordReset(
+      await ref
+          .read(authRepositoryProvider)
+          .requestPasswordReset(
             account: _account.text.trim(),
             otpCode: _otp.text.trim(),
             newPassword: _password.text,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password reset')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Password reset')));
       context.go('/auth/login');
     } catch (e) {
       if (!mounted) return;
@@ -113,8 +114,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                           ? const SizedBox(
                               height: 16,
                               width: 16,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2))
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : Text(l10n.t('auth.send_otp')),
                     ),
                   ],
@@ -133,7 +134,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   Text(
                     _error!,
                     style: TextStyle(
-                        color: Theme.of(context).colorScheme.error),
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -143,7 +145,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                       ? const SizedBox(
                           height: 18,
                           width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : Text(l10n.t('auth.submit')),
                 ),
               ],
