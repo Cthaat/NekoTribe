@@ -124,7 +124,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_user == null ? 'Profile' : '@${_user!.username}'),
+        title: Text(
+          _user == null
+              ? l10n.t('settings.account.profile')
+              : '@${_user!.username}',
+        ),
       ),
       body: _loading
           ? const LoadingView()
@@ -190,7 +194,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           child: OutlinedButton.icon(
                             onPressed: _openDirectMessage,
                             icon: const Icon(Icons.mail_outline),
-                            label: const Text('Message'),
+                            label: Text(l10n.t('profile.message')),
                           ),
                         ),
                       ],
