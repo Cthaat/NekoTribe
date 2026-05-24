@@ -38,10 +38,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _error = null;
     });
     try {
-      final user =
-          await ref.read(usersRepositoryProvider).getUserById(widget.userId);
-      final posts =
-          await ref.read(postsApiProvider).getUserPostsById(widget.userId);
+      final user = await ref
+          .read(usersRepositoryProvider)
+          .getUserById(widget.userId);
+      final posts = await ref
+          .read(postsApiProvider)
+          .getUserPostsById(widget.userId);
       if (!mounted) return;
       setState(() {
         _user = user;
@@ -77,12 +79,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           location: _user!.location,
           website: _user!.website,
           isVerified: _user!.isVerified,
-          followersCount: _user!.followersCount +
+          followersCount:
+              _user!.followersCount +
               (rel.isFollowing && !wasFollowing
                   ? 1
                   : !rel.isFollowing && wasFollowing
-                      ? -1
-                      : 0),
+                  ? -1
+                  : 0),
           followingCount: _user!.followingCount,
           postsCount: _user!.postsCount,
           likesCount: _user!.likesCount,
@@ -93,9 +96,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -110,9 +113,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context.push('/chat/conversation/${conversation.conversationId}');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -120,93 +123,98 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(_user == null ? 'Profile' : '@${_user!.username}')),
+      appBar: AppBar(
+        title: Text(_user == null ? 'Profile' : '@${_user!.username}'),
+      ),
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : _user == null
-                  ? const SizedBox.shrink()
-                  : ListView(
+          ? ErrorView(error: _error!, onRetry: _load)
+          : _user == null
+          ? const SizedBox.shrink()
+          : ListView(
+              children: [
+                const SizedBox(height: 12),
+                Center(child: AppAvatar(url: _user!.avatarUrl, size: 88)),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    _user!.displayName,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                Center(child: Text('@${_user!.username}')),
+                if (_user!.bio.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(_user!.bio, textAlign: TextAlign.center),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _ProfileStat(
+                        label: l10n.t('profile.followers'),
+                        value: _user!.followersCount,
+                      ),
+                      _ProfileStat(
+                        label: l10n.t('profile.following'),
+                        value: _user!.followingCount,
+                      ),
+                      _ProfileStat(
+                        label: l10n.t('profile.posts'),
+                        value: _user!.postsCount,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (!_user!.relationship.isSelf)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Row(
                       children: [
-                        const SizedBox(height: 12),
-                        Center(child: AppAvatar(url: _user!.avatarUrl, size: 88)),
-                        const SizedBox(height: 8),
-                        Center(
-                          child: Text(_user!.displayName,
-                              style:
-                                  Theme.of(context).textTheme.titleLarge),
-                        ),
-                        Center(child: Text('@${_user!.username}')),
-                        if (_user!.bio.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text(_user!.bio,
-                                textAlign: TextAlign.center),
-                          ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _ProfileStat(
-                                  label: l10n.t('profile.followers'),
-                                  value: _user!.followersCount),
-                              _ProfileStat(
-                                  label: l10n.t('profile.following'),
-                                  value: _user!.followingCount),
-                              _ProfileStat(
-                                  label: l10n.t('profile.posts'),
-                                  value: _user!.postsCount),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (!_user!.relationship.isSelf)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 32),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: FilledButton(
-                                    onPressed: _toggleFollow,
-                                    child: Text(_user!.relationship.isFollowing
-                                        ? l10n.t('common.unfollow')
-                                        : l10n.t('common.follow')),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: _openDirectMessage,
-                                    icon: const Icon(Icons.mail_outline),
-                                    label: const Text('Message'),
-                                  ),
-                                ),
-                              ],
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: _toggleFollow,
+                            child: Text(
+                              _user!.relationship.isFollowing
+                                  ? l10n.t('common.unfollow')
+                                  : l10n.t('common.follow'),
                             ),
                           ),
-                        const Divider(),
-                        for (var i = 0; i < _posts.length; i++)
-                          PostCard(
-                            key: ValueKey(_posts[i].postId),
-                            post: _posts[i],
-                            onChanged: (u) =>
-                                setState(() => _posts[i] = u),
-                            onDeleted: () {
-                              _posts.removeAt(i);
-                              setState(() {});
-                            },
-                            onReport: () => showReportDialog(
-                              context,
-                              ref,
-                              targetType: 'post',
-                              targetId: _posts[i].postId,
-                            ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _openDirectMessage,
+                            icon: const Icon(Icons.mail_outline),
+                            label: const Text('Message'),
                           ),
+                        ),
                       ],
                     ),
+                  ),
+                const Divider(),
+                for (var i = 0; i < _posts.length; i++)
+                  PostCard(
+                    key: ValueKey(_posts[i].postId),
+                    post: _posts[i],
+                    onChanged: (u) => setState(() => _posts[i] = u),
+                    onDeleted: () {
+                      _posts.removeAt(i);
+                      setState(() {});
+                    },
+                    onReport: () => showReportDialog(
+                      context,
+                      ref,
+                      targetType: 'post',
+                      targetId: _posts[i].postId,
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 }
@@ -220,8 +228,7 @@ class _ProfileStat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text('$value',
-            style: Theme.of(context).textTheme.titleMedium),
+        Text('$value', style: Theme.of(context).textTheme.titleMedium),
         Text(label, style: Theme.of(context).textTheme.bodySmall),
       ],
     );
