@@ -117,14 +117,15 @@ class ApiClient {
 
     // 401 自动刷新逻辑：通过 interceptor 实现，这里只处理统一响应
     if (body is Map<String, dynamic>) {
-      final code = (body['code'] is num)
-          ? (body['code'] as num).toInt()
+      final envelope = _v2Envelope(body);
+      final code = (envelope['code'] is num)
+          ? (envelope['code'] as num).toInt()
           : status;
-      final message = (body['message'] is String)
-          ? body['message'] as String
+      final message = (envelope['message'] is String)
+          ? envelope['message'] as String
           : 'request failed';
-      final raw = body['data'];
-      final metaJson = body['meta'];
+      final raw = envelope['data'];
+      final metaJson = envelope['meta'];
       final meta = metaJson is Map<String, dynamic>
           ? ApiMeta.fromJson(metaJson)
           : null;
@@ -160,6 +161,16 @@ class ApiClient {
       message: 'HTTP $status',
       data: body,
     );
+  }
+
+  Map<String, dynamic> _v2Envelope(Map<String, dynamic> body) {
+    if (body['code'] is num || body.containsKey('meta')) return body;
+    final nested = body['data'];
+    if (nested is Map<String, dynamic> &&
+        (nested['code'] is num || nested.containsKey('meta'))) {
+      return nested;
+    }
+    return body;
   }
 
   Interceptor _buildInterceptor() {
