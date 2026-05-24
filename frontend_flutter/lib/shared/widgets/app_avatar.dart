@@ -5,11 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../shared/providers/providers.dart';
 
 class AppAvatar extends ConsumerWidget {
-  const AppAvatar({
-    super.key,
-    required this.url,
-    this.size = 40,
-  });
+  const AppAvatar({super.key, required this.url, this.size = 40});
 
   final String? url;
   final double size;
@@ -30,9 +26,11 @@ class AppAvatar extends ConsumerWidget {
           ),
           errorWidget: (context, _, __) => Container(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Icon(Icons.person,
-                size: size * 0.6,
-                color: Theme.of(context).colorScheme.outline),
+            child: Icon(
+              Icons.person,
+              size: size * 0.6,
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
         ),
       ),
