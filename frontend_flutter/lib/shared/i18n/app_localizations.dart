@@ -14,9 +14,7 @@ class LocaleController extends StateNotifier<Locale?> {
     final raw = prefs.getString(StorageKeys.locale);
     if (raw == null || raw.isEmpty) return;
     final parts = raw.split('_');
-    state = parts.length == 1
-        ? Locale(parts[0])
-        : Locale(parts[0], parts[1]);
+    state = parts.length == 1 ? Locale(parts[0]) : Locale(parts[0], parts[1]);
   }
 
   Future<void> set(Locale? locale) async {
@@ -33,8 +31,9 @@ class LocaleController extends StateNotifier<Locale?> {
   }
 }
 
-final localeProvider =
-    StateNotifierProvider<LocaleController, Locale?>((ref) => LocaleController());
+final localeProvider = StateNotifierProvider<LocaleController, Locale?>(
+  (ref) => LocaleController(),
+);
 
 class AppLocalizations {
   AppLocalizations(this.locale);
@@ -118,7 +117,8 @@ class AppLocalizations {
       'endpoint.custom': '自定义',
       'endpoint.apply_custom': '保存自定义',
       'endpoint.reset': '恢复默认',
-      'endpoint.hint': '切换端点会立即重建网络层；如果切换前后属于不同后端环境，可能需要重新登录。所有 URL 均由 assets/config/app_config.json 与 SharedPreferences 共同管理，源码中不含任何硬编码。',
+      'endpoint.hint':
+          '切换端点会立即重建网络层；如果切换前后属于不同后端环境，可能需要重新登录。所有 URL 均由 assets/config/app_config.json 与 SharedPreferences 共同管理，源码中不含任何硬编码。',
     },
     'en': {
       'app.title': 'NekoTribe',
@@ -188,8 +188,9 @@ class AppLocalizations {
       'endpoint.custom': 'Custom',
       'endpoint.apply_custom': 'Save custom',
       'endpoint.reset': 'Reset to default',
-      'endpoint.hint': 'Switching rebuilds the network layer immediately. If the new endpoint points at a different backend, you may need to sign in again. All URLs are sourced from assets/config/app_config.json + SharedPreferences — none are hardcoded in source.',
-    }
+      'endpoint.hint':
+          'Switching rebuilds the network layer immediately. If the new endpoint points at a different backend, you may need to sign in again. All URLs are sourced from assets/config/app_config.json + SharedPreferences — none are hardcoded in source.',
+    },
   };
 
   String t(String key) {
@@ -199,8 +200,7 @@ class AppLocalizations {
   }
 }
 
-class AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const AppLocalizationsDelegate();
 
   @override
