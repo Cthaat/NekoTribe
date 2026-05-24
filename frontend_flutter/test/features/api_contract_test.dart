@@ -36,10 +36,7 @@ void main() {
       recorder.expectLast(method: 'POST', path: '/api/v2/posts/9/likes');
 
       await api.bookmarkPost(9);
-      recorder.expectLast(
-        method: 'POST',
-        path: '/api/v2/posts/9/bookmarks',
-      );
+      recorder.expectLast(method: 'POST', path: '/api/v2/posts/9/bookmarks');
     });
   });
 
@@ -173,34 +170,40 @@ void main() {
   });
 
   group('UsersApi v2 contract', () {
-    test('profile, follow, and email endpoints match current server API', () async {
-      final recorder = _ApiRecorder();
-      final api = UsersApi(_client(recorder));
+    test(
+      'profile, follow, and email endpoints match current server API',
+      () async {
+        final recorder = _ApiRecorder();
+        final api = UsersApi(_client(recorder));
 
-      await api.getUserById(12);
-      recorder.expectLast(method: 'GET', path: '/api/v2/users/12');
+        await api.getUserById(12);
+        recorder.expectLast(method: 'GET', path: '/api/v2/users/12');
 
-      await api.followUser(12);
-      recorder.expectLast(method: 'POST', path: '/api/v2/users/12/followers');
+        await api.followUser(12);
+        recorder.expectLast(method: 'POST', path: '/api/v2/users/12/followers');
 
-      await api.unfollowUser(12);
-      recorder.expectLast(method: 'DELETE', path: '/api/v2/users/12/followers');
+        await api.unfollowUser(12);
+        recorder.expectLast(
+          method: 'DELETE',
+          path: '/api/v2/users/12/followers',
+        );
 
-      await api.updateEmail(
-        newEmail: 'edge@example.test',
-        verificationId: 'verify-1',
-        code: '123456',
-      );
-      recorder.expectLast(
-        method: 'PATCH',
-        path: '/api/v2/users/me/email',
-        body: {
-          'new_email': 'edge@example.test',
-          'verification_id': 'verify-1',
-          'code': '123456',
-        },
-      );
-    });
+        await api.updateEmail(
+          newEmail: 'edge@example.test',
+          verificationId: 'verify-1',
+          code: '123456',
+        );
+        recorder.expectLast(
+          method: 'PATCH',
+          path: '/api/v2/users/me/email',
+          body: {
+            'new_email': 'edge@example.test',
+            'verification_id': 'verify-1',
+            'code': '123456',
+          },
+        );
+      },
+    );
 
     test('block and mute actions use page_size and POST resources', () async {
       final recorder = _ApiRecorder();
@@ -214,16 +217,10 @@ void main() {
       );
 
       await api.blockUser(12);
-      recorder.expectLast(
-        method: 'POST',
-        path: '/api/v2/users/me/blocks/12',
-      );
+      recorder.expectLast(method: 'POST', path: '/api/v2/users/me/blocks/12');
 
       await api.muteUser(12);
-      recorder.expectLast(
-        method: 'POST',
-        path: '/api/v2/users/me/mutes/12',
-      );
+      recorder.expectLast(method: 'POST', path: '/api/v2/users/me/mutes/12');
     });
   });
 }
@@ -254,7 +251,11 @@ class _ApiRecorder implements HttpClientAdapter {
   ) async {
     requests.add(options);
     return ResponseBody.fromString(
-      jsonEncode({'code': 200, 'message': 'success', 'data': _dataFor(options)}),
+      jsonEncode({
+        'code': 200,
+        'message': 'success',
+        'data': _dataFor(options),
+      }),
       200,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],
