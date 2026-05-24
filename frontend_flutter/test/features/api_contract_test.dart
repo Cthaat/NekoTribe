@@ -12,6 +12,7 @@ import 'package:nekotribe/features/groups/data/groups_api.dart';
 import 'package:nekotribe/features/moderation/data/moderation_api.dart';
 import 'package:nekotribe/features/notifications/data/notifications_api.dart';
 import 'package:nekotribe/features/posts/data/posts_api.dart';
+import 'package:nekotribe/features/sentiment_flow/data/sentiment_flow_api.dart';
 import 'package:nekotribe/features/users/data/users_api.dart';
 
 void main() {
@@ -484,6 +485,56 @@ void main() {
       },
     );
   });
+
+  group('SentimentFlowApi v2 contract', () {
+    test('config decodes current integration info shape', () async {
+      final recorder = _ApiRecorder();
+      final api = SentimentFlowApi(_client(recorder));
+
+      final config = await api.config();
+
+      recorder.expectLast(
+        method: 'GET',
+        path: '/api/v2/integrations/sentiment-flow/config',
+      );
+      expect(config.enabled, isTrue);
+      expect(config.baseUrlConfigured, isTrue);
+      expect(config.proxyBasePath, '/api/v2/integrations/sentiment-flow');
+      expect(config.timeoutMs, 10000);
+    });
+
+    test('prediction uses proxy path and decodes normalized nested data', () async {
+      final recorder = _ApiRecorder();
+      final api = SentimentFlowApi(_client(recorder));
+
+      final prediction = await api.predict(
+        text: 'NekoTribe is lovely',
+        modelId: 'bert-v1',
+        returnProbabilities: true,
+        includeMetadata: true,
+        topK: 2,
+      );
+
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/integrations/sentiment-flow/predict/',
+        body: {
+          'text': 'NekoTribe is lovely',
+          'model_id': 'bert-v1',
+          'return_probabilities': true,
+          'include_metadata': true,
+          'top_k': 2,
+        },
+      );
+      expect(prediction.label, 'positive');
+      expect(prediction.confidence, 0.91);
+      expect(prediction.score, 0.88);
+      expect(prediction.requestId, 'sent-1');
+      expect(prediction.modelName, 'BERT v1');
+      expect(prediction.probabilities?['positive'], 0.91);
+      expect(prediction.topK, hasLength(2));
+    });
+  });
 }
 
 const _testConfig = AppConfig(
@@ -577,6 +628,37 @@ class _ApiRecorder implements HttpClientAdapter {
           'value': '10',
         }),
       ];
+    }
+    if (path == '/api/v2/integrations/sentiment-flow/config') {
+      return {
+        'enabled': true,
+        'baseUrlConfigured': true,
+        'proxyBasePath': '/api/v2/integrations/sentiment-flow',
+        'timeoutMs': 10000,
+      };
+    }
+    if (path == '/api/v2/integrations/sentiment-flow/predict/') {
+      return {
+        'request_id': 'sent-1',
+        'model': {'id': 'bert-v1', 'name': 'BERT v1', 'version': '1.0.0'},
+        'input': {
+          'text': options.data['text'],
+          'language': 'en',
+          'length': 19,
+        },
+        'prediction': {
+          'label': 'positive',
+          'score': 0.88,
+          'confidence': 0.91,
+          'probabilities': {'positive': 0.91, 'neutral': 0.07},
+          'top_k': [
+            {'label': 'positive', 'score': 0.91},
+            {'label': 'neutral', 'score': 0.07},
+          ],
+        },
+        'timing_ms': 37,
+        'created_at': '2026-05-24T00:00:00.000Z',
+      };
     }
     if (path == '/api/v2/auth/otp') {
       return {
