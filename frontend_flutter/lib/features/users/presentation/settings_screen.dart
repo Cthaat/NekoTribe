@@ -452,7 +452,7 @@ class _SentimentStatusPanel extends StatelessWidget {
   final Object? error;
 
   String _summary(BuildContext context) {
-    final isZh = Localizations.localeOf(context).languageCode == 'zh';
+    final isZh = AppLocalizations.of(context).locale.languageCode == 'zh';
     final predictions = stats?.totalPredictions ?? 0;
     final jobs = stats?.totalTrainingJobs ?? 0;
     if (isZh) return '预测 $predictions 次 · 训练 $jobs 次';
