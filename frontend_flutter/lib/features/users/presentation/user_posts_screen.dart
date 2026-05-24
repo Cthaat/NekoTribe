@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../posts/domain/post_models.dart';
@@ -52,14 +53,15 @@ class _UserPostsScreenState extends ConsumerState<UserPostsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('User posts')),
+      appBar: AppBar(title: Text(l10n.t('profile.posts'))),
       body: _loading
           ? const LoadingView()
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
           : _items.isEmpty
-          ? const EmptyView(message: 'No posts')
+          ? EmptyView(message: l10n.t('feed.empty'))
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView.separated(
