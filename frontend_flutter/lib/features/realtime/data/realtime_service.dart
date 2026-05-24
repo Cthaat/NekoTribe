@@ -9,10 +9,7 @@ import '../../../core/config/app_config.dart';
 typedef RealtimeListener = void Function(Map<String, dynamic> event);
 
 class RealtimeService {
-  RealtimeService({
-    required this.config,
-    required this.tokenStore,
-  });
+  RealtimeService({required this.config, required this.tokenStore});
 
   final AppConfig config;
   final TokenStore tokenStore;
@@ -71,7 +68,8 @@ class RealtimeService {
     }
     final base = config.wsBaseUrl;
     final separator = base.endsWith('/') ? '' : '/';
-    final url = '$base${separator}_ws?token=${Uri.encodeQueryComponent(pair.accessToken)}';
+    final url =
+        '$base${separator}_ws?token=${Uri.encodeQueryComponent(pair.accessToken)}';
     try {
       final channel = WebSocketChannel.connect(Uri.parse(url));
       _channel = channel;
@@ -121,7 +119,10 @@ class RealtimeService {
     _channel = null;
     _reconnectAttempts += 1;
     final delay = Duration(
-      milliseconds: (500 * (1 << (_reconnectAttempts.clamp(0, 6)))).clamp(500, 30000),
+      milliseconds: (500 * (1 << (_reconnectAttempts.clamp(0, 6)))).clamp(
+        500,
+        30000,
+      ),
     );
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(delay, () {
