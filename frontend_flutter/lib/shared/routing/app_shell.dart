@@ -8,7 +8,7 @@ class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.child});
   final Widget child;
 
-  static const _tabs = [
+  static const _primaryTabs = [
     ('/feed', Icons.home_outlined, Icons.home, 'tab.home'),
     ('/discover', Icons.explore_outlined, Icons.explore, 'tab.discover'),
     (
@@ -21,9 +21,19 @@ class AppShell extends ConsumerWidget {
     ('/me', Icons.person_outline, Icons.person, 'tab.profile'),
   ];
 
-  int _indexFor(String location) {
-    for (var i = 0; i < _tabs.length; i++) {
-      if (location.startsWith(_tabs[i].$1)) return i;
+  static const _desktopTabs = [
+    ..._primaryTabs,
+    ('/groups', Icons.groups_outlined, Icons.groups, 'group.title'),
+    ('/moderation', Icons.shield_outlined, Icons.shield, 'moderation.title'),
+    ('/sentiment', Icons.psychology_outlined, Icons.psychology, 'sentiment.title'),
+  ];
+
+  int _indexFor(
+    String location,
+    List<(String, IconData, IconData, String)> tabs,
+  ) {
+    for (var i = 0; i < tabs.length; i++) {
+      if (location.startsWith(tabs[i].$1)) return i;
     }
     return 0;
   }
@@ -32,8 +42,9 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final location = GoRouterState.of(context).matchedLocation;
-    final currentIndex = _indexFor(location);
     final isWide = MediaQuery.of(context).size.width >= 800;
+    final tabs = isWide ? _desktopTabs : _primaryTabs;
+    final currentIndex = _indexFor(location, tabs);
 
     if (isWide) {
       return Scaffold(
@@ -43,10 +54,10 @@ class AppShell extends ConsumerWidget {
               extended: MediaQuery.of(context).size.width >= 1100,
               selectedIndex: currentIndex,
               onDestinationSelected: (i) {
-                context.go(_tabs[i].$1);
+                context.go(tabs[i].$1);
               },
               destinations: [
-                for (final t in _tabs)
+                for (final t in tabs)
                   NavigationRailDestination(
                     icon: Icon(t.$2),
                     selectedIcon: Icon(t.$3),
@@ -64,9 +75,9 @@ class AppShell extends ConsumerWidget {
       body: child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex,
-        onDestinationSelected: (i) => context.go(_tabs[i].$1),
+        onDestinationSelected: (i) => context.go(tabs[i].$1),
         destinations: [
-          for (final t in _tabs)
+          for (final t in tabs)
             NavigationDestination(
               icon: Icon(t.$2),
               selectedIcon: Icon(t.$3),
@@ -77,3 +88,14 @@ class AppShell extends ConsumerWidget {
     );
   }
 }
+
+const desktopAppShellPaths = <String>{
+  '/feed',
+  '/discover',
+  '/notifications',
+  '/chat',
+  '/me',
+  '/groups',
+  '/moderation',
+  '/sentiment',
+};
