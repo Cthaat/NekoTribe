@@ -26,17 +26,17 @@ class UsersApi {
   }
 
   Future<void> updateEmail({
-    required String email,
-    required String otpCode,
-    required String password,
+    required String newEmail,
+    required String verificationId,
+    required String code,
   }) async {
     await _client.request<void>(
       ApiPaths.usersMeEmail,
-      method: 'PUT',
+      method: 'PATCH',
       data: {
-        'email': email,
-        'otp_code': otpCode,
-        'password': password,
+        'new_email': newEmail,
+        'verification_id': verificationId,
+        'code': code,
       },
       decode: (_) {},
     );
@@ -72,7 +72,7 @@ class UsersApi {
   Future<PagedResult<V2PublicUser>> getBlocks({int page = 1, int size = 20}) {
     return _client.requestData<PagedResult<V2PublicUser>>(
       ApiPaths.usersMeBlocks,
-      query: {'page': page, 'size': size},
+      query: {'page': page, 'page_size': size},
       decode: (data) {
         final map = toMap(data);
         final items = toList(
@@ -90,7 +90,7 @@ class UsersApi {
   Future<PagedResult<V2PublicUser>> getMutes({int page = 1, int size = 20}) {
     return _client.requestData<PagedResult<V2PublicUser>>(
       ApiPaths.usersMeMutes,
-      query: {'page': page, 'size': size},
+      query: {'page': page, 'page_size': size},
       decode: (data) {
         final map = toMap(data);
         final items = toList(
@@ -108,7 +108,7 @@ class UsersApi {
   Future<void> blockUser(int userId) async {
     await _client.request<void>(
       '${ApiPaths.usersMeBlocks}/$userId',
-      method: 'PUT',
+      method: 'POST',
       decode: (_) {},
     );
   }
@@ -124,7 +124,7 @@ class UsersApi {
   Future<void> muteUser(int userId) async {
     await _client.request<void>(
       '${ApiPaths.usersMeMutes}/$userId',
-      method: 'PUT',
+      method: 'POST',
       decode: (_) {},
     );
   }
@@ -143,7 +143,7 @@ class UsersApi {
   }) {
     return _client.requestData<PagedResult<V2AccountStatement>>(
       ApiPaths.usersMeStatements,
-      query: {'page': page, 'size': size},
+      query: {'page': page, 'page_size': size},
       decode: (data) {
         final map = toMap(data);
         final items = toList(
