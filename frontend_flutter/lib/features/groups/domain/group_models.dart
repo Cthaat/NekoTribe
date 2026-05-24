@@ -233,3 +233,49 @@ class V2GroupPost {
     );
   }
 }
+
+class V2GroupComment {
+  V2GroupComment({
+    required this.commentId,
+    required this.postId,
+    required this.author,
+    this.parentCommentId,
+    this.replyToUser,
+    required this.content,
+    required this.likesCount,
+    required this.isLikedByMe,
+    required this.canDeleteByMe,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final int commentId;
+  final int postId;
+  final V2PublicUser author;
+  final int? parentCommentId;
+  final V2PublicUser? replyToUser;
+  final String content;
+  final int likesCount;
+  final bool isLikedByMe;
+  final bool canDeleteByMe;
+  final String createdAt;
+  final String updatedAt;
+
+  factory V2GroupComment.fromJson(Map<String, dynamic> json) {
+    return V2GroupComment(
+      commentId: toInt(json['comment_id']) ?? 0,
+      postId: toInt(json['post_id']) ?? 0,
+      author: V2PublicUser.fromJson(toMap(json['author'])),
+      parentCommentId: toInt(json['parent_comment_id']),
+      replyToUser: json['reply_to_user'] is Map<String, dynamic>
+          ? V2PublicUser.fromJson(json['reply_to_user'] as Map<String, dynamic>)
+          : null,
+      content: toStr(json['content']),
+      likesCount: toInt(json['likes_count']) ?? 0,
+      isLikedByMe: toBool(json['is_liked_by_me']),
+      canDeleteByMe: toBool(json['can_delete_by_me']),
+      createdAt: toStr(json['created_at']),
+      updatedAt: toStr(json['updated_at']),
+    );
+  }
+}
