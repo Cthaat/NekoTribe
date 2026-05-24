@@ -28,40 +28,48 @@ Future<void> showReportDialog(
                 children: [
                   DropdownButtonFormField<String>(
                     initialValue: selectedReason,
-                    items: const [
-                      DropdownMenuItem(value: 'spam', child: Text('Spam')),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'spam',
+                        child: Text(l10n.t('report.reason.spam')),
+                      ),
                       DropdownMenuItem(
                         value: 'abuse',
-                        child: Text('Abuse / Harassment'),
+                        child: Text(l10n.t('report.reason.abuse')),
                       ),
                       DropdownMenuItem(
                         value: 'hate',
-                        child: Text('Hate speech'),
+                        child: Text(l10n.t('report.reason.hate')),
                       ),
                       DropdownMenuItem(
                         value: 'sexual',
-                        child: Text('Sexual content'),
+                        child: Text(l10n.t('report.reason.sexual')),
                       ),
                       DropdownMenuItem(
                         value: 'violence',
-                        child: Text('Violence'),
+                        child: Text(l10n.t('report.reason.violence')),
                       ),
                       DropdownMenuItem(
                         value: 'misinformation',
-                        child: Text('Misinformation'),
+                        child: Text(l10n.t('report.reason.misinformation')),
                       ),
-                      DropdownMenuItem(value: 'other', child: Text('Other')),
+                      DropdownMenuItem(
+                        value: 'other',
+                        child: Text(l10n.t('report.reason.other')),
+                      ),
                     ],
                     onChanged: (v) => setLocal(() => selectedReason = v),
-                    decoration: const InputDecoration(labelText: 'Reason'),
+                    decoration: InputDecoration(
+                      labelText: l10n.t('common.reason'),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: descController,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Details',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: l10n.t('report.details'),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                 ],
@@ -104,7 +112,7 @@ Future<void> showReportDialog(
   if (saved == true && context.mounted) {
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Report submitted')));
+    ).showSnackBar(SnackBar(content: Text(l10n.t('report.submitted'))));
   }
   reasonController.dispose();
   descController.dispose();
