@@ -117,7 +117,7 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: _visibility,
+                        initialValue: _visibility,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                           labelText: 'Visibility',
