@@ -31,12 +31,20 @@ void main() {
     expect(zh.t('settings.account.liked_posts'), '已点赞推文');
     expect(zh.t('settings.option.system'), '跟随系统');
     expect(zh.t('post.delete.title'), '删除推文');
+    expect(zh.t('window.minimize'), '最小化');
+    expect(zh.t('window.maximize'), '最大化');
+    expect(zh.t('window.restore'), '还原');
+    expect(zh.t('window.close'), '关闭');
 
     expect(en.t('feed.tab.home'), 'Home');
     expect(en.t('settings.section.appearance'), 'Appearance');
     expect(en.t('settings.account.my_posts'), 'My posts');
     expect(en.t('settings.option.system'), 'System');
     expect(en.t('post.delete.title'), 'Delete post');
+    expect(en.t('window.minimize'), 'Minimize');
+    expect(en.t('window.maximize'), 'Maximize');
+    expect(en.t('window.restore'), 'Restore');
+    expect(en.t('window.close'), 'Close');
   });
 
   test(
