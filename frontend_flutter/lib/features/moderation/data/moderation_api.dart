@@ -152,7 +152,8 @@ class ModerationApi {
   Future<void> restrictUser({
     required int userId,
     required String action,
-    String? until,
+    String? reason,
+    int? durationHours,
     String? note,
   }) async {
     await _client.request<void>(
@@ -160,7 +161,8 @@ class ModerationApi {
       method: 'POST',
       data: {
         'action': action,
-        if (until != null) 'until': until,
+        if (reason != null) 'reason': reason,
+        if (durationHours != null) 'duration_hours': durationHours,
         if (note != null) 'note': note,
       },
       decode: (_) {},
