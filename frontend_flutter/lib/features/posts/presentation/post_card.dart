@@ -259,7 +259,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     return InkWell(
       onTap: () => context.push('/posts/${_post.postId}'),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -273,6 +273,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Flexible(
                         child: Text(
@@ -280,7 +281,10 @@ class _PostCardState extends ConsumerState<PostCard> {
                               ? _post.author.username
                               : _post.author.displayName,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall,
+                          maxLines: 1,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -288,59 +292,74 @@ class _PostCardState extends ConsumerState<PostCard> {
                         child: Text(
                           '@${_post.author.username}',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.outline,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                           overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ),
                       const SizedBox(width: 6),
                       Text(
                         '· ${_formatDate(_post.createdAt)}',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.outline,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const Spacer(),
-                      PopupMenuButton<String>(
-                        icon: const Icon(Icons.more_horiz),
-                        onSelected: _handleMenu,
-                        itemBuilder: (_) => [
-                          if (_post.viewerState.canDelete) ...[
+                      SizedBox(
+                        height: 28,
+                        width: 28,
+                        child: PopupMenuButton<String>(
+                          padding: EdgeInsets.zero,
+                          tooltip: l10n.t('common.more'),
+                          icon: Icon(
+                            Icons.more_horiz,
+                            size: 18,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          onSelected: _handleMenu,
+                          itemBuilder: (_) => [
+                            if (_post.viewerState.canDelete) ...[
+                              PopupMenuItem(
+                                value: 'edit',
+                                child: Text(l10n.t('common.edit')),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text(l10n.t('common.delete')),
+                              ),
+                            ],
                             PopupMenuItem(
-                              value: 'edit',
-                              child: Text(l10n.t('common.edit')),
+                              value: 'quote',
+                              child: Text(l10n.t('post.quote.menu')),
                             ),
                             PopupMenuItem(
-                              value: 'delete',
-                              child: Text(l10n.t('common.delete')),
+                              value: 'not_interested',
+                              child: Text(l10n.t('post.feedback.not_interested')),
+                            ),
+                            PopupMenuItem(
+                              value: 'show_less',
+                              child: Text(l10n.t('post.feedback.show_less')),
+                            ),
+                            PopupMenuItem(
+                              value: 'report',
+                              child: Text(l10n.t('common.report')),
                             ),
                           ],
-                          PopupMenuItem(
-                            value: 'quote',
-                            child: Text(l10n.t('post.quote.menu')),
-                          ),
-                          PopupMenuItem(
-                            value: 'not_interested',
-                            child: Text(l10n.t('post.feedback.not_interested')),
-                          ),
-                          PopupMenuItem(
-                            value: 'show_less',
-                            child: Text(l10n.t('post.feedback.show_less')),
-                          ),
-                          PopupMenuItem(
-                            value: 'report',
-                            child: Text(l10n.t('common.report')),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
                   if (_post.content.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(_post.content),
+                    const SizedBox(height: 6),
+                    Text(
+                      _post.content,
+                      style: theme.textTheme.bodyLarge,
+                      softWrap: true,
+                    ),
                   ],
                   if (_post.media.isNotEmpty) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     _MediaGrid(media: _post.media),
                   ],
                   const SizedBox(height: 8),
@@ -351,22 +370,24 @@ class _PostCardState extends ConsumerState<PostCard> {
                         label: '${_post.stats.commentsCount}',
                         onTap: () => context.push('/posts/${_post.postId}'),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 8),
                       _ActionButton(
                         icon: _post.viewerState.isLiked
                             ? Icons.favorite
                             : Icons.favorite_border,
                         label: '${_post.stats.likesCount}',
                         active: _post.viewerState.isLiked,
+                        activeColor: const Color(0xFFE0245E),
                         onTap: _toggleLike,
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 8),
                       _ActionButton(
                         icon: _post.viewerState.isBookmarked
                             ? Icons.bookmark
                             : Icons.bookmark_border,
                         label: '',
                         active: _post.viewerState.isBookmarked,
+                        activeColor: theme.colorScheme.primary,
                         onTap: _toggleBookmark,
                       ),
                     ],
@@ -388,22 +409,36 @@ class _MediaGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (media.isEmpty) return const SizedBox.shrink();
+    final radius = BorderRadius.circular(14);
     if (media.length == 1) {
-      return AspectRatio(
-        aspectRatio: 16 / 9,
-        child: AppMediaImage(url: media.first.publicUrl),
+      return ClipRRect(
+        borderRadius: radius,
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: AppMediaImage(
+            url: media.first.publicUrl,
+            borderRadius: BorderRadius.zero,
+          ),
+        ),
       );
     }
     final count = media.length.clamp(0, 4);
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 4,
-      crossAxisSpacing: 4,
-      children: [
-        for (var i = 0; i < count; i++) AppMediaImage(url: media[i].publicUrl),
-      ],
+    return ClipRRect(
+      borderRadius: radius,
+      child: GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 3,
+        crossAxisSpacing: 3,
+        children: [
+          for (var i = 0; i < count; i++)
+            AppMediaImage(
+              url: media[i].publicUrl,
+              borderRadius: BorderRadius.zero,
+            ),
+        ],
+      ),
     );
   }
 }
@@ -414,30 +449,39 @@ class _ActionButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.active = false,
+    this.activeColor,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool active;
+  final Color? activeColor;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final color = active
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.outline;
+        ? (activeColor ?? theme.colorScheme.primary)
+        : theme.colorScheme.onSurfaceVariant;
+    final hoverColor = (activeColor ?? theme.colorScheme.primary)
+        .withValues(alpha: 0.08);
     return InkWell(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(999),
+      hoverColor: hoverColor,
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 18, color: color),
             if (label.isNotEmpty) ...[
-              const SizedBox(width: 4),
-              Text(label, style: TextStyle(color: color, fontSize: 12)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: theme.textTheme.labelMedium?.copyWith(color: color),
+              ),
             ],
           ],
         ),
