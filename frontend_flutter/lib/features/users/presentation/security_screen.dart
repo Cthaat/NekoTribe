@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
 
@@ -44,9 +45,10 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
           .read(usersRepositoryProvider)
           .confirmTwoFactor(secret: _twoFactorSecret!, code: code);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('2FA enabled')));
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.t('account.security.enabled'))),
+      );
       setState(() {
         _twoFactorSecret = null;
         _qrUri = null;
@@ -61,8 +63,9 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Security')),
+      appBar: AppBar(title: Text(l10n.t('account.security.title'))),
       body: ListView(
         children: [
           if (_error != null)
@@ -74,10 +77,8 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
               ),
             ),
           ListTile(
-            title: const Text('Setup Two-Factor Authentication'),
-            subtitle: const Text(
-              'Use an authenticator app like Google Authenticator',
-            ),
+            title: Text(l10n.t('account.security.setup_2fa')),
+            subtitle: Text(l10n.t('account.security.setup_2fa_hint')),
             trailing: _busy
                 ? const SizedBox(
                     height: 18,
@@ -94,7 +95,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Setup secret:'),
+                  Text(l10n.t('account.security.setup_secret')),
                   SelectableText(_twoFactorSecret!),
                   if (_qrUri != null) SelectableText('URI: $_qrUri'),
                   const SizedBox(height: 12),
@@ -127,21 +128,22 @@ class _ConfirmFieldState extends State<_ConfirmField> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
           child: TextField(
             controller: _ctl,
-            decoration: const InputDecoration(
-              labelText: 'Enter code',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: l10n.t('account.security.enter_code'),
+              border: const OutlineInputBorder(),
             ),
           ),
         ),
         const SizedBox(width: 12),
         FilledButton(
           onPressed: () => widget.onSubmit(_ctl.text.trim()),
-          child: const Text('Confirm'),
+          child: Text(l10n.t('common.confirm')),
         ),
       ],
     );
