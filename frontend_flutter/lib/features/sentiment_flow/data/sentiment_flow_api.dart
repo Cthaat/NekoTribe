@@ -134,6 +134,119 @@ class V2SentimentPrediction {
   }
 }
 
+class V2SentimentModelItem {
+  V2SentimentModelItem({
+    required this.modelId,
+    required this.name,
+    required this.version,
+    required this.type,
+    this.path,
+    this.sizeMb,
+    this.bestF1,
+    this.bestMae,
+    this.bestQwk,
+    this.bestEpoch,
+    required this.isActive,
+    required this.createdAt,
+  });
+
+  final String modelId;
+  final String name;
+  final String version;
+  final String type;
+  final String? path;
+  final double? sizeMb;
+  final double? bestF1;
+  final double? bestMae;
+  final double? bestQwk;
+  final int? bestEpoch;
+  final bool isActive;
+  final String createdAt;
+
+  factory V2SentimentModelItem.fromJson(Map<String, dynamic> json) {
+    return V2SentimentModelItem(
+      modelId: toStr(json['model_id'] ?? json['id'] ?? json['name']),
+      name: toStr(json['name'] ?? json['model_id']),
+      version: toStr(json['version']),
+      type: toStr(json['type'] ?? json['model_type']),
+      path: toStrOrNull(json['path']),
+      sizeMb: toDouble(json['size_mb'] ?? json['sizeMb']),
+      bestF1: toDouble(json['best_f1'] ?? json['bestF1']),
+      bestMae: toDouble(json['best_mae'] ?? json['bestMae']),
+      bestQwk: toDouble(json['best_qwk'] ?? json['bestQwk']),
+      bestEpoch: toInt(json['best_epoch'] ?? json['bestEpoch']),
+      isActive: toBool(json['is_active'] ?? json['isActive']),
+      createdAt: toStr(json['created_at'] ?? json['createdAt']),
+    );
+  }
+}
+
+class V2SentimentModelsData {
+  V2SentimentModelsData({required this.items, required this.total});
+
+  final List<V2SentimentModelItem> items;
+  final int total;
+
+  factory V2SentimentModelsData.fromJson(Object? data) {
+    final map = data is Map<String, dynamic> ? data : const <String, dynamic>{};
+    final rawItems = map.isNotEmpty ? (map['items'] ?? map['models']) : data;
+    final items = toList(
+      rawItems,
+      (e) => V2SentimentModelItem.fromJson(toMap(e)),
+    );
+    return V2SentimentModelsData(
+      items: items,
+      total: toInt(map['total']) ?? items.length,
+    );
+  }
+}
+
+class V2SentimentActiveModel {
+  V2SentimentActiveModel({
+    required this.modelId,
+    required this.name,
+    required this.version,
+    required this.activatedAt,
+  });
+
+  final String modelId;
+  final String name;
+  final String version;
+  final String activatedAt;
+
+  factory V2SentimentActiveModel.fromJson(Map<String, dynamic> json) {
+    return V2SentimentActiveModel(
+      modelId: toStr(json['model_id'] ?? json['id']),
+      name: toStr(json['name'] ?? json['model_id']),
+      version: toStr(json['version']),
+      activatedAt: toStr(json['activated_at'] ?? json['activatedAt']),
+    );
+  }
+}
+
+class V2SentimentStatsOverview {
+  V2SentimentStatsOverview({
+    required this.totalPredictions,
+    required this.totalTrainingJobs,
+    this.activeModel,
+  });
+
+  final int totalPredictions;
+  final int totalTrainingJobs;
+  final V2SentimentActiveModel? activeModel;
+
+  factory V2SentimentStatsOverview.fromJson(Map<String, dynamic> json) {
+    final activeModel = json['active_model'] ?? json['activeModel'];
+    return V2SentimentStatsOverview(
+      totalPredictions: toInt(json['total_predictions']) ?? 0,
+      totalTrainingJobs: toInt(json['total_training_jobs']) ?? 0,
+      activeModel: activeModel is Map<String, dynamic>
+          ? V2SentimentActiveModel.fromJson(activeModel)
+          : null,
+    );
+  }
+}
+
 class SentimentFlowApi {
   SentimentFlowApi(this._client);
 
@@ -165,6 +278,36 @@ class SentimentFlowApi {
         if (topK != null) 'top_k': topK,
       },
       decode: (data) => V2SentimentPrediction.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2SentimentModelsData> listModels() {
+    return _client.requestData<V2SentimentModelsData>(
+      '${ApiPaths.sentimentFlowProxy}/models/',
+      decode: V2SentimentModelsData.fromJson,
+    );
+  }
+
+  Future<V2SentimentActiveModel> getActiveModel() {
+    return _client.requestData<V2SentimentActiveModel>(
+      '${ApiPaths.sentimentFlowProxy}/models/active',
+      decode: (data) => V2SentimentActiveModel.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2SentimentActiveModel> setActiveModel(String modelId) {
+    return _client.requestData<V2SentimentActiveModel>(
+      '${ApiPaths.sentimentFlowProxy}/models/active',
+      method: 'PUT',
+      data: {'model_id': modelId},
+      decode: (data) => V2SentimentActiveModel.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2SentimentStatsOverview> statsOverview() {
+    return _client.requestData<V2SentimentStatsOverview>(
+      '${ApiPaths.sentimentFlowProxy}/stats/overview',
+      decode: (data) => V2SentimentStatsOverview.fromJson(toMap(data)),
     );
   }
 }
