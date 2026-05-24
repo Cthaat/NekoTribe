@@ -218,17 +218,10 @@ class PostsApi {
     int page = 1,
     int size = 20,
   }) {
-    return _client.requestData<PagedResult<V2Comment>>(
+    return _client.requestPaged<V2Comment>(
       '${ApiPaths.posts}/$postId/comments',
       query: {'page': page, 'page_size': size},
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(map['items'], (e) => V2Comment.fromJson(toMap(e)));
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2Comment>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2Comment.fromJson(toMap(item)),
     );
   }
 
@@ -286,24 +279,18 @@ class PostsApi {
   }
 
   Future<List<V2Post>> getTrending({int limit = 10}) {
-    return _client.requestData<List<V2Post>>(
+    return _client.requestList<V2Post>(
       ApiPaths.postsTrending,
       query: {'limit': limit},
-      decode: (data) {
-        final map = toMap(data);
-        return toList(map['items'], (e) => V2Post.fromJson(toMap(e)));
-      },
+      decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
 
   Future<List<V2TagItem>> getTrendingTags({int limit = 10}) {
-    return _client.requestData<List<V2TagItem>>(
+    return _client.requestList<V2TagItem>(
       ApiPaths.tagsTrending,
       query: {'limit': limit},
-      decode: (data) {
-        final map = toMap(data);
-        return toList(map['items'], (e) => V2TagItem.fromJson(toMap(e)));
-      },
+      decodeItem: (item) => V2TagItem.fromJson(toMap(item)),
     );
   }
 
