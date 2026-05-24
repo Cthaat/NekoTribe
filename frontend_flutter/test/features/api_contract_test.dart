@@ -28,6 +28,21 @@ void main() {
       );
     });
 
+    test('feed decodes v2 list data from envelope meta', () async {
+      final recorder = _ApiRecorder();
+      final api = PostsApi(_client(recorder));
+
+      final page = await api.getFeed(mode: 'home', page: 1, size: 20);
+
+      expect(page.items, hasLength(1));
+      expect(page.items.single.postId, 100001);
+      expect(page.items.single.content, contains('NekoTribe'));
+      expect(page.page, 1);
+      expect(page.pageSize, 20);
+      expect(page.total, 1);
+      expect(page.hasNext, isFalse);
+    });
+
     test('post like and bookmark use plural REST resources', () async {
       final recorder = _ApiRecorder();
       final api = PostsApi(_client(recorder));
@@ -250,11 +265,13 @@ class _ApiRecorder implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
+    final meta = _metaFor(options);
     return ResponseBody.fromString(
       jsonEncode({
         'code': 200,
         'message': 'success',
         'data': _dataFor(options),
+        if (meta != null) 'meta': meta,
       }),
       200,
       headers: {
@@ -286,6 +303,9 @@ class _ApiRecorder implements HttpClientAdapter {
 
   dynamic _dataFor(RequestOptions options) {
     final path = options.path;
+    if (path == '/api/v2/posts') {
+      return <Object>[_postJson];
+    }
     if (path.endsWith('/likes')) {
       return {'is_liked': true, 'is_bookmarked': false, 'can_delete': true};
     }
@@ -315,6 +335,13 @@ class _ApiRecorder implements HttpClientAdapter {
       'items': <Object>[],
       'meta': {'page': 1, 'page_size': 20, 'total': 0, 'has_next': false},
     };
+  }
+
+  Map<String, Object>? _metaFor(RequestOptions options) {
+    if (options.path == '/api/v2/posts') {
+      return {'page': 1, 'page_size': 20, 'total': 1, 'has_next': false};
+    }
+    return null;
   }
 }
 
@@ -387,6 +414,37 @@ const _groupCommentJson = {
   'likes_count': 0,
   'is_liked_by_me': false,
   'can_delete_by_me': true,
+  'created_at': '2026-05-24T00:00:00.000Z',
+  'updated_at': '2026-05-24T00:00:00.000Z',
+};
+
+const _postJson = {
+  'post_id': 100001,
+  'author': _publicUserJson,
+  'content': '欢迎来到 NekoTribe V2 开发环境。',
+  'post_type': 'post',
+  'visibility': 'public',
+  'language': 'zh',
+  'location': '',
+  'reply_to_post_id': null,
+  'repost_of_post_id': null,
+  'quoted_post_id': null,
+  'media': <Object>[],
+  'tags': <String>['v2'],
+  'mentions': <Object>[],
+  'stats': {
+    'likes_count': 0,
+    'comments_count': 0,
+    'replies_count': 0,
+    'retweets_count': 0,
+    'views_count': 0,
+    'engagement_score': 0,
+  },
+  'viewer_state': {
+    'is_liked': false,
+    'is_bookmarked': false,
+    'can_delete': false,
+  },
   'created_at': '2026-05-24T00:00:00.000Z',
   'updated_at': '2026-05-24T00:00:00.000Z',
 };
