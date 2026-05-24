@@ -82,7 +82,9 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
 
   Future<void> _toggleLike(V2GroupPost post) async {
     final nextLiked = !post.isLikedByMe;
-    await ref.read(groupsApiProvider).setGroupPostLikeStatus(
+    await ref
+        .read(groupsApiProvider)
+        .setGroupPostLikeStatus(
           groupId: post.groupId,
           postId: post.postId,
           liked: nextLiked,
@@ -91,7 +93,9 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
   }
 
   Future<void> _togglePin(V2GroupPost post) async {
-    await ref.read(groupsApiProvider).setGroupPostPinStatus(
+    await ref
+        .read(groupsApiProvider)
+        .setGroupPostPinStatus(
           groupId: post.groupId,
           postId: post.postId,
           isPinned: !post.isPinned,
@@ -191,7 +195,7 @@ class _Filters extends StatelessWidget {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: groupId,
+              initialValue: groupId,
               decoration: InputDecoration(
                 labelText: l10n.t('group.group'),
                 isDense: true,
@@ -215,7 +219,7 @@ class _Filters extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: type,
+              initialValue: type,
               decoration: InputDecoration(
                 labelText: l10n.t('common.details'),
                 isDense: true,
@@ -351,9 +355,7 @@ class _GroupFeedPostTile extends StatelessWidget {
                 TextButton.icon(
                   onPressed: onLike,
                   icon: Icon(
-                    post.isLikedByMe
-                        ? Icons.favorite
-                        : Icons.favorite_border,
+                    post.isLikedByMe ? Icons.favorite : Icons.favorite_border,
                     size: 18,
                   ),
                   label: Text('${post.likesCount}'),
