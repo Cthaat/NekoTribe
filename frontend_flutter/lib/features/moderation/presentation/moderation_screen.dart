@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/moderation_models.dart';
 
@@ -72,6 +73,7 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: [
             Tab(text: l10n.t('moderation.tabs.overview')),
             Tab(text: l10n.t('moderation.tabs.content')),
@@ -82,21 +84,29 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _OverviewTab(
-            stats: _stats,
-            loading: _statsLoading,
-            error: _statsError,
-            onRetry: _loadStats,
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.contentMaxWidth,
           ),
-          const _ContentTab(),
-          const _ReportsTab(),
-          const _UsersTab(),
-          const _AppealsTab(),
-          const _SettingsTab(),
-        ],
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _OverviewTab(
+                stats: _stats,
+                loading: _statsLoading,
+                error: _statsError,
+                onRetry: _loadStats,
+              ),
+              const _ContentTab(),
+              const _ReportsTab(),
+              const _UsersTab(),
+              const _AppealsTab(),
+              const _SettingsTab(),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -130,37 +140,49 @@ class _OverviewTab extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 2,
+        childAspectRatio: 1.7,
         children: [
           _StatCard(
+            icon: Icons.hourglass_top_outlined,
             label: l10n.t('moderation.stats.pending'),
             value: '${stats!.pending}',
+            color: const Color(0xFFE3A857),
           ),
           _StatCard(
+            icon: Icons.check_circle_outline,
             label: l10n.t('moderation.stats.approved'),
             value: '${stats!.approved}',
+            color: const Color(0xFF34A853),
           ),
           _StatCard(
+            icon: Icons.cancel_outlined,
             label: l10n.t('moderation.stats.rejected'),
             value: '${stats!.rejected}',
+            color: const Color(0xFFE0245E),
           ),
           _StatCard(
+            icon: Icons.flag_outlined,
             label: l10n.t('moderation.stats.flagged'),
             value: '${stats!.flagged}',
+            color: const Color(0xFFE94E77),
           ),
           _StatCard(
+            icon: Icons.task_alt,
             label: l10n.t('moderation.stats.today_processed'),
             value: '${stats!.todayProcessed}',
           ),
           _StatCard(
+            icon: Icons.report_problem_outlined,
             label: l10n.t('moderation.stats.open_reports'),
             value: '${stats!.openReports}',
           ),
           _StatCard(
+            icon: Icons.timer_outlined,
             label: l10n.t('moderation.stats.avg_minutes'),
             value: stats!.avgProcessMinutes.toStringAsFixed(1),
           ),
           _StatCard(
+            icon: Icons.gavel_outlined,
             label: l10n.t('moderation.stats.appeal_success'),
             value: '${(stats!.appealSuccessRate * 100).toStringAsFixed(1)}%',
           ),
@@ -171,29 +193,63 @@ class _OverviewTab extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value});
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.color,
+  });
+  final IconData icon;
   final String label;
   final String value;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(value, style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).hintColor,
+    final theme = Theme.of(context);
+    final tint = color ?? theme.colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: tint.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 16, color: tint),
               ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -264,10 +320,11 @@ class _ContentTabState extends ConsumerState<_ContentTab>
   Widget build(BuildContext context) {
     super.build(context);
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(12),
           child: SegmentedButton<String>(
             selected: {_status},
             showSelectedIcon: false,
@@ -300,50 +357,138 @@ class _ContentTabState extends ConsumerState<_ContentTab>
               ? EmptyView(message: l10n.t('moderation.content.empty'))
               : RefreshIndicator(
                   onRefresh: _load,
-                  child: ListView.separated(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     itemCount: _items.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, i) {
                       final item = _items[i];
-                      return ListTile(
-                        leading: AppAvatar(url: item.author.avatarUrl),
-                        title: Text(item.author.displayName),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.content,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              'Reports: ${item.reportCount} · ${item.reportReasons.join(', ')}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                        trailing: _status == 'pending'
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: theme.cardTheme.color,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: theme.dividerColor),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.check,
-                                      color: Colors.green,
-                                    ),
-                                    onPressed: () => _resolve(item, 'approve'),
+                                  AppAvatar(
+                                    url: item.author.avatarUrl,
+                                    size: 32,
                                   ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.close,
-                                      color: Colors.red,
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      item.author.displayName.isEmpty
+                                          ? item.author.username
+                                          : item.author.displayName,
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    onPressed: () => _resolve(item, 'reject'),
                                   ),
                                 ],
-                              )
-                            : null,
-                        isThreeLine: true,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                item.content,
+                                style: theme.textTheme.bodyMedium,
+                                maxLines: 4,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.error.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      '${l10n.t('moderation.content.reports')} ${item.reportCount}',
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: theme.colorScheme.error,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ),
+                                  ...item.reportReasons.map(
+                                    (r) => Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme
+                                            .colorScheme
+                                            .onSurfaceVariant
+                                            .withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        r,
+                                        style: theme.textTheme.labelSmall,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_status == 'pending') ...[
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () =>
+                                            _resolve(item, 'reject'),
+                                        icon: Icon(
+                                          Icons.close,
+                                          color: theme.colorScheme.error,
+                                          size: 16,
+                                        ),
+                                        label: Text(
+                                          l10n.t('moderation.reject'),
+                                          style: TextStyle(
+                                            color: theme.colorScheme.error,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: FilledButton.icon(
+                                        onPressed: () =>
+                                            _resolve(item, 'approve'),
+                                        icon: const Icon(Icons.check, size: 16),
+                                        label: Text(
+                                          l10n.t('moderation.approve'),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -424,6 +569,7 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
   Widget build(BuildContext context) {
     super.build(context);
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
@@ -431,42 +577,106 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
     }
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.separated(
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (_, i) {
           final r = _items[i];
-          return ListTile(
-            leading: const Icon(Icons.report_outlined),
-            title: Text('${r.targetType} #${r.targetId} · ${r.reason}'),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  r.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  _formatDate(r.createdAt),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: theme.cardTheme.color,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: theme.dividerColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.report_outlined,
+                          size: 16,
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${r.targetType} #${r.targetId}',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          r.reason,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.error,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    r.description,
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.schedule,
+                        size: 12,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatDate(r.createdAt),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: () => _resolve(r, 'dismissed'),
+                        icon: const Icon(Icons.close, size: 16),
+                        label: Text(l10n.t('moderation.reports.dismiss')),
+                      ),
+                      const SizedBox(width: 4),
+                      FilledButton.icon(
+                        onPressed: () => _resolve(r, 'resolved'),
+                        icon: const Icon(Icons.check, size: 16),
+                        label: Text(l10n.t('moderation.reports.resolve')),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.check, color: Colors.green),
-                  onPressed: () => _resolve(r, 'resolved'),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.cancel, color: Colors.grey),
-                  onPressed: () => _resolve(r, 'dismissed'),
-                ),
-              ],
-            ),
-            isThreeLine: true,
           );
         },
       ),
@@ -550,7 +760,6 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                 maxLines: 4,
                 decoration: InputDecoration(
                   labelText: l10n.t('moderation.users.reason_note'),
-                  border: const OutlineInputBorder(),
                 ),
               ),
               if (action == 'ban' || action == 'mute') ...[
@@ -560,7 +769,6 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     labelText: l10n.t('moderation.users.duration_hours'),
-                    border: const OutlineInputBorder(),
                   ),
                 ),
               ],
@@ -610,28 +818,23 @@ class _UsersTabState extends ConsumerState<_UsersTab>
   Widget build(BuildContext context) {
     super.build(context);
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(8),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          padding: const EdgeInsets.all(12),
+          child: Column(
             children: [
-              SizedBox(
-                width: 260,
-                child: TextField(
-                  controller: _keywordController,
-                  decoration: InputDecoration(
-                    labelText: l10n.t('moderation.users.search'),
-                    prefixIcon: const Icon(Icons.search),
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  onSubmitted: (_) => _load(),
+              TextField(
+                controller: _keywordController,
+                decoration: InputDecoration(
+                  hintText: l10n.t('moderation.users.search'),
+                  prefixIcon: const Icon(Icons.search),
+                  isDense: true,
                 ),
+                onSubmitted: (_) => _load(),
               ),
+              const SizedBox(height: 8),
               SegmentedButton<String>(
                 segments: [
                   ButtonSegment(
@@ -665,53 +868,163 @@ class _UsersTabState extends ConsumerState<_UsersTab>
               ? EmptyView(message: l10n.t('moderation.users.empty'))
               : RefreshIndicator(
                   onRefresh: _load,
-                  child: ListView.separated(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     itemCount: _items.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, i) {
                       final user = _items[i];
                       final restriction = user.activeRestriction ?? 'none';
-                      return ListTile(
-                        leading: AppAvatar(url: user.avatarUrl, size: 44),
-                        title: Text(
-                          user.displayName.isEmpty
-                              ? '@${user.username}'
-                              : user.displayName,
-                        ),
-                        subtitle: Text(
-                          '@${user.username} · ${user.status} · ${l10n.t('moderation.users.reports')} ${user.reportCount} · ${l10n.t('moderation.users.restriction')} $restriction',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () => context.push('/users/${user.userId}'),
-                        trailing: PopupMenuButton<String>(
-                          onSelected: (action) => _moderateUser(user, action),
-                          itemBuilder: (_) => [
-                            PopupMenuItem(
-                              value: 'note',
-                              child: Text(l10n.t('moderation.users.add_note')),
+                      final restricted =
+                          restriction == 'ban' || restriction == 'mute';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: InkWell(
+                          onTap: () => context.push('/users/${user.userId}'),
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: theme.cardTheme.color,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: restricted
+                                    ? theme.colorScheme.error.withValues(
+                                        alpha: 0.4,
+                                      )
+                                    : theme.dividerColor,
+                              ),
                             ),
-                            if (user.activeRestriction != 'ban')
-                              PopupMenuItem(
-                                value: 'ban',
-                                child: Text(l10n.t('moderation.users.ban')),
-                              ),
-                            if (user.activeRestriction == 'ban')
-                              PopupMenuItem(
-                                value: 'unban',
-                                child: Text(l10n.t('moderation.users.unban')),
-                              ),
-                            if (user.activeRestriction != 'mute')
-                              PopupMenuItem(
-                                value: 'mute',
-                                child: Text(l10n.t('moderation.users.mute')),
-                              ),
-                            if (user.activeRestriction == 'mute')
-                              PopupMenuItem(
-                                value: 'unmute',
-                                child: Text(l10n.t('moderation.users.unmute')),
-                              ),
-                          ],
+                            child: Row(
+                              children: [
+                                AppAvatar(url: user.avatarUrl, size: 44),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        user.displayName.isEmpty
+                                            ? '@${user.username}'
+                                            : user.displayName,
+                                        style: theme.textTheme.titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        '@${user.username} · ${user.status}',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 4,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.error
+                                                  .withValues(alpha: 0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              '${l10n.t('moderation.users.reports')} ${user.reportCount}',
+                                              style: theme.textTheme.labelSmall
+                                                  ?.copyWith(
+                                                    color:
+                                                        theme.colorScheme.error,
+                                                  ),
+                                            ),
+                                          ),
+                                          if (restriction != 'none')
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: theme
+                                                    .colorScheme
+                                                    .tertiary
+                                                    .withValues(alpha: 0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                              ),
+                                              child: Text(
+                                                restriction,
+                                                style: theme
+                                                    .textTheme
+                                                    .labelSmall
+                                                    ?.copyWith(
+                                                      color: theme
+                                                          .colorScheme
+                                                          .tertiary,
+                                                    ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuButton<String>(
+                                  onSelected: (action) =>
+                                      _moderateUser(user, action),
+                                  itemBuilder: (_) => [
+                                    PopupMenuItem(
+                                      value: 'note',
+                                      child: Text(
+                                        l10n.t('moderation.users.add_note'),
+                                      ),
+                                    ),
+                                    if (user.activeRestriction != 'ban')
+                                      PopupMenuItem(
+                                        value: 'ban',
+                                        child: Text(
+                                          l10n.t('moderation.users.ban'),
+                                        ),
+                                      ),
+                                    if (user.activeRestriction == 'ban')
+                                      PopupMenuItem(
+                                        value: 'unban',
+                                        child: Text(
+                                          l10n.t('moderation.users.unban'),
+                                        ),
+                                      ),
+                                    if (user.activeRestriction != 'mute')
+                                      PopupMenuItem(
+                                        value: 'mute',
+                                        child: Text(
+                                          l10n.t('moderation.users.mute'),
+                                        ),
+                                      ),
+                                    if (user.activeRestriction == 'mute')
+                                      PopupMenuItem(
+                                        value: 'unmute',
+                                        child: Text(
+                                          l10n.t('moderation.users.unmute'),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       );
                     },
@@ -795,7 +1108,6 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
           maxLines: 3,
           decoration: InputDecoration(
             hintText: l10n.t('moderation.appeals.response_hint'),
-            border: OutlineInputBorder(),
           ),
         ),
         actions: [
@@ -833,6 +1145,7 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
   Widget build(BuildContext context) {
     super.build(context);
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
@@ -840,33 +1153,87 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
     }
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.separated(
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (_, i) {
           final a = _items[i];
-          return ListTile(
-            leading: AppAvatar(url: a.user.avatarUrl),
-            title: Text('@${a.user.username} · #${a.statementId}'),
-            subtitle: Text(
-              a.appealMessage,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: theme.cardTheme.color,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: theme.dividerColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      AppAvatar(url: a.user.avatarUrl, size: 32),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '@${a.user.username}',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '#${a.statementId}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    a.appealMessage,
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _decide(a, 'rejected'),
+                          icon: Icon(
+                            Icons.close,
+                            color: theme.colorScheme.error,
+                            size: 16,
+                          ),
+                          label: Text(
+                            l10n.t('moderation.appeals.reject'),
+                            style: TextStyle(color: theme.colorScheme.error),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => _decide(a, 'approved'),
+                          icon: const Icon(Icons.check, size: 16),
+                          label: Text(l10n.t('moderation.appeals.approve')),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.check, color: Colors.green),
-                  onPressed: () => _decide(a, 'approved'),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.red),
-                  onPressed: () => _decide(a, 'rejected'),
-                ),
-              ],
-            ),
-            isThreeLine: true,
           );
         },
       ),
@@ -975,6 +1342,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
   Widget build(BuildContext context) {
     super.build(context);
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
@@ -985,48 +1353,79 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.settings_outlined),
-            title: Text(l10n.t('moderation.settings.title')),
-            subtitle: Text(l10n.t('moderation.settings.description')),
-            trailing: FilledButton.icon(
-              key: const Key('moderation-settings-save'),
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: Text(
-                _saving ? l10n.t('common.loading') : l10n.t('common.save'),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: theme.colorScheme.primary.withValues(alpha: 0.2),
               ),
             ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.settings_outlined,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.t('moderation.settings.title'),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        l10n.t('moderation.settings.description'),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           ..._items.map(
-            (item) => Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: theme.cardTheme.color,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: theme.dividerColor),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
                       _settingText(l10n, item, 'label'),
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       _settingText(l10n, item, 'description'),
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     if (item.valueType == 'boolean')
                       SwitchListTile(
                         key: Key('moderation-setting-${item.key}'),
                         contentPadding: EdgeInsets.zero,
-                        title: Text(item.key),
+                        title: Text(
+                          item.key,
+                          style: const TextStyle(fontFamily: 'monospace'),
+                        ),
                         value: _boolValue(item.value),
                         onChanged: _saving
                             ? null
@@ -1041,10 +1440,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
                         keyboardType: item.valueType == 'number'
                             ? TextInputType.number
                             : TextInputType.text,
-                        decoration: InputDecoration(
-                          labelText: item.key,
-                          border: const OutlineInputBorder(),
-                        ),
+                        decoration: InputDecoration(labelText: item.key),
                         onChanged: (value) => _setValue(item, value.trim()),
                       ),
                   ],
@@ -1053,17 +1449,20 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
             ),
           ),
           const SizedBox(height: 8),
-          FilledButton.icon(
-            key: const Key('moderation-settings-save-bottom'),
-            onPressed: _saving ? null : _save,
-            icon: _saving
-                ? const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save_outlined),
-            label: Text(
-              _saving ? l10n.t('common.loading') : l10n.t('common.save'),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              key: const Key('moderation-settings-save'),
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: Text(
+                _saving ? l10n.t('common.loading') : l10n.t('common.save'),
+              ),
             ),
           ),
         ],
