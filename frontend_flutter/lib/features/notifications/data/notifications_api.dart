@@ -18,20 +18,10 @@ class NotificationsApi {
     final query = <String, dynamic>{'page': page, 'page_size': size};
     if (type != null) query['type'] = type;
     if (unreadOnly != null) query['unread_only'] = unreadOnly;
-    return _client.requestData<PagedResult<V2Notification>>(
+    return _client.requestPaged<V2Notification>(
       ApiPaths.notifications,
       query: query,
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2Notification.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2Notification>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2Notification.fromJson(toMap(item)),
     );
   }
 
