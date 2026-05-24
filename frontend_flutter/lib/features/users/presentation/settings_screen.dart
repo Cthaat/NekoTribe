@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/theme/app_theme.dart';
+import '../../../shared/theme/theme_color_picker.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/user_models.dart';
 
@@ -63,7 +64,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final themeMode = ref.watch(themeProvider);
+    final themePreference = ref.watch(themeProvider);
     final locale = ref.watch(localeProvider);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('common.settings'))),
@@ -73,37 +74,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ? ErrorView(error: _error!, onRetry: _load)
           : ListView(
               children: [
-                _Section(title: 'Appearance'),
+                _Section(title: l10n.t('settings.section.appearance')),
                 ListTile(
                   leading: const Icon(Icons.palette_outlined),
-                  title: const Text('Appearance workspace'),
+                  title: Text(l10n.t('settings.appearance.workspace')),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/settings/appearance'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.brightness_6),
-                  title: Text(l10n.t('common.theme')),
+                  title: Text(l10n.t('theme.mode')),
                   trailing: DropdownButton<ThemeMode>(
-                    value: themeMode,
+                    value: themePreference.mode,
                     onChanged: (v) {
                       if (v != null) {
-                        ref.read(themeProvider.notifier).set(v);
+                        ref.read(themeProvider.notifier).setMode(v);
                       }
                     },
-                    items: const [
+                    items: [
                       DropdownMenuItem(
                         value: ThemeMode.system,
-                        child: Text('System'),
+                        child: Text(l10n.t('settings.option.system')),
                       ),
                       DropdownMenuItem(
                         value: ThemeMode.light,
-                        child: Text('Light'),
+                        child: Text(l10n.t('settings.option.light')),
                       ),
                       DropdownMenuItem(
                         value: ThemeMode.dark,
-                        child: Text('Dark'),
+                        child: Text(l10n.t('settings.option.dark')),
                       ),
                     ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                  child: ThemeColorPicker(
+                    selected: themePreference.seedColor,
+                    onSelected: (color) =>
+                        ref.read(themeProvider.notifier).setSeedColor(color),
                   ),
                 ),
                 ListTile(
@@ -118,64 +127,73 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ref.read(localeProvider.notifier).set(Locale(v));
                       }
                     },
-                    items: const [
-                      DropdownMenuItem(value: 'system', child: Text('System')),
-                      DropdownMenuItem(value: 'zh', child: Text('中文')),
-                      DropdownMenuItem(value: 'en', child: Text('English')),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'system',
+                        child: Text(l10n.t('settings.option.system')),
+                      ),
+                      DropdownMenuItem(
+                        value: 'zh',
+                        child: Text(l10n.t('settings.option.zh')),
+                      ),
+                      DropdownMenuItem(
+                        value: 'en',
+                        child: Text(l10n.t('settings.option.en')),
+                      ),
                     ],
                   ),
                 ),
                 const Divider(),
-                _Section(title: 'Account surfaces'),
+                _Section(title: l10n.t('settings.section.account')),
                 ListTile(
                   leading: const Icon(Icons.edit_outlined),
-                  title: const Text('Edit profile'),
+                  title: Text(l10n.t('settings.account.edit_profile')),
                   onTap: () => context.push('/account/profile'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.article_outlined),
-                  title: const Text('My posts'),
+                  title: Text(l10n.t('settings.account.my_posts')),
                   onTap: () => context.push('/account/posts'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.favorite_outline),
-                  title: const Text('Liked posts'),
+                  title: Text(l10n.t('settings.account.liked_posts')),
                   onTap: () => context.push('/account/likes'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.bookmark_border),
-                  title: const Text('Bookmarks'),
+                  title: Text(l10n.t('settings.account.bookmarks')),
                   onTap: () => context.push('/account/bookmarks'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.workspace_premium_outlined),
-                  title: const Text('NekoTribe Pro'),
+                  title: Text(l10n.t('settings.account.pro')),
                   onTap: () => context.push('/settings/pro'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.receipt_long_outlined),
-                  title: const Text('Billing'),
+                  title: Text(l10n.t('settings.account.billing')),
                   onTap: () => context.push('/settings/billing'),
                 ),
                 const Divider(),
-                _Section(title: 'Account & Privacy'),
+                _Section(title: l10n.t('settings.section.privacy')),
                 SwitchListTile(
-                  title: const Text('Login alerts'),
+                  title: Text(l10n.t('settings.privacy.login_alerts')),
                   value: _settings?.loginAlerts ?? false,
                   onChanged: (v) => _patch({'login_alerts': v}),
                 ),
                 SwitchListTile(
-                  title: const Text('Show online status'),
+                  title: Text(l10n.t('settings.privacy.show_online_status')),
                   value: _settings?.showOnlineStatus ?? false,
                   onChanged: (v) => _patch({'show_online_status': v}),
                 ),
                 SwitchListTile(
-                  title: const Text('Allow DMs from strangers'),
+                  title: Text(l10n.t('settings.privacy.allow_dm_strangers')),
                   value: _settings?.allowDmFromStrangers ?? false,
                   onChanged: (v) => _patch({'allow_dm_from_strangers': v}),
                 ),
                 ListTile(
-                  title: const Text('Profile visibility'),
+                  title: Text(l10n.t('settings.privacy.profile_visibility')),
                   trailing: DropdownButton<String>(
                     value: _settings?.profileVisibility ?? 'public',
                     onChanged: (v) {
@@ -183,69 +201,72 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         _patch({'profile_visibility': v});
                       }
                     },
-                    items: const [
-                      DropdownMenuItem(value: 'public', child: Text('Public')),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'public',
+                        child: Text(l10n.t('common.public')),
+                      ),
                       DropdownMenuItem(
                         value: 'followers',
-                        child: Text('Followers'),
+                        child: Text(l10n.t('common.followers_only')),
                       ),
                       DropdownMenuItem(
                         value: 'private',
-                        child: Text('Private'),
+                        child: Text(l10n.t('common.private')),
                       ),
                     ],
                   ),
                 ),
                 const Divider(),
-                _Section(title: 'Notifications'),
+                _Section(title: l10n.t('settings.section.notifications')),
                 SwitchListTile(
-                  title: const Text('Push notifications'),
+                  title: Text(l10n.t('settings.notifications.push')),
                   value: _settings?.pushNotificationEnabled ?? false,
                   onChanged: (v) => _patch({'push_notification_enabled': v}),
                 ),
                 SwitchListTile(
-                  title: const Text('Email notifications'),
+                  title: Text(l10n.t('settings.notifications.email')),
                   value: _settings?.emailNotificationEnabled ?? false,
                   onChanged: (v) => _patch({'email_notification_enabled': v}),
                 ),
                 const Divider(),
-                _Section(title: 'SentimentFlow'),
+                _Section(title: l10n.t('settings.section.sentiment')),
                 SwitchListTile(
-                  title: const Text('Enable AI sentiment'),
+                  title: Text(l10n.t('settings.sentiment.enable')),
                   value: _settings?.aiSentimentEnabled ?? false,
                   onChanged: (v) => _patch({'ai_sentiment_enabled': v}),
                 ),
                 SwitchListTile(
-                  title: const Text('Return probabilities'),
+                  title: Text(l10n.t('settings.sentiment.probabilities')),
                   value: _settings?.aiSentimentReturnProbabilities ?? false,
                   onChanged: (v) =>
                       _patch({'ai_sentiment_return_probabilities': v}),
                 ),
                 SwitchListTile(
-                  title: const Text('Include metadata'),
+                  title: Text(l10n.t('settings.sentiment.metadata')),
                   value: _settings?.aiSentimentIncludeMetadata ?? false,
                   onChanged: (v) =>
                       _patch({'ai_sentiment_include_metadata': v}),
                 ),
                 const Divider(),
-                _Section(title: 'Security'),
+                _Section(title: l10n.t('settings.section.security')),
                 ListTile(
                   leading: const Icon(Icons.security),
-                  title: const Text('Security'),
+                  title: Text(l10n.t('settings.security.security')),
                   onTap: () => context.push('/settings/security'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.devices),
-                  title: const Text('Sessions'),
+                  title: Text(l10n.t('settings.security.sessions')),
                   onTap: () => context.push('/settings/sessions'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.gavel),
-                  title: const Text('Account statements'),
+                  title: Text(l10n.t('settings.security.statements')),
                   onTap: () => context.push('/settings/statements'),
                 ),
                 const Divider(),
-                _Section(title: 'Server endpoint'),
+                _Section(title: l10n.t('settings.section.endpoint')),
                 ListTile(
                   leading: const Icon(Icons.dns_outlined),
                   title: Text(l10n.t('endpoint.title')),
