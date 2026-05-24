@@ -304,7 +304,6 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                                 indent: 60,
                                 color: theme.dividerColor,
                               ),
-                            _MemberRow(member: _members[i]),
                             _MemberRow(
                               member: _members[i],
                               onRoleSelected: (role) =>
@@ -380,21 +379,28 @@ class _MemberRow extends StatelessWidget {
               switch (value) {
                 case 'role:admin':
                   onRoleSelected('admin');
+                  break;
                 case 'role:moderator':
                   onRoleSelected('moderator');
+                  break;
                 case 'role:member':
                   onRoleSelected('member');
+                  break;
                 case 'mute':
                   onMute();
+                  break;
                 case 'unmute':
                   onUnmute();
+                  break;
                 case 'remove':
                   onRemove();
+                  break;
               }
             },
             itemBuilder: (context) {
               final l10n = AppLocalizations.of(context);
-              final muted = member.muteUntil != null && member.muteUntil!.isNotEmpty;
+              final muted =
+                  member.muteUntil != null && member.muteUntil!.isNotEmpty;
               return [
                 PopupMenuItem(
                   value: 'role:admin',
