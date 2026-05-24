@@ -18,7 +18,7 @@ class GroupsApi {
     final query = <String, dynamic>{
       'mode': mode,
       'page': page,
-      'size': size,
+      'page_size': size,
     };
     if (category != null) query['category'] = category;
     return _client.requestData<PagedResult<V2Group>>(
@@ -45,14 +45,14 @@ class GroupsApi {
   Future<PagedResult<V2Group>> myGroups({int page = 1, int size = 20}) {
     return _client.requestData<PagedResult<V2Group>>(
       ApiPaths.usersMeGroups,
-      query: {'page': page, 'size': size},
+      query: {'page': page, 'page_size': size},
       decode: (data) => _decodeGroupPage(data),
     );
   }
 
   Future<V2Group> getGroup(String slug) {
     return _client.requestData<V2Group>(
-      '${ApiPaths.groups}/$slug',
+      '${ApiPaths.groups}/by-slug/$slug',
       decode: (data) => V2Group.fromJson(toMap(data)),
     );
   }
@@ -66,42 +66,42 @@ class GroupsApi {
     );
   }
 
-  Future<V2Group> updateGroup(String slug, Map<String, dynamic> body) {
+  Future<V2Group> updateGroup(int groupId, Map<String, dynamic> body) {
     return _client.requestData<V2Group>(
-      '${ApiPaths.groups}/$slug',
+      '${ApiPaths.groups}/$groupId',
       method: 'PATCH',
       data: body,
       decode: (data) => V2Group.fromJson(toMap(data)),
     );
   }
 
-  Future<V2GroupMembership> joinGroup(String slug, {String? message}) {
+  Future<V2GroupMembership> joinGroup(int groupId, {String? message}) {
     return _client.requestData<V2GroupMembership>(
-      '${ApiPaths.groups}/$slug/members',
+      '${ApiPaths.groups}/$groupId/members/current',
       method: 'POST',
       data: {if (message != null) 'message': message},
       decode: (data) => V2GroupMembership.fromJson(toMap(data)),
     );
   }
 
-  Future<void> leaveGroup(String slug) async {
+  Future<void> leaveGroup(int groupId) async {
     await _client.request<void>(
-      '${ApiPaths.groups}/$slug/members/me',
+      '${ApiPaths.groups}/$groupId/members/current',
       method: 'DELETE',
       decode: (_) {},
     );
   }
 
   Future<PagedResult<V2GroupMember>> members(
-    String slug, {
+    int groupId, {
     int page = 1,
     int size = 30,
     String? role,
   }) {
-    final query = <String, dynamic>{'page': page, 'size': size};
+    final query = <String, dynamic>{'page': page, 'page_size': size};
     if (role != null) query['role'] = role;
     return _client.requestData<PagedResult<V2GroupMember>>(
-      '${ApiPaths.groups}/$slug/members',
+      '${ApiPaths.groups}/$groupId/members',
       query: query,
       decode: (data) {
         final map = toMap(data);
@@ -118,13 +118,13 @@ class GroupsApi {
   }
 
   Future<PagedResult<V2GroupPost>> posts(
-    String slug, {
+    int groupId, {
     int page = 1,
     int size = 20,
   }) {
     return _client.requestData<PagedResult<V2GroupPost>>(
-      '${ApiPaths.groups}/$slug/posts',
-      query: {'page': page, 'size': size},
+      '${ApiPaths.groups}/$groupId/posts',
+      query: {'page': page, 'page_size': size},
       decode: (data) {
         final map = toMap(data);
         final items = toList(
@@ -140,13 +140,13 @@ class GroupsApi {
   }
 
   Future<V2GroupPost> createPost({
-    required String slug,
+    required int groupId,
     required String content,
     bool isAnnouncement = false,
     List<String> mediaUrls = const [],
   }) {
     return _client.requestData<V2GroupPost>(
-      '${ApiPaths.groups}/$slug/posts',
+      '${ApiPaths.groups}/$groupId/posts',
       method: 'POST',
       data: {
         'content': content,
@@ -163,7 +163,7 @@ class GroupsApi {
   }) {
     return _client.requestData<PagedResult<V2GroupInvite>>(
       ApiPaths.usersMeGroupInvites,
-      query: {'page': page, 'size': size},
+      query: {'page': page, 'page_size': size},
       decode: (data) {
         final map = toMap(data);
         final items = toList(
@@ -178,9 +178,9 @@ class GroupsApi {
     );
   }
 
-  Future<V2GroupInvite> createInvite(String slug, Map<String, dynamic> body) {
+  Future<V2GroupInvite> createInvite(int groupId, Map<String, dynamic> body) {
     return _client.requestData<V2GroupInvite>(
-      '${ApiPaths.groups}/$slug/invites',
+      '${ApiPaths.groups}/$groupId/invites',
       method: 'POST',
       data: body,
       decode: (data) => V2GroupInvite.fromJson(toMap(data)),
@@ -192,10 +192,48 @@ class GroupsApi {
     required String action,
   }) {
     return _client.requestData<V2GroupMembership>(
-      '${ApiPaths.usersMeGroupInvites}/$inviteId',
-      method: 'PATCH',
+      '${ApiPaths.groups}/invites/$inviteId/responses',
+      method: 'POST',
       data: {'action': action},
       decode: (data) => V2GroupMembership.fromJson(toMap(data)),
+    );
+  }
+
+  Future<void> deleteGroupPost({
+    required int groupId,
+    required int postId,
+    String? reason,
+  }) async {
+    await _client.request<void>(
+      '${ApiPaths.groups}/$groupId/posts/$postId',
+      method: 'DELETE',
+      data: {'reason': reason},
+      decode: (_) {},
+    );
+  }
+
+  Future<void> setGroupPostPinStatus({
+    required int groupId,
+    required int postId,
+    required bool isPinned,
+  }) async {
+    await _client.request<void>(
+      '${ApiPaths.groups}/$groupId/posts/$postId/pin-status',
+      method: 'PUT',
+      data: {'is_pinned': isPinned},
+      decode: (_) {},
+    );
+  }
+
+  Future<void> setGroupPostLikeStatus({
+    required int groupId,
+    required int postId,
+    required bool liked,
+  }) async {
+    await _client.request<void>(
+      '${ApiPaths.groups}/$groupId/posts/$postId/likes',
+      method: liked ? 'POST' : 'DELETE',
+      decode: (_) {},
     );
   }
 
