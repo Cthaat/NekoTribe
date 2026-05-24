@@ -71,12 +71,39 @@ void main() {
     expect(posts.reportedTargetType, 'group_post');
     expect(posts.reportedTargetId, 9);
   });
+
+  testWidgets('group post media opens a lightbox preview', (tester) async {
+    final api = _FakeGroupsApi(
+      post: _postWith(mediaUrls: const ['/uploads/group-image.png']),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appConfigBundleProvider.overrideWithValue(
+            const AppConfigBundle(defaults: _testConfig, presets: []),
+          ),
+          appConfigInitialProvider.overrideWithValue(_testConfig),
+          groupsApiProvider.overrideWithValue(api),
+        ],
+        child: const MaterialApp(home: GroupPostsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('打开媒体').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('媒体预览'), findsOneWidget);
+  });
 }
 
 class _FakeGroupsApi extends GroupsApi {
-  _FakeGroupsApi()
-    : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
+  _FakeGroupsApi({V2GroupPost? post})
+    : post = post ?? _post,
+      super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
 
+  final V2GroupPost post;
   int? deletedPostId;
   bool _deleted = false;
 
@@ -96,7 +123,7 @@ class _FakeGroupsApi extends GroupsApi {
     String type = 'all',
   }) async {
     return PagedResult(
-      items: _deleted ? [] : [_post],
+      items: _deleted ? [] : [post],
       meta: ApiMeta(
         page: 1,
         pageSize: 20,
@@ -191,6 +218,24 @@ final _post = V2GroupPost(
   createdAt: '2026-05-24T00:00:00.000Z',
   updatedAt: '2026-05-24T00:00:00.000Z',
 );
+
+V2GroupPost _postWith({List<String> mediaUrls = const []}) {
+  return V2GroupPost(
+    postId: _post.postId,
+    groupId: _post.groupId,
+    author: _post.author,
+    content: _post.content,
+    mediaUrls: mediaUrls,
+    isPinned: _post.isPinned,
+    isAnnouncement: _post.isAnnouncement,
+    likesCount: _post.likesCount,
+    commentsCount: _post.commentsCount,
+    viewsCount: _post.viewsCount,
+    isLikedByMe: _post.isLikedByMe,
+    createdAt: _post.createdAt,
+    updatedAt: _post.updatedAt,
+  );
+}
 
 const _testConfig = AppConfig(
   apiBaseUrl: 'http://example.test',
