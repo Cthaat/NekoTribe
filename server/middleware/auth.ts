@@ -25,7 +25,7 @@ interface CommonAuthPayload {
 interface AuthVersionPolicy {
   version: 'v1' | 'v2';
   prefix: string;
-  publicRoutes: RegExp[];
+  publicRoutes: AuthPublicRoute[];
   updateSession: (
     connection: oracledb.Connection,
     payload: CommonAuthPayload,
@@ -37,6 +37,13 @@ interface AuthEventContext {
   auth?: CommonAuthPayload;
   getOracleConnection: () => Promise<oracledb.Connection>;
 }
+
+type AuthPublicRoute =
+  | RegExp
+  | {
+      pattern: RegExp;
+      methods?: string[];
+    };
 
 const AUTH_POLICIES: AuthVersionPolicy[] = [
   {
@@ -69,7 +76,9 @@ const AUTH_POLICIES: AuthVersionPolicy[] = [
       /^\/api\/v2\/auth\/tokens$/,
       /^\/api\/v2\/auth\/two-factor\/challenges(?:\/[^/]+)?$/,
       /^\/api\/v2\/auth\/tokens\/current$/,
-      /^\/api\/v2\/auth\/password-reset$/
+      /^\/api\/v2\/auth\/password-reset$/,
+      { pattern: /^\/api\/v2\/posts$/, methods: ['GET'] },
+      { pattern: /^\/api\/v2\/posts\/[^/]+$/, methods: ['GET'] }
     ],
     async updateSession(connection, payload) {
       if (!payload.sessionId || !payload.jti) return;
@@ -105,11 +114,15 @@ function getAuthPolicy(
 
 function isPublicRoute(
   policy: AuthVersionPolicy,
-  pathname: string
+  pathname: string,
+  method: string
 ): boolean {
-  return policy.publicRoutes.some(pattern =>
-    pattern.test(pathname)
-  );
+  return policy.publicRoutes.some(route => {
+    if (route instanceof RegExp) return route.test(pathname);
+    if (!route.pattern.test(pathname)) return false;
+    if (!route.methods) return true;
+    return route.methods.includes(method.toUpperCase());
+  });
 }
 
 function isLegacyV1ApiEnabled(): boolean {
@@ -203,6 +216,7 @@ function authError(
 
 export default defineEventHandler(async event => {
   const pathname = getRequestURL(event).pathname;
+  const method = (event.node.req.method || 'GET').toUpperCase();
   const policy = getAuthPolicy(pathname);
 
   if (!policy) return;
@@ -212,10 +226,13 @@ export default defineEventHandler(async event => {
       statusMessage: 'Legacy API is disabled'
     });
   }
-  if (isPublicRoute(policy, pathname)) return;
+  const publicRoute = isPublicRoute(policy, pathname, method);
 
   const token = extractToken(event);
-  if (!token) throw authError(policy, '请先登录');
+  if (!token) {
+    if (publicRoute) return;
+    throw authError(policy, '请先登录');
+  }
 
   let connection: oracledb.Connection | null = null;
   try {
@@ -233,6 +250,7 @@ export default defineEventHandler(async event => {
     connection = await context.getOracleConnection();
     await policy.updateSession(connection, payload, token);
   } catch (error) {
+    if (publicRoute) return;
     throw authError(policy, 'Token无效或已过期');
   } finally {
     if (connection) await connection.close();
