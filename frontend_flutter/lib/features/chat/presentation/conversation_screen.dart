@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/chat_models.dart';
 
@@ -117,65 +119,87 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Conversation')),
-      body: Column(
-        children: [
-          Expanded(
-            child: _loading
-                ? const LoadingView()
-                : _error != null
-                ? ErrorView(error: _error!, onRetry: _load)
-                : _messages.isEmpty
-                ? const EmptyView(message: 'No messages yet')
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _messages.length,
-                    itemBuilder: (_, i) => _MessageBubble(
-                      message: _messages[i],
-                      onDelete: _messages[i].canDelete
-                          ? () => _deleteMessage(_messages[i])
-                          : null,
-                      formatTime: _formatTime,
-                    ),
-                  ),
+      appBar: AppBar(title: Text(l10n.t('chat.conversation'))),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.contentMaxWidth,
           ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _composer,
-                      maxLines: 4,
-                      minLines: 1,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
-                        hintText: 'Message',
-                        border: OutlineInputBorder(),
+          child: Column(
+            children: [
+              Expanded(
+                child: _loading
+                    ? const LoadingView()
+                    : _error != null
+                    ? ErrorView(error: _error!, onRetry: _load)
+                    : _messages.isEmpty
+                    ? EmptyView(message: l10n.t('chat.empty_messages'))
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                        itemCount: _messages.length,
+                        itemBuilder: (_, i) => _MessageBubble(
+                          message: _messages[i],
+                          onDelete: _messages[i].canDelete
+                              ? () => _deleteMessage(_messages[i])
+                              : null,
+                          formatTime: _formatTime,
+                        ),
                       ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: theme.scaffoldBackgroundColor,
+                  border: Border(top: BorderSide(color: theme.dividerColor)),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _composer,
+                            maxLines: 5,
+                            minLines: 1,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _send(),
+                            decoration: InputDecoration(
+                              hintText: l10n.t('chat.message_hint'),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: _sending
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.send_rounded,
+                                  color: theme.colorScheme.primary,
+                                ),
+                          onPressed: _sending ? null : _send,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: _sending
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.send),
-                    onPressed: _sending ? null : _send,
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -196,68 +220,86 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isSelf = message.canDelete;
+    final bubbleColor = isSelf
+        ? theme.colorScheme.primary
+        : theme.colorScheme.surfaceContainerHighest;
+    final textColor = isSelf
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.onSurface;
+    final secondaryColor = isSelf
+        ? theme.colorScheme.onPrimary.withValues(alpha: 0.75)
+        : theme.colorScheme.onSurfaceVariant;
     return Align(
       alignment: isSelf ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (!isSelf) ...[
-              AppAvatar(url: message.author.avatarUrl, size: 32),
-              const SizedBox(width: 6),
-            ],
-            Flexible(
-              child: GestureDetector(
-                onLongPress: onDelete,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelf
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!isSelf)
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (!isSelf) ...[
+                AppAvatar(url: message.author.avatarUrl, size: 32),
+                const SizedBox(width: 8),
+              ],
+              Flexible(
+                child: GestureDetector(
+                  onLongPress: onDelete,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isSelf ? 16 : 4),
+                        bottomRight: Radius.circular(isSelf ? 4 : 16),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!isSelf && message.author.displayName.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child: Text(
+                              message.author.displayName,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         Text(
-                          message.author.displayName,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary,
+                          message.isDeleted ? '(deleted)' : message.content,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: textColor,
+                            fontStyle: message.isDeleted
+                                ? FontStyle.italic
+                                : null,
                           ),
                         ),
-                      Text(
-                        message.isDeleted ? '(deleted)' : message.content,
-                        style: TextStyle(
-                          color: isSelf ? theme.colorScheme.onPrimary : null,
-                          fontStyle: message.isDeleted
-                              ? FontStyle.italic
-                              : null,
+                        const SizedBox(height: 4),
+                        Text(
+                          formatTime(message.createdAt),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: secondaryColor,
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        formatTime(message.createdAt),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: isSelf
-                              ? theme.colorScheme.onPrimary.withValues(
-                                  alpha: 0.7,
-                                )
-                              : null,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
