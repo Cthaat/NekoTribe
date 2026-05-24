@@ -11,8 +11,12 @@ class AppShell extends ConsumerWidget {
   static const _tabs = [
     ('/feed', Icons.home_outlined, Icons.home, 'tab.home'),
     ('/discover', Icons.explore_outlined, Icons.explore, 'tab.discover'),
-    ('/notifications', Icons.notifications_outlined, Icons.notifications,
-        'tab.notifications'),
+    (
+      '/notifications',
+      Icons.notifications_outlined,
+      Icons.notifications,
+      'tab.notifications',
+    ),
     ('/chat', Icons.chat_bubble_outline, Icons.chat_bubble, 'tab.messages'),
     ('/me', Icons.person_outline, Icons.person, 'tab.profile'),
   ];
