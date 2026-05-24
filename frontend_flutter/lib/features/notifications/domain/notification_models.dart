@@ -55,11 +55,7 @@ class V2Notification {
     );
   }
 
-  V2Notification copyWith({
-    int? isRead,
-    String? readAt,
-    String? deletedAt,
-  }) {
+  V2Notification copyWith({int? isRead, String? readAt, String? deletedAt}) {
     return V2Notification(
       notificationId: notificationId,
       type: type,
