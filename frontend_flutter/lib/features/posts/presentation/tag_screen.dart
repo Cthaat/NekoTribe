@@ -56,25 +56,24 @@ class _TagScreenState extends ConsumerState<TagScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : _posts.isEmpty
-                  ? const EmptyView(message: 'No posts')
-                  : ListView.separated(
-                      itemCount: _posts.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (_, i) => PostCard(
-                        key: ValueKey(_posts[i].postId),
-                        post: _posts[i],
-                        onChanged: (u) =>
-                            setState(() => _posts[i] = u),
-                        onReport: () => showReportDialog(
-                          context,
-                          ref,
-                          targetType: 'post',
-                          targetId: _posts[i].postId,
-                        ),
-                      ),
-                    ),
+          ? ErrorView(error: _error!, onRetry: _load)
+          : _posts.isEmpty
+          ? const EmptyView(message: 'No posts')
+          : ListView.separated(
+              itemCount: _posts.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (_, i) => PostCard(
+                key: ValueKey(_posts[i].postId),
+                post: _posts[i],
+                onChanged: (u) => setState(() => _posts[i] = u),
+                onReport: () => showReportDialog(
+                  context,
+                  ref,
+                  targetType: 'post',
+                  targetId: _posts[i].postId,
+                ),
+              ),
+            ),
     );
   }
 }
