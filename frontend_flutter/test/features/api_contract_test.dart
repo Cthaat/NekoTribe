@@ -73,6 +73,36 @@ void main() {
         body: {'action': 'accept'},
       );
     });
+
+    test('group post comments use numeric group and post ids', () async {
+      final recorder = _ApiRecorder();
+      final api = GroupsApi(_client(recorder));
+
+      await api.comments(groupId: 42, postId: 9, page: 2, size: 10);
+      recorder.expectLast(
+        method: 'GET',
+        path: '/api/v2/groups/42/posts/9/comments',
+        query: {'page': 2, 'page_size': 10},
+      );
+
+      await api.createComment(groupId: 42, postId: 9, content: 'hi');
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/groups/42/posts/9/comments',
+        body: {'content': 'hi'},
+      );
+
+      await api.setCommentLikeStatus(
+        groupId: 42,
+        postId: 9,
+        commentId: 5,
+        liked: true,
+      );
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/groups/42/posts/9/comments/5/likes',
+      );
+    });
   });
 
   group('ChatApi v2 contract', () {
@@ -108,11 +138,16 @@ void main() {
         body: {'action': 'approve'},
       );
 
-      await api.restrictUser(userId: 8, action: 'suspend', note: 'spam');
+      await api.restrictUser(
+        userId: 8,
+        action: 'ban',
+        reason: 'spam',
+        durationHours: 24,
+      );
       recorder.expectLast(
         method: 'POST',
         path: '/api/v2/moderation/users/8/actions',
-        body: {'action': 'suspend', 'note': 'spam'},
+        body: {'action': 'ban', 'reason': 'spam', 'duration_hours': 24},
       );
     });
   });
@@ -265,6 +300,13 @@ class _ApiRecorder implements HttpClientAdapter {
     if (path.contains('/by-slug/')) {
       return _groupJson;
     }
+    if (path.contains('/groups/') && path.contains('/comments')) {
+      if (options.method == 'POST') return _groupCommentJson;
+      return {
+        'items': <Object>[_groupCommentJson],
+        'meta': {'page': 1, 'page_size': 20, 'total': 1, 'has_next': false},
+      };
+    }
     if (path.startsWith('/api/v2/users/')) {
       return _publicUserJson;
     }
@@ -330,6 +372,20 @@ const _groupJson = {
   'post_count': 0,
   'is_active': 1,
   'membership': {'is_member': false},
+  'created_at': '2026-05-24T00:00:00.000Z',
+  'updated_at': '2026-05-24T00:00:00.000Z',
+};
+
+const _groupCommentJson = {
+  'comment_id': 5,
+  'post_id': 9,
+  'author': _publicUserJson,
+  'parent_comment_id': null,
+  'reply_to_user': null,
+  'content': 'hi',
+  'likes_count': 0,
+  'is_liked_by_me': false,
+  'can_delete_by_me': true,
   'created_at': '2026-05-24T00:00:00.000Z',
   'updated_at': '2026-05-24T00:00:00.000Z',
 };
