@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/network/api_response.dart';
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/user_models.dart';
@@ -50,26 +51,27 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
 
   Future<void> _appeal(V2AccountStatement statement) async {
     final controller = TextEditingController();
+    final l10n = AppLocalizations.of(context);
     final result = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Submit appeal'),
+        title: Text(l10n.t('account.statements.submit_appeal')),
         content: TextField(
           controller: controller,
           maxLines: 4,
-          decoration: const InputDecoration(
-            hintText: 'Tell us why you appeal...',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: l10n.t('account.statements.appeal_hint'),
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.t('common.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Submit'),
+            child: Text(l10n.t('common.submit')),
           ),
         ],
       ),
@@ -80,9 +82,9 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
           .read(moderationApiProvider)
           .submitAppeal(statementId: statement.statementId, message: result);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Appeal submitted')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.t('account.statements.appeal_submitted'))),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -113,14 +115,15 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Account statements')),
+      appBar: AppBar(title: Text(l10n.t('account.statements.title'))),
       body: _loading
           ? const LoadingView()
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
           : _items.isEmpty
-          ? const EmptyView(message: 'No statements')
+          ? EmptyView(message: l10n.t('account.statements.empty'))
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView.separated(
@@ -160,7 +163,7 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
                     trailing: s.status == 'active'
                         ? TextButton(
                             onPressed: () => _appeal(s),
-                            child: const Text('Appeal'),
+                            child: Text(l10n.t('account.statements.appeal')),
                           )
                         : null,
                   );
