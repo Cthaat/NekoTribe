@@ -484,6 +484,26 @@ void main() {
         );
       },
     );
+
+    test('avatar update uploads multipart avatar file', () async {
+      final recorder = _ApiRecorder();
+      final api = UsersApi(_client(recorder));
+
+      final avatar = await api.uploadAvatarBytes(
+        bytes: Uint8List.fromList([137, 80, 78, 71]),
+        fileName: 'avatar.png',
+        mimeType: 'image/png',
+      );
+
+      recorder.expectLast(method: 'PUT', path: '/api/v2/users/me/avatar');
+      final request = recorder.requests.last;
+      expect(request.data, isA<FormData>());
+      final form = request.data as FormData;
+      expect(form.files.single.key, 'avatar');
+      expect(form.fields, isEmpty);
+      expect(avatar.avatarUrl, '/uploads/avatars/edge.png');
+      expect(avatar.avatarMediaId, 99);
+    });
   });
 
   group('SentimentFlowApi v2 contract', () {
@@ -762,6 +782,12 @@ class _ApiRecorder implements HttpClientAdapter {
     }
     if (path == '/api/v2/users/me/two-factor') {
       return {'enabled': false};
+    }
+    if (path == '/api/v2/users/me/avatar') {
+      return {
+        'avatar_url': '/uploads/avatars/edge.png',
+        'avatar_media_id': 99,
+      };
     }
     if (path.endsWith('/likes')) {
       return {'is_liked': true, 'is_bookmarked': false, 'can_delete': true};
