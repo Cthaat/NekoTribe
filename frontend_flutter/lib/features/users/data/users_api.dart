@@ -68,38 +68,18 @@ class UsersApi {
   }
 
   Future<PagedResult<V2PublicUser>> getBlocks({int page = 1, int size = 20}) {
-    return _client.requestData<PagedResult<V2PublicUser>>(
+    return _client.requestPaged<V2PublicUser>(
       ApiPaths.usersMeBlocks,
       query: {'page': page, 'page_size': size},
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2PublicUser.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2PublicUser>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2PublicUser.fromJson(toMap(item)),
     );
   }
 
   Future<PagedResult<V2PublicUser>> getMutes({int page = 1, int size = 20}) {
-    return _client.requestData<PagedResult<V2PublicUser>>(
+    return _client.requestPaged<V2PublicUser>(
       ApiPaths.usersMeMutes,
       query: {'page': page, 'page_size': size},
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2PublicUser.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2PublicUser>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2PublicUser.fromJson(toMap(item)),
     );
   }
 
@@ -139,20 +119,10 @@ class UsersApi {
     int page = 1,
     int size = 20,
   }) {
-    return _client.requestData<PagedResult<V2AccountStatement>>(
+    return _client.requestPaged<V2AccountStatement>(
       ApiPaths.usersMeStatements,
       query: {'page': page, 'page_size': size},
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2AccountStatement.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2AccountStatement>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2AccountStatement.fromJson(toMap(item)),
     );
   }
 
@@ -191,20 +161,10 @@ class UsersApi {
     int page = 1,
     int size = 20,
   }) {
-    return _client.requestData<PagedResult<V2PublicUser>>(
+    return _client.requestPaged<V2PublicUser>(
       '${ApiPaths.users}/$userId/followers',
       query: {'page': page, 'page_size': size},
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2PublicUser.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2PublicUser>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2PublicUser.fromJson(toMap(item)),
     );
   }
 
@@ -213,31 +173,18 @@ class UsersApi {
     int page = 1,
     int size = 20,
   }) {
-    return _client.requestData<PagedResult<V2PublicUser>>(
+    return _client.requestPaged<V2PublicUser>(
       '${ApiPaths.users}/$userId/following',
       query: {'page': page, 'page_size': size},
-      decode: (data) {
-        final map = toMap(data);
-        final items = toList(
-          map['items'],
-          (e) => V2PublicUser.fromJson(toMap(e)),
-        );
-        final meta = map['meta'] is Map<String, dynamic>
-            ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-            : null;
-        return PagedResult<V2PublicUser>(items: items, meta: meta);
-      },
+      decodeItem: (item) => V2PublicUser.fromJson(toMap(item)),
     );
   }
 
   Future<List<V2PublicUser>> getRecommendations({int limit = 10}) {
-    return _client.requestData<List<V2PublicUser>>(
+    return _client.requestList<V2PublicUser>(
       ApiPaths.userRecommendations,
       query: {'limit': limit},
-      decode: (data) {
-        final map = toMap(data);
-        return toList(map['items'], (e) => V2PublicUser.fromJson(toMap(e)));
-      },
+      decodeItem: (item) => V2PublicUser.fromJson(toMap(item)),
     );
   }
 
