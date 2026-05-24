@@ -12,7 +12,8 @@ class TermsScreen extends StatelessWidget {
         title: const Text('Terms of Service'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.canPop() ? context.pop() : context.go('/feed'),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/feed'),
         ),
       ),
       body: ListView(
@@ -20,10 +21,7 @@ class TermsScreen extends StatelessWidget {
         children: [
           Text('NekoTribe Terms', style: theme.textTheme.headlineSmall),
           const SizedBox(height: 8),
-          Text(
-            'Last updated: 2025-07-16',
-            style: theme.textTheme.bodySmall,
-          ),
+          Text('Last updated: 2025-07-16', style: theme.textTheme.bodySmall),
           const SizedBox(height: 20),
           const _Section(
             title: '1. Acceptance',
