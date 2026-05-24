@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/group_models.dart';
 
@@ -85,10 +86,8 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         content: TextField(
           controller: controller,
           maxLines: 5,
-          decoration: InputDecoration(
-            hintText: l10n.t('group.compose_hint'),
-            border: const OutlineInputBorder(),
-          ),
+          minLines: 3,
+          decoration: InputDecoration(hintText: l10n.t('group.compose_hint')),
         ),
         actions: [
           TextButton(
@@ -119,21 +118,28 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_group?.name ?? l10n.t('group.group')),
+        title: Text(
+          _group?.name ?? l10n.t('group.group'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           if (_group != null && _group!.membership.isMember)
             IconButton(
               icon: const Icon(Icons.settings_outlined),
+              tooltip: l10n.t('common.settings'),
               onPressed: () => context.push('/groups/${widget.slug}/manage'),
             ),
         ],
       ),
       floatingActionButton: _group != null && _group!.membership.isMember
-          ? FloatingActionButton(
+          ? FloatingActionButton.extended(
               onPressed: _composePost,
-              child: const Icon(Icons.edit),
+              icon: const Icon(Icons.edit),
+              label: Text(l10n.t('group.new_post')),
             )
           : null,
       body: _loading
@@ -142,82 +148,156 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           ? ErrorView(error: _error!, onRetry: _load)
           : _group == null
           ? const SizedBox.shrink()
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                children: [
-                  if (_group!.coverUrl != null)
-                    AppMediaImage(
-                      url: _group!.coverUrl!,
-                      height: 180,
-                      borderRadius: BorderRadius.zero,
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        AppAvatar(url: _group!.avatarUrl, size: 56),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _group!.name,
-                                style: Theme.of(context).textTheme.titleLarge,
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.contentMaxWidth,
+                ),
+                child: RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    children: [
+                      if (_group!.coverUrl != null)
+                        AppMediaImage(
+                          url: _group!.coverUrl!,
+                          height: 180,
+                          borderRadius: BorderRadius.zero,
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Row(
+                          children: [
+                            AppAvatar(url: _group!.avatarUrl, size: 64),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _group!.name,
+                                    style: theme.textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Wrap(
+                                    spacing: 12,
+                                    runSpacing: 4,
+                                    children: [
+                                      _MetaPiece(
+                                        icon: Icons.people_outline,
+                                        text:
+                                            '${_group!.memberCount} ${l10n.t('group.members')}',
+                                      ),
+                                      _MetaPiece(
+                                        icon: Icons.lock_outline,
+                                        text: _group!.privacyDesc.isEmpty
+                                            ? _group!.privacy
+                                            : _group!.privacyDesc,
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${_group!.memberCount} ${l10n.t('group.members')} · ${_group!.privacyDesc.isEmpty ? _group!.privacy : _group!.privacyDesc}',
-                              ),
-                            ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: _busy ? null : _toggleMembership,
+                            style: _group!.membership.isMember
+                                ? FilledButton.styleFrom(
+                                    backgroundColor:
+                                        theme.colorScheme.surfaceContainerHighest,
+                                    foregroundColor: theme.colorScheme.onSurface,
+                                  )
+                                : null,
+                            child: _busy
+                                ? const SizedBox(
+                                    height: 16,
+                                    width: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(
+                                    _group!.membership.isMember
+                                        ? l10n.t('group.leave')
+                                        : l10n.t('group.join'),
+                                  ),
                           ),
                         ),
-                        FilledButton(
-                          onPressed: _busy ? null : _toggleMembership,
+                      ),
+                      if (_group!.description.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                           child: Text(
-                            _group!.membership.isMember
-                                ? l10n.t('group.leave')
-                                : l10n.t('group.join'),
+                            _group!.description,
+                            style: theme.textTheme.bodyMedium,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  if (_group!.description.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(_group!.description),
-                    ),
-                  if (_group!.tags.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: _group!.tags
-                            .map((t) => Chip(label: Text('#$t')))
-                            .toList(),
-                      ),
-                    ),
-                  const Divider(),
-                  if (_posts.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Center(child: Text(l10n.t('group.no_posts'))),
-                    )
-                  else
-                    ..._posts.map(
-                      (p) => _GroupPostTile(
-                        post: p,
-                        onTap: () => context.push(
-                          '/groups/${widget.slug}/posts/${p.postId}',
+                      if (_group!.tags.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: _group!.tags
+                                .map((t) => Chip(label: Text('#$t')))
+                                .toList(),
+                          ),
                         ),
-                      ),
-                    ),
-                ],
+                      Divider(height: 1, color: theme.dividerColor),
+                      if (_posts.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Center(child: Text(l10n.t('group.no_posts'))),
+                        )
+                      else
+                        ..._posts.map(
+                          (p) => _GroupPostTile(
+                            post: p,
+                            onTap: () => context.push(
+                              '/groups/${widget.slug}/posts/${p.postId}',
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
+    );
+  }
+}
+
+class _MetaPiece extends StatelessWidget {
+  const _MetaPiece({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -235,38 +315,63 @@ class _GroupPostTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 AppAvatar(url: post.author.avatarUrl, size: 36),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        post.author.displayName,
-                        style: Theme.of(context).textTheme.titleSmall,
+                        post.author.displayName.isEmpty
+                            ? post.author.username
+                            : post.author.displayName,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Text(
                         _formatDate(post.createdAt),
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                if (post.isPinned) const Icon(Icons.push_pin, size: 16),
-                if (post.isAnnouncement) const Icon(Icons.campaign, size: 16),
+                if (post.isPinned)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Icon(
+                      Icons.push_pin,
+                      size: 14,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                if (post.isAnnouncement)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Icon(
+                      Icons.campaign,
+                      size: 14,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 8),
-            Text(post.content),
+            Text(post.content, style: theme.textTheme.bodyMedium),
             if (post.mediaUrls.isNotEmpty) ...[
               const SizedBox(height: 8),
               Wrap(
@@ -274,38 +379,51 @@ class _GroupPostTile extends StatelessWidget {
                 runSpacing: 8,
                 children: post.mediaUrls
                     .map(
-                      (url) => AppMediaImage(url: url, width: 120, height: 120),
+                      (url) => ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: AppMediaImage(
+                          url: url,
+                          width: 120,
+                          height: 120,
+                          borderRadius: BorderRadius.zero,
+                        ),
+                      ),
                     )
                     .toList(),
               ),
             ],
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Icon(
-                  Icons.favorite_border,
-                  size: 16,
-                  color: Theme.of(context).hintColor,
-                ),
-                const SizedBox(width: 4),
-                Text('${post.likesCount}'),
-                const SizedBox(width: 12),
-                Icon(
-                  Icons.comment_outlined,
-                  size: 16,
-                  color: Theme.of(context).hintColor,
-                ),
-                const SizedBox(width: 4),
-                Text('${post.commentsCount}'),
-                const SizedBox(width: 12),
-                Icon(
-                  Icons.visibility_outlined,
-                  size: 16,
-                  color: Theme.of(context).hintColor,
-                ),
-                const SizedBox(width: 4),
-                Text('${post.viewsCount}'),
-              ],
+            const SizedBox(height: 8),
+            DefaultTextStyle(
+              style: theme.textTheme.bodySmall!.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.favorite_border,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Text('${post.likesCount}'),
+                  const SizedBox(width: 14),
+                  Icon(
+                    Icons.mode_comment_outlined,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Text('${post.commentsCount}'),
+                  const SizedBox(width: 14),
+                  Icon(
+                    Icons.visibility_outlined,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Text('${post.viewsCount}'),
+                ],
+              ),
             ),
           ],
         ),
