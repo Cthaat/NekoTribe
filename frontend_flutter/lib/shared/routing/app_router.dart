@@ -202,12 +202,48 @@ final routerProvider = Provider<GoRouter>((ref) {
           return EditPostScreen(postId: id);
         },
       ),
+      GoRoute(path: '/meow', builder: (_, __) => const ComposePostScreen()),
+      GoRoute(
+        path: '/tweet/:postId',
+        builder: (_, state) {
+          final id = int.tryParse(state.pathParameters['postId'] ?? '') ?? 0;
+          return PostDetailScreen(postId: id);
+        },
+      ),
+      GoRoute(
+        path: '/tweet/search/:search',
+        builder: (_, state) {
+          final query = state.pathParameters['search'] ?? '';
+          return SearchScreen(initialQuery: query);
+        },
+      ),
+      GoRoute(
+        path: '/tweet/:type/:userId',
+        builder: (_, state) {
+          final type = state.pathParameters['type'] ?? 'home';
+          final userId =
+              int.tryParse(state.pathParameters['userId'] ?? '') ?? 0;
+          return TweetTimelineScreen(type: type, userId: userId);
+        },
+      ),
       GoRoute(
         path: '/tags/:tag',
         builder: (_, state) {
           final tag = state.pathParameters['tag'] ?? '';
           return TagScreen(tag: tag);
         },
+      ),
+      GoRoute(
+        path: '/user/:userId/profile',
+        builder: (_, state) {
+          final userId =
+              int.tryParse(state.pathParameters['userId'] ?? '') ?? 0;
+          return ProfileScreen(userId: userId);
+        },
+      ),
+      GoRoute(
+        path: '/user/:userId/notifications',
+        builder: (_, __) => const NotificationsScreen(),
       ),
       GoRoute(
         path: '/users/:userId',
