@@ -438,6 +438,245 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
   }
 }
 
+class _UsersTab extends ConsumerStatefulWidget {
+  const _UsersTab();
+
+  @override
+  ConsumerState<_UsersTab> createState() => _UsersTabState();
+}
+
+class _UsersTabState extends ConsumerState<_UsersTab>
+    with AutomaticKeepAliveClientMixin {
+  String _status = 'all';
+  final _keywordController = TextEditingController();
+  List<V2ModerationUserItem> _items = [];
+  bool _loading = true;
+  Object? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _keywordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final page = await ref.read(moderationApiProvider).users(
+            status: _status == 'all' ? null : _status,
+            keyword: _keywordController.text.trim().isEmpty
+                ? null
+                : _keywordController.text.trim(),
+          );
+      if (!mounted) return;
+      setState(() {
+        _items = page.items;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _moderateUser(
+    V2ModerationUserItem user,
+    String action,
+  ) async {
+    final reason = TextEditingController();
+    final duration = TextEditingController(text: '24');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('${action.toUpperCase()} @${user.username}'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: reason,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Reason / note',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              if (action == 'ban' || action == 'mute') ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: duration,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Duration hours',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    final reasonText = reason.text.trim();
+    final durationHours = int.tryParse(duration.text.trim());
+    reason.dispose();
+    duration.dispose();
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(moderationApiProvider).restrictUser(
+            userId: user.userId,
+            action: action,
+            reason: reasonText.isEmpty ? null : reasonText,
+            note: action == 'note' && reasonText.isNotEmpty ? reasonText : null,
+            durationHours:
+                action == 'ban' || action == 'mute' ? durationHours : null,
+          );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorView.describe(context, e))),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: 260,
+                child: TextField(
+                  controller: _keywordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Search users',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onSubmitted: (_) => _load(),
+                ),
+              ),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'all', label: Text('All')),
+                  ButtonSegment(value: 'active', label: Text('Active')),
+                  ButtonSegment(value: 'suspended', label: Text('Suspended')),
+                ],
+                selected: {_status},
+                onSelectionChanged: (value) {
+                  setState(() => _status = value.first);
+                  _load();
+                },
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _loading
+              ? const LoadingView()
+              : _error != null
+                  ? ErrorView(error: _error!, onRetry: _load)
+                  : _items.isEmpty
+                      ? const EmptyView(message: 'No users')
+                      : RefreshIndicator(
+                          onRefresh: _load,
+                          child: ListView.separated(
+                            itemCount: _items.length,
+                            separatorBuilder: (_, _) =>
+                                const Divider(height: 1),
+                            itemBuilder: (_, i) {
+                              final user = _items[i];
+                              final restriction =
+                                  user.activeRestriction ?? 'none';
+                              return ListTile(
+                                leading: AppAvatar(
+                                    url: user.avatarUrl, size: 44),
+                                title: Text(user.displayName.isEmpty
+                                    ? '@${user.username}'
+                                    : user.displayName),
+                                subtitle: Text(
+                                  '@${user.username} · ${user.status} · reports ${user.reportCount} · restriction $restriction',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                onTap: () =>
+                                    context.push('/users/${user.userId}'),
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (action) =>
+                                      _moderateUser(user, action),
+                                  itemBuilder: (_) => [
+                                    const PopupMenuItem(
+                                      value: 'note',
+                                      child: Text('Add note'),
+                                    ),
+                                    if (user.activeRestriction != 'ban')
+                                      const PopupMenuItem(
+                                        value: 'ban',
+                                        child: Text('Ban'),
+                                      ),
+                                    if (user.activeRestriction == 'ban')
+                                      const PopupMenuItem(
+                                        value: 'unban',
+                                        child: Text('Unban'),
+                                      ),
+                                    if (user.activeRestriction != 'mute')
+                                      const PopupMenuItem(
+                                        value: 'mute',
+                                        child: Text('Mute'),
+                                      ),
+                                    if (user.activeRestriction == 'mute')
+                                      const PopupMenuItem(
+                                        value: 'unmute',
+                                        child: Text('Unmute'),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+        ),
+      ],
+    );
+  }
+}
+
 class _AppealsTab extends ConsumerStatefulWidget {
   const _AppealsTab();
 
