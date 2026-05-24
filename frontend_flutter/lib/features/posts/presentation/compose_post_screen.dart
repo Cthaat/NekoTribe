@@ -10,11 +10,7 @@ import '../../../shared/widgets/status_views.dart';
 import '../domain/post_models.dart';
 
 class ComposePostScreen extends ConsumerStatefulWidget {
-  const ComposePostScreen({
-    super.key,
-    this.replyToPostId,
-    this.quotedPostId,
-  });
+  const ComposePostScreen({super.key, this.replyToPostId, this.quotedPostId});
 
   final int? replyToPostId;
   final int? quotedPostId;
@@ -79,7 +75,9 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
       _error = null;
     });
     try {
-      final post = await ref.read(postsApiProvider).createPost(
+      final post = await ref
+          .read(postsApiProvider)
+          .createPost(
             content: _controller.text.trim(),
             visibility: _visibility,
             replyToPostId: widget.replyToPostId,
@@ -109,7 +107,8 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                 ? const SizedBox(
                     height: 16,
                     width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : Text(l10n.t('compose.publish')),
           ),
           const SizedBox(width: 12),
@@ -163,13 +162,15 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                           right: 0,
                           child: IconButton(
                             iconSize: 18,
-                            onPressed: () =>
-                                setState(() => _media.removeAt(i)),
+                            onPressed: () => setState(() => _media.removeAt(i)),
                             icon: const CircleAvatar(
                               radius: 12,
                               backgroundColor: Colors.black54,
-                              child: Icon(Icons.close,
-                                  size: 14, color: Colors.white),
+                              child: Icon(
+                                Icons.close,
+                                size: 14,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -187,21 +188,21 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2))
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.photo_outlined),
                 ),
                 const Spacer(),
                 DropdownButton<String>(
                   value: _visibility,
-                  onChanged: (v) =>
-                      setState(() => _visibility = v ?? 'public'),
+                  onChanged: (v) => setState(() => _visibility = v ?? 'public'),
                   items: const [
+                    DropdownMenuItem(value: 'public', child: Text('Public')),
                     DropdownMenuItem(
-                        value: 'public', child: Text('Public')),
-                    DropdownMenuItem(
-                        value: 'followers', child: Text('Followers')),
-                    DropdownMenuItem(
-                        value: 'private', child: Text('Private')),
+                      value: 'followers',
+                      child: Text('Followers'),
+                    ),
+                    DropdownMenuItem(value: 'private', child: Text('Private')),
                   ],
                 ),
               ],
@@ -209,8 +210,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             if (_error != null)
               Text(
                 _error!,
-                style:
-                    TextStyle(color: Theme.of(context).colorScheme.error),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
           ],
         ),
