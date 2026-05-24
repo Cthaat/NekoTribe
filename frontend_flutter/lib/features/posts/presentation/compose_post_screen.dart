@@ -196,13 +196,19 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                 DropdownButton<String>(
                   value: _visibility,
                   onChanged: (v) => setState(() => _visibility = v ?? 'public'),
-                  items: const [
-                    DropdownMenuItem(value: 'public', child: Text('Public')),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'public',
+                      child: Text(l10n.t('common.public')),
+                    ),
                     DropdownMenuItem(
                       value: 'followers',
-                      child: Text('Followers'),
+                      child: Text(l10n.t('common.followers_only')),
                     ),
-                    DropdownMenuItem(value: 'private', child: Text('Private')),
+                    DropdownMenuItem(
+                      value: 'private',
+                      child: Text(l10n.t('common.private')),
+                    ),
                   ],
                 ),
               ],
