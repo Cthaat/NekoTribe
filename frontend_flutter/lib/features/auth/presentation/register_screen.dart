@@ -113,21 +113,45 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('auth.register'))),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
+          constraints: const BoxConstraints(maxWidth: 440),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    Icons.person_add_alt_1,
+                    size: 36,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.t('auth.register'),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
                 TextField(
                   controller: _account,
                   decoration: InputDecoration(
                     labelText: l10n.t('auth.account'),
-                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.alternate_email),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -138,20 +162,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         controller: _otp,
                         decoration: InputDecoration(
                           labelText: l10n.t('auth.otp'),
-                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.pin_outlined),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    OutlinedButton(
-                      onPressed: _sending ? null : _sendOtp,
-                      child: _sending
-                          ? const SizedBox(
-                              height: 16,
-                              width: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(l10n.t('auth.send_otp')),
+                    SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: _sending ? null : _sendOtp,
+                        child: _sending
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(l10n.t('auth.send_otp')),
+                      ),
                     ),
                   ],
                 ),
@@ -160,7 +189,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   controller: _username,
                   decoration: InputDecoration(
                     labelText: l10n.t('auth.username'),
-                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.person_outline),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -168,7 +197,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   controller: _displayName,
                   decoration: InputDecoration(
                     labelText: l10n.t('auth.display_name'),
-                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.badge_outlined),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -177,7 +206,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   obscureText: true,
                   decoration: InputDecoration(
                     labelText: l10n.t('auth.password'),
-                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock_outline),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -186,9 +215,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   obscureText: true,
                   decoration: InputDecoration(
                     labelText: l10n.t('auth.confirm_password'),
-                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock_reset_outlined),
                   ),
                 ),
+                const SizedBox(height: 8),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   value: _agreeToTerms,
@@ -199,28 +229,63 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   controlAffinity: ListTileControlAffinity.leading,
                 ),
                 if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 18,
+                          color: theme.colorScheme.error,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: TextStyle(color: theme.colorScheme.error),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _busy ? null : _register,
-                  child: _busy
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(l10n.t('auth.register')),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: _busy ? null : _register,
+                    child: _busy
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(l10n.t('auth.register')),
+                  ),
                 ),
-                TextButton(
-                  onPressed: () => context.go('/auth/login'),
-                  child: Text(l10n.t('auth.login')),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      l10n.t('auth.have_account'),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => context.go('/auth/login'),
+                      child: Text(l10n.t('auth.login')),
+                    ),
+                  ],
                 ),
               ],
             ),
