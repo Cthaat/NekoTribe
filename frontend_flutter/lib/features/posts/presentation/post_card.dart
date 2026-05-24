@@ -110,19 +110,20 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   Future<void> _deletePost() async {
     if (!requireAuthenticatedAction(context, ref)) return;
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete post'),
-        content: const Text('This post will be removed from NekoTribe.'),
+        title: Text(l10n.t('post.delete.title')),
+        content: Text(l10n.t('post.delete.body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.t('common.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: Text(l10n.t('common.delete')),
           ),
         ],
       ),
@@ -134,7 +135,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       widget.onDeleted?.call();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Post deleted')));
+      ).showSnackBar(SnackBar(content: Text(l10n.t('post.deleted'))));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -145,28 +146,29 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   Future<void> _quotePost() async {
     if (!requireAuthenticatedAction(context, ref)) return;
+    final l10n = AppLocalizations.of(context);
     final controller = TextEditingController();
     final text = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Quote post'),
+        title: Text(l10n.t('post.quote.title')),
         content: TextField(
           controller: controller,
           minLines: 3,
           maxLines: 6,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: 'Add your comment',
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
+            hintText: l10n.t('post.quote.hint'),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.t('common.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Post'),
+            child: Text(l10n.t('common.post')),
           ),
         ],
       ),
@@ -180,7 +182,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Quote posted')));
+      ).showSnackBar(SnackBar(content: Text(l10n.t('post.quote.posted'))));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -191,6 +193,7 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   Future<void> _sendFeedback(String feedback) async {
     if (!requireAuthenticatedAction(context, ref)) return;
+    final l10n = AppLocalizations.of(context);
     try {
       await ref
           .read(postsApiProvider)
@@ -201,7 +204,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Feedback saved')));
+      ).showSnackBar(SnackBar(content: Text(l10n.t('post.feedback.saved'))));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -312,17 +315,17 @@ class _PostCardState extends ConsumerState<PostCard> {
                               child: Text(l10n.t('common.delete')),
                             ),
                           ],
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: 'quote',
-                            child: Text('Quote'),
+                            child: Text(l10n.t('post.quote.menu')),
                           ),
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: 'not_interested',
-                            child: Text('Not interested'),
+                            child: Text(l10n.t('post.feedback.not_interested')),
                           ),
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: 'show_less',
-                            child: Text('Show less like this'),
+                            child: Text(l10n.t('post.feedback.show_less')),
                           ),
                           PopupMenuItem(
                             value: 'report',
