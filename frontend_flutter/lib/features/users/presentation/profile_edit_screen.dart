@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/user_models.dart';
@@ -75,10 +76,11 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
             website: _website.text.trim(),
           );
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       setState(() => _user = user);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Profile saved')));
+      ).showSnackBar(SnackBar(content: Text(l10n.t('profile.saved'))));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -91,9 +93,10 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit profile'),
+        title: Text(l10n.t('settings.account.edit_profile')),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
@@ -102,7 +105,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                     dimension: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Save'),
+                : Text(l10n.t('common.save')),
           ),
         ],
       ),
@@ -120,9 +123,9 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _displayName,
-                  decoration: const InputDecoration(
-                    labelText: 'Display name',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.t('profile.display_name'),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -130,25 +133,25 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                   controller: _bio,
                   minLines: 3,
                   maxLines: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Bio',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.t('profile.bio'),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _location,
-                  decoration: const InputDecoration(
-                    labelText: 'Location',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.t('profile.location'),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _website,
-                  decoration: const InputDecoration(
-                    labelText: 'Website',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.t('profile.website'),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
               ],
