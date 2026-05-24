@@ -1,6 +1,10 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'core/config/app_config.dart';
 import 'shared/i18n/app_localizations.dart';
@@ -10,6 +14,7 @@ import 'shared/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final windowOptions = await _desktopWindowOptions();
   final bundle = await AppConfigLoader.loadBundle();
   final initial = await AppConfigLoader.initialConfig(bundle);
   runApp(
@@ -21,6 +26,29 @@ Future<void> main() async {
       child: const NekoTribeApp(),
     ),
   );
+  await _showDesktopWindow(windowOptions);
+}
+
+Future<WindowOptions?> _desktopWindowOptions() async {
+  if (kIsWeb) return null;
+  if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
+    return null;
+  }
+
+  await windowManager.ensureInitialized();
+  return const WindowOptions(
+    title: 'NekoTribe',
+    titleBarStyle: TitleBarStyle.hidden,
+    windowButtonVisibility: true,
+  );
+}
+
+Future<void> _showDesktopWindow(WindowOptions? options) async {
+  if (options == null) return;
+  await windowManager.waitUntilReadyToShow(options, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
 }
 
 class NekoTribeApp extends ConsumerWidget {
