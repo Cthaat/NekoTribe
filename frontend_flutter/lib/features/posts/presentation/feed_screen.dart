@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/post_models.dart';
 import 'post_card.dart';
@@ -113,14 +114,25 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.t('app.title')),
-        bottom: TabBar(
-          controller: _tab,
-          onTap: (idx) => _loadInitial(idx),
-          tabs: [
-            Tab(text: l10n.t('feed.tab.home')),
-            Tab(text: l10n.t('feed.tab.discover')),
-            Tab(text: l10n.t('feed.tab.following')),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Align(
+            alignment: Alignment.center,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppBreakpoints.contentMaxWidth,
+              ),
+              child: TabBar(
+                controller: _tab,
+                onTap: (idx) => _loadInitial(idx),
+                tabs: [
+                  Tab(text: l10n.t('feed.tab.home')),
+                  Tab(text: l10n.t('feed.tab.discover')),
+                  Tab(text: l10n.t('feed.tab.following')),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton(
@@ -151,46 +163,55 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       final l10n = AppLocalizations.of(context);
       return EmptyView(message: l10n.t('feed.empty'));
     }
-    return RefreshIndicator(
-      onRefresh: () => _refresh(idx),
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (n) {
-          if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
-            _loadMore(idx);
-          }
-          return false;
-        },
-        child: ListView.separated(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: state.items.length + (state.hasMore ? 1 : 0),
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, i) {
-            if (i == state.items.length) {
-              return const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            final post = state.items[i];
-            return PostCard(
-              key: ValueKey(post.postId),
-              post: post,
-              onChanged: (updated) {
-                state.items[i] = updated;
-                if (mounted) setState(() {});
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: AppBreakpoints.contentMaxWidth,
+        ),
+        child: RefreshIndicator(
+          onRefresh: () => _refresh(idx),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+                _loadMore(idx);
+              }
+              return false;
+            },
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              itemCount: state.items.length + (state.hasMore ? 1 : 0),
+              separatorBuilder: (_, __) =>
+                  Divider(height: 1, color: Theme.of(context).dividerColor),
+              itemBuilder: (context, i) {
+                if (i == state.items.length) {
+                  return const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                final post = state.items[i];
+                return PostCard(
+                  key: ValueKey(post.postId),
+                  post: post,
+                  onChanged: (updated) {
+                    state.items[i] = updated;
+                    if (mounted) setState(() {});
+                  },
+                  onDeleted: () {
+                    state.items.removeAt(i);
+                    if (mounted) setState(() {});
+                  },
+                  onReport: () => showReportDialog(
+                    context,
+                    ref,
+                    targetType: 'post',
+                    targetId: post.postId,
+                  ),
+                );
               },
-              onDeleted: () {
-                state.items.removeAt(i);
-                if (mounted) setState(() {});
-              },
-              onReport: () => showReportDialog(
-                context,
-                ref,
-                targetType: 'post',
-                targetId: post.postId,
-              ),
-            );
-          },
+            ),
+          ),
         ),
       ),
     );
