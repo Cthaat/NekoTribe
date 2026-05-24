@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nekotribe/core/config/app_config.dart';
 import 'package:nekotribe/core/network/api_client.dart';
 import 'package:nekotribe/core/auth/token_store.dart';
+import 'package:nekotribe/features/auth/data/auth_api.dart';
+import 'package:nekotribe/features/auth/data/auth_repository.dart';
+import 'package:nekotribe/features/auth/domain/auth_models.dart';
 import 'package:nekotribe/features/users/data/users_api.dart';
 import 'package:nekotribe/features/users/data/users_repository.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
@@ -51,16 +55,89 @@ void main() {
     expect(users.disableCode, '654321');
     expect(find.text('未启用，开启前需要验证当前密码。'), findsOneWidget);
   });
+
+  testWidgets('security screen changes email with OTP verification id', (
+    tester,
+  ) async {
+    final users = _FakeUsersRepository(twoFactorEnabled: false);
+    final auth = _FakeAuthRepository();
+
+    await _pumpSecurity(tester, users, auth: auth);
+
+    await tester.ensureVisible(find.byKey(const Key('security-email-field')));
+    await tester.enterText(
+      find.byKey(const Key('security-email-field')),
+      'next@example.test',
+    );
+    await tester.tap(find.text('获取验证码'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('security-email-code')),
+      '246810',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '修改邮箱'));
+    await tester.pumpAndSettle();
+
+    expect(auth.requestedOtpAccount, 'next@example.test');
+    expect(auth.requestedOtpPurpose, 'change_email');
+    expect(users.changedEmail, 'next@example.test');
+    expect(users.changedEmailVerificationId, 'otp-1');
+    expect(users.changedEmailCode, '246810');
+  });
+
+  testWidgets('security screen deletes account and returns to login', (
+    tester,
+  ) async {
+    final users = _FakeUsersRepository(twoFactorEnabled: false);
+    final auth = _FakeAuthRepository();
+
+    await _pumpSecurity(tester, users, auth: auth, loginText: 'Login route');
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('security-delete-password')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(
+      find.byKey(const Key('security-delete-password')),
+      'current-password',
+    );
+    await tester.enterText(
+      find.byKey(const Key('security-delete-confirmation')),
+      'DELETE',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '删除账号'));
+    await tester.pumpAndSettle();
+
+    expect(users.deletePassword, 'current-password');
+    expect(users.deleteConfirmation, 'DELETE');
+    expect(auth.logoutCalled, isTrue);
+    expect(find.text('Login route'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpSecurity(
   WidgetTester tester,
-  _FakeUsersRepository users,
-) async {
+  _FakeUsersRepository users, {
+  _FakeAuthRepository? auth,
+  String loginText = 'Login route',
+}) async {
+  final router = GoRouter(
+    routes: [
+      GoRoute(path: '/', builder: (_, _) => const SecurityScreen()),
+      GoRoute(path: '/auth/login', builder: (_, _) => Text(loginText)),
+    ],
+  );
+  addTearDown(router.dispose);
+
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [usersRepositoryProvider.overrideWithValue(users)],
-      child: const MaterialApp(home: SecurityScreen()),
+      overrides: [
+        usersRepositoryProvider.overrideWithValue(users),
+        if (auth != null) authRepositoryProvider.overrideWithValue(auth),
+      ],
+      child: MaterialApp.router(routerConfig: router),
     ),
   );
   await tester.pumpAndSettle();
@@ -77,6 +154,11 @@ class _FakeUsersRepository extends UsersRepository {
   String? confirmCode;
   String? disablePassword;
   String? disableCode;
+  String? changedEmail;
+  String? changedEmailVerificationId;
+  String? changedEmailCode;
+  String? deletePassword;
+  String? deleteConfirmation;
 
   @override
   Future<V2UserSettings> getSettings() async => _settings(twoFactorEnabled);
@@ -111,6 +193,60 @@ class _FakeUsersRepository extends UsersRepository {
     disableCode = code;
     twoFactorEnabled = false;
     return {'enabled': false};
+  }
+
+  @override
+  Future<void> changeEmail({
+    required String newEmail,
+    required String verificationId,
+    required String code,
+  }) async {
+    changedEmail = newEmail;
+    changedEmailVerificationId = verificationId;
+    changedEmailCode = code;
+  }
+
+  @override
+  Future<Map<String, dynamic>> deleteAccount({
+    required String password,
+    required String confirmation,
+  }) async {
+    deletePassword = password;
+    deleteConfirmation = confirmation;
+    return {'deleted': true, 'user_id': 1};
+  }
+}
+
+class _FakeAuthRepository extends AuthRepository {
+  _FakeAuthRepository()
+    : super(
+        api: AuthApi(
+          ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()),
+        ),
+        tokenStore: _FakeTokenStore(),
+      );
+
+  String? requestedOtpAccount;
+  String? requestedOtpPurpose;
+  bool logoutCalled = false;
+
+  @override
+  Future<V2AuthOtpData> requestOtp({
+    required String account,
+    required String purpose,
+  }) async {
+    requestedOtpAccount = account;
+    requestedOtpPurpose = purpose;
+    return V2AuthOtpData(
+      account: account,
+      verificationId: 'otp-1',
+      expiresAt: '2026-05-24T00:05:00.000Z',
+    );
+  }
+
+  @override
+  Future<void> logout() async {
+    logoutCalled = true;
   }
 }
 
