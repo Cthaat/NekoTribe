@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/network/api_response.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/user_models.dart';
 
@@ -61,7 +62,6 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
           maxLines: 4,
           decoration: InputDecoration(
             hintText: l10n.t('account.statements.appeal_hint'),
-            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
@@ -116,6 +116,7 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('account.statements.title'))),
       body: _loading
@@ -124,50 +125,112 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
           ? ErrorView(error: _error!, onRetry: _load)
           : _items.isEmpty
           ? EmptyView(message: l10n.t('account.statements.empty'))
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.separated(
-                itemCount: _items.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (_, i) {
-                  final s = _items[i];
-                  return ListTile(
-                    leading: const Icon(Icons.gavel),
-                    title: Text(s.title.isEmpty ? s.type : s.title),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(s.message),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Chip(
-                              label: Text(
-                                s.status,
-                                style: TextStyle(
-                                  color: _statusColor(context, s.status),
-                                ),
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.contentMaxWidth,
+                ),
+                child: RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _items.length,
+                    itemBuilder: (_, i) {
+                      final s = _items[i];
+                      final color = _statusColor(context, s.status);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: theme.cardTheme.color,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: theme.dividerColor),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.gavel,
+                                    size: 18,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      s.title.isEmpty ? s.type : s.title,
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: color.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      s.status,
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: color,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _formatDate(s.createdAt),
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
+                              const SizedBox(height: 10),
+                              Text(
+                                s.message,
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.schedule,
+                                    size: 12,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _formatDate(s.createdAt),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  if (s.status == 'active')
+                                    TextButton.icon(
+                                      onPressed: () => _appeal(s),
+                                      icon: const Icon(
+                                        Icons.forum_outlined,
+                                        size: 16,
+                                      ),
+                                      label: Text(
+                                        l10n.t('account.statements.appeal'),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                    isThreeLine: true,
-                    trailing: s.status == 'active'
-                        ? TextButton(
-                            onPressed: () => _appeal(s),
-                            child: Text(l10n.t('account.statements.appeal')),
-                          )
-                        : null,
-                  );
-                },
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
     );
