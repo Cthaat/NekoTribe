@@ -13,18 +13,71 @@ class SecurityScreen extends ConsumerStatefulWidget {
 }
 
 class _SecurityScreenState extends ConsumerState<SecurityScreen> {
+  final _setupPassword = TextEditingController();
+  final _setupCode = TextEditingController();
+  final _disablePassword = TextEditingController();
+  final _disableCode = TextEditingController();
+
+  bool _loading = true;
   bool _busy = false;
+  bool _twoFactorEnabled = false;
   String? _error;
   String? _twoFactorSecret;
   String? _qrUri;
+  List<String> _recoveryCodes = const [];
 
-  Future<void> _setup2fa() async {
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  @override
+  void dispose() {
+    _setupPassword.dispose();
+    _setupCode.dispose();
+    _disablePassword.dispose();
+    _disableCode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadStatus() async {
     setState(() {
-      _busy = true;
+      _loading = true;
       _error = null;
     });
     try {
-      final data = await ref.read(usersRepositoryProvider).setupTwoFactor();
+      final settings = await ref.read(usersRepositoryProvider).getSettings();
+      if (!mounted) return;
+      setState(() {
+        _twoFactorEnabled = settings.twoFactorEnabled ?? false;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = ErrorView.describe(context, e);
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _startSetup() async {
+    final l10n = AppLocalizations.of(context);
+    final password = _setupPassword.text.trim();
+    if (password.isEmpty) {
+      setState(() => _error = l10n.t('account.security.password_required'));
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+      _recoveryCodes = const [];
+    });
+    try {
+      final data = await ref
+          .read(usersRepositoryProvider)
+          .setupTwoFactor(password: password);
       if (!mounted) return;
       setState(() {
         _twoFactorSecret = (data['secret'] as String?) ?? '';
@@ -38,112 +91,256 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     }
   }
 
-  Future<void> _confirm2fa(String code) async {
-    if (_twoFactorSecret == null) return;
+  Future<void> _confirmSetup() async {
+    final code = _setupCode.text.trim();
+    if (code.isEmpty) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
-      await ref
+      final data = await ref
           .read(usersRepositoryProvider)
-          .confirmTwoFactor(secret: _twoFactorSecret!, code: code);
+          .confirmTwoFactor(code: code);
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.t('account.security.enabled'))),
       );
       setState(() {
+        _twoFactorEnabled = data['enabled'] == true;
         _twoFactorSecret = null;
         _qrUri = null;
+        _setupPassword.clear();
+        _setupCode.clear();
+        _recoveryCodes = (data['recovery_codes'] as List? ?? const [])
+            .whereType<String>()
+            .toList(growable: false);
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      setState(() => _error = ErrorView.describe(context, e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _disable2fa() async {
+    final l10n = AppLocalizations.of(context);
+    final password = _disablePassword.text.trim();
+    final code = _disableCode.text.trim();
+    if (password.isEmpty || code.isEmpty) {
+      setState(() => _error = l10n.t('account.security.disable_required'));
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(usersRepositoryProvider)
+          .disableTwoFactor(password: password, code: code);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.t('account.security.disabled'))),
+      );
+      setState(() {
+        _twoFactorEnabled = false;
+        _disablePassword.clear();
+        _disableCode.clear();
+        _recoveryCodes = const [];
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = ErrorView.describe(context, e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('account.security.title'))),
-      body: ListView(
-        children: [
-          if (_error != null)
-            Padding(
+      body: _loading
+          ? const LoadingView()
+          : ListView(
               padding: const EdgeInsets.all(16),
-              child: Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ),
-          ListTile(
-            title: Text(l10n.t('account.security.setup_2fa')),
-            subtitle: Text(l10n.t('account.security.setup_2fa_hint')),
-            trailing: _busy
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.chevron_right),
-            onTap: _busy ? null : _setup2fa,
-          ),
-          if (_twoFactorSecret != null) ...[
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l10n.t('account.security.setup_secret')),
-                  SelectableText(_twoFactorSecret!),
-                  if (_qrUri != null) SelectableText('URI: $_qrUri'),
+              children: [
+                if (_error != null) ...[
+                  Text(
+                    _error!,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
                   const SizedBox(height: 12),
-                  _ConfirmField(onSubmit: _confirm2fa),
                 ],
-              ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.verified_user_outlined),
+                  title: Text(l10n.t('account.security.setup_2fa')),
+                  subtitle: Text(
+                    _twoFactorEnabled
+                        ? l10n.t('account.security.two_factor_enabled')
+                        : l10n.t('account.security.two_factor_disabled'),
+                  ),
+                ),
+                const Divider(),
+                if (_twoFactorEnabled)
+                  _DisableTwoFactorForm(
+                    password: _disablePassword,
+                    code: _disableCode,
+                    busy: _busy,
+                    onSubmit: _disable2fa,
+                  )
+                else
+                  _SetupTwoFactorForm(
+                    password: _setupPassword,
+                    code: _setupCode,
+                    busy: _busy,
+                    secret: _twoFactorSecret,
+                    qrUri: _qrUri,
+                    onStart: _startSetup,
+                    onConfirm: _confirmSetup,
+                  ),
+                if (_recoveryCodes.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Text(
+                    l10n.t('account.security.recovery_codes'),
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _recoveryCodes
+                        .map(
+                          (code) => Chip(
+                            label: Text(
+                              code,
+                              style: const TextStyle(
+                                fontFeatures: [FontFeature.tabularFigures()],
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ],
-      ),
     );
   }
 }
 
-class _ConfirmField extends StatefulWidget {
-  const _ConfirmField({required this.onSubmit});
-  final Future<void> Function(String code) onSubmit;
+class _SetupTwoFactorForm extends StatelessWidget {
+  const _SetupTwoFactorForm({
+    required this.password,
+    required this.code,
+    required this.busy,
+    required this.secret,
+    required this.qrUri,
+    required this.onStart,
+    required this.onConfirm,
+  });
 
-  @override
-  State<_ConfirmField> createState() => _ConfirmFieldState();
-}
-
-class _ConfirmFieldState extends State<_ConfirmField> {
-  final _ctl = TextEditingController();
-  @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
-  }
+  final TextEditingController password;
+  final TextEditingController code;
+  final bool busy;
+  final String? secret;
+  final String? qrUri;
+  final VoidCallback onStart;
+  final VoidCallback onConfirm;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: TextField(
-            controller: _ctl,
+        TextField(
+          controller: password,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: l10n.t('account.security.current_password'),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: busy ? null : onStart,
+          icon: const Icon(Icons.key_outlined),
+          label: Text(l10n.t('account.security.start_2fa')),
+        ),
+        if (secret != null) ...[
+          const SizedBox(height: 24),
+          Text(l10n.t('account.security.setup_secret')),
+          SelectableText(secret!),
+          if (qrUri != null) SelectableText('URI: $qrUri'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: code,
+            keyboardType: TextInputType.number,
             decoration: InputDecoration(
               labelText: l10n.t('account.security.enter_code'),
               border: const OutlineInputBorder(),
             ),
+            onSubmitted: (_) => onConfirm(),
+          ),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: busy ? null : onConfirm,
+            child: Text(l10n.t('common.confirm')),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _DisableTwoFactorForm extends StatelessWidget {
+  const _DisableTwoFactorForm({
+    required this.password,
+    required this.code,
+    required this.busy,
+    required this.onSubmit,
+  });
+
+  final TextEditingController password;
+  final TextEditingController code;
+  final bool busy;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: password,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: l10n.t('account.security.current_password'),
+            border: const OutlineInputBorder(),
           ),
         ),
-        const SizedBox(width: 12),
-        FilledButton(
-          onPressed: () => widget.onSubmit(_ctl.text.trim()),
-          child: Text(l10n.t('common.confirm')),
+        const SizedBox(height: 12),
+        TextField(
+          controller: code,
+          decoration: InputDecoration(
+            labelText: l10n.t('account.security.code_or_recovery'),
+            border: const OutlineInputBorder(),
+          ),
+          onSubmitted: (_) => onSubmit(),
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: busy ? null : onSubmit,
+          icon: const Icon(Icons.shield_outlined),
+          label: Text(l10n.t('account.security.disable_2fa')),
         ),
       ],
     );
