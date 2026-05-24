@@ -40,6 +40,11 @@ class UsersRepository {
     );
   }
 
+  Future<Map<String, dynamic>> deleteAccount({
+    required String password,
+    required String confirmation,
+  }) => _api.deleteMe(password: password, confirmation: confirmation);
+
   Future<V2UserSettings> getSettings() => _api.getSettings();
 
   Future<V2UserSettings> updateSettings(Map<String, dynamic> body) =>
