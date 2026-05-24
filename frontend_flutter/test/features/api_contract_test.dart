@@ -205,6 +205,62 @@ void main() {
         path: '/api/v2/groups/42/posts/9/comments/5/likes',
       );
     });
+
+    test('notification preference uses group id endpoint', () async {
+      final recorder = _ApiRecorder();
+      final api = GroupsApi(_client(recorder));
+
+      final preference = await api.getNotificationPreference(42);
+      recorder.expectLast(
+        method: 'GET',
+        path: '/api/v2/groups/42/notification-preference',
+      );
+      expect(preference.groupId, 42);
+      expect(preference.isEnabled, isTrue);
+
+      await api.setNotificationPreference(groupId: 42, isEnabled: false);
+      recorder.expectLast(
+        method: 'PUT',
+        path: '/api/v2/groups/42/notification-preference',
+        body: {'is_enabled': false},
+      );
+    });
+
+    test('member management uses numeric user ids and status resources', () async {
+      final recorder = _ApiRecorder();
+      final api = GroupsApi(_client(recorder));
+
+      await api.changeMemberRole(groupId: 42, userId: 8, role: 'moderator');
+      recorder.expectLast(
+        method: 'PATCH',
+        path: '/api/v2/groups/42/members/8/role',
+        body: {'role': 'moderator'},
+      );
+
+      await api.muteMember(
+        groupId: 42,
+        userId: 8,
+        durationHours: 24,
+        reason: 'spam',
+      );
+      recorder.expectLast(
+        method: 'PUT',
+        path: '/api/v2/groups/42/members/8/mute-status',
+        body: {'duration_hours': 24, 'reason': 'spam'},
+      );
+
+      await api.unmuteMember(groupId: 42, userId: 8);
+      recorder.expectLast(
+        method: 'DELETE',
+        path: '/api/v2/groups/42/members/8/mute-status',
+      );
+
+      await api.removeMember(groupId: 42, userId: 8);
+      recorder.expectLast(
+        method: 'DELETE',
+        path: '/api/v2/groups/42/members/8',
+      );
+    });
   });
 
   group('ChatApi v2 contract', () {
@@ -555,6 +611,27 @@ class _ApiRecorder implements HttpClientAdapter {
     }
     if (path.contains('/groups/invites/')) {
       return {'is_member': true, 'role': 'member', 'status': 'active'};
+    }
+    if (path.endsWith('/notification-preference')) {
+      return {
+        'user_id': 8,
+        'group_id': 42,
+        'is_enabled': options.method == 'PUT'
+            ? options.data['is_enabled']
+            : true,
+        'updated_at': '2026-05-24T00:00:00.000Z',
+      };
+    }
+    if (path.contains('/groups/') && path.contains('/members/')) {
+      return {
+        'member_id': 700,
+        'user_id': 8,
+        'status': 'active',
+        'role': options.data is Map<String, dynamic>
+            ? options.data['role'] ?? 'member'
+            : 'member',
+        'mute_until': null,
+      };
     }
     if (path.contains('/by-slug/')) {
       return _groupJson;
