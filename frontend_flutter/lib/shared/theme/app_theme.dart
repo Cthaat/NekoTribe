@@ -12,18 +12,12 @@ class ThemeSeedOption {
 }
 
 class AppThemePreference {
-  const AppThemePreference({
-    required this.mode,
-    required this.seedColor,
-  });
+  const AppThemePreference({required this.mode, required this.seedColor});
 
   final ThemeMode mode;
   final Color seedColor;
 
-  AppThemePreference copyWith({
-    ThemeMode? mode,
-    Color? seedColor,
-  }) {
+  AppThemePreference copyWith({ThemeMode? mode, Color? seedColor}) {
     return AppThemePreference(
       mode: mode ?? this.mode,
       seedColor: seedColor ?? this.seedColor,
