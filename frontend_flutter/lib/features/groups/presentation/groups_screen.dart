@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/group_models.dart';
 
@@ -40,24 +41,40 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.t('group.title')),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: _tabs.map((t) => Tab(text: l10n.t(t.titleKey))).toList(),
+      appBar: AppBar(title: Text(l10n.t('group.title'))),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.contentMaxWidth,
+          ),
+          child: Column(
+            children: [
+              TabBar(
+                controller: _tabController,
+                tabs: _tabs.map((t) => Tab(text: l10n.t(t.titleKey))).toList(),
+              ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _GroupsList(
+                      mode: 'discover',
+                      key: const PageStorageKey('disc'),
+                    ),
+                    _GroupsList(mode: 'my', key: const PageStorageKey('my')),
+                    const _InvitesList(key: PageStorageKey('inv')),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _GroupsList(mode: 'discover', key: const PageStorageKey('disc')),
-          _GroupsList(mode: 'my', key: const PageStorageKey('my')),
-          const _InvitesList(key: PageStorageKey('inv')),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateGroupDialog(context, ref),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: Text(l10n.t('common.create')),
       ),
     );
   }
@@ -82,12 +99,15 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
                 controller: name,
                 decoration: InputDecoration(labelText: l10n.t('group.name')),
               ),
+              const SizedBox(height: 12),
               TextField(
                 controller: slug,
                 decoration: InputDecoration(labelText: l10n.t('group.slug')),
               ),
+              const SizedBox(height: 12),
               TextField(
                 controller: description,
+                maxLines: 3,
                 decoration: InputDecoration(
                   labelText: l10n.t('group.description'),
                 ),
@@ -187,6 +207,7 @@ class _GroupsListState extends ConsumerState<_GroupsList>
   Widget build(BuildContext context) {
     super.build(context);
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
@@ -195,30 +216,76 @@ class _GroupsListState extends ConsumerState<_GroupsList>
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 4),
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
+        separatorBuilder: (_, _) =>
+            Divider(height: 1, color: theme.dividerColor),
         itemBuilder: (_, i) {
           final g = _items[i];
-          return ListTile(
-            leading: AppAvatar(url: g.avatarUrl, size: 48),
-            title: Text(g.name),
-            subtitle: Text(
-              g.description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('${g.memberCount}'),
-                Text(
-                  g.privacyDesc.isEmpty ? g.privacy : g.privacyDesc,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
+          return InkWell(
             onTap: () => context.push('/groups/${g.slug}'),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Row(
+                children: [
+                  AppAvatar(url: g.avatarUrl, size: 48),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          g.name,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          g.description.isEmpty
+                              ? '@${g.slug}'
+                              : g.description,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.people_outline,
+                            size: 14,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${g.memberCount}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        g.privacyDesc.isEmpty ? g.privacy : g.privacyDesc,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),
@@ -288,6 +355,7 @@ class _InvitesListState extends ConsumerState<_InvitesList>
   Widget build(BuildContext context) {
     super.build(context);
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
@@ -296,34 +364,75 @@ class _InvitesListState extends ConsumerState<_InvitesList>
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 4),
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
+        separatorBuilder: (_, _) =>
+            Divider(height: 1, color: theme.dividerColor),
         itemBuilder: (_, i) {
           final inv = _items[i];
           final group = inv.group;
-          return ListTile(
-            leading: AppAvatar(
-              url: group != null ? group['avatar_url'] as String? : null,
-              size: 48,
-            ),
-            title: Text(
-              group != null
-                  ? (group['name'] as String? ?? '')
-                  : l10n.t('group.group'),
-            ),
-            subtitle: Text(
-              '${l10n.t('group.invite_from')} @${inv.inviter.username} · ${inv.message ?? ''}',
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
+          final groupName = group != null
+              ? (group['name'] as String? ?? l10n.t('group.group'))
+              : l10n.t('group.group');
+          final message = inv.message ?? '';
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.check, color: Colors.green),
-                  onPressed: () => _respond(inv, 'accept'),
+                AppAvatar(
+                  url: group != null ? group['avatar_url'] as String? : null,
+                  size: 44,
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.red),
-                  onPressed: () => _respond(inv, 'decline'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        groupName,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${l10n.t('group.invite_from')} @${inv.inviter.username}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (message.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          message,
+                          style: theme.textTheme.bodyMedium,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Column(
+                  children: [
+                    IconButton(
+                      tooltip: l10n.t('common.confirm'),
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(Icons.check, color: theme.colorScheme.primary),
+                      onPressed: () => _respond(inv, 'accept'),
+                    ),
+                    IconButton(
+                      tooltip: l10n.t('common.cancel'),
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(Icons.close, color: theme.colorScheme.error),
+                      onPressed: () => _respond(inv, 'decline'),
+                    ),
+                  ],
                 ),
               ],
             ),
