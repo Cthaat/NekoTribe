@@ -55,6 +55,8 @@ void main() {
       const keys = [
         'auth.otp_sent',
         'auth.remember_me',
+        'auth.agree_terms',
+        'auth.otp_required',
         'profile.saved',
         'profile.message',
         'notification.filter.all_types',
