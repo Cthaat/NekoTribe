@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/post_models.dart';
 
@@ -88,15 +89,18 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
       appBar: AppBar(
         title: Text(l10n.t('post.edit_title')),
         actions: [
-          TextButton(
-            onPressed: _saving || _post == null ? null : _save,
-            child: _saving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(l10n.t('common.save')),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: FilledButton(
+              onPressed: _saving || _post == null ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(l10n.t('common.save')),
+            ),
           ),
         ],
       ),
@@ -104,46 +108,53 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
           ? const LoadingView()
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
-                    controller: _controller,
-                    minLines: 5,
-                    maxLines: 10,
-                    maxLength: 2000,
-                    decoration: InputDecoration(
-                      border: const OutlineInputBorder(),
-                      labelText: l10n.t('post.content'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _visibility,
-                    decoration: InputDecoration(
-                      border: const OutlineInputBorder(),
-                      labelText: l10n.t('post.visibility'),
-                    ),
-                    onChanged: (value) =>
-                        setState(() => _visibility = value ?? 'public'),
-                    items: [
-                      DropdownMenuItem(
-                        value: 'public',
-                        child: Text(l10n.t('common.public')),
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.contentMaxWidth,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextField(
+                        controller: _controller,
+                        minLines: 5,
+                        maxLines: 12,
+                        maxLength: 2000,
+                        decoration: InputDecoration(
+                          labelText: l10n.t('post.content'),
+                        ),
                       ),
-                      DropdownMenuItem(
-                        value: 'followers',
-                        child: Text(l10n.t('common.followers_only')),
-                      ),
-                      DropdownMenuItem(
-                        value: 'private',
-                        child: Text(l10n.t('common.private')),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: _visibility,
+                        decoration: InputDecoration(
+                          labelText: l10n.t('post.visibility'),
+                          prefixIcon: const Icon(Icons.public),
+                        ),
+                        onChanged: (value) =>
+                            setState(() => _visibility = value ?? 'public'),
+                        items: [
+                          DropdownMenuItem(
+                            value: 'public',
+                            child: Text(l10n.t('common.public')),
+                          ),
+                          DropdownMenuItem(
+                            value: 'followers',
+                            child: Text(l10n.t('common.followers_only')),
+                          ),
+                          DropdownMenuItem(
+                            value: 'private',
+                            child: Text(l10n.t('common.private')),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
     );
