@@ -146,19 +146,16 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _otp,
-                            decoration: InputDecoration(
-                              labelText: l10n.t('auth.otp'),
-                              prefixIcon: const Icon(Icons.pin_outlined),
-                            ),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final otpField = TextField(
+                          controller: _otp,
+                          decoration: InputDecoration(
+                            labelText: l10n.t('auth.otp'),
+                            prefixIcon: const Icon(Icons.pin_outlined),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
+                        );
+                        final sendButton = SizedBox(
                           height: 48,
                           child: OutlinedButton(
                             onPressed: _sending ? null : _sendOtp,
@@ -172,8 +169,25 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                                   )
                                 : Text(l10n.t('auth.send_otp')),
                           ),
-                        ),
-                      ],
+                        );
+                        if (constraints.maxWidth < 360) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              otpField,
+                              const SizedBox(height: 12),
+                              sendButton,
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Expanded(child: otpField),
+                            const SizedBox(width: 12),
+                            sendButton,
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 12),
                     TextField(
