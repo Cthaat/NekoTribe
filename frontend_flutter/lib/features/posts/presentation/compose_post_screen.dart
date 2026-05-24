@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/post_models.dart';
 
@@ -97,128 +98,181 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.t('compose.publish')),
         actions: [
-          FilledButton(
-            onPressed: _busy ? null : _publish,
-            child: _busy
-                ? const SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(l10n.t('compose.publish')),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: FilledButton(
+              onPressed: _busy ? null : _publish,
+              child: _busy
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(l10n.t('compose.publish')),
+            ),
           ),
-          const SizedBox(width: 12),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _controller,
-              maxLines: 6,
-              maxLength: 2000,
-              decoration: InputDecoration(
-                hintText: l10n.t('compose.placeholder'),
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (_media.isNotEmpty)
-              SizedBox(
-                height: 100,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _media.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (_, i) {
-                    final asset = _media[i];
-                    return Stack(
-                      children: [
-                        SizedBox(
-                          width: 100,
-                          height: 100,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              ref
-                                  .read(assetUrlResolverProvider)
-                                  .resolve(asset.publicUrl),
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const ColoredBox(
-                                color: Colors.grey,
-                                child: Icon(Icons.broken_image),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.contentMaxWidth,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _controller,
+                  maxLines: 8,
+                  minLines: 5,
+                  maxLength: 2000,
+                  decoration: InputDecoration(
+                    hintText: l10n.t('compose.placeholder'),
+                  ),
+                ),
+                if (_media.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 100,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _media.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (_, i) {
+                        final asset = _media[i];
+                        return Stack(
+                          children: [
+                            SizedBox(
+                              width: 100,
+                              height: 100,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(
+                                  ref
+                                      .read(assetUrlResolverProvider)
+                                      .resolve(asset.publicUrl),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => ColoredBox(
+                                    color: theme.colorScheme.surfaceContainerHighest,
+                                    child: Icon(
+                                      Icons.broken_image_outlined,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: InkWell(
+                                onTap: () =>
+                                    setState(() => _media.removeAt(i)),
+                                customBorder: const CircleBorder(),
+                                child: const CircleAvatar(
+                                  radius: 12,
+                                  backgroundColor: Colors.black54,
+                                  child: Icon(
+                                    Icons.close,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: _uploading ? null : _pickMedia,
+                      tooltip: l10n.t('compose.media'),
+                      icon: _uploading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(
+                              Icons.photo_outlined,
+                              color: theme.colorScheme.primary,
+                            ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      Icons.public,
+                      size: 18,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 6),
+                    DropdownButton<String>(
+                      value: _visibility,
+                      underline: const SizedBox.shrink(),
+                      isDense: true,
+                      onChanged: (v) =>
+                          setState(() => _visibility = v ?? 'public'),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'public',
+                          child: Text(l10n.t('common.public')),
                         ),
-                        Positioned(
-                          top: 0,
-                          right: 0,
-                          child: IconButton(
-                            iconSize: 18,
-                            onPressed: () => setState(() => _media.removeAt(i)),
-                            icon: const CircleAvatar(
-                              radius: 12,
-                              backgroundColor: Colors.black54,
-                              child: Icon(
-                                Icons.close,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
+                        DropdownMenuItem(
+                          value: 'followers',
+                          child: Text(l10n.t('common.followers_only')),
+                        ),
+                        DropdownMenuItem(
+                          value: 'private',
+                          child: Text(l10n.t('common.private')),
                         ),
                       ],
-                    );
-                  },
-                ),
-              ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                IconButton(
-                  onPressed: _uploading ? null : _pickMedia,
-                  icon: _uploading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.photo_outlined),
-                ),
-                const Spacer(),
-                DropdownButton<String>(
-                  value: _visibility,
-                  onChanged: (v) => setState(() => _visibility = v ?? 'public'),
-                  items: [
-                    DropdownMenuItem(
-                      value: 'public',
-                      child: Text(l10n.t('common.public')),
-                    ),
-                    DropdownMenuItem(
-                      value: 'followers',
-                      child: Text(l10n.t('common.followers_only')),
-                    ),
-                    DropdownMenuItem(
-                      value: 'private',
-                      child: Text(l10n.t('common.private')),
                     ),
                   ],
                 ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 18,
+                          color: theme.colorScheme.error,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: TextStyle(color: theme.colorScheme.error),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
-            if (_error != null)
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-          ],
+          ),
         ),
       ),
     );
