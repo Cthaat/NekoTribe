@@ -55,7 +55,75 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
           const _InvitesList(key: PageStorageKey('inv')),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showCreateGroupDialog(context, ref),
+        child: const Icon(Icons.add),
+      ),
     );
+  }
+
+  Future<void> _showCreateGroupDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final name = TextEditingController();
+    final slug = TextEditingController();
+    final description = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Create group'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: name,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              TextField(
+                controller: slug,
+                decoration: const InputDecoration(labelText: 'Slug'),
+              ),
+              TextField(
+                controller: description,
+                decoration: const InputDecoration(labelText: 'Description'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, {
+              'name': name.text.trim(),
+              'slug': slug.text.trim(),
+              'description': description.text.trim(),
+            }),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    name.dispose();
+    slug.dispose();
+    description.dispose();
+    if (result == null || result['name']!.isEmpty || result['slug']!.isEmpty) {
+      return;
+    }
+    try {
+      final group = await ref.read(groupsApiProvider).createGroup(result);
+      if (!context.mounted) return;
+      context.push('/groups/${group.slug}');
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorView.describe(context, e))),
+      );
+    }
   }
 }
 
