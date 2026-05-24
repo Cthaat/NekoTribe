@@ -51,6 +51,10 @@ class AppLocalizations {
   static const Map<String, Map<String, String>> _strings = {
     'zh': {
       'app.title': 'NekoTribe',
+      'window.minimize': '最小化',
+      'window.maximize': '最大化',
+      'window.restore': '还原',
+      'window.close': '关闭',
       'tab.home': '首页',
       'tab.discover': '发现',
       'tab.notifications': '通知',
@@ -307,6 +311,10 @@ class AppLocalizations {
     },
     'en': {
       'app.title': 'NekoTribe',
+      'window.minimize': 'Minimize',
+      'window.maximize': 'Maximize',
+      'window.restore': 'Restore',
+      'window.close': 'Close',
       'tab.home': 'Home',
       'tab.discover': 'Discover',
       'tab.notifications': 'Alerts',
