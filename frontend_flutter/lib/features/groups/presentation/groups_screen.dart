@@ -41,7 +41,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Groups'),
+        title: Text(l10n.t('group.title')),
         bottom: TabBar(
           controller: _tabController,
           tabs: _tabs.map((t) => Tab(text: l10n.t(t.titleKey))).toList(),
@@ -69,25 +69,28 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
     final name = TextEditingController();
     final slug = TextEditingController();
     final description = TextEditingController();
+    final l10n = AppLocalizations.of(context);
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Create group'),
+        title: Text(l10n.t('group.create_title')),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: name,
-                decoration: const InputDecoration(labelText: 'Name'),
+                decoration: InputDecoration(labelText: l10n.t('group.name')),
               ),
               TextField(
                 controller: slug,
-                decoration: const InputDecoration(labelText: 'Slug'),
+                decoration: InputDecoration(labelText: l10n.t('group.slug')),
               ),
               TextField(
                 controller: description,
-                decoration: const InputDecoration(labelText: 'Description'),
+                decoration: InputDecoration(
+                  labelText: l10n.t('group.description'),
+                ),
               ),
             ],
           ),
@@ -95,7 +98,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.t('common.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, {
@@ -103,7 +106,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
               'slug': slug.text.trim(),
               'description': description.text.trim(),
             }),
-            child: const Text('Create'),
+            child: Text(l10n.t('common.create')),
           ),
         ],
       ),
@@ -183,10 +186,11 @@ class _GroupsListState extends ConsumerState<_GroupsList>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final l10n = AppLocalizations.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
-      return const EmptyView(message: 'No groups');
+      return EmptyView(message: l10n.t('group.empty'));
     }
     return RefreshIndicator(
       onRefresh: _load,
@@ -283,10 +287,11 @@ class _InvitesListState extends ConsumerState<_InvitesList>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final l10n = AppLocalizations.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
-      return const EmptyView(message: 'No invites');
+      return EmptyView(message: l10n.t('group.invites_empty'));
     }
     return RefreshIndicator(
       onRefresh: _load,
@@ -302,10 +307,12 @@ class _InvitesListState extends ConsumerState<_InvitesList>
               size: 48,
             ),
             title: Text(
-              group != null ? (group['name'] as String? ?? '') : 'Group',
+              group != null
+                  ? (group['name'] as String? ?? '')
+                  : l10n.t('group.group'),
             ),
             subtitle: Text(
-              'From @${inv.inviter.username} · ${inv.message ?? ''}',
+              '${l10n.t('group.invite_from')} @${inv.inviter.username} · ${inv.message ?? ''}',
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
