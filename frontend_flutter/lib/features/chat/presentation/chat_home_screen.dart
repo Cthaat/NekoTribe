@@ -75,29 +75,72 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
   }
 
   Future<void> _openGroup(V2ChatGroup group) async {
+    List<V2ChatChannel> channels;
     try {
-      final channels = await ref
-          .read(chatApiProvider)
-          .listChannels(group.groupId);
-      if (!mounted) return;
-      if (channels.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).t('chat.no_channels')),
-          ),
-        );
-        return;
-      }
-      final channel = channels.first;
-      context.push(
-        '/chat/groups/${group.groupId}/channels/${channel.channelId}',
-      );
+      channels = await ref.read(chatApiProvider).listChannels(group.groupId);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      return;
     }
+    if (!mounted) return;
+    if (channels.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).t('chat.no_channels')),
+        ),
+      );
+      return;
+    }
+
+    final selected = await showModalBottomSheet<V2ChatChannel>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (_) => _GroupChannelPicker(
+        group: group,
+        channels: channels,
+        onCreate: group.canManage ? () => _createChannel(group) : null,
+      ),
+    );
+    if (!mounted || selected == null) return;
+    _openChannel(selected);
+  }
+
+  void _openChannel(V2ChatChannel channel) {
+    context.push(
+      '/chat/groups/${channel.groupId}/channels/${channel.channelId}',
+    );
+  }
+
+  Future<V2ChatChannel?> _createChannel(V2ChatGroup group) async {
+    final draft = await _showCreateChannelDialog();
+    if (draft == null) return null;
+    try {
+      return await ref
+          .read(chatApiProvider)
+          .createChannel(
+            groupId: group.groupId,
+            name: draft.name,
+            isPrivate: draft.isPrivate,
+          );
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      return null;
+    }
+  }
+
+  Future<_ChannelDraft?> _showCreateChannelDialog() async {
+    return showDialog<_ChannelDraft>(
+      context: context,
+      builder: (_) => const _CreateChannelDialog(),
+    );
   }
 
   @override
@@ -197,6 +240,181 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                       ),
               ],
             ),
+    );
+  }
+}
+
+class _ChannelDraft {
+  const _ChannelDraft({required this.name, required this.isPrivate});
+
+  final String name;
+  final bool isPrivate;
+}
+
+class _CreateChannelDialog extends StatefulWidget {
+  const _CreateChannelDialog();
+
+  @override
+  State<_CreateChannelDialog> createState() => _CreateChannelDialogState();
+}
+
+class _CreateChannelDialogState extends State<_CreateChannelDialog> {
+  final _name = TextEditingController();
+  bool _isPrivate = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = _name.text.trim();
+    if (value.isEmpty) return;
+    Navigator.of(
+      context,
+    ).pop(_ChannelDraft(name: value, isPrivate: _isPrivate));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l10n.t('chat.create_channel')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _name,
+            autofocus: true,
+            decoration: InputDecoration(labelText: l10n.t('chat.channel_name')),
+            onSubmitted: (_) => _submit(),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.t('chat.private_channel')),
+            value: _isPrivate,
+            onChanged: (value) => setState(() => _isPrivate = value),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.t('common.cancel')),
+        ),
+        FilledButton(onPressed: _submit, child: Text(l10n.t('common.create'))),
+      ],
+    );
+  }
+}
+
+class _GroupChannelPicker extends StatefulWidget {
+  const _GroupChannelPicker({
+    required this.group,
+    required this.channels,
+    this.onCreate,
+  });
+
+  final V2ChatGroup group;
+  final List<V2ChatChannel> channels;
+  final Future<V2ChatChannel?> Function()? onCreate;
+
+  @override
+  State<_GroupChannelPicker> createState() => _GroupChannelPickerState();
+}
+
+class _GroupChannelPickerState extends State<_GroupChannelPicker> {
+  bool _creating = false;
+
+  Future<void> _handleCreate() async {
+    final onCreate = widget.onCreate;
+    if (onCreate == null || _creating) return;
+    setState(() => _creating = true);
+    final channel = await onCreate();
+    if (!mounted) return;
+    if (channel == null) {
+      setState(() => _creating = false);
+      return;
+    }
+    Navigator.of(context).pop(channel);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final maxListHeight = MediaQuery.sizeOf(context).height * 0.55;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              l10n.t('chat.choose_channel'),
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(height: 4),
+            Text(widget.group.name, style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 12),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxListHeight),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: widget.channels.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final channel = widget.channels[index];
+                  return ListTile(
+                    leading: const Icon(Icons.tag),
+                    title: Text('#${channel.name}'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (channel.isPrivate) ...[
+                          Tooltip(
+                            message: l10n.t('chat.private_channel'),
+                            child: const Icon(Icons.lock_outline, size: 18),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (channel.isMutedByMe) ...[
+                          Tooltip(
+                            message: l10n.t('chat.muted'),
+                            child: const Icon(
+                              Icons.notifications_off_outlined,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (channel.unreadCount > 0)
+                          Badge(label: Text('${channel.unreadCount}')),
+                      ],
+                    ),
+                    onTap: () => Navigator.of(context).pop(channel),
+                  );
+                },
+              ),
+            ),
+            if (widget.onCreate != null) ...[
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _creating ? null : _handleCreate,
+                icon: _creating
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add),
+                label: Text(l10n.t('chat.create_channel')),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
