@@ -66,7 +66,9 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     if (_saving) return;
     setState(() => _saving = true);
     try {
-      final user = await ref.read(usersRepositoryProvider).updateProfile(
+      final user = await ref
+          .read(usersRepositoryProvider)
+          .updateProfile(
             displayName: _displayName.text.trim(),
             bio: _bio.text.trim(),
             location: _location.text.trim(),
@@ -74,14 +76,14 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
           );
       if (!mounted) return;
       setState(() => _user = user);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile saved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile saved')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -107,48 +109,50 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Text('@${_user?.username ?? ''}',
-                        style: Theme.of(context).textTheme.bodySmall),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _displayName,
-                      decoration: const InputDecoration(
-                        labelText: 'Display name',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _bio,
-                      minLines: 3,
-                      maxLines: 6,
-                      decoration: const InputDecoration(
-                        labelText: 'Bio',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _location,
-                      decoration: const InputDecoration(
-                        labelText: 'Location',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _website,
-                      decoration: const InputDecoration(
-                        labelText: 'Website',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ],
+          ? ErrorView(error: _error!, onRetry: _load)
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  '@${_user?.username ?? ''}',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _displayName,
+                  decoration: const InputDecoration(
+                    labelText: 'Display name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _bio,
+                  minLines: 3,
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Bio',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _location,
+                  decoration: const InputDecoration(
+                    labelText: 'Location',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _website,
+                  decoration: const InputDecoration(
+                    labelText: 'Website',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
