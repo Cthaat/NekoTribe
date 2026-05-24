@@ -254,9 +254,7 @@ class _GroupsListState extends ConsumerState<_GroupsList>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          g.description.isEmpty
-                              ? '@${g.slug}'
-                              : g.description,
+                          g.description.isEmpty ? '@${g.slug}' : g.description,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
