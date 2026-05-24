@@ -60,6 +60,8 @@ void main() {
         'notification.filter.all_types',
         'notification.mark_all_read',
         'chat.direct',
+        'chat.choose_channel',
+        'chat.create_channel',
         'chat.no_channels',
         'group.create_title',
         'group.manage',
