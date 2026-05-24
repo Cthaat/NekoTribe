@@ -215,27 +215,32 @@ class _WindowControlButtonState extends State<_WindowControlButton> {
         : _hovered
         ? colors.surfaceContainerHighest
         : Colors.transparent;
+    final button = Semantics(
+      label: widget.tooltip,
+      button: true,
+      child: SizedBox(
+        width: 46,
+        height: 36,
+        child: TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: foreground,
+            backgroundColor: background,
+            shape: const RoundedRectangleBorder(),
+            padding: EdgeInsets.zero,
+          ),
+          onPressed: widget.onPressed,
+          child: Icon(widget.icon, size: 16),
+        ),
+      ),
+    );
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Tooltip(
-        message: widget.tooltip,
-        child: SizedBox(
-          width: 46,
-          height: 36,
-          child: TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: foreground,
-              backgroundColor: background,
-              shape: const RoundedRectangleBorder(),
-              padding: EdgeInsets.zero,
-            ),
-            onPressed: widget.onPressed,
-            child: Icon(widget.icon, size: 16),
-          ),
-        ),
-      ),
+      child: overlay == null
+          ? button
+          : Tooltip(message: widget.tooltip, child: button),
     );
   }
 }
