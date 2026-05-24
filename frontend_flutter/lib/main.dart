@@ -29,14 +29,14 @@ class NekoTribeApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
-    final themeMode = ref.watch(themeProvider);
+    final theme = ref.watch(themeProvider);
     final locale = ref.watch(localeProvider);
     return MaterialApp.router(
       title: 'NekoTribe',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: themeMode,
+      theme: AppTheme.light(theme.seedColor),
+      darkTheme: AppTheme.dark(theme.seedColor),
+      themeMode: theme.mode,
       locale: locale,
       supportedLocales: AppLocalizations.supported,
       localizationsDelegates: const [
