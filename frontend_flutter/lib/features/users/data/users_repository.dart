@@ -81,11 +81,12 @@ class UsersRepository {
   Future<List<V2PublicUser>> recommendations({int limit = 10}) =>
       _api.getRecommendations(limit: limit);
 
-  Future<Map<String, dynamic>> setupTwoFactor() => _api.setupTwoFactor();
-  Future<void> confirmTwoFactor({
-    required String secret,
+  Future<Map<String, dynamic>> setupTwoFactor({required String password}) =>
+      _api.setupTwoFactor(password: password);
+  Future<Map<String, dynamic>> confirmTwoFactor({required String code}) =>
+      _api.confirmTwoFactor(code: code);
+  Future<Map<String, dynamic>> disableTwoFactor({
+    required String password,
     required String code,
-  }) => _api.confirmTwoFactor(secret: secret, code: code);
-  Future<void> disableTwoFactor({required String password}) =>
-      _api.disableTwoFactor(password: password);
+  }) => _api.disableTwoFactor(password: password, code: code);
 }
