@@ -65,12 +65,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('auth.login'))),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth < 420.0
+              ? constraints.maxWidth
+              : 420.0;
+          return Center(
+            child: SizedBox(
+              width: width,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -206,9 +211,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                 ],
               ),
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
