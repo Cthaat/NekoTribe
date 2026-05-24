@@ -226,41 +226,44 @@ void main() {
       );
     });
 
-    test('member management uses numeric user ids and status resources', () async {
-      final recorder = _ApiRecorder();
-      final api = GroupsApi(_client(recorder));
+    test(
+      'member management uses numeric user ids and status resources',
+      () async {
+        final recorder = _ApiRecorder();
+        final api = GroupsApi(_client(recorder));
 
-      await api.changeMemberRole(groupId: 42, userId: 8, role: 'moderator');
-      recorder.expectLast(
-        method: 'PATCH',
-        path: '/api/v2/groups/42/members/8/role',
-        body: {'role': 'moderator'},
-      );
+        await api.changeMemberRole(groupId: 42, userId: 8, role: 'moderator');
+        recorder.expectLast(
+          method: 'PATCH',
+          path: '/api/v2/groups/42/members/8/role',
+          body: {'role': 'moderator'},
+        );
 
-      await api.muteMember(
-        groupId: 42,
-        userId: 8,
-        durationHours: 24,
-        reason: 'spam',
-      );
-      recorder.expectLast(
-        method: 'PUT',
-        path: '/api/v2/groups/42/members/8/mute-status',
-        body: {'duration_hours': 24, 'reason': 'spam'},
-      );
+        await api.muteMember(
+          groupId: 42,
+          userId: 8,
+          durationHours: 24,
+          reason: 'spam',
+        );
+        recorder.expectLast(
+          method: 'PUT',
+          path: '/api/v2/groups/42/members/8/mute-status',
+          body: {'duration_hours': 24, 'reason': 'spam'},
+        );
 
-      await api.unmuteMember(groupId: 42, userId: 8);
-      recorder.expectLast(
-        method: 'DELETE',
-        path: '/api/v2/groups/42/members/8/mute-status',
-      );
+        await api.unmuteMember(groupId: 42, userId: 8);
+        recorder.expectLast(
+          method: 'DELETE',
+          path: '/api/v2/groups/42/members/8/mute-status',
+        );
 
-      await api.removeMember(groupId: 42, userId: 8);
-      recorder.expectLast(
-        method: 'DELETE',
-        path: '/api/v2/groups/42/members/8',
-      );
-    });
+        await api.removeMember(groupId: 42, userId: 8);
+        recorder.expectLast(
+          method: 'DELETE',
+          path: '/api/v2/groups/42/members/8',
+        );
+      },
+    );
   });
 
   group('ChatApi v2 contract', () {
