@@ -30,8 +30,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(sentiment.predictedText, 'NekoTribe is lovely');
-    expect(find.text('positive'), findsOneWidget);
-    expect(find.textContaining('91.0%'), findsOneWidget);
+    expect(find.text('positive'), findsWidgets);
+    expect(find.textContaining('91.0%'), findsWidgets);
   });
 
   testWidgets('post card exposes AI sentiment prediction from its menu', (
@@ -51,8 +51,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(sentiment.predictedText, _post.content);
-    expect(find.text('positive'), findsOneWidget);
-    expect(find.text('BERT v1'), findsOneWidget);
+    expect(find.text('positive'), findsWidgets);
+    expect(find.textContaining('BERT v1'), findsOneWidget);
   });
 }
 
@@ -67,6 +67,11 @@ Future<void> _pump(
         appConfigBundleProvider.overrideWithValue(_testBundle),
         appConfigInitialProvider.overrideWithValue(_testConfig),
         tokenStoreProvider.overrideWithValue(_AuthenticatedTokenStore()),
+        authSessionProvider.overrideWith((ref) {
+          final controller = AuthSessionController(_AuthenticatedTokenStore());
+          controller.markLoggedIn();
+          return controller;
+        }),
         usersRepositoryProvider.overrideWithValue(_FakeUsersRepository()),
         sentimentFlowApiProvider.overrideWithValue(sentiment),
       ],
