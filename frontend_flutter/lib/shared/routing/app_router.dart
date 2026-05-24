@@ -337,6 +337,22 @@ final routerProvider = Provider<GoRouter>((ref) {
             const AccountPostsScreen(kind: AccountPostsKind.bookmarks),
       ),
       GoRoute(
+        path: '/groups/discover',
+        builder: (_, __) => const GroupsScreen(initialTab: 0),
+      ),
+      GoRoute(
+        path: '/groups/my',
+        builder: (_, __) => const GroupsScreen(initialTab: 1),
+      ),
+      GoRoute(
+        path: '/groups/invites',
+        builder: (_, __) => const GroupsScreen(initialTab: 2),
+      ),
+      GoRoute(
+        path: '/groups/posts',
+        builder: (_, __) => const GroupPostsScreen(),
+      ),
+      GoRoute(
         path: '/groups/:slug',
         builder: (_, state) {
           final slug = state.pathParameters['slug'] ?? '';
