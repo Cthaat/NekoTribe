@@ -440,6 +440,66 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+class _SentimentStatusPanel extends StatelessWidget {
+  const _SentimentStatusPanel({
+    required this.config,
+    required this.stats,
+    required this.error,
+  });
+
+  final V2SentimentFlowConfig? config;
+  final V2SentimentStatsOverview? stats;
+  final Object? error;
+
+  String _summary(BuildContext context) {
+    final isZh = Localizations.localeOf(context).languageCode == 'zh';
+    final predictions = stats?.totalPredictions ?? 0;
+    final jobs = stats?.totalTrainingJobs ?? 0;
+    if (isZh) return '预测 $predictions 次 · 训练 $jobs 次';
+    return '$predictions predictions · $jobs training jobs';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final enabled = config?.enabled == true && config?.baseUrlConfigured == true;
+    final iconColor = enabled ? theme.colorScheme.primary : theme.disabledColor;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.psychology_alt_outlined, size: 20, color: iconColor),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  enabled
+                      ? l10n.t('settings.sentiment.runtime_ready')
+                      : l10n.t('sentiment.disabled'),
+                  style: theme.textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  error == null ? _summary(context) : ErrorView.describe(context, error!),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Group extends StatelessWidget {
   const _Group({required this.children});
   final List<Widget> children;
