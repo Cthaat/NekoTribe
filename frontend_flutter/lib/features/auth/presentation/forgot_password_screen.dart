@@ -18,6 +18,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _account = TextEditingController();
   final _otp = TextEditingController();
   final _password = TextEditingController();
+  final _confirmPassword = TextEditingController();
+  String? _verificationId;
   bool _busy = false;
   bool _sending = false;
   String? _error;
@@ -27,6 +29,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     _account.dispose();
     _otp.dispose();
     _password.dispose();
+    _confirmPassword.dispose();
     super.dispose();
   }
 
@@ -34,10 +37,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     if (_account.text.trim().isEmpty) return;
     setState(() => _sending = true);
     try {
-      await ref
+      final otp = await ref
           .read(authRepositoryProvider)
           .requestOtp(account: _account.text.trim(), purpose: 'password_reset');
       if (!mounted) return;
+      setState(() => _verificationId = otp.verificationId);
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
@@ -51,6 +55,16 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   }
 
   Future<void> _reset() async {
+    final l10n = AppLocalizations.of(context);
+    final verificationId = _verificationId;
+    if (verificationId == null || verificationId.isEmpty) {
+      setState(() => _error = l10n.t('auth.otp_required'));
+      return;
+    }
+    if (_password.text != _confirmPassword.text) {
+      setState(() => _error = l10n.t('auth.password_mismatch'));
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -59,12 +73,12 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       await ref
           .read(authRepositoryProvider)
           .requestPasswordReset(
-            account: _account.text.trim(),
-            otpCode: _otp.text.trim(),
+            email: _account.text.trim(),
+            verificationId: verificationId,
+            code: _otp.text.trim(),
             newPassword: _password.text,
           );
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('auth.password_reset'))));
@@ -128,6 +142,15 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   obscureText: true,
                   decoration: InputDecoration(
                     labelText: l10n.t('auth.password'),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _confirmPassword,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('auth.confirm_password'),
                     border: const OutlineInputBorder(),
                   ),
                 ),
