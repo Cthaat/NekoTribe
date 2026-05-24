@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/chat_models.dart';
 
@@ -161,84 +162,117 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
           ? const LoadingView()
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _conversations.isEmpty
-                    ? EmptyView(message: l10n.t('chat.empty'))
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        child: ListView.separated(
-                          itemCount: _conversations.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (_, i) {
-                            final c = _conversations[i];
-                            return ListTile(
-                              leading: AppAvatar(
-                                url: c.participant.avatarUrl,
-                                size: 48,
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.contentMaxWidth,
+                ),
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _conversations.isEmpty
+                        ? EmptyView(message: l10n.t('chat.empty'))
+                        : RefreshIndicator(
+                            onRefresh: _load,
+                            child: ListView.separated(
+                              itemCount: _conversations.length,
+                              separatorBuilder: (_, _) => Divider(
+                                height: 1,
+                                color: Theme.of(context).dividerColor,
                               ),
-                              title: Text(c.participant.displayName),
-                              subtitle: Text(
-                                c.lastMessage?.content ?? '',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    c.lastMessage != null
-                                        ? _formatDate(c.lastMessage!.createdAt)
-                                        : _formatDate(c.updatedAt),
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall,
+                              itemBuilder: (_, i) {
+                                final c = _conversations[i];
+                                return ListTile(
+                                  leading: AppAvatar(
+                                    url: c.participant.avatarUrl,
+                                    size: 48,
                                   ),
-                                  if (c.unreadCount > 0) ...[
-                                    const SizedBox(height: 4),
-                                    Badge(label: Text('${c.unreadCount}')),
-                                  ],
-                                ],
+                                  title: Text(
+                                    c.participant.displayName.isEmpty
+                                        ? c.participant.username
+                                        : c.participant.displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Text(
+                                    c.lastMessage?.content ?? '',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        c.lastMessage != null
+                                            ? _formatDate(
+                                                c.lastMessage!.createdAt,
+                                              )
+                                            : _formatDate(c.updatedAt),
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                      if (c.unreadCount > 0) ...[
+                                        const SizedBox(height: 4),
+                                        Badge(
+                                          label: Text('${c.unreadCount}'),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  onTap: () => context.push(
+                                    '/chat/conversation/${c.conversationId}',
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                    _groups.isEmpty
+                        ? EmptyView(message: l10n.t('chat.no_groups'))
+                        : RefreshIndicator(
+                            onRefresh: _load,
+                            child: ListView.separated(
+                              itemCount: _groups.length,
+                              separatorBuilder: (_, _) => Divider(
+                                height: 1,
+                                color: Theme.of(context).dividerColor,
                               ),
-                              onTap: () => context.push(
-                                '/chat/conversation/${c.conversationId}',
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                _groups.isEmpty
-                    ? EmptyView(message: l10n.t('chat.no_groups'))
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        child: ListView.separated(
-                          itemCount: _groups.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (_, i) {
-                            final g = _groups[i];
-                            return ListTile(
-                              leading: AppAvatar(url: g.avatarUrl, size: 48),
-                              title: Text(g.name),
-                              subtitle: Text(
-                                l10n
-                                    .t('chat.members_channels')
-                                    .replaceAll('{members}', '${g.memberCount}')
-                                    .replaceAll(
-                                      '{channels}',
-                                      '${g.channelCount}',
-                                    ),
-                              ),
-                              trailing: g.unreadCount > 0
-                                  ? Badge(label: Text('${g.unreadCount}'))
-                                  : null,
-                              onTap: () => _openGroup(g),
-                            );
-                          },
-                        ),
-                      ),
-              ],
+                              itemBuilder: (_, i) {
+                                final g = _groups[i];
+                                return ListTile(
+                                  leading: AppAvatar(url: g.avatarUrl, size: 48),
+                                  title: Text(
+                                    g.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Text(
+                                    l10n
+                                        .t('chat.members_channels')
+                                        .replaceAll(
+                                          '{members}',
+                                          '${g.memberCount}',
+                                        )
+                                        .replaceAll(
+                                          '{channels}',
+                                          '${g.channelCount}',
+                                        ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: g.unreadCount > 0
+                                      ? Badge(label: Text('${g.unreadCount}'))
+                                      : null,
+                                  onTap: () => _openGroup(g),
+                                );
+                              },
+                            ),
+                          ),
+                  ],
+                ),
+              ),
             ),
     );
   }
