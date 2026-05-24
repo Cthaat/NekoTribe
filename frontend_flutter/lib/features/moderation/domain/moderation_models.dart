@@ -234,6 +234,24 @@ class V2ModerationSetting {
   final String description;
   final String updatedAt;
 
+  V2ModerationSetting copyWith({
+    String? key,
+    String? value,
+    String? valueType,
+    String? label,
+    String? description,
+    String? updatedAt,
+  }) {
+    return V2ModerationSetting(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      valueType: valueType ?? this.valueType,
+      label: label ?? this.label,
+      description: description ?? this.description,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   factory V2ModerationSetting.fromJson(Map<String, dynamic> json) {
     return V2ModerationSetting(
       key: toStr(json['key']),
