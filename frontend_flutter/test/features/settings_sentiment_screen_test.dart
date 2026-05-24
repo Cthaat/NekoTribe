@@ -33,7 +33,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('BERT v1'), findsOneWidget);
-    expect(find.textContaining('预测 12 次'), findsOneWidget);
+    expect(
+      find.textContaining('预测 12 次', skipOffstage: false),
+      findsOneWidget,
+    );
     expect(find.text('Top-K 结果数'), findsOneWidget);
 
     await tester.tap(find.text('BERT v1'));
