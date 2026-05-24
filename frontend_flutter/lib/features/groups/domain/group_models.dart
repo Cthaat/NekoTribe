@@ -133,6 +133,55 @@ class V2GroupMember {
   }
 }
 
+class V2GroupMemberStatus {
+  V2GroupMemberStatus({
+    this.memberId,
+    this.userId,
+    this.status,
+    this.role,
+    this.muteUntil,
+  });
+
+  final int? memberId;
+  final int? userId;
+  final String? status;
+  final String? role;
+  final String? muteUntil;
+
+  factory V2GroupMemberStatus.fromJson(Map<String, dynamic> json) {
+    return V2GroupMemberStatus(
+      memberId: toInt(json['member_id']),
+      userId: toInt(json['user_id']),
+      status: toStrOrNull(json['status']),
+      role: toStrOrNull(json['role']),
+      muteUntil: toStrOrNull(json['mute_until']),
+    );
+  }
+}
+
+class V2GroupNotificationPreference {
+  V2GroupNotificationPreference({
+    required this.userId,
+    required this.groupId,
+    required this.isEnabled,
+    required this.updatedAt,
+  });
+
+  final int userId;
+  final int groupId;
+  final bool isEnabled;
+  final String updatedAt;
+
+  factory V2GroupNotificationPreference.fromJson(Map<String, dynamic> json) {
+    return V2GroupNotificationPreference(
+      userId: toInt(json['user_id']) ?? 0,
+      groupId: toInt(json['group_id']) ?? 0,
+      isEnabled: toBool(json['is_enabled']),
+      updatedAt: toStr(json['updated_at']),
+    );
+  }
+}
+
 class V2GroupInvite {
   V2GroupInvite({
     required this.inviteId,
