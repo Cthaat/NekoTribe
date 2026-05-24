@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/user_models.dart';
@@ -61,19 +62,20 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   }
 
   Future<void> _revokeOthers() async {
+    final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Revoke other sessions'),
-        content: const Text('Sign out from all other devices?'),
+        title: Text(l10n.t('account.sessions.revoke_others')),
+        content: Text(l10n.t('account.sessions.revoke_others_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.t('common.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm'),
+            child: Text(l10n.t('common.confirm')),
           ),
         ],
       ),
@@ -98,12 +100,13 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sessions'),
+        title: Text(l10n.t('account.sessions.title')),
         actions: [
           IconButton(
-            tooltip: 'Revoke others',
+            tooltip: l10n.t('account.sessions.revoke_others'),
             icon: const Icon(Icons.logout),
             onPressed: _items.length > 1 ? _revokeOthers : null,
           ),
@@ -114,7 +117,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
           : _items.isEmpty
-          ? const EmptyView(message: 'No active sessions')
+          ? EmptyView(message: l10n.t('account.sessions.empty'))
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView.separated(
@@ -130,17 +133,23 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                           : null,
                     ),
                     title: Text(
-                      s.deviceInfo.isEmpty ? 'Unknown device' : s.deviceInfo,
+                      s.deviceInfo.isEmpty
+                          ? l10n.t('account.sessions.unknown_device')
+                          : s.deviceInfo,
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('IP: ${s.ipAddress}'),
-                        Text('Last: ${_formatDate(s.lastAccessedAt)}'),
+                        Text(
+                          '${l10n.t('account.sessions.ip')}: ${s.ipAddress}',
+                        ),
+                        Text(
+                          '${l10n.t('account.sessions.last')}: ${_formatDate(s.lastAccessedAt)}',
+                        ),
                       ],
                     ),
                     trailing: s.isCurrent
-                        ? const Chip(label: Text('Current'))
+                        ? Chip(label: Text(l10n.t('common.current')))
                         : IconButton(
                             icon: const Icon(Icons.delete_outline),
                             onPressed: () => _revoke(s),
