@@ -103,7 +103,7 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
           ? const LoadingView()
           : _configError != null
           ? ErrorView(error: _configError!, onRetry: _loadConfig)
-          : _config == null || !_config!.enabled
+          : _config == null || !_config!.enabled || !_config!.baseUrlConfigured
           ? EmptyView(message: l10n.t('sentiment.disabled'))
           : Align(
               alignment: Alignment.topCenter,
