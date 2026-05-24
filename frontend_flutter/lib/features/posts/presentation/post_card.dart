@@ -86,8 +86,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     final wasBookmarked = _post.viewerState.isBookmarked;
     setState(() {
       _post = _post.copyWith(
-        viewerState:
-            _post.viewerState.copyWith(isBookmarked: !wasBookmarked),
+        viewerState: _post.viewerState.copyWith(isBookmarked: !wasBookmarked),
       );
     });
     try {
@@ -99,10 +98,11 @@ class _PostCardState extends ConsumerState<PostCard> {
       widget.onChanged?.call(_post);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _post = _post.copyWith(
-            viewerState:
-                _post.viewerState.copyWith(isBookmarked: wasBookmarked),
-          ));
+      setState(
+        () => _post = _post.copyWith(
+          viewerState: _post.viewerState.copyWith(isBookmarked: wasBookmarked),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _busyBookmark = false);
     }
@@ -132,14 +132,14 @@ class _PostCardState extends ConsumerState<PostCard> {
       await ref.read(postsApiProvider).deletePost(_post.postId);
       if (!mounted) return;
       widget.onDeleted?.call();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Post deleted')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Post deleted')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -174,38 +174,39 @@ class _PostCardState extends ConsumerState<PostCard> {
     controller.dispose();
     if (text == null) return;
     try {
-      await ref.read(postsApiProvider).createRetweet(
-            postId: _post.postId,
-            content: text,
-          );
+      await ref
+          .read(postsApiProvider)
+          .createRetweet(postId: _post.postId, content: text);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Quote posted')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Quote posted')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
   Future<void> _sendFeedback(String feedback) async {
     if (!requireAuthenticatedAction(context, ref)) return;
     try {
-      await ref.read(postsApiProvider).recordRecommendationFeedback(
+      await ref
+          .read(postsApiProvider)
+          .recordRecommendationFeedback(
             postId: _post.postId,
             feedback: feedback,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Feedback saved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Feedback saved')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -260,8 +261,7 @@ class _PostCardState extends ConsumerState<PostCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
-              onTap: () =>
-                  context.push('/users/${_post.author.userId}'),
+              onTap: () => context.push('/users/${_post.author.userId}'),
               child: AppAvatar(url: _post.author.avatarUrl, size: 44),
             ),
             const SizedBox(width: 12),
@@ -325,8 +325,9 @@ class _PostCardState extends ConsumerState<PostCard> {
                             child: Text('Show less like this'),
                           ),
                           PopupMenuItem(
-                              value: 'report',
-                              child: Text(l10n.t('common.report'))),
+                            value: 'report',
+                            child: Text(l10n.t('common.report')),
+                          ),
                         ],
                       ),
                     ],
@@ -345,8 +346,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                       _ActionButton(
                         icon: Icons.chat_bubble_outline,
                         label: '${_post.stats.commentsCount}',
-                        onTap: () =>
-                            context.push('/posts/${_post.postId}'),
+                        onTap: () => context.push('/posts/${_post.postId}'),
                       ),
                       const SizedBox(width: 16),
                       _ActionButton(
@@ -399,8 +399,7 @@ class _MediaGrid extends StatelessWidget {
       mainAxisSpacing: 4,
       crossAxisSpacing: 4,
       children: [
-        for (var i = 0; i < count; i++)
-          AppMediaImage(url: media[i].publicUrl),
+        for (var i = 0; i < count; i++) AppMediaImage(url: media[i].publicUrl),
       ],
     );
   }
