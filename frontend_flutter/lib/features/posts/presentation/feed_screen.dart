@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/post_models.dart';
 import 'post_card.dart';
@@ -89,6 +90,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
   }
 
   Future<void> _compose() async {
+    if (!requireAuthenticatedAction(context, ref)) return;
     final created = await Navigator.of(context).push<V2Post>(
       MaterialPageRoute(builder: (_) => const ComposePostScreen()),
     );
@@ -168,6 +170,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
               post: post,
               onChanged: (updated) {
                 state.items[i] = updated;
+                if (mounted) setState(() {});
+              },
+              onDeleted: () {
+                state.items.removeAt(i);
                 if (mounted) setState(() {});
               },
               onReport: () => showReportDialog(
