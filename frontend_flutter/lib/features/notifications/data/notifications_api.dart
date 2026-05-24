@@ -15,10 +15,7 @@ class NotificationsApi {
     String? type,
     bool? unreadOnly,
   }) {
-    final query = <String, dynamic>{
-      'page': page,
-      'page_size': size,
-    };
+    final query = <String, dynamic>{'page': page, 'page_size': size};
     if (type != null) query['type'] = type;
     if (unreadOnly != null) query['unread_only'] = unreadOnly;
     return _client.requestData<PagedResult<V2Notification>>(
