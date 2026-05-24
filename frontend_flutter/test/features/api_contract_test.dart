@@ -355,6 +355,38 @@ void main() {
       await api.muteUser(12);
       recorder.expectLast(method: 'POST', path: '/api/v2/users/me/mutes/12');
     });
+
+    test(
+      'two-factor setup, confirm, and disable match server payloads',
+      () async {
+        final recorder = _ApiRecorder();
+        final api = UsersApi(_client(recorder));
+
+        await api.setupTwoFactor(password: 'current-password');
+        recorder.expectLast(
+          method: 'POST',
+          path: '/api/v2/users/me/two-factor/setup',
+          body: {'password': 'current-password'},
+        );
+
+        await api.confirmTwoFactor(code: '123456');
+        recorder.expectLast(
+          method: 'POST',
+          path: '/api/v2/users/me/two-factor/confirm',
+          body: {'code': '123456'},
+        );
+
+        await api.disableTwoFactor(
+          password: 'current-password',
+          code: '654321',
+        );
+        recorder.expectLast(
+          method: 'DELETE',
+          path: '/api/v2/users/me/two-factor',
+          body: {'password': 'current-password', 'code': '654321'},
+        );
+      },
+    );
   });
 }
 
@@ -445,6 +477,21 @@ class _ApiRecorder implements HttpClientAdapter {
     }
     if (path == '/api/v2/auth/registration') {
       return {'user': _selfUserJson};
+    }
+    if (path == '/api/v2/users/me/two-factor/setup') {
+      return {
+        'secret': 'TOTPSECRET',
+        'otpauth_url': 'otpauth://totp/NekoTribe:edge',
+      };
+    }
+    if (path == '/api/v2/users/me/two-factor/confirm') {
+      return {
+        'enabled': true,
+        'recovery_codes': ['ABCD-EFGH'],
+      };
+    }
+    if (path == '/api/v2/users/me/two-factor') {
+      return {'enabled': false};
     }
     if (path.endsWith('/likes')) {
       return {'is_liked': true, 'is_bookmarked': false, 'can_delete': true};
