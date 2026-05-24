@@ -11,9 +11,7 @@ bool requireAuthenticatedAction(
 }) {
   final session = ref.read(authSessionProvider);
   if (session.isAuthenticated) return true;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message)),
-  );
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   context.push('/auth/login');
   return false;
 }
