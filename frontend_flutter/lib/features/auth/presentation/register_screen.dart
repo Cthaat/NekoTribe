@@ -18,8 +18,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _username = TextEditingController();
   final _displayName = TextEditingController();
   final _password = TextEditingController();
+  final _confirmPassword = TextEditingController();
   final _otp = TextEditingController();
-  final _inviteCode = TextEditingController();
+  String? _verificationId;
+  bool _agreeToTerms = false;
   bool _busy = false;
   bool _sending = false;
   String? _error;
@@ -30,8 +32,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _username.dispose();
     _displayName.dispose();
     _password.dispose();
+    _confirmPassword.dispose();
     _otp.dispose();
-    _inviteCode.dispose();
     super.dispose();
   }
 
@@ -39,10 +41,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (_account.text.trim().isEmpty) return;
     setState(() => _sending = true);
     try {
-      await ref
+      final otp = await ref
           .read(authRepositoryProvider)
           .requestOtp(account: _account.text.trim(), purpose: 'register');
       if (!mounted) return;
+      setState(() => _verificationId = otp.verificationId);
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
@@ -56,6 +59,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _register() async {
+    final l10n = AppLocalizations.of(context);
+    final verificationId = _verificationId;
+    if (verificationId == null || verificationId.isEmpty) {
+      setState(() => _error = l10n.t('auth.otp_required'));
+      return;
+    }
+    if (_password.text != _confirmPassword.text) {
+      setState(() => _error = l10n.t('auth.password_mismatch'));
+      return;
+    }
+    if (!_agreeToTerms) {
+      setState(() => _error = l10n.t('auth.agree_terms_required'));
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -63,19 +80,28 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     try {
       await ref
           .read(authRepositoryProvider)
-          .register(
+          .verifyOtp(
             account: _account.text.trim(),
+            purpose: 'register',
+            verificationId: verificationId,
+            code: _otp.text.trim(),
+          );
+      await ref
+          .read(authRepositoryProvider)
+          .register(
+            email: _account.text.trim(),
             username: _username.text.trim(),
             displayName: _displayName.text.trim(),
             password: _password.text,
-            otpCode: _otp.text.trim(),
-            inviteCode: _inviteCode.text.trim().isEmpty
-                ? null
-                : _inviteCode.text.trim(),
+            confirmPassword: _confirmPassword.text,
+            verificationId: verificationId,
+            agreeToTerms: _agreeToTerms,
           );
       if (!mounted) return;
-      ref.read(authSessionProvider.notifier).markLoggedIn();
-      context.go('/feed');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.t('auth.registered'))));
+      context.go('/auth/login');
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = ErrorView.describe(context, e));
@@ -156,11 +182,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextField(
-                  controller: _inviteCode,
+                  controller: _confirmPassword,
+                  obscureText: true,
                   decoration: InputDecoration(
-                    labelText: l10n.t('auth.invite_code_optional'),
+                    labelText: l10n.t('auth.confirm_password'),
                     border: const OutlineInputBorder(),
                   ),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _agreeToTerms,
+                  onChanged: (value) {
+                    setState(() => _agreeToTerms = value ?? false);
+                  },
+                  title: Text(l10n.t('auth.agree_terms')),
+                  controlAffinity: ListTileControlAffinity.leading,
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
