@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/post_models.dart';
 import 'post_card.dart';
@@ -51,26 +53,54 @@ class _TagScreenState extends ConsumerState<TagScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text('#${widget.tag}')),
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Icon(Icons.tag, color: theme.colorScheme.primary),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                widget.tag,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
       body: _loading
           ? const LoadingView()
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
           : _posts.isEmpty
-          ? const EmptyView(message: 'No posts')
-          : ListView.separated(
-              itemCount: _posts.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (_, i) => PostCard(
-                key: ValueKey(_posts[i].postId),
-                post: _posts[i],
-                onChanged: (u) => setState(() => _posts[i] = u),
-                onReport: () => showReportDialog(
-                  context,
-                  ref,
-                  targetType: 'post',
-                  targetId: _posts[i].postId,
+          ? EmptyView(message: l10n.t('feed.empty'))
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.contentMaxWidth,
+                ),
+                child: RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    itemCount: _posts.length,
+                    separatorBuilder: (_, _) =>
+                        Divider(height: 1, color: theme.dividerColor),
+                    itemBuilder: (_, i) => PostCard(
+                      key: ValueKey(_posts[i].postId),
+                      post: _posts[i],
+                      onChanged: (u) => setState(() => _posts[i] = u),
+                      onReport: () => showReportDialog(
+                        context,
+                        ref,
+                        targetType: 'post',
+                        targetId: _posts[i].postId,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
