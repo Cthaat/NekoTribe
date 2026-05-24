@@ -7,6 +7,7 @@ import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/media_lightbox.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../sentiment_flow/presentation/sentiment_prediction_dialog.dart';
 import '../domain/post_models.dart';
@@ -423,18 +424,42 @@ class _MediaGrid extends StatelessWidget {
   const _MediaGrid({required this.media});
   final List<V2MediaAsset> media;
 
+  void _open(BuildContext context, int index) {
+    showMediaLightbox(
+      context: context,
+      items: media
+          .map(
+            (m) => MediaLightboxItem(
+              url: m.publicUrl,
+              altText: m.altText,
+              description: m.description,
+            ),
+          )
+          .toList(growable: false),
+      initialIndex: index,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (media.isEmpty) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
     final radius = BorderRadius.circular(14);
     if (media.length == 1) {
-      return ClipRRect(
-        borderRadius: radius,
-        child: AspectRatio(
-          aspectRatio: 16 / 9,
-          child: AppMediaImage(
-            url: media.first.publicUrl,
-            borderRadius: BorderRadius.zero,
+      return Tooltip(
+        message: l10n.t('media.open'),
+        child: InkWell(
+          onTap: () => _open(context, 0),
+          borderRadius: radius,
+          child: ClipRRect(
+            borderRadius: radius,
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: AppMediaImage(
+                url: media.first.publicUrl,
+                borderRadius: BorderRadius.zero,
+              ),
+            ),
           ),
         ),
       );
@@ -450,9 +475,15 @@ class _MediaGrid extends StatelessWidget {
         crossAxisSpacing: 3,
         children: [
           for (var i = 0; i < count; i++)
-            AppMediaImage(
-              url: media[i].publicUrl,
-              borderRadius: BorderRadius.zero,
+            Tooltip(
+              message: l10n.t('media.open'),
+              child: InkWell(
+                onTap: () => _open(context, i),
+                child: AppMediaImage(
+                  url: media[i].publicUrl,
+                  borderRadius: BorderRadius.zero,
+                ),
+              ),
             ),
         ],
       ),
