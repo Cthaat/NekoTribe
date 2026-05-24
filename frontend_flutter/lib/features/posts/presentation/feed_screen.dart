@@ -122,9 +122,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       ),
       body: TabBarView(
         controller: _tab,
-        children: [
-          for (var i = 0; i < 3; i++) _buildFeedTab(i),
-        ],
+        children: [for (var i = 0; i < 3; i++) _buildFeedTab(i)],
       ),
     );
   }
@@ -135,10 +133,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       return const LoadingView();
     }
     if (state.error != null && state.items.isEmpty) {
-      return ErrorView(
-        error: state.error!,
-        onRetry: () => _loadInitial(idx),
-      );
+      return ErrorView(error: state.error!, onRetry: () => _loadInitial(idx));
     }
     if (state.items.isEmpty) {
       final l10n = AppLocalizations.of(context);
