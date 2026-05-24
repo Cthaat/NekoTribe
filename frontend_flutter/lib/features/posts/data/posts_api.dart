@@ -15,6 +15,7 @@ class PostsApi {
     int size = 20,
     String? cursor,
     String? language,
+    String? sort,
   }) {
     final query = <String, dynamic>{
       'timeline': mode,
@@ -23,10 +24,11 @@ class PostsApi {
     };
     if (cursor != null) query['cursor'] = cursor;
     if (language != null) query['language'] = language;
-    return _client.requestData<PagedResult<V2Post>>(
+    if (sort != null) query['sort'] = sort;
+    return _client.requestPaged<V2Post>(
       ApiPaths.posts,
       query: query,
-      decode: (data) => _decodePostPage(data),
+      decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
 
@@ -36,10 +38,10 @@ class PostsApi {
     int size = 20,
     String mode = 'posts',
   }) {
-    return _client.requestData<PagedResult<V2Post>>(
+    return _client.requestPaged<V2Post>(
       '${ApiPaths.users}/$username/posts',
       query: {'page': page, 'page_size': size, 'sort': mode},
-      decode: (data) => _decodePostPage(data),
+      decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
 
@@ -49,10 +51,10 @@ class PostsApi {
     int size = 20,
     String sort = 'newest',
   }) {
-    return _client.requestData<PagedResult<V2Post>>(
+    return _client.requestPaged<V2Post>(
       '${ApiPaths.users}/$userId/posts',
       query: {'page': page, 'page_size': size, 'sort': sort},
-      decode: (data) => _decodePostPage(data),
+      decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
 
@@ -61,26 +63,26 @@ class PostsApi {
     int size = 20,
     String mode = 'posts',
   }) {
-    return _client.requestData<PagedResult<V2Post>>(
+    return _client.requestPaged<V2Post>(
       ApiPaths.usersMePosts,
       query: {'page': page, 'page_size': size, 'sort': mode},
-      decode: (data) => _decodePostPage(data),
+      decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
 
   Future<PagedResult<V2Post>> getMyLikes({int page = 1, int size = 20}) {
-    return _client.requestData<PagedResult<V2Post>>(
+    return _client.requestPaged<V2Post>(
       ApiPaths.usersMeLikes,
       query: {'page': page, 'page_size': size},
-      decode: (data) => _decodePostPage(data),
+      decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
 
   Future<PagedResult<V2Post>> getMyBookmarks({int page = 1, int size = 20}) {
-    return _client.requestData<PagedResult<V2Post>>(
+    return _client.requestPaged<V2Post>(
       ApiPaths.usersMeBookmarks,
       query: {'page': page, 'page_size': size},
-      decode: (data) => _decodePostPage(data),
+      decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
 
@@ -204,10 +206,10 @@ class PostsApi {
     int size = 20,
     String sort = 'newest',
   }) {
-    return _client.requestData<PagedResult<V2Post>>(
+    return _client.requestPaged<V2Post>(
       '${ApiPaths.posts}/$postId/replies',
       query: {'page': page, 'page_size': size, 'sort': sort},
-      decode: (data) => _decodePostPage(data),
+      decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
 
@@ -276,10 +278,10 @@ class PostsApi {
     int page = 1,
     int size = 20,
   }) {
-    return _client.requestData<PagedResult<V2Post>>(
+    return _client.requestPaged<V2Post>(
       ApiPaths.posts,
       query: {'q': query, 'page': page, 'page_size': size},
-      decode: (data) => _decodePostPage(data),
+      decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
 
@@ -310,10 +312,10 @@ class PostsApi {
     int page = 1,
     int size = 20,
   }) {
-    return _client.requestData<PagedResult<V2Post>>(
+    return _client.requestPaged<V2Post>(
       '${ApiPaths.tags}/$tag/posts',
       query: {'page': page, 'page_size': size},
-      decode: (data) => _decodePostPage(data),
+      decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
 
@@ -350,12 +352,4 @@ class PostsApi {
     );
   }
 
-  PagedResult<V2Post> _decodePostPage(dynamic data) {
-    final map = toMap(data);
-    final items = toList(map['items'], (e) => V2Post.fromJson(toMap(e)));
-    final meta = map['meta'] is Map<String, dynamic>
-        ? ApiMeta.fromJson(map['meta'] as Map<String, dynamic>)
-        : null;
-    return PagedResult<V2Post>(items: items, meta: meta);
-  }
 }
