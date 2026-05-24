@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
@@ -28,9 +29,9 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 5,
+      length: 6,
       vsync: this,
-      initialIndex: widget.initialTab.clamp(0, 4),
+      initialIndex: widget.initialTab.clamp(0, 5),
     );
     _loadStats();
   }
@@ -75,6 +76,7 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
             Tab(text: 'Overview'),
             Tab(text: 'Content'),
             Tab(text: 'Reports'),
+            Tab(text: 'Users'),
             Tab(text: 'Appeals'),
             Tab(text: 'Settings'),
           ],
@@ -91,6 +93,7 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
           ),
           const _ContentTab(),
           const _ReportsTab(),
+          const _UsersTab(),
           const _AppealsTab(),
           const _SettingsTab(),
         ],
