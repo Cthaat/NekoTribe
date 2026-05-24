@@ -335,6 +335,16 @@ void main() {
             'code': '123456',
           },
         );
+
+        await api.deleteMe(
+          password: 'current-password',
+          confirmation: 'DELETE',
+        );
+        recorder.expectLast(
+          method: 'DELETE',
+          path: '/api/v2/users/me',
+          body: {'password': 'current-password', 'confirmation': 'DELETE'},
+        );
       },
     );
 
