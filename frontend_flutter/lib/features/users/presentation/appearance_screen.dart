@@ -42,8 +42,10 @@ class AppearanceScreen extends ConsumerWidget {
                 ref.read(themeProvider.notifier).set(value.first),
           ),
           const SizedBox(height: 24),
-          Text(l10n.t('common.language'),
-              style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            l10n.t('common.language'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
           SegmentedButton<String>(
             segments: const [
