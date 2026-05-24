@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../posts/domain/post_models.dart';
 import '../../posts/presentation/post_card.dart';
@@ -54,6 +55,7 @@ class _UserPostsScreenState extends ConsumerState<UserPostsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('profile.posts'))),
       body: _loading
@@ -62,19 +64,29 @@ class _UserPostsScreenState extends ConsumerState<UserPostsScreen> {
           ? ErrorView(error: _error!, onRetry: _load)
           : _items.isEmpty
           ? EmptyView(message: l10n.t('feed.empty'))
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.separated(
-                itemCount: _items.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (_, i) => PostCard(
-                  post: _items[i],
-                  onChanged: (updated) => setState(() => _items[i] = updated),
-                  onReport: () => showReportDialog(
-                    context,
-                    ref,
-                    targetType: 'post',
-                    targetId: _items[i].postId,
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.contentMaxWidth,
+                ),
+                child: RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    itemCount: _items.length,
+                    separatorBuilder: (_, _) =>
+                        Divider(height: 1, color: theme.dividerColor),
+                    itemBuilder: (_, i) => PostCard(
+                      post: _items[i],
+                      onChanged: (updated) =>
+                          setState(() => _items[i] = updated),
+                      onReport: () => showReportDialog(
+                        context,
+                        ref,
+                        targetType: 'post',
+                        targetId: _items[i].postId,
+                      ),
+                    ),
                   ),
                 ),
               ),
