@@ -18,7 +18,10 @@ class AppearanceScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(l10n.t('theme.mode'), style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            l10n.t('theme.mode'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
           SegmentedButton<ThemeMode>(
             segments: [
@@ -43,7 +46,10 @@ class AppearanceScreen extends ConsumerWidget {
                 ref.read(themeProvider.notifier).setMode(value.first),
           ),
           const SizedBox(height: 24),
-          Text(l10n.t('theme.color'), style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            l10n.t('theme.color'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
           ThemeColorPicker(
             selected: themePreference.seedColor,
