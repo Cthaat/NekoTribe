@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/group_models.dart';
@@ -71,10 +72,11 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
         {'name': _name.text.trim(), 'description': _description.text.trim()},
       );
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       setState(() => _group = next);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Group updated')));
+      ).showSnackBar(SnackBar(content: Text(l10n.t('group.updated'))));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -90,9 +92,10 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
     try {
       await ref.read(groupsApiProvider).createInvite(_group!.groupId, {});
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Invite created')));
+      ).showSnackBar(SnackBar(content: Text(l10n.t('group.invite_created'))));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -103,8 +106,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage group')),
+      appBar: AppBar(title: Text(l10n.t('group.manage'))),
       body: _loading
           ? const LoadingView()
           : _error != null
@@ -114,9 +118,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
               children: [
                 TextField(
                   controller: _name,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Name',
+                  decoration: InputDecoration(
+                    border: const OutlineInputBorder(),
+                    labelText: l10n.t('group.name'),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -124,24 +128,27 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                   controller: _description,
                   minLines: 3,
                   maxLines: 5,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Description',
+                  decoration: InputDecoration(
+                    border: const OutlineInputBorder(),
+                    labelText: l10n.t('group.description'),
                   ),
                 ),
                 const SizedBox(height: 12),
                 FilledButton.icon(
                   onPressed: _saving ? null : _save,
                   icon: const Icon(Icons.save),
-                  label: const Text('Save'),
+                  label: Text(l10n.t('common.save')),
                 ),
                 OutlinedButton.icon(
                   onPressed: _createInvite,
                   icon: const Icon(Icons.mail_outline),
-                  label: const Text('Create invite'),
+                  label: Text(l10n.t('group.create_invite')),
                 ),
                 const SizedBox(height: 20),
-                Text('Members', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  l10n.t('group.members_title'),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 8),
                 for (final member in _members)
                   Card(
