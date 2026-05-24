@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,6 +26,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   V2SelfUser? _user;
   bool _loading = true;
   bool _saving = false;
+  bool _uploadingAvatar = false;
   Object? _error;
 
   @override
@@ -93,6 +97,46 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     }
   }
 
+  Future<void> _changeAvatar() async {
+    if (_uploadingAvatar) return;
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    setState(() => _uploadingAvatar = true);
+    try {
+      final file = result.files.single;
+      V2SelfUser user;
+      if (file.bytes != null) {
+        user = await ref
+            .read(usersRepositoryProvider)
+            .changeAvatarBytes(bytes: file.bytes!, fileName: file.name);
+      } else if (file.path != null) {
+        user = await ref
+            .read(usersRepositoryProvider)
+            .changeAvatarFile(File(file.path!));
+      } else {
+        throw Exception('avatar file is empty');
+      }
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      setState(() => _user = user);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.t('profile.avatar_updated'))));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -127,7 +171,33 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                   children: [
                     Row(
                       children: [
-                        AppAvatar(url: _user?.avatarUrl, size: 72),
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            AppAvatar(url: _user?.avatarUrl, size: 72),
+                            Positioned(
+                              right: -2,
+                              bottom: -2,
+                              child: IconButton.filledTonal(
+                                onPressed: _uploadingAvatar
+                                    ? null
+                                    : _changeAvatar,
+                                tooltip: l10n.t('profile.change_avatar'),
+                                icon: _uploadingAvatar
+                                    ? const SizedBox.square(
+                                        dimension: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.photo_camera_outlined,
+                                        size: 18,
+                                      ),
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
