@@ -76,7 +76,9 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
 
   Future<void> _openGroup(V2ChatGroup group) async {
     try {
-      final channels = await ref.read(chatApiProvider).listChannels(group.groupId);
+      final channels = await ref
+          .read(chatApiProvider)
+          .listChannels(group.groupId);
       if (!mounted) return;
       if (channels.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -85,12 +87,14 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
         return;
       }
       final channel = channels.first;
-      context.push('/chat/groups/${group.groupId}/channels/${channel.channelId}');
+      context.push(
+        '/chat/groups/${group.groupId}/channels/${channel.channelId}',
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -111,82 +115,80 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _conversations.isEmpty
-                        ? EmptyView(message: l10n.t('chat.empty'))
-                        : RefreshIndicator(
-                            onRefresh: _load,
-                            child: ListView.separated(
-                              itemCount: _conversations.length,
-                              separatorBuilder: (_, _) =>
-                                  const Divider(height: 1),
-                              itemBuilder: (_, i) {
-                                final c = _conversations[i];
-                                return ListTile(
-                                  leading: AppAvatar(
-                                      url: c.participant.avatarUrl, size: 48),
-                                  title: Text(c.participant.displayName),
-                                  subtitle: Text(
-                                    c.lastMessage?.content ?? '',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+          ? ErrorView(error: _error!, onRetry: _load)
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _conversations.isEmpty
+                    ? EmptyView(message: l10n.t('chat.empty'))
+                    : RefreshIndicator(
+                        onRefresh: _load,
+                        child: ListView.separated(
+                          itemCount: _conversations.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (_, i) {
+                            final c = _conversations[i];
+                            return ListTile(
+                              leading: AppAvatar(
+                                url: c.participant.avatarUrl,
+                                size: 48,
+                              ),
+                              title: Text(c.participant.displayName),
+                              subtitle: Text(
+                                c.lastMessage?.content ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    c.lastMessage != null
+                                        ? _formatDate(c.lastMessage!.createdAt)
+                                        : _formatDate(c.updatedAt),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
                                   ),
-                                  trailing: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        c.lastMessage != null
-                                            ? _formatDate(
-                                                c.lastMessage!.createdAt)
-                                            : _formatDate(c.updatedAt),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall,
-                                      ),
-                                      if (c.unreadCount > 0) ...[
-                                        const SizedBox(height: 4),
-                                        Badge(
-                                          label: Text('${c.unreadCount}'),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  onTap: () => context.push(
-                                      '/chat/conversation/${c.conversationId}'),
-                                );
-                              },
-                            ),
-                          ),
-                    _groups.isEmpty
-                        ? const EmptyView(message: 'No groups')
-                        : RefreshIndicator(
-                            onRefresh: _load,
-                            child: ListView.separated(
-                              itemCount: _groups.length,
-                              separatorBuilder: (_, _) =>
-                                  const Divider(height: 1),
-                              itemBuilder: (_, i) {
-                                final g = _groups[i];
-                                return ListTile(
-                                  leading:
-                                      AppAvatar(url: g.avatarUrl, size: 48),
-                                  title: Text(g.name),
-                                  subtitle: Text(
-                                      '${g.memberCount} members · ${g.channelCount} channels'),
-                                  trailing: g.unreadCount > 0
-                                      ? Badge(label: Text('${g.unreadCount}'))
-                                      : null,
-                                  onTap: () => _openGroup(g),
-                                );
-                              },
-                            ),
-                          ),
-                  ],
-                ),
+                                  if (c.unreadCount > 0) ...[
+                                    const SizedBox(height: 4),
+                                    Badge(label: Text('${c.unreadCount}')),
+                                  ],
+                                ],
+                              ),
+                              onTap: () => context.push(
+                                '/chat/conversation/${c.conversationId}',
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                _groups.isEmpty
+                    ? const EmptyView(message: 'No groups')
+                    : RefreshIndicator(
+                        onRefresh: _load,
+                        child: ListView.separated(
+                          itemCount: _groups.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (_, i) {
+                            final g = _groups[i];
+                            return ListTile(
+                              leading: AppAvatar(url: g.avatarUrl, size: 48),
+                              title: Text(g.name),
+                              subtitle: Text(
+                                '${g.memberCount} members · ${g.channelCount} channels',
+                              ),
+                              trailing: g.unreadCount > 0
+                                  ? Badge(label: Text('${g.unreadCount}'))
+                                  : null,
+                              onTap: () => _openGroup(g),
+                            );
+                          },
+                        ),
+                      ),
+              ],
+            ),
     );
   }
 }
