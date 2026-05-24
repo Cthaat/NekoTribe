@@ -534,6 +534,41 @@ void main() {
       expect(prediction.probabilities?['positive'], 0.91);
       expect(prediction.topK, hasLength(2));
     });
+
+    test('model and stats endpoints use SentimentFlow proxy resources', () async {
+      final recorder = _ApiRecorder();
+      final api = SentimentFlowApi(_client(recorder));
+
+      final models = await api.listModels();
+      recorder.expectLast(
+        method: 'GET',
+        path: '/api/v2/integrations/sentiment-flow/models/',
+      );
+      expect(models.items.single.modelId, 'bert-v1');
+      expect(models.items.single.isActive, isTrue);
+
+      final active = await api.getActiveModel();
+      recorder.expectLast(
+        method: 'GET',
+        path: '/api/v2/integrations/sentiment-flow/models/active',
+      );
+      expect(active.modelId, 'bert-v1');
+
+      await api.setActiveModel('bert-v2');
+      recorder.expectLast(
+        method: 'PUT',
+        path: '/api/v2/integrations/sentiment-flow/models/active',
+        body: {'model_id': 'bert-v2'},
+      );
+
+      final stats = await api.statsOverview();
+      recorder.expectLast(
+        method: 'GET',
+        path: '/api/v2/integrations/sentiment-flow/stats/overview',
+      );
+      expect(stats.totalPredictions, 12);
+      expect(stats.totalTrainingJobs, 3);
+    });
   });
 }
 
@@ -658,6 +693,49 @@ class _ApiRecorder implements HttpClientAdapter {
         },
         'timing_ms': 37,
         'created_at': '2026-05-24T00:00:00.000Z',
+      };
+    }
+    if (path == '/api/v2/integrations/sentiment-flow/models/') {
+      return {
+        'items': [
+          {
+            'model_id': 'bert-v1',
+            'name': 'BERT v1',
+            'version': '1.0.0',
+            'type': 'bert',
+            'path': 'models/bert-v1.pt',
+            'size_mb': 98.5,
+            'best_f1': 0.93,
+            'best_mae': 0.21,
+            'best_qwk': 0.88,
+            'best_epoch': 4,
+            'is_active': true,
+            'created_at': '2026-05-24T00:00:00.000Z',
+          },
+        ],
+        'total': 1,
+      };
+    }
+    if (path == '/api/v2/integrations/sentiment-flow/models/active') {
+      return {
+        'model_id': options.data is Map<String, dynamic>
+            ? options.data['model_id']
+            : 'bert-v1',
+        'name': 'BERT v1',
+        'version': '1.0.0',
+        'activated_at': '2026-05-24T00:00:00.000Z',
+      };
+    }
+    if (path == '/api/v2/integrations/sentiment-flow/stats/overview') {
+      return {
+        'total_predictions': 12,
+        'total_training_jobs': 3,
+        'active_model': {
+          'model_id': 'bert-v1',
+          'name': 'BERT v1',
+          'version': '1.0.0',
+          'activated_at': '2026-05-24T00:00:00.000Z',
+        },
       };
     }
     if (path == '/api/v2/auth/otp') {
