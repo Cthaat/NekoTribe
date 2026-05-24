@@ -49,13 +49,14 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     try {
       await ref.read(authApiProvider).revokeSession(session.sessionId);
       if (!mounted) return;
-      setState(() => _items.removeWhere(
-          (s) => s.sessionId == session.sessionId));
+      setState(
+        () => _items.removeWhere((s) => s.sessionId == session.sessionId),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -83,9 +84,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ErrorView.describe(context, e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -111,49 +112,44 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? ErrorView(error: _error!, onRetry: _load)
-              : _items.isEmpty
-                  ? const EmptyView(message: 'No active sessions')
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView.separated(
-                        itemCount: _items.length,
-                        separatorBuilder: (_, _) =>
-                            const Divider(height: 1),
-                        itemBuilder: (_, i) {
-                          final s = _items[i];
-                          return ListTile(
-                            leading: Icon(
-                              s.isCurrent
-                                  ? Icons.smartphone
-                                  : Icons.devices_other,
-                              color: s.isCurrent
-                                  ? Theme.of(context).colorScheme.primary
-                                  : null,
-                            ),
-                            title: Text(
-                              s.deviceInfo.isEmpty
-                                  ? 'Unknown device'
-                                  : s.deviceInfo,
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('IP: ${s.ipAddress}'),
-                                Text('Last: ${_formatDate(s.lastAccessedAt)}'),
-                              ],
-                            ),
-                            trailing: s.isCurrent
-                                ? const Chip(label: Text('Current'))
-                                : IconButton(
-                                    icon: const Icon(Icons.delete_outline),
-                                    onPressed: () => _revoke(s),
-                                  ),
-                            isThreeLine: true,
-                          );
-                        },
-                      ),
+          ? ErrorView(error: _error!, onRetry: _load)
+          : _items.isEmpty
+          ? const EmptyView(message: 'No active sessions')
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.separated(
+                itemCount: _items.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final s = _items[i];
+                  return ListTile(
+                    leading: Icon(
+                      s.isCurrent ? Icons.smartphone : Icons.devices_other,
+                      color: s.isCurrent
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
                     ),
+                    title: Text(
+                      s.deviceInfo.isEmpty ? 'Unknown device' : s.deviceInfo,
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('IP: ${s.ipAddress}'),
+                        Text('Last: ${_formatDate(s.lastAccessedAt)}'),
+                      ],
+                    ),
+                    trailing: s.isCurrent
+                        ? const Chip(label: Text('Current'))
+                        : IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _revoke(s),
+                          ),
+                    isThreeLine: true,
+                  );
+                },
+              ),
+            ),
     );
   }
 }
