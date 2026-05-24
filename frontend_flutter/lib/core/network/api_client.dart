@@ -111,6 +111,27 @@ class ApiClient {
     );
   }
 
+  Future<List<T>> requestList<T>(
+    String path, {
+    String method = 'GET',
+    Object? data,
+    Map<String, dynamic>? query,
+    Map<String, String>? headers,
+    required T Function(dynamic item) decodeItem,
+    bool sendAuth = true,
+  }) async {
+    final page = await requestPaged<T>(
+      path,
+      method: method,
+      data: data,
+      query: query,
+      headers: headers,
+      decodeItem: decodeItem,
+      sendAuth: sendAuth,
+    );
+    return page.items;
+  }
+
   List<T> _decodePagedItems<T>(
     dynamic raw,
     T Function(dynamic item) decodeItem,
