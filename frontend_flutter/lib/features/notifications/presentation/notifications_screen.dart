@@ -241,10 +241,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: SegmentedButton<bool>(
               segments: [
-                ButtonSegment(
-                  value: false,
-                  label: Text(l10n.t('common.all')),
-                ),
+                ButtonSegment(value: false, label: Text(l10n.t('common.all'))),
                 ButtonSegment(
                   value: true,
                   label: Text(l10n.t('common.unread')),
@@ -310,9 +307,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                   if (n.readFlag && !n.isDeleted)
                                     PopupMenuItem(
                                       value: 'unread',
-                                      child: Text(
-                                        l10n.t('common.mark_unread'),
-                                      ),
+                                      child: Text(l10n.t('common.mark_unread')),
                                     ),
                                   if (!n.isDeleted)
                                     PopupMenuItem(
