@@ -267,6 +267,33 @@ void main() {
         body: {'action': 'ban', 'reason': 'spam', 'duration_hours': 24},
       );
     });
+
+    test('settings update sends settings list and decodes response', () async {
+      final recorder = _ApiRecorder();
+      final api = ModerationApi(_client(recorder));
+
+      final settings = await api.updateSettings({
+        'settings': [
+          {'key': 'auto_hide_report_threshold', 'value': '12'},
+          {'key': 'require_note_on_reject', 'value': 'false'},
+        ],
+      });
+
+      recorder.expectLast(
+        method: 'PATCH',
+        path: '/api/v2/moderation/settings',
+        body: {
+          'settings': [
+            {'key': 'auto_hide_report_threshold', 'value': '12'},
+            {'key': 'require_note_on_reject', 'value': 'false'},
+          ],
+        },
+      );
+      expect(settings, hasLength(2));
+      expect(settings.first.key, 'auto_hide_report_threshold');
+      expect(settings.first.value, '12');
+      expect(settings[1].value, 'false');
+    });
   });
 
   group('NotificationsApi v2 contract', () {
@@ -478,6 +505,20 @@ class _ApiRecorder implements HttpClientAdapter {
     if (path == '/api/v2/notifications') {
       return <Object>[_notificationJson];
     }
+    if (path == '/api/v2/moderation/settings') {
+      if (options.method == 'PATCH') {
+        final settings = options.data['settings'] as List<dynamic>;
+        return settings
+            .map((item) => _moderationSettingJson(item as Map<String, dynamic>))
+            .toList(growable: false);
+      }
+      return <Object>[
+        _moderationSettingJson({
+          'key': 'auto_hide_report_threshold',
+          'value': '10',
+        }),
+      ];
+    }
     if (path == '/api/v2/auth/otp') {
       return {
         'account': options.data['account'],
@@ -670,6 +711,19 @@ const _groupCommentJson = {
   'created_at': '2026-05-24T00:00:00.000Z',
   'updated_at': '2026-05-24T00:00:00.000Z',
 };
+
+Map<String, Object> _moderationSettingJson(Map<String, dynamic> item) {
+  final key = item['key'] as String;
+  final value = item['value'] as String;
+  return {
+    'key': key,
+    'value': value,
+    'value_type': key == 'require_note_on_reject' ? 'boolean' : 'number',
+    'label': key,
+    'description': '',
+    'updated_at': '2026-05-24T00:00:00.000Z',
+  };
+}
 
 const _postJson = {
   'post_id': 100001,
