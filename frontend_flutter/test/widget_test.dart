@@ -67,7 +67,7 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    await Future<void>.delayed(Duration.zero);
+    await container.read(themeProvider.notifier).loaded;
 
     expect(container.read(themeProvider).mode, ThemeMode.light);
     expect(container.read(themeProvider).seedColor, AppTheme.defaultSeedColor);
