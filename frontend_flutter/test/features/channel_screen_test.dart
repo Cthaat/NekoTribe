@@ -73,9 +73,18 @@ void main() {
     expect(find.byKey(const Key('chat-channel-attach-button')), findsOneWidget);
     expect(find.byKey(const Key('chat-channel-image-button')), findsOneWidget);
     expect(find.byKey(const Key('chat-channel-emoji-button')), findsOneWidget);
-    expect(find.byKey(const Key('chat-channel-mention-button')), findsOneWidget);
-    expect(find.byKey(const Key('chat-channel-channel-button')), findsOneWidget);
-    expect(find.byKey(const Key('chat-channel-sticker-button')), findsOneWidget);
+    expect(
+      find.byKey(const Key('chat-channel-mention-button')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('chat-channel-channel-button')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('chat-channel-sticker-button')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('chat-channel-image-button')));
     await tester.pumpAndSettle();
