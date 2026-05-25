@@ -626,28 +626,31 @@ void main() {
       expect(avatar.avatarMediaId, 99);
     });
 
-    test('user analytics and daily analytics decode current v2 endpoints', () async {
-      final recorder = _ApiRecorder();
-      final api = UsersApi(_client(recorder));
+    test(
+      'user analytics and daily analytics decode current v2 endpoints',
+      () async {
+        final recorder = _ApiRecorder();
+        final api = UsersApi(_client(recorder));
 
-      final analytics = await api.getUserAnalytics(1);
-      recorder.expectLast(method: 'GET', path: '/api/v2/users/1/analytics');
-      expect(analytics.totalPosts, 12);
-      expect(analytics.postsThisWeek, 3);
-      expect(analytics.totalLikesReceived, 40);
-      expect(analytics.engagementScore, 9.5);
+        final analytics = await api.getUserAnalytics(1);
+        recorder.expectLast(method: 'GET', path: '/api/v2/users/1/analytics');
+        expect(analytics.totalPosts, 12);
+        expect(analytics.postsThisWeek, 3);
+        expect(analytics.totalLikesReceived, 40);
+        expect(analytics.engagementScore, 9.5);
 
-      final daily = await api.getUserDailyAnalytics(1, days: 14);
-      recorder.expectLast(
-        method: 'GET',
-        path: '/api/v2/users/1/analytics/daily',
-        query: {'days': 14},
-      );
-      expect(daily, hasLength(1));
-      expect(daily.single.day, '2026-05-24');
-      expect(daily.single.postsCount, 2);
-      expect(daily.single.likesReceived, 6);
-    });
+        final daily = await api.getUserDailyAnalytics(1, days: 14);
+        recorder.expectLast(
+          method: 'GET',
+          path: '/api/v2/users/1/analytics/daily',
+          query: {'days': 14},
+        );
+        expect(daily, hasLength(1));
+        expect(daily.single.day, '2026-05-24');
+        expect(daily.single.postsCount, 2);
+        expect(daily.single.likesReceived, 6);
+      },
+    );
   });
 
   group('SentimentFlowApi v2 contract', () {
