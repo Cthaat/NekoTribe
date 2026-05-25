@@ -413,7 +413,7 @@ void main() {
       final recorder = _ApiRecorder();
       final api = ModerationApi(_client(recorder));
 
-        await api.resolveContent(postId: 11, action: 'approve');
+      await api.resolveContent(postId: 11, action: 'approve');
       recorder.expectLast(
         method: 'POST',
         path: '/api/v2/moderation/content/11/actions',
