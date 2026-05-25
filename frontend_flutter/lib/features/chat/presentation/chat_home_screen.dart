@@ -126,6 +126,7 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
           .createChannel(
             groupId: group.groupId,
             name: draft.name,
+            category: draft.category,
             isPrivate: draft.isPrivate,
           );
     } catch (e) {
@@ -216,9 +217,7 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                                       ),
                                       if (c.unreadCount > 0) ...[
                                         const SizedBox(height: 4),
-                                        Badge(
-                                          label: Text('${c.unreadCount}'),
-                                        ),
+                                        Badge(label: Text('${c.unreadCount}')),
                                       ],
                                     ],
                                   ),
@@ -242,7 +241,10 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                               itemBuilder: (_, i) {
                                 final g = _groups[i];
                                 return ListTile(
-                                  leading: AppAvatar(url: g.avatarUrl, size: 48),
+                                  leading: AppAvatar(
+                                    url: g.avatarUrl,
+                                    size: 48,
+                                  ),
                                   title: Text(
                                     g.name,
                                     maxLines: 1,
@@ -279,14 +281,21 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
 }
 
 class _ChannelDraft {
-  const _ChannelDraft({required this.name, required this.isPrivate});
+  const _ChannelDraft({
+    required this.name,
+    required this.isPrivate,
+    this.category,
+  });
 
   final String name;
   final bool isPrivate;
+  final String? category;
 }
 
 class _CreateChannelDialog extends StatefulWidget {
-  const _CreateChannelDialog();
+  const _CreateChannelDialog({this.initial});
+
+  final _ChannelDraft? initial;
 
   @override
   State<_CreateChannelDialog> createState() => _CreateChannelDialogState();
@@ -294,20 +303,37 @@ class _CreateChannelDialog extends StatefulWidget {
 
 class _CreateChannelDialogState extends State<_CreateChannelDialog> {
   final _name = TextEditingController();
+  final _category = TextEditingController();
   bool _isPrivate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    if (initial != null) {
+      _name.text = initial.name;
+      _category.text = initial.category ?? '';
+      _isPrivate = initial.isPrivate;
+    }
+  }
 
   @override
   void dispose() {
     _name.dispose();
+    _category.dispose();
     super.dispose();
   }
 
   void _submit() {
     final value = _name.text.trim();
     if (value.isEmpty) return;
-    Navigator.of(
-      context,
-    ).pop(_ChannelDraft(name: value, isPrivate: _isPrivate));
+    Navigator.of(context).pop(
+      _ChannelDraft(
+        name: value,
+        category: _category.text.trim().isEmpty ? null : _category.text.trim(),
+        isPrivate: _isPrivate,
+      ),
+    );
   }
 
   @override
@@ -319,9 +345,18 @@ class _CreateChannelDialogState extends State<_CreateChannelDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
+            key: const Key('chat-channel-name-field'),
             controller: _name,
             autofocus: true,
             decoration: InputDecoration(labelText: l10n.t('chat.channel_name')),
+            onSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _category,
+            decoration: InputDecoration(
+              labelText: l10n.t('chat.channel_category'),
+            ),
             onSubmitted: (_) => _submit(),
           ),
           SwitchListTile(
@@ -337,13 +372,17 @@ class _CreateChannelDialogState extends State<_CreateChannelDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(l10n.t('common.cancel')),
         ),
-        FilledButton(onPressed: _submit, child: Text(l10n.t('common.create'))),
+        FilledButton(
+          key: const Key('chat-channel-save-button'),
+          onPressed: _submit,
+          child: Text(l10n.t('common.create')),
+        ),
       ],
     );
   }
 }
 
-class _GroupChannelPicker extends StatefulWidget {
+class _GroupChannelPicker extends ConsumerStatefulWidget {
   const _GroupChannelPicker({
     required this.group,
     required this.channels,
@@ -355,11 +394,19 @@ class _GroupChannelPicker extends StatefulWidget {
   final Future<V2ChatChannel?> Function()? onCreate;
 
   @override
-  State<_GroupChannelPicker> createState() => _GroupChannelPickerState();
+  ConsumerState<_GroupChannelPicker> createState() =>
+      _GroupChannelPickerState();
 }
 
-class _GroupChannelPickerState extends State<_GroupChannelPicker> {
+class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
+  late List<V2ChatChannel> _channels;
   bool _creating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _channels = List.of(widget.channels);
+  }
 
   Future<void> _handleCreate() async {
     final onCreate = widget.onCreate;
@@ -372,6 +419,104 @@ class _GroupChannelPickerState extends State<_GroupChannelPicker> {
       return;
     }
     Navigator.of(context).pop(channel);
+  }
+
+  Future<void> _handleMute(V2ChatChannel channel) async {
+    final nextMuted = !channel.isMutedByMe;
+    try {
+      await ref
+          .read(chatApiProvider)
+          .setChannelMuteStatus(
+            channelId: channel.channelId,
+            isMuted: nextMuted,
+          );
+      if (!mounted) return;
+      setState(() {
+        _replaceChannel(_copyChannel(channel, isMutedByMe: nextMuted));
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
+  }
+
+  Future<void> _handleEdit(V2ChatChannel channel) async {
+    final draft = await showDialog<_ChannelDraft>(
+      context: context,
+      builder: (_) => _CreateChannelDialog(
+        initial: _ChannelDraft(
+          name: channel.name,
+          category: channel.category,
+          isPrivate: channel.isPrivate,
+        ),
+      ),
+    );
+    if (draft == null) return;
+    try {
+      final updated = await ref
+          .read(chatApiProvider)
+          .updateChannel(
+            channelId: channel.channelId,
+            name: draft.name,
+            category: draft.category,
+            isPrivate: draft.isPrivate,
+          );
+      if (!mounted) return;
+      setState(() => _replaceChannel(updated));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
+  }
+
+  Future<void> _handleDelete(V2ChatChannel channel) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final l10n = AppLocalizations.of(context);
+        return AlertDialog(
+          title: Text(l10n.t('chat.delete_channel')),
+          content: Text(l10n.t('chat.delete_channel_body')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n.t('common.cancel')),
+            ),
+            FilledButton(
+              key: const Key('chat-channel-delete-confirm'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l10n.t('common.delete')),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(chatApiProvider).deleteChannel(channel.channelId);
+      if (!mounted) return;
+      setState(() {
+        _channels.removeWhere((item) => item.channelId == channel.channelId);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
+  }
+
+  void _replaceChannel(V2ChatChannel channel) {
+    final index = _channels.indexWhere(
+      (item) => item.channelId == channel.channelId,
+    );
+    if (index >= 0) {
+      _channels[index] = channel;
+    }
   }
 
   @override
@@ -397,10 +542,10 @@ class _GroupChannelPickerState extends State<_GroupChannelPicker> {
               constraints: BoxConstraints(maxHeight: maxListHeight),
               child: ListView.separated(
                 shrinkWrap: true,
-                itemCount: widget.channels.length,
+                itemCount: _channels.length,
                 separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (context, index) {
-                  final channel = widget.channels[index];
+                  final channel = _channels[index];
                   return ListTile(
                     leading: const Icon(Icons.tag),
                     title: Text('#${channel.name}'),
@@ -426,6 +571,38 @@ class _GroupChannelPickerState extends State<_GroupChannelPicker> {
                         ],
                         if (channel.unreadCount > 0)
                           Badge(label: Text('${channel.unreadCount}')),
+                        IconButton(
+                          key: Key('chat-channel-mute-${channel.channelId}'),
+                          visualDensity: VisualDensity.compact,
+                          tooltip: channel.isMutedByMe
+                              ? l10n.t('chat.unmute_channel')
+                              : l10n.t('chat.mute_channel'),
+                          icon: Icon(
+                            channel.isMutedByMe
+                                ? Icons.notifications_active_outlined
+                                : Icons.notifications_off_outlined,
+                            size: 18,
+                          ),
+                          onPressed: () => _handleMute(channel),
+                        ),
+                        if (channel.canManage) ...[
+                          IconButton(
+                            key: Key('chat-channel-edit-${channel.channelId}'),
+                            visualDensity: VisualDensity.compact,
+                            tooltip: l10n.t('chat.edit_channel'),
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            onPressed: () => _handleEdit(channel),
+                          ),
+                          IconButton(
+                            key: Key(
+                              'chat-channel-delete-${channel.channelId}',
+                            ),
+                            visualDensity: VisualDensity.compact,
+                            tooltip: l10n.t('chat.delete_channel'),
+                            icon: const Icon(Icons.delete_outline, size: 18),
+                            onPressed: () => _handleDelete(channel),
+                          ),
+                        ],
                       ],
                     ),
                     onTap: () => Navigator.of(context).pop(channel),
@@ -451,4 +628,28 @@ class _GroupChannelPickerState extends State<_GroupChannelPicker> {
       ),
     );
   }
+}
+
+V2ChatChannel _copyChannel(
+  V2ChatChannel channel, {
+  String? name,
+  String? category,
+  bool? isPrivate,
+  bool? isMutedByMe,
+}) {
+  return V2ChatChannel(
+    channelId: channel.channelId,
+    groupId: channel.groupId,
+    name: name ?? channel.name,
+    type: channel.type,
+    category: category ?? channel.category,
+    position: channel.position,
+    isPrivate: isPrivate ?? channel.isPrivate,
+    isMutedByMe: isMutedByMe ?? channel.isMutedByMe,
+    unreadCount: channel.unreadCount,
+    lastMessage: channel.lastMessage,
+    createdAt: channel.createdAt,
+    updatedAt: channel.updatedAt,
+    canManage: channel.canManage,
+  );
 }
