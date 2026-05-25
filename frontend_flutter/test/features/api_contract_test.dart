@@ -203,6 +203,65 @@ void main() {
       );
     });
 
+    test('create and update group send web group metadata keys', () async {
+      final recorder = _ApiRecorder();
+      final api = GroupsApi(_client(recorder));
+
+      await api.createGroup(
+        name: 'Flutter Cats',
+        description: 'A parity test group',
+        avatarUrl: '/uploads/avatar.png',
+        coverUrl: '/uploads/cover.png',
+        privacy: 'private',
+        category: 'tech',
+        tags: const ['flutter', 'cats'],
+        joinApproval: true,
+        postPermission: 'moderator_up',
+      );
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/groups',
+        body: {
+          'name': 'Flutter Cats',
+          'description': 'A parity test group',
+          'avatar_url': '/uploads/avatar.png',
+          'cover_url': '/uploads/cover.png',
+          'privacy': 'private',
+          'category': 'tech',
+          'tags': ['flutter', 'cats'],
+          'join_approval': true,
+          'post_permission': 'moderator_up',
+        },
+      );
+
+      await api.updateGroup(
+        groupId: 42,
+        name: 'Updated Cats',
+        description: 'Updated description',
+        avatarUrl: '',
+        coverUrl: null,
+        privacy: 'secret',
+        category: 'art',
+        tags: const ['updated'],
+        joinApproval: false,
+        postPermission: 'admin_only',
+      );
+      recorder.expectLast(
+        method: 'PATCH',
+        path: '/api/v2/groups/42',
+        body: {
+          'name': 'Updated Cats',
+          'description': 'Updated description',
+          'avatar_url': null,
+          'privacy': 'secret',
+          'category': 'art',
+          'tags': ['updated'],
+          'join_approval': false,
+          'post_permission': 'admin_only',
+        },
+      );
+    });
+
     test('group post comments use numeric group and post ids', () async {
       final recorder = _ApiRecorder();
       final api = GroupsApi(_client(recorder));
