@@ -10,7 +10,7 @@
 | 命令 | 结果 |
 | --- | --- |
 | `flutter analyze` | 通过，No issues found |
-| `flutter test` | 通过，89/89 |
+| `flutter test` | 通过，94/94 |
 | `flutter build web` | 通过，输出 `build/web` |
 | `flutter build windows` | 通过，输出 `build/windows/x64/runner/Release/nekotribe.exe` |
 | `node --test server/utils/auth-token-response.test.ts server/utils/cors.test.ts` | 通过，5/5 |
@@ -32,7 +32,7 @@
 | Chat channel management live smoke | 通过，`edge` 在群组 3 创建临时频道 `channel_id=3`，验证频道更新、静音/取消静音、删除，随后清理临时频道 |
 | ChannelScreen realtime event widget tests | 通过，覆盖后端/Nuxt `chat_message`、`chat_message_updated`、`chat_message_deleted`、`chat_reaction_updated` 事件形状 |
 | SentimentFlow raw proxy live shape smoke | 通过，`edge` 调用 `predict` 返回原始上游结构 `label=neutral`、`confidence=0.5`、概率数组、`model_name=关键词基线` |
-| SentimentFlow/PostCard widget regression tests | 通过，覆盖情感分析原始响应显示、帖子 AI 分析入口、首页收藏不清除点赞 |
+| SentimentFlow/PostCard/Channel/AppShell widget regression tests | 通过，覆盖情感分析原始响应显示、BERT/LSTM `model` 透传、帖子 AI 分析入口、首页收藏不清除点赞、首页转发入口、三点菜单固定、群聊工具栏、侧边栏发布入口 |
 
 说明：`flutter build web` 会提示 `flutter_secure_storage_web` 不兼容 Wasm dry run；这是依赖使用 `dart:html`/`dart:js_util` 的提示，不影响当前 JS Web build。
 
@@ -51,7 +51,7 @@ Nuxt 全量 `yarn build` 已在 `NODE_OPTIONS=--max-old-space-size=4096` 下通�
 - Network：兼容 30001 入口的 Nuxt 外层错误 envelope：`{ error, statusCode, data: { code, message, data, meta } }`。
 - Backend CORS：新增 `server/middleware/00-cors.ts` 和 `server/utils/cors.ts`，允许 Flutter Web 本地预览来源，`OPTIONS` 可在认证中间件前返回 `204`，并设置 `Access-Control-Allow-Origin`、`Access-Control-Allow-Credentials`、`Access-Control-Allow-Headers`、`Access-Control-Allow-Methods`、`Access-Control-Max-Age`、`Vary: Origin`。
 - Auth token：登录和刷新响应的 `tokens` 数据现在包含 `access_token`、`refresh_token`、`session_id`、过期时间；刷新接口在没有 Cookie 时可读取 JSON body 中的 `refresh_token`，用于 Flutter Web/桌面客户端无法读取 `HttpOnly Set-Cookie` 的场景，同时保留 Cookie 兼容 Nuxt Web。
-- SentimentFlow：代理路径会返回原始上游 JSON，不一定是 NekoTribe v2 envelope；Flutter `ApiClient` 现在会把无 `code/meta/message+data` 的 2xx Map 当作原始数据传给解码器，`V2SentimentPrediction` 同时兼容嵌套 `prediction` 与真实上游 `score/label/probabilities/model_name` 结构。
+- SentimentFlow：代理路径会返回原始上游 JSON，不一定是 NekoTribe v2 envelope；Flutter `ApiClient` 现在会把无 `code/meta/message+data` 的 2xx Map 当作原始数据传给解码器，`V2SentimentPrediction` 同时兼容嵌套 `prediction` 与真实上游 `score/label/probabilities/model_name` 结构；预测请求会和 Nuxt 一样把 `model_id` 归一化为 `model=bert/lstm` 传给上游，避免选择 BERT 时仍走关键词基线。
 - Posts viewer state：点赞与收藏接口返回的是局部 viewer 状态时，`PostCard` 只合并当前操作字段，避免收藏响应把已有点赞状态覆盖为 false。
 
 ### 2.2 路由和页面
@@ -61,12 +61,13 @@ Nuxt 全量 `yarn build` 已在 `NODE_OPTIONS=--max-old-space-size=4096` 下通�
 - Moderation 补齐 `/moderation/users` 和 `/moderation/appeals`；审核中心新增 Users 标签，可搜索、筛选、ban/unban/mute/unmute/note。
 - Public read-only 路由保持不强制跳登录；需要登录的公开页动作统一跳 `/auth/login` 并显示提示。
 - Profile 页补齐 direct-message 入口；Account 页补齐 profile edit 入口。
+- 桌面侧边栏“发布”入口改为进入 `/meow` 发帖页，不再误进 `/account/profile` 资料编辑页。
 - SentimentFlow：补齐 Flutter API 解析、模型/统计接口、独立页面、设置页模型与 Top-K 控制、发帖/卡片情感分析入口。
-- 首页帖子交互：收藏操作不会再取消当前点赞状态；相关回归测试覆盖已点赞帖子点击收藏后的 UI 与 `onChanged` 状态。
+- 首页帖子交互：收藏操作不会再取消当前点赞状态；卡片操作区补齐网页端可见转发/引用按钮和转发数；三点菜单固定在卡片右上角，不再随作者/正文长度漂移；相关回归测试覆盖已点赞帖子点击收藏后的 UI、`onChanged` 状态、转发提交和菜单定位。
 - 媒体与账号：补齐帖子/群帖媒体 lightbox；头像上传改为 `/api/v2/users/me/avatar` multipart `avatar` 字段。
 - 发帖/编辑：补齐网页端 composer/editor 的 280 字限制、`mentioned` 可见性、位置输入、正文 `#标签` 与手动标签合并去重，并在 create/update 时提交 `tag_names`。
 - 群组创建/管理：补齐网页端头像/封面上传、privacy/category/tags、入组审核、发帖权限、邀请次数/有效小时、pending 成员审批/拒绝、成员搜索、所有权转让、删除确认；头像/封面与元数据通过 widget 测试与真实 `edge` 账号 media/create/update/invite/delete smoke，成员管理通过 widget 合同测试覆盖。
-- 频道聊天：补齐网页端附件上传、回复预览与发送、消息编辑/删除、反应汇总点击取消/添加、置顶/取消置顶，并兼容后端/Nuxt 频道实时事件；通过 widget 测试覆盖 UI 行为，并用真实 `edge` 账号完成 media/reply/edit/reaction/pin/delete API smoke。
+- 频道聊天：补齐网页端附件上传、图片选择、表情、@ 提及、# 频道、贴纸/礼物工具入口、回复预览与发送、消息编辑/删除、反应汇总点击取消/添加、置顶/取消置顶，并兼容后端/Nuxt 频道实时事件；通过 widget 测试覆盖 UI 行为，并用真实 `edge` 账号完成 media/reply/edit/reaction/pin/delete API smoke。
 - 频道管理：补齐网页端频道分类输入、频道静音/取消静音、编辑、删除确认；频道选择器原地刷新操作结果，并用真实 `edge` 账号完成 create/update/mute/delete API smoke。
 - Web 显示：连接错误改为短文案，Web 使用系统中文字体 fallback；Feed 顶部标签在 390px 下完整显示。
 
@@ -100,8 +101,9 @@ Nuxt 全量 `yarn build` 已在 `NODE_OPTIONS=--max-old-space-size=4096` 下通�
 - Flutter 群组创建与管理已补齐网页端头像/封面媒体上传、基础元数据、邀请参数、pending 成员审批/拒绝、成员搜索、所有权转让和删除确认能力，并通过 widget 合同测试与真实 `edge` 账号 media/create/update/invite/delete smoke。
 - Flutter 频道聊天已补齐网页端附件、回复、编辑/删除、反应汇总、置顶和服务端实时事件同步能力，并通过 widget 测试与真实 `edge` 账号 API smoke。
 - Flutter 频道管理已补齐网页端创建分类、静音/取消静音、编辑和删除能力，并通过 widget 测试与真实 `edge` 账号 API smoke。
-- Flutter SentimentFlow 已修复原始代理响应解析，独立情感分析页和帖子 AI 情感分析入口可显示真实 label、confidence 与概率分布。
-- Flutter 首页帖子卡片已修复收藏/点赞状态串线，收藏不会清除当前点赞。
+- Flutter SentimentFlow 已修复原始代理响应解析，并按网页端规则透传 `model=bert/lstm`，独立情感分析页和帖子 AI 情感分析入口可显示真实 label、confidence 与概率分布。
+- Flutter 首页帖子卡片已修复收藏/点赞状态串线，收藏不会清除当前点赞；可见转发入口、转发数和右上角固定三点菜单已补齐。
+- Flutter 桌面侧边栏发布按钮已指向发帖页，群聊输入栏已补齐图片、表情、@、#、贴纸/礼物等网页端工具入口。
 - 本地 `30001` app 容器已包含本轮后端兼容改造，Flutter Web 跨源登录 smoke 已通过。
 - Nuxt 生产路由的主要 Flutter parity surface 已注册并具备页面入口。
 - 公开页未登录动作不会静默失败，会引导登录。
