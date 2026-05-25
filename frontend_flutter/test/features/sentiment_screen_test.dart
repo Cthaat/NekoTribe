@@ -7,6 +7,9 @@ import 'package:nekotribe/core/config/app_config.dart';
 import 'package:nekotribe/core/network/api_client.dart';
 import 'package:nekotribe/features/sentiment_flow/data/sentiment_flow_api.dart';
 import 'package:nekotribe/features/sentiment_flow/presentation/sentiment_screen.dart';
+import 'package:nekotribe/features/users/data/users_api.dart';
+import 'package:nekotribe/features/users/data/users_repository.dart';
+import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/i18n/app_localizations.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
@@ -22,6 +25,7 @@ void main() {
           appConfigBundleProvider.overrideWithValue(_testBundle),
           appConfigInitialProvider.overrideWithValue(_testConfig),
           sentimentFlowApiProvider.overrideWithValue(api),
+          usersRepositoryProvider.overrideWithValue(_FakeUsersRepository()),
         ],
         child: MaterialApp(
           locale: const Locale('zh'),
@@ -43,6 +47,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.predictedText, '432423');
+    expect(api.predictedModelId, 'bert-v1');
     expect(find.text('neutral'), findsWidgets);
     expect(find.textContaining('50.0%'), findsWidgets);
   });
@@ -53,6 +58,7 @@ class _FakeSentimentFlowApi extends SentimentFlowApi {
     : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
 
   String? predictedText;
+  String? predictedModelId;
 
   @override
   Future<V2SentimentFlowConfig> config() async => V2SentimentFlowConfig(
@@ -61,7 +67,7 @@ class _FakeSentimentFlowApi extends SentimentFlowApi {
     baseUrlConfigured: true,
     proxyBasePath: '/api/v2/integrations/sentiment-flow',
     defaultModel: '',
-    availableModels: const [],
+    availableModels: const ['bert-v1', 'lstm-v1'],
     timeoutMs: 10000,
   );
 
@@ -74,6 +80,7 @@ class _FakeSentimentFlowApi extends SentimentFlowApi {
     int? topK,
   }) async {
     predictedText = text;
+    predictedModelId = modelId;
     return V2SentimentPrediction.fromJson({
       'text': text,
       'score': 3,
@@ -86,6 +93,24 @@ class _FakeSentimentFlowApi extends SentimentFlowApi {
       'model_name': '关键词基线',
     });
   }
+}
+
+class _FakeUsersRepository extends UsersRepository {
+  _FakeUsersRepository()
+    : super(UsersApi(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore())));
+
+  @override
+  Future<V2UserSettings> getSettings() async => V2UserSettings(
+    userId: 1,
+    loginAlerts: true,
+    profileVisibility: 'public',
+    aiSentimentEnabled: true,
+    aiSentimentModelId: 'bert-v1',
+    aiSentimentReturnProbabilities: true,
+    aiSentimentIncludeMetadata: true,
+    aiSentimentTopK: 3,
+    updatedAt: '2026-05-24T00:00:00.000Z',
+  );
 }
 
 const _testConfig = AppConfig(
