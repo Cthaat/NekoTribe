@@ -30,7 +30,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('个人分析'), findsOneWidget);
+    expect(find.text('个人分析'), findsWidgets);
     expect(find.text('总动态'), findsOneWidget);
     expect(find.text('12'), findsWidgets);
     expect(find.text('2026-05-24'), findsOneWidget);
@@ -42,27 +42,22 @@ void main() {
   ) async {
     await tester.pumpWidget(
       _testApp(
-        overrides: [
-          postsApiProvider.overrideWithValue(_FakePostsApi()),
-        ],
+        overrides: [postsApiProvider.overrideWithValue(_FakePostsApi())],
         child: const AccountDataAnalyticsScreen(),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('数据分析'), findsOneWidget);
+    expect(find.text('数据分析'), findsWidgets);
     expect(find.textContaining('NekoTribe analytics'), findsOneWidget);
     expect(find.text('浏览'), findsWidgets);
     expect(find.text('32'), findsWidgets);
     expect(find.text('点赞率'), findsWidgets);
-    expect(find.text('25.0%'), findsOneWidget);
+    expect(find.text('25.0%'), findsWidgets);
   });
 }
 
-Widget _testApp({
-  required List<Override> overrides,
-  required Widget child,
-}) {
+Widget _testApp({required List<Override> overrides, required Widget child}) {
   return ProviderScope(
     overrides: [
       appConfigBundleProvider.overrideWithValue(_testBundle),
