@@ -7,7 +7,9 @@ import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../domain/group_draft_metadata.dart';
 import '../domain/group_models.dart';
+import 'group_image_upload.dart';
 
 class GroupsScreen extends ConsumerStatefulWidget {
   const GroupsScreen({super.key, this.initialTab = 0});
@@ -94,61 +96,295 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
     WidgetRef ref,
   ) async {
     final name = TextEditingController();
-    final slug = TextEditingController();
     final description = TextEditingController();
+    final tags = TextEditingController();
+    String? avatarUrl;
+    String? coverUrl;
+    var privacy = 'public';
+    var category = 'tech';
+    var uploadingAvatar = false;
+    var uploadingCover = false;
     final l10n = AppLocalizations.of(context);
-    final result = await showDialog<Map<String, String>>(
+
+    Future<void> pickImage({
+      required bool cover,
+      required void Function(void Function()) setDialogState,
+    }) async {
+      if (uploadingAvatar || uploadingCover) return;
+      setDialogState(() {
+        if (cover) {
+          uploadingCover = true;
+        } else {
+          uploadingAvatar = true;
+        }
+      });
+      try {
+        final url = await pickAndUploadGroupImage(
+          ref: ref,
+          altText: name.text.trim(),
+        );
+        if (url == null) return;
+        setDialogState(() {
+          if (cover) {
+            coverUrl = url;
+          } else {
+            avatarUrl = url;
+          }
+        });
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      } finally {
+        if (context.mounted) {
+          setDialogState(() {
+            if (cover) {
+              uploadingCover = false;
+            } else {
+              uploadingAvatar = false;
+            }
+          });
+        }
+      }
+    }
+
+    final result = await showDialog<_CreateGroupDraft>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(l10n.t('group.create_title')),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: name,
-                decoration: InputDecoration(labelText: l10n.t('group.name')),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: slug,
-                decoration: InputDecoration(labelText: l10n.t('group.slug')),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: description,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: l10n.t('group.description'),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(l10n.t('group.create_title')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    AppAvatar(url: avatarUrl, size: 64),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.t('group.avatar'),
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.t('group.avatar_hint'),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      key: const Key('group-create-avatar-button'),
+                      tooltip: l10n.t('group.upload_avatar'),
+                      onPressed: uploadingAvatar
+                          ? null
+                          : () => pickImage(
+                              cover: false,
+                              setDialogState: setDialogState,
+                            ),
+                      icon: uploadingAvatar
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.photo_camera_outlined),
+                    ),
+                    if (avatarUrl != null && avatarUrl!.isNotEmpty)
+                      IconButton(
+                        key: const Key('group-create-avatar-clear-button'),
+                        tooltip: l10n.t('common.cancel'),
+                        onPressed: uploadingAvatar
+                            ? null
+                            : () => setDialogState(() => avatarUrl = null),
+                        icon: const Icon(Icons.close),
+                      ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.t('group.cover'),
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        IconButton(
+                          key: const Key('group-create-cover-button'),
+                          tooltip: l10n.t('group.upload_cover'),
+                          onPressed: uploadingCover
+                              ? null
+                              : () => pickImage(
+                                  cover: true,
+                                  setDialogState: setDialogState,
+                                ),
+                          icon: uploadingCover
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.image_outlined),
+                        ),
+                        if (coverUrl != null && coverUrl!.isNotEmpty)
+                          IconButton(
+                            key: const Key('group-create-cover-clear-button'),
+                            tooltip: l10n.t('common.cancel'),
+                            onPressed: uploadingCover
+                                ? null
+                                : () => setDialogState(() => coverUrl = null),
+                            icon: const Icon(Icons.close),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: 108,
+                      child: coverUrl == null || coverUrl!.isEmpty
+                          ? DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest,
+                              ),
+                              child: Center(
+                                child: Text(l10n.t('group.cover_hint')),
+                              ),
+                            )
+                          : AppMediaImage(
+                              url: coverUrl!,
+                              height: 108,
+                              width: double.infinity,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('group-create-name-field'),
+                  controller: name,
+                  maxLength: 50,
+                  decoration: InputDecoration(labelText: l10n.t('group.name')),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('group-create-description-field'),
+                  controller: description,
+                  maxLines: 3,
+                  maxLength: 500,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('group.description'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  key: const Key('group-create-privacy-field'),
+                  initialValue: privacy,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('group.privacy'),
+                  ),
+                  items: groupPrivacyValues
+                      .map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(l10n.t('group.privacy.$value')),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setDialogState(() => privacy = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  key: const Key('group-create-category-field'),
+                  initialValue: category,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('group.category'),
+                  ),
+                  items: groupCategoryValues
+                      .map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(l10n.t('group.category.$value')),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setDialogState(() => category = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('group-create-tags-field'),
+                  controller: tags,
+                  maxLength: 160,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('group.tags'),
+                    hintText: l10n.t('group.tags_hint'),
+                  ),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(l10n.t('common.cancel')),
+            ),
+            FilledButton(
+              onPressed: () {
+                final groupName = name.text.trim();
+                final groupDescription = description.text.trim();
+                if (groupName.isEmpty || groupDescription.isEmpty) return;
+                Navigator.pop(
+                  context,
+                  _CreateGroupDraft(
+                    name: groupName,
+                    description: groupDescription,
+                    avatarUrl: avatarUrl,
+                    coverUrl: coverUrl,
+                    privacy: privacy,
+                    category: category,
+                    tags: groupDraftTags(tags.text),
+                  ),
+                );
+              },
+              child: Text(l10n.t('common.create')),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.t('common.cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, {
-              'name': name.text.trim(),
-              'slug': slug.text.trim(),
-              'description': description.text.trim(),
-            }),
-            child: Text(l10n.t('common.create')),
-          ),
-        ],
       ),
     );
-    name.dispose();
-    slug.dispose();
-    description.dispose();
-    if (result == null || result['name']!.isEmpty || result['slug']!.isEmpty) {
-      return;
-    }
+    if (result == null) return;
     try {
-      final group = await ref.read(groupsApiProvider).createGroup(result);
+      final group = await ref
+          .read(groupsApiProvider)
+          .createGroup(
+            name: result.name,
+            description: result.description,
+            avatarUrl: result.avatarUrl,
+            coverUrl: result.coverUrl,
+            privacy: result.privacy,
+            category: result.category,
+            tags: result.tags,
+            joinApproval: result.privacy != 'public',
+            postPermission: 'all',
+          );
       if (!context.mounted) return;
       context.push('/groups/${group.slug}');
     } catch (e) {
@@ -158,6 +394,26 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
+}
+
+class _CreateGroupDraft {
+  const _CreateGroupDraft({
+    required this.name,
+    required this.description,
+    this.avatarUrl,
+    this.coverUrl,
+    required this.privacy,
+    required this.category,
+    required this.tags,
+  });
+
+  final String name;
+  final String description;
+  final String? avatarUrl;
+  final String? coverUrl;
+  final String privacy;
+  final String category;
+  final List<String> tags;
 }
 
 class _GroupsTab {
