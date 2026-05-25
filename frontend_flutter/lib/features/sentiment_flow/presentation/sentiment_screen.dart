@@ -16,6 +16,7 @@ class SentimentScreen extends ConsumerStatefulWidget {
 
 class _SentimentScreenState extends ConsumerState<SentimentScreen> {
   final _textController = TextEditingController();
+  final _scrollController = ScrollController();
   V2SentimentFlowConfig? _config;
   V2SentimentPrediction? _prediction;
   bool _loadingConfig = true;
@@ -36,6 +37,7 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
   @override
   void dispose() {
     _textController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -121,6 +123,14 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
         _prediction = p;
         _predicting = false;
       });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+        );
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -149,6 +159,7 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
                   maxWidth: AppBreakpoints.contentMaxWidth,
                 ),
                 child: ListView(
+                  controller: _scrollController,
                   padding: const EdgeInsets.all(16),
                   children: [
                     Container(
