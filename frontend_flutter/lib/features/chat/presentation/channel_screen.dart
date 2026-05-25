@@ -218,12 +218,16 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     }
   }
 
-  Future<void> _pickAttachment() async {
+  Future<void> _pickAttachment({
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+  }) async {
     if (_pickingAttachment || _sending) return;
     setState(() => _pickingAttachment = true);
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
+        type: type,
+        allowedExtensions: allowedExtensions,
         allowMultiple: true,
         withData: true,
       );
@@ -237,6 +241,19 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     } finally {
       if (mounted) setState(() => _pickingAttachment = false);
     }
+  }
+
+  void _insertComposerText(String text) {
+    final selection = _composer.selection;
+    final current = _composer.text;
+    final start = selection.isValid ? selection.start : current.length;
+    final end = selection.isValid ? selection.end : current.length;
+    final updated = current.replaceRange(start, end, text);
+    final offset = start + text.length;
+    _composer.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: offset),
+    );
   }
 
   Future<List<int>> _uploadAttachments() async {
@@ -504,8 +521,54 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                                     )
                                   : const Icon(Icons.attach_file),
                             ),
+                            IconButton(
+                              key: const Key('chat-channel-image-button'),
+                              tooltip: l10n.t('compose.media'),
+                              onPressed: _pickingAttachment || _sending
+                                  ? null
+                                  : () => _pickAttachment(type: FileType.image),
+                              icon: const Icon(Icons.image_outlined),
+                            ),
+                            PopupMenuButton<String>(
+                              key: const Key('chat-channel-emoji-button'),
+                              tooltip: 'Emoji',
+                              onSelected: _insertComposerText,
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(value: '😀', child: Text('😀')),
+                                PopupMenuItem(value: '😂', child: Text('😂')),
+                                PopupMenuItem(value: '❤️', child: Text('❤️')),
+                                PopupMenuItem(value: '👍', child: Text('👍')),
+                                PopupMenuItem(value: '✨', child: Text('✨')),
+                              ],
+                              icon: const Icon(Icons.emoji_emotions_outlined),
+                            ),
+                            IconButton(
+                              key: const Key('chat-channel-mention-button'),
+                              tooltip: '@',
+                              onPressed: _sending
+                                  ? null
+                                  : () => _insertComposerText('@'),
+                              icon: const Icon(Icons.alternate_email),
+                            ),
+                            IconButton(
+                              key: const Key('chat-channel-channel-button'),
+                              tooltip: '#',
+                              onPressed: _sending
+                                  ? null
+                                  : () => _insertComposerText('#'),
+                              icon: const Icon(Icons.tag),
+                            ),
+                            IconButton(
+                              key: const Key('chat-channel-sticker-button'),
+                              tooltip: 'Sticker',
+                              onPressed: _sending
+                                  ? null
+                                  : () => _insertComposerText('🎁 '),
+                              icon: const Icon(Icons.card_giftcard_outlined),
+                            ),
                             Expanded(
                               child: TextField(
+                                key: const Key('chat-channel-composer-field'),
                                 controller: _composer,
                                 minLines: 1,
                                 maxLines: 5,
