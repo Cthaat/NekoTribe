@@ -5,6 +5,7 @@ import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../domain/post_draft_metadata.dart';
 import '../domain/post_models.dart';
 
 class EditPostScreen extends ConsumerStatefulWidget {
@@ -18,6 +19,8 @@ class EditPostScreen extends ConsumerStatefulWidget {
 
 class _EditPostScreenState extends ConsumerState<EditPostScreen> {
   final _controller = TextEditingController();
+  final _locationController = TextEditingController();
+  final _tagController = TextEditingController();
   V2Post? _post;
   String _visibility = 'public';
   bool _loading = true;
@@ -33,6 +36,8 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _locationController.dispose();
+    _tagController.dispose();
     super.dispose();
   }
 
@@ -47,6 +52,8 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
       setState(() {
         _post = post;
         _controller.text = post.content;
+        _locationController.text = post.location;
+        _tagController.text = post.tags.join(', ');
         _visibility = post.visibility;
         _loading = false;
       });
@@ -69,6 +76,11 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
             postId: widget.postId,
             content: _controller.text.trim(),
             visibility: _visibility,
+            location: _locationController.text.trim(),
+            tags: draftTagNames(
+              content: _controller.text,
+              tags: _tagController.text,
+            ),
           );
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -120,16 +132,42 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       TextField(
+                        key: const Key('edit-post-content-field'),
                         controller: _controller,
                         minLines: 5,
                         maxLines: 12,
-                        maxLength: 2000,
+                        maxLength: 280,
                         decoration: InputDecoration(
                           labelText: l10n.t('post.content'),
                         ),
                       ),
                       const SizedBox(height: 12),
+                      TextField(
+                        key: const Key('edit-post-location-field'),
+                        controller: _locationController,
+                        maxLength: 60,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: l10n.t('compose.location'),
+                          hintText: l10n.t('compose.location_hint'),
+                          prefixIcon: const Icon(Icons.location_on_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        key: const Key('edit-post-tags-field'),
+                        controller: _tagController,
+                        maxLength: 120,
+                        textInputAction: TextInputAction.done,
+                        decoration: InputDecoration(
+                          labelText: l10n.t('compose.tags'),
+                          hintText: l10n.t('compose.tags_hint'),
+                          prefixIcon: const Icon(Icons.tag_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
+                        key: const Key('edit-post-visibility-field'),
                         initialValue: _visibility,
                         decoration: InputDecoration(
                           labelText: l10n.t('post.visibility'),
@@ -145,6 +183,10 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
                           DropdownMenuItem(
                             value: 'followers',
                             child: Text(l10n.t('common.followers_only')),
+                          ),
+                          DropdownMenuItem(
+                            value: 'mentioned',
+                            child: Text(l10n.t('common.mentioned_only')),
                           ),
                           DropdownMenuItem(
                             value: 'private',
