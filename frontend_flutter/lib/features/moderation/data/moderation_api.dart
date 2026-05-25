@@ -36,12 +36,12 @@ class ModerationApi {
   }
 
   Future<void> resolveContent({
-    required int caseId,
+    required int postId,
     required String action,
     String? note,
   }) async {
     await _client.request<void>(
-      '${ApiPaths.moderationContent}/$caseId/actions',
+      '${ApiPaths.moderationContent}/$postId/actions',
       method: 'POST',
       data: {'action': action, if (note != null) 'note': note},
       decode: (_) {},
