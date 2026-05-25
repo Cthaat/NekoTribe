@@ -386,6 +386,26 @@ void main() {
         body: {'is_pinned': true},
       );
     });
+
+    test('channel management endpoints match current server API', () async {
+      final recorder = _ApiRecorder();
+      final api = ChatApi(_client(recorder));
+
+      await api.updateChannel(
+        channelId: 12,
+        name: 'team-room',
+        category: 'Ops',
+        isPrivate: true,
+      );
+      recorder.expectLast(
+        method: 'PATCH',
+        path: '/api/v2/chat/channels/12',
+        body: {'name': 'team-room', 'category': 'Ops', 'is_private': true},
+      );
+
+      await api.deleteChannel(12);
+      recorder.expectLast(method: 'DELETE', path: '/api/v2/chat/channels/12');
+    });
   });
 
   group('ModerationApi v2 contract', () {
