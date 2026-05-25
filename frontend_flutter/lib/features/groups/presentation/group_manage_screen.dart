@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../domain/group_draft_metadata.dart';
 import '../domain/group_models.dart';
+import 'group_image_upload.dart';
 
 class GroupManageScreen extends ConsumerStatefulWidget {
   const GroupManageScreen({super.key, required this.slug});
@@ -20,17 +23,32 @@ class GroupManageScreen extends ConsumerStatefulWidget {
 class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   final _name = TextEditingController();
   final _description = TextEditingController();
+  final _tags = TextEditingController();
+  final _inviteMaxUses = TextEditingController(text: '100');
+  final _inviteExpireHours = TextEditingController(text: '168');
+  final _deleteConfirm = TextEditingController();
+  final _memberSearch = TextEditingController();
   V2Group? _group;
   V2GroupNotificationPreference? _notificationPreference;
   List<V2GroupMember> _members = [];
+  String? _avatarUrl;
+  String? _coverUrl;
+  String _privacy = 'public';
+  String _category = 'tech';
+  String _postPermission = 'all';
+  bool _joinApproval = false;
   bool _loading = true;
   bool _saving = false;
+  bool _deleting = false;
+  bool _uploadingAvatar = false;
+  bool _uploadingCover = false;
   bool _notificationSaving = false;
   Object? _error;
 
   @override
   void initState() {
     super.initState();
+    _memberSearch.addListener(_refreshMemberSearch);
     _load();
   }
 
@@ -38,7 +56,36 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   void dispose() {
     _name.dispose();
     _description.dispose();
+    _tags.dispose();
+    _inviteMaxUses.dispose();
+    _inviteExpireHours.dispose();
+    _deleteConfirm.dispose();
+    _memberSearch.removeListener(_refreshMemberSearch);
+    _memberSearch.dispose();
     super.dispose();
+  }
+
+  void _refreshMemberSearch() {
+    if (mounted) setState(() {});
+  }
+
+  List<V2GroupMember> get _pendingMembers {
+    return _members.where((member) => member.status == 'pending').toList();
+  }
+
+  List<V2GroupMember> get _managedMembers {
+    final query = _memberSearch.text.trim().toLowerCase();
+    final activeMembers = _members
+        .where((member) => member.status != 'pending')
+        .toList();
+    if (query.isEmpty) return activeMembers;
+    return activeMembers.where((member) {
+      final displayName = member.user.displayName.isEmpty
+          ? member.user.username
+          : member.user.displayName;
+      return displayName.toLowerCase().contains(query) ||
+          member.user.username.toLowerCase().contains(query);
+    }).toList();
   }
 
   Future<void> _load() async {
@@ -55,12 +102,30 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
         preference = await api.getNotificationPreference(group.groupId);
       } catch (_) {}
       if (!mounted) return;
+      _memberSearch.clear();
       setState(() {
         _group = group;
         _notificationPreference = preference;
         _members = members.items;
         _name.text = group.name;
         _description.text = group.description;
+        _tags.text = group.tags.join(', ');
+        _avatarUrl = group.avatarUrl ?? '';
+        _coverUrl = group.coverUrl ?? '';
+        _privacy = groupPrivacyValues.contains(group.privacy)
+            ? group.privacy
+            : 'public';
+        _category =
+            group.category != null &&
+                groupCategoryValues.contains(group.category)
+            ? group.category!
+            : 'tech';
+        _postPermission =
+            groupPostPermissionValues.contains(group.postPermission)
+            ? group.postPermission
+            : 'all';
+        _joinApproval = group.joinApproval;
+        _deleteConfirm.clear();
         _loading = false;
       });
     } catch (e) {
@@ -76,13 +141,26 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
     if (_group == null || _saving) return;
     setState(() => _saving = true);
     try {
-      final next = await ref.read(groupsApiProvider).updateGroup(
-        _group!.groupId,
-        {'name': _name.text.trim(), 'description': _description.text.trim()},
-      );
+      final next = await ref
+          .read(groupsApiProvider)
+          .updateGroup(
+            groupId: _group!.groupId,
+            name: _name.text.trim(),
+            description: _description.text.trim(),
+            avatarUrl: _avatarUrl ?? '',
+            coverUrl: _coverUrl ?? '',
+            privacy: _privacy,
+            category: _category,
+            tags: groupDraftTags(_tags.text),
+            joinApproval: _joinApproval,
+            postPermission: _postPermission,
+          );
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
-      setState(() => _group = next);
+      setState(() {
+        _group = next;
+        _tags.text = next.tags.join(', ');
+      });
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('group.updated'))));
@@ -118,6 +196,46 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
     }
   }
 
+  Future<void> _pickGroupImage({required bool cover}) async {
+    if (_uploadingAvatar || _uploadingCover) return;
+    setState(() {
+      if (cover) {
+        _uploadingCover = true;
+      } else {
+        _uploadingAvatar = true;
+      }
+    });
+    try {
+      final url = await pickAndUploadGroupImage(
+        ref: ref,
+        altText: _name.text.trim(),
+      );
+      if (!mounted || url == null) return;
+      setState(() {
+        if (cover) {
+          _coverUrl = url;
+        } else {
+          _avatarUrl = url;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (mounted) {
+        setState(() {
+          if (cover) {
+            _uploadingCover = false;
+          } else {
+            _uploadingAvatar = false;
+          }
+        });
+      }
+    }
+  }
+
   Future<void> _changeMemberRole(V2GroupMember member, String role) async {
     if (_group == null) return;
     try {
@@ -134,6 +252,59 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('group.member_updated'))));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
+  }
+
+  Future<void> _approveMember(V2GroupMember member, bool approved) async {
+    if (_group == null) return;
+    try {
+      await ref
+          .read(groupsApiProvider)
+          .approveMember(
+            groupId: _group!.groupId,
+            memberId: member.memberId,
+            approved: approved,
+          );
+      await _load();
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            approved
+                ? l10n.t('group.member_approved')
+                : l10n.t('group.member_rejected'),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
+  }
+
+  Future<void> _transferOwnership(V2GroupMember member) async {
+    if (_group == null) return;
+    try {
+      await ref
+          .read(groupsApiProvider)
+          .transferOwnership(
+            groupId: _group!.groupId,
+            newOwnerId: member.user.userId,
+          );
+      await _load();
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.t('group.ownership_transferred'))),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -199,7 +370,10 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   Future<void> _createInvite() async {
     if (_group == null) return;
     try {
-      await ref.read(groupsApiProvider).createInvite(_group!.groupId, {});
+      await ref.read(groupsApiProvider).createInvite(_group!.groupId, {
+        'max_uses': _positiveInt(_inviteMaxUses.text, fallback: 100),
+        'expire_hours': _positiveInt(_inviteExpireHours.text, fallback: 168),
+      });
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
@@ -213,10 +387,33 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
     }
   }
 
+  Future<void> _deleteGroup() async {
+    final group = _group;
+    if (group == null || _deleting || _deleteConfirm.text != group.name) {
+      return;
+    }
+    setState(() => _deleting = true);
+    try {
+      await ref.read(groupsApiProvider).deleteGroup(group.groupId);
+      if (!mounted) return;
+      context.go('/groups');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final pendingMembers = _pendingMembers;
+    final managedMembers = _managedMembers;
+    final isOwner = _group?.membership.role == 'owner';
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('group.manage'))),
       body: _loading
@@ -232,20 +429,221 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        AppAvatar(url: _avatarUrl, size: 72),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.t('group.avatar'),
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.t('group.avatar_hint'),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton.filledTonal(
+                          key: const Key('group-manage-avatar-button'),
+                          tooltip: l10n.t('group.upload_avatar'),
+                          onPressed: _uploadingAvatar
+                              ? null
+                              : () => _pickGroupImage(cover: false),
+                          icon: _uploadingAvatar
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.photo_camera_outlined),
+                        ),
+                        if (_avatarUrl != null && _avatarUrl!.isNotEmpty)
+                          IconButton(
+                            key: const Key('group-manage-avatar-clear-button'),
+                            tooltip: l10n.t('common.cancel'),
+                            onPressed: _uploadingAvatar
+                                ? null
+                                : () => setState(() => _avatarUrl = ''),
+                            icon: const Icon(Icons.close),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.t('group.cover'),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        IconButton.filledTonal(
+                          key: const Key('group-manage-cover-button'),
+                          tooltip: l10n.t('group.upload_cover'),
+                          onPressed: _uploadingCover
+                              ? null
+                              : () => _pickGroupImage(cover: true),
+                          icon: _uploadingCover
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.image_outlined),
+                        ),
+                        if (_coverUrl != null && _coverUrl!.isNotEmpty)
+                          IconButton(
+                            key: const Key('group-manage-cover-clear-button'),
+                            tooltip: l10n.t('common.cancel'),
+                            onPressed: _uploadingCover
+                                ? null
+                                : () => setState(() => _coverUrl = ''),
+                            icon: const Icon(Icons.close),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 132,
+                      child: _coverUrl == null || _coverUrl!.isEmpty
+                          ? DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                color:
+                                    theme.colorScheme.surfaceContainerHighest,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  l10n.t('group.cover_hint'),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : AppMediaImage(
+                              url: _coverUrl!,
+                              height: 132,
+                              width: double.infinity,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                    ),
+                    const SizedBox(height: 16),
                     TextField(
+                      key: const Key('group-manage-name-field'),
                       controller: _name,
+                      maxLength: 50,
                       decoration: InputDecoration(
                         labelText: l10n.t('group.name'),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
+                      key: const Key('group-manage-description-field'),
                       controller: _description,
                       minLines: 3,
                       maxLines: 6,
+                      maxLength: 500,
                       decoration: InputDecoration(
                         labelText: l10n.t('group.description'),
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      key: const Key('group-manage-privacy-field'),
+                      initialValue: _privacy,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('group.privacy'),
+                      ),
+                      items: groupPrivacyValues
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(l10n.t('group.privacy.$value')),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _privacy = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      key: const Key('group-manage-category-field'),
+                      initialValue: _category,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('group.category'),
+                      ),
+                      items: groupCategoryValues
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(l10n.t('group.category.$value')),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _category = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      key: const Key('group-manage-tags-field'),
+                      controller: _tags,
+                      maxLength: 160,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('group.tags'),
+                        hintText: l10n.t('group.tags_hint'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      key: const Key('group-manage-join-approval-switch'),
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(l10n.t('group.join_approval')),
+                      subtitle: Text(l10n.t('group.join_approval_hint')),
+                      value: _joinApproval,
+                      onChanged: (value) =>
+                          setState(() => _joinApproval = value),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      key: const Key('group-manage-post-permission-field'),
+                      initialValue: _postPermission,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('group.post_permission'),
+                      ),
+                      items: groupPostPermissionValues
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(
+                                l10n.t('group.post_permission.$value'),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _postPermission = value);
+                      },
                     ),
                     if (_notificationPreference != null) ...[
                       const SizedBox(height: 12),
@@ -259,6 +657,36 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                             : (value) => _setNotifications(value),
                       ),
                     ],
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            key: const Key(
+                              'group-manage-invite-max-uses-field',
+                            ),
+                            controller: _inviteMaxUses,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: l10n.t('group.invite_max_uses'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            key: const Key(
+                              'group-manage-invite-expire-hours-field',
+                            ),
+                            controller: _inviteExpireHours,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: l10n.t('group.invite_expire_hours'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 14),
                     Row(
                       children: [
@@ -289,9 +717,94 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                     ),
                     const SizedBox(height: 24),
                     Text(
+                      l10n.t('group.danger_title'),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.error,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      key: const Key('group-manage-delete-confirm-field'),
+                      controller: _deleteConfirm,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('group.delete_confirm'),
+                        hintText: _group?.name ?? '',
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      key: const Key('group-manage-delete-button'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: theme.colorScheme.error,
+                        foregroundColor: theme.colorScheme.onError,
+                      ),
+                      onPressed:
+                          _deleting ||
+                              _group == null ||
+                              _deleteConfirm.text != _group!.name
+                          ? null
+                          : _deleteGroup,
+                      icon: _deleting
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.delete_outline),
+                      label: Text(l10n.t('group.delete')),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
                       l10n.t('group.members_title'),
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (pendingMembers.isNotEmpty) ...[
+                      Text(
+                        l10n.t('group.pending_members'),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: theme.cardTheme.color,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: theme.dividerColor),
+                        ),
+                        child: Column(
+                          children: [
+                            for (var i = 0; i < pendingMembers.length; i++) ...[
+                              if (i > 0)
+                                Divider(
+                                  height: 1,
+                                  indent: 60,
+                                  color: theme.dividerColor,
+                                ),
+                              _PendingMemberRow(
+                                member: pendingMembers[i],
+                                onApprove: () =>
+                                    _approveMember(pendingMembers[i], true),
+                                onReject: () =>
+                                    _approveMember(pendingMembers[i], false),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    TextField(
+                      key: const Key('group-member-search-field'),
+                      controller: _memberSearch,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('group.member_search'),
+                        prefixIcon: const Icon(Icons.search),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -303,7 +816,7 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                       ),
                       child: Column(
                         children: [
-                          for (var i = 0; i < _members.length; i++) ...[
+                          for (var i = 0; i < managedMembers.length; i++) ...[
                             if (i > 0)
                               Divider(
                                 height: 1,
@@ -311,14 +824,23 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                                 color: theme.dividerColor,
                               ),
                             _MemberRow(
-                              member: _members[i],
+                              member: managedMembers[i],
                               onRoleSelected: (role) =>
-                                  _changeMemberRole(_members[i], role),
-                              onMute: () => _muteMember(_members[i]),
-                              onUnmute: () => _unmuteMember(_members[i]),
-                              onRemove: () => _removeMember(_members[i]),
+                                  _changeMemberRole(managedMembers[i], role),
+                              onMute: () => _muteMember(managedMembers[i]),
+                              onUnmute: () => _unmuteMember(managedMembers[i]),
+                              onRemove: () => _removeMember(managedMembers[i]),
+                              canTransferOwnership:
+                                  isOwner && managedMembers[i].role != 'owner',
+                              onTransferOwnership: () =>
+                                  _transferOwnership(managedMembers[i]),
                             ),
                           ],
+                          if (managedMembers.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Text(l10n.t('group.empty_members')),
+                            ),
                         ],
                       ),
                     ),
@@ -330,6 +852,77 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   }
 }
 
+int _positiveInt(String value, {required int fallback}) {
+  final parsed = int.tryParse(value.trim());
+  if (parsed == null || parsed < 1) return fallback;
+  return parsed;
+}
+
+class _PendingMemberRow extends StatelessWidget {
+  const _PendingMemberRow({
+    required this.member,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  final V2GroupMember member;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final displayName = member.user.displayName.isEmpty
+        ? member.user.username
+        : member.user.displayName;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        children: [
+          AppAvatar(url: member.user.avatarUrl, size: 36),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '@${member.user.username}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            key: Key('group-member-reject-${member.memberId}'),
+            tooltip: l10n.t('group.reject_member'),
+            onPressed: onReject,
+            icon: Icon(Icons.close, color: theme.colorScheme.error),
+          ),
+          IconButton(
+            key: Key('group-member-approve-${member.memberId}'),
+            tooltip: l10n.t('group.approve_member'),
+            onPressed: onApprove,
+            icon: Icon(Icons.check, color: theme.colorScheme.primary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MemberRow extends StatelessWidget {
   const _MemberRow({
     required this.member,
@@ -337,12 +930,16 @@ class _MemberRow extends StatelessWidget {
     required this.onMute,
     required this.onUnmute,
     required this.onRemove,
+    required this.canTransferOwnership,
+    required this.onTransferOwnership,
   });
   final V2GroupMember member;
   final ValueChanged<String> onRoleSelected;
   final VoidCallback onMute;
   final VoidCallback onUnmute;
   final VoidCallback onRemove;
+  final bool canTransferOwnership;
+  final VoidCallback onTransferOwnership;
 
   @override
   Widget build(BuildContext context) {
@@ -380,6 +977,7 @@ class _MemberRow extends StatelessWidget {
           ),
           _RoleChip(role: member.role),
           PopupMenuButton<String>(
+            key: Key('group-member-menu-${member.user.userId}'),
             icon: const Icon(Icons.more_horiz),
             onSelected: (value) {
               switch (value) {
@@ -400,6 +998,9 @@ class _MemberRow extends StatelessWidget {
                   break;
                 case 'remove':
                   onRemove();
+                  break;
+                case 'transfer':
+                  onTransferOwnership();
                   break;
               }
             },
@@ -430,6 +1031,12 @@ class _MemberRow extends StatelessWidget {
                   value: 'remove',
                   child: Text(l10n.t('group.remove_member')),
                 ),
+                if (canTransferOwnership)
+                  PopupMenuItem(
+                    key: Key('group-member-transfer-${member.user.userId}'),
+                    value: 'transfer',
+                    child: Text(l10n.t('group.transfer_ownership')),
+                  ),
               ];
             },
           ),
