@@ -38,6 +38,10 @@ import {
   v2Unprocessable,
   v2UserAgent
 } from '~/server/utils/v2';
+import {
+  buildV2TokenData,
+  resolveV2RefreshToken
+} from '~/server/utils/auth-token-response';
 import { v2RequireSelfUser } from '~/server/models/v2';
 import { v2CreateNotification } from './notifications';
 
@@ -1228,11 +1232,13 @@ async function v2IssueLoginSession(
   return {
     two_factor_required: false,
     user: await v2RequireSelfUser(connection, userId),
-    tokens: {
-      session_id: sessionId,
-      access_token_expires_at: accessExpiresAt.toISOString(),
-      refresh_token_expires_at: refreshExpiresAt.toISOString()
-    }
+    tokens: buildV2TokenData({
+      sessionId,
+      accessToken,
+      refreshToken,
+      accessExpiresAt,
+      refreshExpiresAt
+    })
   };
 }
 
@@ -1756,7 +1762,14 @@ export async function v2RefreshCurrentToken(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2Response<V2TokenData>> {
-  const refreshToken = getCookie(event, 'refresh_token');
+  const refreshCookie = getCookie(event, 'refresh_token');
+  const refreshBody = refreshCookie
+    ? {}
+    : await v2Body(event).catch(() => ({}));
+  const refreshToken = resolveV2RefreshToken(
+    refreshCookie,
+    refreshBody
+  );
   if (!refreshToken) v2Unauthorized();
   const payload = v2VerifyRefreshToken(refreshToken);
   if (!payload?.sessionId) v2Unauthorized();
@@ -1821,11 +1834,15 @@ export async function v2RefreshCurrentToken(
 
   v2SetAuthCookies(event, newAccessToken, newRefreshToken);
 
-  return v2Ok({
-    session_id: payload.sessionId,
-    access_token_expires_at: accessExpiresAt.toISOString(),
-    refresh_token_expires_at: refreshExpiresAt.toISOString()
-  });
+  return v2Ok(
+    buildV2TokenData({
+      sessionId: payload.sessionId,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      accessExpiresAt,
+      refreshExpiresAt
+    })
+  );
 }
 
 export async function v2LogoutCurrent(
