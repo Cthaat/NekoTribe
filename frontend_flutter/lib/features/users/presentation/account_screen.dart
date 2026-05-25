@@ -275,14 +275,8 @@ class _AccountHeader extends StatelessWidget {
                 label: l10n.t('profile.following'),
                 value: user.followingCount,
               ),
-              _Stat(
-                label: l10n.t('profile.posts'),
-                value: user.postsCount,
-              ),
-              _Stat(
-                label: l10n.t('profile.likes'),
-                value: user.likesCount,
-              ),
+              _Stat(label: l10n.t('profile.posts'), value: user.postsCount),
+              _Stat(label: l10n.t('profile.likes'), value: user.likesCount),
             ],
           ),
         ],
