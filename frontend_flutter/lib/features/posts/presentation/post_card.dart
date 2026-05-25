@@ -64,7 +64,9 @@ class _PostCardState extends ConsumerState<PostCard> {
           : await api.likePost(_post.postId);
       if (!mounted) return;
       setState(() {
-        _post = _post.copyWith(viewerState: newState);
+        _post = _post.copyWith(
+          viewerState: _post.viewerState.copyWith(isLiked: newState.isLiked),
+        );
       });
       widget.onChanged?.call(_post);
     } catch (_) {
@@ -96,7 +98,13 @@ class _PostCardState extends ConsumerState<PostCard> {
           ? await api.unbookmarkPost(_post.postId)
           : await api.bookmarkPost(_post.postId);
       if (!mounted) return;
-      setState(() => _post = _post.copyWith(viewerState: newState));
+      setState(
+        () => _post = _post.copyWith(
+          viewerState: _post.viewerState.copyWith(
+            isBookmarked: newState.isBookmarked,
+          ),
+        ),
+      );
       widget.onChanged?.call(_post);
     } catch (_) {
       if (!mounted) return;
@@ -349,7 +357,9 @@ class _PostCardState extends ConsumerState<PostCard> {
                             ),
                             PopupMenuItem(
                               value: 'not_interested',
-                              child: Text(l10n.t('post.feedback.not_interested')),
+                              child: Text(
+                                l10n.t('post.feedback.not_interested'),
+                              ),
                             ),
                             PopupMenuItem(
                               value: 'show_less',
@@ -512,8 +522,9 @@ class _ActionButton extends StatelessWidget {
     final color = active
         ? (activeColor ?? theme.colorScheme.primary)
         : theme.colorScheme.onSurfaceVariant;
-    final hoverColor = (activeColor ?? theme.colorScheme.primary)
-        .withValues(alpha: 0.08);
+    final hoverColor = (activeColor ?? theme.colorScheme.primary).withValues(
+      alpha: 0.08,
+    );
     return InkWell(
       borderRadius: BorderRadius.circular(999),
       hoverColor: hoverColor,
