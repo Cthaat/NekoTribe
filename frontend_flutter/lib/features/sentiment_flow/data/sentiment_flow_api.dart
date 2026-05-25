@@ -27,7 +27,8 @@ class V2SentimentFlowConfig {
       enabled: toBool(json['enabled']),
       baseUrl: baseUrl,
       baseUrlConfigured:
-          json['baseUrlConfigured'] == null && json['base_url_configured'] == null
+          json['baseUrlConfigured'] == null &&
+              json['base_url_configured'] == null
           ? baseUrl.isNotEmpty
           : toBool(json['baseUrlConfigured'] ?? json['base_url_configured']),
       proxyBasePath: toStr(
@@ -92,6 +93,7 @@ class V2SentimentPrediction {
   final Map<String, dynamic>? metadata;
 
   factory V2SentimentPrediction.fromJson(Map<String, dynamic> json) {
+    final rawPrediction = json['prediction'];
     final prediction = json['prediction'] is Map<String, dynamic>
         ? json['prediction'] as Map<String, dynamic>
         : json;
@@ -101,36 +103,147 @@ class V2SentimentPrediction {
     final input = json['input'] is Map<String, dynamic>
         ? json['input'] as Map<String, dynamic>
         : const <String, dynamic>{};
+    final probabilities = _probabilitiesFromJson(
+      prediction['probabilities'] ?? json['probabilities'],
+    );
+    final rawScore = toDouble(prediction['score'] ?? json['score']);
+    final label = _labelFromJson(
+      prediction: prediction,
+      rawPrediction: rawPrediction,
+      rawScore: rawScore,
+    );
     final confidence =
-        toDouble(prediction['confidence']) ?? toDouble(prediction['score']) ?? 0;
+        toDouble(prediction['confidence'] ?? json['confidence']) ??
+        (label.isEmpty ? null : probabilities?[label]) ??
+        rawScore?.clamp(0, 1).toDouble() ??
+        0;
+    final score =
+        _scoreFromJson(
+          label: label,
+          rawScore: rawScore,
+          probabilities: probabilities,
+        ) ??
+        confidence;
     return V2SentimentPrediction(
-      label: toStr(prediction['label']),
-      score: toDouble(prediction['score']) ?? confidence,
+      label: label,
+      score: score,
       confidence: confidence,
       requestId: toStrOrNull(json['request_id'] ?? json['requestId']),
-      modelId: toStrOrNull(model['id'] ?? model['model_id']),
-      modelName: toStrOrNull(model['name']),
+      modelId: toStrOrNull(
+        model['id'] ??
+            model['model_id'] ??
+            json['model_id'] ??
+            json['modelName'],
+      ),
+      modelName: toStrOrNull(
+        model['name'] ?? json['model_name'] ?? json['modelName'],
+      ),
       modelVersion: toStrOrNull(model['version']),
       inputLanguage: toStrOrNull(input['language']),
-      inputLength: toInt(input['length']),
+      inputLength: toInt(input['length']) ?? toStrOrNull(json['text'])?.length,
       timingMs: toInt(json['timing_ms'] ?? json['timingMs']),
       createdAt: toStrOrNull(json['created_at'] ?? json['createdAt']),
-      probabilities: _probabilitiesFromJson(prediction['probabilities']),
-      topK: toList(
-        prediction['top_k'] ?? prediction['topK'],
-        (e) => V2SentimentTopKItem.fromJson(toMap(e)),
+      probabilities: probabilities,
+      topK: _topKFromJson(
+        prediction['top_k'] ??
+            prediction['topK'] ??
+            json['top_k'] ??
+            json['topK'],
+        probabilities,
       ),
-      metadata: json['metadata'] is Map<String, dynamic>
-          ? json['metadata'] as Map<String, dynamic>
-          : null,
+      metadata: _metadataFromJson(json),
     );
   }
 
   static Map<String, double>? _probabilitiesFromJson(Object? value) {
+    if (value is List) {
+      return {
+        for (var i = 0; i < value.length; i++)
+          _scoreLabel(i): toDouble(value[i]) ?? 0,
+      };
+    }
     if (value is! Map) return null;
     return value.map(
       (key, item) => MapEntry(key.toString(), toDouble(item) ?? 0),
     );
+  }
+
+  static String _labelFromJson({
+    required Map<String, dynamic> prediction,
+    required Object? rawPrediction,
+    required double? rawScore,
+  }) {
+    final explicit = toStr(
+      prediction['label'] ?? prediction['sentiment'] ?? prediction['class'],
+    );
+    if (explicit.isNotEmpty) return explicit;
+    final rawLabel = toStr(rawPrediction);
+    if (rawLabel.isNotEmpty && double.tryParse(rawLabel) == null) {
+      return rawLabel;
+    }
+    return _scoreLabel(toDouble(rawPrediction) ?? rawScore);
+  }
+
+  static double? _scoreFromJson({
+    required String label,
+    required double? rawScore,
+    required Map<String, double>? probabilities,
+  }) {
+    if (rawScore != null && rawScore >= 0 && rawScore <= 1) return rawScore;
+    if (label.isNotEmpty &&
+        probabilities != null &&
+        probabilities.containsKey(label)) {
+      return probabilities[label];
+    }
+    if (rawScore == null) return null;
+    return null;
+  }
+
+  static List<V2SentimentTopKItem>? _topKFromJson(
+    Object? value,
+    Map<String, double>? probabilities,
+  ) {
+    final explicit = toList(
+      value,
+      (e) => V2SentimentTopKItem.fromJson(toMap(e)),
+    ).where((item) => item.label.isNotEmpty).toList(growable: false);
+    if (explicit.isNotEmpty) return explicit;
+    if (probabilities == null || probabilities.isEmpty) return null;
+    final entries = probabilities.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return entries
+        .map((e) => V2SentimentTopKItem(label: e.key, score: e.value))
+        .toList(growable: false);
+  }
+
+  static Map<String, dynamic>? _metadataFromJson(Map<String, dynamic> json) {
+    if (json['metadata'] is Map<String, dynamic>) {
+      return json['metadata'] as Map<String, dynamic>;
+    }
+    final metadata = <String, dynamic>{};
+    for (final key in ['label_zh', 'reasoning', 'source']) {
+      if (json[key] != null) metadata[key] = json[key];
+    }
+    return metadata.isEmpty ? null : metadata;
+  }
+
+  static String _scoreLabel(num? score) {
+    const labels = [
+      'extremely_negative',
+      'clearly_negative',
+      'slightly_negative',
+      'neutral',
+      'slightly_positive',
+      'extremely_positive',
+    ];
+    if (score == null) return '';
+    final index = score.round();
+    if ((score - index).abs() < 0.000001 &&
+        index >= 0 &&
+        index < labels.length) {
+      return labels[index];
+    }
+    return 'score_$score';
   }
 }
 
