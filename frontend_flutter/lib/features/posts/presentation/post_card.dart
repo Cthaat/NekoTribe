@@ -34,6 +34,7 @@ class _PostCardState extends ConsumerState<PostCard> {
   late V2Post _post;
   bool _busyLike = false;
   bool _busyBookmark = false;
+  bool _busyRetweet = false;
 
   @override
   void initState() {
@@ -155,6 +156,7 @@ class _PostCardState extends ConsumerState<PostCard> {
   }
 
   Future<void> _quotePost() async {
+    if (_busyRetweet) return;
     if (!requireAuthenticatedAction(context, ref)) return;
     final l10n = AppLocalizations.of(context);
     final controller = TextEditingController();
@@ -185,11 +187,20 @@ class _PostCardState extends ConsumerState<PostCard> {
     );
     controller.dispose();
     if (text == null) return;
+    setState(() => _busyRetweet = true);
     try {
       await ref
           .read(postsApiProvider)
           .createRetweet(postId: _post.postId, content: text);
       if (!mounted) return;
+      setState(() {
+        _post = _post.copyWith(
+          stats: _post.stats.copyWith(
+            retweetsCount: _post.stats.retweetsCount + 1,
+          ),
+        );
+      });
+      widget.onChanged?.call(_post);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('post.quote.posted'))));
@@ -198,6 +209,8 @@ class _PostCardState extends ConsumerState<PostCard> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (mounted) setState(() => _busyRetweet = false);
     }
   }
 
@@ -327,55 +340,6 @@ class _PostCardState extends ConsumerState<PostCard> {
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      const Spacer(),
-                      SizedBox(
-                        height: 28,
-                        width: 28,
-                        child: PopupMenuButton<String>(
-                          padding: EdgeInsets.zero,
-                          tooltip: l10n.t('common.more'),
-                          icon: Icon(
-                            Icons.more_horiz,
-                            size: 18,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          onSelected: _handleMenu,
-                          itemBuilder: (_) => [
-                            if (_post.viewerState.canDelete) ...[
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: Text(l10n.t('common.edit')),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Text(l10n.t('common.delete')),
-                              ),
-                            ],
-                            PopupMenuItem(
-                              value: 'quote',
-                              child: Text(l10n.t('post.quote.menu')),
-                            ),
-                            PopupMenuItem(
-                              value: 'not_interested',
-                              child: Text(
-                                l10n.t('post.feedback.not_interested'),
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: 'show_less',
-                              child: Text(l10n.t('post.feedback.show_less')),
-                            ),
-                            PopupMenuItem(
-                              value: 'sentiment',
-                              child: Text(l10n.t('sentiment.actions.predict')),
-                            ),
-                            PopupMenuItem(
-                              value: 'report',
-                              child: Text(l10n.t('common.report')),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                   if (_post.content.isNotEmpty) ...[
@@ -400,6 +364,14 @@ class _PostCardState extends ConsumerState<PostCard> {
                       ),
                       const SizedBox(width: 8),
                       _ActionButton(
+                        key: Key('post-retweet-button-${_post.postId}'),
+                        icon: Icons.repeat_rounded,
+                        label: '${_post.stats.retweetsCount}',
+                        activeColor: theme.colorScheme.primary,
+                        onTap: _quotePost,
+                      ),
+                      const SizedBox(width: 8),
+                      _ActionButton(
                         icon: _post.viewerState.isLiked
                             ? Icons.favorite
                             : Icons.favorite_border,
@@ -419,6 +391,54 @@ class _PostCardState extends ConsumerState<PostCard> {
                         onTap: _toggleBookmark,
                       ),
                     ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 28,
+              width: 28,
+              child: PopupMenuButton<String>(
+                key: Key('post-more-button-${_post.postId}'),
+                padding: EdgeInsets.zero,
+                tooltip: l10n.t('common.more'),
+                icon: Icon(
+                  Icons.more_horiz,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                onSelected: _handleMenu,
+                itemBuilder: (_) => [
+                  if (_post.viewerState.canDelete) ...[
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Text(l10n.t('common.edit')),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(l10n.t('common.delete')),
+                    ),
+                  ],
+                  PopupMenuItem(
+                    value: 'quote',
+                    child: Text(l10n.t('post.quote.menu')),
+                  ),
+                  PopupMenuItem(
+                    value: 'not_interested',
+                    child: Text(l10n.t('post.feedback.not_interested')),
+                  ),
+                  PopupMenuItem(
+                    value: 'show_less',
+                    child: Text(l10n.t('post.feedback.show_less')),
+                  ),
+                  PopupMenuItem(
+                    value: 'sentiment',
+                    child: Text(l10n.t('sentiment.actions.predict')),
+                  ),
+                  PopupMenuItem(
+                    value: 'report',
+                    child: Text(l10n.t('common.report')),
                   ),
                 ],
               ),
