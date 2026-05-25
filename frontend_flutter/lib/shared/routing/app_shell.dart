@@ -141,7 +141,8 @@ class _SideNav extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                 child: FilledButton.icon(
-                  onPressed: () => GoRouter.of(context).push('/account/profile'),
+                  key: const Key('app-shell-compose-button'),
+                  onPressed: () => GoRouter.of(context).push('/meow'),
                   icon: const Icon(Icons.edit, size: 18),
                   label: Text(labelFor('common.post')),
                   style: FilledButton.styleFrom(
@@ -157,8 +158,8 @@ class _SideNav extends StatelessWidget {
                     width: 48,
                     height: 48,
                     child: FilledButton(
-                      onPressed: () =>
-                          GoRouter.of(context).push('/account/profile'),
+                      key: const Key('app-shell-compose-button'),
+                      onPressed: () => GoRouter.of(context).push('/meow'),
                       style: FilledButton.styleFrom(
                         padding: EdgeInsets.zero,
                         shape: const CircleBorder(),
