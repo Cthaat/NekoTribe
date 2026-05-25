@@ -156,6 +156,22 @@ void main() {
         },
       );
     });
+
+    test('post analytics uses the current post analytics endpoint', () async {
+      final recorder = _ApiRecorder();
+      final api = PostsApi(_client(recorder));
+
+      final analytics = await api.getPostAnalytics(100001);
+
+      recorder.expectLast(
+        method: 'GET',
+        path: '/api/v2/posts/100001/analytics',
+      );
+      expect(analytics.postId, 100001);
+      expect(analytics.viewsCount, 32);
+      expect(analytics.likesCount, 8);
+      expect(analytics.likeRate, 0.25);
+    });
   });
 
   group('GroupsApi v2 contract', () {
@@ -609,6 +625,29 @@ void main() {
       expect(avatar.avatarUrl, '/uploads/avatars/edge.png');
       expect(avatar.avatarMediaId, 99);
     });
+
+    test('user analytics and daily analytics decode current v2 endpoints', () async {
+      final recorder = _ApiRecorder();
+      final api = UsersApi(_client(recorder));
+
+      final analytics = await api.getUserAnalytics(1);
+      recorder.expectLast(method: 'GET', path: '/api/v2/users/1/analytics');
+      expect(analytics.totalPosts, 12);
+      expect(analytics.postsThisWeek, 3);
+      expect(analytics.totalLikesReceived, 40);
+      expect(analytics.engagementScore, 9.5);
+
+      final daily = await api.getUserDailyAnalytics(1, days: 14);
+      recorder.expectLast(
+        method: 'GET',
+        path: '/api/v2/users/1/analytics/daily',
+        query: {'days': 14},
+      );
+      expect(daily, hasLength(1));
+      expect(daily.single.day, '2026-05-24');
+      expect(daily.single.postsCount, 2);
+      expect(daily.single.likesReceived, 6);
+    });
   });
 
   group('SentimentFlowApi v2 contract', () {
@@ -837,6 +876,18 @@ class _ApiRecorder implements HttpClientAdapter {
     if (path == '/api/v2/posts') {
       return <Object>[_postJson];
     }
+    if (path == '/api/v2/posts/100001/analytics') {
+      return {
+        'post_id': 100001,
+        'views_count': 32,
+        'likes_count': 8,
+        'comments_count': 3,
+        'replies_count': 2,
+        'retweets_count': 1,
+        'engagement_score': 14.5,
+        'like_rate': 0.25,
+      };
+    }
     if (path == '/api/v2/groups') {
       return <Object>[_groupJson];
     }
@@ -973,6 +1024,33 @@ class _ApiRecorder implements HttpClientAdapter {
     }
     if (path == '/api/v2/users/me/avatar') {
       return {'avatar_url': '/uploads/avatars/edge.png', 'avatar_media_id': 99};
+    }
+    if (path == '/api/v2/users/1/analytics') {
+      return {
+        'user_id': 1,
+        'total_posts': 12,
+        'posts_this_week': 3,
+        'posts_this_month': 7,
+        'total_likes_received': 40,
+        'avg_likes_per_post': 3.3,
+        'total_likes_given': 18,
+        'total_comments_made': 11,
+        'engagement_score': 9.5,
+      };
+    }
+    if (path == '/api/v2/users/1/analytics/daily') {
+      return [
+        {
+          'day': '2026-05-24',
+          'posts_count': 2,
+          'likes_received': 6,
+          'comments_received': 4,
+          'retweets_received': 1,
+          'likes_given': 3,
+          'comments_made': 2,
+          'engagement_score': 12.5,
+        },
+      ];
     }
     if (path.endsWith('/likes')) {
       return {'is_liked': true, 'is_bookmarked': false, 'can_delete': true};
