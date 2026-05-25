@@ -26,6 +26,8 @@ import '../../features/posts/presentation/tag_screen.dart';
 import '../../features/posts/presentation/tweet_timeline_screen.dart';
 import '../../features/sentiment_flow/presentation/sentiment_screen.dart';
 import '../../features/users/presentation/about_screen.dart';
+import '../../features/users/presentation/account_analytics_screen.dart';
+import '../../features/users/presentation/account_data_analytics_screen.dart';
 import '../../features/users/presentation/account_screen.dart';
 import '../../features/users/presentation/account_posts_screen.dart';
 import '../../features/users/presentation/appearance_screen.dart';
@@ -86,6 +88,8 @@ const productionRoutePaths = <String>{
   '/settings/endpoint',
   '/account',
   '/account/overview',
+  '/account/analytics',
+  '/account/data',
   '/account/profile',
   '/account/settings',
   '/account/appearance',
@@ -290,7 +294,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/account', builder: (_, __) => const AccountScreen()),
       GoRoute(
         path: '/account/overview',
-        builder: (_, __) => const AccountScreen(),
+        builder: (_, __) => const AccountAnalyticsScreen(),
+      ),
+      GoRoute(
+        path: '/account/analytics',
+        builder: (_, __) => const AccountAnalyticsScreen(),
+      ),
+      GoRoute(
+        path: '/account/data',
+        builder: (_, __) => const AccountDataAnalyticsScreen(),
       ),
       GoRoute(
         path: '/account/profile',
