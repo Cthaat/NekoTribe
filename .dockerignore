@@ -8,9 +8,18 @@
 .output
 .nuxt
 dist
+build
 
 # 依赖文件夹 (这些会在Docker构建过程中重新安装)
 node_modules
+
+# Flutter 客户端本地构建输出和工具缓存
+# Dockerfile 只构建 Nuxt 服务端镜像，Flutter Web/Windows 产物不应进入上下文。
+frontend_flutter/.dart_tool
+frontend_flutter/build
+frontend_flutter/.pub-cache
+frontend_flutter/.idea
+frontend_flutter/**/*.iml
 
 # 本地外部项目和模型数据
 # docker-compose.local.yml 会在构建阶段从 Git 拉取 SentimentFlow，
@@ -33,6 +42,7 @@ sentimentflow-models
 # 系统和日志文件
 .DS_Store
 npm-debug.log*
+.codex-logs
 
 # 本地运行数据和上传文件
 .history
