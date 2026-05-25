@@ -101,6 +101,55 @@ class V2PostStats {
   }
 }
 
+class V2PostAnalytics {
+  V2PostAnalytics({
+    required this.postId,
+    required this.viewsCount,
+    required this.likesCount,
+    required this.commentsCount,
+    required this.repliesCount,
+    required this.retweetsCount,
+    required this.engagementScore,
+    required this.likeRate,
+  });
+
+  final int postId;
+  final int viewsCount;
+  final int likesCount;
+  final int commentsCount;
+  final int repliesCount;
+  final int retweetsCount;
+  final double engagementScore;
+  final double likeRate;
+
+  factory V2PostAnalytics.fromJson(Map<String, dynamic> json) {
+    return V2PostAnalytics(
+      postId: toInt(json['post_id']) ?? 0,
+      viewsCount: toInt(json['views_count']) ?? 0,
+      likesCount: toInt(json['likes_count']) ?? 0,
+      commentsCount: toInt(json['comments_count']) ?? 0,
+      repliesCount: toInt(json['replies_count']) ?? 0,
+      retweetsCount: toInt(json['retweets_count']) ?? 0,
+      engagementScore: toDouble(json['engagement_score']) ?? 0,
+      likeRate: toDouble(json['like_rate']) ?? 0,
+    );
+  }
+
+  factory V2PostAnalytics.fromPost(V2Post post) {
+    final views = post.stats.viewsCount;
+    return V2PostAnalytics(
+      postId: post.postId,
+      viewsCount: views,
+      likesCount: post.stats.likesCount,
+      commentsCount: post.stats.commentsCount,
+      repliesCount: post.stats.repliesCount,
+      retweetsCount: post.stats.retweetsCount,
+      engagementScore: post.stats.engagementScore,
+      likeRate: views <= 0 ? 0 : post.stats.likesCount / views,
+    );
+  }
+}
+
 class V2ViewerPostState {
   V2ViewerPostState({
     required this.isLiked,
