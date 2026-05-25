@@ -14,7 +14,11 @@ class ErrorView extends StatelessWidget {
     if (error is ApiException) {
       return '[${error.code}] ${error.message}';
     }
-    return error.toString();
+    final raw = error.toString();
+    if (_isConnectionError(raw)) {
+      return AppLocalizations.of(context).t('error.connection');
+    }
+    return raw;
   }
 
   @override
@@ -60,6 +64,15 @@ class ErrorView extends StatelessWidget {
       ),
     );
   }
+}
+
+bool _isConnectionError(String value) {
+  final lower = value.toLowerCase();
+  return lower.contains('dioexception [connection error]') ||
+      lower.contains('xmlhttprequest onerror') ||
+      lower.contains('failed host lookup') ||
+      lower.contains('connection refused') ||
+      lower.contains('connection error');
 }
 
 class EmptyView extends StatelessWidget {
