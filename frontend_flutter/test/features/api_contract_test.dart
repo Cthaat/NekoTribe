@@ -130,6 +130,32 @@ void main() {
       await api.bookmarkPost(9);
       recorder.expectLast(method: 'POST', path: '/api/v2/posts/9/bookmarks');
     });
+
+    test('create post sends web composer metadata keys', () async {
+      final recorder = _ApiRecorder();
+      final api = PostsApi(_client(recorder));
+
+      await api.createPost(
+        content: 'hello #flutter',
+        visibility: 'mentioned',
+        location: 'Shanghai',
+        mediaIds: const [91],
+        tags: const ['flutter', 'cats'],
+      );
+
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/posts',
+        body: {
+          'content': 'hello #flutter',
+          'post_type': 'normal',
+          'visibility': 'mentioned',
+          'location': 'Shanghai',
+          'media_ids': [91],
+          'tag_names': ['flutter', 'cats'],
+        },
+      );
+    });
   });
 
   group('GroupsApi v2 contract', () {
@@ -523,72 +549,78 @@ void main() {
       expect(config.timeoutMs, 10000);
     });
 
-    test('prediction uses proxy path and decodes normalized nested data', () async {
-      final recorder = _ApiRecorder();
-      final api = SentimentFlowApi(_client(recorder));
+    test(
+      'prediction uses proxy path and decodes normalized nested data',
+      () async {
+        final recorder = _ApiRecorder();
+        final api = SentimentFlowApi(_client(recorder));
 
-      final prediction = await api.predict(
-        text: 'NekoTribe is lovely',
-        modelId: 'bert-v1',
-        returnProbabilities: true,
-        includeMetadata: true,
-        topK: 2,
-      );
+        final prediction = await api.predict(
+          text: 'NekoTribe is lovely',
+          modelId: 'bert-v1',
+          returnProbabilities: true,
+          includeMetadata: true,
+          topK: 2,
+        );
 
-      recorder.expectLast(
-        method: 'POST',
-        path: '/api/v2/integrations/sentiment-flow/predict/',
-        body: {
-          'text': 'NekoTribe is lovely',
-          'model_id': 'bert-v1',
-          'return_probabilities': true,
-          'include_metadata': true,
-          'top_k': 2,
-        },
-      );
-      expect(prediction.label, 'positive');
-      expect(prediction.confidence, 0.91);
-      expect(prediction.score, 0.88);
-      expect(prediction.requestId, 'sent-1');
-      expect(prediction.modelName, 'BERT v1');
-      expect(prediction.probabilities?['positive'], 0.91);
-      expect(prediction.topK, hasLength(2));
-    });
+        recorder.expectLast(
+          method: 'POST',
+          path: '/api/v2/integrations/sentiment-flow/predict/',
+          body: {
+            'text': 'NekoTribe is lovely',
+            'model_id': 'bert-v1',
+            'return_probabilities': true,
+            'include_metadata': true,
+            'top_k': 2,
+          },
+        );
+        expect(prediction.label, 'positive');
+        expect(prediction.confidence, 0.91);
+        expect(prediction.score, 0.88);
+        expect(prediction.requestId, 'sent-1');
+        expect(prediction.modelName, 'BERT v1');
+        expect(prediction.probabilities?['positive'], 0.91);
+        expect(prediction.topK, hasLength(2));
+      },
+    );
 
-    test('model and stats endpoints use SentimentFlow proxy resources', () async {
-      final recorder = _ApiRecorder();
-      final api = SentimentFlowApi(_client(recorder));
+    test(
+      'model and stats endpoints use SentimentFlow proxy resources',
+      () async {
+        final recorder = _ApiRecorder();
+        final api = SentimentFlowApi(_client(recorder));
 
-      final models = await api.listModels();
-      recorder.expectLast(
-        method: 'GET',
-        path: '/api/v2/integrations/sentiment-flow/models/',
-      );
-      expect(models.items.single.modelId, 'bert-v1');
-      expect(models.items.single.isActive, isTrue);
+        final models = await api.listModels();
+        recorder.expectLast(
+          method: 'GET',
+          path: '/api/v2/integrations/sentiment-flow/models/',
+        );
+        expect(models.items.single.modelId, 'bert-v1');
+        expect(models.items.single.isActive, isTrue);
 
-      final active = await api.getActiveModel();
-      recorder.expectLast(
-        method: 'GET',
-        path: '/api/v2/integrations/sentiment-flow/models/active',
-      );
-      expect(active.modelId, 'bert-v1');
+        final active = await api.getActiveModel();
+        recorder.expectLast(
+          method: 'GET',
+          path: '/api/v2/integrations/sentiment-flow/models/active',
+        );
+        expect(active.modelId, 'bert-v1');
 
-      await api.setActiveModel('bert-v2');
-      recorder.expectLast(
-        method: 'PUT',
-        path: '/api/v2/integrations/sentiment-flow/models/active',
-        body: {'model_id': 'bert-v2'},
-      );
+        await api.setActiveModel('bert-v2');
+        recorder.expectLast(
+          method: 'PUT',
+          path: '/api/v2/integrations/sentiment-flow/models/active',
+          body: {'model_id': 'bert-v2'},
+        );
 
-      final stats = await api.statsOverview();
-      recorder.expectLast(
-        method: 'GET',
-        path: '/api/v2/integrations/sentiment-flow/stats/overview',
-      );
-      expect(stats.totalPredictions, 12);
-      expect(stats.totalTrainingJobs, 3);
-    });
+        final stats = await api.statsOverview();
+        recorder.expectLast(
+          method: 'GET',
+          path: '/api/v2/integrations/sentiment-flow/stats/overview',
+        );
+        expect(stats.totalPredictions, 12);
+        expect(stats.totalTrainingJobs, 3);
+      },
+    );
   });
 }
 
@@ -655,6 +687,9 @@ class _ApiRecorder implements HttpClientAdapter {
 
   dynamic _dataFor(RequestOptions options) {
     final path = options.path;
+    if (path == '/api/v2/posts' && options.method == 'POST') {
+      return _postJson;
+    }
     if (path == '/api/v2/posts') {
       return <Object>[_postJson];
     }
@@ -696,11 +731,7 @@ class _ApiRecorder implements HttpClientAdapter {
       return {
         'request_id': 'sent-1',
         'model': {'id': 'bert-v1', 'name': 'BERT v1', 'version': '1.0.0'},
-        'input': {
-          'text': options.data['text'],
-          'language': 'en',
-          'length': 19,
-        },
+        'input': {'text': options.data['text'], 'language': 'en', 'length': 19},
         'prediction': {
           'label': 'positive',
           'score': 0.88,
@@ -784,10 +815,7 @@ class _ApiRecorder implements HttpClientAdapter {
       return {'enabled': false};
     }
     if (path == '/api/v2/users/me/avatar') {
-      return {
-        'avatar_url': '/uploads/avatars/edge.png',
-        'avatar_media_id': 99,
-      };
+      return {'avatar_url': '/uploads/avatars/edge.png', 'avatar_media_id': 99};
     }
     if (path.endsWith('/likes')) {
       return {'is_liked': true, 'is_bookmarked': false, 'can_delete': true};
