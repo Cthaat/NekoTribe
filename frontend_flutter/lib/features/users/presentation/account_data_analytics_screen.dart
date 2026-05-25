@@ -84,8 +84,9 @@ class _AccountDataAnalyticsScreenState
                   child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                     itemCount: _items.length + 2,
-                    separatorBuilder: (_, index) =>
-                        index <= 1 ? const SizedBox(height: 14) : const Divider(),
+                    separatorBuilder: (_, index) => index <= 1
+                        ? const SizedBox(height: 14)
+                        : const Divider(),
                     itemBuilder: (context, index) {
                       if (index == 0) return const _DataAnalyticsHeader();
                       if (index == 1) {
@@ -182,10 +183,7 @@ class _DataSummary extends StatelessWidget {
     );
     final likeRate = items.isEmpty
         ? 0.0
-        : items.fold<double>(
-                0,
-                (sum, item) => sum + item.analytics.likeRate,
-              ) /
+        : items.fold<double>(0, (sum, item) => sum + item.analytics.likeRate) /
               items.length;
     return LayoutBuilder(
       builder: (context, constraints) {
