@@ -45,12 +45,48 @@ void main() {
 
     expect(find.text('频道名称'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), 'team-chat');
+    await tester.enterText(
+      find.byKey(const Key('chat-channel-name-field')),
+      'team-chat',
+    );
     await tester.tap(find.widgetWithText(FilledButton, '创建'));
     await tester.pumpAndSettle();
 
     expect(api.createdChannelName, 'team-chat');
     expect(find.text('Channel 99'), findsOneWidget);
+  });
+
+  testWidgets('manager can mute, edit, and delete channels from picker', (
+    tester,
+  ) async {
+    final api = _FakeChatApi();
+
+    await _pumpChatHome(tester, api);
+    await _openGroupPicker(tester);
+
+    await tester.tap(find.byKey(const Key('chat-channel-mute-7')));
+    await tester.pumpAndSettle();
+    expect(api.mutedChannelId, 7);
+    expect(api.mutedValue, true);
+
+    await tester.tap(find.byKey(const Key('chat-channel-edit-7')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('chat-channel-name-field')),
+      'ops-chat',
+    );
+    await tester.tap(find.byKey(const Key('chat-channel-save-button')));
+    await tester.pumpAndSettle();
+    expect(api.updatedChannelId, 7);
+    expect(api.updatedChannelName, 'ops-chat');
+    expect(find.text('#ops-chat'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('chat-channel-delete-8')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('chat-channel-delete-confirm')));
+    await tester.pumpAndSettle();
+    expect(api.deletedChannelId, 8);
+    expect(find.text('#announcements'), findsNothing);
   });
 }
 
@@ -96,6 +132,41 @@ class _FakeChatApi extends ChatApi {
     : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
 
   String? createdChannelName;
+  int? mutedChannelId;
+  bool? mutedValue;
+  int? updatedChannelId;
+  String? updatedChannelName;
+  int? deletedChannelId;
+  final channels = <V2ChatChannel>[
+    V2ChatChannel(
+      channelId: 7,
+      groupId: 42,
+      name: 'general',
+      type: 'text',
+      category: '',
+      position: 1,
+      isPrivate: false,
+      isMutedByMe: false,
+      unreadCount: 2,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z',
+      canManage: true,
+    ),
+    V2ChatChannel(
+      channelId: 8,
+      groupId: 42,
+      name: 'announcements',
+      type: 'text',
+      category: '',
+      position: 2,
+      isPrivate: false,
+      isMutedByMe: true,
+      unreadCount: 0,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z',
+      canManage: true,
+    ),
+  ];
 
   @override
   Future<List<V2DirectConversation>> listConversations() async => [];
@@ -114,36 +185,8 @@ class _FakeChatApi extends ChatApi {
   ];
 
   @override
-  Future<List<V2ChatChannel>> listChannels(int groupId) async => [
-    V2ChatChannel(
-      channelId: 7,
-      groupId: groupId,
-      name: 'general',
-      type: 'text',
-      category: '',
-      position: 1,
-      isPrivate: false,
-      isMutedByMe: false,
-      unreadCount: 2,
-      createdAt: '2026-05-24T00:00:00.000Z',
-      updatedAt: '2026-05-24T00:00:00.000Z',
-      canManage: true,
-    ),
-    V2ChatChannel(
-      channelId: 8,
-      groupId: groupId,
-      name: 'announcements',
-      type: 'text',
-      category: '',
-      position: 2,
-      isPrivate: false,
-      isMutedByMe: true,
-      unreadCount: 0,
-      createdAt: '2026-05-24T00:00:00.000Z',
-      updatedAt: '2026-05-24T00:00:00.000Z',
-      canManage: true,
-    ),
-  ];
+  Future<List<V2ChatChannel>> listChannels(int groupId) async =>
+      List.of(channels);
 
   @override
   Future<V2ChatChannel> createChannel({
@@ -154,7 +197,7 @@ class _FakeChatApi extends ChatApi {
     bool isPrivate = false,
   }) async {
     createdChannelName = name;
-    return V2ChatChannel(
+    final channel = V2ChatChannel(
       channelId: 99,
       groupId: groupId,
       name: name,
@@ -168,7 +211,77 @@ class _FakeChatApi extends ChatApi {
       updatedAt: '2026-05-24T00:00:00.000Z',
       canManage: true,
     );
+    channels.add(channel);
+    return channel;
   }
+
+  @override
+  Future<void> setChannelMuteStatus({
+    required int channelId,
+    required bool isMuted,
+  }) async {
+    mutedChannelId = channelId;
+    mutedValue = isMuted;
+    final index = channels.indexWhere(
+      (channel) => channel.channelId == channelId,
+    );
+    if (index < 0) return;
+    final old = channels[index];
+    channels[index] = _channelCopy(old, isMutedByMe: isMuted);
+  }
+
+  @override
+  Future<V2ChatChannel> updateChannel({
+    required int channelId,
+    String? name,
+    String? category,
+    bool? isPrivate,
+  }) async {
+    updatedChannelId = channelId;
+    updatedChannelName = name;
+    final index = channels.indexWhere(
+      (channel) => channel.channelId == channelId,
+    );
+    final old = channels[index];
+    final updated = _channelCopy(
+      old,
+      name: name ?? old.name,
+      category: category ?? old.category,
+      isPrivate: isPrivate ?? old.isPrivate,
+    );
+    channels[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<void> deleteChannel(int channelId) async {
+    deletedChannelId = channelId;
+    channels.removeWhere((channel) => channel.channelId == channelId);
+  }
+}
+
+V2ChatChannel _channelCopy(
+  V2ChatChannel channel, {
+  String? name,
+  String? category,
+  bool? isPrivate,
+  bool? isMutedByMe,
+}) {
+  return V2ChatChannel(
+    channelId: channel.channelId,
+    groupId: channel.groupId,
+    name: name ?? channel.name,
+    type: channel.type,
+    category: category ?? channel.category,
+    position: channel.position,
+    isPrivate: isPrivate ?? channel.isPrivate,
+    isMutedByMe: isMutedByMe ?? channel.isMutedByMe,
+    unreadCount: channel.unreadCount,
+    lastMessage: channel.lastMessage,
+    createdAt: channel.createdAt,
+    updatedAt: channel.updatedAt,
+    canManage: channel.canManage,
+  );
 }
 
 const _testConfig = AppConfig(
