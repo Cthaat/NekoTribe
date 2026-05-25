@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -172,9 +173,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark
-            ? const Color(0xFF1B1E25)
-            : const Color(0xFFF1F2F5),
+        fillColor: isDark ? const Color(0xFF1B1E25) : const Color(0xFFF1F2F5),
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
@@ -297,9 +296,7 @@ class AppTheme {
         backgroundColor: cardSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 8,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         titleTextStyle: textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w700,
         ),
@@ -320,9 +317,7 @@ class AppTheme {
             ? const Color(0xFF2A2F38)
             : const Color(0xFF1F232B),
         contentTextStyle: textTheme.bodyMedium?.copyWith(color: Colors.white),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 4,
       ),
       listTileTheme: ListTileThemeData(
@@ -333,13 +328,8 @@ class AppTheme {
         subtitleTextStyle: textTheme.bodyMedium?.copyWith(
           color: colorScheme.onSurfaceVariant,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 4,
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: cardSurface,
@@ -433,10 +423,13 @@ class AppTheme {
   static TextTheme _textTheme(ColorScheme scheme, bool isDark) {
     final defaultColor = scheme.onSurface;
     final softColor = scheme.onSurfaceVariant;
-    final base = GoogleFonts.notoSansScTextTheme(
-      isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme,
-    );
-    return TextTheme(
+    final platformTextTheme = isDark
+        ? ThemeData.dark().textTheme
+        : ThemeData.light().textTheme;
+    final base = kIsWeb
+        ? platformTextTheme
+        : GoogleFonts.notoSansScTextTheme(platformTextTheme);
+    final theme = TextTheme(
       displayLarge: base.displayLarge?.copyWith(
         fontWeight: FontWeight.w700,
         height: 1.15,
@@ -527,6 +520,16 @@ class AppTheme {
         color: softColor,
         letterSpacing: 0.1,
       ),
+    );
+    return theme.apply(
+      fontFamilyFallback: const [
+        'Microsoft YaHei',
+        'PingFang SC',
+        'Noto Sans CJK SC',
+        'SimHei',
+        'Arial Unicode MS',
+        'sans-serif',
+      ],
     );
   }
 }
