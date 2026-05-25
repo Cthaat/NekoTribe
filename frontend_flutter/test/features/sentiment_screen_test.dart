@@ -48,9 +48,6 @@ void main() {
 
     expect(api.predictedText, '432423');
     expect(api.predictedModelId, 'bert-v1');
-    for (final element in find.byType(Text).evaluate()) {
-      debugPrint('TEXT: ${(element.widget as Text).data}');
-    }
     expect(find.text('neutral'), findsWidgets);
     expect(find.textContaining('50.0%'), findsWidgets);
   });
