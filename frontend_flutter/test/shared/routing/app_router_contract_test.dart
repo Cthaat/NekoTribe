@@ -126,4 +126,18 @@ void main() {
       }),
     );
   });
+
+  test('desktop shell keeps profile entry at the bottom', () {
+    expect(desktopAppShellPathOrder.last, '/me');
+    expect(desktopAppShellPathOrder, <String>[
+      '/feed',
+      '/discover',
+      '/notifications',
+      '/chat',
+      '/groups',
+      '/moderation',
+      '/sentiment',
+      '/me',
+    ]);
+  });
 }
