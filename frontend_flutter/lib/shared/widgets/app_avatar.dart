@@ -12,27 +12,54 @@ class AppAvatar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final resolver = ref.watch(assetUrlResolverProvider);
-    final resolved = resolver.resolve(url);
     return ClipOval(
       child: SizedBox(
         width: size,
         height: size,
-        child: CachedNetworkImage(
-          imageUrl: resolved,
-          fit: BoxFit.cover,
-          placeholder: (context, _) => Container(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          ),
-          errorWidget: (context, _, __) => Container(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Icon(
-              Icons.person,
-              size: size * 0.6,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-          ),
-        ),
+        child: _AvatarImage(url: url, size: size),
+      ),
+    );
+  }
+}
+
+class _AvatarImage extends ConsumerWidget {
+  const _AvatarImage({required this.url, required this.size});
+
+  final String? url;
+  final double size;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rawUrl = url?.trim();
+    if (rawUrl == null || rawUrl.isEmpty) {
+      return _AvatarFallback(size: size);
+    }
+    final resolver = ref.watch(assetUrlResolverProvider);
+    final resolved = resolver.resolve(rawUrl);
+    return CachedNetworkImage(
+      imageUrl: resolved,
+      fit: BoxFit.cover,
+      placeholder: (context, _) => Container(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      ),
+      errorWidget: (context, _, __) => _AvatarFallback(size: size),
+    );
+  }
+}
+
+class _AvatarFallback extends StatelessWidget {
+  const _AvatarFallback({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Icon(
+        Icons.person,
+        size: size * 0.6,
+        color: Theme.of(context).colorScheme.outline,
       ),
     );
   }
