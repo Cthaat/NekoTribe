@@ -50,6 +50,8 @@ void main() {
         '/settings/endpoint',
         '/account',
         '/account/overview',
+        '/account/analytics',
+        '/account/data',
         '/account/profile',
         '/account/settings',
         '/account/appearance',
@@ -71,6 +73,12 @@ void main() {
         '/about',
       }),
     );
+  });
+
+  test('account analysis pages are registered as first-class routes', () {
+    expect(productionRoutePaths, contains('/account/overview'));
+    expect(productionRoutePaths, contains('/account/analytics'));
+    expect(productionRoutePaths, contains('/account/data'));
   });
 
   test('public read-only routes do not require login', () {
