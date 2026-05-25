@@ -93,6 +93,13 @@ class PostsApi {
     );
   }
 
+  Future<V2PostAnalytics> getPostAnalytics(int postId) {
+    return _client.requestData<V2PostAnalytics>(
+      '${ApiPaths.posts}/$postId/analytics',
+      decode: (data) => V2PostAnalytics.fromJson(toMap(data)),
+    );
+  }
+
   Future<V2Post> createPost({
     required String content,
     String postType = 'normal',
