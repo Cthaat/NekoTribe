@@ -1,0 +1,288 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:nekotribe/core/auth/token_store.dart';
+import 'package:nekotribe/core/config/app_config.dart';
+import 'package:nekotribe/core/network/api_client.dart';
+import 'package:nekotribe/core/network/api_response.dart';
+import 'package:nekotribe/features/groups/data/groups_api.dart';
+import 'package:nekotribe/features/groups/domain/group_models.dart';
+import 'package:nekotribe/features/notifications/data/notifications_api.dart';
+import 'package:nekotribe/features/notifications/domain/notification_models.dart';
+import 'package:nekotribe/features/notifications/presentation/notifications_screen.dart';
+import 'package:nekotribe/features/users/domain/user_models.dart';
+import 'package:nekotribe/shared/providers/providers.dart';
+
+void main() {
+  testWidgets('comment notifications open their source post detail', (
+    tester,
+  ) async {
+    final api = _FakeNotificationsApi([
+      _notification(
+        type: 'comment',
+        title: '新评论',
+        resourceType: 'comment',
+        resourceId: 7001,
+        metadata: {'post_id': 100001},
+      ),
+    ]);
+    final router = _router();
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [notificationsApiProvider.overrideWithValue(api)],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('新评论'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Post 100001'), findsOneWidget);
+    expect(api.readNotificationId, 3001);
+    expect(api.readStatus, isTrue);
+  });
+
+  testWidgets('group comment notifications open their group post detail', (
+    tester,
+  ) async {
+    final api = _FakeNotificationsApi([
+      _notification(
+        type: 'group_comment',
+        title: '群组新评论',
+        resourceType: 'group_comment',
+        resourceId: 7001,
+        metadata: {'group_id': 88, 'post_id': 100002},
+      ),
+    ]);
+    final router = _router();
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          notificationsApiProvider.overrideWithValue(api),
+          groupsApiProvider.overrideWithValue(_FakeGroupsApi()),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('群组新评论'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Group neko-news Post 100002'), findsOneWidget);
+    expect(api.readNotificationId, 3001);
+    expect(api.readStatus, isTrue);
+  });
+
+  testWidgets('direct message notifications open their conversation detail', (
+    tester,
+  ) async {
+    final api = _FakeNotificationsApi([
+      _notification(
+        type: 'direct_message',
+        title: '新私信',
+        resourceType: 'direct_message',
+        resourceId: 7001,
+        metadata: {'conversation_id': 9001},
+      ),
+    ]);
+    final router = _router();
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [notificationsApiProvider.overrideWithValue(api)],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('新私信'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Conversation 9001'), findsOneWidget);
+    expect(api.readNotificationId, 3001);
+    expect(api.readStatus, isTrue);
+  });
+}
+
+GoRouter _router() {
+  return GoRouter(
+    initialLocation: '/notifications',
+    routes: [
+      GoRoute(
+        path: '/notifications',
+        builder: (_, __) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/posts/:postId',
+        builder: (_, state) =>
+            Scaffold(body: Text('Post ${state.pathParameters['postId']}')),
+      ),
+      GoRoute(
+        path: '/groups/:slug/posts/:postId',
+        builder: (_, state) => Scaffold(
+          body: Text(
+            'Group ${state.pathParameters['slug']} '
+            'Post ${state.pathParameters['postId']}',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/chat/conversation/:id',
+        builder: (_, state) =>
+            Scaffold(body: Text('Conversation ${state.pathParameters['id']}')),
+      ),
+      GoRoute(
+        path: '/users/:userId',
+        builder: (_, state) =>
+            Scaffold(body: Text('User ${state.pathParameters['userId']}')),
+      ),
+      GoRoute(
+        path: '/account/active',
+        builder: (_, __) => const Scaffold(body: Text('Sessions')),
+      ),
+      GoRoute(
+        path: '/groups/invites',
+        builder: (_, __) => const Scaffold(body: Text('Invites')),
+      ),
+    ],
+  );
+}
+
+class _FakeNotificationsApi extends NotificationsApi {
+  _FakeNotificationsApi(this.items)
+    : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
+
+  final List<V2Notification> items;
+  int? readNotificationId;
+  bool? readStatus;
+
+  @override
+  Future<PagedResult<V2Notification>> list({
+    int page = 1,
+    int size = 20,
+    String? type,
+    bool? unreadOnly,
+  }) async {
+    return PagedResult(
+      items: items,
+      meta: ApiMeta(
+        page: page,
+        pageSize: size,
+        total: items.length,
+        hasNext: false,
+      ),
+    );
+  }
+
+  @override
+  Future<int> unreadCount() async =>
+      items.where((item) => !item.readFlag).length;
+
+  @override
+  Future<void> setReadStatus({
+    required int notificationId,
+    required bool isRead,
+  }) async {
+    readNotificationId = notificationId;
+    readStatus = isRead;
+  }
+}
+
+class _FakeGroupsApi extends GroupsApi {
+  _FakeGroupsApi()
+    : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
+
+  @override
+  Future<PagedResult<V2Group>> myGroups({int page = 1, int size = 20}) async {
+    return PagedResult(
+      items: [_group],
+      meta: ApiMeta(page: page, pageSize: size, total: 1, hasNext: false),
+    );
+  }
+}
+
+V2Notification _notification({
+  required String type,
+  required String title,
+  required String resourceType,
+  required int resourceId,
+  Map<String, Object?> metadata = const {},
+}) {
+  return V2Notification(
+    notificationId: 3001,
+    type: type,
+    title: title,
+    message: '查看详情',
+    resourceType: resourceType,
+    resourceId: resourceId,
+    priority: 'normal',
+    isRead: 0,
+    actor: _actor,
+    metadata: metadata,
+    createdAt: '2026-05-24T00:00:00.000Z',
+  );
+}
+
+final _actor = V2PublicUser(
+  userId: 42,
+  username: 'edge',
+  displayName: 'Edge',
+  avatarUrl: '',
+  bio: '',
+  location: '',
+  website: '',
+  isVerified: 0,
+  followersCount: 0,
+  followingCount: 0,
+  postsCount: 0,
+  likesCount: 0,
+  relationship: V2Relationship.empty(),
+  onlineStatus: 'online',
+);
+
+final _group = V2Group(
+  groupId: 88,
+  name: 'Neko News',
+  slug: 'neko-news',
+  description: '',
+  tags: const [],
+  owner: _actor,
+  privacy: 'public',
+  privacyDesc: '公开',
+  joinApproval: false,
+  postPermission: 'all',
+  memberCount: 1,
+  postCount: 1,
+  isActive: 1,
+  membership: V2GroupMembership(isMember: true, role: 'member'),
+  createdAt: '2026-05-24T00:00:00.000Z',
+  updatedAt: '2026-05-24T00:00:00.000Z',
+);
+
+const _testConfig = AppConfig(
+  apiBaseUrl: 'http://example.test',
+  wsBaseUrl: 'ws://example.test',
+  storageBaseUrl: 'http://example.test',
+);
+
+class _FakeTokenStore extends TokenStore {
+  @override
+  Future<TokenPair?> read() async => null;
+
+  @override
+  Future<void> write(TokenPair pair) async {}
+
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<String> deviceFingerprint() async => 'test-device';
+}
