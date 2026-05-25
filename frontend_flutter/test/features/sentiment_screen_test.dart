@@ -97,7 +97,9 @@ class _FakeSentimentFlowApi extends SentimentFlowApi {
 
 class _FakeUsersRepository extends UsersRepository {
   _FakeUsersRepository()
-    : super(UsersApi(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore())));
+    : super(
+        UsersApi(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore())),
+      );
 
   @override
   Future<V2UserSettings> getSettings() async => V2UserSettings(
