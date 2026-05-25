@@ -663,6 +663,35 @@ void main() {
       },
     );
 
+    test('prediction decodes raw SentimentFlow proxy payloads', () async {
+      final recorder = _ApiRecorder();
+      final api = SentimentFlowApi(_client(recorder));
+
+      final prediction = await api.predict(
+        text: '432423',
+        returnProbabilities: true,
+        includeMetadata: true,
+        topK: 3,
+      );
+
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/integrations/sentiment-flow/predict/',
+        body: {
+          'text': '432423',
+          'return_probabilities': true,
+          'include_metadata': true,
+          'top_k': 3,
+        },
+      );
+      expect(prediction.label, 'neutral');
+      expect(prediction.score, 0.5);
+      expect(prediction.confidence, 0.5);
+      expect(prediction.modelName, '关键词基线');
+      expect(prediction.probabilities?['neutral'], 0.5);
+      expect(prediction.topK?.first.label, 'neutral');
+    });
+
     test(
       'model and stats endpoints use SentimentFlow proxy resources',
       () async {
@@ -729,11 +758,21 @@ class _ApiRecorder implements HttpClientAdapter {
   ) async {
     requests.add(options);
     final meta = _metaFor(options);
+    final data = _dataFor(options);
+    if (_isRawProxyResponse(options.path)) {
+      return ResponseBody.fromString(
+        jsonEncode(data),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    }
     return ResponseBody.fromString(
       jsonEncode({
         'code': 200,
         'message': 'success',
-        'data': _dataFor(options),
+        'data': data,
         if (meta != null) 'meta': meta,
       }),
       200,
@@ -745,6 +784,11 @@ class _ApiRecorder implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+
+  bool _isRawProxyResponse(String path) {
+    return path.startsWith('/api/v2/integrations/sentiment-flow/') &&
+        path != '/api/v2/integrations/sentiment-flow/config';
+  }
 
   void expectLast({
     required String method,
@@ -807,6 +851,19 @@ class _ApiRecorder implements HttpClientAdapter {
       };
     }
     if (path == '/api/v2/integrations/sentiment-flow/predict/') {
+      if (options.data['text'] == '432423') {
+        return {
+          'text': '432423',
+          'score': 3,
+          'label': 'neutral',
+          'label_zh': '中性',
+          'confidence': 0.5,
+          'probabilities': [0.1, 0.1, 0.1, 0.5, 0.1, 0.1],
+          'reasoning': '模型将文本情感强度判定为 3 分（中性）。',
+          'source': 'keyword-baseline-fallback(lstm:RuntimeError)',
+          'model_name': '关键词基线',
+        };
+      }
       return {
         'request_id': 'sent-1',
         'model': {'id': 'bert-v1', 'name': 'BERT v1', 'version': '1.0.0'},
