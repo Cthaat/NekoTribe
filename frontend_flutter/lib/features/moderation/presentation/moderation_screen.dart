@@ -10,6 +10,23 @@ import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/moderation_models.dart';
 
+String _moderationReasonLabel(AppLocalizations l10n, String reason) {
+  final normalized = reason.trim().toLowerCase();
+  final key = switch (normalized) {
+    'abuse' || 'harassment' => 'report.reason.abuse',
+    'adult' || 'sexual' => 'report.reason.sexual',
+    'copyright' => 'report.reason.copyright',
+    'hate' => 'report.reason.hate',
+    'misinformation' => 'report.reason.misinformation',
+    'other' => 'report.reason.other',
+    'spam' => 'report.reason.spam',
+    'violence' => 'report.reason.violence',
+    _ => 'report.reason.$normalized',
+  };
+  final translated = l10n.t(key);
+  return translated == key ? reason : translated;
+}
+
 class ModerationScreen extends ConsumerStatefulWidget {
   const ModerationScreen({super.key, this.initialTab = 0});
   final int initialTab;
@@ -305,7 +322,7 @@ class _ContentTabState extends ConsumerState<_ContentTab>
     try {
       await ref
           .read(moderationApiProvider)
-          .resolveContent(caseId: item.caseId, action: action);
+          .resolveContent(postId: item.postId, action: action);
       if (!mounted) return;
       setState(() => _items.removeWhere((x) => x.caseId == item.caseId));
     } catch (e) {
@@ -444,7 +461,7 @@ class _ContentTabState extends ConsumerState<_ContentTab>
                                         ),
                                       ),
                                       child: Text(
-                                        r,
+                                        _moderationReasonLabel(l10n, r),
                                         style: theme.textTheme.labelSmall,
                                       ),
                                     ),
@@ -457,6 +474,9 @@ class _ContentTabState extends ConsumerState<_ContentTab>
                                   children: [
                                     Expanded(
                                       child: OutlinedButton.icon(
+                                        key: Key(
+                                          'moderation-content-reject-${item.postId}',
+                                        ),
                                         onPressed: () =>
                                             _resolve(item, 'reject'),
                                         icon: Icon(
@@ -475,6 +495,9 @@ class _ContentTabState extends ConsumerState<_ContentTab>
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: FilledButton.icon(
+                                        key: Key(
+                                          'moderation-content-approve-${item.postId}',
+                                        ),
                                         onPressed: () =>
                                             _resolve(item, 'approve'),
                                         icon: const Icon(Icons.check, size: 16),
@@ -629,7 +652,7 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          r.reason,
+                          _moderationReasonLabel(l10n, r.reason),
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: theme.colorScheme.error,
                             fontWeight: FontWeight.w600,
@@ -748,7 +771,7 @@ class _UsersTabState extends ConsumerState<_UsersTab>
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('${_actionLabel(l10n, action)} @${user.username}'),
         content: SingleChildScrollView(
           child: Column(
@@ -777,11 +800,11 @@ class _UsersTabState extends ConsumerState<_UsersTab>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: Text(l10n.t('common.cancel')),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(l10n.t('common.confirm')),
           ),
         ],
@@ -983,6 +1006,9 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                                   ),
                                 ),
                                 PopupMenuButton<String>(
+                                  key: Key(
+                                    'moderation-user-actions-${user.userId}',
+                                  ),
                                   onSelected: (action) =>
                                       _moderateUser(user, action),
                                   itemBuilder: (_) => [
