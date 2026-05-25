@@ -43,6 +43,32 @@ class ChatApi {
     );
   }
 
+  Future<V2ChatChannel> updateChannel({
+    required int channelId,
+    String? name,
+    String? category,
+    bool? isPrivate,
+  }) {
+    return _client.requestData<V2ChatChannel>(
+      '${ApiPaths.chatChannels}/$channelId',
+      method: 'PATCH',
+      data: {
+        if (name != null) 'name': name,
+        if (category != null) 'category': category,
+        if (isPrivate != null) 'is_private': isPrivate,
+      },
+      decode: (data) => V2ChatChannel.fromJson(toMap(data)),
+    );
+  }
+
+  Future<void> deleteChannel(int channelId) async {
+    await _client.request<void>(
+      '${ApiPaths.chatChannels}/$channelId',
+      method: 'DELETE',
+      decode: (_) {},
+    );
+  }
+
   Future<PagedResult<V2ChatMessage>> listMessages({
     required int channelId,
     int page = 1,
