@@ -23,7 +23,15 @@ class AppShell extends ConsumerWidget {
   ];
 
   static const _desktopTabs = [
-    ..._primaryTabs,
+    ('/feed', Icons.home_outlined, Icons.home, 'tab.home'),
+    ('/discover', Icons.explore_outlined, Icons.explore, 'tab.discover'),
+    (
+      '/notifications',
+      Icons.notifications_outlined,
+      Icons.notifications,
+      'tab.notifications',
+    ),
+    ('/chat', Icons.chat_bubble_outline, Icons.chat_bubble, 'tab.messages'),
     ('/groups', Icons.groups_outlined, Icons.groups, 'group.title'),
     ('/moderation', Icons.shield_outlined, Icons.shield, 'moderation.title'),
     (
@@ -32,6 +40,7 @@ class AppShell extends ConsumerWidget {
       Icons.psychology,
       'sentiment.title',
     ),
+    ('/me', Icons.person_outline, Icons.person, 'tab.profile'),
   ];
 
   int _indexFor(
@@ -111,67 +120,110 @@ class _SideNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final width = extended ? 240.0 : 80.0;
+    final profileIndex = tabs.indexWhere((tab) => tab.$1 == '/me');
+    final profileTab = profileIndex >= 0 ? tabs[profileIndex] : null;
     return Container(
       width: width,
       color: theme.scaffoldBackgroundColor,
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _Brand(extended: extended),
-            const SizedBox(height: 24),
-            for (var i = 0; i < tabs.length; i++)
-              _NavItem(
-                icon: tabs[i].$2,
-                selectedIcon: tabs[i].$3,
-                label: labelFor(tabs[i].$4),
-                selected: i == currentIndex,
-                extended: extended,
-                onTap: () => GoRouter.of(context).go(tabs[i].$1),
-              ),
-            const SizedBox(height: 8),
-            if (extended)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 12,
-                ),
-                child: FilledButton.icon(
-                  key: const Key('app-shell-compose-button'),
-                  onPressed: () => GoRouter.of(context).push('/meow'),
-                  icon: const Icon(Icons.edit, size: 18),
-                  label: Text(labelFor('common.post')),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Center(
-                  child: SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: FilledButton(
-                      key: const Key('app-shell-compose-button'),
-                      onPressed: () => GoRouter.of(context).push('/meow'),
-                      style: FilledButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        shape: const CircleBorder(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Brand(extended: extended),
+                  const SizedBox(height: 24),
+                  for (var i = 0; i < tabs.length; i++)
+                    if (i != profileIndex)
+                      _NavItem(
+                        icon: tabs[i].$2,
+                        selectedIcon: tabs[i].$3,
+                        label: labelFor(tabs[i].$4),
+                        selected: i == currentIndex,
+                        extended: extended,
+                        onTap: () => GoRouter.of(context).go(tabs[i].$1),
                       ),
-                      child: const Icon(Icons.edit, size: 20),
+                  const SizedBox(height: 8),
+                  if (extended)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 12,
+                      ),
+                      child: FilledButton.icon(
+                        key: const Key('app-shell-compose-button'),
+                        onPressed: () => GoRouter.of(context).push('/meow'),
+                        icon: const Icon(Icons.edit, size: 18),
+                        label: Text(labelFor('common.post')),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Center(
+                        child: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: FilledButton(
+                            key: const Key('app-shell-compose-button'),
+                            onPressed: () => GoRouter.of(context).push('/meow'),
+                            style: FilledButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              shape: const CircleBorder(),
+                            ),
+                            child: const Icon(Icons.edit, size: 20),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                ],
               ),
+            ),
+          ),
+          if (profileTab != null) ...[
+            Divider(height: 24, color: theme.dividerColor),
+            _NavItem(
+              icon: profileTab.$2,
+              selectedIcon: profileTab.$3,
+              label: labelFor(profileTab.$4),
+              selected: profileIndex == currentIndex,
+              extended: extended,
+              onTap: () => GoRouter.of(context).go(profileTab.$1),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 }
+
+const desktopAppShellPathOrder = <String>[
+  '/feed',
+  '/discover',
+  '/notifications',
+  '/chat',
+  '/groups',
+  '/moderation',
+  '/sentiment',
+  '/me',
+];
+
+const desktopAppShellPaths = <String>{
+  '/feed',
+  '/discover',
+  '/notifications',
+  '/chat',
+  '/groups',
+  '/moderation',
+  '/sentiment',
+  '/me',
+};
 
 class _Brand extends StatelessWidget {
   const _Brand({required this.extended});
@@ -287,14 +339,3 @@ class _NavItem extends StatelessWidget {
     );
   }
 }
-
-const desktopAppShellPaths = <String>{
-  '/feed',
-  '/discover',
-  '/notifications',
-  '/chat',
-  '/me',
-  '/groups',
-  '/moderation',
-  '/sentiment',
-};
