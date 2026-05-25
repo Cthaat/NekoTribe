@@ -153,16 +153,135 @@ void main() {
     expect(chatApi.unreactedEmoji, '🔥');
     expect(chatApi.reactedMessageId, isNull);
   });
+
+  testWidgets('channel realtime inserts server chat message events', (
+    tester,
+  ) async {
+    final chatApi = _FakeChatApi();
+    final mediaApi = _FakeMediaApi();
+    final realtime = _FakeRealtimeService();
+
+    await tester.pumpWidget(
+      _testApp(chatApi: chatApi, mediaApi: mediaApi, realtime: realtime),
+    );
+    await tester.pumpAndSettle();
+
+    realtime.emit({
+      'type': 'chat_message',
+      'data': {
+        'channel_id': 7,
+        'message': _messageJson(
+          messageId: 1004,
+          content: 'Realtime message',
+        ),
+      },
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.text('Realtime message'), findsOneWidget);
+  });
+
+  testWidgets('channel realtime updates server chat message events', (
+    tester,
+  ) async {
+    final chatApi = _FakeChatApi(
+      initialMessages: [_message(messageId: 1005, content: 'Before edit')],
+    );
+    final mediaApi = _FakeMediaApi();
+    final realtime = _FakeRealtimeService();
+
+    await tester.pumpWidget(
+      _testApp(chatApi: chatApi, mediaApi: mediaApi, realtime: realtime),
+    );
+    await tester.pumpAndSettle();
+
+    realtime.emit({
+      'type': 'chat_message_updated',
+      'data': {
+        'channel_id': 7,
+        'message': _messageJson(
+          messageId: 1005,
+          content: 'After realtime edit',
+        ),
+      },
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.text('Before edit'), findsNothing);
+    expect(find.text('After realtime edit'), findsOneWidget);
+  });
+
+  testWidgets('channel realtime removes server deleted message events', (
+    tester,
+  ) async {
+    final chatApi = _FakeChatApi(
+      initialMessages: [_message(messageId: 1006, content: 'Delete me live')],
+    );
+    final mediaApi = _FakeMediaApi();
+    final realtime = _FakeRealtimeService();
+
+    await tester.pumpWidget(
+      _testApp(chatApi: chatApi, mediaApi: mediaApi, realtime: realtime),
+    );
+    await tester.pumpAndSettle();
+
+    realtime.emit({
+      'type': 'chat_message_deleted',
+      'data': {'channel_id': 7, 'message_id': 1006},
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete me live'), findsNothing);
+  });
+
+  testWidgets('channel realtime updates server reaction events', (
+    tester,
+  ) async {
+    final chatApi = _FakeChatApi(
+      initialMessages: [_message(messageId: 1007, content: 'React live')],
+    );
+    final mediaApi = _FakeMediaApi();
+    final realtime = _FakeRealtimeService();
+
+    await tester.pumpWidget(
+      _testApp(chatApi: chatApi, mediaApi: mediaApi, realtime: realtime),
+    );
+    await tester.pumpAndSettle();
+
+    realtime.emit({
+      'type': 'chat_reaction_updated',
+      'data': {
+        'channel_id': 7,
+        'message': _messageJson(
+          messageId: 1007,
+          content: 'React live',
+          reactions: [
+            {'emoji': '✨', 'count': 3, 'reacted_by_me': true},
+          ],
+        ),
+      },
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.text('✨'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+  });
 }
 
-Widget _testApp({required ChatApi chatApi, required MediaApi mediaApi}) {
+Widget _testApp({
+  required ChatApi chatApi,
+  required MediaApi mediaApi,
+  _FakeRealtimeService? realtime,
+}) {
   return ProviderScope(
     overrides: [
       appConfigBundleProvider.overrideWithValue(_testBundle),
       appConfigInitialProvider.overrideWithValue(_testConfig),
       chatApiProvider.overrideWithValue(chatApi),
       mediaApiProvider.overrideWithValue(mediaApi),
-      realtimeServiceProvider.overrideWithValue(_FakeRealtimeService()),
+      realtimeServiceProvider.overrideWithValue(
+        realtime ?? _FakeRealtimeService(),
+      ),
     ],
     child: const MaterialApp(home: ChannelScreen(groupId: 42, channelId: 7)),
   );
@@ -288,6 +407,14 @@ class _FakeRealtimeService extends RealtimeService {
   _FakeRealtimeService()
     : super(config: _testConfig, tokenStore: _FakeTokenStore());
 
+  final List<RealtimeListener> listeners = [];
+
+  void emit(Map<String, dynamic> event) {
+    for (final listener in List<RealtimeListener>.of(listeners)) {
+      listener(event);
+    }
+  }
+
   @override
   Future<void> connect() async {}
 
@@ -298,10 +425,14 @@ class _FakeRealtimeService extends RealtimeService {
   void send(Map<String, dynamic> payload) {}
 
   @override
-  void addListener(RealtimeListener listener) {}
+  void addListener(RealtimeListener listener) {
+    listeners.add(listener);
+  }
 
   @override
-  void removeListener(RealtimeListener listener) {}
+  void removeListener(RealtimeListener listener) {
+    listeners.remove(listener);
+  }
 }
 
 FilePickerResult _pickedFile(String name) {
@@ -360,6 +491,32 @@ V2ChatMessage _message({
   );
 }
 
+Map<String, dynamic> _messageJson({
+  int messageId = 9001,
+  String content = '',
+  List<Map<String, dynamic>> reactions = const [],
+}) {
+  return {
+    'message_id': messageId,
+    'channel_id': 7,
+    'group_id': 42,
+    'message_type': 'text',
+    'content': content,
+    'author': _userJson,
+    'reply_to': null,
+    'media': [],
+    'reactions': reactions,
+    'is_pinned': false,
+    'is_deleted': false,
+    'can_delete': true,
+    'can_pin': true,
+    'created_at': '2026-05-25T00:00:00.000Z',
+    'updated_at': '2026-05-25T00:00:00.000Z',
+    'edited_at': null,
+    'deleted_at': null,
+  };
+}
+
 V2MediaAsset _asset({String fileName = 'chat.pdf', String mediaType = 'file'}) {
   return V2MediaAsset(
     mediaId: 501,
@@ -389,6 +546,30 @@ final _user = V2PublicUser(
   relationship: V2Relationship.empty(),
   onlineStatus: 'online',
 );
+
+final _userJson = {
+  'user_id': 1,
+  'username': 'edge',
+  'display_name': 'Edge',
+  'avatar_url': '',
+  'bio': '',
+  'location': '',
+  'website': '',
+  'is_verified': 0,
+  'followers_count': 0,
+  'following_count': 0,
+  'posts_count': 0,
+  'likes_count': 0,
+  'relationship': {
+    'is_self': false,
+    'is_following': false,
+    'is_blocked': false,
+    'is_blocking': false,
+    'relation': 'stranger',
+  },
+  'online_status': 'online',
+  'last_seen_at': null,
+};
 
 const _testConfig = AppConfig(
   apiBaseUrl: 'http://example.test',
