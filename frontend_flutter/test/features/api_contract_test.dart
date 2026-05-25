@@ -647,6 +647,7 @@ void main() {
           path: '/api/v2/integrations/sentiment-flow/predict/',
           body: {
             'text': 'NekoTribe is lovely',
+            'model': 'bert',
             'model_id': 'bert-v1',
             'return_probabilities': true,
             'include_metadata': true,
@@ -662,6 +663,23 @@ void main() {
         expect(prediction.topK, hasLength(2));
       },
     );
+
+    test('prediction normalizes LSTM model ids for the proxy runtime', () async {
+      final recorder = _ApiRecorder();
+      final api = SentimentFlowApi(_client(recorder));
+
+      await api.predict(text: 'NekoTribe is fast', modelId: 'lstm-v1');
+
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/integrations/sentiment-flow/predict/',
+        body: {
+          'text': 'NekoTribe is fast',
+          'model': 'lstm',
+          'model_id': 'lstm-v1',
+        },
+      );
+    });
 
     test('prediction decodes raw SentimentFlow proxy payloads', () async {
       final recorder = _ApiRecorder();
