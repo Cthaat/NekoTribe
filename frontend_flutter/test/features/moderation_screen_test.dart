@@ -89,6 +89,26 @@ void main() {
     expect(api.resolvedAction, 'approve');
   });
 
+  testWidgets('resolved reports can be moved back to pending', (tester) async {
+    final api = _FakeModerationApi();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [moderationApiProvider.overrideWithValue(api)],
+        child: const MaterialApp(home: ModerationScreen(initialTab: 2)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('已处理'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('moderation-report-reopen-3001')));
+    await tester.pumpAndSettle();
+
+    expect(api.updatedReportId, 3001);
+    expect(api.updatedReportStatus, 'pending');
+  });
+
   testWidgets('user moderation dialog closes without popping GoRouter stack', (
     tester,
   ) async {
@@ -130,6 +150,8 @@ class _FakeModerationApi extends ModerationApi {
   Map<String, dynamic>? savedBody;
   int? resolvedPostId;
   String? resolvedAction;
+  int? updatedReportId;
+  String? updatedReportStatus;
   int? restrictedUserId;
   String? restrictedAction;
   List<V2ModerationSetting> _settings = [
@@ -174,6 +196,29 @@ class _FakeModerationApi extends ModerationApi {
   }) async {
     resolvedPostId = postId;
     resolvedAction = action;
+  }
+
+  @override
+  Future<PagedResult<V2ModerationReport>> reports({
+    String? status,
+    String? priority,
+    int page = 1,
+    int size = 20,
+  }) async {
+    return PagedResult(
+      items: status == 'resolved' ? [_resolvedReport] : const [],
+      meta: const ApiMeta(page: 1, pageSize: 20, total: 1, hasNext: false),
+    );
+  }
+
+  @override
+  Future<void> updateReport({
+    required int reportId,
+    required String status,
+    String? resolutionNote,
+  }) async {
+    updatedReportId = reportId;
+    updatedReportStatus = status;
   }
 
   @override
@@ -255,6 +300,20 @@ final _contentItem = V2ModerationContentItem(
   likesCount: 0,
   retweetsCount: 0,
   repliesCount: 0,
+);
+
+final _resolvedReport = V2ModerationReport(
+  reportId: 3001,
+  targetType: 'post',
+  targetId: 2001,
+  reporter: _publicUser,
+  reason: 'spam',
+  description: '点错通过的举报',
+  status: 'resolved',
+  priority: 'normal',
+  createdAt: '2026-05-24T00:00:00.000Z',
+  updatedAt: '2026-05-24T00:00:00.000Z',
+  resolvedAt: '2026-05-24T00:05:00.000Z',
 );
 
 final _moderationUser = V2ModerationUserItem(
