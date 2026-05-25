@@ -46,23 +46,26 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
     });
     try {
       final c = await ref.read(sentimentFlowApiProvider).config();
-      final accountSettings = await ref
-          .read(usersRepositoryProvider)
-          .getSettings()
-          .catchError((_) => null);
+      String? accountModelId;
+      bool? accountReturnProbabilities;
+      bool? accountIncludeMetadata;
+      int? accountTopK;
+      try {
+        final settings = await ref.read(usersRepositoryProvider).getSettings();
+        accountModelId = settings.aiSentimentModelId;
+        accountReturnProbabilities = settings.aiSentimentReturnProbabilities;
+        accountIncludeMetadata = settings.aiSentimentIncludeMetadata;
+        accountTopK = settings.aiSentimentTopK;
+      } catch (_) {
+        // Standalone analysis can still work for guests or expired sessions.
+      }
       if (!mounted) return;
       setState(() {
         _config = c;
-        _selectedModel = _preferredModel(
-          c,
-          accountSettings?.aiSentimentModelId,
-        );
-        _returnProbabilities =
-            accountSettings?.aiSentimentReturnProbabilities ??
-            _returnProbabilities;
-        _includeMetadata =
-            accountSettings?.aiSentimentIncludeMetadata ?? _includeMetadata;
-        _topK = accountSettings?.aiSentimentTopK;
+        _selectedModel = _preferredModel(c, accountModelId);
+        _returnProbabilities = accountReturnProbabilities ?? _returnProbabilities;
+        _includeMetadata = accountIncludeMetadata ?? _includeMetadata;
+        _topK = accountTopK;
         _loadingConfig = false;
       });
     } catch (e) {
