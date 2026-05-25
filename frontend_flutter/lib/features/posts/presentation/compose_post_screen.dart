@@ -10,6 +10,7 @@ import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../sentiment_flow/presentation/sentiment_prediction_dialog.dart';
+import '../domain/post_draft_metadata.dart';
 import '../domain/post_models.dart';
 
 class ComposePostScreen extends ConsumerStatefulWidget {
@@ -24,6 +25,8 @@ class ComposePostScreen extends ConsumerStatefulWidget {
 
 class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   final _controller = TextEditingController();
+  final _locationController = TextEditingController();
+  final _tagController = TextEditingController();
   final List<V2MediaAsset> _media = [];
   String _visibility = 'public';
   bool _busy = false;
@@ -33,6 +36,8 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _locationController.dispose();
+    _tagController.dispose();
     super.dispose();
   }
 
@@ -86,6 +91,10 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             replyToPostId: widget.replyToPostId,
             quotedPostId: widget.quotedPostId,
             mediaIds: _media.map((m) => m.mediaId).toList(),
+            location: _locationController.text.trim().isEmpty
+                ? null
+                : _locationController.text.trim(),
+            tags: _tagNames(),
           );
       if (!mounted) return;
       Navigator.of(context).pop(post);
@@ -140,12 +149,37 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 TextField(
+                  key: const Key('compose-content-field'),
                   controller: _controller,
                   maxLines: 8,
                   minLines: 5,
-                  maxLength: 2000,
+                  maxLength: 280,
                   decoration: InputDecoration(
                     hintText: l10n.t('compose.placeholder'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('compose-location-field'),
+                  controller: _locationController,
+                  maxLength: 60,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('compose.location'),
+                    hintText: l10n.t('compose.location_hint'),
+                    prefixIcon: const Icon(Icons.location_on_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('compose-tags-field'),
+                  controller: _tagController,
+                  maxLength: 120,
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('compose.tags'),
+                    hintText: l10n.t('compose.tags_hint'),
+                    prefixIcon: const Icon(Icons.tag_outlined),
                   ),
                 ),
                 if (_media.isNotEmpty) ...[
@@ -171,7 +205,9 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                                       .resolve(asset.publicUrl),
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, _, _) => ColoredBox(
-                                    color: theme.colorScheme.surfaceContainerHighest,
+                                    color: theme
+                                        .colorScheme
+                                        .surfaceContainerHighest,
                                     child: Icon(
                                       Icons.broken_image_outlined,
                                       color: theme.colorScheme.onSurfaceVariant,
@@ -184,8 +220,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                               top: 4,
                               right: 4,
                               child: InkWell(
-                                onTap: () =>
-                                    setState(() => _media.removeAt(i)),
+                                onTap: () => setState(() => _media.removeAt(i)),
                                 customBorder: const CircleBorder(),
                                 child: const CircleAvatar(
                                   radius: 12,
@@ -237,6 +272,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                     ),
                     const SizedBox(width: 6),
                     DropdownButton<String>(
+                      key: const Key('compose-visibility-field'),
                       value: _visibility,
                       underline: const SizedBox.shrink(),
                       isDense: true,
@@ -250,6 +286,10 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                         DropdownMenuItem(
                           value: 'followers',
                           child: Text(l10n.t('common.followers_only')),
+                        ),
+                        DropdownMenuItem(
+                          value: 'mentioned',
+                          child: Text(l10n.t('common.mentioned_only')),
                         ),
                         DropdownMenuItem(
                           value: 'private',
@@ -294,5 +334,9 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
         ),
       ),
     );
+  }
+
+  List<String> _tagNames() {
+    return draftTagNames(content: _controller.text, tags: _tagController.text);
   }
 }
