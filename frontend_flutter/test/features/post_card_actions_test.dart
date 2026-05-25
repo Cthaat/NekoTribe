@@ -96,10 +96,7 @@ void main() {
               width: 720,
               child: Column(
                 children: [
-                  PostCard(
-                    post: _likedPost,
-                    onChanged: (_) {},
-                  ),
+                  PostCard(post: _likedPost, onChanged: (_) {}),
                   PostCard(
                     post: _likedPost.copyWith(
                       stats: _likedPost.stats.copyWith(retweetsCount: 10),
