@@ -25,6 +25,7 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
   String? _selectedModel;
   bool _returnProbabilities = true;
   bool _includeMetadata = false;
+  int? _topK;
 
   @override
   void initState() {
@@ -45,12 +46,23 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
     });
     try {
       final c = await ref.read(sentimentFlowApiProvider).config();
+      final accountSettings = await ref
+          .read(usersRepositoryProvider)
+          .getSettings()
+          .catchError((_) => null);
       if (!mounted) return;
       setState(() {
         _config = c;
-        _selectedModel = c.defaultModel.isNotEmpty
-            ? c.defaultModel
-            : (c.availableModels.isNotEmpty ? c.availableModels.first : null);
+        _selectedModel = _preferredModel(
+          c,
+          accountSettings?.aiSentimentModelId,
+        );
+        _returnProbabilities =
+            accountSettings?.aiSentimentReturnProbabilities ??
+            _returnProbabilities;
+        _includeMetadata =
+            accountSettings?.aiSentimentIncludeMetadata ?? _includeMetadata;
+        _topK = accountSettings?.aiSentimentTopK;
         _loadingConfig = false;
       });
     } catch (e) {
@@ -60,6 +72,23 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
         _loadingConfig = false;
       });
     }
+  }
+
+  String? _preferredModel(
+    V2SentimentFlowConfig config,
+    String? accountModelId,
+  ) {
+    final available = config.availableModels;
+    bool allowed(String modelId) => available.isEmpty || available.contains(modelId);
+
+    final accountModel = accountModelId?.trim();
+    if (accountModel != null && accountModel.isNotEmpty && allowed(accountModel)) {
+      return accountModel;
+    }
+    if (config.defaultModel.isNotEmpty && allowed(config.defaultModel)) {
+      return config.defaultModel;
+    }
+    return available.isNotEmpty ? available.first : null;
   }
 
   Future<void> _predict() async {
@@ -78,6 +107,7 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
             modelId: _selectedModel,
             returnProbabilities: _returnProbabilities,
             includeMetadata: _includeMetadata,
+            topK: _topK,
           );
       if (!mounted) return;
       setState(() {
