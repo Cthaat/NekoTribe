@@ -192,6 +192,21 @@ class ApiClient {
     // 401 自动刷新逻辑：通过 interceptor 实现，这里只处理统一响应
     if (body is Map<String, dynamic>) {
       final envelope = _v2Envelope(body);
+      if (!_isV2Envelope(envelope)) {
+        if (status >= 200 && status < 300) {
+          return ApiResponse<T>(
+            code: status,
+            message: 'OK',
+            data: decode == null ? body as T : decode(body),
+          );
+        }
+        throw ApiException(
+          code: status,
+          statusCode: status,
+          message: 'HTTP $status',
+          data: body,
+        );
+      }
       final code = (envelope['code'] is num)
           ? (envelope['code'] as num).toInt()
           : status;
@@ -245,6 +260,11 @@ class ApiClient {
       return nested;
     }
     return body;
+  }
+
+  bool _isV2Envelope(Map<String, dynamic> body) {
+    if (body['code'] is num || body.containsKey('meta')) return true;
+    return body.containsKey('data') && body['message'] is String;
   }
 
   Interceptor _buildInterceptor() {
