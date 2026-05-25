@@ -116,22 +116,35 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
         title: Text(l10n.t('app.title')),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
-          child: Align(
-            alignment: Alignment.center,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppBreakpoints.contentMaxWidth,
-              ),
-              child: TabBar(
-                controller: _tab,
-                onTap: (idx) => _loadInitial(idx),
-                tabs: [
-                  Tab(text: l10n.t('feed.tab.home')),
-                  Tab(text: l10n.t('feed.tab.discover')),
-                  Tab(text: l10n.t('feed.tab.following')),
-                ],
-              ),
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final viewportWidth = MediaQuery.sizeOf(context).width;
+              final availableWidth =
+                  constraints.maxWidth.isFinite &&
+                      constraints.maxWidth < viewportWidth
+                  ? constraints.maxWidth
+                  : viewportWidth;
+              final width = availableWidth < AppBreakpoints.contentMaxWidth
+                  ? availableWidth
+                  : AppBreakpoints.contentMaxWidth;
+              return Center(
+                child: SizedBox(
+                  width: width,
+                  child: TabBar(
+                    controller: _tab,
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.center,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 24),
+                    onTap: (idx) => _loadInitial(idx),
+                    tabs: [
+                      Tab(text: l10n.t('feed.tab.home')),
+                      Tab(text: l10n.t('feed.tab.discover')),
+                      Tab(text: l10n.t('feed.tab.following')),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ),
