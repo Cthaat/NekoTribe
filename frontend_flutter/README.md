@@ -7,13 +7,15 @@ Flutter client for NekoTribe. The app targets Web, Windows desktop, and mobile-w
 Verified on 2026-05-25, branch `Flutter`:
 
 - `flutter analyze` passes.
-- `flutter test` passes, 86 tests.
+- `flutter test` passes, 89 tests.
 - `flutter build web` passes. The JS build is valid; the Wasm dry run still warns that `flutter_secure_storage_web` uses `dart:html` / `dart:js_util`.
 - `flutter build windows` passes and emits `build/windows/x64/runner/Release/nekotribe.exe`.
 - Flutter Web screenshots were captured at 390px, 800px, and 1280px under `build/visual-check/`.
 - Backend source includes a first middleware CORS layer for Flutter Web preview origins; the local `30001` app container has been redeployed with that fix active.
 - Flutter Web static preview login was smoke-tested against `http://localhost:30001` with the `edge` test account. Login reaches `#/feed`, persists access/refresh tokens through Flutter secure storage, and loads the home feed.
 - The v2 auth API now returns token strings in JSON for Flutter/Web clients that cannot read `HttpOnly Set-Cookie`; refresh also accepts a JSON `refresh_token` body when the cookie is unavailable.
+- Raw SentimentFlow proxy responses are decoded without v2-envelope assumptions, so the standalone sentiment page and post AI analysis dialog show labels, confidence, and probability rows from the live backend response.
+- Post card bookmark toggles preserve the current liked state, preventing home-feed bookmark actions from clearing a like.
 - Compose/edit post parity now covers the web composer metadata path: 280-character limit, `mentioned` visibility, location, hash/manual tag extraction, and `tag_names` API payloads.
 - Group create/manage parity now covers avatar/cover media upload, privacy, category, tags, join approval, post permission, invite limits, pending member approval/rejection, member search, ownership transfer, delete confirmation, and matching v2 group metadata API payloads.
 - Channel chat parity now covers attachment upload, reply targets, message edit/delete, reaction summaries with toggle, pin/unpin, and an `edge` live API smoke for media + reply + edit + reaction + pin + cleanup.
