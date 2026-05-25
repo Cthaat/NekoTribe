@@ -147,16 +147,120 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     }
   }
 
-  void _onTap(V2Notification n) {
-    if (n.isDeleted) return;
-    if (n.resourceType == 'post' && n.resourceId != null) {
-      context.push('/posts/${n.resourceId}');
-    } else if (n.resourceType == 'user' && n.actor != null) {
-      context.push('/users/${n.actor!.userId}');
-    } else if (n.resourceType == 'group' && n.metadata is Map) {
-      final slug = (n.metadata as Map)['group_slug'];
-      if (slug is String && slug.isNotEmpty) context.push('/groups/$slug');
+  Map<String, dynamic> _metadataRecord(V2Notification n) {
+    final metadata = n.metadata;
+    if (metadata is Map) {
+      return {
+        for (final entry in metadata.entries) '${entry.key}': entry.value,
+      };
     }
+    return const {};
+  }
+
+  int? _metadataNumber(Map<String, dynamic> metadata, String key) {
+    final value = metadata[key];
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  int? _firstMetadataNumber(Map<String, dynamic> metadata, List<String> keys) {
+    for (final key in keys) {
+      final value = _metadataNumber(metadata, key);
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  String? _metadataString(Map<String, dynamic> metadata, String key) {
+    final value = metadata[key];
+    if (value is String && value.isNotEmpty) return value;
+    if (value is num || value is bool) return '$value';
+    return null;
+  }
+
+  bool _isGroupPostNotification(V2Notification n) {
+    return n.resourceType == 'group_post' ||
+        n.resourceType == 'group_comment' ||
+        n.type == 'group_post' ||
+        n.type == 'group_comment';
+  }
+
+  Future<String?> _groupSlugFor(
+    V2Notification n,
+    Map<String, dynamic> metadata,
+  ) async {
+    final groupSlug = _metadataString(metadata, 'group_slug');
+    if (groupSlug != null && groupSlug.isNotEmpty) return groupSlug;
+
+    final groupId =
+        _metadataNumber(metadata, 'group_id') ??
+        (n.resourceType == 'group' ? n.resourceId : null);
+    if (groupId == null || groupId <= 0) return null;
+
+    try {
+      final groups = await ref.read(groupsApiProvider).myGroups(size: 100);
+      for (final group in groups.items) {
+        if (group.groupId == groupId) return group.slug;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  Future<String?> _detailRouteFor(V2Notification n) async {
+    final metadata = _metadataRecord(n);
+    if (n.type == 'group_invite') return '/groups/invites';
+    if (n.type == 'login_alert') return '/account/active';
+
+    final conversationId = _metadataNumber(metadata, 'conversation_id');
+    if ((n.type == 'direct_message' || n.resourceType == 'direct_message') &&
+        conversationId != null &&
+        conversationId > 0) {
+      return '/chat/conversation/$conversationId';
+    }
+
+    final postId =
+        _firstMetadataNumber(metadata, [
+          'target_post_id',
+          'post_id',
+          'source_post_id',
+        ]) ??
+        (n.resourceType == 'post' || n.resourceType == 'group_post'
+            ? n.resourceId
+            : null);
+    if (postId != null && postId > 0) {
+      if (_isGroupPostNotification(n)) {
+        final groupSlug = await _groupSlugFor(n, metadata);
+        if (groupSlug == null || groupSlug.isEmpty) return null;
+        return '/groups/$groupSlug/posts/$postId';
+      }
+      return '/posts/$postId';
+    }
+
+    if (n.resourceType == 'user' && n.resourceId != null) {
+      return '/users/${n.resourceId}';
+    }
+    final targetUserId = _metadataNumber(metadata, 'target_user_id');
+    if (targetUserId != null && targetUserId > 0) {
+      return '/users/$targetUserId';
+    }
+
+    if (n.resourceType == 'group') {
+      final groupSlug = await _groupSlugFor(n, metadata);
+      if (groupSlug == null || groupSlug.isEmpty) return null;
+      return '/groups/$groupSlug';
+    }
+    return null;
+  }
+
+  Future<void> _onTap(V2Notification n) async {
+    if (n.isDeleted) return;
+    final route = await _detailRouteFor(n);
+    if (!mounted) return;
+    if (route != null) context.push(route);
     if (!n.readFlag) {
       _setRead(n, true);
     }
