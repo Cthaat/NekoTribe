@@ -159,33 +159,10 @@ class _PostCardState extends ConsumerState<PostCard> {
     if (_busyRetweet) return;
     if (!requireAuthenticatedAction(context, ref)) return;
     final l10n = AppLocalizations.of(context);
-    final controller = TextEditingController();
     final text = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(l10n.t('post.quote.title')),
-        content: TextField(
-          controller: controller,
-          minLines: 3,
-          maxLines: 6,
-          decoration: InputDecoration(
-            border: const OutlineInputBorder(),
-            hintText: l10n.t('post.quote.hint'),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.t('common.cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text(l10n.t('common.post')),
-          ),
-        ],
-      ),
+      builder: (_) => _QuotePostDialog(l10n: l10n),
     );
-    controller.dispose();
     if (text == null) return;
     setState(() => _busyRetweet = true);
     try {
@@ -446,6 +423,58 @@ class _PostCardState extends ConsumerState<PostCard> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _QuotePostDialog extends StatefulWidget {
+  const _QuotePostDialog({required this.l10n});
+
+  final AppLocalizations l10n;
+
+  @override
+  State<_QuotePostDialog> createState() => _QuotePostDialogState();
+}
+
+class _QuotePostDialogState extends State<_QuotePostDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = widget.l10n;
+    return AlertDialog(
+      title: Text(l10n.t('post.quote.title')),
+      content: TextField(
+        controller: _controller,
+        minLines: 3,
+        maxLines: 6,
+        decoration: InputDecoration(
+          border: const OutlineInputBorder(),
+          hintText: l10n.t('post.quote.hint'),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.t('common.cancel')),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: Text(l10n.t('common.post')),
+        ),
+      ],
     );
   }
 }
