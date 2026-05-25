@@ -65,11 +65,7 @@ class AppShell extends ConsumerWidget {
               tabs: tabs,
               labelFor: l10n.t,
             ),
-            VerticalDivider(
-              width: 1,
-              thickness: 1,
-              color: theme.dividerColor,
-            ),
+            VerticalDivider(width: 1, thickness: 1, color: theme.dividerColor),
             Expanded(child: child),
           ],
         ),
@@ -79,9 +75,7 @@ class AppShell extends ConsumerWidget {
       body: child,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: theme.dividerColor),
-          ),
+          border: Border(top: BorderSide(color: theme.dividerColor)),
         ),
         child: NavigationBar(
           selectedIndex: currentIndex,
@@ -139,7 +133,10 @@ class _SideNav extends StatelessWidget {
             const SizedBox(height: 8),
             if (extended)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
                 child: FilledButton.icon(
                   key: const Key('app-shell-compose-button'),
                   onPressed: () => GoRouter.of(context).push('/meow'),
@@ -186,13 +183,11 @@ class _Brand extends StatelessWidget {
     final theme = Theme.of(context);
     final primary = theme.colorScheme.primary;
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: extended ? 10 : 0,
-        vertical: 4,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: extended ? 10 : 0, vertical: 4),
       child: Row(
-        mainAxisAlignment:
-            extended ? MainAxisAlignment.start : MainAxisAlignment.center,
+        mainAxisAlignment: extended
+            ? MainAxisAlignment.start
+            : MainAxisAlignment.center,
         children: [
           Container(
             width: 36,
@@ -272,8 +267,9 @@ class _NavItem extends StatelessWidget {
                           label,
                           style: theme.textTheme.bodyLarge?.copyWith(
                             color: color,
-                            fontWeight:
-                                selected ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                           ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
