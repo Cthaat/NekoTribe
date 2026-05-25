@@ -989,7 +989,7 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                                                     BorderRadius.circular(999),
                                               ),
                                               child: Text(
-                                                restriction,
+                                                _actionLabel(l10n, restriction),
                                                 style: theme
                                                     .textTheme
                                                     .labelSmall
@@ -1123,7 +1123,7 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
     final l10n = AppLocalizations.of(context);
     final response = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(
           status == 'approved'
               ? l10n.t('moderation.appeals.approve')
@@ -1138,16 +1138,18 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: Text(l10n.t('common.cancel')),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
             child: Text(l10n.t('common.confirm')),
           ),
         ],
       ),
     );
+    controller.dispose();
     if (response == null) return;
     try {
       await ref
@@ -1390,10 +1392,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
             ),
             child: Row(
               children: [
-                Icon(
-                  Icons.settings_outlined,
-                  color: theme.colorScheme.primary,
-                ),
+                Icon(Icons.settings_outlined, color: theme.colorScheme.primary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
