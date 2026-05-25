@@ -195,6 +195,24 @@ class UsersApi {
     );
   }
 
+  Future<V2UserAnalytics> getUserAnalytics(int userId) {
+    return _client.requestData<V2UserAnalytics>(
+      '${ApiPaths.users}/$userId/analytics',
+      decode: (data) => V2UserAnalytics.fromJson(toMap(data)),
+    );
+  }
+
+  Future<List<V2UserDailyAnalytics>> getUserDailyAnalytics(
+    int userId, {
+    int days = 14,
+  }) {
+    return _client.requestList<V2UserDailyAnalytics>(
+      '${ApiPaths.users}/$userId/analytics/daily',
+      query: {'days': days},
+      decodeItem: (item) => V2UserDailyAnalytics.fromJson(toMap(item)),
+    );
+  }
+
   Future<V2Relationship> followUser(int userId) {
     return _client.requestData<V2Relationship>(
       '${ApiPaths.users}/$userId/followers',
