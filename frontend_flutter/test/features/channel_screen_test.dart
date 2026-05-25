@@ -62,6 +62,40 @@ void main() {
     expect(find.text('chat.pdf'), findsOneWidget);
   });
 
+  testWidgets('channel composer exposes web toolbar actions', (tester) async {
+    final chatApi = _FakeChatApi();
+    final mediaApi = _FakeMediaApi();
+    FilePicker.platform = _FakeFilePicker([_pickedFile('cat.png')]);
+
+    await tester.pumpWidget(_testApp(chatApi: chatApi, mediaApi: mediaApi));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('chat-channel-attach-button')), findsOneWidget);
+    expect(find.byKey(const Key('chat-channel-image-button')), findsOneWidget);
+    expect(find.byKey(const Key('chat-channel-emoji-button')), findsOneWidget);
+    expect(find.byKey(const Key('chat-channel-mention-button')), findsOneWidget);
+    expect(find.byKey(const Key('chat-channel-channel-button')), findsOneWidget);
+    expect(find.byKey(const Key('chat-channel-sticker-button')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('chat-channel-image-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('cat.png'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('chat-channel-emoji-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('😀').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('chat-channel-mention-button')));
+    await tester.tap(find.byKey(const Key('chat-channel-channel-button')));
+    await tester.tap(find.byKey(const Key('chat-channel-sticker-button')));
+    await tester.pumpAndSettle();
+
+    final composer = tester.widget<TextField>(
+      find.byKey(const Key('chat-channel-composer-field')),
+    );
+    expect(composer.controller?.text, '😀@#🎁 ');
+  });
+
   testWidgets('channel composer sends selected reply target', (tester) async {
     final chatApi = _FakeChatApi(
       initialMessages: [_message(messageId: 1001, content: 'Original note')],
