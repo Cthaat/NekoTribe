@@ -63,7 +63,8 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
       setState(() {
         _config = c;
         _selectedModel = _preferredModel(c, accountModelId);
-        _returnProbabilities = accountReturnProbabilities ?? _returnProbabilities;
+        _returnProbabilities =
+            accountReturnProbabilities ?? _returnProbabilities;
         _includeMetadata = accountIncludeMetadata ?? _includeMetadata;
         _topK = accountTopK;
         _loadingConfig = false;
@@ -82,10 +83,13 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
     String? accountModelId,
   ) {
     final available = config.availableModels;
-    bool allowed(String modelId) => available.isEmpty || available.contains(modelId);
+    bool allowed(String modelId) =>
+        available.isEmpty || available.contains(modelId);
 
     final accountModel = accountModelId?.trim();
-    if (accountModel != null && accountModel.isNotEmpty && allowed(accountModel)) {
+    if (accountModel != null &&
+        accountModel.isNotEmpty &&
+        allowed(accountModel)) {
       return accountModel;
     }
     if (config.defaultModel.isNotEmpty && allowed(config.defaultModel)) {
@@ -150,7 +154,9 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.06),
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.06,
+                        ),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: theme.colorScheme.primary.withValues(
@@ -184,8 +190,7 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
                         ),
                         items: _config!.availableModels
                             .map(
-                              (m) =>
-                                  DropdownMenuItem(value: m, child: Text(m)),
+                              (m) => DropdownMenuItem(value: m, child: Text(m)),
                             )
                             .toList(),
                         onChanged: (v) => setState(() => _selectedModel = v),
@@ -212,7 +217,9 @@ class _SentimentScreenState extends ConsumerState<SentimentScreen> {
                         children: [
                           SwitchListTile(
                             title: Text(l10n.t('sentiment.return_probs')),
-                            subtitle: Text(l10n.t('sentiment.return_probs_hint')),
+                            subtitle: Text(
+                              l10n.t('sentiment.return_probs_hint'),
+                            ),
                             value: _returnProbabilities,
                             onChanged: (v) =>
                                 setState(() => _returnProbabilities = v),
