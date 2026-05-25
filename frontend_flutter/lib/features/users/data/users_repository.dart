@@ -70,6 +70,14 @@ class UsersRepository {
 
   Future<V2PublicUser> getUserById(int userId) => _api.getUserById(userId);
 
+  Future<V2UserAnalytics> getUserAnalytics(int userId) =>
+      _api.getUserAnalytics(userId);
+
+  Future<List<V2UserDailyAnalytics>> getUserDailyAnalytics(
+    int userId, {
+    int days = 14,
+  }) => _api.getUserDailyAnalytics(userId, days: days);
+
   Future<V2Relationship> follow(int userId) => _api.followUser(userId);
   Future<V2Relationship> unfollow(int userId) => _api.unfollowUser(userId);
 
