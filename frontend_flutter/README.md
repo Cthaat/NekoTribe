@@ -7,7 +7,7 @@ Flutter client for NekoTribe. The app targets Web, Windows desktop, and mobile-w
 Verified on 2026-05-25, branch `Flutter`:
 
 - `flutter analyze` passes.
-- `flutter test` passes, 82 tests.
+- `flutter test` passes, 86 tests.
 - `flutter build web` passes. The JS build is valid; the Wasm dry run still warns that `flutter_secure_storage_web` uses `dart:html` / `dart:js_util`.
 - `flutter build windows` passes and emits `build/windows/x64/runner/Release/nekotribe.exe`.
 - Flutter Web screenshots were captured at 390px, 800px, and 1280px under `build/visual-check/`.
@@ -17,6 +17,7 @@ Verified on 2026-05-25, branch `Flutter`:
 - Compose/edit post parity now covers the web composer metadata path: 280-character limit, `mentioned` visibility, location, hash/manual tag extraction, and `tag_names` API payloads.
 - Group create/manage parity now covers avatar/cover media upload, privacy, category, tags, join approval, post permission, invite limits, pending member approval/rejection, member search, ownership transfer, delete confirmation, and matching v2 group metadata API payloads.
 - Channel chat parity now covers attachment upload, reply targets, message edit/delete, reaction summaries with toggle, pin/unpin, and an `edge` live API smoke for media + reply + edit + reaction + pin + cleanup.
+- Channel realtime parity now consumes the backend/Nuxt event shapes for message create/update/delete and reaction updates.
 - Chat channel management parity now covers channel category input, mute/unmute, edit, delete, matching v2 API payloads, and an `edge` live API smoke for create + update + mute + delete cleanup.
 
 ## Implemented Parity Surface
@@ -26,7 +27,7 @@ Verified on 2026-05-25, branch `Flutter`:
 - Content APIs: `page_size` pagination, plural likes/bookmarks, replies, retweets, comments, reports, recommendation feedback, and delete/edit flows.
 - Composer/editor: text, media, visibility, location, and tags are wired to the v2 post create/update contracts.
 - Groups: slug lookup via `/groups/by-slug/{slug}`, numeric-ID member/post/invite actions, group post details, comments, likes, pinning, invites, create/manage avatar/cover media and metadata, invite limits, pending member approval/rejection, member search, ownership transfer, and delete confirmation.
-- Chat: direct conversations, group channel route, channel create/edit/delete/mute, attachment upload, reply preview/send, message send/edit/delete/react/pin, reaction summaries, and channel read/mute APIs.
+- Chat: direct conversations, group channel route, channel create/edit/delete/mute, attachment upload, reply preview/send, message send/edit/delete/react/pin, reaction summaries, channel realtime sync, and channel read/mute APIs.
 - Notifications: unread count, filters, single/all read, delete/restore, resource navigation.
 - Moderation: overview, content actions, reports, users actions, appeals, and settings.
 - SentimentFlow: backend-proxy based config and prediction UI.
