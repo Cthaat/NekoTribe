@@ -51,16 +51,57 @@ class GroupsApi {
     );
   }
 
-  Future<V2Group> createGroup(Map<String, dynamic> body) {
+  Future<V2Group> createGroup({
+    required String name,
+    required String description,
+    String? avatarUrl,
+    String? coverUrl,
+    String privacy = 'public',
+    String? category,
+    List<String> tags = const [],
+    bool joinApproval = false,
+    String postPermission = 'all',
+  }) {
     return _client.requestData<V2Group>(
       ApiPaths.groups,
       method: 'POST',
-      data: body,
+      data: {
+        'name': name,
+        'description': description,
+        'avatar_url': _nullableUrl(avatarUrl),
+        'cover_url': _nullableUrl(coverUrl),
+        'privacy': privacy,
+        'category': category,
+        'tags': tags,
+        'join_approval': joinApproval,
+        'post_permission': postPermission,
+      },
       decode: (data) => V2Group.fromJson(toMap(data)),
     );
   }
 
-  Future<V2Group> updateGroup(int groupId, Map<String, dynamic> body) {
+  Future<V2Group> updateGroup({
+    required int groupId,
+    String? name,
+    String? description,
+    String? avatarUrl,
+    String? coverUrl,
+    String? privacy,
+    String? category,
+    List<String>? tags,
+    bool? joinApproval,
+    String? postPermission,
+  }) {
+    final body = <String, dynamic>{};
+    if (name != null) body['name'] = name;
+    if (description != null) body['description'] = description;
+    if (avatarUrl != null) body['avatar_url'] = _nullableUrl(avatarUrl);
+    if (coverUrl != null) body['cover_url'] = _nullableUrl(coverUrl);
+    if (privacy != null) body['privacy'] = privacy;
+    if (category != null) body['category'] = category;
+    if (tags != null) body['tags'] = tags;
+    if (joinApproval != null) body['join_approval'] = joinApproval;
+    if (postPermission != null) body['post_permission'] = postPermission;
     return _client.requestData<V2Group>(
       '${ApiPaths.groups}/$groupId',
       method: 'PATCH',
@@ -377,4 +418,10 @@ class GroupsApi {
       decode: (_) {},
     );
   }
+}
+
+String? _nullableUrl(String? value) {
+  final next = value?.trim();
+  if (next == null || next.isEmpty) return null;
+  return next;
 }
