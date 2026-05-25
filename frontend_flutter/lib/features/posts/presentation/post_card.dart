@@ -523,6 +523,7 @@ class _MediaGrid extends StatelessWidget {
 
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.onTap,
