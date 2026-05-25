@@ -379,11 +379,13 @@ class SentimentFlowApi {
     bool? includeMetadata,
     int? topK,
   }) {
+    final model = _modelTypeFromId(modelId);
     return _client.requestData<V2SentimentPrediction>(
       '${ApiPaths.sentimentFlowProxy}/predict/',
       method: 'POST',
       data: {
         'text': text,
+        if (model != null) 'model': model,
         if (modelId != null) 'model_id': modelId,
         if (returnProbabilities != null)
           'return_probabilities': returnProbabilities,
@@ -392,6 +394,13 @@ class SentimentFlowApi {
       },
       decode: (data) => V2SentimentPrediction.fromJson(toMap(data)),
     );
+  }
+
+  String? _modelTypeFromId(String? modelId) {
+    final normalized = modelId?.toLowerCase() ?? '';
+    if (normalized.contains('bert')) return 'bert';
+    if (normalized.contains('lstm')) return 'lstm';
+    return null;
   }
 
   Future<V2SentimentModelsData> listModels() {
