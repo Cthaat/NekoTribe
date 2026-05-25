@@ -664,22 +664,25 @@ void main() {
       },
     );
 
-    test('prediction normalizes LSTM model ids for the proxy runtime', () async {
-      final recorder = _ApiRecorder();
-      final api = SentimentFlowApi(_client(recorder));
+    test(
+      'prediction normalizes LSTM model ids for the proxy runtime',
+      () async {
+        final recorder = _ApiRecorder();
+        final api = SentimentFlowApi(_client(recorder));
 
-      await api.predict(text: 'NekoTribe is fast', modelId: 'lstm-v1');
+        await api.predict(text: 'NekoTribe is fast', modelId: 'lstm-v1');
 
-      recorder.expectLast(
-        method: 'POST',
-        path: '/api/v2/integrations/sentiment-flow/predict/',
-        body: {
-          'text': 'NekoTribe is fast',
-          'model': 'lstm',
-          'model_id': 'lstm-v1',
-        },
-      );
-    });
+        recorder.expectLast(
+          method: 'POST',
+          path: '/api/v2/integrations/sentiment-flow/predict/',
+          body: {
+            'text': 'NekoTribe is fast',
+            'model': 'lstm',
+            'model_id': 'lstm-v1',
+          },
+        );
+      },
+    );
 
     test('prediction decodes raw SentimentFlow proxy payloads', () async {
       final recorder = _ApiRecorder();
