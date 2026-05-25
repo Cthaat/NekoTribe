@@ -68,15 +68,72 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
 
   void _onRealtime(Map<String, dynamic> event) {
     final type = event['type'];
-    final payload = event['payload'];
-    if (type != 'chat_message_created' || payload is! Map<String, dynamic>) {
+    final data = _eventData(event);
+    if (data == null) return;
+
+    if (type == 'chat_message_deleted') {
+      _removeDeletedMessage(data);
       return;
     }
-    final message = V2ChatMessage.fromJson(payload);
+
+    if (type != 'chat_message' &&
+        type != 'chat_message_created' &&
+        type != 'chat_message_updated' &&
+        type != 'chat_reaction_updated') {
+      return;
+    }
+
+    final rawMessage = _messageData(data);
+    if (rawMessage == null) return;
+    final message = V2ChatMessage.fromJson(rawMessage);
     if (message.channelId != widget.channelId) return;
     if (!mounted) return;
     setState(() => _upsertMessage(message));
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    if (type == 'chat_message' || type == 'chat_message_created') {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
+  }
+
+  Map<String, dynamic>? _eventData(Map<String, dynamic> event) {
+    final data = _asMap(event['data']);
+    if (data != null) return data;
+    return _asMap(event['payload']);
+  }
+
+  Map<String, dynamic>? _asMap(Object? value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) {
+      return value.map((key, value) => MapEntry(key.toString(), value));
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _messageData(Map<String, dynamic> data) {
+    final nested = _asMap(data['message']);
+    if (nested != null) return nested;
+    if (data.containsKey('message_id')) return data;
+    return null;
+  }
+
+  int? _eventInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  void _removeDeletedMessage(Map<String, dynamic> data) {
+    final eventChannelId = _eventInt(data['channel_id']);
+    if (eventChannelId != null && eventChannelId != widget.channelId) return;
+    final messageId = _eventInt(data['message_id']);
+    if (messageId == null) return;
+    if (!mounted) return;
+    setState(() {
+      _messages.removeWhere((message) => message.messageId == messageId);
+      if (_replyTo?.messageId == messageId) {
+        _replyTo = null;
+      }
+    });
   }
 
   void _upsertMessage(V2ChatMessage message) {
