@@ -104,6 +104,7 @@ class PostsApi {
     int? repostOfPostId,
     List<int> mediaIds = const [],
     List<String> tags = const [],
+    List<int> mentionUserIds = const [],
   }) {
     final body = <String, dynamic>{
       'content': content,
@@ -115,7 +116,8 @@ class PostsApi {
       if (quotedPostId != null) 'quoted_post_id': quotedPostId,
       if (repostOfPostId != null) 'repost_of_post_id': repostOfPostId,
       if (mediaIds.isNotEmpty) 'media_ids': mediaIds,
-      if (tags.isNotEmpty) 'tags': tags,
+      if (tags.isNotEmpty) 'tag_names': tags,
+      if (mentionUserIds.isNotEmpty) 'mention_user_ids': mentionUserIds,
     };
     return _client.requestData<V2Post>(
       ApiPaths.posts,
