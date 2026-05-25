@@ -51,6 +51,80 @@ void main() {
     expect(find.byIcon(Icons.favorite), findsOneWidget);
     expect(find.text('5'), findsOneWidget);
   });
+
+  testWidgets('post card exposes retweet action and updates count', (
+    tester,
+  ) async {
+    final api = _FakePostsApi();
+    V2Post? updated;
+
+    await _pumpPostCard(
+      tester,
+      api: api,
+      post: _likedPost.copyWith(
+        stats: _likedPost.stats.copyWith(retweetsCount: 2),
+      ),
+      onChanged: (post) => updated = post,
+    );
+
+    expect(find.byKey(const Key('post-retweet-button-200001')), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('post-retweet-button-200001')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '转发一下');
+    await tester.tap(find.widgetWithText(FilledButton, '发布'));
+    await tester.pumpAndSettle();
+
+    expect(api.retweetPostId, 200001);
+    expect(api.retweetContent, '转发一下');
+    expect(updated?.stats.retweetsCount, 3);
+    expect(find.text('3'), findsOneWidget);
+  });
+
+  testWidgets('post card more menu stays fixed at card right edge', (
+    tester,
+  ) async {
+    final api = _FakePostsApi();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _overrides(api),
+        child: MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 720,
+              child: Column(
+                children: [
+                  PostCard(
+                    post: _likedPost,
+                    onChanged: (_) {},
+                  ),
+                  PostCard(
+                    post: _likedPost.copyWith(
+                      stats: _likedPost.stats.copyWith(retweetsCount: 10),
+                    ),
+                    onChanged: (_) {},
+                    key: const ValueKey('long-post-card'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final first = tester.getTopRight(
+      find.byKey(const Key('post-more-button-200001')).first,
+    );
+    final second = tester.getTopRight(
+      find.byKey(const Key('post-more-button-200001')).last,
+    );
+
+    expect((first.dx - second.dx).abs(), lessThan(1));
+  });
 }
 
 class _FakePostsApi extends PostsApi {
@@ -58,6 +132,8 @@ class _FakePostsApi extends PostsApi {
     : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
 
   int bookmarkCalls = 0;
+  int? retweetPostId;
+  String? retweetContent;
 
   @override
   Future<V2ViewerPostState> bookmarkPost(int postId) async {
@@ -68,6 +144,52 @@ class _FakePostsApi extends PostsApi {
       canDelete: false,
     );
   }
+
+  @override
+  Future<V2Post> createRetweet({
+    required int postId,
+    required String content,
+    String visibility = 'public',
+  }) async {
+    retweetPostId = postId;
+    retweetContent = content;
+    return _likedPost.copyWith(
+      stats: _likedPost.stats.copyWith(retweetsCount: 3),
+    );
+  }
+}
+
+Future<void> _pumpPostCard(
+  WidgetTester tester, {
+  required _FakePostsApi api,
+  required V2Post post,
+  void Function(V2Post post)? onChanged,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: _overrides(api),
+      child: MaterialApp(
+        home: Scaffold(
+          body: PostCard(post: post, onChanged: onChanged),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+List<Override> _overrides(_FakePostsApi api) {
+  return [
+    appConfigBundleProvider.overrideWithValue(_testBundle),
+    appConfigInitialProvider.overrideWithValue(_testConfig),
+    tokenStoreProvider.overrideWithValue(_AuthenticatedTokenStore()),
+    authSessionProvider.overrideWith((ref) {
+      final controller = AuthSessionController(_AuthenticatedTokenStore());
+      controller.markLoggedIn();
+      return controller;
+    }),
+    postsApiProvider.overrideWithValue(api),
+  ];
 }
 
 final _likedPost = V2Post(
