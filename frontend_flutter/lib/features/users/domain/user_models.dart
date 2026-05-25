@@ -174,6 +174,83 @@ class V2SelfUser extends V2PublicUser {
   }
 }
 
+class V2UserAnalytics {
+  V2UserAnalytics({
+    required this.userId,
+    required this.totalPosts,
+    required this.postsThisWeek,
+    required this.postsThisMonth,
+    required this.totalLikesReceived,
+    required this.avgLikesPerPost,
+    required this.totalLikesGiven,
+    required this.totalCommentsMade,
+    required this.engagementScore,
+  });
+
+  final int userId;
+  final int totalPosts;
+  final int postsThisWeek;
+  final int postsThisMonth;
+  final int totalLikesReceived;
+  final double avgLikesPerPost;
+  final int totalLikesGiven;
+  final int totalCommentsMade;
+  final double engagementScore;
+
+  factory V2UserAnalytics.fromJson(Map<String, dynamic> json) {
+    return V2UserAnalytics(
+      userId: toInt(json['user_id']) ?? 0,
+      totalPosts: toInt(json['total_posts']) ?? 0,
+      postsThisWeek: toInt(json['posts_this_week']) ?? 0,
+      postsThisMonth: toInt(json['posts_this_month']) ?? 0,
+      totalLikesReceived: toInt(json['total_likes_received']) ?? 0,
+      avgLikesPerPost: toDouble(json['avg_likes_per_post']) ?? 0,
+      totalLikesGiven: toInt(json['total_likes_given']) ?? 0,
+      totalCommentsMade: toInt(json['total_comments_made']) ?? 0,
+      engagementScore: toDouble(json['engagement_score']) ?? 0,
+    );
+  }
+}
+
+class V2UserDailyAnalytics {
+  V2UserDailyAnalytics({
+    required this.day,
+    required this.postsCount,
+    required this.likesReceived,
+    required this.commentsReceived,
+    required this.retweetsReceived,
+    required this.likesGiven,
+    required this.commentsMade,
+    required this.engagementScore,
+  });
+
+  final String day;
+  final int postsCount;
+  final int likesReceived;
+  final int commentsReceived;
+  final int retweetsReceived;
+  final int likesGiven;
+  final int commentsMade;
+  final double engagementScore;
+
+  int get receivedInteractions =>
+      likesReceived + commentsReceived + retweetsReceived;
+  int get outgoingInteractions => likesGiven + commentsMade;
+
+  factory V2UserDailyAnalytics.fromJson(Map<String, dynamic> json) {
+    return V2UserDailyAnalytics(
+      day: toStr(json['day']),
+      postsCount: toInt(json['posts_count']) ?? 0,
+      likesReceived: toInt(json['likes_received']) ?? 0,
+      commentsReceived: toInt(json['comments_received']) ?? 0,
+      retweetsReceived: toInt(json['retweets_received']) ?? 0,
+      likesGiven: toInt(json['likes_given']) ?? 0,
+      commentsMade: toInt(json['comments_made']) ?? 0,
+      engagementScore: toDouble(json['engagement_score']) ?? 0,
+    );
+  }
+}
+
 class V2AvatarData {
   V2AvatarData({required this.avatarUrl, this.avatarMediaId});
 
