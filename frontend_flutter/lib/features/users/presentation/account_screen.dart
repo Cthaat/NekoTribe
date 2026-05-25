@@ -125,6 +125,16 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     _Section(
                       tiles: [
                         _Row(
+                          icon: Icons.insights_outlined,
+                          label: l10n.t('settings.account.personal_analysis'),
+                          onTap: () => context.push('/account/overview'),
+                        ),
+                        _Row(
+                          icon: Icons.query_stats_outlined,
+                          label: l10n.t('settings.account.data_analysis'),
+                          onTap: () => context.push('/account/data'),
+                        ),
+                        _Row(
                           icon: Icons.article_outlined,
                           label: l10n.t('settings.account.my_posts'),
                           onTap: () => context.push('/account/posts'),
