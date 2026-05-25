@@ -510,7 +510,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                               tooltip: l10n.t('chat.upload_attachment'),
                               onPressed: _pickingAttachment || _sending
                                   ? null
-                                  : _pickAttachment,
+                                  : () => _pickAttachment(),
                               icon: _pickingAttachment
                                   ? const SizedBox(
                                       width: 18,
