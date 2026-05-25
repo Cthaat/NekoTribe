@@ -170,10 +170,7 @@ void main() {
       'type': 'chat_message',
       'data': {
         'channel_id': 7,
-        'message': _messageJson(
-          messageId: 1004,
-          content: 'Realtime message',
-        ),
+        'message': _messageJson(messageId: 1004, content: 'Realtime message'),
       },
     });
     await tester.pumpAndSettle();
