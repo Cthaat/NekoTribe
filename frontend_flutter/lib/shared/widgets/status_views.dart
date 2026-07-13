@@ -76,25 +76,51 @@ bool _isConnectionError(String value) {
 }
 
 class EmptyView extends StatelessWidget {
-  const EmptyView({super.key, required this.message, this.icon});
+  const EmptyView({
+    super.key,
+    required this.message,
+    this.icon,
+    this.actionLabel,
+    this.onAction,
+  });
 
   final String message;
   final IconData? icon;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final showAction =
+        actionLabel != null && actionLabel!.isNotEmpty && onAction != null;
+
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon ?? Icons.inbox_outlined,
-            size: 64,
-            color: Theme.of(context).disabledColor,
-          ),
-          const SizedBox(height: 8),
-          Text(message, style: Theme.of(context).textTheme.bodyMedium),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon ?? Icons.inbox_outlined,
+              size: 64,
+              color: colorScheme.outline,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            if (showAction) ...[
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: onAction,
+                child: Text(actionLabel!),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

@@ -40,4 +40,32 @@ void main() {
       expect(find.text('无法连接到服务，请确认后端入口已启动后重试。'), findsOneWidget);
     },
   );
+
+  testWidgets('EmptyView optional action invokes onAction when tapped', (
+    tester,
+  ) async {
+    var actionTapped = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: EmptyView(
+            message: 'Nothing here yet',
+            actionLabel: 'Refresh',
+            onAction: () => actionTapped = true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nothing here yet'), findsOneWidget);
+    expect(find.text('Refresh'), findsOneWidget);
+    expect(actionTapped, isFalse);
+
+    await tester.tap(find.text('Refresh'));
+    await tester.pumpAndSettle();
+
+    expect(actionTapped, isTrue);
+  });
 }
