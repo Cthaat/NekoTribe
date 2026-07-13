@@ -111,7 +111,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           .read(chatApiProvider)
           .openConversation(userId: _user!.userId);
       if (!mounted) return;
-      context.push('/chat/conversation/${conversation.conversationId}');
+      final displayName = _user!.displayName.trim().isNotEmpty
+          ? _user!.displayName
+          : _user!.username;
+      context.push(
+        '/chat/conversation/${conversation.conversationId}',
+        extra: {
+          'title': displayName,
+          'name': displayName,
+        },
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

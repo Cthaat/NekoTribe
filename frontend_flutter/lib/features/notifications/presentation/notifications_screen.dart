@@ -32,10 +32,12 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   List<V2Notification> _items = [];
   bool _loading = true;
+  bool _refreshing = false;
   Object? _error;
   bool _unreadOnly = false;
   String? _type;
   int? _unreadCount;
+  int _loadGen = 0;
   late final RealtimeService _realtime;
 
   @override
@@ -59,32 +61,47 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       return;
     }
     if (!mounted) return;
-    unawaited(_load());
+    unawaited(_load(soft: true));
     unawaited(ref.read(notificationsUnreadProvider.notifier).refresh());
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _load({bool soft = false}) async {
+    final gen = ++_loadGen;
+    if (!soft) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    } else if (mounted) {
+      setState(() => _refreshing = true);
+    }
     try {
       final api = ref.read(notificationsApiProvider);
       final page = await api.list(type: _type, unreadOnly: _unreadOnly);
       final unreadCount = await api.unreadCount();
-      if (!mounted) return;
+      if (!mounted || gen != _loadGen) return;
       setState(() {
         _items = page.items;
         _unreadCount = unreadCount;
         _loading = false;
+        _refreshing = false;
+        _error = null;
       });
       ref.read(notificationsUnreadProvider.notifier).set(unreadCount);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || gen != _loadGen) return;
       setState(() {
-        _error = e;
+        if (!soft) {
+          _error = e;
+        }
         _loading = false;
+        _refreshing = false;
       });
+      if (soft) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      }
     }
   }
 
@@ -104,7 +121,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       );
       _unreadCount = 0;
       ref.read(notificationsUnreadProvider.notifier).set(0);
-    } catch (_) {}
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
   }
 
   Future<void> _setRead(V2Notification n, bool isRead) async {
@@ -293,11 +315,48 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _onTap(V2Notification n) async {
     if (n.isDeleted) return;
+    final metadata = _metadataRecord(n);
+    final conversationId = _metadataNumber(metadata, 'conversation_id');
+    final isDm =
+        (n.type == 'direct_message' || n.resourceType == 'direct_message') &&
+        conversationId != null &&
+        conversationId > 0;
+
+    if (isDm) {
+      final title =
+          _metadataString(metadata, 'participant_name') ??
+          _metadataString(metadata, 'actor_display_name') ??
+          (n.actor != null
+              ? (n.actor!.displayName.isNotEmpty
+                    ? n.actor!.displayName
+                    : n.actor!.username)
+              : null);
+      if (!mounted) return;
+      // Don't await push so mark-read still runs while the detail is open.
+      unawaited(
+        context.push(
+          '/chat/conversation/$conversationId',
+          extra: title == null
+              ? null
+              : {
+                  'title': title,
+                  'name': title,
+                },
+        ),
+      );
+      if (!n.readFlag) {
+        unawaited(_setRead(n, true));
+      }
+      return;
+    }
+
     final route = await _detailRouteFor(n);
     if (!mounted) return;
-    if (route != null) context.push(route);
+    if (route != null) {
+      unawaited(context.push(route));
+    }
     if (!n.readFlag) {
-      _setRead(n, true);
+      unawaited(_setRead(n, true));
     }
   }
 
@@ -413,152 +472,180 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 ),
               ),
               Expanded(
-                child: _loading
-                    ? const LoadingView()
-                    : _error != null
-                    ? ErrorView(error: _error!, onRetry: _load)
-                    : _items.isEmpty
-                    ? EmptyView(message: l10n.t('notification.empty'))
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                          itemCount: _items.length,
-                          itemBuilder: (_, i) {
-                            final n = _items[i];
-                            final theme = Theme.of(context);
-                            final unreadTint = theme.colorScheme.primary
-                                .withValues(alpha: 0.06);
-                            final borderColor = n.readFlag
-                                ? theme.colorScheme.outlineVariant.withValues(
-                                    alpha: 0.45,
-                                  )
-                                : theme.colorScheme.primary.withValues(
-                                    alpha: 0.22,
-                                  );
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Material(
-                                color: n.readFlag
-                                    ? theme.colorScheme.surface
-                                    : unreadTint,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  side: BorderSide(color: borderColor),
+                child: Column(
+                  children: [
+                    if (_refreshing && _items.isNotEmpty)
+                      const LinearProgressIndicator(minHeight: 2),
+                    Expanded(
+                      child: _loading
+                          ? const LoadingView()
+                          : _error != null
+                          ? ErrorView(error: _error!, onRetry: _load)
+                          : _items.isEmpty
+                          ? EmptyView(message: l10n.t('notification.empty'))
+                          : RefreshIndicator(
+                              onRefresh: () => _load(soft: true),
+                              child: ListView.builder(
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  8,
+                                  12,
+                                  24,
                                 ),
-                                clipBehavior: Clip.antiAlias,
-                                child: ListTile(
-                                  enabled: !n.isDeleted,
-                                  contentPadding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    6,
-                                    4,
-                                    6,
-                                  ),
-                                  leading: n.actor != null
-                                      ? AppAvatar(
-                                          url: n.actor!.avatarUrl,
-                                          size: 40,
-                                        )
-                                      : CircleAvatar(
-                                          radius: 20,
-                                          backgroundColor: n.readFlag
-                                              ? theme
-                                                    .colorScheme
-                                                    .surfaceContainerHighest
-                                              : theme.colorScheme.primary
-                                                    .withValues(alpha: 0.12),
-                                          child: Icon(
-                                            Icons.notifications_outlined,
-                                            size: 20,
-                                            color: n.readFlag
-                                                ? theme
-                                                      .colorScheme
-                                                      .onSurfaceVariant
-                                                : theme.colorScheme.primary,
-                                          ),
+                                itemCount: _items.length,
+                                itemBuilder: (_, i) {
+                                  final n = _items[i];
+                                  final theme = Theme.of(context);
+                                  final unreadTint = theme.colorScheme.primary
+                                      .withValues(alpha: 0.06);
+                                  final borderColor = n.readFlag
+                                      ? theme.colorScheme.outlineVariant
+                                            .withValues(alpha: 0.45)
+                                      : theme.colorScheme.primary.withValues(
+                                          alpha: 0.22,
+                                        );
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Material(
+                                      color: n.readFlag
+                                          ? theme.colorScheme.surface
+                                          : unreadTint,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        side: BorderSide(color: borderColor),
+                                      ),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: ListTile(
+                                        enabled: !n.isDeleted,
+                                        contentPadding:
+                                            const EdgeInsets.fromLTRB(
+                                              12,
+                                              6,
+                                              4,
+                                              6,
+                                            ),
+                                        leading: n.actor != null
+                                            ? AppAvatar(
+                                                url: n.actor!.avatarUrl,
+                                                size: 40,
+                                              )
+                                            : CircleAvatar(
+                                                radius: 20,
+                                                backgroundColor: n.readFlag
+                                                    ? theme
+                                                          .colorScheme
+                                                          .surfaceContainerHighest
+                                                    : theme.colorScheme.primary
+                                                          .withValues(
+                                                            alpha: 0.12,
+                                                          ),
+                                                child: Icon(
+                                                  Icons.notifications_outlined,
+                                                  size: 20,
+                                                  color: n.readFlag
+                                                      ? theme
+                                                            .colorScheme
+                                                            .onSurfaceVariant
+                                                      : theme
+                                                            .colorScheme
+                                                            .primary,
+                                                ),
+                                              ),
+                                        title: Text(
+                                          n.title.isEmpty ? n.type : n.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.titleSmall
+                                              ?.copyWith(
+                                                fontWeight: n.readFlag
+                                                    ? FontWeight.w500
+                                                    : FontWeight.w700,
+                                              ),
                                         ),
-                                  title: Text(
-                                    n.title.isEmpty ? n.type : n.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      fontWeight: n.readFlag
-                                          ? FontWeight.w500
-                                          : FontWeight.w700,
+                                        subtitle: Text(
+                                          n.message,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              n.isDeleted
+                                                  ? l10n.t(
+                                                      'notification.deleted',
+                                                    )
+                                                  : _formatDate(n.createdAt),
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                    color: theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                            ),
+                                            PopupMenuButton<String>(
+                                              onSelected: (value) {
+                                                if (value == 'read') {
+                                                  _setRead(n, true);
+                                                }
+                                                if (value == 'unread') {
+                                                  _setRead(n, false);
+                                                }
+                                                if (value == 'delete') {
+                                                  _delete(n);
+                                                }
+                                                if (value == 'restore') {
+                                                  _restore(n);
+                                                }
+                                              },
+                                              itemBuilder: (_) => [
+                                                if (!n.readFlag && !n.isDeleted)
+                                                  PopupMenuItem(
+                                                    value: 'read',
+                                                    child: Text(
+                                                      l10n.t(
+                                                        'common.mark_read',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                if (n.readFlag && !n.isDeleted)
+                                                  PopupMenuItem(
+                                                    value: 'unread',
+                                                    child: Text(
+                                                      l10n.t(
+                                                        'common.mark_unread',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                if (!n.isDeleted)
+                                                  PopupMenuItem(
+                                                    value: 'delete',
+                                                    child: Text(
+                                                      l10n.t('common.delete'),
+                                                    ),
+                                                  ),
+                                                if (n.isDeleted)
+                                                  PopupMenuItem(
+                                                    value: 'restore',
+                                                    child: Text(
+                                                      l10n.t('common.restore'),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                        onTap: () => _onTap(n),
+                                      ),
                                     ),
-                                  ),
-                                  subtitle: Text(
-                                    n.message,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        n.isDeleted
-                                            ? l10n.t('notification.deleted')
-                                            : _formatDate(n.createdAt),
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                              color: theme
-                                                  .colorScheme
-                                                  .onSurfaceVariant,
-                                            ),
-                                      ),
-                                      PopupMenuButton<String>(
-                                        onSelected: (value) {
-                                          if (value == 'read') {
-                                            _setRead(n, true);
-                                          }
-                                          if (value == 'unread') {
-                                            _setRead(n, false);
-                                          }
-                                          if (value == 'delete') _delete(n);
-                                          if (value == 'restore') _restore(n);
-                                        },
-                                        itemBuilder: (_) => [
-                                          if (!n.readFlag && !n.isDeleted)
-                                            PopupMenuItem(
-                                              value: 'read',
-                                              child: Text(
-                                                l10n.t('common.mark_read'),
-                                              ),
-                                            ),
-                                          if (n.readFlag && !n.isDeleted)
-                                            PopupMenuItem(
-                                              value: 'unread',
-                                              child: Text(
-                                                l10n.t('common.mark_unread'),
-                                              ),
-                                            ),
-                                          if (!n.isDeleted)
-                                            PopupMenuItem(
-                                              value: 'delete',
-                                              child: Text(
-                                                l10n.t('common.delete'),
-                                              ),
-                                            ),
-                                          if (n.isDeleted)
-                                            PopupMenuItem(
-                                              value: 'restore',
-                                              child: Text(
-                                                l10n.t('common.restore'),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  onTap: () => _onTap(n),
-                                ),
+                                  );
+                                },
                               ),
-                            );
-                          },
-                        ),
-                      ),
+                            ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

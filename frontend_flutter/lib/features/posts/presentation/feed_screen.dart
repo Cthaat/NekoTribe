@@ -32,6 +32,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
   void initState() {
     super.initState();
     _tab = TabController(length: 3, vsync: this);
+    _tab.addListener(() {
+      if (_tab.indexIsChanging) return;
+      _loadInitial(_tab.index);
+    });
     _loadInitial(0);
   }
 

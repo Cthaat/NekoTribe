@@ -42,6 +42,20 @@ class _PostCardState extends ConsumerState<PostCard> {
     _post = widget.post;
   }
 
+  @override
+  void didUpdateWidget(PostCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.post.postId != widget.post.postId) {
+      _post = widget.post;
+      return;
+    }
+    // Prefer syncing stats/content when parent refreshes, but avoid clobbering
+    // in-flight optimistic like/bookmark/retweet updates.
+    if (!_busyLike && !_busyBookmark && !_busyRetweet) {
+      _post = widget.post;
+    }
+  }
+
   Future<void> _toggleLike() async {
     if (_busyLike) return;
     if (!requireAuthenticatedAction(context, ref)) return;

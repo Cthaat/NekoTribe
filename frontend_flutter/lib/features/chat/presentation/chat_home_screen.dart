@@ -227,10 +227,18 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16),
                                     ),
-                                    leading: AppAvatar(
-                                      url: c.participant.avatarUrl,
-                                      size: 48,
-                                    ),
+                                    leading: c.unreadCount > 0
+                                        ? Badge(
+                                            label: Text('${c.unreadCount}'),
+                                            child: AppAvatar(
+                                              url: c.participant.avatarUrl,
+                                              size: 48,
+                                            ),
+                                          )
+                                        : AppAvatar(
+                                            url: c.participant.avatarUrl,
+                                            size: 48,
+                                          ),
                                     title: Text(
                                       name,
                                       maxLines: 1,
@@ -251,32 +259,18 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                                                 .onSurfaceVariant,
                                           ),
                                     ),
-                                    trailing: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          c.lastMessage != null
-                                              ? _formatDate(
-                                                  c.lastMessage!.createdAt,
-                                                )
-                                              : _formatDate(c.updatedAt),
-                                          style: theme.textTheme.labelSmall
-                                              ?.copyWith(
-                                                color: theme
-                                                    .colorScheme
-                                                    .onSurfaceVariant,
-                                              ),
-                                        ),
-                                        if (c.unreadCount > 0) ...[
-                                          const SizedBox(height: 6),
-                                          Badge(
-                                            label: Text('${c.unreadCount}'),
+                                    trailing: Text(
+                                      c.lastMessage != null
+                                          ? _formatDate(
+                                              c.lastMessage!.createdAt,
+                                            )
+                                          : _formatDate(c.updatedAt),
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
                                           ),
-                                        ],
-                                      ],
                                     ),
                                     onTap: () => _openConversation(c),
                                   ),
