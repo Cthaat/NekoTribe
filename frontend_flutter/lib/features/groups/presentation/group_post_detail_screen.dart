@@ -130,17 +130,20 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
   Future<void> _togglePin() async {
     if (_group == null || _post == null) return;
     if (!requireAuthenticatedAction(context, ref)) return;
+    final current = _post!;
+    final nextPinned = !current.isPinned;
+    setState(() => _post = current.copyWith(isPinned: nextPinned));
     try {
       await ref
           .read(groupsApiProvider)
           .setGroupPostPinStatus(
             groupId: _group!.groupId,
-            postId: _post!.postId,
-            isPinned: !_post!.isPinned,
+            postId: current.postId,
+            isPinned: nextPinned,
           );
-      await _load();
     } catch (e) {
       if (!mounted) return;
+      setState(() => _post = current);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
@@ -150,17 +153,28 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
   Future<void> _toggleLike() async {
     if (_group == null || _post == null) return;
     if (!requireAuthenticatedAction(context, ref)) return;
+    final current = _post!;
+    final nextLiked = !current.isLikedByMe;
+    final nextCount = nextLiked
+        ? current.likesCount + 1
+        : (current.likesCount - 1).clamp(0, 1 << 30);
+    setState(
+      () => _post = current.copyWith(
+        isLikedByMe: nextLiked,
+        likesCount: nextCount,
+      ),
+    );
     try {
       await ref
           .read(groupsApiProvider)
           .setGroupPostLikeStatus(
             groupId: _group!.groupId,
-            postId: _post!.postId,
-            liked: !_post!.isLikedByMe,
+            postId: current.postId,
+            liked: nextLiked,
           );
-      await _load();
     } catch (e) {
       if (!mounted) return;
+      setState(() => _post = current);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
@@ -184,6 +198,10 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
       setState(() {
         _comments.insert(0, comment);
         _commentController.clear();
+        final post = _post;
+        if (post != null) {
+          _post = post.copyWith(commentsCount: post.commentsCount + 1);
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -205,11 +223,15 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
             commentId: comment.commentId,
           );
       if (!mounted) return;
-      setState(
-        () => _comments.removeWhere(
-          (item) => item.commentId == comment.commentId,
-        ),
-      );
+      setState(() {
+        _comments.removeWhere((item) => item.commentId == comment.commentId);
+        final post = _post;
+        if (post != null) {
+          _post = post.copyWith(
+            commentsCount: (post.commentsCount - 1).clamp(0, 1 << 30),
+          );
+        }
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -221,6 +243,19 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
   Future<void> _toggleCommentLike(V2GroupComment comment) async {
     if (_group == null || _post == null) return;
     if (!requireAuthenticatedAction(context, ref)) return;
+    final nextLiked = !comment.isLikedByMe;
+    final nextCount = nextLiked
+        ? comment.likesCount + 1
+        : (comment.likesCount - 1).clamp(0, 1 << 30);
+    setState(() {
+      _comments = [
+        for (final c in _comments)
+          if (c.commentId == comment.commentId)
+            c.copyWith(isLikedByMe: nextLiked, likesCount: nextCount)
+          else
+            c,
+      ];
+    });
     try {
       await ref
           .read(groupsApiProvider)
@@ -228,11 +263,22 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
             groupId: _group!.groupId,
             postId: _post!.postId,
             commentId: comment.commentId,
-            liked: !comment.isLikedByMe,
+            liked: nextLiked,
           );
-      await _load();
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        _comments = [
+          for (final c in _comments)
+            if (c.commentId == comment.commentId)
+              c.copyWith(
+                isLikedByMe: comment.isLikedByMe,
+                likesCount: comment.likesCount,
+              )
+            else
+              c,
+        ];
+      });
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));

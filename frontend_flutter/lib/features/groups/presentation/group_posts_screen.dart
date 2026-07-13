@@ -125,6 +125,19 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
 
   Future<void> _toggleLike(V2GroupPost post) async {
     final nextLiked = !post.isLikedByMe;
+    final nextCount = nextLiked
+        ? post.likesCount + 1
+        : (post.likesCount - 1).clamp(0, 1 << 30);
+    // Optimistic local update — avoid full multi-group fan-in reload.
+    setState(() {
+      _posts = [
+        for (final p in _posts)
+          if (p.postId == post.postId && p.groupId == post.groupId)
+            p.copyWith(isLikedByMe: nextLiked, likesCount: nextCount)
+          else
+            p,
+      ];
+    });
     try {
       await ref
           .read(groupsApiProvider)
@@ -133,10 +146,21 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
             postId: post.postId,
             liked: nextLiked,
           );
-      if (!mounted) return;
-      await _load();
     } catch (e) {
       if (!mounted) return;
+      // Revert on failure.
+      setState(() {
+        _posts = [
+          for (final p in _posts)
+            if (p.postId == post.postId && p.groupId == post.groupId)
+              p.copyWith(
+                isLikedByMe: post.isLikedByMe,
+                likesCount: post.likesCount,
+              )
+            else
+              p,
+        ];
+      });
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
@@ -144,18 +168,47 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
   }
 
   Future<void> _togglePin(V2GroupPost post) async {
+    final nextPinned = !post.isPinned;
+    setState(() {
+      _posts = [
+        for (final p in _posts)
+          if (p.postId == post.postId && p.groupId == post.groupId)
+            p.copyWith(isPinned: nextPinned)
+          else
+            p,
+      ];
+    });
     try {
       await ref
           .read(groupsApiProvider)
           .setGroupPostPinStatus(
             groupId: post.groupId,
             postId: post.postId,
-            isPinned: !post.isPinned,
+            isPinned: nextPinned,
           );
       if (!mounted) return;
-      await _load();
+      // If filtering by pinned, drop unpinned posts from the visible list.
+      if (_type == 'pinned' && !nextPinned) {
+        setState(() {
+          _posts = _posts
+              .where(
+                (p) =>
+                    !(p.postId == post.postId && p.groupId == post.groupId),
+              )
+              .toList();
+        });
+      }
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        _posts = [
+          for (final p in _posts)
+            if (p.postId == post.postId && p.groupId == post.groupId)
+              p.copyWith(isPinned: post.isPinned)
+            else
+              p,
+        ];
+      });
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
@@ -325,7 +378,9 @@ class _Filters extends StatelessWidget {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: groupId,
+              // Controlled by parent rebuild after filter changes.
+              // ignore: deprecated_member_use
+              value: groupId,
               decoration: InputDecoration(
                 labelText: l10n.t('group.group'),
                 isDense: true,
@@ -349,7 +404,9 @@ class _Filters extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: type,
+              // Controlled by parent rebuild after filter changes.
+              // ignore: deprecated_member_use
+              value: type,
               decoration: InputDecoration(
                 labelText: l10n.t('common.details'),
                 isDense: true,

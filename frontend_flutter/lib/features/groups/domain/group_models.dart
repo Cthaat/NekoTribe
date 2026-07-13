@@ -281,6 +281,31 @@ class V2GroupPost {
       updatedAt: toStr(json['updated_at']),
     );
   }
+
+  V2GroupPost copyWith({
+    bool? isPinned,
+    bool? isAnnouncement,
+    int? likesCount,
+    int? commentsCount,
+    int? viewsCount,
+    bool? isLikedByMe,
+  }) {
+    return V2GroupPost(
+      postId: postId,
+      groupId: groupId,
+      author: author,
+      content: content,
+      mediaUrls: mediaUrls,
+      isPinned: isPinned ?? this.isPinned,
+      isAnnouncement: isAnnouncement ?? this.isAnnouncement,
+      likesCount: likesCount ?? this.likesCount,
+      commentsCount: commentsCount ?? this.commentsCount,
+      viewsCount: viewsCount ?? this.viewsCount,
+      isLikedByMe: isLikedByMe ?? this.isLikedByMe,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
 }
 
 class V2GroupComment {
@@ -325,6 +350,25 @@ class V2GroupComment {
       canDeleteByMe: toBool(json['can_delete_by_me']),
       createdAt: toStr(json['created_at']),
       updatedAt: toStr(json['updated_at']),
+    );
+  }
+
+  V2GroupComment copyWith({
+    int? likesCount,
+    bool? isLikedByMe,
+  }) {
+    return V2GroupComment(
+      commentId: commentId,
+      postId: postId,
+      author: author,
+      parentCommentId: parentCommentId,
+      replyToUser: replyToUser,
+      content: content,
+      likesCount: likesCount ?? this.likesCount,
+      isLikedByMe: isLikedByMe ?? this.isLikedByMe,
+      canDeleteByMe: canDeleteByMe,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 }
