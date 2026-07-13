@@ -25,6 +25,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   V2PublicUser? _user;
   List<V2Post> _posts = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
 
   @override
@@ -37,6 +40,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
+      _loadingMore = false;
     });
     try {
       final user = await ref
@@ -44,11 +50,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           .getUserById(widget.userId);
       final posts = await ref
           .read(postsApiProvider)
-          .getUserPostsById(widget.userId);
+          .getUserPostsById(widget.userId, page: 1, size: 20);
       if (!mounted) return;
       setState(() {
         _user = user;
         _posts = posts.items;
+        _page = 1;
+        _hasNext = posts.hasNext;
         _loading = false;
       });
     } catch (e) {
@@ -57,6 +65,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _error = e;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(postsApiProvider)
+          .getUserPostsById(widget.userId, page: next, size: 20);
+      if (!mounted) return;
+      setState(() {
+        _posts = [..._posts, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -132,6 +164,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -153,40 +186,81 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 constraints: const BoxConstraints(
                   maxWidth: AppBreakpoints.contentMaxWidth,
                 ),
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  children: [
-                    _ProfileHeader(
-                      user: _user!,
-                      onFollow: _toggleFollow,
-                      onMessage: _openDirectMessage,
-                    ),
-                    Divider(
-                      height: 1,
-                      color: Theme.of(context).dividerColor,
-                    ),
-                    for (var i = 0; i < _posts.length; i++) ...[
-                      PostCard(
-                        key: ValueKey(_posts[i].postId),
-                        post: _posts[i],
-                        onChanged: (u) => setState(() => _posts[i] = u),
-                        onDeleted: () {
-                          _posts.removeAt(i);
-                          setState(() {});
-                        },
-                        onReport: () => showReportDialog(
-                          context,
-                          ref,
-                          targetType: 'post',
-                          targetId: _posts[i].postId,
-                        ),
-                      ),
-                      Divider(
-                        height: 1,
-                        color: Theme.of(context).dividerColor,
-                      ),
-                    ],
-                  ],
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (n) {
+                    if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+                      _loadMore();
+                    }
+                    return false;
+                  },
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    // header + optional empty + posts + optional footer
+                    itemCount:
+                        1 +
+                        (_posts.isEmpty ? 1 : _posts.length) +
+                        (_hasNext ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return Column(
+                          children: [
+                            _ProfileHeader(
+                              user: _user!,
+                              onFollow: _toggleFollow,
+                              onMessage: _openDirectMessage,
+                            ),
+                            Divider(height: 1, color: theme.dividerColor),
+                          ],
+                        );
+                      }
+
+                      if (_posts.isEmpty) {
+                        // empty state under header
+                        if (index == 1 && !_hasNext) {
+                          return Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: EmptyView(message: l10n.t('feed.empty')),
+                          );
+                        }
+                        // footer while hasNext (unlikely with empty)
+                        return const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+
+                      final postIndex = index - 1;
+                      if (postIndex < _posts.length) {
+                        final post = _posts[postIndex];
+                        return Column(
+                          children: [
+                            PostCard(
+                              key: ValueKey(post.postId),
+                              post: post,
+                              onChanged: (u) =>
+                                  setState(() => _posts[postIndex] = u),
+                              onDeleted: () {
+                                _posts.removeAt(postIndex);
+                                setState(() {});
+                              },
+                              onReport: () => showReportDialog(
+                                context,
+                                ref,
+                                targetType: 'post',
+                                targetId: post.postId,
+                              ),
+                            ),
+                            Divider(height: 1, color: theme.dividerColor),
+                          ],
+                        );
+                      }
+
+                      return const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
@@ -209,8 +283,14 @@ class _ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.dividerColor),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

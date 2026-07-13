@@ -21,6 +21,9 @@ class UserPostsScreen extends ConsumerStatefulWidget {
 class _UserPostsScreenState extends ConsumerState<UserPostsScreen> {
   List<V2Post> _items = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
 
   @override
@@ -33,14 +36,19 @@ class _UserPostsScreenState extends ConsumerState<UserPostsScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
+      _loadingMore = false;
     });
     try {
       final page = await ref
           .read(postsApiProvider)
-          .getUserPostsById(widget.userId);
+          .getUserPostsById(widget.userId, page: 1, size: 20);
       if (!mounted) return;
       setState(() {
         _items = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _loading = false;
       });
     } catch (e) {
@@ -49,6 +57,30 @@ class _UserPostsScreenState extends ConsumerState<UserPostsScreen> {
         _error = e;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(postsApiProvider)
+          .getUserPostsById(widget.userId, page: next, size: 20);
+      if (!mounted) return;
+      setState(() {
+        _items = [..._items, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -72,20 +104,41 @@ class _UserPostsScreenState extends ConsumerState<UserPostsScreen> {
                 ),
                 child: RefreshIndicator(
                   onRefresh: _load,
-                  child: ListView.separated(
-                    itemCount: _items.length,
-                    separatorBuilder: (_, _) =>
-                        Divider(height: 1, color: theme.dividerColor),
-                    itemBuilder: (_, i) => PostCard(
-                      post: _items[i],
-                      onChanged: (updated) =>
-                          setState(() => _items[i] = updated),
-                      onReport: () => showReportDialog(
-                        context,
-                        ref,
-                        targetType: 'post',
-                        targetId: _items[i].postId,
-                      ),
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (n) {
+                      if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+                        _loadMore();
+                      }
+                      return false;
+                    },
+                    child: ListView.builder(
+                      itemCount: _items.length + (_hasNext ? 1 : 0),
+                      itemBuilder: (context, i) {
+                        if (i == _items.length) {
+                          return const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        final post = _items[i];
+                        return Column(
+                          children: [
+                            PostCard(
+                              post: post,
+                              onChanged: (updated) =>
+                                  setState(() => _items[i] = updated),
+                              onReport: () => showReportDialog(
+                                context,
+                                ref,
+                                targetType: 'post',
+                                targetId: post.postId,
+                              ),
+                            ),
+                            if (i < _items.length - 1 || _hasNext)
+                              Divider(height: 1, color: theme.dividerColor),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),

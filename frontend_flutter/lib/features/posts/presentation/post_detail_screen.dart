@@ -24,6 +24,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   V2Post? _post;
   List<V2Comment> _comments = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
   final _replyController = TextEditingController();
 
@@ -43,15 +46,20 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
+      _loadingMore = false;
     });
     try {
       final api = ref.read(postsApiProvider);
       final post = await api.getPost(widget.postId);
-      final comments = await api.getComments(widget.postId);
+      final comments = await api.getComments(widget.postId, page: 1, size: 20);
       if (!mounted) return;
       setState(() {
         _post = post;
         _comments = comments.items;
+        _page = 1;
+        _hasNext = comments.hasNext;
         _loading = false;
       });
     } catch (e) {
@@ -60,6 +68,30 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         _error = e;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(postsApiProvider)
+          .getComments(widget.postId, page: next, size: 20);
+      if (!mounted) return;
+      setState(() {
+        _comments = [..._comments, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -115,30 +147,64 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 child: Column(
                   children: [
                     Expanded(
-                      child: ListView(
-                        children: [
-                          PostCard(
-                            post: _post!,
-                            onChanged: (p) => setState(() => _post = p),
-                            onDeleted: () => Navigator.of(context).maybePop(),
-                            onReport: () => showReportDialog(
-                              context,
-                              ref,
-                              targetType: 'post',
-                              targetId: _post!.postId,
-                            ),
-                          ),
-                          Divider(height: 1, color: theme.dividerColor),
-                          if (_comments.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: EmptyView(
-                                message: l10n.t('post.comments.empty'),
-                              ),
-                            )
-                          else
-                            ..._comments.map(
-                              (c) => _CommentTile(
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (n) {
+                          if (n.metrics.pixels >=
+                              n.metrics.maxScrollExtent - 200) {
+                            _loadMore();
+                          }
+                          return false;
+                        },
+                        child: ListView.builder(
+                          itemCount:
+                              2 + // post card + divider
+                              (_comments.isEmpty
+                                  ? (_hasNext ? 0 : 1)
+                                  : _comments.length) +
+                              (_hasNext ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return PostCard(
+                                post: _post!,
+                                onChanged: (p) => setState(() => _post = p),
+                                onDeleted: () =>
+                                    Navigator.of(context).maybePop(),
+                                onReport: () => showReportDialog(
+                                  context,
+                                  ref,
+                                  targetType: 'post',
+                                  targetId: _post!.postId,
+                                ),
+                              );
+                            }
+                            if (index == 1) {
+                              return Divider(
+                                height: 1,
+                                color: theme.dividerColor,
+                              );
+                            }
+
+                            if (_comments.isEmpty) {
+                              if (!_hasNext) {
+                                return Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: EmptyView(
+                                    message: l10n.t('post.comments.empty'),
+                                  ),
+                                );
+                              }
+                              return const Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+
+                            final contentIndex = index - 2;
+                            if (contentIndex < _comments.length) {
+                              final c = _comments[contentIndex];
+                              return _CommentTile(
                                 comment: c,
                                 onDelete: c.canDelete
                                     ? () async {
@@ -170,9 +236,17 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                         }
                                       }
                                     : null,
+                              );
+                            }
+
+                            return const Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Center(
+                                child: CircularProgressIndicator(),
                               ),
-                            ),
-                        ],
+                            );
+                          },
+                        ),
                       ),
                     ),
                     Container(
