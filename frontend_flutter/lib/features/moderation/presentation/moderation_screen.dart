@@ -284,6 +284,9 @@ class _ContentTabState extends ConsumerState<_ContentTab>
   String _status = 'pending';
   List<V2ModerationContentItem> _items = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
 
   @override
@@ -299,22 +302,52 @@ class _ContentTabState extends ConsumerState<_ContentTab>
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
     });
     try {
       final page = await ref
           .read(moderationApiProvider)
-          .content(status: _status);
+          .content(status: _status, page: 1);
       if (!mounted) return;
       setState(() {
         _items = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _loading = false;
+        _loadingMore = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;
+        _loadingMore = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(moderationApiProvider)
+          .content(status: _status, page: next);
+      if (!mounted) return;
+      setState(() {
+        _items = [..._items, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -376,8 +409,24 @@ class _ContentTabState extends ConsumerState<_ContentTab>
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                    itemCount: _items.length,
+                    itemCount: _items.length + (_hasNext ? 1 : 0),
                     itemBuilder: (_, i) {
+                      if (i >= _items.length) {
+                        if (!_loadingMore) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _loadMore();
+                          });
+                        }
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: SizedBox.square(
+                              dimension: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
+                      }
                       final item = _items[i];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -534,6 +583,9 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
   String _status = 'pending';
   List<V2ModerationReport> _items = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
 
   @override
@@ -549,22 +601,52 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
     });
     try {
       final page = await ref
           .read(moderationApiProvider)
-          .reports(status: _status);
+          .reports(status: _status, page: 1);
       if (!mounted) return;
       setState(() {
         _items = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _loading = false;
+        _loadingMore = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;
+        _loadingMore = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(moderationApiProvider)
+          .reports(status: _status, page: next);
+      if (!mounted) return;
+      setState(() {
+        _items = [..._items, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -631,8 +713,24 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                    itemCount: _items.length,
+                    itemCount: _items.length + (_hasNext ? 1 : 0),
                     itemBuilder: (_, i) {
+                      if (i >= _items.length) {
+                        if (!_loadingMore) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _loadMore();
+                          });
+                        }
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: SizedBox.square(
+                              dimension: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
+                      }
                       final r = _items[i];
                       final isResolved = _status == 'resolved';
                       return Padding(
@@ -781,6 +879,9 @@ class _UsersTabState extends ConsumerState<_UsersTab>
   final _keywordController = TextEditingController();
   List<V2ModerationUserItem> _items = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
 
   @override
@@ -802,6 +903,8 @@ class _UsersTabState extends ConsumerState<_UsersTab>
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
     });
     try {
       final page = await ref
@@ -811,18 +914,53 @@ class _UsersTabState extends ConsumerState<_UsersTab>
             keyword: _keywordController.text.trim().isEmpty
                 ? null
                 : _keywordController.text.trim(),
+            page: 1,
           );
       if (!mounted) return;
       setState(() {
         _items = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _loading = false;
+        _loadingMore = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;
+        _loadingMore = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(moderationApiProvider)
+          .users(
+            status: _status == 'all' ? null : _status,
+            keyword: _keywordController.text.trim().isEmpty
+                ? null
+                : _keywordController.text.trim(),
+            page: next,
+          );
+      if (!mounted) return;
+      setState(() {
+        _items = [..._items, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -954,8 +1092,24 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                    itemCount: _items.length,
+                    itemCount: _items.length + (_hasNext ? 1 : 0),
                     itemBuilder: (_, i) {
+                      if (i >= _items.length) {
+                        if (!_loadingMore) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _loadMore();
+                          });
+                        }
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: SizedBox.square(
+                              dimension: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
+                      }
                       final user = _items[i];
                       final restriction = user.activeRestriction ?? 'none';
                       final restricted =
@@ -1145,6 +1299,9 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
     with AutomaticKeepAliveClientMixin {
   List<V2ModerationAppeal> _items = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
 
   @override
@@ -1160,22 +1317,52 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
     });
     try {
       final page = await ref
           .read(moderationApiProvider)
-          .appeals(status: 'pending');
+          .appeals(status: 'pending', page: 1);
       if (!mounted) return;
       setState(() {
         _items = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _loading = false;
+        _loadingMore = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;
+        _loadingMore = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(moderationApiProvider)
+          .appeals(status: 'pending', page: next);
+      if (!mounted) return;
+      setState(() {
+        _items = [..._items, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -1244,8 +1431,24 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
       onRefresh: _load,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: _items.length,
+        itemCount: _items.length + (_hasNext ? 1 : 0),
         itemBuilder: (_, i) {
+          if (i >= _items.length) {
+            if (!_loadingMore) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _loadMore();
+              });
+            }
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
           final a = _items[i];
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),

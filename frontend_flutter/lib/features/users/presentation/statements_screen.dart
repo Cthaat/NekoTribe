@@ -19,6 +19,9 @@ class StatementsScreen extends ConsumerStatefulWidget {
 class _StatementsScreenState extends ConsumerState<StatementsScreen> {
   List<V2AccountStatement> _items = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
 
   @override
@@ -31,22 +34,52 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
     });
     try {
       final PagedResult<V2AccountStatement> page = await ref
           .read(usersRepositoryProvider)
-          .statements();
+          .statements(page: 1);
       if (!mounted) return;
       setState(() {
         _items = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _loading = false;
+        _loadingMore = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;
+        _loadingMore = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(usersRepositoryProvider)
+          .statements(page: next);
+      if (!mounted) return;
+      setState(() {
+        _items = [..._items, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -135,8 +168,24 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    itemCount: _items.length,
+                    itemCount: _items.length + (_hasNext ? 1 : 0),
                     itemBuilder: (_, i) {
+                      if (i >= _items.length) {
+                        if (!_loadingMore) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _loadMore();
+                          });
+                        }
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: SizedBox.square(
+                              dimension: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
+                      }
                       final s = _items[i];
                       final color = _statusColor(context, s.status);
                       return Padding(

@@ -36,6 +36,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   V2Group? _group;
   V2GroupNotificationPreference? _notificationPreference;
   List<V2GroupMember> _members = [];
+  int _membersPage = 1;
+  bool _membersHasNext = false;
+  bool _membersLoadingMore = false;
   String? _avatarUrl;
   String? _coverUrl;
   String _privacy = 'public';
@@ -110,7 +113,7 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
         });
         return;
       }
-      final members = await api.members(group.groupId);
+      final members = await api.members(group.groupId, page: 1);
       V2GroupNotificationPreference? preference;
       try {
         preference = await api.getNotificationPreference(group.groupId);
@@ -121,6 +124,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
         _group = group;
         _notificationPreference = preference;
         _members = members.items;
+        _membersPage = 1;
+        _membersHasNext = members.hasNext;
+        _membersLoadingMore = false;
         _name.text = group.name;
         _description.text = group.description;
         _tags.text = group.tags.join(', ');
@@ -148,6 +154,33 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
         _error = e;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadMoreMembers() async {
+    final group = _group;
+    if (group == null || _membersLoadingMore || !_membersHasNext || _loading) {
+      return;
+    }
+    setState(() => _membersLoadingMore = true);
+    try {
+      final next = _membersPage + 1;
+      final page = await ref
+          .read(groupsApiProvider)
+          .members(group.groupId, page: next);
+      if (!mounted) return;
+      setState(() {
+        _members = [..._members, ...page.items];
+        _membersPage = next;
+        _membersHasNext = page.hasNext;
+        _membersLoadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _membersLoadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -784,46 +817,48 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    Text(
-                      l10n.t('group.danger_title'),
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: theme.colorScheme.error,
-                        fontWeight: FontWeight.w700,
+                    if (isOwner) ...[
+                      Text(
+                        l10n.t('group.danger_title'),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: theme.colorScheme.error,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      key: const Key('group-manage-delete-confirm-field'),
-                      controller: _deleteConfirm,
-                      decoration: InputDecoration(
-                        labelText: l10n.t('group.delete_confirm'),
-                        hintText: _group?.name ?? '',
+                      const SizedBox(height: 8),
+                      TextField(
+                        key: const Key('group-manage-delete-confirm-field'),
+                        controller: _deleteConfirm,
+                        decoration: InputDecoration(
+                          labelText: l10n.t('group.delete_confirm'),
+                          hintText: _group?.name ?? '',
+                        ),
+                        onChanged: (_) => setState(() {}),
                       ),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton.icon(
-                      key: const Key('group-manage-delete-button'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: theme.colorScheme.error,
-                        foregroundColor: theme.colorScheme.onError,
+                      const SizedBox(height: 8),
+                      FilledButton.icon(
+                        key: const Key('group-manage-delete-button'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: theme.colorScheme.error,
+                          foregroundColor: theme.colorScheme.onError,
+                        ),
+                        onPressed:
+                            _deleting ||
+                                _group == null ||
+                                _deleteConfirm.text != _group!.name
+                            ? null
+                            : _deleteGroup,
+                        icon: _deleting
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.delete_outline),
+                        label: Text(l10n.t('group.delete')),
                       ),
-                      onPressed:
-                          _deleting ||
-                              _group == null ||
-                              _deleteConfirm.text != _group!.name
-                          ? null
-                          : _deleteGroup,
-                      icon: _deleting
-                          ? const SizedBox(
-                              height: 16,
-                              width: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.delete_outline),
-                      label: Text(l10n.t('group.delete')),
-                    ),
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 24),
+                    ],
                     Text(
                       l10n.t('group.members_title'),
                       style: theme.textTheme.titleSmall?.copyWith(
@@ -893,6 +928,7 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                               ),
                             _MemberRow(
                               member: managedMembers[i],
+                              actorRole: _group?.membership.role,
                               onRoleSelected: (role) =>
                                   _changeMemberRole(managedMembers[i], role),
                               onMute: () => _muteMember(managedMembers[i]),
@@ -912,6 +948,23 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                         ],
                       ),
                     ),
+                    if (_membersHasNext) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        key: const Key('group-manage-members-load-more'),
+                        onPressed: _membersLoadingMore
+                            ? null
+                            : _loadMoreMembers,
+                        child: _membersLoadingMore
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(l10n.t('common.more')),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -994,6 +1047,7 @@ class _PendingMemberRow extends StatelessWidget {
 class _MemberRow extends StatelessWidget {
   const _MemberRow({
     required this.member,
+    required this.actorRole,
     required this.onRoleSelected,
     required this.onMute,
     required this.onUnmute,
@@ -1002,6 +1056,7 @@ class _MemberRow extends StatelessWidget {
     required this.onTransferOwnership,
   });
   final V2GroupMember member;
+  final String? actorRole;
   final ValueChanged<String> onRoleSelected;
   final VoidCallback onMute;
   final VoidCallback onUnmute;
@@ -1012,6 +1067,17 @@ class _MemberRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isTargetOwner = member.role == 'owner';
+    final canChangeRoles = !isTargetOwner &&
+        (actorRole == 'owner' ||
+            actorRole == 'admin' ||
+            actorRole == 'moderator');
+    final canModerateMember = !isTargetOwner &&
+        (actorRole == 'owner' ||
+            actorRole == 'admin' ||
+            actorRole == 'moderator');
+    // Moderators cannot promote to admin.
+    final canSetAdmin = actorRole == 'owner' || actorRole == 'admin';
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Row(
@@ -1044,70 +1110,88 @@ class _MemberRow extends StatelessWidget {
             ),
           ),
           _RoleChip(role: member.role),
-          PopupMenuButton<String>(
-            key: Key('group-member-menu-${member.user.userId}'),
-            icon: const Icon(Icons.more_horiz),
-            onSelected: (value) {
-              switch (value) {
-                case 'role:admin':
-                  onRoleSelected('admin');
-                  break;
-                case 'role:moderator':
-                  onRoleSelected('moderator');
-                  break;
-                case 'role:member':
-                  onRoleSelected('member');
-                  break;
-                case 'mute':
-                  onMute();
-                  break;
-                case 'unmute':
-                  onUnmute();
-                  break;
-                case 'remove':
-                  onRemove();
-                  break;
-                case 'transfer':
-                  onTransferOwnership();
-                  break;
-              }
-            },
-            itemBuilder: (context) {
-              final l10n = AppLocalizations.of(context);
-              final muted =
-                  member.muteUntil != null && member.muteUntil!.isNotEmpty;
-              return [
-                PopupMenuItem(
-                  value: 'role:admin',
-                  child: Text('${l10n.t('group.change_role')}: admin'),
-                ),
-                PopupMenuItem(
-                  value: 'role:moderator',
-                  child: Text('${l10n.t('group.change_role')}: moderator'),
-                ),
-                PopupMenuItem(
-                  value: 'role:member',
-                  child: Text('${l10n.t('group.change_role')}: member'),
-                ),
-                PopupMenuItem(
-                  value: muted ? 'unmute' : 'mute',
-                  child: Text(
-                    muted ? l10n.t('group.unmute') : l10n.t('group.mute'),
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'remove',
-                  child: Text(l10n.t('group.remove_member')),
-                ),
-                if (canTransferOwnership)
-                  PopupMenuItem(
-                    key: Key('group-member-transfer-${member.user.userId}'),
-                    value: 'transfer',
-                    child: Text(l10n.t('group.transfer_ownership')),
-                  ),
-              ];
-            },
-          ),
+          if (!isTargetOwner || canTransferOwnership)
+            PopupMenuButton<String>(
+              key: Key('group-member-menu-${member.user.userId}'),
+              icon: const Icon(Icons.more_horiz),
+              onSelected: (value) {
+                switch (value) {
+                  case 'role:admin':
+                    onRoleSelected('admin');
+                    break;
+                  case 'role:moderator':
+                    onRoleSelected('moderator');
+                    break;
+                  case 'role:member':
+                    onRoleSelected('member');
+                    break;
+                  case 'mute':
+                    onMute();
+                    break;
+                  case 'unmute':
+                    onUnmute();
+                    break;
+                  case 'remove':
+                    onRemove();
+                    break;
+                  case 'transfer':
+                    onTransferOwnership();
+                    break;
+                }
+              },
+              itemBuilder: (context) {
+                final l10n = AppLocalizations.of(context);
+                final muted =
+                    member.muteUntil != null && member.muteUntil!.isNotEmpty;
+                final items = <PopupMenuEntry<String>>[];
+                if (canChangeRoles) {
+                  if (canSetAdmin) {
+                    items.add(
+                      PopupMenuItem(
+                        value: 'role:admin',
+                        child: Text('${l10n.t('group.change_role')}: admin'),
+                      ),
+                    );
+                  }
+                  items.addAll([
+                    PopupMenuItem(
+                      value: 'role:moderator',
+                      child: Text('${l10n.t('group.change_role')}: moderator'),
+                    ),
+                    PopupMenuItem(
+                      value: 'role:member',
+                      child: Text('${l10n.t('group.change_role')}: member'),
+                    ),
+                  ]);
+                }
+                if (canModerateMember) {
+                  items.add(
+                    PopupMenuItem(
+                      value: muted ? 'unmute' : 'mute',
+                      child: Text(
+                        muted ? l10n.t('group.unmute') : l10n.t('group.mute'),
+                      ),
+                    ),
+                  );
+                  items.add(
+                    PopupMenuItem(
+                      value: 'remove',
+                      child: Text(l10n.t('group.remove_member')),
+                    ),
+                  );
+                }
+                if (canTransferOwnership) {
+                  items.add(
+                    PopupMenuItem(
+                      key: Key('group-member-transfer-${member.user.userId}'),
+                      value: 'transfer',
+                      child: Text(l10n.t('group.transfer_ownership')),
+                    ),
+                  );
+                }
+                return items;
+              },
+            ),
         ],
       ),
     );

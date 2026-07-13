@@ -25,6 +25,9 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
   String _groupId = 'all';
   String _type = 'all';
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
 
   @override
@@ -37,33 +40,71 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
     });
     try {
       final api = ref.read(groupsApiProvider);
       final groupPage = await api.myGroups(size: 100);
       final groups = groupPage.items;
       final selectedId = int.tryParse(_groupId);
-      final sourceGroups = selectedId == null
-          ? groups
-          : groups.where((g) => g.groupId == selectedId).toList();
-      final posts = <V2GroupPost>[];
-      for (final group in sourceGroups) {
-        final page = await api.posts(group.groupId, size: 20, type: _type);
-        posts.addAll(page.items);
+      List<V2GroupPost> posts;
+      var hasNext = false;
+      if (selectedId == null) {
+        // Fan-in first page across groups; larger page size for all view.
+        posts = <V2GroupPost>[];
+        for (final group in groups) {
+          final page = await api.posts(group.groupId, size: 50, type: _type);
+          posts.addAll(page.items);
+        }
+        posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        hasNext = false;
+      } else {
+        final page = await api.posts(selectedId, page: 1, size: 20, type: _type);
+        posts = page.items;
+        hasNext = page.hasNext;
       }
-      posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       if (!mounted) return;
       setState(() {
         _groups = groups;
         _posts = _filterPosts(posts);
+        _page = 1;
+        _hasNext = hasNext;
         _loading = false;
+        _loadingMore = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;
+        _loadingMore = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    final selectedId = int.tryParse(_groupId);
+    if (selectedId == null || _loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(groupsApiProvider)
+          .posts(selectedId, page: next, size: 20, type: _type);
+      if (!mounted) return;
+      setState(() {
+        _posts = _filterPosts([..._posts, ...page.items]);
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -176,10 +217,30 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
                     : RefreshIndicator(
                         onRefresh: _load,
                         child: ListView.separated(
-                          itemCount: _posts.length,
+                          itemCount: _posts.length + (_hasNext ? 1 : 0),
                           separatorBuilder: (_, _) =>
                               Divider(height: 1, color: theme.dividerColor),
                           itemBuilder: (_, i) {
+                            if (i >= _posts.length) {
+                              if (!_loadingMore) {
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  _loadMore();
+                                });
+                              }
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                child: Center(
+                                  child: SizedBox.square(
+                                    dimension: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
                             final post = _posts[i];
                             return _GroupFeedPostTile(
                               post: post,

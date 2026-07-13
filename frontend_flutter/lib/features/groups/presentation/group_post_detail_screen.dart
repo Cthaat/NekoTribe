@@ -30,6 +30,9 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
   V2GroupPost? _post;
   List<V2GroupComment> _comments = [];
   bool _loading = true;
+  bool _loadingMoreComments = false;
+  bool _commentsHasNext = false;
+  int _commentsPage = 1;
   Object? _error;
   final _commentController = TextEditingController();
 
@@ -49,6 +52,8 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _commentsPage = 1;
+      _commentsHasNext = false;
     });
     try {
       final api = ref.read(groupsApiProvider);
@@ -60,20 +65,59 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
       final comments = await api.comments(
         groupId: group.groupId,
         postId: widget.postId,
+        page: 1,
       );
       if (!mounted) return;
       setState(() {
         _group = group;
         _post = post;
         _comments = comments.items;
+        _commentsPage = 1;
+        _commentsHasNext = comments.hasNext;
         _loading = false;
+        _loadingMoreComments = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;
+        _loadingMoreComments = false;
       });
+    }
+  }
+
+  Future<void> _loadMoreComments() async {
+    final group = _group;
+    if (group == null ||
+        _loadingMoreComments ||
+        !_commentsHasNext ||
+        _loading) {
+      return;
+    }
+    setState(() => _loadingMoreComments = true);
+    try {
+      final next = _commentsPage + 1;
+      final page = await ref
+          .read(groupsApiProvider)
+          .comments(
+            groupId: group.groupId,
+            postId: widget.postId,
+            page: next,
+          );
+      if (!mounted) return;
+      setState(() {
+        _comments = [..._comments, ...page.items];
+        _commentsPage = next;
+        _commentsHasNext = page.hasNext;
+        _loadingMoreComments = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMoreComments = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -322,7 +366,7 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
                                   message: l10n.t('feed.empty'),
                                 ),
                               )
-                            else
+                            else ...[
                               for (final comment in _comments)
                                 _CommentTile(
                                   comment: comment,
@@ -331,6 +375,29 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
                                       ? () => _deleteComment(comment)
                                       : null,
                                 ),
+                              if (_commentsHasNext)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Center(
+                                    child: TextButton(
+                                      key: const Key(
+                                        'group-post-comments-load-more',
+                                      ),
+                                      onPressed: _loadingMoreComments
+                                          ? null
+                                          : _loadMoreComments,
+                                      child: _loadingMoreComments
+                                          ? const SizedBox.square(
+                                              dimension: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : Text(l10n.t('common.more')),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ],
                         ),
                       ),

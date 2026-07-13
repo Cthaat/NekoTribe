@@ -650,6 +650,9 @@ class _InvitesListState extends ConsumerState<_InvitesList>
     with AutomaticKeepAliveClientMixin {
   List<V2GroupInvite> _items = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
 
   @override
@@ -665,20 +668,50 @@ class _InvitesListState extends ConsumerState<_InvitesList>
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
     });
     try {
-      final page = await ref.read(groupsApiProvider).myInvites();
+      final page = await ref.read(groupsApiProvider).myInvites(page: 1);
       if (!mounted) return;
       setState(() {
         _items = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _loading = false;
+        _loadingMore = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;
+        _loadingMore = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(groupsApiProvider)
+          .myInvites(page: next);
+      if (!mounted) return;
+      setState(() {
+        _items = [..._items, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -709,79 +742,98 @@ class _InvitesListState extends ConsumerState<_InvitesList>
     }
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.separated(
+      child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        itemCount: _items.length,
-        separatorBuilder: (_, _) =>
-            Divider(height: 1, color: theme.dividerColor),
+        itemCount: _items.length + (_hasNext ? 1 : 0),
         itemBuilder: (_, i) {
+          if (i >= _items.length) {
+            if (!_loadingMore) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _loadMore();
+              });
+            }
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
           final inv = _items[i];
           final group = inv.group;
           final groupName = group != null
               ? (group['name'] as String? ?? l10n.t('group.group'))
               : l10n.t('group.group');
           final message = inv.message ?? '';
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppAvatar(
-                  url: group != null ? group['avatar_url'] as String? : null,
-                  size: 44,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        groupName,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          return Column(
+            children: [
+              if (i > 0) Divider(height: 1, color: theme.dividerColor),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppAvatar(
+                      url: group != null ? group['avatar_url'] as String? : null,
+                      size: 44,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            groupName,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${l10n.t('group.invite_from')} @${inv.inviter.username}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (message.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              message,
+                              style: theme.textTheme.bodyMedium,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${l10n.t('group.invite_from')} @${inv.inviter.username}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    Column(
+                      children: [
+                        IconButton(
+                          tooltip: l10n.t('common.confirm'),
+                          visualDensity: VisualDensity.compact,
+                          icon: Icon(Icons.check, color: theme.colorScheme.primary),
+                          onPressed: () => _respond(inv, 'accept'),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (message.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          message,
-                          style: theme.textTheme.bodyMedium,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
+                        IconButton(
+                          tooltip: l10n.t('common.cancel'),
+                          visualDensity: VisualDensity.compact,
+                          icon: Icon(Icons.close, color: theme.colorScheme.error),
+                          onPressed: () => _respond(inv, 'decline'),
                         ),
                       ],
-                    ],
-                  ),
-                ),
-                Column(
-                  children: [
-                    IconButton(
-                      tooltip: l10n.t('common.confirm'),
-                      visualDensity: VisualDensity.compact,
-                      icon: Icon(Icons.check, color: theme.colorScheme.primary),
-                      onPressed: () => _respond(inv, 'accept'),
-                    ),
-                    IconButton(
-                      tooltip: l10n.t('common.cancel'),
-                      visualDensity: VisualDensity.compact,
-                      icon: Icon(Icons.close, color: theme.colorScheme.error),
-                      onPressed: () => _respond(inv, 'decline'),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         },
       ),
