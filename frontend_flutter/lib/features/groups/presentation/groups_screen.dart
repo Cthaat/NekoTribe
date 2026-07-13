@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -73,8 +75,18 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
                     _GroupsList(
                       mode: 'discover',
                       key: const PageStorageKey('disc'),
+                      emptyMessageKey: 'group.empty',
+                      emptyActionLabelKey: 'common.create',
+                      onEmptyAction: () =>
+                          unawaited(_showCreateGroupDialog(context, ref)),
                     ),
-                    _GroupsList(mode: 'my', key: const PageStorageKey('my')),
+                    _GroupsList(
+                      mode: 'my',
+                      key: const PageStorageKey('my'),
+                      emptyMessageKey: 'group.empty_my',
+                      emptyActionLabelKey: 'group.discover',
+                      onEmptyAction: () => _tabController.animateTo(0),
+                    ),
                     const _InvitesList(key: PageStorageKey('inv')),
                   ],
                 ),
@@ -370,6 +382,12 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
         ),
       ),
     );
+    // Controllers may still be referenced during route teardown.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      name.dispose();
+      description.dispose();
+      tags.dispose();
+    });
     if (result == null) return;
     try {
       final group = await ref
@@ -423,8 +441,17 @@ class _GroupsTab {
 }
 
 class _GroupsList extends ConsumerStatefulWidget {
-  const _GroupsList({super.key, required this.mode});
+  const _GroupsList({
+    super.key,
+    required this.mode,
+    required this.emptyMessageKey,
+    this.emptyActionLabelKey,
+    this.onEmptyAction,
+  });
   final String mode;
+  final String emptyMessageKey;
+  final String? emptyActionLabelKey;
+  final VoidCallback? onEmptyAction;
 
   @override
   ConsumerState<_GroupsList> createState() => _GroupsListState();
@@ -477,7 +504,12 @@ class _GroupsListState extends ConsumerState<_GroupsList>
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
-      return EmptyView(message: l10n.t('group.empty'));
+      final actionLabelKey = widget.emptyActionLabelKey;
+      return EmptyView(
+        message: l10n.t(widget.emptyMessageKey),
+        actionLabel: actionLabelKey == null ? null : l10n.t(actionLabelKey),
+        onAction: widget.onEmptyAction,
+      );
     }
     return RefreshIndicator(
       onRefresh: _load,

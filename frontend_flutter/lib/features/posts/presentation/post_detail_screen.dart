@@ -132,7 +132,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           if (_comments.isEmpty)
                             Padding(
                               padding: const EdgeInsets.all(24),
-                              child: EmptyView(message: l10n.t('feed.empty')),
+                              child: EmptyView(
+                                message: l10n.t('post.comments.empty'),
+                              ),
                             )
                           else
                             ..._comments.map(

@@ -33,6 +33,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   List<V2Notification> _items = [];
   bool _loading = true;
   bool _refreshing = false;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
   bool _unreadOnly = false;
   String? _type;
@@ -71,20 +74,29 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       setState(() {
         _loading = true;
         _error = null;
+        _page = 1;
+        _hasNext = false;
       });
     } else if (mounted) {
       setState(() => _refreshing = true);
     }
     try {
       final api = ref.read(notificationsApiProvider);
-      final page = await api.list(type: _type, unreadOnly: _unreadOnly);
+      final page = await api.list(
+        page: 1,
+        type: _type,
+        unreadOnly: _unreadOnly,
+      );
       final unreadCount = await api.unreadCount();
       if (!mounted || gen != _loadGen) return;
       setState(() {
         _items = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _unreadCount = unreadCount;
         _loading = false;
         _refreshing = false;
+        _loadingMore = false;
         _error = null;
       });
       ref.read(notificationsUnreadProvider.notifier).set(unreadCount);
@@ -96,12 +108,38 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         }
         _loading = false;
         _refreshing = false;
+        _loadingMore = false;
       });
       if (soft) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
       }
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    final gen = _loadGen;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(notificationsApiProvider)
+          .list(page: next, type: _type, unreadOnly: _unreadOnly);
+      if (!mounted || gen != _loadGen) return;
+      setState(() {
+        _items = [..._items, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted || gen != _loadGen) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -365,6 +403,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       _type = type;
       _items = [];
       _loading = true;
+      _page = 1;
+      _hasNext = false;
     });
     _load();
   }
@@ -466,6 +506,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       _unreadOnly = value.first;
                       _items = [];
                       _loading = true;
+                      _page = 1;
+                      _hasNext = false;
                     });
                     _load();
                   },
@@ -485,162 +527,205 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                           ? EmptyView(message: l10n.t('notification.empty'))
                           : RefreshIndicator(
                               onRefresh: () => _load(soft: true),
-                              child: ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(
-                                  12,
-                                  8,
-                                  12,
-                                  24,
-                                ),
-                                itemCount: _items.length,
-                                itemBuilder: (_, i) {
-                                  final n = _items[i];
-                                  final theme = Theme.of(context);
-                                  final unreadTint = theme.colorScheme.primary
-                                      .withValues(alpha: 0.06);
-                                  final borderColor = n.readFlag
-                                      ? theme.colorScheme.outlineVariant
-                                            .withValues(alpha: 0.45)
-                                      : theme.colorScheme.primary.withValues(
-                                          alpha: 0.22,
-                                        );
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Material(
-                                      color: n.readFlag
-                                          ? theme.colorScheme.surface
-                                          : unreadTint,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                        side: BorderSide(color: borderColor),
+                              child: NotificationListener<ScrollNotification>(
+                                onNotification: (n) {
+                                  if (n.metrics.pixels >=
+                                      n.metrics.maxScrollExtent - 200) {
+                                    unawaited(_loadMore());
+                                  }
+                                  return false;
+                                },
+                                child: ListView.builder(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    8,
+                                    12,
+                                    24,
+                                  ),
+                                  itemCount:
+                                      _items.length + (_hasNext ? 1 : 0),
+                                  itemBuilder: (_, i) {
+                                    if (i >= _items.length) {
+                                      return const Padding(
+                                        padding: EdgeInsets.all(24),
+                                        child: Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      );
+                                    }
+                                    final n = _items[i];
+                                    final theme = Theme.of(context);
+                                    final unreadTint = theme
+                                        .colorScheme
+                                        .primary
+                                        .withValues(alpha: 0.06);
+                                    final borderColor = n.readFlag
+                                        ? theme.colorScheme.outlineVariant
+                                              .withValues(alpha: 0.45)
+                                        : theme.colorScheme.primary.withValues(
+                                            alpha: 0.22,
+                                          );
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 8,
                                       ),
-                                      clipBehavior: Clip.antiAlias,
-                                      child: ListTile(
-                                        enabled: !n.isDeleted,
-                                        contentPadding:
-                                            const EdgeInsets.fromLTRB(
-                                              12,
-                                              6,
-                                              4,
-                                              6,
-                                            ),
-                                        leading: n.actor != null
-                                            ? AppAvatar(
-                                                url: n.actor!.avatarUrl,
-                                                size: 40,
-                                              )
-                                            : CircleAvatar(
-                                                radius: 20,
-                                                backgroundColor: n.readFlag
-                                                    ? theme
-                                                          .colorScheme
-                                                          .surfaceContainerHighest
-                                                    : theme.colorScheme.primary
-                                                          .withValues(
-                                                            alpha: 0.12,
-                                                          ),
-                                                child: Icon(
-                                                  Icons.notifications_outlined,
-                                                  size: 20,
-                                                  color: n.readFlag
+                                      child: Material(
+                                        color: n.readFlag
+                                            ? theme.colorScheme.surface
+                                            : unreadTint,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          side: BorderSide(color: borderColor),
+                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: ListTile(
+                                          enabled: !n.isDeleted,
+                                          isThreeLine: true,
+                                          contentPadding:
+                                              const EdgeInsets.fromLTRB(
+                                                12,
+                                                6,
+                                                4,
+                                                6,
+                                              ),
+                                          leading: n.actor != null
+                                              ? AppAvatar(
+                                                  url: n.actor!.avatarUrl,
+                                                  size: 40,
+                                                )
+                                              : CircleAvatar(
+                                                  radius: 20,
+                                                  backgroundColor: n.readFlag
                                                       ? theme
                                                             .colorScheme
-                                                            .onSurfaceVariant
+                                                            .surfaceContainerHighest
                                                       : theme
                                                             .colorScheme
-                                                            .primary,
+                                                            .primary
+                                                            .withValues(
+                                                              alpha: 0.12,
+                                                            ),
+                                                  child: Icon(
+                                                    Icons
+                                                        .notifications_outlined,
+                                                    size: 20,
+                                                    color: n.readFlag
+                                                        ? theme
+                                                              .colorScheme
+                                                              .onSurfaceVariant
+                                                        : theme
+                                                              .colorScheme
+                                                              .primary,
+                                                  ),
                                                 ),
+                                          title: Text(
+                                            n.title.isEmpty
+                                                ? n.type
+                                                : n.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme
+                                                .textTheme
+                                                .titleSmall
+                                                ?.copyWith(
+                                                  fontWeight: n.readFlag
+                                                      ? FontWeight.w500
+                                                      : FontWeight.w700,
+                                                ),
+                                          ),
+                                          subtitle: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                n.message,
+                                                maxLines: 2,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
                                               ),
-                                        title: Text(
-                                          n.title.isEmpty ? n.type : n.title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: theme.textTheme.titleSmall
-                                              ?.copyWith(
-                                                fontWeight: n.readFlag
-                                                    ? FontWeight.w500
-                                                    : FontWeight.w700,
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                n.isDeleted
+                                                    ? l10n.t(
+                                                        'notification.deleted',
+                                                      )
+                                                    : _formatDate(
+                                                        n.createdAt,
+                                                      ),
+                                                style: theme
+                                                    .textTheme
+                                                    .labelSmall
+                                                    ?.copyWith(
+                                                      color: theme
+                                                          .colorScheme
+                                                          .onSurfaceVariant,
+                                                    ),
                                               ),
+                                            ],
+                                          ),
+                                          trailing: PopupMenuButton<String>(
+                                            onSelected: (value) {
+                                              if (value == 'read') {
+                                                _setRead(n, true);
+                                              }
+                                              if (value == 'unread') {
+                                                _setRead(n, false);
+                                              }
+                                              if (value == 'delete') {
+                                                _delete(n);
+                                              }
+                                              if (value == 'restore') {
+                                                _restore(n);
+                                              }
+                                            },
+                                            itemBuilder: (_) => [
+                                              if (!n.readFlag &&
+                                                  !n.isDeleted)
+                                                PopupMenuItem(
+                                                  value: 'read',
+                                                  child: Text(
+                                                    l10n.t(
+                                                      'common.mark_read',
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (n.readFlag &&
+                                                  !n.isDeleted)
+                                                PopupMenuItem(
+                                                  value: 'unread',
+                                                  child: Text(
+                                                    l10n.t(
+                                                      'common.mark_unread',
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (!n.isDeleted)
+                                                PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Text(
+                                                    l10n.t('common.delete'),
+                                                  ),
+                                                ),
+                                              if (n.isDeleted)
+                                                PopupMenuItem(
+                                                  value: 'restore',
+                                                  child: Text(
+                                                    l10n.t(
+                                                      'common.restore',
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          onTap: () => _onTap(n),
                                         ),
-                                        subtitle: Text(
-                                          n.message,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              n.isDeleted
-                                                  ? l10n.t(
-                                                      'notification.deleted',
-                                                    )
-                                                  : _formatDate(n.createdAt),
-                                              style: theme.textTheme.bodySmall
-                                                  ?.copyWith(
-                                                    color: theme
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                                  ),
-                                            ),
-                                            PopupMenuButton<String>(
-                                              onSelected: (value) {
-                                                if (value == 'read') {
-                                                  _setRead(n, true);
-                                                }
-                                                if (value == 'unread') {
-                                                  _setRead(n, false);
-                                                }
-                                                if (value == 'delete') {
-                                                  _delete(n);
-                                                }
-                                                if (value == 'restore') {
-                                                  _restore(n);
-                                                }
-                                              },
-                                              itemBuilder: (_) => [
-                                                if (!n.readFlag && !n.isDeleted)
-                                                  PopupMenuItem(
-                                                    value: 'read',
-                                                    child: Text(
-                                                      l10n.t(
-                                                        'common.mark_read',
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (n.readFlag && !n.isDeleted)
-                                                  PopupMenuItem(
-                                                    value: 'unread',
-                                                    child: Text(
-                                                      l10n.t(
-                                                        'common.mark_unread',
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (!n.isDeleted)
-                                                  PopupMenuItem(
-                                                    value: 'delete',
-                                                    child: Text(
-                                                      l10n.t('common.delete'),
-                                                    ),
-                                                  ),
-                                                if (n.isDeleted)
-                                                  PopupMenuItem(
-                                                    value: 'restore',
-                                                    child: Text(
-                                                      l10n.t('common.restore'),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                        onTap: () => _onTap(n),
                                       ),
-                                    ),
-                                  );
-                                },
+                                    );
+                                  },
+                                ),
                               ),
                             ),
                     ),
@@ -654,3 +739,4 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 }
+

@@ -64,11 +64,15 @@ void main() {
     await _pumpChatHome(tester, api);
     await _openGroupPicker(tester);
 
+    await tester.tap(find.byKey(const Key('chat-channel-actions-7')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('chat-channel-mute-7')));
     await tester.pumpAndSettle();
     expect(api.mutedChannelId, 7);
     expect(api.mutedValue, true);
 
+    await tester.tap(find.byKey(const Key('chat-channel-actions-7')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('chat-channel-edit-7')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -81,6 +85,8 @@ void main() {
     expect(api.updatedChannelName, 'ops-chat');
     expect(find.text('#ops-chat'), findsOneWidget);
 
+    await tester.tap(find.byKey(const Key('chat-channel-actions-8')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('chat-channel-delete-8')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('chat-channel-delete-confirm')));

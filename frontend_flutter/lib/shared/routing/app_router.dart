@@ -173,7 +173,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(path: '/feed', builder: (_, __) => const FeedScreen()),
-          GoRoute(path: '/discover', builder: (_, __) => const SearchScreen()),
           GoRoute(
             path: '/notifications',
             builder: (_, __) => const NotificationsScreen(),
@@ -181,6 +180,20 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/chat', builder: (_, __) => const ChatHomeScreen()),
           GoRoute(path: '/me', builder: (_, __) => const AccountScreen()),
           GoRoute(path: '/groups', builder: (_, __) => const GroupsScreen()),
+          // Keep static group sub-tabs inside the shell so bottom/side nav
+          // stays on Groups (must be registered before `/groups/:slug`).
+          GoRoute(
+            path: '/groups/discover',
+            builder: (_, __) => const GroupsScreen(initialTab: 0),
+          ),
+          GoRoute(
+            path: '/groups/my',
+            builder: (_, __) => const GroupsScreen(initialTab: 1),
+          ),
+          GoRoute(
+            path: '/groups/invites',
+            builder: (_, __) => const GroupsScreen(initialTab: 2),
+          ),
           GoRoute(
             path: '/moderation',
             builder: (_, __) => const ModerationScreen(),
@@ -192,6 +205,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/about', builder: (_, __) => const AboutScreen()),
         ],
       ),
+      // Full-screen discover/search so mobile bottom-nav selection stays honest.
+      GoRoute(path: '/discover', builder: (_, __) => const SearchScreen()),
       GoRoute(
         path: '/posts/:postId',
         builder: (_, state) {
@@ -347,18 +362,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/account/bookmarks',
         builder: (_, __) =>
             const AccountPostsScreen(kind: AccountPostsKind.bookmarks),
-      ),
-      GoRoute(
-        path: '/groups/discover',
-        builder: (_, __) => const GroupsScreen(initialTab: 0),
-      ),
-      GoRoute(
-        path: '/groups/my',
-        builder: (_, __) => const GroupsScreen(initialTab: 1),
-      ),
-      GoRoute(
-        path: '/groups/invites',
-        builder: (_, __) => const GroupsScreen(initialTab: 2),
       ),
       GoRoute(
         path: '/groups/posts',

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -282,6 +284,8 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                         ? EmptyView(
                             message: l10n.t('chat.no_groups'),
                             icon: Icons.groups_outlined,
+                            actionLabel: l10n.t('group.title'),
+                            onAction: () => context.go('/groups'),
                           )
                         : RefreshIndicator(
                             onRefresh: _load,
@@ -631,14 +635,13 @@ class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (channel.isPrivate) ...[
+                        if (channel.isPrivate)
                           Tooltip(
                             message: l10n.t('chat.private_channel'),
                             child: const Icon(Icons.lock_outline, size: 18),
                           ),
-                          const SizedBox(width: 8),
-                        ],
                         if (channel.isMutedByMe) ...[
+                          if (channel.isPrivate) const SizedBox(width: 8),
                           Tooltip(
                             message: l10n.t('chat.muted'),
                             child: const Icon(
@@ -646,42 +649,55 @@ class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
                               size: 18,
                             ),
                           ),
-                          const SizedBox(width: 8),
                         ],
-                        if (channel.unreadCount > 0)
+                        if (channel.unreadCount > 0) ...[
+                          if (channel.isPrivate || channel.isMutedByMe)
+                            const SizedBox(width: 8),
                           Badge(label: Text('${channel.unreadCount}')),
-                        IconButton(
-                          key: Key('chat-channel-mute-${channel.channelId}'),
-                          visualDensity: VisualDensity.compact,
-                          tooltip: channel.isMutedByMe
-                              ? l10n.t('chat.unmute_channel')
-                              : l10n.t('chat.mute_channel'),
-                          icon: Icon(
-                            channel.isMutedByMe
-                                ? Icons.notifications_active_outlined
-                                : Icons.notifications_off_outlined,
-                            size: 18,
-                          ),
-                          onPressed: () => _handleMute(channel),
-                        ),
-                        if (channel.canManage) ...[
-                          IconButton(
-                            key: Key('chat-channel-edit-${channel.channelId}'),
-                            visualDensity: VisualDensity.compact,
-                            tooltip: l10n.t('chat.edit_channel'),
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                            onPressed: () => _handleEdit(channel),
-                          ),
-                          IconButton(
-                            key: Key(
-                              'chat-channel-delete-${channel.channelId}',
-                            ),
-                            visualDensity: VisualDensity.compact,
-                            tooltip: l10n.t('chat.delete_channel'),
-                            icon: const Icon(Icons.delete_outline, size: 18),
-                            onPressed: () => _handleDelete(channel),
-                          ),
                         ],
+                        PopupMenuButton<String>(
+                          key: Key(
+                            'chat-channel-actions-${channel.channelId}',
+                          ),
+                          onSelected: (value) {
+                            if (value == 'mute') {
+                              unawaited(_handleMute(channel));
+                            } else if (value == 'edit') {
+                              unawaited(_handleEdit(channel));
+                            } else if (value == 'delete') {
+                              unawaited(_handleDelete(channel));
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            PopupMenuItem(
+                              key: Key(
+                                'chat-channel-mute-${channel.channelId}',
+                              ),
+                              value: 'mute',
+                              child: Text(
+                                channel.isMutedByMe
+                                    ? l10n.t('chat.unmute_channel')
+                                    : l10n.t('chat.mute_channel'),
+                              ),
+                            ),
+                            if (channel.canManage) ...[
+                              PopupMenuItem(
+                                key: Key(
+                                  'chat-channel-edit-${channel.channelId}',
+                                ),
+                                value: 'edit',
+                                child: Text(l10n.t('chat.edit_channel')),
+                              ),
+                              PopupMenuItem(
+                                key: Key(
+                                  'chat-channel-delete-${channel.channelId}',
+                                ),
+                                value: 'delete',
+                                child: Text(l10n.t('chat.delete_channel')),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
                     onTap: () => Navigator.of(context).pop(channel),

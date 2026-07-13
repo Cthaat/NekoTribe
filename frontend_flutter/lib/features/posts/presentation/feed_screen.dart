@@ -111,7 +111,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
     final created = await Navigator.of(context).push<V2Post>(
       MaterialPageRoute(builder: (_) => const ComposePostScreen()),
     );
-    if (created != null) {
+    if (created != null && mounted) {
       final state = _tabs[_tab.index]!;
       setState(() => state.items.insert(0, created));
     }
