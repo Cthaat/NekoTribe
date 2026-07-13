@@ -162,7 +162,8 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
-          if (_group != null && _group!.membership.isMember)
+          // Manage is owner/admin/moderator only — not every member.
+          if (_group != null && _canManageGroup(_group!.membership.role))
             IconButton(
               icon: const Icon(Icons.settings_outlined),
               tooltip: l10n.t('common.settings'),
@@ -330,6 +331,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             ),
     );
   }
+}
+
+bool _canManageGroup(String? role) {
+  return role == 'owner' || role == 'admin' || role == 'moderator';
 }
 
 class _MetaPiece extends StatelessWidget {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -10,6 +11,10 @@ import '../../../shared/widgets/status_views.dart';
 import '../domain/group_draft_metadata.dart';
 import '../domain/group_models.dart';
 import 'group_image_upload.dart';
+
+bool _canManageGroup(String? role) {
+  return role == 'owner' || role == 'admin' || role == 'moderator';
+}
 
 class GroupManageScreen extends ConsumerStatefulWidget {
   const GroupManageScreen({super.key, required this.slug});
@@ -96,6 +101,15 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
     try {
       final api = ref.read(groupsApiProvider);
       final group = await api.getGroup(widget.slug);
+      if (!_canManageGroup(group.membership.role)) {
+        if (!mounted) return;
+        setState(() {
+          _group = group;
+          _loading = false;
+          _error = Exception('forbidden');
+        });
+        return;
+      }
       final members = await api.members(group.groupId);
       V2GroupNotificationPreference? preference;
       try {
@@ -370,15 +384,62 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   Future<void> _createInvite() async {
     if (_group == null) return;
     try {
-      await ref.read(groupsApiProvider).createInvite(_group!.groupId, {
-        'max_uses': _positiveInt(_inviteMaxUses.text, fallback: 100),
-        'expire_hours': _positiveInt(_inviteExpireHours.text, fallback: 168),
-      });
+      final invite = await ref.read(groupsApiProvider).createInvite(
+        _group!.groupId,
+        {
+          'max_uses': _positiveInt(_inviteMaxUses.text, fallback: 100),
+          'expire_hours': _positiveInt(_inviteExpireHours.text, fallback: 168),
+        },
+      );
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.t('group.invite_created'))));
+      final code = invite.inviteCode?.trim();
+      if (code != null && code.isNotEmpty) {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(l10n.t('group.invite_created')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SelectableText(
+                  code,
+                  style: Theme.of(dialogContext).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.t('group.invite_code_hint'),
+                  style: Theme.of(dialogContext).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: code));
+                  if (!dialogContext.mounted) return;
+                  Navigator.of(dialogContext).pop();
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(l10n.t('group.invite_copied'))),
+                  );
+                },
+                child: Text(l10n.t('common.copy')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(l10n.t('common.done')),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.t('group.invite_created'))),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -419,7 +480,14 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-          ? ErrorView(error: _error!, onRetry: _load)
+          ? (_error.toString().contains('forbidden')
+                ? EmptyView(
+                    message: l10n.t('error.forbidden'),
+                    icon: Icons.lock_outline,
+                    actionLabel: l10n.t('common.back'),
+                    onAction: () => context.pop(),
+                  )
+                : ErrorView(error: _error!, onRetry: _load))
           : Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
