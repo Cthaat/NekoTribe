@@ -531,6 +531,7 @@ class _ReportsTab extends ConsumerStatefulWidget {
 
 class _ReportsTabState extends ConsumerState<_ReportsTab>
     with AutomaticKeepAliveClientMixin {
+  String _status = 'open';
   List<V2ModerationReport> _items = [];
   bool _loading = true;
   Object? _error;
@@ -552,7 +553,7 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
     try {
       final page = await ref
           .read(moderationApiProvider)
-          .reports(status: 'open');
+          .reports(status: _status);
       if (!mounted) return;
       setState(() {
         _items = page.items;
@@ -593,116 +594,176 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
     super.build(context);
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    if (_loading) return const LoadingView();
-    if (_error != null) return ErrorView(error: _error!, onRetry: _load);
-    if (_items.isEmpty) {
-      return EmptyView(message: l10n.t('moderation.reports.empty'));
-    }
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _items.length,
-        itemBuilder: (_, i) {
-          final r = _items[i];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: theme.cardTheme.color,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: theme.dividerColor),
+    final emptyMessage = _status == 'resolved'
+        ? l10n.t('moderation.reports.empty_resolved')
+        : l10n.t('moderation.reports.empty');
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: SegmentedButton<String>(
+            selected: {_status},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) {
+              setState(() => _status = s.first);
+              _load();
+            },
+            segments: [
+              ButtonSegment(
+                value: 'open',
+                label: Text(l10n.t('moderation.reports.filter.open')),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.error.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.report_outlined,
-                          size: 16,
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          '${r.targetType} #${r.targetId}',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.error.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          _moderationReasonLabel(l10n, r.reason),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.error,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    r.description,
-                    style: theme.textTheme.bodyMedium,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.schedule,
-                        size: 12,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _formatDate(r.createdAt),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const Spacer(),
-                      TextButton.icon(
-                        onPressed: () => _resolve(r, 'dismissed'),
-                        icon: const Icon(Icons.close, size: 16),
-                        label: Text(l10n.t('moderation.reports.dismiss')),
-                      ),
-                      const SizedBox(width: 4),
-                      FilledButton.icon(
-                        onPressed: () => _resolve(r, 'resolved'),
-                        icon: const Icon(Icons.check, size: 16),
-                        label: Text(l10n.t('moderation.reports.resolve')),
-                      ),
-                    ],
-                  ),
-                ],
+              ButtonSegment(
+                value: 'resolved',
+                label: Text(l10n.t('moderation.reports.filter.resolved')),
               ),
-            ),
-          );
-        },
-      ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _loading
+              ? const LoadingView()
+              : _error != null
+              ? ErrorView(error: _error!, onRetry: _load)
+              : _items.isEmpty
+              ? EmptyView(message: emptyMessage)
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    itemCount: _items.length,
+                    itemBuilder: (_, i) {
+                      final r = _items[i];
+                      final isResolved = _status == 'resolved';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: theme.cardTheme.color,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: theme.dividerColor),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.error
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.report_outlined,
+                                      size: 16,
+                                      color: theme.colorScheme.error,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      '${r.targetType} #${r.targetId}',
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.error
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      _moderationReasonLabel(l10n, r.reason),
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: theme.colorScheme.error,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                r.description,
+                                style: theme.textTheme.bodyMedium,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.schedule,
+                                    size: 12,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _formatDate(r.createdAt),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color:
+                                          theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  if (isResolved)
+                                    OutlinedButton.icon(
+                                      key: Key(
+                                        'moderation-report-reopen-${r.reportId}',
+                                      ),
+                                      onPressed: () =>
+                                          _resolve(r, 'pending'),
+                                      icon: const Icon(
+                                        Icons.replay,
+                                        size: 16,
+                                      ),
+                                      label: Text(
+                                        l10n.t('moderation.reports.reopen'),
+                                      ),
+                                    )
+                                  else ...[
+                                    TextButton.icon(
+                                      onPressed: () =>
+                                          _resolve(r, 'dismissed'),
+                                      icon: const Icon(Icons.close, size: 16),
+                                      label: Text(
+                                        l10n.t('moderation.reports.dismiss'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    FilledButton.icon(
+                                      onPressed: () =>
+                                          _resolve(r, 'resolved'),
+                                      icon: const Icon(Icons.check, size: 16),
+                                      label: Text(
+                                        l10n.t('moderation.reports.resolve'),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
     );
   }
 }
