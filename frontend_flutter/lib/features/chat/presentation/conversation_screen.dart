@@ -7,6 +7,7 @@ import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../realtime/data/realtime_service.dart';
 import '../domain/chat_models.dart';
 
 class ConversationScreen extends ConsumerStatefulWidget {
@@ -25,22 +26,30 @@ class ConversationScreen extends ConsumerStatefulWidget {
 class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _scrollController = ScrollController();
   final _composer = TextEditingController();
+  late final RealtimeService _realtime;
   List<V2DirectMessage> _messages = [];
   bool _loading = true;
   bool _loadingOlder = false;
   bool _hasNext = false;
   bool _sending = false;
+  int _page = 1;
   Object? _error;
 
   @override
   void initState() {
     super.initState();
+    _realtime = ref.read(realtimeServiceProvider);
     _scrollController.addListener(_onScroll);
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _realtime.connect();
+      _realtime.addListener(_onRealtime);
+    });
   }
 
   @override
   void dispose() {
+    _realtime.removeListener(_onRealtime);
     _scrollController.removeListener(_onScroll);
     _composer.dispose();
     _scrollController.dispose();
@@ -56,6 +65,105 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
   }
 
+  Map<String, dynamic>? _asMap(Object? value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) {
+      return value.map((key, value) => MapEntry(key.toString(), value));
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _eventData(Map<String, dynamic> event) {
+    final data = _asMap(event['data']);
+    if (data != null) return data;
+    return _asMap(event['payload']);
+  }
+
+  int? _eventInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  Map<String, dynamic>? _messageData(Map<String, dynamic> data) {
+    final nested =
+        _asMap(data['direct_message']) ??
+        _asMap(data['message']) ??
+        _asMap(data['dm']);
+    if (nested != null) return nested;
+    if (data.containsKey('message_id') && data.containsKey('conversation_id')) {
+      return data;
+    }
+    return null;
+  }
+
+  void _onRealtime(Map<String, dynamic> event) {
+    final type = event['type'];
+    final data = _eventData(event);
+    if (data == null) return;
+
+    if (type == 'direct_message_deleted' || type == 'chat_dm_message_deleted') {
+      final conversationId = _eventInt(data['conversation_id']);
+      if (conversationId != null && conversationId != widget.conversationId) {
+        return;
+      }
+      final messageId = _eventInt(data['message_id']);
+      if (messageId == null) return;
+      if (!mounted) return;
+      setState(() {
+        _messages.removeWhere((m) => m.messageId == messageId);
+      });
+      return;
+    }
+
+    final looksLikeDm =
+        type == 'direct_message' ||
+        type == 'direct_message_created' ||
+        type == 'chat_dm_message' ||
+        type == 'chat_dm_message_created' ||
+        (type is String && type.contains('direct'));
+
+    final rawMessage = _messageData(data);
+    if (rawMessage == null) {
+      // Generic fallback: conversation_id + message fields anywhere in data.
+      if (!looksLikeDm) return;
+      return;
+    }
+
+    final conversationId =
+        _eventInt(rawMessage['conversation_id']) ??
+        _eventInt(data['conversation_id']);
+    if (conversationId != null && conversationId != widget.conversationId) {
+      return;
+    }
+    // If no conversation_id on payload, still require a DM-shaped type.
+    if (conversationId == null && !looksLikeDm) return;
+
+    try {
+      final message = V2DirectMessage.fromJson(rawMessage);
+      if (message.conversationId != 0 &&
+          message.conversationId != widget.conversationId) {
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _upsertMessage(message));
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    } catch (_) {
+      // Ignore malformed realtime payloads.
+    }
+  }
+
+  void _upsertMessage(V2DirectMessage message) {
+    final index = _messages.indexWhere((m) => m.messageId == message.messageId);
+    if (index >= 0) {
+      _messages[index] = message;
+    } else {
+      // reverse:true list expects newest-first.
+      _messages.insert(0, message);
+    }
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -64,11 +172,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     try {
       final page = await ref
           .read(chatApiProvider)
-          .listDirectMessages(conversationId: widget.conversationId);
+          .listDirectMessages(conversationId: widget.conversationId, page: 1);
       if (!mounted) return;
-      // Newest-first for reverse ListView.
+      // Server returns ASC (oldest→newest within page). Store newest-first.
       setState(() {
-        _messages = List.of(page.items);
+        _messages = page.items.reversed.toList();
+        _page = 1;
         _hasNext = page.hasNext;
         _loading = false;
       });
@@ -84,20 +193,23 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   Future<void> _loadOlder() async {
     if (_loadingOlder || !_hasNext || _messages.isEmpty) return;
     setState(() => _loadingOlder = true);
-    final beforeId = _messages.last.messageId;
+    final nextPage = _page + 1;
     try {
+      // Page-based history only — server has no reliable `before` cursor.
       final page = await ref
           .read(chatApiProvider)
           .listDirectMessages(
             conversationId: widget.conversationId,
-            beforeMessageId: beforeId,
+            page: nextPage,
           );
       if (!mounted) return;
-      final older = page.items
-          .where((m) => !_messages.any((x) => x.messageId == m.messageId))
+      final existing = _messages.map((m) => m.messageId).toSet();
+      final older = page.items.reversed
+          .where((m) => !existing.contains(m.messageId))
           .toList();
       setState(() {
         _messages = [..._messages, ...older];
+        _page = nextPage;
         _hasNext = page.hasNext;
         _loadingOlder = false;
       });
@@ -132,7 +244,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           );
       if (!mounted) return;
       setState(() {
-        _messages.insert(0, message);
+        _upsertMessage(message);
         _composer.clear();
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -147,6 +259,26 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   Future<void> _deleteMessage(V2DirectMessage m) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.t('chat.delete_message')),
+        content: Text(l10n.t('chat.delete_message_body')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.t('common.cancel')),
+          ),
+          FilledButton(
+            key: const Key('dm-delete-confirm-button'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.t('common.delete')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     try {
       await ref.read(chatApiProvider).deleteMessage(m.messageId);
       if (!mounted) return;
@@ -306,7 +438,7 @@ class _MessageBubble extends StatelessWidget {
     return Align(
       alignment: isSelf ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 5),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: Row(
@@ -322,16 +454,16 @@ class _MessageBubble extends StatelessWidget {
                   onLongPress: onDelete,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+                      horizontal: 16,
+                      vertical: 11,
                     ),
                     decoration: BoxDecoration(
                       color: bubbleColor,
                       borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isSelf ? 16 : 4),
-                        bottomRight: Radius.circular(isSelf ? 4 : 16),
+                        topLeft: const Radius.circular(18),
+                        topRight: const Radius.circular(18),
+                        bottomLeft: Radius.circular(isSelf ? 18 : 5),
+                        bottomRight: Radius.circular(isSelf ? 5 : 18),
                       ),
                     ),
                     child: Column(
@@ -339,7 +471,7 @@ class _MessageBubble extends StatelessWidget {
                       children: [
                         if (!isSelf && message.author.displayName.isNotEmpty)
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 2),
+                            padding: const EdgeInsets.only(bottom: 3),
                             child: Text(
                               message.author.displayName,
                               style: theme.textTheme.bodySmall?.copyWith(
@@ -365,7 +497,7 @@ class _MessageBubble extends StatelessWidget {
                                 : null,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 5),
                         Text(
                           formatTime(message.createdAt),
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -378,6 +510,7 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 ),
               ),
+              if (isSelf) const SizedBox(width: 4),
             ],
           ),
         ),

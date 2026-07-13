@@ -73,6 +73,8 @@ class ChatApi {
     required int channelId,
     int page = 1,
     int size = 30,
+    // Kept for API compatibility; server pagination is page/page_size only
+    // and ignores `before`. Prefer page-based history loading in screens.
     int? beforeMessageId,
   }) {
     final query = <String, dynamic>{'page': page, 'page_size': size};
@@ -210,6 +212,8 @@ class ChatApi {
     required int conversationId,
     int page = 1,
     int size = 30,
+    // Kept for API compatibility; server pagination is page/page_size only
+    // and ignores `before`. Prefer page-based history loading in screens.
     int? beforeMessageId,
   }) {
     final query = <String, dynamic>{'page': page, 'page_size': size};

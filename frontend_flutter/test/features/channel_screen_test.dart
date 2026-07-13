@@ -58,6 +58,26 @@ void main() {
     expect(find.text('hello'), findsOneWidget);
   });
 
+  testWidgets('channel reverses ASC page so newest sits nearest composer', (
+    tester,
+  ) async {
+    final chatApi = _FakeChatApi(
+      initialMessages: [
+        _message(messageId: 1, content: 'A-old'),
+        _message(messageId: 2, content: 'B-mid'),
+        _message(messageId: 3, content: 'C-new'),
+      ],
+    );
+    final mediaApi = _FakeMediaApi();
+
+    await tester.pumpWidget(_testApp(chatApi: chatApi, mediaApi: mediaApi));
+    await tester.pumpAndSettle();
+
+    final a = tester.getTopLeft(find.text('A-old'));
+    final c = tester.getTopLeft(find.text('C-new'));
+    expect(c.dy, greaterThan(a.dy));
+  });
+
   testWidgets('channel composer uploads attachment media before sending', (
     tester,
   ) async {
@@ -126,29 +146,6 @@ void main() {
     expect(composer.controller?.text, '😀@#🎁 ');
   });
 
-  testWidgets('channel composer sends selected reply target', (tester) async {
-    final chatApi = _FakeChatApi(
-      initialMessages: [_message(messageId: 1001, content: 'Original note')],
-    );
-    final mediaApi = _FakeMediaApi();
-
-    await tester.pumpWidget(_testApp(chatApi: chatApi, mediaApi: mediaApi));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('chat-channel-reply-1001')));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('chat-channel-reply-preview')), findsOneWidget);
-
-    await tester.enterText(find.byType(TextField), 'Reply from Flutter');
-    await tester.tap(find.byKey(const Key('chat-channel-send-button')));
-    await tester.pumpAndSettle();
-
-    expect(chatApi.sentContent, 'Reply from Flutter');
-    expect(chatApi.sentReplyToMessageId, 1001);
-    expect(find.byKey(const Key('chat-channel-reply-preview')), findsNothing);
-  });
-
   testWidgets('channel message menu edits and deletes messages', (
     tester,
   ) async {
@@ -186,6 +183,33 @@ void main() {
 
     expect(chatApi.deletedMessageId, 1002);
     expect(find.text('Edited message'), findsNothing);
+  });
+
+  testWidgets('channel reply is available from message overflow menu', (
+    tester,
+  ) async {
+    final chatApi = _FakeChatApi(
+      initialMessages: [_message(messageId: 1001, content: 'Original note')],
+    );
+    final mediaApi = _FakeMediaApi();
+
+    await tester.pumpWidget(_testApp(chatApi: chatApi, mediaApi: mediaApi));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('chat-channel-more-1001')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('chat-channel-reply-1001')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('chat-channel-reply-preview')), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'Reply from Flutter');
+    await tester.tap(find.byKey(const Key('chat-channel-send-button')));
+    await tester.pumpAndSettle();
+
+    expect(chatApi.sentContent, 'Reply from Flutter');
+    expect(chatApi.sentReplyToMessageId, 1001);
+    expect(find.byKey(const Key('chat-channel-reply-preview')), findsNothing);
   });
 
   testWidgets('channel reaction summary toggles existing reaction', (
@@ -372,6 +396,8 @@ class _FakeChatApi extends ChatApi {
   String? reactedEmoji;
   int? unreactedMessageId;
   String? unreactedEmoji;
+  int? lastListPage;
+  int? lastBeforeMessageId;
 
   @override
   Future<PagedResult<V2ChatMessage>> listMessages({
@@ -380,11 +406,13 @@ class _FakeChatApi extends ChatApi {
     int size = 30,
     int? beforeMessageId,
   }) async {
+    lastListPage = page;
+    lastBeforeMessageId = beforeMessageId;
     return PagedResult(
       items: List.of(messages),
       meta: ApiMeta(
-        page: 1,
-        pageSize: 30,
+        page: page,
+        pageSize: size,
         total: messages.length,
         hasNext: false,
       ),

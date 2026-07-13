@@ -9,6 +9,7 @@ import 'package:mime/mime.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/media_lightbox.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../posts/domain/post_models.dart';
@@ -39,14 +40,18 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   final List<PlatformFile> _attachments = [];
   V2ChatMessage? _replyTo;
   bool _loading = true;
+  bool _loadingOlder = false;
+  bool _hasNext = false;
   bool _sending = false;
   bool _pickingAttachment = false;
+  int _page = 1;
   Object? _error;
 
   @override
   void initState() {
     super.initState();
     _realtime = ref.read(realtimeServiceProvider);
+    _scroll.addListener(_onScroll);
     _load();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _realtime.connect();
@@ -60,12 +65,21 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
 
   @override
   void dispose() {
+    _scroll.removeListener(_onScroll);
     _realtime
       ..send({'type': 'chat_leave_channel', 'channel_id': widget.channelId})
       ..removeListener(_onRealtime);
     _composer.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scroll.hasClients || _loadingOlder || !_hasNext) return;
+    // reverse:true — older messages load near maxScrollExtent.
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 80) {
+      _loadOlder();
+    }
   }
 
   void _onRealtime(Map<String, dynamic> event) {
@@ -156,11 +170,13 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     try {
       final page = await ref
           .read(chatApiProvider)
-          .listMessages(channelId: widget.channelId);
+          .listMessages(channelId: widget.channelId, page: 1);
       if (!mounted) return;
-      // Keep newest-first for reverse ListView (index 0 is bottom).
+      // Server returns ASC (oldest→newest within page). Store newest-first.
       setState(() {
-        _messages = List.of(page.items);
+        _messages = page.items.reversed.toList();
+        _page = 1;
+        _hasNext = page.hasNext;
         _loading = false;
       });
       await ref
@@ -177,6 +193,35 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
         _error = e;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadOlder() async {
+    if (_loadingOlder || !_hasNext || _messages.isEmpty) return;
+    setState(() => _loadingOlder = true);
+    final nextPage = _page + 1;
+    try {
+      // Page-based history only — server has no reliable `before` cursor.
+      final page = await ref
+          .read(chatApiProvider)
+          .listMessages(channelId: widget.channelId, page: nextPage);
+      if (!mounted) return;
+      final existing = _messages.map((m) => m.messageId).toSet();
+      final older = page.items.reversed
+          .where((m) => !existing.contains(m.messageId))
+          .toList();
+      setState(() {
+        _messages = [..._messages, ...older];
+        _page = nextPage;
+        _hasNext = page.hasNext;
+        _loadingOlder = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingOlder = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -453,24 +498,39 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                           horizontal: 12,
                           vertical: 12,
                         ),
-                        itemCount: _messages.length,
-                        itemBuilder: (_, i) => _ChannelMessageTile(
-                          message: _messages[i],
-                          timeLabel: _time(_messages[i].createdAt),
-                          onReply: () => _startReply(_messages[i]),
-                          onReact: () => _react(_messages[i]),
-                          onReactionSelected: (emoji) =>
-                              _react(_messages[i], emoji),
-                          onPin: _messages[i].canPin
-                              ? () => _pin(_messages[i])
-                              : null,
-                          onEdit: _messages[i].canDelete
-                              ? () => _editMessage(_messages[i])
-                              : null,
-                          onDelete: _messages[i].canDelete
-                              ? () => _deleteMessage(_messages[i])
-                              : null,
-                        ),
+                        itemCount: _messages.length + (_loadingOlder ? 1 : 0),
+                        itemBuilder: (_, i) {
+                          if (_loadingOlder && i == _messages.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          final message = _messages[i];
+                          return _ChannelMessageTile(
+                            message: message,
+                            timeLabel: _time(message.createdAt),
+                            onReply: () => _startReply(message),
+                            onReact: () => _react(message),
+                            onReactionSelected: (emoji) =>
+                                _react(message, emoji),
+                            onPin: message.canPin ? () => _pin(message) : null,
+                            onEdit: message.canDelete
+                                ? () => _editMessage(message)
+                                : null,
+                            onDelete: message.canDelete
+                                ? () => _deleteMessage(message)
+                                : null,
+                          );
+                        },
                       ),
               ),
               Container(
@@ -968,8 +1028,12 @@ class _ChannelMessageTile extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final media in message.media)
-                        _MessageAttachment(media: media),
+                      for (var i = 0; i < message.media.length; i++)
+                        _MessageAttachment(
+                          media: message.media[i],
+                          allMedia: message.media,
+                          index: i,
+                        ),
                     ],
                   ),
                 ],
@@ -993,75 +1057,94 @@ class _ChannelMessageTile extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            key: Key('chat-channel-reply-${message.messageId}'),
-            visualDensity: VisualDensity.compact,
-            iconSize: 18,
-            tooltip: l10n.t('chat.reply'),
-            icon: const Icon(Icons.reply_rounded),
-            onPressed: onReply,
-          ),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            iconSize: 18,
-            tooltip: '👍',
-            icon: const Icon(Icons.thumb_up_alt_outlined),
-            onPressed: onReact,
-          ),
-          if (onPin != null)
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              iconSize: 18,
-              icon: Icon(
-                message.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+          // Compact always: collapse reply/react/pin/edit/delete into one menu.
+          PopupMenuButton<_ChannelMessageAction>(
+            key: Key('chat-channel-more-${message.messageId}'),
+            tooltip: l10n.t('common.more'),
+            icon: const Icon(Icons.more_horiz),
+            onSelected: (action) {
+              switch (action) {
+                case _ChannelMessageAction.reply:
+                  onReply();
+                  break;
+                case _ChannelMessageAction.react:
+                  onReact();
+                  break;
+                case _ChannelMessageAction.pin:
+                  onPin?.call();
+                  break;
+                case _ChannelMessageAction.edit:
+                  onEdit?.call();
+                  break;
+                case _ChannelMessageAction.delete:
+                  onDelete?.call();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                key: Key('chat-channel-reply-${message.messageId}'),
+                value: _ChannelMessageAction.reply,
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.reply_rounded),
+                  title: Text(l10n.t('chat.reply')),
+                ),
               ),
-              onPressed: onPin,
-            ),
-          if (onEdit != null || onDelete != null)
-            PopupMenuButton<_ChannelMessageAction>(
-              key: Key('chat-channel-more-${message.messageId}'),
-              tooltip: l10n.t('common.more'),
-              icon: const Icon(Icons.more_horiz),
-              onSelected: (action) {
-                switch (action) {
-                  case _ChannelMessageAction.edit:
-                    onEdit?.call();
-                    break;
-                  case _ChannelMessageAction.delete:
-                    onDelete?.call();
-                    break;
-                }
-              },
-              itemBuilder: (context) => [
-                if (onEdit != null)
-                  PopupMenuItem(
-                    key: Key('chat-channel-edit-${message.messageId}'),
-                    value: _ChannelMessageAction.edit,
-                    child: ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.edit_outlined),
-                      title: Text(l10n.t('common.edit')),
+              PopupMenuItem(
+                value: _ChannelMessageAction.react,
+                child: const ListTile(
+                  dense: true,
+                  leading: Icon(Icons.thumb_up_alt_outlined),
+                  title: Text('👍'),
+                ),
+              ),
+              if (onPin != null)
+                PopupMenuItem(
+                  value: _ChannelMessageAction.pin,
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(
+                      message.isPinned
+                          ? Icons.push_pin
+                          : Icons.push_pin_outlined,
+                    ),
+                    title: Text(
+                      message.isPinned
+                          ? l10n.t('chat.unpin')
+                          : l10n.t('chat.pin'),
                     ),
                   ),
-                if (onDelete != null)
-                  PopupMenuItem(
-                    key: Key('chat-channel-delete-${message.messageId}'),
-                    value: _ChannelMessageAction.delete,
-                    child: ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.delete_outline),
-                      title: Text(l10n.t('common.delete')),
-                    ),
+                ),
+              if (onEdit != null)
+                PopupMenuItem(
+                  key: Key('chat-channel-edit-${message.messageId}'),
+                  value: _ChannelMessageAction.edit,
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.edit_outlined),
+                    title: Text(l10n.t('common.edit')),
                   ),
-              ],
-            ),
+                ),
+              if (onDelete != null)
+                PopupMenuItem(
+                  key: Key('chat-channel-delete-${message.messageId}'),
+                  value: _ChannelMessageAction.delete,
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.delete_outline),
+                    title: Text(l10n.t('common.delete')),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-enum _ChannelMessageAction { edit, delete }
+enum _ChannelMessageAction { reply, react, pin, edit, delete }
 
 class _MessageReplyQuote extends StatelessWidget {
   const _MessageReplyQuote({required this.replyTo});
@@ -1133,9 +1216,15 @@ class _ReactionChip extends StatelessWidget {
 }
 
 class _MessageAttachment extends StatelessWidget {
-  const _MessageAttachment({required this.media});
+  const _MessageAttachment({
+    required this.media,
+    this.allMedia = const [],
+    this.index = 0,
+  });
 
   final V2MediaAsset media;
+  final List<V2MediaAsset> allMedia;
+  final int index;
 
   @override
   Widget build(BuildContext context) {
@@ -1143,11 +1232,33 @@ class _MessageAttachment extends StatelessWidget {
     final isImage =
         media.mediaType == 'image' || media.mimeType.startsWith('image/');
     if (isImage) {
-      return AppMediaImage(
-        url: media.publicUrl,
-        width: 140,
-        height: 104,
-        borderRadius: BorderRadius.circular(12),
+      final images = allMedia
+          .where(
+            (m) => m.mediaType == 'image' || m.mimeType.startsWith('image/'),
+          )
+          .toList();
+      final imageIndex = images.indexWhere((m) => m.mediaId == media.mediaId);
+      return GestureDetector(
+        onTap: () {
+          if (images.isEmpty) return;
+          showMediaLightbox(
+            context: context,
+            items: [
+              for (final m in images)
+                MediaLightboxItem(
+                  url: m.publicUrl,
+                  altText: m.fileName,
+                ),
+            ],
+            initialIndex: imageIndex >= 0 ? imageIndex : index,
+          );
+        },
+        child: AppMediaImage(
+          url: media.publicUrl,
+          width: 140,
+          height: 104,
+          borderRadius: BorderRadius.circular(12),
+        ),
       );
     }
     return Container(
