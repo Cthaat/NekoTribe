@@ -14,7 +14,7 @@ class AppShell extends ConsumerStatefulWidget {
 
   static const _primaryTabs = [
     ('/feed', Icons.home_outlined, Icons.home, 'tab.home'),
-    ('/discover', Icons.explore_outlined, Icons.explore, 'tab.discover'),
+    ('/groups', Icons.groups_outlined, Icons.groups, 'group.title'),
     (
       '/notifications',
       Icons.notifications_outlined,

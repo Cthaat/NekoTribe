@@ -26,8 +26,14 @@ class RealtimeService {
 
   Stream<bool> get connection => _connectedCtl.stream;
 
+  bool get isConnected => _channel != null;
+
   Future<void> connect() async {
     _shouldReconnect = true;
+    if (_channel != null && _sub != null) {
+      if (!_connectedCtl.isClosed) _connectedCtl.add(true);
+      return;
+    }
     await _open();
   }
 
@@ -66,6 +72,11 @@ class RealtimeService {
       _connectedCtl.add(false);
       return;
     }
+    // Close any prior channel/subscription before opening a new one.
+    await _sub?.cancel();
+    _sub = null;
+    await _channel?.sink.close();
+    _channel = null;
     final base = config.wsBaseUrl;
     final separator = base.endsWith('/') ? '' : '/';
     final url =

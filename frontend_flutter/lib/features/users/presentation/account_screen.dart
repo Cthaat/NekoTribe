@@ -90,7 +90,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     _AccountHeader(user: _user!),
                     const SizedBox(height: 8),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                       child: Text(
                         l10n.t('settings.account.profile'),
                         style: theme.textTheme.labelMedium?.copyWith(
@@ -115,7 +115,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     ),
                     const SizedBox(height: 16),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                       child: Text(
                         l10n.t('settings.section.content'),
                         style: theme.textTheme.labelMedium?.copyWith(
@@ -160,7 +160,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     ),
                     const SizedBox(height: 16),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                       child: Text(
                         l10n.t('settings.section.tools'),
                         style: theme.textTheme.labelMedium?.copyWith(
@@ -190,21 +190,25 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     ),
                     const SizedBox(height: 24),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: OutlinedButton.icon(
-                        onPressed: _logout,
-                        icon: Icon(
-                          Icons.logout,
-                          color: theme.colorScheme.error,
-                        ),
-                        label: Text(
-                          l10n.t('auth.logout'),
-                          style: TextStyle(color: theme.colorScheme.error),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(
-                            color: theme.colorScheme.error.withValues(
-                              alpha: 0.4,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _logout,
+                          icon: Icon(
+                            Icons.logout,
+                            color: theme.colorScheme.error,
+                          ),
+                          label: Text(
+                            l10n.t('auth.logout'),
+                            style: TextStyle(color: theme.colorScheme.error),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                            side: BorderSide(
+                              color: theme.colorScheme.error.withValues(
+                                alpha: 0.4,
+                              ),
                             ),
                           ),
                         ),
@@ -227,8 +231,14 @@ class _AccountHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.dividerColor),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -266,8 +276,8 @@ class _AccountHeader extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Wrap(
-            spacing: 18,
-            runSpacing: 6,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               _Stat(
                 label: l10n.t('profile.followers'),
@@ -352,25 +362,32 @@ class _Stat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        Text(
-          '$value',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Text(
+            '$value',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

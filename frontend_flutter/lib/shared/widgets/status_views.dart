@@ -11,23 +11,40 @@ class ErrorView extends StatelessWidget {
   final VoidCallback? onRetry;
 
   static String describe(BuildContext context, Object error) {
+    final l10n = AppLocalizations.of(context);
     if (error is ApiException) {
-      return '[${error.code}] ${error.message}';
+      if (error.isUnauthorized) return l10n.t('error.unauthorized');
+      if (error.isForbidden) return l10n.t('error.forbidden');
+      if (error.isNotFound) return l10n.t('error.not_found');
+      if (error.isValidation || error.isBadRequest) {
+        final msg = error.message.trim();
+        if (msg.isNotEmpty && msg.length <= 120 && !msg.startsWith('HTTP')) {
+          return msg;
+        }
+        return l10n.t('error.validation');
+      }
+      final msg = error.message.trim();
+      if (msg.isNotEmpty &&
+          msg.length <= 160 &&
+          !RegExp(r'^HTTP \d+').hasMatch(msg)) {
+        return msg;
+      }
+      return l10n.t('error.generic');
     }
     final raw = error.toString();
-    if (_isConnectionError(raw)) {
-      return AppLocalizations.of(context).t('error.connection');
+    if (_isConnectionError(raw)) return l10n.t('error.connection');
+    if (raw.toLowerCase().contains('timeout')) {
+      return l10n.t('error.timeout');
     }
-    return raw;
+    return l10n.t('error.generic');
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
     final isAuthError =
-        error is ApiException &&
-        ((error as ApiException).code == 40101 ||
-            (error as ApiException).statusCode == 401);
+        error is ApiException && (error as ApiException).isUnauthorized;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -36,8 +53,8 @@ class ErrorView extends StatelessWidget {
           children: [
             Icon(
               Icons.error_outline,
-              size: 56,
-              color: Theme.of(context).colorScheme.error,
+              size: 48,
+              color: colorScheme.error.withValues(alpha: 0.9),
             ),
             const SizedBox(height: 12),
             Text(
@@ -47,7 +64,7 @@ class ErrorView extends StatelessWidget {
             ),
             if (onRetry != null) ...[
               const SizedBox(height: 16),
-              ElevatedButton(
+              FilledButton.tonal(
                 onPressed: onRetry,
                 child: Text(l10n.t('common.retry')),
               ),

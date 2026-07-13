@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +18,10 @@ void main() {
             GoRoute(
               path: '/feed',
               builder: (_, __) => const Text('feed route'),
+            ),
+            GoRoute(
+              path: '/groups',
+              builder: (_, __) => const Text('groups route'),
             ),
             GoRoute(
               path: '/notifications',
@@ -96,5 +101,41 @@ void main() {
 
     expect(find.byType(Badge), findsWidgets);
     expect(find.text('3'), findsOneWidget);
+  });
+
+  testWidgets('mobile bottom nav shows groups destination', (tester) async {
+    tester.view
+      ..physicalSize = const Size(390, 844)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final router = buildRouter();
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          locale: const Locale('zh'),
+          routerConfig: router,
+          localizationsDelegates: const [
+            AppLocalizationsDelegate(),
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supported,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('群组'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
+
+    await tester.tap(find.text('群组'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('groups route'), findsOneWidget);
   });
 }
