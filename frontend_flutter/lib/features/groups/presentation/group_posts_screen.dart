@@ -84,25 +84,41 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
 
   Future<void> _toggleLike(V2GroupPost post) async {
     final nextLiked = !post.isLikedByMe;
-    await ref
-        .read(groupsApiProvider)
-        .setGroupPostLikeStatus(
-          groupId: post.groupId,
-          postId: post.postId,
-          liked: nextLiked,
-        );
-    await _load();
+    try {
+      await ref
+          .read(groupsApiProvider)
+          .setGroupPostLikeStatus(
+            groupId: post.groupId,
+            postId: post.postId,
+            liked: nextLiked,
+          );
+      if (!mounted) return;
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
   }
 
   Future<void> _togglePin(V2GroupPost post) async {
-    await ref
-        .read(groupsApiProvider)
-        .setGroupPostPinStatus(
-          groupId: post.groupId,
-          postId: post.postId,
-          isPinned: !post.isPinned,
-        );
-    await _load();
+    try {
+      await ref
+          .read(groupsApiProvider)
+          .setGroupPostPinStatus(
+            groupId: post.groupId,
+            postId: post.postId,
+            isPinned: !post.isPinned,
+          );
+      if (!mounted) return;
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
   }
 
   Future<void> _deletePost(V2GroupPost post) async {

@@ -20,7 +20,12 @@ class TagScreen extends ConsumerStatefulWidget {
 class _TagScreenState extends ConsumerState<TagScreen> {
   List<V2Post> _posts = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
+
+  static const _pageSize = 30;
 
   @override
   void initState() {
@@ -32,14 +37,19 @@ class _TagScreenState extends ConsumerState<TagScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
+      _loadingMore = false;
     });
     try {
       final page = await ref
           .read(postsApiProvider)
-          .getPostsByTag(widget.tag, page: 1, size: 30);
+          .getPostsByTag(widget.tag, page: 1, size: _pageSize);
       if (!mounted) return;
       setState(() {
         _posts = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _loading = false;
       });
     } catch (e) {
@@ -48,6 +58,30 @@ class _TagScreenState extends ConsumerState<TagScreen> {
         _error = e;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(postsApiProvider)
+          .getPostsByTag(widget.tag, page: next, size: _pageSize);
+      if (!mounted) return;
+      setState(() {
+        _posts = [..._posts, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -85,20 +119,36 @@ class _TagScreenState extends ConsumerState<TagScreen> {
                 ),
                 child: RefreshIndicator(
                   onRefresh: _load,
-                  child: ListView.separated(
-                    itemCount: _posts.length,
-                    separatorBuilder: (_, _) =>
-                        Divider(height: 1, color: theme.dividerColor),
-                    itemBuilder: (_, i) => PostCard(
-                      key: ValueKey(_posts[i].postId),
-                      post: _posts[i],
-                      onChanged: (u) => setState(() => _posts[i] = u),
-                      onReport: () => showReportDialog(
-                        context,
-                        ref,
-                        targetType: 'post',
-                        targetId: _posts[i].postId,
-                      ),
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (n) {
+                      if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+                        _loadMore();
+                      }
+                      return false;
+                    },
+                    child: ListView.separated(
+                      itemCount: _posts.length + (_hasNext ? 1 : 0),
+                      separatorBuilder: (_, _) =>
+                          Divider(height: 1, color: theme.dividerColor),
+                      itemBuilder: (_, i) {
+                        if (i == _posts.length) {
+                          return const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        return PostCard(
+                          key: ValueKey(_posts[i].postId),
+                          post: _posts[i],
+                          onChanged: (u) => setState(() => _posts[i] = u),
+                          onReport: () => showReportDialog(
+                            context,
+                            ref,
+                            targetType: 'post',
+                            targetId: _posts[i].postId,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),

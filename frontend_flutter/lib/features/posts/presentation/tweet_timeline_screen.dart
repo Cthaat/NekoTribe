@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/api_response.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/responsive.dart';
@@ -27,7 +28,12 @@ class TweetTimelineScreen extends ConsumerStatefulWidget {
 class _TweetTimelineScreenState extends ConsumerState<TweetTimelineScreen> {
   List<V2Post> _items = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
+
+  static const _pageSize = 20;
 
   @override
   void initState() {
@@ -43,31 +49,48 @@ class _TweetTimelineScreenState extends ConsumerState<TweetTimelineScreen> {
     }
   }
 
+  bool get _supportsPaging => _normalizedType(widget.type) != 'trending';
+
+  Future<PagedResult<V2Post>> _fetchPage(int page) {
+    final api = ref.read(postsApiProvider);
+    final type = _normalizedType(widget.type);
+    return switch (type) {
+      'user' => api.getUserPostsById(widget.userId, page: page, size: _pageSize),
+      'my_tweets' => api.getMyPosts(page: page, size: _pageSize),
+      'bookmark' => api.getMyBookmarks(page: page, size: _pageSize),
+      'likes' => api.getMyLikes(page: page, size: _pageSize),
+      'mention' => api.getFeed(mode: 'mentions', page: page, size: _pageSize),
+      _ => api.getFeed(mode: 'home', page: page, size: _pageSize),
+    };
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
+      _loadingMore = false;
     });
     try {
-      final api = ref.read(postsApiProvider);
       final type = _normalizedType(widget.type);
-      final List<V2Post> items;
       if (type == 'trending') {
-        items = await api.getTrending(limit: 20);
-      } else {
-        final page = switch (type) {
-          'user' => await api.getUserPostsById(widget.userId),
-          'my_tweets' => await api.getMyPosts(),
-          'bookmark' => await api.getMyBookmarks(),
-          'likes' => await api.getMyLikes(),
-          'mention' => await api.getFeed(mode: 'mentions'),
-          _ => await api.getFeed(mode: 'home'),
-        };
-        items = page.items;
+        final items = await ref.read(postsApiProvider).getTrending(limit: 20);
+        if (!mounted) return;
+        setState(() {
+          _items = items;
+          _hasNext = false;
+          _loading = false;
+        });
+        return;
       }
+
+      final page = await _fetchPage(1);
       if (!mounted) return;
       setState(() {
-        _items = items;
+        _items = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _loading = false;
       });
     } catch (e) {
@@ -76,6 +99,28 @@ class _TweetTimelineScreenState extends ConsumerState<TweetTimelineScreen> {
         _error = e;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (!_supportsPaging || _loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await _fetchPage(next);
+      if (!mounted) return;
+      setState(() {
+        _items = [..._items, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -123,20 +168,38 @@ class _TweetTimelineScreenState extends ConsumerState<TweetTimelineScreen> {
                 ),
                 child: RefreshIndicator(
                   onRefresh: _load,
-                  child: ListView.separated(
-                    itemCount: _items.length,
-                    separatorBuilder: (_, _) =>
-                        Divider(height: 1, color: theme.dividerColor),
-                    itemBuilder: (_, i) => PostCard(
-                      post: _items[i],
-                      onChanged: (updated) =>
-                          setState(() => _items[i] = updated),
-                      onReport: () => showReportDialog(
-                        context,
-                        ref,
-                        targetType: 'post',
-                        targetId: _items[i].postId,
-                      ),
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (n) {
+                      if (_supportsPaging &&
+                          n.metrics.pixels >=
+                              n.metrics.maxScrollExtent - 200) {
+                        _loadMore();
+                      }
+                      return false;
+                    },
+                    child: ListView.separated(
+                      itemCount: _items.length + (_hasNext ? 1 : 0),
+                      separatorBuilder: (_, _) =>
+                          Divider(height: 1, color: theme.dividerColor),
+                      itemBuilder: (_, i) {
+                        if (i == _items.length) {
+                          return const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        return PostCard(
+                          post: _items[i],
+                          onChanged: (updated) =>
+                              setState(() => _items[i] = updated),
+                          onReport: () => showReportDialog(
+                            context,
+                            ref,
+                            targetType: 'post',
+                            targetId: _items[i].postId,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),

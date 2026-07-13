@@ -22,8 +22,13 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   V2Group? _group;
   List<V2GroupPost> _posts = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
   bool _busy = false;
+
+  static const _pageSize = 20;
 
   @override
   void initState() {
@@ -35,15 +40,20 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
+      _loadingMore = false;
     });
     try {
       final api = ref.read(groupsApiProvider);
       final group = await api.getGroup(widget.slug);
-      final posts = await api.posts(group.groupId);
+      final posts = await api.posts(group.groupId, page: 1, size: _pageSize);
       if (!mounted) return;
       setState(() {
         _group = group;
         _posts = posts.items;
+        _page = 1;
+        _hasNext = posts.hasNext;
         _loading = false;
       });
     } catch (e) {
@@ -52,6 +62,30 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         _error = e;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadMorePosts() async {
+    if (_loadingMore || !_hasNext || _loading || _group == null) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await ref
+          .read(groupsApiProvider)
+          .posts(_group!.groupId, page: next, size: _pageSize);
+      if (!mounted) return;
+      setState(() {
+        _posts = [..._posts, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -101,6 +135,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         ],
       ),
     );
+    controller.dispose();
     if (result == null || result.isEmpty) return;
     try {
       await ref
@@ -156,120 +191,139 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 ),
                 child: RefreshIndicator(
                   onRefresh: _load,
-                  child: ListView(
-                    children: [
-                      if (_group!.coverUrl != null)
-                        AppMediaImage(
-                          url: _group!.coverUrl!,
-                          height: 180,
-                          borderRadius: BorderRadius.zero,
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                        child: Row(
-                          children: [
-                            AppAvatar(url: _group!.avatarUrl, size: 64),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _group!.name,
-                                    style: theme.textTheme.titleLarge?.copyWith(
-                                      fontWeight: FontWeight.w700,
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (n) {
+                      if (n.metrics.pixels >=
+                          n.metrics.maxScrollExtent - 200) {
+                        _loadMorePosts();
+                      }
+                      return false;
+                    },
+                    child: ListView(
+                      children: [
+                        if (_group!.coverUrl != null)
+                          AppMediaImage(
+                            url: _group!.coverUrl!,
+                            height: 180,
+                            borderRadius: BorderRadius.zero,
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Row(
+                            children: [
+                              AppAvatar(url: _group!.avatarUrl, size: 64),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _group!.name,
+                                      style: theme.textTheme.titleLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Wrap(
-                                    spacing: 12,
-                                    runSpacing: 4,
-                                    children: [
-                                      _MetaPiece(
-                                        icon: Icons.people_outline,
-                                        text:
-                                            '${_group!.memberCount} ${l10n.t('group.members')}',
+                                    const SizedBox(height: 4),
+                                    Wrap(
+                                      spacing: 12,
+                                      runSpacing: 4,
+                                      children: [
+                                        _MetaPiece(
+                                          icon: Icons.people_outline,
+                                          text:
+                                              '${_group!.memberCount} ${l10n.t('group.members')}',
+                                        ),
+                                        _MetaPiece(
+                                          icon: Icons.lock_outline,
+                                          text: _group!.privacyDesc.isEmpty
+                                              ? _group!.privacy
+                                              : _group!.privacyDesc,
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: _busy ? null : _toggleMembership,
+                              style: _group!.membership.isMember
+                                  ? FilledButton.styleFrom(
+                                      backgroundColor: theme
+                                          .colorScheme
+                                          .surfaceContainerHighest,
+                                      foregroundColor:
+                                          theme.colorScheme.onSurface,
+                                    )
+                                  : null,
+                              child: _busy
+                                  ? const SizedBox(
+                                      height: 16,
+                                      width: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
                                       ),
-                                      _MetaPiece(
-                                        icon: Icons.lock_outline,
-                                        text: _group!.privacyDesc.isEmpty
-                                            ? _group!.privacy
-                                            : _group!.privacyDesc,
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                    )
+                                  : Text(
+                                      _group!.membership.isMember
+                                          ? l10n.t('group.leave')
+                                          : l10n.t('group.join'),
+                                    ),
+                            ),
+                          ),
+                        ),
+                        if (_group!.description.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                            child: Text(
+                              _group!.description,
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ),
+                        if (_group!.tags.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: _group!.tags
+                                  .map((t) => Chip(label: Text('#$t')))
+                                  .toList(),
+                            ),
+                          ),
+                        Divider(height: 1, color: theme.dividerColor),
+                        if (_posts.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Center(
+                              child: Text(l10n.t('group.no_posts')),
+                            ),
+                          )
+                        else
+                          ..._posts.map(
+                            (p) => _GroupPostTile(
+                              post: p,
+                              onTap: () => context.push(
+                                '/groups/${widget.slug}/posts/${p.postId}',
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            onPressed: _busy ? null : _toggleMembership,
-                            style: _group!.membership.isMember
-                                ? FilledButton.styleFrom(
-                                    backgroundColor:
-                                        theme.colorScheme.surfaceContainerHighest,
-                                    foregroundColor: theme.colorScheme.onSurface,
-                                  )
-                                : null,
-                            child: _busy
-                                ? const SizedBox(
-                                    height: 16,
-                                    width: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : Text(
-                                    _group!.membership.isMember
-                                        ? l10n.t('group.leave')
-                                        : l10n.t('group.join'),
-                                  ),
                           ),
-                        ),
-                      ),
-                      if (_group!.description.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          child: Text(
-                            _group!.description,
-                            style: theme.textTheme.bodyMedium,
+                        if (_hasNext)
+                          const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: CircularProgressIndicator()),
                           ),
-                        ),
-                      if (_group!.tags.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                          child: Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: _group!.tags
-                                .map((t) => Chip(label: Text('#$t')))
-                                .toList(),
-                          ),
-                        ),
-                      Divider(height: 1, color: theme.dividerColor),
-                      if (_posts.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Center(child: Text(l10n.t('group.no_posts'))),
-                        )
-                      else
-                        ..._posts.map(
-                          (p) => _GroupPostTile(
-                            post: p,
-                            onTap: () => context.push(
-                              '/groups/${widget.slug}/posts/${p.postId}',
-                            ),
-                          ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
