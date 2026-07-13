@@ -816,7 +816,14 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
                                           theme.colorScheme.onSurfaceVariant,
                                     ),
                                   ),
-                                  const Spacer(),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                alignment: WrapAlignment.end,
+                                children: [
                                   if (isResolved)
                                     OutlinedButton.icon(
                                       key: Key(
@@ -841,7 +848,6 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
                                         l10n.t('moderation.reports.dismiss'),
                                       ),
                                     ),
-                                    const SizedBox(width: 4),
                                     FilledButton.icon(
                                       onPressed: () =>
                                           _resolve(r, 'resolved'),

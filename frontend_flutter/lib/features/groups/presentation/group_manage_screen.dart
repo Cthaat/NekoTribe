@@ -184,6 +184,37 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
     }
   }
 
+  Future<void> _reloadMembers() async {
+    final group = _group;
+    if (group == null) return;
+    final pages = _membersPage.clamp(1, 50);
+    try {
+      final api = ref.read(groupsApiProvider);
+      final all = <V2GroupMember>[];
+      var hasNext = false;
+      var lastPage = 1;
+      for (var p = 1; p <= pages; p++) {
+        final page = await api.members(group.groupId, page: p);
+        all.addAll(page.items);
+        hasNext = page.hasNext;
+        lastPage = p;
+        if (!page.hasNext) break;
+      }
+      if (!mounted) return;
+      setState(() {
+        _members = all;
+        _membersPage = lastPage;
+        _membersHasNext = hasNext;
+        _membersLoadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
+  }
+
   Future<void> _save() async {
     if (_group == null || _saving) return;
     setState(() => _saving = true);
@@ -293,7 +324,7 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
             userId: member.user.userId,
             role: role,
           );
-      await _load();
+      await _reloadMembers();
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
@@ -317,7 +348,7 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
             memberId: member.memberId,
             approved: approved,
           );
-      await _load();
+      await _reloadMembers();
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -370,7 +401,7 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
             userId: member.user.userId,
             durationHours: 24,
           );
-      await _load();
+      await _reloadMembers();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -385,7 +416,7 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
       await ref
           .read(groupsApiProvider)
           .unmuteMember(groupId: _group!.groupId, userId: member.user.userId);
-      await _load();
+      await _reloadMembers();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -400,7 +431,7 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
       await ref
           .read(groupsApiProvider)
           .removeMember(groupId: _group!.groupId, userId: member.user.userId);
-      await _load();
+      await _reloadMembers();
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(

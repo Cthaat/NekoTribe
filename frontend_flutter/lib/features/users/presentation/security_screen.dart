@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -545,6 +546,27 @@ class _RecoveryCodesCard extends StatelessWidget {
                   ),
                 )
                 .toList(growable: false),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(
+                  ClipboardData(text: codes.join('\n')),
+                );
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      l10n.t('account.security.recovery_codes_copied'),
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.copy_all_outlined, size: 16),
+              label: Text(l10n.t('account.security.recovery_codes_copy_all')),
+            ),
           ),
         ],
       ),

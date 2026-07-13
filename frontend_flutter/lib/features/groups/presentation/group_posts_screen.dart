@@ -206,6 +206,33 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
                   _load();
                 },
               ),
+              if (_groupId == 'all' && !_loading && _error == null && _posts.isNotEmpty)
+                Material(
+                  color: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.55),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n.t('group.posts_all_limited'),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               Divider(height: 1, color: theme.dividerColor),
               Expanded(
                 child: _loading

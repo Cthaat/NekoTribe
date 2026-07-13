@@ -109,6 +109,7 @@ class _StatementsScreenState extends ConsumerState<StatementsScreen> {
         ],
       ),
     );
+    controller.dispose();
     if (result == null || result.isEmpty) return;
     try {
       await ref
