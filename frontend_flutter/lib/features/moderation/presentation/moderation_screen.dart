@@ -531,7 +531,7 @@ class _ReportsTab extends ConsumerStatefulWidget {
 
 class _ReportsTabState extends ConsumerState<_ReportsTab>
     with AutomaticKeepAliveClientMixin {
-  String _status = 'open';
+  String _status = 'pending';
   List<V2ModerationReport> _items = [];
   bool _loading = true;
   Object? _error;
@@ -610,7 +610,7 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
             },
             segments: [
               ButtonSegment(
-                value: 'open',
+                value: 'pending',
                 label: Text(l10n.t('moderation.reports.filter.open')),
               ),
               ButtonSegment(
