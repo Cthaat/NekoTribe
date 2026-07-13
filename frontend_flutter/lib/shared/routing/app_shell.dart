@@ -58,10 +58,20 @@ class _AppShellState extends ConsumerState<AppShell> {
     String location,
     List<(String, IconData, IconData, String)> tabs,
   ) {
+    // Prefer exact / prefix match so `/me` does not steal unrelated paths.
+    var best = -1;
+    var bestLen = -1;
     for (var i = 0; i < tabs.length; i++) {
-      if (location.startsWith(tabs[i].$1)) return i;
+      final path = tabs[i].$1;
+      final hit = location == path || location.startsWith('$path/');
+      if (hit && path.length > bestLen) {
+        best = i;
+        bestLen = path.length;
+      }
     }
-    return 0;
+    // NavigationBar requires a non-negative index; unmatched shell routes
+    // (e.g. /discover on mobile) fall back to home without claiming a match.
+    return best < 0 ? 0 : best;
   }
 
   Widget _tabIcon(IconData icon, {required int badgeCount}) {
@@ -104,6 +114,20 @@ class _AppShellState extends ConsumerState<AppShell> {
     final isAuthenticated = ref.watch(
       authSessionProvider.select((s) => s.isAuthenticated),
     );
+
+    // Reset one-shot flags + teardown on logout so re-login reconnects.
+    ref.listen(authSessionProvider, (prev, next) {
+      if (!next.isAuthenticated) {
+        _didConnectRealtime = false;
+        _didRequestUnread = false;
+        unawaited(ref.read(realtimeServiceProvider).disconnect());
+        ref.read(notificationsUnreadProvider.notifier).set(0);
+      } else if (prev?.isAuthenticated != true) {
+        _maybeConnectRealtime(true);
+        _maybeRefreshUnread(true);
+      }
+    });
+
     _maybeRefreshUnread(isAuthenticated);
     _maybeConnectRealtime(isAuthenticated);
 

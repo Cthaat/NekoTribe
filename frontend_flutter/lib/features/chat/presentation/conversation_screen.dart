@@ -41,8 +41,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     _realtime = ref.read(realtimeServiceProvider);
     _scrollController.addListener(_onScroll);
     _load();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _realtime.connect();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _realtime.connect();
+      if (!mounted) return;
       _realtime.addListener(_onRealtime);
     });
   }

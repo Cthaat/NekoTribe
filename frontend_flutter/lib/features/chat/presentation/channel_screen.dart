@@ -53,13 +53,15 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     _realtime = ref.read(realtimeServiceProvider);
     _scroll.addListener(_onScroll);
     _load();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _realtime.connect();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Await connect so join is not dropped while the socket is still null.
+      await _realtime.connect();
+      if (!mounted) return;
+      _realtime.addListener(_onRealtime);
       _realtime.send({
         'type': 'chat_join_channel',
         'channel_id': widget.channelId,
       });
-      _realtime.addListener(_onRealtime);
     });
   }
 

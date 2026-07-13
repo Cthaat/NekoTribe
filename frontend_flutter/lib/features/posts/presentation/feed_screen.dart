@@ -85,8 +85,13 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       state.items.addAll(page.items);
       state.page = next;
       state.hasMore = page.hasNext;
-    } catch (_) {
-      // ignore
+    } catch (e) {
+      // Keep hasMore so the user can scroll to retry; surface the failure.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ErrorView.describe(context, e))),
+        );
+      }
     } finally {
       state.loadingMore = false;
       if (mounted) setState(() {});
@@ -119,6 +124,14 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.t('app.title')),
+        actions: [
+          IconButton(
+            key: const Key('feed-search-button'),
+            tooltip: l10n.t('tab.discover'),
+            icon: const Icon(Icons.search),
+            onPressed: () => context.push('/discover'),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: LayoutBuilder(

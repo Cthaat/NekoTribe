@@ -77,7 +77,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
           : _user == null
-          ? const SizedBox.shrink()
+          ? EmptyView(
+              message: l10n.t('error.generic'),
+              icon: Icons.person_off_outlined,
+              actionLabel: l10n.t('common.retry'),
+              onAction: _load,
+            )
           : Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(

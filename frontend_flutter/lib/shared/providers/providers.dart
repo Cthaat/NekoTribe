@@ -104,6 +104,11 @@ final apiClientProvider = Provider<ApiClient>((ref) {
     config: ref.watch(appConfigProvider),
     tokenStore: ref.watch(tokenStoreProvider),
     onLogout: () async {
+      // Forced 401/session death: tear down realtime + badge with auth.
+      try {
+        await ref.read(realtimeServiceProvider).disconnect();
+      } catch (_) {}
+      ref.read(notificationsUnreadProvider.notifier).set(0);
       ref.read(authSessionProvider.notifier).markLoggedOut();
     },
   );

@@ -268,6 +268,10 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
   Future<void> _logoutAndReturnToLogin() async {
     await ref.read(authRepositoryProvider).logout();
     if (!mounted) return;
+    try {
+      await ref.read(realtimeServiceProvider).disconnect();
+    } catch (_) {}
+    ref.read(notificationsUnreadProvider.notifier).set(0);
     ref.read(authSessionProvider.notifier).markLoggedOut();
     context.go('/auth/login');
   }

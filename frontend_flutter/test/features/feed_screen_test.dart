@@ -47,6 +47,8 @@ void main() {
       expect(rect.left, greaterThanOrEqualTo(0));
       expect(rect.right, lessThanOrEqualTo(390));
     }
+
+    expect(find.byKey(const Key('feed-search-button')), findsOneWidget);
   });
 }
 

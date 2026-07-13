@@ -138,4 +138,54 @@ void main() {
 
     expect(find.text('groups route'), findsOneWidget);
   });
+
+  testWidgets('shell opens groups as selected primary tab on mobile', (
+    tester,
+  ) async {
+    tester.view
+      ..physicalSize = const Size(390, 844)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final router = GoRouter(
+      initialLocation: '/groups',
+      routes: [
+        ShellRoute(
+          builder: (context, state, child) => AppShell(child: child),
+          routes: [
+            GoRoute(path: '/feed', builder: (_, __) => const Text('feed')),
+            GoRoute(path: '/groups', builder: (_, __) => const Text('groups')),
+            GoRoute(
+              path: '/notifications',
+              builder: (_, __) => const Text('notifications'),
+            ),
+            GoRoute(path: '/chat', builder: (_, __) => const Text('chat')),
+            GoRoute(path: '/me', builder: (_, __) => const Text('me')),
+          ],
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          locale: const Locale('zh'),
+          routerConfig: router,
+          localizationsDelegates: const [
+            AppLocalizationsDelegate(),
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supported,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('groups'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
+  });
 }

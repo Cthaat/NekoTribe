@@ -438,8 +438,37 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const ModerationScreen(initialTab: 5),
       ),
     ],
-    errorBuilder: (context, state) =>
-        Scaffold(body: Center(child: Text('Route not found: ${state.uri}'))),
+    errorBuilder: (context, state) => Scaffold(
+      appBar: AppBar(title: const Text('NekoTribe')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.explore_off_outlined, size: 48),
+              const SizedBox(height: 12),
+              const Text(
+                'Page not found',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                state.uri.toString(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => context.go('/feed'),
+                child: const Text('Home'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
   );
 });
 
