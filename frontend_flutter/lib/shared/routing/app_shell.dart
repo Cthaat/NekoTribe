@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -50,6 +52,7 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   var _didRequestUnread = false;
+  var _didConnectRealtime = false;
 
   int _indexFor(
     String location,
@@ -78,6 +81,15 @@ class _AppShellState extends ConsumerState<AppShell> {
     });
   }
 
+  void _maybeConnectRealtime(bool isAuthenticated) {
+    if (!isAuthenticated || _didConnectRealtime) return;
+    _didConnectRealtime = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(realtimeServiceProvider).connect());
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -93,6 +105,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       authSessionProvider.select((s) => s.isAuthenticated),
     );
     _maybeRefreshUnread(isAuthenticated);
+    _maybeConnectRealtime(isAuthenticated);
 
     if (isWide) {
       return Scaffold(

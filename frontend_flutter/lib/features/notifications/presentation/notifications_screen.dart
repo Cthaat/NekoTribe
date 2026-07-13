@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,7 +9,16 @@ import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../realtime/data/realtime_service.dart';
 import '../domain/notification_models.dart';
+
+const _notificationRealtimeTypes = {
+  'notification_created',
+  'notification_read_status_updated',
+  'notifications_read_status_updated',
+  'notification_deleted',
+  'notification_restored',
+};
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -24,11 +35,31 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _unreadOnly = false;
   String? _type;
   int? _unreadCount;
+  late final RealtimeService _realtime;
 
   @override
   void initState() {
     super.initState();
+    _realtime = ref.read(realtimeServiceProvider);
+    unawaited(_realtime.connect());
+    _realtime.addListener(_onRealtimeEvent);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _realtime.removeListener(_onRealtimeEvent);
+    super.dispose();
+  }
+
+  void _onRealtimeEvent(Map<String, dynamic> event) {
+    final type = event['type'];
+    if (type is! String || !_notificationRealtimeTypes.contains(type)) {
+      return;
+    }
+    if (!mounted) return;
+    unawaited(_load());
+    unawaited(ref.read(notificationsUnreadProvider.notifier).refresh());
   }
 
   Future<void> _load() async {
@@ -46,6 +77,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         _unreadCount = unreadCount;
         _loading = false;
       });
+      ref.read(notificationsUnreadProvider.notifier).set(unreadCount);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -70,6 +102,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             .toList(),
       );
       _unreadCount = 0;
+      ref.read(notificationsUnreadProvider.notifier).set(0);
     } catch (_) {}
   }
 
@@ -93,6 +126,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         final current = _unreadCount ?? 0;
         _unreadCount = isRead ? (current - 1).clamp(0, 1 << 30) : current + 1;
       });
+      ref.read(notificationsUnreadProvider.notifier).set(_unreadCount ?? 0);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -334,6 +368,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             ],
           ),
           IconButton(
+            key: const Key('notifications-mark-all-read'),
             onPressed: _markAllRead,
             icon: const Icon(Icons.done_all),
             tooltip: l10n.t('notification.mark_all_read'),
@@ -351,6 +386,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: SegmentedButton<bool>(
+                  key: const Key('notifications-unread-segments'),
                   segments: [
                     ButtonSegment(
                       value: false,
@@ -358,7 +394,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     ),
                     ButtonSegment(
                       value: true,
-                      label: Text(l10n.t('common.unread')),
+                      label: Text(
+                        l10n.t('common.unread'),
+                        key: const Key('notifications-filter-unread'),
+                      ),
                     ),
                   ],
                   selected: {_unreadOnly},

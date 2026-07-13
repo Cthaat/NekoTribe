@@ -11,6 +11,7 @@ import 'package:nekotribe/features/groups/domain/group_models.dart';
 import 'package:nekotribe/features/notifications/data/notifications_api.dart';
 import 'package:nekotribe/features/notifications/domain/notification_models.dart';
 import 'package:nekotribe/features/notifications/presentation/notifications_screen.dart';
+import 'package:nekotribe/features/realtime/data/realtime_service.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
@@ -32,7 +33,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [notificationsApiProvider.overrideWithValue(api)],
+        overrides: _overrides(api),
         child: MaterialApp.router(routerConfig: router),
       ),
     );
@@ -64,7 +65,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          notificationsApiProvider.overrideWithValue(api),
+          ..._overrides(api),
           groupsApiProvider.overrideWithValue(_FakeGroupsApi()),
         ],
         child: MaterialApp.router(routerConfig: router),
@@ -97,7 +98,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [notificationsApiProvider.overrideWithValue(api)],
+        overrides: _overrides(api),
         child: MaterialApp.router(routerConfig: router),
       ),
     );
@@ -110,6 +111,61 @@ void main() {
     expect(api.readNotificationId, 3001);
     expect(api.readStatus, isTrue);
   });
+
+  testWidgets('unread filter and mark all read', (tester) async {
+    final api = _FakeNotificationsApi([
+      _notification(
+        notificationId: 3001,
+        type: 'comment',
+        title: '未读A',
+        resourceType: 'comment',
+        resourceId: 7001,
+        isRead: 0,
+        metadata: {'post_id': 100001},
+      ),
+      _notification(
+        notificationId: 3002,
+        type: 'like',
+        title: '已读B',
+        resourceType: 'post',
+        resourceId: 100002,
+        isRead: 1,
+        metadata: {'post_id': 100002},
+      ),
+    ]);
+    final router = _router();
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _overrides(api),
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('未读A'), findsOneWidget);
+    expect(find.text('已读B'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('notifications-filter-unread')));
+    await tester.pumpAndSettle();
+
+    expect(api.lastUnreadOnly, isTrue);
+    expect(find.text('未读A'), findsOneWidget);
+    expect(find.text('已读B'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('notifications-mark-all-read')));
+    await tester.pumpAndSettle();
+
+    expect(api.markAllReadCalled, isTrue);
+  });
+}
+
+List<Override> _overrides(NotificationsApi api) {
+  return [
+    notificationsApiProvider.overrideWithValue(api),
+    realtimeServiceProvider.overrideWithValue(_FakeRealtimeService()),
+  ];
 }
 
 GoRouter _router() {
@@ -163,6 +219,8 @@ class _FakeNotificationsApi extends NotificationsApi {
   final List<V2Notification> items;
   int? readNotificationId;
   bool? readStatus;
+  bool markAllReadCalled = false;
+  bool? lastUnreadOnly;
 
   @override
   Future<PagedResult<V2Notification>> list({
@@ -171,12 +229,16 @@ class _FakeNotificationsApi extends NotificationsApi {
     String? type,
     bool? unreadOnly,
   }) async {
+    lastUnreadOnly = unreadOnly;
+    final filtered = unreadOnly == true
+        ? items.where((item) => !item.readFlag).toList()
+        : items;
     return PagedResult(
-      items: items,
+      items: filtered,
       meta: ApiMeta(
         page: page,
         pageSize: size,
-        total: items.length,
+        total: filtered.length,
         hasNext: false,
       ),
     );
@@ -194,6 +256,11 @@ class _FakeNotificationsApi extends NotificationsApi {
     readNotificationId = notificationId;
     readStatus = isRead;
   }
+
+  @override
+  Future<void> markAllRead() async {
+    markAllReadCalled = true;
+  }
 }
 
 class _FakeGroupsApi extends GroupsApi {
@@ -209,22 +276,50 @@ class _FakeGroupsApi extends GroupsApi {
   }
 }
 
+class _FakeRealtimeService extends RealtimeService {
+  _FakeRealtimeService()
+    : super(config: _testConfig, tokenStore: _FakeTokenStore());
+
+  final List<RealtimeListener> listeners = [];
+
+  @override
+  Future<void> connect() async {}
+
+  @override
+  Future<void> disconnect() async {}
+
+  @override
+  void send(Map<String, dynamic> payload) {}
+
+  @override
+  void addListener(RealtimeListener listener) {
+    listeners.add(listener);
+  }
+
+  @override
+  void removeListener(RealtimeListener listener) {
+    listeners.remove(listener);
+  }
+}
+
 V2Notification _notification({
+  int notificationId = 3001,
   required String type,
   required String title,
   required String resourceType,
   required int resourceId,
+  int isRead = 0,
   Map<String, Object?> metadata = const {},
 }) {
   return V2Notification(
-    notificationId: 3001,
+    notificationId: notificationId,
     type: type,
     title: title,
     message: '查看详情',
     resourceType: resourceType,
     resourceId: resourceId,
     priority: 'normal',
-    isRead: 0,
+    isRead: isRead,
     actor: _actor,
     metadata: metadata,
     createdAt: '2026-05-24T00:00:00.000Z',

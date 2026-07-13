@@ -51,6 +51,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   Future<void> _logout() async {
     await ref.read(authRepositoryProvider).logout();
     if (!mounted) return;
+    await ref.read(realtimeServiceProvider).disconnect();
+    ref.read(notificationsUnreadProvider.notifier).set(0);
     ref.read(authSessionProvider.notifier).markLoggedOut();
     context.go('/auth/login');
   }
