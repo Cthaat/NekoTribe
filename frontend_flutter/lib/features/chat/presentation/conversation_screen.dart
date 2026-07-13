@@ -22,20 +22,31 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _composer = TextEditingController();
   List<V2DirectMessage> _messages = [];
   bool _loading = true;
+  bool _loadingOlder = false;
+  bool _hasNext = false;
   bool _sending = false;
   Object? _error;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _load();
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _composer.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients || _loadingOlder || !_hasNext) return;
+    if (_scrollController.position.pixels <= 80) {
+      _loadOlder();
+    }
   }
 
   Future<void> _load() async {
@@ -50,6 +61,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       if (!mounted) return;
       setState(() {
         _messages = page.items.reversed.toList();
+        _hasNext = page.hasNext;
         _loading = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -59,6 +71,45 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         _error = e;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadOlder() async {
+    if (_loadingOlder || !_hasNext || _messages.isEmpty) return;
+    setState(() => _loadingOlder = true);
+    final beforeId = _messages.first.messageId;
+    final previousExtent = _scrollController.hasClients
+        ? _scrollController.position.maxScrollExtent
+        : 0.0;
+    try {
+      final page = await ref
+          .read(chatApiProvider)
+          .listDirectMessages(
+            conversationId: widget.conversationId,
+            beforeMessageId: beforeId,
+          );
+      if (!mounted) return;
+      final older = page.items.reversed
+          .where((m) => !_messages.any((x) => x.messageId == m.messageId))
+          .toList();
+      setState(() {
+        _messages = [...older, ..._messages];
+        _hasNext = page.hasNext;
+        _loadingOlder = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        final delta = _scrollController.position.maxScrollExtent - previousExtent;
+        if (delta > 0) {
+          _scrollController.jumpTo(_scrollController.position.pixels + delta);
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingOlder = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -137,18 +188,36 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                     : _error != null
                     ? ErrorView(error: _error!, onRetry: _load)
                     : _messages.isEmpty
-                    ? EmptyView(message: l10n.t('chat.empty_messages'))
+                    ? EmptyView(message: l10n.t('chat.dm.empty'))
                     : ListView.builder(
                         controller: _scrollController,
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                        itemCount: _messages.length,
-                        itemBuilder: (_, i) => _MessageBubble(
-                          message: _messages[i],
-                          onDelete: _messages[i].canDelete
-                              ? () => _deleteMessage(_messages[i])
-                              : null,
-                          formatTime: _formatTime,
-                        ),
+                        itemCount: _messages.length + (_loadingOlder ? 1 : 0),
+                        itemBuilder: (_, i) {
+                          if (_loadingOlder && i == 0) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          final index = _loadingOlder ? i - 1 : i;
+                          final message = _messages[index];
+                          return _MessageBubble(
+                            message: message,
+                            onDelete: message.canDelete
+                                ? () => _deleteMessage(message)
+                                : null,
+                            formatTime: _formatTime,
+                          );
+                        },
                       ),
               ),
               Container(
@@ -165,6 +234,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                       children: [
                         Expanded(
                           child: TextField(
+                            key: const Key('dm-composer-field'),
                             controller: _composer,
                             maxLines: 5,
                             minLines: 1,
@@ -178,6 +248,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                         ),
                         const SizedBox(width: 8),
                         IconButton(
+                          key: const Key('dm-send-button'),
                           icon: _sending
                               ? const SizedBox(
                                   height: 18,
@@ -277,7 +348,11 @@ class _MessageBubble extends StatelessWidget {
                             ),
                           ),
                         Text(
-                          message.isDeleted ? '(deleted)' : message.content,
+                          message.isDeleted
+                              ? AppLocalizations.of(
+                                  context,
+                                ).t('chat.deleted_message')
+                              : message.content,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: textColor,
                             fontStyle: message.isDeleted
