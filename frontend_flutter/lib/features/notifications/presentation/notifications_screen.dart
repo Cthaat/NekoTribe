@@ -90,9 +90,22 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       final unreadCount = await api.unreadCount();
       if (!mounted || gen != _loadGen) return;
       setState(() {
-        _items = page.items;
-        _page = 1;
-        _hasNext = page.hasNext;
+        if (soft) {
+          // Soft refresh merges page 1 without wiping pages 2+.
+          final page1Ids = page.items.map((n) => n.notificationId).toSet();
+          final tail = _items
+              .where((n) => !page1Ids.contains(n.notificationId))
+              .toList();
+          _items = [...page.items, ...tail];
+          if (_page <= 1) {
+            _page = 1;
+            _hasNext = page.hasNext;
+          }
+        } else {
+          _items = page.items;
+          _page = 1;
+          _hasNext = page.hasNext;
+        }
         _unreadCount = unreadCount;
         _loading = false;
         _refreshing = false;

@@ -90,12 +90,15 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
     }
     if (!mounted) return;
     if (channels.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).t('chat.no_channels')),
-        ),
-      );
-      return;
+      if (!group.canManage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).t('chat.no_channels')),
+          ),
+        );
+        return;
+      }
+      // Managers can open the picker empty and create the first channel.
     }
 
     final selected = await showModalBottomSheet<V2ChatChannel>(
@@ -195,7 +198,7 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                             message: l10n.t('chat.empty'),
                             icon: Icons.chat_bubble_outline,
                             actionLabel: l10n.t('tab.discover'),
-                            onAction: () => context.go('/discover'),
+                            onAction: () => context.push('/discover'),
                           )
                         : RefreshIndicator(
                             onRefresh: _load,

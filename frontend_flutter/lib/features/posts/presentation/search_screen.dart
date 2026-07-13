@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,7 +26,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   List<V2Post> _posts = [];
   List<V2TagItem> _trendingTags = [];
   bool _loading = false;
+  bool _loadingMore = false;
   bool _hasSearched = false;
+  bool _hasNext = false;
+  int _page = 1;
+  String _lastQuery = '';
   Object? _error;
 
   @override
@@ -70,6 +76,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _posts = [];
       _hasSearched = false;
       _error = null;
+      _page = 1;
+      _hasNext = false;
+      _loadingMore = false;
+      _lastQuery = '';
     });
   }
 
@@ -87,13 +97,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
+      _loadingMore = false;
     });
     try {
-      final result = await ref.read(postsApiProvider).searchPosts(query: q);
+      final result = await ref
+          .read(postsApiProvider)
+          .searchPosts(query: q, page: 1);
       if (!mounted) return;
       setState(() {
         _posts = result.items;
+        _lastQuery = q;
         _hasSearched = true;
+        _page = 1;
+        _hasNext = result.hasNext;
         _loading = false;
       });
     } catch (e) {
@@ -106,12 +124,52 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || !_hasNext || _lastQuery.isEmpty) return;
+    setState(() => _loadingMore = true);
+    final next = _page + 1;
+    try {
+      final result = await ref
+          .read(postsApiProvider)
+          .searchPosts(query: _lastQuery, page: next);
+      if (!mounted) return;
+      setState(() {
+        final existing = _posts.map((p) => p.postId).toSet();
+        final fresh = result.items
+            .where((p) => !existing.contains(p.postId))
+            .toList();
+        _posts = [..._posts, ...fresh];
+        _page = next;
+        _hasNext = result.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    }
+  }
+
+  /// Prefer go_router canPop when available; fall back to Navigator for tests.
+  Widget? _searchLeading(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return null;
+    if (router.canPop()) return null;
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => context.go('/feed'),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
+        leading: _searchLeading(context),
         titleSpacing: 0,
         title: Container(
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -168,28 +226,42 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               : _error != null
               ? ErrorView(error: _error!, onRetry: _search)
               : _posts.isNotEmpty
-              ? ListView.separated(
-                  itemCount: _posts.length,
-                  separatorBuilder: (_, _) =>
-                      Divider(height: 1, color: theme.dividerColor),
-                  itemBuilder: (_, i) {
-                    final p = _posts[i];
-                    return PostCard(
-                      key: ValueKey(p.postId),
-                      post: p,
-                      onChanged: (u) => setState(() => _posts[i] = u),
-                      onDeleted: () {
-                        _posts.removeAt(i);
-                        setState(() {});
-                      },
-                      onReport: () => showReportDialog(
-                        context,
-                        ref,
-                        targetType: 'post',
-                        targetId: p.postId,
-                      ),
-                    );
+              ? NotificationListener<ScrollNotification>(
+                  onNotification: (n) {
+                    if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+                      unawaited(_loadMore());
+                    }
+                    return false;
                   },
+                  child: ListView.separated(
+                    itemCount: _posts.length + (_hasNext ? 1 : 0),
+                    separatorBuilder: (_, _) =>
+                        Divider(height: 1, color: theme.dividerColor),
+                    itemBuilder: (_, i) {
+                      if (i >= _posts.length) {
+                        return const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      final p = _posts[i];
+                      return PostCard(
+                        key: ValueKey(p.postId),
+                        post: p,
+                        onChanged: (u) => setState(() => _posts[i] = u),
+                        onDeleted: () {
+                          _posts.removeAt(i);
+                          setState(() {});
+                        },
+                        onReport: () => showReportDialog(
+                          context,
+                          ref,
+                          targetType: 'post',
+                          targetId: p.postId,
+                        ),
+                      );
+                    },
+                  ),
                 )
               : _hasSearched
               ? EmptyView(message: l10n.t('search.empty'))

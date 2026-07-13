@@ -146,7 +146,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
           : _user == null
-          ? const SizedBox.shrink()
+          ? EmptyView(message: l10n.t('feed.empty'))
           : Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(

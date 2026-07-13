@@ -91,7 +91,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         builder: (_) => ComposePostScreen(replyToPostId: widget.postId),
       ),
     );
-    if (created != null) _load();
+    if (created != null && mounted) _load();
   }
 
   @override
@@ -153,7 +153,21 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                                   x.commentId == c.commentId,
                                             ),
                                           );
-                                        } catch (_) {}
+                                        } catch (e) {
+                                          if (!mounted) return;
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                ErrorView.describe(
+                                                  context,
+                                                  e,
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }
                                       }
                                     : null,
                               ),

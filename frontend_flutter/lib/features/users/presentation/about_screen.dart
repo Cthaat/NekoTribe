@@ -84,7 +84,7 @@ class AboutScreen extends StatelessWidget {
                       icon: Icons.explore_outlined,
                       title: l10n.t('about.explore_posts'),
                       subtitle: l10n.t('about.explore_posts_subtitle'),
-                      onTap: () => context.go('/discover'),
+                      onTap: () => context.push('/discover'),
                     ),
                     Divider(
                       height: 1,

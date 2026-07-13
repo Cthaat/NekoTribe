@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -36,6 +37,8 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   final _composer = TextEditingController();
   final _scroll = ScrollController();
   late final RealtimeService _realtime;
+  StreamSubscription<bool>? _connSub;
+  bool _wasConnected = false;
   List<V2ChatMessage> _messages = [];
   final List<PlatformFile> _attachments = [];
   V2ChatMessage? _replyTo;
@@ -62,12 +65,24 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
         'type': 'chat_join_channel',
         'channel_id': widget.channelId,
       });
+      _wasConnected = _realtime.isConnected;
+      _connSub = _realtime.connection.listen((connected) {
+        if (connected && mounted && !_wasConnected) {
+          _realtime.send({
+            'type': 'chat_join_channel',
+            'channel_id': widget.channelId,
+          });
+        }
+        _wasConnected = connected;
+      });
     });
   }
 
   @override
   void dispose() {
     _scroll.removeListener(_onScroll);
+    unawaited(_connSub?.cancel());
+    _connSub = null;
     _realtime
       ..send({'type': 'chat_leave_channel', 'channel_id': widget.channelId})
       ..removeListener(_onRealtime);
@@ -359,13 +374,78 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       } else {
         await api.reactMessage(messageId: message.messageId, emoji: emoji);
       }
-      await _load();
+      if (!mounted) return;
+      setState(
+        () => _upsertMessage(_withReaction(message, emoji, !reacted)),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
+  }
+
+  V2ChatMessage _withReaction(
+    V2ChatMessage message,
+    String emoji,
+    bool nowReacted,
+  ) {
+    final reactions = List<V2ChatReactionSummary>.from(message.reactions);
+    final index = reactions.indexWhere((r) => r.emoji == emoji);
+    if (nowReacted) {
+      if (index >= 0) {
+        final current = reactions[index];
+        reactions[index] = V2ChatReactionSummary(
+          emoji: emoji,
+          count: current.count + (current.reactedByMe ? 0 : 1),
+          reactedByMe: true,
+        );
+      } else {
+        reactions.add(
+          V2ChatReactionSummary(emoji: emoji, count: 1, reactedByMe: true),
+        );
+      }
+    } else if (index >= 0) {
+      final current = reactions[index];
+      final nextCount = current.count - (current.reactedByMe ? 1 : 0);
+      if (nextCount <= 0) {
+        reactions.removeAt(index);
+      } else {
+        reactions[index] = V2ChatReactionSummary(
+          emoji: emoji,
+          count: nextCount,
+          reactedByMe: false,
+        );
+      }
+    }
+    return _copyMessage(message, reactions: reactions);
+  }
+
+  V2ChatMessage _copyMessage(
+    V2ChatMessage message, {
+    List<V2ChatReactionSummary>? reactions,
+    bool? isPinned,
+  }) {
+    return V2ChatMessage(
+      messageId: message.messageId,
+      channelId: message.channelId,
+      groupId: message.groupId,
+      messageType: message.messageType,
+      content: message.content,
+      author: message.author,
+      replyTo: message.replyTo,
+      media: message.media,
+      reactions: reactions ?? message.reactions,
+      isPinned: isPinned ?? message.isPinned,
+      isDeleted: message.isDeleted,
+      canDelete: message.canDelete,
+      canPin: message.canPin,
+      createdAt: message.createdAt,
+      updatedAt: message.updatedAt,
+      editedAt: message.editedAt,
+      deletedAt: message.deletedAt,
+    );
   }
 
   void _startReply(V2ChatMessage message) {
@@ -444,12 +524,14 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   Future<void> _pin(V2ChatMessage message) async {
     try {
       final api = ref.read(chatApiProvider);
+      final nextPinned = !message.isPinned;
       if (message.isPinned) {
         await api.unpinMessage(message.messageId);
       } else {
         await api.pinMessage(message.messageId);
       }
-      await _load();
+      if (!mounted) return;
+      setState(() => _upsertMessage(_copyMessage(message, isPinned: nextPinned)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
