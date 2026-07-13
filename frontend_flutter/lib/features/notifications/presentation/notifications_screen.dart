@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../realtime/data/realtime_service.dart';
@@ -420,86 +421,140 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     ? EmptyView(message: l10n.t('notification.empty'))
                     : RefreshIndicator(
                         onRefresh: _load,
-                        child: ListView.separated(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
                           itemCount: _items.length,
-                          separatorBuilder: (_, _) => Divider(
-                            height: 1,
-                            color: Theme.of(context).dividerColor,
-                          ),
                           itemBuilder: (_, i) {
                             final n = _items[i];
-                            return ListTile(
-                              enabled: !n.isDeleted,
-                              tileColor: n.readFlag
-                                  ? null
-                                  : Theme.of(context).colorScheme.primary
-                                        .withValues(alpha: 0.05),
-                              leading: Icon(
-                                Icons.notifications_outlined,
+                            final theme = Theme.of(context);
+                            final unreadTint = theme.colorScheme.primary
+                                .withValues(alpha: 0.06);
+                            final borderColor = n.readFlag
+                                ? theme.colorScheme.outlineVariant.withValues(
+                                    alpha: 0.45,
+                                  )
+                                : theme.colorScheme.primary.withValues(
+                                    alpha: 0.22,
+                                  );
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Material(
                                 color: n.readFlag
-                                    ? Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant
-                                    : Theme.of(context).colorScheme.primary,
-                              ),
-                              title: Text(
-                                n.title.isEmpty ? n.type : n.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: Text(
-                                n.message,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    n.isDeleted
-                                        ? l10n.t('notification.deleted')
-                                        : _formatDate(n.createdAt),
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall,
+                                    ? theme.colorScheme.surface
+                                    : unreadTint,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(color: borderColor),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: ListTile(
+                                  enabled: !n.isDeleted,
+                                  contentPadding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    6,
+                                    4,
+                                    6,
                                   ),
-                                  PopupMenuButton<String>(
-                                    onSelected: (value) {
-                                      if (value == 'read') _setRead(n, true);
-                                      if (value == 'unread') _setRead(n, false);
-                                      if (value == 'delete') _delete(n);
-                                      if (value == 'restore') _restore(n);
-                                    },
-                                    itemBuilder: (_) => [
-                                      if (!n.readFlag && !n.isDeleted)
-                                        PopupMenuItem(
-                                          value: 'read',
-                                          child: Text(
-                                            l10n.t('common.mark_read'),
+                                  leading: n.actor != null
+                                      ? AppAvatar(
+                                          url: n.actor!.avatarUrl,
+                                          size: 40,
+                                        )
+                                      : CircleAvatar(
+                                          radius: 20,
+                                          backgroundColor: n.readFlag
+                                              ? theme
+                                                    .colorScheme
+                                                    .surfaceContainerHighest
+                                              : theme.colorScheme.primary
+                                                    .withValues(alpha: 0.12),
+                                          child: Icon(
+                                            Icons.notifications_outlined,
+                                            size: 20,
+                                            color: n.readFlag
+                                                ? theme
+                                                      .colorScheme
+                                                      .onSurfaceVariant
+                                                : theme.colorScheme.primary,
                                           ),
                                         ),
-                                      if (n.readFlag && !n.isDeleted)
-                                        PopupMenuItem(
-                                          value: 'unread',
-                                          child: Text(
-                                            l10n.t('common.mark_unread'),
-                                          ),
-                                        ),
-                                      if (!n.isDeleted)
-                                        PopupMenuItem(
-                                          value: 'delete',
-                                          child: Text(l10n.t('common.delete')),
-                                        ),
-                                      if (n.isDeleted)
-                                        PopupMenuItem(
-                                          value: 'restore',
-                                          child: Text(l10n.t('common.restore')),
-                                        ),
+                                  title: Text(
+                                    n.title.isEmpty ? n.type : n.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: n.readFlag
+                                          ? FontWeight.w500
+                                          : FontWeight.w700,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    n.message,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        n.isDeleted
+                                            ? l10n.t('notification.deleted')
+                                            : _formatDate(n.createdAt),
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                      ),
+                                      PopupMenuButton<String>(
+                                        onSelected: (value) {
+                                          if (value == 'read') {
+                                            _setRead(n, true);
+                                          }
+                                          if (value == 'unread') {
+                                            _setRead(n, false);
+                                          }
+                                          if (value == 'delete') _delete(n);
+                                          if (value == 'restore') _restore(n);
+                                        },
+                                        itemBuilder: (_) => [
+                                          if (!n.readFlag && !n.isDeleted)
+                                            PopupMenuItem(
+                                              value: 'read',
+                                              child: Text(
+                                                l10n.t('common.mark_read'),
+                                              ),
+                                            ),
+                                          if (n.readFlag && !n.isDeleted)
+                                            PopupMenuItem(
+                                              value: 'unread',
+                                              child: Text(
+                                                l10n.t('common.mark_unread'),
+                                              ),
+                                            ),
+                                          if (!n.isDeleted)
+                                            PopupMenuItem(
+                                              value: 'delete',
+                                              child: Text(
+                                                l10n.t('common.delete'),
+                                              ),
+                                            ),
+                                          if (n.isDeleted)
+                                            PopupMenuItem(
+                                              value: 'restore',
+                                              child: Text(
+                                                l10n.t('common.restore'),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ],
                                   ),
-                                ],
+                                  onTap: () => _onTap(n),
+                                ),
                               ),
-                              onTap: () => _onTap(n),
                             );
                           },
                         ),

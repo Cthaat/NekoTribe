@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
@@ -118,6 +119,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
           preferredSize: const Size.fromHeight(48),
           child: LayoutBuilder(
             builder: (context, constraints) {
+              final theme = Theme.of(context);
               final viewportWidth = MediaQuery.sizeOf(context).width;
               final availableWidth =
                   constraints.maxWidth.isFinite &&
@@ -134,7 +136,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
                     controller: _tab,
                     isScrollable: true,
                     tabAlignment: TabAlignment.center,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 24),
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 20),
+                    dividerColor: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.45,
+                    ),
+                    indicatorSize: TabBarIndicatorSize.label,
                     onTap: (idx) => _loadInitial(idx),
                     tabs: [
                       Tab(text: l10n.t('feed.tab.home')),
@@ -164,7 +170,12 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
     if (state.requiresAuth && !session.isAuthenticated) {
       if (session.loading) return const LoadingView();
       final l10n = AppLocalizations.of(context);
-      return EmptyView(message: l10n.t('feed.following_auth_required'));
+      return EmptyView(
+        message: l10n.t('feed.following_auth_required'),
+        icon: Icons.person_add_alt_1_outlined,
+        actionLabel: l10n.t('auth.login'),
+        onAction: () => context.push('/auth/login'),
+      );
     }
     if (state.loading && state.items.isEmpty) {
       return const LoadingView();
@@ -191,11 +202,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
               }
               return false;
             },
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(0, 8, 0, 88),
               itemCount: state.items.length + (state.hasMore ? 1 : 0),
-              separatorBuilder: (_, __) =>
-                  Divider(height: 1, color: Theme.of(context).dividerColor),
               itemBuilder: (context, i) {
                 if (i == state.items.length) {
                   return const Padding(

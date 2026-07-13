@@ -307,7 +307,7 @@ class _Brand extends StatelessWidget {
             height: 36,
             decoration: BoxDecoration(
               color: primary.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
             ),
             alignment: Alignment.center,
             child: Icon(Icons.pets, color: primary, size: 20),
@@ -320,6 +320,7 @@ class _Brand extends StatelessWidget {
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.2,
+                  color: theme.colorScheme.onSurface,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -368,16 +369,16 @@ class _NavItem extends StatelessWidget {
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurface;
     final bg = selected
-        ? theme.colorScheme.primary.withValues(alpha: 0.10)
+        ? theme.colorScheme.primary.withValues(alpha: 0.12)
         : Colors.transparent;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
         color: bg,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(14),
           child: Padding(
             padding: EdgeInsets.symmetric(
               horizontal: extended ? 14 : 0,

@@ -268,159 +268,196 @@ class _PostCardState extends ConsumerState<PostCard> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: () => context.push('/posts/${_post.postId}'),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GestureDetector(
-              onTap: () => context.push('/users/${_post.author.userId}'),
-              child: AppAvatar(url: _post.author.avatarUrl, size: 44),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          _post.author.displayName.isEmpty
-                              ? _post.author.username
-                              : _post.author.displayName,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final displayName = _post.author.displayName.isEmpty
+        ? _post.author.username
+        : _post.author.displayName;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      elevation: 0,
+      color: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/posts/${_post.postId}'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () => context.push('/users/${_post.author.userId}'),
+                child: AppAvatar(url: _post.author.avatarUrl, size: 42),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                flex: 3,
+                                child: Text(
+                                  displayName,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.2,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                flex: 2,
+                                child: Text(
+                                  '@${_post.author.username}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: muted,
+                                    height: 1.2,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          '@${_post.author.username}',
+                        const SizedBox(width: 6),
+                        Text(
+                          _formatDate(_post.createdAt),
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: muted,
                           ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '· ${_formatDate(_post.createdAt)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                      ],
+                    ),
+                    if (_post.content.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      SelectableText(
+                        _post.content,
+                        style: theme.textTheme.bodyLarge?.copyWith(height: 1.35),
                       ),
                     ],
-                  ),
-                  if (_post.content.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      _post.content,
-                      style: theme.textTheme.bodyLarge,
-                      softWrap: true,
+                    if (_post.media.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      _MediaGrid(media: _post.media),
+                    ],
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: _ActionButton(
+                              icon: Icons.chat_bubble_outline,
+                              label: '${_post.stats.commentsCount}',
+                              onTap: () =>
+                                  context.push('/posts/${_post.postId}'),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: _ActionButton(
+                              key: Key('post-retweet-button-${_post.postId}'),
+                              icon: Icons.repeat_rounded,
+                              label: '${_post.stats.retweetsCount}',
+                              activeColor: theme.colorScheme.primary,
+                              onTap: _quotePost,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: _ActionButton(
+                              icon: _post.viewerState.isLiked
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              label: '${_post.stats.likesCount}',
+                              active: _post.viewerState.isLiked,
+                              activeColor: const Color(0xFFE0245E),
+                              onTap: _toggleLike,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: _ActionButton(
+                              icon: _post.viewerState.isBookmarked
+                                  ? Icons.bookmark
+                                  : Icons.bookmark_border,
+                              label: '',
+                              active: _post.viewerState.isBookmarked,
+                              activeColor: theme.colorScheme.primary,
+                              onTap: _toggleBookmark,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                  if (_post.media.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    _MediaGrid(media: _post.media),
-                  ],
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _ActionButton(
-                        icon: Icons.chat_bubble_outline,
-                        label: '${_post.stats.commentsCount}',
-                        onTap: () => context.push('/posts/${_post.postId}'),
-                      ),
-                      const SizedBox(width: 8),
-                      _ActionButton(
-                        key: Key('post-retweet-button-${_post.postId}'),
-                        icon: Icons.repeat_rounded,
-                        label: '${_post.stats.retweetsCount}',
-                        activeColor: theme.colorScheme.primary,
-                        onTap: _quotePost,
-                      ),
-                      const SizedBox(width: 8),
-                      _ActionButton(
-                        icon: _post.viewerState.isLiked
-                            ? Icons.favorite
-                            : Icons.favorite_border,
-                        label: '${_post.stats.likesCount}',
-                        active: _post.viewerState.isLiked,
-                        activeColor: const Color(0xFFE0245E),
-                        onTap: _toggleLike,
-                      ),
-                      const SizedBox(width: 8),
-                      _ActionButton(
-                        icon: _post.viewerState.isBookmarked
-                            ? Icons.bookmark
-                            : Icons.bookmark_border,
-                        label: '',
-                        active: _post.viewerState.isBookmarked,
-                        activeColor: theme.colorScheme.primary,
-                        onTap: _toggleBookmark,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              height: 28,
-              width: 28,
-              child: PopupMenuButton<String>(
-                key: Key('post-more-button-${_post.postId}'),
-                padding: EdgeInsets.zero,
-                tooltip: l10n.t('common.more'),
-                icon: Icon(
-                  Icons.more_horiz,
-                  size: 18,
-                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-                onSelected: _handleMenu,
-                itemBuilder: (_) => [
-                  if (_post.viewerState.canDelete) ...[
+              ),
+              SizedBox(
+                height: 28,
+                width: 28,
+                child: PopupMenuButton<String>(
+                  key: Key('post-more-button-${_post.postId}'),
+                  padding: EdgeInsets.zero,
+                  tooltip: l10n.t('common.more'),
+                  icon: Icon(Icons.more_horiz, size: 18, color: muted),
+                  onSelected: _handleMenu,
+                  itemBuilder: (_) => [
+                    if (_post.viewerState.canDelete) ...[
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Text(l10n.t('common.edit')),
+                      ),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text(l10n.t('common.delete')),
+                      ),
+                    ],
                     PopupMenuItem(
-                      value: 'edit',
-                      child: Text(l10n.t('common.edit')),
+                      value: 'quote',
+                      child: Text(l10n.t('post.quote.menu')),
                     ),
                     PopupMenuItem(
-                      value: 'delete',
-                      child: Text(l10n.t('common.delete')),
+                      value: 'not_interested',
+                      child: Text(l10n.t('post.feedback.not_interested')),
+                    ),
+                    PopupMenuItem(
+                      value: 'show_less',
+                      child: Text(l10n.t('post.feedback.show_less')),
+                    ),
+                    PopupMenuItem(
+                      value: 'sentiment',
+                      child: Text(l10n.t('sentiment.actions.predict')),
+                    ),
+                    PopupMenuItem(
+                      value: 'report',
+                      child: Text(l10n.t('common.report')),
                     ),
                   ],
-                  PopupMenuItem(
-                    value: 'quote',
-                    child: Text(l10n.t('post.quote.menu')),
-                  ),
-                  PopupMenuItem(
-                    value: 'not_interested',
-                    child: Text(l10n.t('post.feedback.not_interested')),
-                  ),
-                  PopupMenuItem(
-                    value: 'show_less',
-                    child: Text(l10n.t('post.feedback.show_less')),
-                  ),
-                  PopupMenuItem(
-                    value: 'sentiment',
-                    child: Text(l10n.t('sentiment.actions.predict')),
-                  ),
-                  PopupMenuItem(
-                    value: 'report',
-                    child: Text(l10n.t('common.report')),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -580,15 +617,17 @@ class _ActionButton extends StatelessWidget {
       hoverColor: hoverColor,
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 18, color: color),
             if (label.isNotEmpty) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelMedium?.copyWith(color: color),
               ),
             ],
