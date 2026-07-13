@@ -391,7 +391,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/chat/conversation/:id',
         builder: (_, state) {
           final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
-          return ConversationScreen(conversationId: id);
+          final title = _routeExtraString(state.extra, const [
+            'title',
+            'name',
+          ]);
+          return ConversationScreen(conversationId: id, title: title);
         },
       ),
       GoRoute(
@@ -401,7 +405,16 @@ final routerProvider = Provider<GoRouter>((ref) {
               int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0;
           final channelId =
               int.tryParse(state.pathParameters['channelId'] ?? '') ?? 0;
-          return ChannelScreen(groupId: groupId, channelId: channelId);
+          final name = _routeExtraString(state.extra, const [
+            'name',
+            'title',
+            'channelName',
+          ]);
+          return ChannelScreen(
+            groupId: groupId,
+            channelId: channelId,
+            channelName: name,
+          );
         },
       ),
       GoRoute(
@@ -439,4 +452,21 @@ class AuthRefreshNotifier extends ChangeNotifier {
       }
     });
   }
+}
+
+String? _routeExtraString(Object? extra, List<String> keys) {
+  if (extra is String) {
+    final value = extra.trim();
+    return value.isEmpty ? null : value;
+  }
+  if (extra is Map) {
+    for (final key in keys) {
+      final raw = extra[key];
+      if (raw is String) {
+        final value = raw.trim();
+        if (value.isNotEmpty) return value;
+      }
+    }
+  }
+  return null;
 }

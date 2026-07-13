@@ -114,7 +114,23 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
   void _openChannel(V2ChatChannel channel) {
     context.push(
       '/chat/groups/${channel.groupId}/channels/${channel.channelId}',
+      extra: {
+        'name': channel.name,
+        'groupId': channel.groupId,
+        'channelId': channel.channelId,
+      },
     );
+  }
+
+  Future<void> _openConversation(V2DirectConversation c) async {
+    final title = c.participant.displayName.isEmpty
+        ? c.participant.username
+        : c.participant.displayName;
+    await context.push(
+      '/chat/conversation/${c.conversationId}',
+      extra: {'title': title, 'name': title},
+    );
+    if (mounted) _load();
   }
 
   Future<V2ChatChannel?> _createChannel(V2ChatGroup group) async {
@@ -173,101 +189,170 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                   controller: _tabController,
                   children: [
                     _conversations.isEmpty
-                        ? EmptyView(message: l10n.t('chat.empty'))
+                        ? EmptyView(
+                            message: l10n.t('chat.empty'),
+                            icon: Icons.chat_bubble_outline,
+                            actionLabel: l10n.t('tab.discover'),
+                            onAction: () => context.go('/discover'),
+                          )
                         : RefreshIndicator(
                             onRefresh: _load,
                             child: ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                               itemCount: _conversations.length,
-                              separatorBuilder: (_, _) => Divider(
-                                height: 1,
-                                color: Theme.of(context).dividerColor,
-                              ),
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 8),
                               itemBuilder: (_, i) {
                                 final c = _conversations[i];
-                                return ListTile(
-                                  leading: AppAvatar(
-                                    url: c.participant.avatarUrl,
-                                    size: 48,
-                                  ),
-                                  title: Text(
-                                    c.participant.displayName.isEmpty
-                                        ? c.participant.username
-                                        : c.participant.displayName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  subtitle: Text(
-                                    c.lastMessage?.content ?? '',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  trailing: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        c.lastMessage != null
-                                            ? _formatDate(
-                                                c.lastMessage!.createdAt,
-                                              )
-                                            : _formatDate(c.updatedAt),
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                      if (c.unreadCount > 0) ...[
-                                        const SizedBox(height: 4),
-                                        Badge(label: Text('${c.unreadCount}')),
+                                final name = c.participant.displayName.isEmpty
+                                    ? c.participant.username
+                                    : c.participant.displayName;
+                                final subtitle =
+                                    c.lastMessage?.content.trim().isNotEmpty ==
+                                        true
+                                    ? c.lastMessage!.content
+                                    : '';
+                                final theme = Theme.of(context);
+                                return Material(
+                                  color: theme
+                                      .colorScheme
+                                      .surfaceContainerHighest
+                                      .withValues(alpha: 0.35),
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    leading: AppAvatar(
+                                      url: c.participant.avatarUrl,
+                                      size: 48,
+                                    ),
+                                    title: Text(
+                                      name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    subtitle: Text(
+                                      subtitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                    trailing: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          c.lastMessage != null
+                                              ? _formatDate(
+                                                  c.lastMessage!.createdAt,
+                                                )
+                                              : _formatDate(c.updatedAt),
+                                          style: theme.textTheme.labelSmall
+                                              ?.copyWith(
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                        ),
+                                        if (c.unreadCount > 0) ...[
+                                          const SizedBox(height: 6),
+                                          Badge(
+                                            label: Text('${c.unreadCount}'),
+                                          ),
+                                        ],
                                       ],
-                                    ],
-                                  ),
-                                  onTap: () => context.push(
-                                    '/chat/conversation/${c.conversationId}',
+                                    ),
+                                    onTap: () => _openConversation(c),
                                   ),
                                 );
                               },
                             ),
                           ),
                     _groups.isEmpty
-                        ? EmptyView(message: l10n.t('chat.no_groups'))
+                        ? EmptyView(
+                            message: l10n.t('chat.no_groups'),
+                            icon: Icons.groups_outlined,
+                          )
                         : RefreshIndicator(
                             onRefresh: _load,
                             child: ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                               itemCount: _groups.length,
-                              separatorBuilder: (_, _) => Divider(
-                                height: 1,
-                                color: Theme.of(context).dividerColor,
-                              ),
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 8),
                               itemBuilder: (_, i) {
                                 final g = _groups[i];
-                                return ListTile(
-                                  leading: AppAvatar(
-                                    url: g.avatarUrl,
-                                    size: 48,
+                                final theme = Theme.of(context);
+                                return Material(
+                                  color: theme
+                                      .colorScheme
+                                      .surfaceContainerHighest
+                                      .withValues(alpha: 0.35),
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    leading: AppAvatar(
+                                      url: g.avatarUrl,
+                                      size: 48,
+                                    ),
+                                    title: Text(
+                                      g.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    subtitle: Text(
+                                      l10n
+                                          .t('chat.members_channels')
+                                          .replaceAll(
+                                            '{members}',
+                                            '${g.memberCount}',
+                                          )
+                                          .replaceAll(
+                                            '{channels}',
+                                            '${g.channelCount}',
+                                          ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                    trailing: g.unreadCount > 0
+                                        ? Badge(
+                                            label: Text('${g.unreadCount}'),
+                                          )
+                                        : null,
+                                    onTap: () => _openGroup(g),
                                   ),
-                                  title: Text(
-                                    g.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  subtitle: Text(
-                                    l10n
-                                        .t('chat.members_channels')
-                                        .replaceAll(
-                                          '{members}',
-                                          '${g.memberCount}',
-                                        )
-                                        .replaceAll(
-                                          '{channels}',
-                                          '${g.channelCount}',
-                                        ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  trailing: g.unreadCount > 0
-                                      ? Badge(label: Text('${g.unreadCount}'))
-                                      : null,
-                                  onTap: () => _openGroup(g),
                                 );
                               },
                             ),

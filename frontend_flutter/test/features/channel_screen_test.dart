@@ -37,6 +37,27 @@ void main() {
     }
   });
 
+  testWidgets('channel loads message content and uses channel name in app bar', (
+    tester,
+  ) async {
+    final chatApi = _FakeChatApi(
+      initialMessages: [_message(messageId: 42, content: 'hello')],
+    );
+    final mediaApi = _FakeMediaApi();
+
+    await tester.pumpWidget(
+      _testApp(
+        chatApi: chatApi,
+        mediaApi: mediaApi,
+        channelName: 'general',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('#general'), findsOneWidget);
+    expect(find.text('hello'), findsOneWidget);
+  });
+
   testWidgets('channel composer uploads attachment media before sending', (
     tester,
   ) async {
@@ -312,6 +333,7 @@ Widget _testApp({
   required ChatApi chatApi,
   required MediaApi mediaApi,
   _FakeRealtimeService? realtime,
+  String? channelName,
 }) {
   return ProviderScope(
     overrides: [
@@ -323,7 +345,13 @@ Widget _testApp({
         realtime ?? _FakeRealtimeService(),
       ),
     ],
-    child: const MaterialApp(home: ChannelScreen(groupId: 42, channelId: 7)),
+    child: MaterialApp(
+      home: ChannelScreen(
+        groupId: 42,
+        channelId: 7,
+        channelName: channelName,
+      ),
+    ),
   );
 }
 

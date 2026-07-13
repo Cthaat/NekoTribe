@@ -10,8 +10,13 @@ import '../../../shared/widgets/status_views.dart';
 import '../domain/chat_models.dart';
 
 class ConversationScreen extends ConsumerStatefulWidget {
-  const ConversationScreen({super.key, required this.conversationId});
+  const ConversationScreen({
+    super.key,
+    required this.conversationId,
+    this.title,
+  });
   final int conversationId;
+  final String? title;
 
   @override
   ConsumerState<ConversationScreen> createState() => _ConversationScreenState();
@@ -44,7 +49,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   void _onScroll() {
     if (!_scrollController.hasClients || _loadingOlder || !_hasNext) return;
-    if (_scrollController.position.pixels <= 80) {
+    // reverse:true — older messages load near maxScrollExtent.
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 80) {
       _loadOlder();
     }
   }
@@ -59,12 +66,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           .read(chatApiProvider)
           .listDirectMessages(conversationId: widget.conversationId);
       if (!mounted) return;
+      // Newest-first for reverse ListView.
       setState(() {
-        _messages = page.items.reversed.toList();
+        _messages = List.of(page.items);
         _hasNext = page.hasNext;
         _loading = false;
       });
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -77,10 +84,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   Future<void> _loadOlder() async {
     if (_loadingOlder || !_hasNext || _messages.isEmpty) return;
     setState(() => _loadingOlder = true);
-    final beforeId = _messages.first.messageId;
-    final previousExtent = _scrollController.hasClients
-        ? _scrollController.position.maxScrollExtent
-        : 0.0;
+    final beforeId = _messages.last.messageId;
     try {
       final page = await ref
           .read(chatApiProvider)
@@ -89,20 +93,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             beforeMessageId: beforeId,
           );
       if (!mounted) return;
-      final older = page.items.reversed
+      final older = page.items
           .where((m) => !_messages.any((x) => x.messageId == m.messageId))
           .toList();
       setState(() {
-        _messages = [...older, ..._messages];
+        _messages = [..._messages, ...older];
         _hasNext = page.hasNext;
         _loadingOlder = false;
-      });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_scrollController.hasClients) return;
-        final delta = _scrollController.position.maxScrollExtent - previousExtent;
-        if (delta > 0) {
-          _scrollController.jumpTo(_scrollController.position.pixels + delta);
-        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -116,7 +113,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   void _scrollToBottom() {
     if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent,
+      0,
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
     );
@@ -135,7 +132,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           );
       if (!mounted) return;
       setState(() {
-        _messages.add(message);
+        _messages.insert(0, message);
         _composer.clear();
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -168,12 +165,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return DateFormat.Hm().format(dt.toLocal());
   }
 
+  String get _appBarTitle {
+    final title = widget.title?.trim();
+    if (title != null && title.isNotEmpty) return title;
+    return AppLocalizations.of(context).t('chat.conversation');
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('chat.conversation'))),
+      appBar: AppBar(title: Text(_appBarTitle)),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -191,10 +194,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                     ? EmptyView(message: l10n.t('chat.dm.empty'))
                     : ListView.builder(
                         controller: _scrollController,
+                        reverse: true,
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                         itemCount: _messages.length + (_loadingOlder ? 1 : 0),
                         itemBuilder: (_, i) {
-                          if (_loadingOlder && i == 0) {
+                          if (_loadingOlder && i == _messages.length) {
                             return const Padding(
                               padding: EdgeInsets.symmetric(vertical: 12),
                               child: Center(
@@ -208,8 +212,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                               ),
                             );
                           }
-                          final index = _loadingOlder ? i - 1 : i;
-                          final message = _messages[index];
+                          final message = _messages[i];
                           return _MessageBubble(
                             message: message,
                             onDelete: message.canDelete
@@ -352,10 +355,12 @@ class _MessageBubble extends StatelessWidget {
                               ? AppLocalizations.of(
                                   context,
                                 ).t('chat.deleted_message')
+                              : message.content.isEmpty
+                              ? '…'
                               : message.content,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: textColor,
-                            fontStyle: message.isDeleted
+                            fontStyle: message.isDeleted || message.content.isEmpty
                                 ? FontStyle.italic
                                 : null,
                           ),

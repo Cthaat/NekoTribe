@@ -19,9 +19,10 @@ void main() {
       initialMessages: [_message(messageId: 1, content: 'hello edge')],
     );
 
-    await _pumpConversation(tester, api);
+    await _pumpConversation(tester, api, title: 'Edge');
     await tester.pumpAndSettle();
 
+    expect(find.widgetWithText(AppBar, 'Edge'), findsOneWidget);
     expect(find.text('hello edge'), findsOneWidget);
 
     await tester.enterText(find.byKey(const Key('dm-composer-field')), 'ping');
@@ -42,7 +43,11 @@ void main() {
   });
 }
 
-Future<void> _pumpConversation(WidgetTester tester, _FakeChatApi api) async {
+Future<void> _pumpConversation(
+  WidgetTester tester,
+  _FakeChatApi api, {
+  String? title,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -59,7 +64,7 @@ Future<void> _pumpConversation(WidgetTester tester, _FakeChatApi api) async {
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: AppLocalizations.supported,
-        home: const ConversationScreen(conversationId: 11),
+        home: ConversationScreen(conversationId: 11, title: title),
       ),
     ),
   );
