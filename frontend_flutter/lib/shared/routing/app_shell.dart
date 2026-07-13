@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../i18n/app_localizations.dart';
+import '../providers/providers.dart';
 import '../widgets/responsive.dart';
 
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
   final Widget child;
 
@@ -43,6 +44,13 @@ class AppShell extends ConsumerWidget {
     ('/me', Icons.person_outline, Icons.person, 'tab.profile'),
   ];
 
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  var _didRequestUnread = false;
+
   int _indexFor(
     String location,
     List<(String, IconData, IconData, String)> tabs,
@@ -53,16 +61,38 @@ class AppShell extends ConsumerWidget {
     return 0;
   }
 
+  Widget _tabIcon(IconData icon, {required int badgeCount}) {
+    if (badgeCount <= 0) return Icon(icon);
+    return Badge(
+      label: Text(badgeCount > 99 ? '99+' : '$badgeCount'),
+      child: Icon(icon),
+    );
+  }
+
+  void _maybeRefreshUnread(bool isAuthenticated) {
+    if (!isAuthenticated || _didRequestUnread) return;
+    _didRequestUnread = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(notificationsUnreadProvider.notifier).refresh();
+    });
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final location = GoRouterState.of(context).matchedLocation;
     final width = MediaQuery.sizeOf(context).width;
     final isWide = width >= AppBreakpoints.medium;
     final isExpanded = width >= AppBreakpoints.expanded;
-    final tabs = isWide ? _desktopTabs : _primaryTabs;
+    final tabs = isWide ? AppShell._desktopTabs : AppShell._primaryTabs;
     final currentIndex = _indexFor(location, tabs);
     final theme = Theme.of(context);
+    final unread = ref.watch(notificationsUnreadProvider);
+    final isAuthenticated = ref.watch(
+      authSessionProvider.select((s) => s.isAuthenticated),
+    );
+    _maybeRefreshUnread(isAuthenticated);
 
     if (isWide) {
       return Scaffold(
@@ -73,15 +103,16 @@ class AppShell extends ConsumerWidget {
               currentIndex: currentIndex,
               tabs: tabs,
               labelFor: l10n.t,
+              notificationsUnread: unread,
             ),
             VerticalDivider(width: 1, thickness: 1, color: theme.dividerColor),
-            Expanded(child: child),
+            Expanded(child: widget.child),
           ],
         ),
       );
     }
     return Scaffold(
-      body: child,
+      body: widget.child,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           border: Border(top: BorderSide(color: theme.dividerColor)),
@@ -92,8 +123,14 @@ class AppShell extends ConsumerWidget {
           destinations: [
             for (final t in tabs)
               NavigationDestination(
-                icon: Icon(t.$2),
-                selectedIcon: Icon(t.$3),
+                icon: _tabIcon(
+                  t.$2,
+                  badgeCount: t.$1 == '/notifications' ? unread : 0,
+                ),
+                selectedIcon: _tabIcon(
+                  t.$3,
+                  badgeCount: t.$1 == '/notifications' ? unread : 0,
+                ),
                 label: l10n.t(t.$4),
               ),
           ],
@@ -109,12 +146,21 @@ class _SideNav extends StatelessWidget {
     required this.currentIndex,
     required this.tabs,
     required this.labelFor,
+    required this.notificationsUnread,
   });
 
   final bool extended;
   final int currentIndex;
   final List<(String, IconData, IconData, String)> tabs;
   final String Function(String) labelFor;
+  final int notificationsUnread;
+
+  int? _badgeFor(String path) {
+    if (path == '/notifications' && notificationsUnread > 0) {
+      return notificationsUnread;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +190,7 @@ class _SideNav extends StatelessWidget {
                         label: labelFor(tabs[i].$4),
                         selected: i == currentIndex,
                         extended: extended,
+                        badgeCount: _badgeFor(tabs[i].$1),
                         onTap: () => GoRouter.of(context).go(tabs[i].$1),
                       ),
                   const SizedBox(height: 8),
@@ -194,6 +241,7 @@ class _SideNav extends StatelessWidget {
               label: labelFor(profileTab.$4),
               selected: profileIndex == currentIndex,
               extended: extended,
+              badgeCount: _badgeFor(profileTab.$1),
               onTap: () => GoRouter.of(context).go(profileTab.$1),
             ),
           ],
@@ -278,6 +326,7 @@ class _NavItem extends StatelessWidget {
     required this.selected,
     required this.extended,
     required this.onTap,
+    this.badgeCount,
   });
 
   final IconData icon;
@@ -286,6 +335,18 @@ class _NavItem extends StatelessWidget {
   final bool selected;
   final bool extended;
   final VoidCallback onTap;
+  final int? badgeCount;
+
+  Widget _icon(Color color) {
+    final data = selected ? selectedIcon : icon;
+    final iconWidget = Icon(data, color: color);
+    final count = badgeCount ?? 0;
+    if (count <= 0) return iconWidget;
+    return Badge(
+      label: Text(count > 99 ? '99+' : '$count'),
+      child: iconWidget,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -312,7 +373,7 @@ class _NavItem extends StatelessWidget {
             child: extended
                 ? Row(
                     children: [
-                      Icon(selected ? selectedIcon : icon, color: color),
+                      _icon(color),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Text(
@@ -329,10 +390,7 @@ class _NavItem extends StatelessWidget {
                       ),
                     ],
                   )
-                : Tooltip(
-                    message: label,
-                    child: Icon(selected ? selectedIcon : icon, color: color),
-                  ),
+                : Tooltip(message: label, child: _icon(color)),
           ),
         ),
       ),

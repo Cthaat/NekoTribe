@@ -216,3 +216,27 @@ final authSessionProvider =
     StateNotifierProvider<AuthSessionController, AuthSessionState>((ref) {
       return AuthSessionController(ref.watch(tokenStoreProvider));
     });
+
+class NotificationsUnreadController extends StateNotifier<int> {
+  NotificationsUnreadController(this._ref) : super(0);
+
+  final Ref _ref;
+
+  void set(int count) {
+    state = count < 0 ? 0 : count;
+  }
+
+  Future<void> refresh() async {
+    try {
+      final count = await _ref.read(notificationsApiProvider).unreadCount();
+      state = count < 0 ? 0 : count;
+    } catch (_) {
+      // Keep the previous value on transient failures.
+    }
+  }
+}
+
+final notificationsUnreadProvider =
+    StateNotifierProvider<NotificationsUnreadController, int>((ref) {
+      return NotificationsUnreadController(ref);
+    });
