@@ -13,18 +13,29 @@ import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
+  List<Override> authOverrides({
+    required GroupsApi groupsApi,
+    PostsApi? postsApi,
+  }) {
+    return [
+      appConfigBundleProvider.overrideWithValue(
+        const AppConfigBundle(defaults: _testConfig, presets: []),
+      ),
+      appConfigInitialProvider.overrideWithValue(_testConfig),
+      groupsApiProvider.overrideWithValue(groupsApi),
+      if (postsApi != null) postsApiProvider.overrideWithValue(postsApi),
+      authSessionProvider.overrideWith(
+        (ref) => AuthSessionController(_FakeTokenStore())..markLoggedIn(),
+      ),
+    ];
+  }
+
   testWidgets('group posts feed exposes delete action', (tester) async {
     final api = _FakeGroupsApi();
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          appConfigBundleProvider.overrideWithValue(
-            const AppConfigBundle(defaults: _testConfig, presets: []),
-          ),
-          appConfigInitialProvider.overrideWithValue(_testConfig),
-          groupsApiProvider.overrideWithValue(api),
-        ],
+        overrides: authOverrides(groupsApi: api),
         child: const MaterialApp(home: GroupPostsScreen()),
       ),
     );
@@ -48,14 +59,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          appConfigBundleProvider.overrideWithValue(
-            const AppConfigBundle(defaults: _testConfig, presets: []),
-          ),
-          appConfigInitialProvider.overrideWithValue(_testConfig),
-          groupsApiProvider.overrideWithValue(groups),
-          postsApiProvider.overrideWithValue(posts),
-        ],
+        overrides: authOverrides(groupsApi: groups, postsApi: posts),
         child: const MaterialApp(home: GroupPostsScreen()),
       ),
     );
@@ -79,13 +83,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          appConfigBundleProvider.overrideWithValue(
-            const AppConfigBundle(defaults: _testConfig, presets: []),
-          ),
-          appConfigInitialProvider.overrideWithValue(_testConfig),
-          groupsApiProvider.overrideWithValue(api),
-        ],
+        overrides: authOverrides(groupsApi: api),
         child: const MaterialApp(home: GroupPostsScreen()),
       ),
     );

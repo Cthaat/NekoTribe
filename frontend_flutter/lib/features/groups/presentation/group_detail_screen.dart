@@ -138,10 +138,19 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     controller.dispose();
     if (result == null || result.isEmpty) return;
     try {
-      await ref
+      final created = await ref
           .read(groupsApiProvider)
           .createPost(groupId: _group!.groupId, content: result);
-      await _load();
+      if (!mounted) return;
+      // Local prepend keeps scroll/history; avoid full page reload flash.
+      setState(() {
+        _posts = [created, ..._posts];
+        final group = _group;
+        if (group != null) {
+          // Keep membership/meta; only post list is updated.
+          _group = group;
+        }
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

@@ -78,6 +78,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
 
   Future<void> _publish() async {
     if (_controller.text.trim().isEmpty && _media.isEmpty) return;
+    if (!requireAuthenticatedAction(context, ref)) return;
     setState(() {
       _busy = true;
       _error = null;

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/media_lightbox.dart';
 import '../../../shared/widgets/responsive.dart';
@@ -29,6 +30,9 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
   bool _hasNext = false;
   int _page = 1;
   Object? _error;
+  final Set<String> _busyPostKeys = <String>{};
+
+  String _postKey(V2GroupPost post) => '${post.groupId}:${post.postId}';
 
   @override
   void initState() {
@@ -124,12 +128,16 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
   }
 
   Future<void> _toggleLike(V2GroupPost post) async {
+    if (!requireAuthenticatedAction(context, ref)) return;
+    final key = _postKey(post);
+    if (_busyPostKeys.contains(key)) return;
     final nextLiked = !post.isLikedByMe;
     final nextCount = nextLiked
         ? post.likesCount + 1
         : (post.likesCount - 1).clamp(0, 1 << 30);
     // Optimistic local update — avoid full multi-group fan-in reload.
     setState(() {
+      _busyPostKeys.add(key);
       _posts = [
         for (final p in _posts)
           if (p.postId == post.postId && p.groupId == post.groupId)
@@ -164,12 +172,20 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (mounted) {
+        setState(() => _busyPostKeys.remove(key));
+      }
     }
   }
 
   Future<void> _togglePin(V2GroupPost post) async {
+    if (!requireAuthenticatedAction(context, ref)) return;
+    final key = _postKey(post);
+    if (_busyPostKeys.contains(key)) return;
     final nextPinned = !post.isPinned;
     setState(() {
+      _busyPostKeys.add(key);
       _posts = [
         for (final p in _posts)
           if (p.postId == post.postId && p.groupId == post.groupId)
@@ -212,17 +228,24 @@ class _GroupPostsScreenState extends ConsumerState<GroupPostsScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (mounted) {
+        setState(() => _busyPostKeys.remove(key));
+      }
     }
   }
 
   Future<void> _deletePost(V2GroupPost post) async {
+    if (!requireAuthenticatedAction(context, ref)) return;
     try {
       await ref
           .read(groupsApiProvider)
           .deleteGroupPost(groupId: post.groupId, postId: post.postId);
       if (!mounted) return;
       setState(() {
-        _posts.removeWhere((item) => item.postId == post.postId);
+        _posts.removeWhere(
+          (item) => item.postId == post.postId && item.groupId == post.groupId,
+        );
       });
     } catch (e) {
       if (!mounted) return;
