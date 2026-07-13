@@ -30,6 +30,14 @@
       "apiBaseUrl": "http://localhost:30003",
       "wsBaseUrl": "ws://localhost:30003",
       "storageBaseUrl": "http://localhost:30003"
+    },
+    {
+      "id": "android-emulator",
+      "label": "Android Emulator → host 30001",
+      "description": "Maps host machine localhost via 10.0.2.2",
+      "apiBaseUrl": "http://10.0.2.2:30001",
+      "wsBaseUrl": "ws://10.0.2.2:30001",
+      "storageBaseUrl": "http://10.0.2.2:30001"
     }
   ]
 }

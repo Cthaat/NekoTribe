@@ -4,10 +4,10 @@ Flutter client for NekoTribe. The app targets Web, Windows desktop, and mobile-w
 
 ## Current Status
 
-Verified on 2026-05-25, branch `Flutter`:
+Verified on 2026-07-13, branch `Flutter`:
 
 - `flutter analyze` passes.
-- `flutter test` passes, 94 tests.
+- `flutter test` passes, 111 tests.
 - `flutter build web` passes. The JS build is valid; the Wasm dry run still warns that `flutter_secure_storage_web` uses `dart:html` / `dart:js_util`.
 - `flutter build windows` passes and emits `build/windows/x64/runner/Release/nekotribe.exe`.
 - Flutter Web screenshots were captured at 390px, 800px, and 1280px under `build/visual-check/`.
@@ -32,10 +32,19 @@ Verified on 2026-05-25, branch `Flutter`:
 - Composer/editor: text, media, visibility, location, and tags are wired to the v2 post create/update contracts.
 - Groups: slug lookup via `/groups/by-slug/{slug}`, numeric-ID member/post/invite actions, group post details, comments, likes, pinning, invites, create/manage avatar/cover media and metadata, invite limits, pending member approval/rejection, member search, ownership transfer, and delete confirmation.
 - Chat: direct conversations, group channel route, channel create/edit/delete/mute, attachment/image upload controls, emoji/mention/channel/sticker composer actions, reply preview/send, message send/edit/delete/react/pin, reaction summaries, channel realtime sync, and channel read/mute APIs.
-- Notifications: unread count, filters, single/all read, delete/restore, resource navigation.
-- Moderation: overview, content actions, reports, users actions, appeals, and settings.
+- DM conversations: list/detail rewrite with stable widget keys for reliable updates.
+- Notifications: unread count, filters, single/all read, delete/restore, resource navigation, realtime hooks, stable keys, and shell unread badge.
+- Empty states: `EmptyView` action buttons for common recovery paths.
+- Moderation: overview, content actions, reports (resolved reopen + pending status), users actions, appeals, and settings.
+- Billing / Pro: demo notices (no payment APIs); static demo data aligned with web.
 - SentimentFlow: backend-proxy based config, model-aware prediction requests, and prediction UI.
 - Web display hardening: compact connection-error copy, Web-safe Chinese font fallback, media lightbox, avatar upload action, and mobile-safe feed tabs.
+- Android debug networking: `INTERNET` permission, cleartext traffic in debug, and `android-emulator` API preset (`10.0.2.2:30001`).
+
+## Design & plan
+
+- Design: [`docs/superpowers/specs/2026-07-13-flutter-web-parity-design.md`](../docs/superpowers/specs/2026-07-13-flutter-web-parity-design.md)
+- Plan: [`docs/superpowers/plans/2026-07-13-flutter-web-parity.md`](../docs/superpowers/plans/2026-07-13-flutter-web-parity.md)
 
 ## Local Run
 
@@ -52,6 +61,20 @@ flutter build web
 ```
 
 When serving Flutter Web from a different local port than the backend entry (`30001`), use an app image built from this branch so the source CORS middleware and JSON token compatibility are active. A stale prebuilt app image may still answer preflight requests without `Access-Control-Allow-Origin` and may omit token strings from auth responses.
+
+### Android emulator API
+
+On the Android emulator, `localhost` points at the emulator itself. Use the endpoint preset **Android Emulator → host 30001**, which maps the host machine via `10.0.2.2`:
+
+- API: `http://10.0.2.2:30001`
+- WebSocket: `ws://10.0.2.2:30001`
+- Storage: `http://10.0.2.2:30001`
+
+Debug builds allow cleartext HTTP (`usesCleartextTraffic`) so local `http://` backends work without TLS.
+
+### QA account
+
+Smoke tests use a local QA account (e.g. username `edge`). Credentials are environment-local and are **not** stored in this repository or docs.
 
 ## Verification Commands
 

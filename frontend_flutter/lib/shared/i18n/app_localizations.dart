@@ -470,6 +470,7 @@ class AppLocalizations {
       'billing.pending': '待处理',
       'billing.paid': '已支付',
       'billing.history': '账单历史',
+      'billing.demo_notice': '演示数据，与网页一致，非真实扣费',
       'pro.workspace': '可升级工作台',
       'pro.description': '启用账单后，NekoTribe Pro 会提供 AI 辅助、实时协作、高级安全工具和更高操作额度。',
       'pro.ai_title': 'AI 情感工作流',
@@ -479,6 +480,7 @@ class AppLocalizations {
       'pro.safety_title': '安全仪表盘',
       'pro.safety_subtitle': '审核队列、申诉和举报共用一个移动端友好的界面。',
       'pro.view_billing': '查看账单',
+      'pro.demo_notice': '功能介绍页，支付尚未开通',
       'moderation.title': '审核中心',
       'moderation.pending': '待处理',
       'moderation.approved': '已通过',
@@ -1032,6 +1034,8 @@ class AppLocalizations {
       'billing.pending': 'Pending',
       'billing.paid': 'Paid',
       'billing.history': 'Billing history',
+      'billing.demo_notice':
+          'Demo data aligned with web; not real charges',
       'pro.workspace': 'Upgrade-ready workspace',
       'pro.description':
           'NekoTribe Pro surfaces AI assistance, realtime collaboration, advanced safety tooling, and higher operational limits when billing is enabled.',
@@ -1045,6 +1049,7 @@ class AppLocalizations {
       'pro.safety_subtitle':
           'Moderation queues, appeals, and reports share one mobile-friendly surface.',
       'pro.view_billing': 'View billing',
+      'pro.demo_notice': 'Feature overview; payments not enabled',
       'moderation.title': 'Moderation',
       'moderation.pending': 'Pending',
       'moderation.approved': 'Approved',
