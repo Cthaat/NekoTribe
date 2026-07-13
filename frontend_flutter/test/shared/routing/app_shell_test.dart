@@ -8,9 +8,9 @@ import 'package:nekotribe/shared/providers/providers.dart';
 import 'package:nekotribe/shared/routing/app_shell.dart';
 
 void main() {
-  GoRouter buildRouter() {
+  GoRouter buildRouter({String initialLocation = '/feed'}) {
     return GoRouter(
-      initialLocation: '/feed',
+      initialLocation: initialLocation,
       routes: [
         ShellRoute(
           builder: (context, state, child) => AppShell(child: child),
@@ -18,6 +18,10 @@ void main() {
             GoRoute(
               path: '/feed',
               builder: (_, __) => const Text('feed route'),
+            ),
+            GoRoute(
+              path: '/discover',
+              builder: (_, __) => const Text('discover route'),
             ),
             GoRoute(
               path: '/groups',
@@ -40,6 +44,56 @@ void main() {
       ],
     );
   }
+
+  testWidgets('desktop discover keeps shell compose button', (tester) async {
+    tester.view
+      ..physicalSize = const Size(1200, 800)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final router = buildRouter(initialLocation: '/discover');
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: const [AppLocalizationsDelegate()],
+          supportedLocales: AppLocalizations.supported,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('discover route'), findsOneWidget);
+    expect(find.byKey(const Key('app-shell-compose-button')), findsOneWidget);
+  });
+
+  testWidgets('mobile discover hides bottom navigation bar', (tester) async {
+    tester.view
+      ..physicalSize = const Size(390, 844)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final router = buildRouter(initialLocation: '/discover');
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: const [AppLocalizationsDelegate()],
+          supportedLocales: AppLocalizations.supported,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('discover route'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+  });
 
   testWidgets('desktop publish button opens the post composer route', (
     tester,

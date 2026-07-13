@@ -461,6 +461,9 @@ class _GroupsListState extends ConsumerState<_GroupsList>
     with AutomaticKeepAliveClientMixin {
   List<V2Group> _items = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasNext = false;
+  int _page = 1;
   Object? _error;
 
   @override
@@ -476,23 +479,54 @@ class _GroupsListState extends ConsumerState<_GroupsList>
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasNext = false;
     });
     try {
       final api = ref.read(groupsApiProvider);
       final page = widget.mode == 'my'
-          ? await api.myGroups()
-          : await api.list(mode: widget.mode);
+          ? await api.myGroups(page: 1)
+          : await api.list(mode: widget.mode, page: 1);
       if (!mounted) return;
       setState(() {
         _items = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _loading = false;
+        _loadingMore = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;
+        _loadingMore = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasNext || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final api = ref.read(groupsApiProvider);
+      final page = widget.mode == 'my'
+          ? await api.myGroups(page: next)
+          : await api.list(mode: widget.mode, page: next);
+      if (!mounted) return;
+      setState(() {
+        _items = [..._items, ...page.items];
+        _page = next;
+        _hasNext = page.hasNext;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
   }
 
@@ -513,77 +547,93 @@ class _GroupsListState extends ConsumerState<_GroupsList>
     }
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        itemCount: _items.length,
-        separatorBuilder: (_, _) =>
-            Divider(height: 1, color: theme.dividerColor),
-        itemBuilder: (_, i) {
-          final g = _items[i];
-          return InkWell(
-            onTap: () => context.push('/groups/${g.slug}'),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Row(
-                children: [
-                  AppAvatar(url: g.avatarUrl, size: 48),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          g.name,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          g.description.isEmpty ? '@${g.slug}' : g.description,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Row(
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+            unawaited(_loadMore());
+          }
+          return false;
+        },
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          itemCount: _items.length + (_hasNext ? 1 : 0),
+          separatorBuilder: (_, _) =>
+              Divider(height: 1, color: theme.dividerColor),
+          itemBuilder: (_, i) {
+            if (i >= _items.length) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final g = _items[i];
+            return InkWell(
+              onTap: () => context.push('/groups/${g.slug}'),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Row(
+                  children: [
+                    AppAvatar(url: g.avatarUrl, size: 48),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.people_outline,
-                            size: 14,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
                           Text(
-                            '${g.memberCount}',
-                            style: theme.textTheme.bodySmall,
+                            g.name,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            g.description.isEmpty
+                                ? '@${g.slug}'
+                                : g.description,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        g.privacyDesc.isEmpty ? g.privacy : g.privacyDesc,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.people_outline,
+                              size: 14,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${g.memberCount}',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(height: 4),
+                        Text(
+                          g.privacyDesc.isEmpty ? g.privacy : g.privacyDesc,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

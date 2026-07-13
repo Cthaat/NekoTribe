@@ -369,6 +369,7 @@ class AppLocalizations {
       'group.create_invite': '创建邀请',
       'group.members_title': '成员',
       'discover.trending_tags': '趋势标签',
+      'search.empty': '没有找到相关内容',
       'account.analytics.title': '个人分析',
       'account.analytics.description': '查看近 14 天的内容表现和互动趋势：',
       'account.analytics.empty': '暂无个人分析数据',
@@ -920,6 +921,7 @@ class AppLocalizations {
       'group.create_invite': 'Create invite',
       'group.members_title': 'Members',
       'discover.trending_tags': 'Trending tags',
+      'search.empty': 'No results found',
       'account.analytics.title': 'Personal analysis',
       'account.analytics.description':
           'Review 14-day content performance and engagement for:',

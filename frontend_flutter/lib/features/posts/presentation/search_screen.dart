@@ -24,11 +24,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   List<V2Post> _posts = [];
   List<V2TagItem> _trendingTags = [];
   bool _loading = false;
+  bool _hasSearched = false;
   Object? _error;
 
   @override
   void initState() {
     super.initState();
+    _controller.addListener(_onQueryChanged);
     final query = widget.initialQuery?.trim();
     if (query != null && query.isNotEmpty) {
       _controller.text = query;
@@ -52,8 +54,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   void dispose() {
+    _controller.removeListener(_onQueryChanged);
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  void _clearSearch() {
+    setState(() {
+      _controller.clear();
+      _posts = [];
+      _hasSearched = false;
+      _error = null;
+    });
   }
 
   Future<void> _loadTrending() async {
@@ -76,12 +93,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       if (!mounted) return;
       setState(() {
         _posts = result.items;
+        _hasSearched = true;
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
+        _hasSearched = true;
         _loading = false;
       });
     }
@@ -128,12 +147,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
               if (_controller.text.isNotEmpty)
                 IconButton(
+                  key: const Key('search-clear-button'),
                   visualDensity: VisualDensity.compact,
                   iconSize: 18,
-                  onPressed: () => setState(() {
-                    _controller.clear();
-                    _posts = [];
-                  }),
+                  onPressed: _clearSearch,
                   icon: const Icon(Icons.close),
                 ),
             ],
@@ -174,6 +191,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     );
                   },
                 )
+              : _hasSearched
+              ? EmptyView(message: l10n.t('search.empty'))
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
                   child: Column(

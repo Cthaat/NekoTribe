@@ -173,6 +173,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(path: '/feed', builder: (_, __) => const FeedScreen()),
+          // Keep discover in the shell so desktop side rail stays visible.
+          // Mobile hides bottom NavigationBar for /discover (see AppShell).
+          GoRoute(path: '/discover', builder: (_, __) => const SearchScreen()),
           GoRoute(
             path: '/notifications',
             builder: (_, __) => const NotificationsScreen(),
@@ -205,8 +208,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/about', builder: (_, __) => const AboutScreen()),
         ],
       ),
-      // Full-screen discover/search so mobile bottom-nav selection stays honest.
-      GoRoute(path: '/discover', builder: (_, __) => const SearchScreen()),
       GoRoute(
         path: '/posts/:postId',
         builder: (_, state) {

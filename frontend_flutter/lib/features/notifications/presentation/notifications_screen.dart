@@ -210,6 +210,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   : item,
             )
             .toList();
+        if (!n.readFlag) {
+          final next = ((_unreadCount ?? 0) - 1).clamp(0, 1 << 30);
+          _unreadCount = next;
+          ref.read(notificationsUnreadProvider.notifier).set(next);
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -233,6 +238,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   : item,
             )
             .toList();
+        // n still carries the original readFlag (deletedAt only was cleared).
+        if (!n.readFlag) {
+          final next = (_unreadCount ?? 0) + 1;
+          _unreadCount = next;
+          ref.read(notificationsUnreadProvider.notifier).set(next);
+        }
       });
     } catch (e) {
       if (!mounted) return;

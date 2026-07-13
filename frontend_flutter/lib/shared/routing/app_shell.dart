@@ -70,7 +70,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     }
     // NavigationBar requires a non-negative index; unmatched shell routes
-    // (e.g. /discover on mobile) fall back to home without claiming a match.
+    // fall back to home. On mobile /discover hides the bar entirely.
     return best < 0 ? 0 : best;
   }
 
@@ -148,31 +148,39 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
       );
     }
+
+    // Discover is in-shell for desktop rail parity; hide bottom bar on mobile
+    // so no primary tab is falsely highlighted.
+    final hideBottomNav =
+        location == '/discover' || location.startsWith('/discover/');
+
     return Scaffold(
       body: widget.child,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: theme.dividerColor)),
-        ),
-        child: NavigationBar(
-          selectedIndex: currentIndex,
-          onDestinationSelected: (i) => context.go(tabs[i].$1),
-          destinations: [
-            for (final t in tabs)
-              NavigationDestination(
-                icon: _tabIcon(
-                  t.$2,
-                  badgeCount: t.$1 == '/notifications' ? unread : 0,
-                ),
-                selectedIcon: _tabIcon(
-                  t.$3,
-                  badgeCount: t.$1 == '/notifications' ? unread : 0,
-                ),
-                label: l10n.t(t.$4),
+      bottomNavigationBar: hideBottomNav
+          ? null
+          : Container(
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: theme.dividerColor)),
               ),
-          ],
-        ),
-      ),
+              child: NavigationBar(
+                selectedIndex: currentIndex,
+                onDestinationSelected: (i) => context.go(tabs[i].$1),
+                destinations: [
+                  for (final t in tabs)
+                    NavigationDestination(
+                      icon: _tabIcon(
+                        t.$2,
+                        badgeCount: t.$1 == '/notifications' ? unread : 0,
+                      ),
+                      selectedIcon: _tabIcon(
+                        t.$3,
+                        badgeCount: t.$1 == '/notifications' ? unread : 0,
+                      ),
+                      label: l10n.t(t.$4),
+                    ),
+                ],
+              ),
+            ),
     );
   }
 }

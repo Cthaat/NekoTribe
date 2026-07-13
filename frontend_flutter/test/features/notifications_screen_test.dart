@@ -112,6 +112,54 @@ void main() {
     expect(api.readStatus, isTrue);
   });
 
+  testWidgets('deleting an unread notification decrements the badge', (
+    tester,
+  ) async {
+    final api = _FakeNotificationsApi([
+      _notification(
+        notificationId: 3001,
+        type: 'comment',
+        title: '未读待删',
+        resourceType: 'comment',
+        resourceId: 7001,
+        isRead: 0,
+        metadata: {'post_id': 100001},
+      ),
+    ]);
+    final router = _router();
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._overrides(api),
+          notificationsUnreadProvider.overrideWith(
+            (ref) => NotificationsUnreadController(ref)..set(2),
+          ),
+        ],
+        child: MaterialApp.router(
+          locale: const Locale('zh'),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Soft-load sets unread from API (1 unread item).
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(NotificationsScreen)),
+    );
+    expect(container.read(notificationsUnreadProvider), 1);
+
+    await tester.tap(find.byType(PopupMenuButton<String>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+
+    expect(api.deletedNotificationId, 3001);
+    expect(container.read(notificationsUnreadProvider), 0);
+  });
+
   testWidgets('unread filter and mark all read', (tester) async {
     final api = _FakeNotificationsApi([
       _notification(
@@ -221,6 +269,7 @@ class _FakeNotificationsApi extends NotificationsApi {
   bool? readStatus;
   bool markAllReadCalled = false;
   bool? lastUnreadOnly;
+  int? deletedNotificationId;
 
   @override
   Future<PagedResult<V2Notification>> list({
@@ -246,7 +295,7 @@ class _FakeNotificationsApi extends NotificationsApi {
 
   @override
   Future<int> unreadCount() async =>
-      items.where((item) => !item.readFlag).length;
+      items.where((item) => !item.readFlag && !item.isDeleted).length;
 
   @override
   Future<void> setReadStatus({
@@ -260,6 +309,11 @@ class _FakeNotificationsApi extends NotificationsApi {
   @override
   Future<void> markAllRead() async {
     markAllReadCalled = true;
+  }
+
+  @override
+  Future<void> deleteNotification(int id) async {
+    deletedNotificationId = id;
   }
 }
 
