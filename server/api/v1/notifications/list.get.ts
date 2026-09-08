@@ -121,10 +121,7 @@ export default defineEventHandler(async event => {
     );
 
     // 计算分页信息
-    const totalCount =
-      notifications.length > 0
-        ? notifications[0].totalCount
-        : 0;
+    const totalCount = notifications[0]?.totalCount ?? 0;
     const totalPages = Math.ceil(totalCount / pageSize);
     const hasNext = page < totalPages;
     const hasPrev = page > 1;

@@ -662,7 +662,7 @@ export const apiFetch = async <T>(
   logApiRequest(requestLogPayload);
 
   try {
-    const response = await $fetch<T>(path, mergedOptions);
+    const response = await $fetch<T, string>(path, mergedOptions);
     logApiResponse({
       ...requestLogPayload,
       durationMs: Date.now() - startAt,
@@ -691,7 +691,7 @@ export const apiFetch = async <T>(
         await new Promise(resolve =>
           setTimeout(resolve, 100)
         );
-        const response = await $fetch<T>(path, mergedOptions);
+        const response = await $fetch<T, string>(path, mergedOptions);
         logApiResponse({
           ...requestLogPayload,
           durationMs: Date.now() - startAt,

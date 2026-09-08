@@ -1,4 +1,4 @@
-import type { z } from 'zod'
+import type { z } from 'zod/v3'
 
 // TODO: This should support recursive ZodEffects but TypeScript doesn't allow circular type definitions.
 export type ZodObjectOrWrapped =
@@ -27,7 +27,7 @@ export function getIndexIfArray(string: string) {
   // Match the index
   const match = string.match(indexRegex)
   // Extract the index (number)
-  const index = match ? Number.parseInt(match[1]) : undefined
+  const index = match?.[1] !== undefined ? Number.parseInt(match[1]) : undefined
   return index
 }
 

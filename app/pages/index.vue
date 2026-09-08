@@ -1,6 +1,6 @@
 <template>
   <div class="container mx-auto px-4">
-    <TweetList />
+    <TweetList :tweets="[]" />
   </div>
 </template>
 

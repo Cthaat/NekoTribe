@@ -171,12 +171,13 @@ export async function updateStatement(
   const store = await ensureStore();
   const list = store[userId] || [];
   const idx = list.findIndex(s => s.id === id);
-  if (idx === -1)
+  const statement = list[idx];
+  if (!statement)
     throw createError({
       statusCode: 404,
       statusMessage: 'Statement not found'
     });
-  list[idx] = { ...list[idx], ...patch };
+  list[idx] = { ...statement, ...patch };
   store[userId] = list;
   await saveStore(store);
   return list[idx];
@@ -191,7 +192,8 @@ export async function createAppeal(
   const store = await ensureStore();
   const list = store[userId] || [];
   const idx = list.findIndex(s => s.id === id);
-  if (idx === -1)
+  const statement = list[idx];
+  if (!statement)
     throw createError({
       statusCode: 404,
       statusMessage: 'Statement not found'
@@ -202,7 +204,7 @@ export async function createAppeal(
     createdAt: new Date().toISOString(),
     status: 'pending'
   };
-  list[idx] = { ...list[idx], status: 'appealed', appeal };
+  list[idx] = { ...statement, status: 'appealed', appeal };
   store[userId] = list;
   await saveStore(store);
   return list[idx];

@@ -2,7 +2,7 @@
 import { toTypedSchema } from '@vee-validate/zod';
 import { FieldArray, useForm } from 'vee-validate';
 import { onMounted, ref } from 'vue';
-import * as z from 'zod';
+import * as z from 'zod/v3';
 import { cn } from '@/lib/utils';
 import { CalendarIcon, Globe, Trash2 } from 'lucide-vue-next';
 import {
@@ -66,7 +66,8 @@ function parseBirthDate(
     return undefined;
   }
 
-  return parseDate(birthDate.split('T')[0]);
+  const date = birthDate.split('T')[0];
+  return date ? parseDate(date) : undefined;
 }
 
 function buildInitialProfileValues(

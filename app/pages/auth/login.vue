@@ -13,7 +13,7 @@ import {
   CardTitle,
   CardFooter
 } from '@/components/ui/card';
-import * as z from 'zod';
+import * as z from 'zod/v3';
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm } from 'vee-validate';
 import { toast } from 'vue-sonner';

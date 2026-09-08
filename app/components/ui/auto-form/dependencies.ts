@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type * as z from 'zod'
+import type * as z from 'zod/v3'
 import { createContext } from 'reka-ui'
 import { useFieldValue, useFormValues } from 'vee-validate'
 import { computed, ref, watch } from 'vue'

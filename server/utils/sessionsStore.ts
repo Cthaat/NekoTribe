@@ -93,8 +93,9 @@ function seedForUser(
     ).toISOString(),
     ...extra
   });
-  const list: UserSession[] = [mk(0), mk(1), mk(2)];
-  if (tokenSuffix) list[0].tokenSuffix = tokenSuffix;
+  const current = mk(0);
+  const list: UserSession[] = [current, mk(1), mk(2)];
+  if (tokenSuffix) current.tokenSuffix = tokenSuffix;
   return list;
 }
 
@@ -103,25 +104,28 @@ export async function getSessions(options: {
   tokenSuffix?: string;
 }) {
   const store = await ensureStore();
-  if (!store[options.userId]) {
-    store[options.userId] = seedForUser(
+  let sessions = store[options.userId];
+  if (!sessions) {
+    sessions = seedForUser(
       options.userId,
       options.tokenSuffix
     );
+    store[options.userId] = sessions;
     await saveStore(store);
   }
   // 如果传入 tokenSuffix，但现有列表没有，则把第一条标记为当前
   if (options.tokenSuffix) {
-    const has = store[options.userId].some(
+    const has = sessions.some(
       s => s.tokenSuffix === options.tokenSuffix
     );
-    if (!has) {
-      store[options.userId][0].tokenSuffix =
+    const firstSession = sessions[0];
+    if (!has && firstSession) {
+      firstSession.tokenSuffix =
         options.tokenSuffix;
       await saveStore(store);
     }
   }
-  return store[options.userId];
+  return sessions;
 }
 
 export async function revokeSession(

@@ -2,7 +2,7 @@
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm } from 'vee-validate';
 import { ref } from 'vue';
-import * as z from 'zod';
+import * as z from 'zod/v3';
 import { Eye, EyeOff } from 'lucide-vue-next';
 import {
   FormControl,

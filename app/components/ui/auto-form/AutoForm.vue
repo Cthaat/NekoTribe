@@ -1,6 +1,6 @@
 <script setup lang="ts" generic="T extends ZodObjectOrWrapped">
 import type { FormContext, GenericObject } from 'vee-validate'
-import type { z, ZodAny } from 'zod'
+import type { z, ZodAny } from 'zod/v3'
 import type { Config, ConfigItem, Dependency, Shape } from './interface'
 import { Form } from '@/components/ui/form'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -24,8 +24,7 @@ const { dependencies } = toRefs(props)
 provideDependencies(dependencies)
 
 const shapes = computed(() => {
-  // @ts-expect-error ignore {} not assignable to object
-  const val: { [key in keyof T]: Shape } = {}
+  const val: Record<string, Shape> = {}
   const baseSchema = getObjectFormSchema(props.schema)
   const shape = baseSchema.shape
   Object.keys(shape).forEach((name) => {
@@ -35,7 +34,7 @@ const shapes = computed(() => {
     if (!Array.isArray(options) && typeof options === 'object')
       options = Object.values(options)
 
-    val[name as keyof T] = {
+    val[name] = {
       type: getBaseType(item),
       default: getDefaultValueInZodStack(item),
       options,
@@ -47,11 +46,9 @@ const shapes = computed(() => {
 })
 
 const fields = computed(() => {
-  // @ts-expect-error ignore {} not assignable to object
-  const val: { [key in keyof z.infer<T>]: { shape: Shape, fieldName: string, config: ConfigItem } } = {}
-  for (const key in shapes.value) {
-    const shape = shapes.value[key]
-    val[key as keyof z.infer<T>] = {
+  const val: Record<string, { shape: Shape, fieldName: string, config: ConfigItem }> = {}
+  for (const [key, shape] of Object.entries(shapes.value)) {
+    val[key] = {
       shape,
       config: props.fieldConfig?.[key] as ConfigItem,
       fieldName: key,

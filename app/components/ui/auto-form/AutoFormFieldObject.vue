@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends ZodRawShape">
-import type { ZodAny, ZodObject, ZodRawShape } from 'zod'
+import type { ZodAny, ZodObject, ZodRawShape } from 'zod/v3'
 import type { Config, ConfigItem, Shape } from './interface'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { FormItem } from '@/components/ui/form'
@@ -18,8 +18,7 @@ const props = defineProps<{
 }>()
 
 const shapes = computed(() => {
-  // @ts-expect-error ignore {} not assignable to object
-  const val: { [key in keyof T]: Shape } = {}
+  const val: Record<string, Shape> = {}
 
   if (!props.schema)
     return
@@ -33,7 +32,7 @@ const shapes = computed(() => {
     if (!Array.isArray(options) && typeof options === 'object')
       options = Object.values(options)
 
-    val[name as keyof T] = {
+    val[name] = {
       type: getBaseType(item),
       default: getDefaultValueInZodStack(item),
       options,

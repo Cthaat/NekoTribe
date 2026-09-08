@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
 import {
   CalendarDate,
   type DateValue,
@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { CalendarRoot } from 'reka-ui';
+import { CalendarRoot, type AcceptableValue } from 'reka-ui';
 
 const props = defineProps<{
   modelValue?: DateValue;
@@ -40,7 +40,7 @@ const todayDate = today(getLocalTimeZone());
 const maxYear = computed(() => props.maxYear ?? todayDate.year);
 const minYear = computed(() => props.minYear ?? todayDate.year - 100);
 
-const placeholder = ref<DateValue>(
+const placeholder = shallowRef<DateValue>(
   props.modelValue ?? new CalendarDate(todayDate.year - 18, 1, 1)
 );
 
@@ -72,13 +72,15 @@ const months = computed(() =>
   }))
 );
 
-function onYearChange(value: string | number): void {
+function onYearChange(value: AcceptableValue): void {
+  if (typeof value !== 'string' && typeof value !== 'number') return;
   const year = Number(value);
   if (!Number.isFinite(year)) return;
   placeholder.value = placeholder.value.set({ year });
 }
 
-function onMonthChange(value: string | number): void {
+function onMonthChange(value: AcceptableValue): void {
+  if (typeof value !== 'string' && typeof value !== 'number') return;
   const month = Number(value);
   if (!Number.isFinite(month)) return;
   placeholder.value = placeholder.value.set({ month, day: 1 });
