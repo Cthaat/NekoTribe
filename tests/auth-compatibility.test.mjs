@@ -92,6 +92,8 @@ function database({twoFactor = false, concurrentRefresh = false} = {}) {
         if (sql.includes('refresh_token_hash = :old_refresh_token_hash') && row.refresh_token_hash !== binds.old_refresh_token_hash) return {rowsAffected: 0};
         if (sql.includes('AND refresh_token_hash = :refresh_token_hash') && row.refresh_token_hash !== binds.refresh_token_hash) return {rowsAffected: 0};
         if (sql.includes('AND access_jti = :access_jti') && row.access_jti !== binds.access_jti) return {rowsAffected: 0};
+        if (sql.includes('AND access_jti = :accessJti') && row.access_jti !== binds.accessJti) return {rowsAffected: 0};
+        if (sql.includes('AND access_token_expires_at > CURRENT_TIMESTAMP') && row.access_token_expires_at <= new Date()) return {rowsAffected: 0};
         if (sql.includes('SET revoked_at')) row.revoked = true;
         else if (sql.includes('SET access_jti')) Object.assign(row, binds);
         return {rowsAffected: 1};
@@ -157,6 +159,7 @@ test('login returns matching Cookie/body tokens; body refresh rotates immediatel
   try {
     const login = await f.login(); const first = (await login.json()).data.tokens;
     assertTokens(login, first);
+    assert.equal((await f.request('/api/v2/private', 'GET', undefined, {authorization: `Bearer ${first.access_token}`})).status, 200);
     const now = Date.now; const fixed = now(); Date.now = () => fixed;
     let second, third;
     try {
@@ -167,6 +170,8 @@ test('login returns matching Cookie/body tokens; body refresh rotates immediatel
       assert.notEqual(second.refresh_token, third.refresh_token);
     } finally { Date.now = now; }
     assert.equal((await f.request('/api/v2/auth/tokens/current', 'PATCH', {refresh_token: second.refresh_token})).status, 401);
+    assert.equal((await f.request('/api/v2/private', 'GET', undefined, {authorization: `Bearer ${first.access_token}`})).status, 401);
+    assert.equal((await f.request('/api/v2/private', 'GET', undefined, {authorization: `Bearer ${third.access_token}`})).status, 200);
   } finally { await f.close(); }
 });
 
@@ -213,6 +218,7 @@ for (const mode of ['cookie', 'access-cookie', 'body', 'bearer']) {
         mode === 'cookie' ? {cookie: `refresh_token=${tokens.refresh_token}`} : mode === 'access-cookie' ? {cookie: `access_token=${tokens.access_token}`} : mode === 'bearer' ? {authorization: `Bearer ${tokens.access_token}`} : {});
       assert.equal(response.status, 200); assert.equal(f.db.sessions.get(tokens.session_id).revoked, true);
       assert.equal(response.headers.getSetCookie().filter(cookie => /Max-Age=0/.test(cookie)).length, 2);
+      assert.equal((await f.request('/api/v2/private', 'GET', undefined, {authorization: `Bearer ${tokens.access_token}`})).status, 401);
       assert.equal((await f.request('/api/v2/auth/tokens/current', 'PATCH', {refresh_token: tokens.refresh_token})).status, 401);
     } finally {await f.close();}
   });

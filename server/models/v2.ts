@@ -110,7 +110,7 @@ export function v2MapSelfUser(row: V2DbRecord): V2SelfUser {
 
 export async function v2GetPublicUser(
   connection: oracledb.Connection,
-  viewerId: number,
+  viewerId: number | null,
   userId: number
 ): Promise<V2PublicUser | null> {
   const row = await v2One(
@@ -162,7 +162,7 @@ export async function v2GetPublicUser(
 
 export async function v2RequirePublicUser(
   connection: oracledb.Connection,
-  viewerId: number,
+  viewerId: number | null,
   userId: number
 ): Promise<V2PublicUser> {
   const user = await v2GetPublicUser(
@@ -343,7 +343,7 @@ export async function v2GetPostTags(
 
 export async function v2GetPostMentions(
   connection: oracledb.Connection,
-  viewerId: number,
+  viewerId: number | null,
   postId: number
 ): Promise<V2PublicUser[]> {
   const rows = await v2Rows(
@@ -376,7 +376,7 @@ export async function v2GetPostMentions(
 
 export async function v2MapPost(
   connection: oracledb.Connection,
-  viewerId: number,
+  viewerId: number | null,
   row: V2DbRecord
 ): Promise<V2Post> {
   const postId = v2Number(row.POST_ID);
@@ -493,7 +493,7 @@ function v2NullableNumber(value: unknown): number | null {
 
 export async function v2GetPostById(
   connection: oracledb.Connection,
-  viewerId: number,
+  viewerId: number | null,
   postId: number
 ): Promise<V2Post | null> {
   const row = await v2One(
@@ -514,7 +514,7 @@ export async function v2GetPostById(
 
 export async function v2RequirePostById(
   connection: oracledb.Connection,
-  viewerId: number,
+  viewerId: number | null,
   postId: number
 ): Promise<V2Post> {
   const post = await v2GetPostById(connection, viewerId, postId);

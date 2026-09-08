@@ -25,7 +25,7 @@ interface CommonAuthPayload {
 interface AuthVersionPolicy {
   version: 'v1' | 'v2';
   prefix: string;
-  publicRoutes: RegExp[];
+  publicRoutes: AuthPublicRoute[];
   updateSession: (
     connection: oracledb.Connection,
     payload: CommonAuthPayload,
@@ -37,6 +37,8 @@ interface AuthEventContext {
   auth?: CommonAuthPayload;
   getOracleConnection: () => Promise<oracledb.Connection>;
 }
+
+type AuthPublicRoute = RegExp | { pattern: RegExp; methods: string[] };
 
 const AUTH_POLICIES: AuthVersionPolicy[] = [
   {
@@ -69,11 +71,15 @@ const AUTH_POLICIES: AuthVersionPolicy[] = [
       /^\/api\/v2\/auth\/tokens$/,
       /^\/api\/v2\/auth\/two-factor\/challenges(?:\/[^/]+)?$/,
       /^\/api\/v2\/auth\/tokens\/current$/,
-      /^\/api\/v2\/auth\/password-reset$/
+      /^\/api\/v2\/auth\/password-reset$/,
+      { pattern: /^\/api\/v2\/posts$/, methods: ['GET'] },
+      { pattern: /^\/api\/v2\/posts\/(?:[1-9]\d*|trending)$/, methods: ['GET'] }
     ],
     async updateSession(connection, payload) {
-      if (!payload.sessionId || !payload.jti) return;
-      await connection.execute(
+      if (payload.type !== 'access' || !payload.sessionId || !payload.jti) {
+        throw new Error('Invalid access session payload');
+      }
+      const result = await connection.execute(
         `
         UPDATE n_auth_sessions
         SET last_accessed_at = CURRENT_TIMESTAMP
@@ -81,6 +87,7 @@ const AUTH_POLICIES: AuthVersionPolicy[] = [
           AND session_id = :sessionId
           AND access_jti = :accessJti
           AND revoked_at IS NULL
+          AND access_token_expires_at > CURRENT_TIMESTAMP
         `,
         {
           userId: payload.userId,
@@ -89,6 +96,7 @@ const AUTH_POLICIES: AuthVersionPolicy[] = [
         },
         { autoCommit: true }
       );
+      if (result.rowsAffected !== 1) throw new Error('Access session is no longer active');
     }
   }
 ];
@@ -103,13 +111,14 @@ function getAuthPolicy(
   );
 }
 
-function isPublicRoute(
+function getPublicRoute(
   policy: AuthVersionPolicy,
-  pathname: string
-): boolean {
-  return policy.publicRoutes.some(pattern =>
-    pattern.test(pathname)
-  );
+  pathname: string,
+  method: string
+): AuthPublicRoute | undefined {
+  return policy.publicRoutes.find(route => route instanceof RegExp
+    ? route.test(pathname)
+    : route.pattern.test(pathname) && route.methods.includes(method));
 }
 
 function isLegacyV1ApiEnabled(): boolean {
@@ -212,10 +221,16 @@ export default defineEventHandler(async event => {
       statusMessage: 'Legacy API is disabled'
     });
   }
-  if (isPublicRoute(policy, pathname)) return;
+  const publicRoute = getPublicRoute(policy, pathname, event.method);
+  // Login/refresh/logout own credential handling; stale access cookies must not
+  // prevent those flows. Public posts authenticate credentials when supplied.
+  if (publicRoute instanceof RegExp) return;
 
   const token = extractToken(event);
-  if (!token) throw authError(policy, '请先登录');
+  if (!token) {
+    if (publicRoute) return;
+    throw authError(policy, '请先登录');
+  }
 
   let connection: oracledb.Connection | null = null;
   try {
@@ -224,14 +239,16 @@ export default defineEventHandler(async event => {
       String(runtimeConfig.accessSecret)
     );
     const payload = normalizeAuthPayload(decoded);
-    if (!payload)
+    if (!payload || (policy.version === 'v2' &&
+        (!Number.isSafeInteger(payload.userId) || payload.type !== 'access' ||
+          !payload.sessionId || !payload.jti)))
       throw authError(policy, 'Token无效或已过期');
 
     const context =
       event.context as unknown as AuthEventContext;
-    context.auth = payload;
     connection = await context.getOracleConnection();
     await policy.updateSession(connection, payload, token);
+    context.auth = payload;
   } catch (error) {
     throw authError(policy, 'Token无效或已过期');
   } finally {
