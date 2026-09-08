@@ -50,7 +50,7 @@ const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.
 let passwordHash;
 before(async () => { passwordHash = await bcrypt.hash('test-password', 4); });
 
-function database({twoFactor = false, concurrentRefresh = false} = {}) {
+function database({twoFactor = false, concurrentRefresh = false, concurrentChallenge = false} = {}) {
   const sessions = new Map();
   const challenges = new Map();
   let reads = [];
@@ -73,11 +73,18 @@ function database({twoFactor = false, concurrentRefresh = false} = {}) {
       if (sql.startsWith('INSERT INTO n_auth_two_factor_challenges')) {challenges.set(binds.challenge_id, {...binds}); return {rowsAffected: 1};}
       if (sql.includes('FROM n_auth_two_factor_challenges c')) {
         const row = challenges.get(binds.challenge_id);
-        return rows(row && !row.consumed ? [{USER_ID: 1, USERNAME: 'test', REMEMBER_ME: 0}] : []);
+        const result = rows(row && !row.consumed ? [{USER_ID: 1, USERNAME: 'test', REMEMBER_ME: 0}] : []);
+        if (concurrentChallenge) await new Promise(resolve => {reads.push(resolve); if (reads.length === 2) {reads.forEach(done => done()); reads = [];}});
+        return result;
       }
       if (sql.includes('FROM n_user_two_factor_secrets')) return rows([{ENABLED_AT: new Date(), SECRET_ENCRYPTED: encrypted.toString('base64'), SECRET_IV: Buffer.alloc(12).toString('base64'), SECRET_AUTH_TAG: cipher.getAuthTag().toString('base64')}]);
       if (sql.includes('FROM n_user_two_factor_recovery_codes')) return rows([]);
-      if (sql.startsWith('UPDATE n_auth_two_factor_challenges')) {challenges.get(binds.challenge_id).consumed = true; return {rowsAffected: 1};}
+      if (sql.startsWith('UPDATE n_auth_two_factor_challenges')) {
+        const row = challenges.get(binds.challenge_id);
+        if (sql.includes('AND consumed_at IS NULL') && row.consumed) return {rowsAffected: 0};
+        if (sql.includes('AND expires_at > CURRENT_TIMESTAMP') && row.expires_at <= new Date()) return {rowsAffected: 0};
+        row.consumed = true; return {rowsAffected: 1};
+      }
       if (sql.startsWith('SELECT session_id, user_id')) {
         const row = sessions.get(binds.session_id);
         const result = rows(row && !row.revoked && row.refresh_token_hash === binds.refresh_token_hash && row.refresh_token_expires_at > new Date() ? [{SESSION_ID: row.session_id, USER_ID: row.user_id}] : []);
@@ -206,6 +213,18 @@ test('parallel refresh consumes the stored refresh hash only once', async () => 
     const results = await Promise.all([1, 2].map(() => f.request('/api/v2/auth/tokens/current', 'PATCH', {refresh_token: tokens.refresh_token})));
     assert.deepEqual(results.map(response => response.status).sort(), [200, 401]);
     assert.deepEqual(results.find(response => response.status === 401).headers.getSetCookie(), []);
+  } finally {await f.close();}
+});
+
+test('parallel two-factor completion consumes the challenge once and issues only one session', async () => {
+  const f = await fixture({twoFactor: true, concurrentChallenge: true});
+  try {
+    const challenge = (await (await f.login()).json()).data;
+    const code = f.db.totp();
+    const responses = await Promise.all([1, 2].map(() => f.request('/api/v2/auth/two-factor/challenges', 'POST', {challenge_id: challenge.challenge_id, code})));
+    assert.deepEqual(responses.map(response => response.status).sort(), [200, 401]);
+    assert.equal(f.db.sessions.size, 1);
+    assert.deepEqual(responses.find(response => response.status === 401).headers.getSetCookie(), []);
   } finally {await f.close();}
 });
 

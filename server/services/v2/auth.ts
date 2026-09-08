@@ -1735,15 +1735,18 @@ export async function v2CompleteTwoFactorLogin(
   await v2VerifyTwoFactorCode(connection, userId, code, {
     allowRecoveryCode: true
   });
-  await v2Execute(
+  const consumed = await v2Execute(
     connection,
     `
     UPDATE n_auth_two_factor_challenges
     SET consumed_at = CURRENT_TIMESTAMP
     WHERE challenge_id = :challenge_id
+      AND consumed_at IS NULL
+      AND expires_at > CURRENT_TIMESTAMP
     `,
     { challenge_id: normalizedChallengeId }
   );
+  if (consumed !== 1) v2Unauthorized('双因素验证已过期，请重新登录');
   if (v2Boolean(row.REMEMBER_ME)) {
     await v2TrustTwoFactorDevice(connection, row);
   }
