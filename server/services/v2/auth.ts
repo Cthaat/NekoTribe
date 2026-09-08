@@ -883,16 +883,17 @@ async function v2ConsumeRecoveryCode(
     }
     if (!matched) continue;
 
-    await v2Execute(
+    const consumed = await v2Execute(
       connection,
       `
       UPDATE n_user_two_factor_recovery_codes
       SET used_at = CURRENT_TIMESTAMP
       WHERE recovery_code_id = :recovery_code_id
+        AND used_at IS NULL
       `,
       { recovery_code_id: v2Number(row.RECOVERY_CODE_ID) }
     );
-    return true;
+    return consumed === 1;
   }
 
   return false;

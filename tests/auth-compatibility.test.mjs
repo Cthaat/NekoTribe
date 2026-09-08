@@ -48,12 +48,18 @@ const compiled = await build({
 });
 const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 let passwordHash;
-before(async () => { passwordHash = await bcrypt.hash('test-password', 4); });
+let recoveryHash;
+before(async () => {
+  passwordHash = await bcrypt.hash('test-password', 4);
+  recoveryHash = await bcrypt.hash('ABCDEFGHIJKLMNO', 4);
+});
 
-function database({twoFactor = false, concurrentRefresh = false, concurrentChallenge = false} = {}) {
+function database({twoFactor = false, concurrentRefresh = false, concurrentChallenge = false, concurrentRecovery = false} = {}) {
   const sessions = new Map();
   const challenges = new Map();
   let reads = [];
+  let recoveryReads = 0;
+  let recoveryUsed = false;
   const calls = [];
   const secret = 'JBSWY3DPEHPK3PXP';
   const cipher = crypto.createCipheriv('aes-256-gcm', crypto.createHash('sha256').update(runtime.refreshSecret).digest(), Buffer.alloc(12));
@@ -78,7 +84,15 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
         return result;
       }
       if (sql.includes('FROM n_user_two_factor_secrets')) return rows([{ENABLED_AT: new Date(), SECRET_ENCRYPTED: encrypted.toString('base64'), SECRET_IV: Buffer.alloc(12).toString('base64'), SECRET_AUTH_TAG: cipher.getAuthTag().toString('base64')}]);
-      if (sql.includes('FROM n_user_two_factor_recovery_codes')) return rows([]);
+      if (sql.includes('FROM n_user_two_factor_recovery_codes')) {
+        const result = rows(concurrentRecovery && !recoveryUsed ? [{RECOVERY_CODE_ID: 1, CODE_HASH: recoveryHash}] : []);
+        if (concurrentRecovery && ++recoveryReads <= 2) await new Promise(resolve => {reads.push(resolve); if (reads.length === 2) {reads.forEach(done => done()); reads = [];}});
+        return result;
+      }
+      if (sql.startsWith('UPDATE n_user_two_factor_recovery_codes')) {
+        if (sql.includes('AND used_at IS NULL') && recoveryUsed) return {rowsAffected: 0};
+        recoveryUsed = true; return {rowsAffected: 1};
+      }
       if (sql.startsWith('UPDATE n_auth_two_factor_challenges')) {
         const row = challenges.get(binds.challenge_id);
         if (sql.includes('AND consumed_at IS NULL') && row.consumed) return {rowsAffected: 0};
@@ -225,6 +239,21 @@ test('parallel two-factor completion consumes the challenge once and issues only
     assert.deepEqual(responses.map(response => response.status).sort(), [200, 401]);
     assert.equal(f.db.sessions.size, 1);
     assert.deepEqual(responses.find(response => response.status === 401).headers.getSetCookie(), []);
+  } finally {await f.close();}
+});
+
+test('one recovery code cannot complete two different challenges concurrently or be replayed', async () => {
+  const f = await fixture({twoFactor: true, concurrentRecovery: true});
+  try {
+    const challenges = await Promise.all([1, 2].map(async () => (await (await f.login()).json()).data));
+    assert.notEqual(challenges[0].challenge_id, challenges[1].challenge_id);
+    const responses = await Promise.all(challenges.map(challenge => f.request('/api/v2/auth/two-factor/challenges', 'POST', {challenge_id: challenge.challenge_id, code: 'ABCDE-FGHIJ-KLMNO'})));
+    assert.deepEqual(responses.map(response => response.status).sort(), [200, 401]);
+    assert.equal(f.db.sessions.size, 1);
+    assert.deepEqual(responses.find(response => response.status === 401).headers.getSetCookie(), []);
+    const rejected = challenges[responses.findIndex(response => response.status === 401)];
+    assert.equal((await f.request('/api/v2/auth/two-factor/challenges', 'POST', {challenge_id: rejected.challenge_id, code: 'ABCDE-FGHIJ-KLMNO'})).status, 401);
+    assert.equal(f.db.sessions.size, 1);
   } finally {await f.close();}
 });
 
