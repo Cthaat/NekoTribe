@@ -191,7 +191,7 @@ services:
       DB_INIT_CHECK_TABLE: ${DB_INIT_CHECK_TABLE:-N_USERS}
       SQL_FILE: /opt/oracle/init/neko_tribe-oracle-v2.sql
     volumes:
-      - ./doc/neko_tribe-oracle-v2.sql:/opt/oracle/init/neko_tribe-oracle-v2.sql:ro
+      - ./data/neko_tribe-oracle-v2.sql:/opt/oracle/init/neko_tribe-oracle-v2.sql:ro
       - ./scripts/docker-init-db.sh:/opt/oracle/init/docker-init-db.sh:ro
     entrypoint:
       - /bin/bash

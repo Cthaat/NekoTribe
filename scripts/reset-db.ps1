@@ -32,7 +32,9 @@ function Import-DotEnv {
       ) {
         $Value = $Value.Substring(1, $Value.Length - 2)
       }
-      [Environment]::SetEnvironmentVariable($Name, $Value, 'Process')
+      if ($null -eq [Environment]::GetEnvironmentVariable($Name, 'Process')) {
+        [Environment]::SetEnvironmentVariable($Name, $Value, 'Process')
+      }
     }
   }
 }
@@ -56,6 +58,7 @@ function Test-DockerContainerRunning {
   }
 
   $Names = docker ps --format '{{.Names}}'
+  if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect Docker containers; reset stopped.' }
   return ($Names | Select-String -Pattern "^$([regex]::Escape($Name))$" -Quiet)
 }
 
@@ -81,6 +84,7 @@ function New-ResetSql {
 SET SERVEROUTPUT ON
 SET DEFINE OFF
 WHENEVER SQLERROR EXIT SQL.SQLCODE
+WHENEVER OSERROR EXIT FAILURE ROLLBACK
 
 DECLARE
   PROCEDURE try_switch_container IS
@@ -89,7 +93,7 @@ DECLARE
     DBMS_OUTPUT.PUT_LINE('[OK] switched container to $PdbName');
   EXCEPTION
     WHEN OTHERS THEN
-      DBMS_OUTPUT.PUT_LINE('[WARN] skip container switch: ' || SQLERRM);
+      RAISE;
   END;
 BEGIN
   try_switch_container;
@@ -172,12 +176,14 @@ function Invoke-DockerOracleReset {
     throw 'Failed to copy reset SQL into Oracle container.'
   }
 
-  docker exec -i $Name sh -lc "ORACLE_SID=$OracleSysServiceName sqlplus -s '/ as sysdba' @$Target"
+  $SqlOutput = docker exec -i -e "ORACLE_SID=$OracleSysServiceName" $Name sqlplus -L -s '/ as sysdba' "@$Target"
   if ($LASTEXITCODE -ne 0) {
     throw "Oracle reset failed with exit code $LASTEXITCODE."
   }
+  if (($SqlOutput -join "`n") -match '(ORA-|SP2-|TNS-)\d{4,5}') { throw 'Oracle reset failed; SQL output suppressed.' }
 
-  docker exec $Name sh -lc "rm -f $Target" | Out-Null
+  docker exec $Name rm -f $Target | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Failed to remove temporary reset SQL.' }
 }
 
 function Invoke-LocalSqlplusReset {
@@ -191,11 +197,16 @@ function Invoke-LocalSqlplusReset {
   if (-not $env:ORACLE_PORT) { throw 'ORACLE_PORT is required' }
   if (-not $env:ORACLE_PWD) { throw 'ORACLE_PWD is required for SYSDBA reset' }
 
-  $ConnectString = "sys/$($env:ORACLE_PWD)@$($env:ORACLE_HOST):$($env:ORACLE_PORT)/$OracleSysServiceName as sysdba"
-  sqlplus -s $ConnectString "@$SqlFile"
+  if ($env:ORACLE_PWD -match '["\r\n]' -or $env:ORACLE_HOST -notmatch '^[A-Za-z0-9_.:-]+$' -or $env:ORACLE_PORT -notmatch '^\d+$') {
+    throw 'Unsupported Oracle connection value; reset stopped.'
+  }
+  # Credentials travel through stdin, never argv. Suppress SQLPlus output that could echo CONNECT.
+  $LoginSql = "WHENEVER OSERROR EXIT FAILURE ROLLBACK`nWHENEVER SQLERROR EXIT FAILURE ROLLBACK`nSET ECHO OFF VERIFY OFF DEFINE OFF`nCONNECT sys/`"$($env:ORACLE_PWD)`"@//$($env:ORACLE_HOST):$($env:ORACLE_PORT)/$OracleSysServiceName AS SYSDBA`n@`"$SqlFile`"`nEXIT;"
+  $SqlOutput = $LoginSql | sqlplus -L -s /nolog 2>&1
   if ($LASTEXITCODE -ne 0) {
     throw "Oracle reset failed with exit code $LASTEXITCODE."
   }
+  if (($SqlOutput -join "`n") -match '(ORA-|SP2-|TNS-)\d{4,5}') { throw 'Oracle reset failed; SQL output suppressed.' }
 }
 
 Import-DotEnv -Path '.env'
@@ -214,7 +225,7 @@ Assert-OracleIdentifier -Value $OracleSysServiceName -Name 'OracleSysServiceName
 Assert-OracleIdentifier -Value $OraclePdbName -Name 'OraclePdbName'
 
 Write-Warning 'This will DROP NekoTribe V2 users and tablespaces: neko_app, neko_admin, neko_readonly, neko_data, neko_index, neko_temp.'
-Write-Warning 'All V2 schema objects, seed data, materialized views, grants, and stored code created by doc/neko_tribe-oracle-v2.sql will be removed.'
+Write-Warning 'All V2 schema objects, seed data, materialized views, grants, and stored code created by data/neko_tribe-oracle-v2.sql will be removed.'
 
 if (-not $Force) {
   $Answer = Read-Host 'Type RESET to continue'
