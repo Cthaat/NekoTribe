@@ -11,11 +11,23 @@
 | 安装依赖并开发启动 | `./scripts/dev.ps1` | `sh scripts/dev.sh` |
 | 显式启动 Compose Redis/Oracle 后开发 | `./scripts/dev.ps1 -Dependencies` | `sh scripts/dev.sh --dependencies` |
 | 运行已构建应用 | `./scripts/start.ps1` | `sh scripts/start.sh` |
-| 显式构建并启动 Compose 全栈 | `./scripts/start.ps1 -Compose` | `sh scripts/start.sh --compose` |
+| 显式启动发布镜像 Compose 栈 | `./scripts/start.ps1 -Compose` | `sh scripts/start.sh --compose` |
 
 开发入口调用 `yarn install --frozen-lockfile` 和 `yarn dev`；构建产物入口调用 `yarn start`，请先 `yarn build`。所有子命令失败均中止。入口不自动安装 Node/Yarn，不自动开启 Corepack。自定义监听地址/端口可直接使用 `yarn dev --host 127.0.0.1 --port 31001`；样例 `APP_PORT` 是 Compose 映射端口。
 
 显式 Compose 选项可能操作当前 Compose 项目的服务。执行前核对项目名、端口与数据卷；本轮验收不对原开发服务执行这些选项。
+
+默认 `docker-compose.yml` 使用已发布镜像，不包含尚未发布的本地修复；验证本地源码镜像须明确使用 `docker compose -f docker-compose.local.yml`。两份 Compose 都固定容器内 `HOST=0.0.0.0`、`PORT=3000`，宿主机映射由 `APP_PORT` 控制，不受本机 `HOST`、`PORT` 干扰。
+
+### 在另一台机器运行构建产物
+
+将 `.output`、`scripts/run-nuxt.mjs`、`scripts/runtime-env.mjs` 按原相对目录复制到目标目录，安装 Node 22.12 以上的 Node 22，填写目标机器自己的 `.env`，运行 `node scripts/run-nuxt.mjs start`。这个入口无需目标机器安装 Yarn 或整个源码依赖；操作系统/CPU 不同时必须在目标平台重新构建，不能将 Windows 原生依赖直接复制到 Linux。
+
+生产入口默认读取其项目目录的 `.env`；也可传 `--dotenv path/to/deployment.env`。已有进程环境变量优先于同名 dotenv 值。旧 `ORACLE_*`、`REDIS_*`、认证和 SMTP 配置在启动时转换为 Nuxt 的对应 `NUXT_*` 配置；显式 `NUXT_*` 优先于旧名称。监听使用 `HOST`、`PORT`，跨域使用 `CORS_ALLOWED_ORIGINS` 的精确来源列表。修改配置后重启应用。
+
+`yarn start` 固定生产模式，`yarn dev` 固定开发模式；HTTPS 部署另外设置 `COOKIE_SECURE=true`。Docker 镜像也调用相同 Node 启动入口，容器默认 `HOST=0.0.0.0`。构建阶段不要提供真实私密配置；构建命令预留 4 GiB V8 堆，机器还需容纳工具链、系统与数据服务。
+
+这种映射依据 Nuxt 的[运行时配置约定](https://nuxt.com/docs/4.x/guide/going-further/runtime-config)：构建后的服务不会自动把任意旧环境变量转换为运行时配置，也不会自动读取 `.env`。完整远程部署脚本及多平台镜像仍在 T14/T15 验收。
 
 ## 数据库初始化
 
@@ -44,6 +56,7 @@ SQLPlus 通过 stdin 接收登录信息，密码不进入 argv；SQL 输出被�
 
 ```powershell
 node --test tests/startup-safety.test.mjs tests/startup-powershell-safety.test.mjs
+yarn test
 $env:NEKO_TEST_SHELL_CONTAINER='true'
 node --test tests/startup-shell-safety.test.mjs
 ```

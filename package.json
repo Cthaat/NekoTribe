@@ -3,18 +3,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "nuxt build",
-    "dev": "nuxt dev",
+    "build": "node --max-old-space-size=4096 node_modules/nuxt/bin/nuxt.mjs build",
+    "dev": "node scripts/run-nuxt.mjs dev",
     "generate": "nuxt generate",
-    "preview": "nuxt preview",
-    "start": "nuxt preview",
+    "preview": "node scripts/run-nuxt.mjs start",
+    "start": "node scripts/run-nuxt.mjs start",
     "typecheck": "nuxi typecheck",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "postinstall": "nuxt prepare",
     "tag": "node script/github/github-action.js",
-    "release": "node script/github/github-action.js"
+    "release": "node script/github/github-action.js",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs server/utils/*.test.ts"
   },
   "resolutions": {
     "vue": "3.5.33",
@@ -88,7 +89,7 @@
     "vue-router": "^5.0.6",
     "vue-sonner": "2.0.9",
     "ws": "^8.18.3",
-    "zod": "^4.0.5"
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@iconify-json/radix-icons": "^1.2.2",
@@ -102,6 +103,11 @@
     "@types/sharp": "^0.32.0",
     "@types/ws": "^8.18.1",
     "@vue/language-core": "^3.2.8",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "esbuild": "0.25.5"
+  },
+  "packageManager": "yarn@1.22.22",
+  "engines": {
+    "node": ">=22.12.0 <23"
   }
 }

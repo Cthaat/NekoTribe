@@ -2,6 +2,7 @@
 .git
 .github
 .vscode
+.codex-logs
 
 # Nuxt 构建输出和缓存
 # 我们希望在构建阶段重新生成它们，而不是复制本地的

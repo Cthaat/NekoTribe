@@ -100,7 +100,22 @@ export default defineNuxtConfig({
   },
 
   typescript: {
-    strict: true
+    strict: true,
+    // Typed API responses reference these legacy server declarations.
+    tsConfig: {
+      compilerOptions: { allowImportingTsExtensions: true },
+      files: [
+        '../server/type.d.ts',
+        '../server/api/v1/analytics/type.d.ts',
+        '../server/api/v1/auth/type.d.ts',
+        '../server/api/v1/follow/type.d.ts',
+        '../server/api/v1/hashtags/type.d.ts',
+        '../server/api/v1/interactions/type.d.ts',
+        '../server/api/v1/notifications/type.d.ts',
+        '../server/api/v1/tweets/type.d.ts',
+        '../server/api/v1/users/type.d.ts'
+      ]
+    }
   },
 
   i18n: {
@@ -132,6 +147,9 @@ export default defineNuxtConfig({
 
   nitro: {
     debug: false,
+    typescript: {
+      tsConfig: { compilerOptions: { allowImportingTsExtensions: true } }
+    },
     experimental: {
       websocket: true
     },
@@ -139,78 +157,44 @@ export default defineNuxtConfig({
       // 彻底禁用预渲染功能
       crawlLinks: false,
       routes: []
-    },
-    hooks: {
-      close: () => {
-        const isBuildCommand = process.argv.some(
-          item => item === 'build'
-        );
-
-        if (!isBuildCommand) {
-          return;
-        }
-
-        setTimeout(() => {
-          process.exit(0);
-        }, 500);
-      }
     }
   },
 
-  // 运行时配置，环境变量通过 process.env 传递
+  // Defaults are portable; private deployment values are injected at runtime.
+  // scripts/run-nuxt.mjs maps legacy .env keys to the matching NUXT_* keys.
   runtimeConfig: {
-    // 访问令牌密钥
-    accessSecret: process.env.ACCESS_SECRET,
-    // 访问令牌过期时间
-    accessExpiresIn: process.env.ACCESS_EXPIRES_IN,
-    // Cookie 安全选项
-    cookieSecure: process.env.COOKIE_SECURE === 'true',
-    // 刷新令牌密钥
-    refreshSecret: process.env.REFRESH_SECRET,
-    // 刷新令牌过期时间
-    refreshExpiresIn: process.env.REFRESH_EXPIRES_IN,
-    // 当前运行环境
-    nodeEnv: process.env.NODE_ENV,
-    // Oracle 数据库主机
-    oracleHost: process.env.ORACLE_HOST,
-    // Oracle 数据库端口
-    oraclePort: process.env.ORACLE_PORT,
-    // Oracle SID
-    oracleSid: process.env.ORACLE_SID,
-    // Oracle 服务名
-    oracleServiceName: process.env.ORACLE_SERVICE_NAME,
-    // Oracle 用户名
-    oracleUser: process.env.ORACLE_USER,
-    // Oracle 密码
-    oraclePassword: process.env.ORACLE_PASSWORD,
-    // Oracle 连接池配置
-    oraclePoolMin: process.env.ORACLE_POOL_MIN,
-    oraclePoolMax: process.env.ORACLE_POOL_MAX,
-    oraclePoolIncrement: process.env.ORACLE_POOL_INCREMENT,
-    // Redis 连接信息
-    redisUrl: process.env.REDIS_URL,
-    redisHost: process.env.REDIS_HOST,
-    redisPort: process.env.REDIS_PORT,
-    redisDb: process.env.REDIS_DB,
-    redisPassword: process.env.REDIS_PASSWORD,
-    // 邮箱连接
-    smtpHost: process.env.SMTP_HOST,
-    smtpPort: process.env.SMTP_PORT,
-    smtpUser: process.env.SMTP_USER,
-    smtpPass: process.env.SMTP_PASS,
-    // SentimentFlow 外部情感分析服务
-    sentimentFlowEnabled:
-      process.env.SENTIMENTFLOW_ENABLED === 'true',
-    sentimentFlowBaseUrl:
-      process.env.SENTIMENTFLOW_BASE_URL || '',
-    sentimentFlowTimeoutMs:
-      process.env.SENTIMENTFLOW_TIMEOUT_MS || '10000',
-    nlsLang: process.env.NLS_LANG,
+    accessSecret: '',
+    accessExpiresIn: '900',
+    cookieSecure: false,
+    refreshSecret: '',
+    refreshExpiresIn: '2592000',
+    nodeEnv: '',
+    oracleHost: '',
+    oraclePort: '',
+    oracleSid: '',
+    oracleServiceName: '',
+    oracleUser: '',
+    oraclePassword: '',
+    oraclePoolMin: '2',
+    oraclePoolMax: '10',
+    oraclePoolIncrement: '1',
+    redisUrl: '',
+    redisHost: '',
+    redisPort: '',
+    redisDb: '',
+    redisPassword: '',
+    smtpHost: '',
+    smtpPort: '',
+    smtpUser: '',
+    smtpPass: '',
+    sentimentFlowEnabled: false,
+    sentimentFlowBaseUrl: '',
+    sentimentFlowTimeoutMs: '10000',
+    nlsLang: '',
     public: {
-      wsUrl: process.env.NUXT_PUBLIC_WS_URL || '',
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || '',
-      sentimentFlowEnabled:
-        process.env.SENTIMENTFLOW_ENABLED === 'true'
+      wsUrl: '',
+      apiBase: '',
+      sentimentFlowEnabled: false
     }
   }
 });

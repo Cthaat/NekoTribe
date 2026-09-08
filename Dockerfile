@@ -35,9 +35,10 @@ RUN apk add --no-cache ffmpeg libc6-compat \
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-COPY --from=build /app/.output ./
+COPY --from=build /app/.output ./.output
+COPY scripts/run-nuxt.mjs scripts/runtime-env.mjs ./scripts/
 
 EXPOSE 3000
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["node", "./server/index.mjs"]
+CMD ["node", "scripts/run-nuxt.mjs", "start"]
