@@ -38,6 +38,10 @@ import {
   v2Unprocessable,
   v2UserAgent
 } from '~/server/utils/v2';
+import {
+  buildV2TokenData,
+  resolveV2RefreshToken
+} from '~/server/utils/auth-token-response';
 import { v2RequireSelfUser } from '~/server/models/v2';
 import { v2CreateNotification } from './notifications';
 
@@ -543,7 +547,8 @@ function v2SignRefreshToken(
     },
     String(useRuntimeConfig().refreshSecret),
     {
-      expiresIn: v2RefreshExpiresSeconds()
+      expiresIn: v2RefreshExpiresSeconds(),
+      jwtid: crypto.randomUUID()
     }
   );
 }
@@ -1228,11 +1233,13 @@ async function v2IssueLoginSession(
   return {
     two_factor_required: false,
     user: await v2RequireSelfUser(connection, userId),
-    tokens: {
-      session_id: sessionId,
-      access_token_expires_at: accessExpiresAt.toISOString(),
-      refresh_token_expires_at: refreshExpiresAt.toISOString()
-    }
+    tokens: buildV2TokenData({
+      sessionId,
+      accessToken,
+      refreshToken,
+      accessExpiresAt,
+      refreshExpiresAt
+    })
   };
 }
 
@@ -1756,7 +1763,14 @@ export async function v2RefreshCurrentToken(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2Response<V2TokenData>> {
-  const refreshToken = getCookie(event, 'refresh_token');
+  const refreshCookie = getCookie(event, 'refresh_token');
+  const refreshBody = refreshCookie
+    ? {}
+    : await v2Body(event).catch(() => ({}));
+  const refreshToken = resolveV2RefreshToken(
+    refreshCookie,
+    refreshBody
+  );
   if (!refreshToken) v2Unauthorized();
   const payload = v2VerifyRefreshToken(refreshToken);
   if (!payload?.sessionId) v2Unauthorized();
@@ -1798,7 +1812,7 @@ export async function v2RefreshCurrentToken(
   );
   const newRefreshToken = v2SignRefreshToken(tokenPayload);
 
-  await v2Execute(
+  const rotated = await v2Execute(
     connection,
     `
     UPDATE n_auth_sessions
@@ -1809,52 +1823,72 @@ export async function v2RefreshCurrentToken(
         last_refresh_at = CURRENT_TIMESTAMP,
         last_accessed_at = CURRENT_TIMESTAMP
     WHERE session_id = :session_id
+      AND user_id = :user_id
+      AND refresh_token_hash = :old_refresh_token_hash
+      AND revoked_at IS NULL
+      AND refresh_token_expires_at > CURRENT_TIMESTAMP
     `,
     {
       access_jti: accessJti,
       refresh_token_hash: v2HashToken(newRefreshToken),
       access_token_expires_at: accessExpiresAt,
       refresh_token_expires_at: refreshExpiresAt,
-      session_id: payload.sessionId
+      session_id: payload.sessionId,
+      user_id: payload.userId,
+      old_refresh_token_hash: v2HashToken(refreshToken)
     }
   );
+  if (rotated !== 1) v2Unauthorized();
 
   v2SetAuthCookies(event, newAccessToken, newRefreshToken);
 
-  return v2Ok({
-    session_id: payload.sessionId,
-    access_token_expires_at: accessExpiresAt.toISOString(),
-    refresh_token_expires_at: refreshExpiresAt.toISOString()
-  });
+  return v2Ok(
+    buildV2TokenData({
+      sessionId: payload.sessionId,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      accessExpiresAt,
+      refreshExpiresAt
+    })
+  );
 }
 
 export async function v2LogoutCurrent(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2Response<null>> {
-  const auth = (() => {
-    try {
-      return v2Auth(event);
-    } catch {
-      const refreshToken = getCookie(
-        event,
-        'refresh_token'
-      );
-      return refreshToken
-        ? v2VerifyRefreshToken(refreshToken)
-        : null;
-    }
-  })();
+  // This public route does not receive middleware auth context. Resolve the
+  // supplied credential here, preserving Cookie precedence for browser clients.
+  const refreshCookie = getCookie(event, 'refresh_token');
+  const refreshBody = refreshCookie ? {} : await v2Body(event).catch(() => ({}));
+  const refreshToken = resolveV2RefreshToken(refreshCookie, refreshBody);
+  const accessToken = getCookie(event, 'access_token') ||
+    getHeader(event, 'authorization')?.match(/^Bearer\s+(\S+)$/i)?.[1];
+  const auth = refreshToken
+    ? v2VerifyRefreshToken(refreshToken)
+    : accessToken ? v2VerifyAccessToken(accessToken) : null;
 
-  if (auth?.sessionId) {
+  if (auth?.sessionId &&
+      (refreshToken ? auth.type === 'refresh' : auth.type === 'access' && auth.jti)) {
     await v2Execute(
       connection,
       `
       UPDATE n_auth_sessions
       SET revoked_at = CURRENT_TIMESTAMP
       WHERE session_id = :session_id
+        AND user_id = :user_id
+        AND revoked_at IS NULL
+        AND ${refreshToken
+          ? 'refresh_token_hash = :refresh_token_hash'
+          : 'access_jti = :access_jti'}
       `,
-      { session_id: auth.sessionId }
+      {
+        session_id: auth.sessionId,
+        user_id: auth.userId,
+        ...(refreshToken
+          ? { refresh_token_hash: v2HashToken(refreshToken) }
+          : { access_jti: auth.jti })
+      }
     );
   }
   v2ClearAuthCookies(event);
