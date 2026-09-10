@@ -1,0 +1,11 @@
+{
+  "source_branch": "master",
+  "source_commit": "fb9c5202ed1c4e198165c547966b9c86c9b0cd4f",
+  "source_path": "doc/v2.openapi.json",
+  "sha256": "1be62fe6ea81748fe7e1ba442cfb78edba035160dd86ee98afa7452a09960495",
+  "copied_on": "2026-09-10",
+  "scope": "Versioned snapshot from the Nuxt service. This client does not require sibling backend source files.",
+  "source_worktree_sha256": "7a7ae4961bbe70f93afec5d12cd34a986a9816e90cdfc12a3a52ffdd54a603a4",
+  "source_blob": "bf8088d3a6ce00eb958d4b81ae003f3f40ee1366",
+  "line_endings": "Canonical LF, matching the source Git blob"
+}

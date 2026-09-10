@@ -1,0 +1,5 @@
+# Preserve original generated-file bytes across Windows checkouts.
+/windows/flutter/generated_plugin_registrant.cc text eol=lf
+/windows/flutter/generated_plugin_registrant.h text eol=lf
+/windows/flutter/generated_plugins.cmake text eol=lf
+/contracts/*.json text eol=lf
