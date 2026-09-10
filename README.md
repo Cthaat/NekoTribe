@@ -6,14 +6,16 @@
 
 ## 契约来源
 
-`contracts/v2.openapi.json` 是 `../nuxt/doc/v2.openapi.json` 的逐字节副本，尚不代表 Go 已实现其中任何接口。
+`contracts/v2.openapi.json` 是 `../nuxt/doc/v2.openapi.json` 的内容一致的 LF 规范化副本，尚不代表 Go 已实现其中任何接口。
 
 - 来源仓库路径：`doc/v2.openapi.json`
 - 来源文件最近提交：`9615d4f865579d0e6cb1862561bb63bbbfed2e6c`
-- 源工作区文件及副本 SHA-256：`7a7ae4961bbe70f93afec5d12cd34a986a9816e90cdfc12a3a52ffdd54a603a4`
+- 跨工作区 LF 文件 SHA-256：`1be62fe6ea81748fe7e1ba442cfb78edba035160dd86ee98afa7452a09960495`
+- 来源工作区 CRLF 原文件 SHA-256：`7a7ae4961bbe70f93afec5d12cd34a986a9816e90cdfc12a3a52ffdd54a603a4`
+- 统一 Git blob：`bf8088d3a6ce00eb958d4b81ae003f3f40ee1366`
 - OpenAPI：`3.0.1`；API 版本：`2.0.0`
 
-已确认来源文件经 Git 换行规范化后与上述提交的 blob 一致；这里保留源工作区原字节并禁用契约文件的换行转换。更新契约时，应从审核后的统一来源同步，并同时更新来源提交与 SHA-256，不在各语言工作区自行定义不兼容接口。
+已确认来源文件经 Git 换行规范化后与上述提交的 blob 一致；这里统一使用 LF 换行，与 Nuxt、Rust、Flutter 使用相同 Git blob；来源 CRLF 哈希仅标记本机来源快照，不作为跨机一致性指标。更新契约时，应从审核后的统一来源同步，并同时更新来源提交与 SHA-256，不在各语言工作区自行定义不兼容接口。
 
 ## 后续实现边界
 

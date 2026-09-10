@@ -1,4 +1,4 @@
 * text=auto
 *.md text eol=lf
 *.json text eol=lf
-contracts/v2.openapi.json -text whitespace=cr-at-eol
+contracts/*.json text eol=lf
