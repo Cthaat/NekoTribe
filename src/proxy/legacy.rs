@@ -46,6 +46,12 @@ pub fn build_upstream_url(base_url: &str, uri: &Uri) -> Result<String, ApiError>
 }
 
 pub fn is_known_v2_route(method: &str, path: &str) -> bool {
+    if method.eq_ignore_ascii_case("OPTIONS") {
+        return v2_routes()
+            .iter()
+            .any(|route| route_pattern_matches(&route.pattern, path));
+    }
+
     if path.starts_with("/api/v2/integrations/sentiment-flow") {
         return true;
     }
