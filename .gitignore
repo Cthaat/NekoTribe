@@ -1,73 +1,45 @@
-# Nuxt dev/build outputs
-.output
-.data
-.nuxt
-.nitro
-.cache
-dist
-
-# Node dependencies
-node_modules
-
-# Logs
-logs
+# Miscellaneous
+*.class
 *.log
-
-# Misc
+*.pyc
+*.swp
 .DS_Store
-.fleet
-.idea
-
-# Local env files
-.env
-.env.*
-!.env*.example
-
-# Nuxt dev/build outputs
-.output
-.nuxt
-.nitro
-.cache
-dist
-
-# Node dependencies
-node_modules
-
-# Logs
-logs
-*.log
-
-# Misc
-.DS_Store
-.fleet
-.idea
-
+.atom/
+.build/
+.buildlog/
 .history
+.svn/
+.swiftpm/
+migrate_working_dir/
 
-.vscode
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
 
-public/avatars/*
-public/media/*
-storage/*
-!storage/.gitkeep
-!storage/temp/
-storage/temp/*
-!storage/temp/.gitkeep
-upload
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
 
-temp/*
-temp
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
 
-data/oracle19c-data
-data/oracle-data
+# Symbolication related
+app.*.symbols
 
-SentimentFlow/
-sentimentflow-models/
+# Obfuscation related
+app.*.map.json
 
-.codex
-.codex-logs
-
-*.pdf
-*.pptx
-outputs/
-pptx-build/
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
