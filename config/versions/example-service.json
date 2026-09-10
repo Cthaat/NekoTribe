@@ -1,8 +1,0 @@
-{
-  "serviceName": "example-service",
-  "version": "1.0.0",
-  "tag": "example-service/v1.0.0",
-  "releaseDate": "2025-07-01T00:00:00Z",
-  "buildNumber": "0",
-  "description": "示例服务版本配置文件"
-}
