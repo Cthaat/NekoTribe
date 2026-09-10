@@ -5,8 +5,7 @@ use nekotribe_backend::{
 };
 
 fn load_env() {
-    let _ = dotenvy::from_path("../.env");
-    let _ = dotenvy::dotenv();
+    let _ = dotenvy::from_path(concat!(env!("CARGO_MANIFEST_DIR"), "/.env"));
 }
 
 #[tokio::test]

@@ -1,77 +1,10 @@
-# Nuxt dev/build outputs
-.output
-.data
-.nuxt
-.nitro
-.cache
-dist
-
-# Node dependencies
-node_modules
-
-# Rust build outputs
-target
-backend-rust/target/
-
-# Logs
-logs
-*.log
-
-# Misc
-.DS_Store
-.fleet
-.idea
-
-# Local env files
+/target/
+/.verification/
 .env
 .env.*
-!.env*.example
-
-# Nuxt dev/build outputs
-.output
-.nuxt
-.nitro
-.cache
-dist
-
-# Node dependencies
-node_modules
-
-# Logs
-logs
+!env.example
 *.log
-
-# Misc
+logs/
+.idea/
+.vscode/
 .DS_Store
-.fleet
-.idea
-
-.history
-
-.vscode
-
-public/avatars/*
-public/media/*
-storage/*
-!storage/.gitkeep
-!storage/temp/
-storage/temp/*
-!storage/temp/.gitkeep
-upload
-
-temp/*
-temp
-
-data/oracle19c-data
-data/oracle-data
-
-SentimentFlow/
-sentimentflow-models/
-
-.codex
-.codex-logs
-
-*.pdf
-*.pptx
-outputs/
-pptx-build/

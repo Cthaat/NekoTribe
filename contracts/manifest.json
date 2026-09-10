@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "authority": "Nuxt doc/v2.openapi.json",
+  "sourceCommit": "fb9c5202ed1c4e198165c547966b9c86c9b0cd4f",
+  "contractVersion": "2.0.0",
+  "files": [
+    {
+      "path": "v2.openapi.json",
+      "sourcePath": "doc/v2.openapi.json",
+      "sha256": "7a7ae4961bbe70f93afec5d12cd34a986a9816e90cdfc12a3a52ffdd54a603a4"
+    }
+  ],
+  "note": "Fixed T08 copy; coverage and synchronization registration continue in T11-T13."
+}

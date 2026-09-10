@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 use crate::{app::state::AppState, httpx::errors::ApiError};
 
 const MAX_PROXY_BODY_BYTES: usize = 64 * 1024 * 1024;
-const V2_OPENAPI_JSON: &str = include_str!("../../../doc/v2.openapi.json");
+const V2_OPENAPI_JSON: &str = include_str!("../../contracts/v2.openapi.json");
 static V2_ROUTES: OnceLock<Vec<V2RoutePattern>> = OnceLock::new();
 
 #[derive(Debug, Clone, PartialEq, Eq)]
