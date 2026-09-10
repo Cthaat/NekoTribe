@@ -1,43 +1,33 @@
-FROM node:22-alpine AS deps
+FROM rust:1.95-bookworm AS build
+
+WORKDIR /workspace/backend-rust
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential pkg-config ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY backend-rust/Cargo.toml backend-rust/Cargo.lock ./
+COPY backend-rust/src ./src
+COPY backend-rust/tests ./tests
+COPY doc/v2.openapi.json /workspace/doc/v2.openapi.json
+
+RUN cargo build --release
+
+FROM container-registry.oracle.com/os/oraclelinux:9-slim AS runtime
 
 WORKDIR /app
 
-RUN apk add --no-cache libc6-compat python3 make g++ \
-  && corepack enable
+RUN microdnf install -y oracle-instantclient-release-el9 ca-certificates curl \
+  && microdnf install -y oracle-instantclient19.31-basiclite \
+  && microdnf clean all
 
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
-
-FROM node:22-alpine AS build
-
-WORKDIR /app
-
-ENV NODE_OPTIONS=--max-old-space-size=4096
-
-RUN corepack enable
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN yarn build
-
-FROM node:22-alpine AS runtime
-
-WORKDIR /app
-
-ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV PORT=3000
-ENV STORAGE_PATH=/app/storage
+ENV RUST_BACKEND_PORT=8080
+ENV RUST_BACKEND_DOCKER=true
+ENV LD_LIBRARY_PATH=/usr/lib/oracle/19.31/client64/lib
 
-RUN apk add --no-cache ffmpeg libc6-compat \
-  && mkdir -p /app/storage/temp
+COPY --from=build /workspace/backend-rust/target/release/nekotribe-backend /usr/local/bin/nekotribe-backend
 
-COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+EXPOSE 8080
 
-COPY --from=build /app/.output ./
-
-EXPOSE 3000
-
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["node", "./server/index.mjs"]
+CMD ["nekotribe-backend"]
