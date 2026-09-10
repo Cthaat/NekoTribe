@@ -62,7 +62,7 @@ fn v2_routes() -> &'static [V2RoutePattern] {
 
 fn load_v2_routes() -> Vec<V2RoutePattern> {
     let parsed = serde_json::from_str::<Value>(V2_OPENAPI_JSON)
-        .expect("doc/v2.openapi.json must be valid json");
+        .expect("contracts/v2.openapi.json must be valid json");
     let Some(paths) = parsed.get("paths").and_then(Value::as_object) else {
         return Vec::new();
     };

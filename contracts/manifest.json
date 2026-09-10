@@ -7,8 +7,9 @@
     {
       "path": "v2.openapi.json",
       "sourcePath": "doc/v2.openapi.json",
-      "sha256": "7a7ae4961bbe70f93afec5d12cd34a986a9816e90cdfc12a3a52ffdd54a603a4"
+      "sha256": "1be62fe6ea81748fe7e1ba442cfb78edba035160dd86ee98afa7452a09960495"
     }
   ],
-  "note": "Fixed T08 copy; coverage and synchronization registration continue in T11-T13."
+  "note": "Fixed T08 copy; coverage and synchronization registration continue in T11-T13.",
+  "normalization": "UTF-8 with LF line endings; hash matches the Git source blob bytes."
 }
