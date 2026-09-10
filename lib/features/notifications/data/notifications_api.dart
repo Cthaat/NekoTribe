@@ -25,14 +25,9 @@ class NotificationsApi {
     );
   }
 
-  Future<int> unreadCount() {
-    return _client.requestData<int>(
-      ApiPaths.notificationsReadStatus,
-      decode: (data) {
-        final map = toMap(data);
-        return toInt(map['unread_count']) ?? 0;
-      },
-    );
+  Future<int> unreadCount() async {
+    final page = await list(page: 1, size: 1, unreadOnly: true);
+    return page.total;
   }
 
   Future<void> markRead(List<int> ids) async {

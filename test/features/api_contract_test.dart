@@ -478,6 +478,20 @@ void main() {
   });
 
   group('NotificationsApi v2 contract', () {
+    for (final total in [7, 0]) {
+      test('unread count uses filtered list total ($total)', () async {
+        final recorder = _ApiRecorder(unreadNotificationTotal: total);
+        final api = NotificationsApi(_client(recorder));
+
+        expect(await api.unreadCount(), total);
+        recorder.expectLast(
+          method: 'GET',
+          path: '/api/v2/notifications',
+          query: {'page': 1, 'page_size': 1, 'unread_only': 'true'},
+        );
+      });
+    }
+
     test('notification pages decode v2 list data from envelope meta', () async {
       final recorder = _ApiRecorder();
       final api = NotificationsApi(_client(recorder));
@@ -811,6 +825,9 @@ ApiClient _client(_ApiRecorder recorder) {
 }
 
 class _ApiRecorder implements HttpClientAdapter {
+  _ApiRecorder({this.unreadNotificationTotal = 7});
+
+  final int unreadNotificationTotal;
   final requests = <RequestOptions>[];
 
   @override
@@ -901,6 +918,10 @@ class _ApiRecorder implements HttpClientAdapter {
       return <Object>[_chatGroupJson];
     }
     if (path == '/api/v2/notifications') {
+      if (options.queryParameters['unread_only'] == 'true' &&
+          unreadNotificationTotal == 0) {
+        return <Object>[];
+      }
       return <Object>[_notificationJson];
     }
     if (path == '/api/v2/moderation/settings') {
@@ -1108,6 +1129,15 @@ class _ApiRecorder implements HttpClientAdapter {
   }
 
   Map<String, Object>? _metaFor(RequestOptions options) {
+    if (options.path == '/api/v2/notifications' &&
+        options.queryParameters['unread_only'] == 'true') {
+      return {
+        'page': 1,
+        'page_size': 1,
+        'total': unreadNotificationTotal,
+        'has_next': unreadNotificationTotal > 1,
+      };
+    }
     if (options.path == '/api/v2/posts') {
       return {'page': 1, 'page_size': 20, 'total': 1, 'has_next': false};
     }
