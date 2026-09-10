@@ -1,10 +1,10 @@
-# NekoTribe Rust compatibility backend
+# NekoTribe Rust 兼容后端
 
-This branch contains an independent Rust crate. Business routes currently proxy to the existing Nuxt HTTP service; this is not a completed native Rust business backend. Health endpoints, response helpers, middleware and Oracle/Redis infrastructure are implemented in Rust. WebSocket, authentication and storage integration still depend on the upstream service and deployment routing.
+本分支是独立 Rust 工程。当前业务接口仍通过 HTTP 转发给 Nuxt；已实现 Rust 健康检查、响应工具、中间件以及 Oracle/Redis 基础设施，尚未完成原生业务迁移。
 
-## Build and test
+## 构建与验证
 
-Run from this project root with Rust/Cargo installed:
+在本工程根目录运行：
 
 ```text
 cargo fmt --all -- --check
@@ -13,11 +13,13 @@ cargo test --locked -j 2
 cargo build --locked -j 2
 ```
 
-Oracle connectivity additionally needs a supported Oracle Instant Client library available to the process. Two connectivity tests are ignored by default; they are not evidence of a successful live database/Redis check. Only with explicitly configured isolated test services run `cargo test --locked -j 2 --test connectivity_test -- --ignored`. These tests read only this crate root's `.env`, and never search parent folders.
+Windows 需要 Rust MSVC 工具链及 Visual C++ 链接器。本次机器缺少 `link.exe`，原生 Windows check/test 未能通过；格式检查通过，独立克隆的 Linux check/test/build 已通过。Linux 默认测试为 20 项通过、2 项真实 Oracle/Redis 连通测试忽略；忽略项不等于已验证。
 
-## Configuration and run
+真实 Oracle 连通还需要进程可加载的 Oracle Instant Client。只在显式配置的隔离测试服务上运行 `cargo test --locked -j 2 --test connectivity_test -- --ignored`。这两项测试只读取本工程根 `.env`，不会向父目录寻找配置。
 
-Use `env.example` as a variable reference. Inject the selected variables into your shell/process; the application does not automatically load `.env`. In PowerShell, for example:
+## 配置与启动
+
+参考 `env.example`，把所选变量注入启动进程；应用本身不自动加载 `.env`。PowerShell 示例：
 
 ```powershell
 $env:HOST = '127.0.0.1'
@@ -26,10 +28,17 @@ $env:LEGACY_BACKEND_BASE_URL = 'http://127.0.0.1:30001'
 cargo run --locked -j 2
 ```
 
-An unavailable Nuxt upstream means proxied business requests cannot succeed. Docker runtime uses port 8080 and Docker-specific upstream settings; provide a reachable `DOCKER_LEGACY_BACKEND_BASE_URL` on your existing network. `docker build -t nekotribe-rust:local .` builds only this project. It does not start or initialize Oracle, Redis, Nuxt or any other service. The inherited Nuxt Compose and publishing workflows were removed.
+Nuxt 上游不可用时，代理业务接口无法正常工作。Docker 内监听 8080，需按实际网络设置 `DOCKER_LEGACY_BACKEND_BASE_URL`；`docker build -t nekotribe-rust:local .` 仅构建本工程，不创建或初始化 Oracle、Redis、Nuxt。继承自旧混合分支的 Nuxt Compose 与发布工作流已经移除。
 
-## Contract and history
+## HTTP、文件与实时通信边界
 
-The compile-time contract lives in [contracts/v2.openapi.json](contracts/v2.openapi.json); see [its source manifest](contracts/manifest.json). Nuxt `doc/` remains authoritative. This fixed copy does not require sibling source directories at build or runtime; specification coverage and future synchronization are tracked by T11–T13.
+- 规范内 v2 路由的 OPTIONS 请求转发给 Nuxt，由 Nuxt 精确来源 CORS 策略处理；Rust 不自行放开来源。规范外路径仍返回 404。
+- 既有 SentimentFlow 非 OPTIONS 前缀例外暂时保留；该可选集成预检未覆盖，不表示已经联调。
+- `/storage/**`、`/uploads/**` 的读取依赖 Nuxt 上游。Rust 自身不持有上传目录。
+- 当前 Rust 没有 `/_ws` 路由。客户端必须单独配置 Nuxt 的公共 WebSocket 地址，或使用将 WebSocket 路由到 Nuxt 的统一入口；只改成 Rust 端口不能获得 WebSocket 支持。
 
-Before root extraction, this branch stored the crate in `backend-rust/` and included inherited Nuxt files. That full history, including old migration reports, remains available at commit `ab45d491818ad6a3db3866adf2a2e136be80a49e`. Historical acceptance statements are not current validation results. Native business migration is deferred.
+## 规范与历史
+
+编译期只读取 [contracts/v2.openapi.json](contracts/v2.openapi.json)，来源见 [manifest](contracts/manifest.json)。Nuxt `doc/` 是权威源；本工程持有固定版本副本，不需要兄弟目录源码即可构建运行。规范覆盖核对及同步由 T11–T13 单独推进。
+
+目录拆分前的 `backend-rust/`、继承的 Nuxt 文件及历史迁移报告仍保存在提交 `ab45d491818ad6a3db3866adf2a2e136be80a49e` 的 Git 历史中。旧验收报告不代表本轮验证结果，后续原生业务迁移尚待实施。
