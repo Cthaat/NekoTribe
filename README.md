@@ -9,13 +9,14 @@
 `contracts/v2.openapi.json` 是 `../nuxt/doc/v2.openapi.json` 的内容一致的 LF 规范化副本，尚不代表 Go 已实现其中任何接口。
 
 - 来源仓库路径：`doc/v2.openapi.json`
-- 来源文件最近提交：`9615d4f865579d0e6cb1862561bb63bbbfed2e6c`
-- 跨工作区 LF 文件 SHA-256：`1be62fe6ea81748fe7e1ba442cfb78edba035160dd86ee98afa7452a09960495`
-- 来源工作区 CRLF 原文件 SHA-256：`7a7ae4961bbe70f93afec5d12cd34a986a9816e90cdfc12a3a52ffdd54a603a4`
-- 统一 Git blob：`bf8088d3a6ce00eb958d4b81ae003f3f40ee1366`
+- 来源规范提交：`311f930b42dbbf2cfa64d5d858fab0be4c72739c`
+- 跨工作区 LF 文件 SHA-256：`78588fabac8e6c0c7077e4f4f838aa984e4ab1c3a0d94aa456de18cd83fd2b5d`
+- 本次契约快照 Git blob：`4c89ee26638998af98fd0c8bbf4f5caa621382ff`
 - OpenAPI：`3.0.1`；API 版本：`2.0.0`
 
-已确认来源文件经 Git 换行规范化后与上述提交的 blob 一致；这里统一使用 LF 换行，与 Nuxt、Rust、Flutter 使用相同 Git blob；来源 CRLF 哈希仅标记本机来源快照，不作为跨机一致性指标。更新契约时，应从审核后的统一来源同步，并同时更新来源提交与 SHA-256，不在各语言工作区自行定义不兼容接口。
+完整来源记录在 `contracts/manifest.json`，包括契约版本、审计修订、两个文件的 LF SHA-256、Git blob 和已提交来源。当前两个快照均与上述规范提交的 Git blob 完全一致，`differsFromCommittedSource=false`；该标记会在未来同步未提交来源时变为 true，不能把工作树修订冒称为旧提交的内容。`contracts/runtime-addresses.md` 同步记录地址、鉴权、实时连接、存储与数据隔离约定。更新时从 Nuxt 审核后的来源同步，不能在各语言工作区独立定义不兼容接口。
+
+在 Nuxt 项目执行 `node scripts/contracts.mjs check` 可离线验证本项目，无需任何兄弟工作区；只有显式执行 `node scripts/contracts.mjs check --workspace-root C:/Code/NekoTribe` 才检查四目录副本。审核来源后用 `node scripts/contracts.mjs sync --workspace-root C:/Code/NekoTribe` 同步；sync 需要本地 Git，check 仅依赖 Node 内置模块，不访问网络或启动服务。
 
 ## 后续实现边界
 
