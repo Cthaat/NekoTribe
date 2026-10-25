@@ -119,7 +119,7 @@ class AppConfigLoader {
 
   static const String assetPath = 'assets/config/app_config.json';
 
-  /// 编译期 `--dart-define` 覆盖，依然支持作为最高优先级（CI 部署用）。
+  /// 编译期 `--dart-define` 默认值；用户持久化设置仍拥有更高优先级。
   static const String _envApi = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: '',

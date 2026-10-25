@@ -3,3 +3,5 @@
 /windows/flutter/generated_plugin_registrant.h text eol=lf
 /windows/flutter/generated_plugins.cmake text eol=lf
 /contracts/*.json text eol=lf
+/scripts/*.sh text eol=lf
+/start-web.cmd text eol=crlf

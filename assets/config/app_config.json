@@ -1,34 +1,42 @@
 {
   "defaults": {
-    "presetId": "entry",
-    "apiBaseUrl": "http://localhost:30001",
-    "wsBaseUrl": "ws://localhost:30001",
-    "storageBaseUrl": "http://localhost:30001"
+    "apiBaseUrl": "http://127.0.0.1:3000",
+    "wsBaseUrl": "ws://127.0.0.1:3000",
+    "storageBaseUrl": "http://127.0.0.1:3000",
+    "presetId": "nuxt-local"
   },
   "presets": [
     {
+      "id": "nuxt-local",
+      "label": "Nuxt 本机服务 (3000)",
+      "description": "独立 Nuxt 工程的本机服务；Flutter Web 开发使用固定端口 30004。",
+      "apiBaseUrl": "http://127.0.0.1:3000",
+      "wsBaseUrl": "ws://127.0.0.1:3000",
+      "storageBaseUrl": "http://127.0.0.1:3000"
+    },
+    {
       "id": "entry",
-      "label": "Nuxt 应用 (30001)",
-      "description": "直接连接 Nuxt 应用；API、WebSocket 和存储路径使用同一服务。",
+      "label": "旧 Docker 应用 (30001)",
+      "description": "可选的既有 Docker 应用映射；不代表当前本机 Nuxt 服务。",
       "apiBaseUrl": "http://localhost:30001",
       "wsBaseUrl": "ws://localhost:30001",
       "storageBaseUrl": "http://localhost:30001"
     },
     {
       "id": "nginx-dev",
-      "label": "Nginx 反向代理 (30002)",
-      "description": "通过 Nginx 访问 Nuxt 应用和上传资源。",
+      "label": "旧 Docker Nginx (30002)",
+      "description": "可选的既有 Docker Nginx 入口；使用前核对实际部署。",
       "apiBaseUrl": "http://localhost:30002",
       "wsBaseUrl": "ws://localhost:30002",
       "storageBaseUrl": "http://localhost:30002"
     },
     {
       "id": "android-emulator",
-      "label": "Android Emulator → host 30001",
+      "label": "Android Emulator → host 3000",
       "description": "Maps host machine localhost via 10.0.2.2",
-      "apiBaseUrl": "http://10.0.2.2:30001",
-      "wsBaseUrl": "ws://10.0.2.2:30001",
-      "storageBaseUrl": "http://10.0.2.2:30001"
+      "apiBaseUrl": "http://10.0.2.2:3000",
+      "wsBaseUrl": "ws://10.0.2.2:3000",
+      "storageBaseUrl": "http://10.0.2.2:3000"
     }
   ]
 }
