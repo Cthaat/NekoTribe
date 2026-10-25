@@ -1,0 +1,16 @@
+# Only the Rust compatibility proxy. Nuxt, Oracle and Redis are external services.
+services:
+  rust:
+    build:
+      context: .
+    ports:
+      - "${RUST_PUBLISH_HOST:-127.0.0.1}:${RUST_PUBLISH_PORT:-30003}:8080"
+    environment:
+      HOST: 0.0.0.0
+      RUST_BACKEND_PORT: "8080"
+      RUST_BACKEND_DOCKER: "true"
+      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
+      DOCKER_LEGACY_BACKEND_BASE_URL: "${DOCKER_LEGACY_BACKEND_BASE_URL:-http://host.docker.internal:30001}"
+      RUST_LOG: "${RUST_LOG:-nekotribe_backend=info,tower_http=info}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

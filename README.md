@@ -30,9 +30,21 @@ cargo run --locked -j 2
 
 Nuxt 上游不可用时，代理业务接口无法正常工作。Docker 内监听 8080，需按实际网络设置 `DOCKER_LEGACY_BACKEND_BASE_URL`；`docker build -t nekotribe-rust:local .` 仅构建本工程，不创建或初始化 Oracle、Redis、Nuxt。继承自旧混合分支的 Nuxt Compose 与发布工作流已经移除。
 
+本目录 `compose.yaml` 只定义 Rust 容器，构建上下文为本目录，不挂载或读取兄弟源码。未来需要实际部署时，可复制 `env.example` 为自行保管的配置文件，例如 `.env.deploy`，检查变量后执行：
+
+```text
+docker compose --env-file .env.deploy config --quiet
+docker compose --env-file .env.deploy up -d --build
+```
+
+`RUST_PUBLISH_HOST` / `RUST_PUBLISH_PORT` 控制宿主机发布地址，默认 `127.0.0.1:30003`；容器固定监听 `0.0.0.0:8080`。`DOCKER_LEGACY_BACKEND_BASE_URL` 必须指向容器可访问的既有 Nuxt，默认通过 `host.docker.internal:30001` 访问宿主机；Nuxt 监听地址和防火墙也必须允许来自容器的连接。若使用已有 Docker 网络，请按实际网络配置服务地址及网络接入。Compose 的 `--env-file` 用于变量替换，仅 `environment` 列出的变量传入容器；当前代理启动不连接 Oracle/Redis，所以该文件没有数据库凭证传递或依赖服务定义，也不自动创建 schema。Nuxt 仍需自行配置其已有数据库、Redis 与上传存储。
+
+历史 `.verification/docker-build.log` 已记录完整镜像构建结束（`Successfully built 42350cdba5fe`）；这是修改前的历史证据。本轮只做静态开发与格式检查，新增 Compose 和代理头过滤测试尚未执行，不能据此声称本轮镜像或联调已通过。
+
 ## HTTP、文件与实时通信边界
 
 - 规范内 v2 路由的 OPTIONS 请求转发给 Nuxt，由 Nuxt 精确来源 CORS 策略处理；Rust 不自行放开来源。规范外路径仍返回 404。
+- 代理过滤标准逐跳头及 `Connection` 指定的头；上游 CORS 响应头与多条 `Set-Cookie` 保留。当前请求和响应仍整包缓冲，且 HTTP 客户端仍使用默认重定向策略；流式传输和重定向链上的 Cookie/CORS 行为尚未完成真实联调。
 - 既有 SentimentFlow 非 OPTIONS 前缀例外暂时保留；该可选集成预检未覆盖，不表示已经联调。
 - `/storage/**`、`/uploads/**` 的读取依赖 Nuxt 上游。Rust 自身不持有上传目录。
 - 当前 Rust 没有 `/_ws` 路由。客户端必须单独配置 Nuxt 的公共 WebSocket 地址，或使用将 WebSocket 路由到 Nuxt 的统一入口；只改成 Rust 端口不能获得 WebSocket 支持。

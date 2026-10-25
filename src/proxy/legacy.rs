@@ -120,7 +120,7 @@ async fn forward(state: AppState, request: Request<Body>) -> Result<Response, Ap
         .body(body);
 
     for (name, value) in &parts.headers {
-        if should_forward_request_header(name) {
+        if should_forward_request_header(name, &parts.headers) {
             upstream = upstream.header(name, value);
         }
     }
@@ -141,23 +141,35 @@ async fn forward(state: AppState, request: Request<Body>) -> Result<Response, Ap
     Ok(response)
 }
 
-fn should_forward_request_header(name: &HeaderName) -> bool {
-    !matches!(
-        name.as_str(),
-        "host" | "connection" | "transfer-encoding" | "content-length"
-    )
+fn should_forward_request_header(name: &HeaderName, headers: &HeaderMap) -> bool {
+    *name != header::HOST && should_forward_response_header(name, headers)
 }
 
-fn should_forward_response_header(name: &HeaderName) -> bool {
+fn should_forward_response_header(name: &HeaderName, headers: &HeaderMap) -> bool {
     !matches!(
         name.as_str(),
-        "connection" | "transfer-encoding" | "content-length"
-    )
+        "connection"
+            | "keep-alive"
+            | "proxy-authenticate"
+            | "proxy-authorization"
+            | "proxy-connection"
+            | "te"
+            | "trailer"
+            | "transfer-encoding"
+            | "upgrade"
+            | "content-length"
+    ) && !headers.get_all(header::CONNECTION).iter().any(|value| {
+        value.to_str().is_ok_and(|value| {
+            value
+                .split(',')
+                .any(|token| token.trim().eq_ignore_ascii_case(name.as_str()))
+        })
+    })
 }
 
 fn copy_response_headers(source: &HeaderMap, target: &mut HeaderMap) {
     for (name, value) in source {
-        if should_forward_response_header(name) {
+        if should_forward_response_header(name, source) {
             append_header(target, name, value);
         }
     }
@@ -177,4 +189,65 @@ pub fn legacy_proxy_unavailable() -> Response {
         "legacy backend unavailable for compatibility proxy",
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn proxy_removes_hop_headers_and_all_connection_nominated_headers() {
+        let mut headers = HeaderMap::new();
+        headers.append(
+            header::CONNECTION,
+            HeaderValue::from_static("keep-alive, X-Hop"),
+        );
+        headers.append(header::CONNECTION, HeaderValue::from_static(" x-Other "));
+        for name in [
+            "x-hop",
+            "x-other",
+            "te",
+            "trailer",
+            "upgrade",
+            "proxy-authorization",
+        ] {
+            let name = HeaderName::from_static(name);
+            assert!(!should_forward_request_header(&name, &headers));
+            assert!(!should_forward_response_header(&name, &headers));
+        }
+        assert!(!should_forward_request_header(&header::HOST, &headers));
+        for name in [header::ORIGIN, header::AUTHORIZATION, header::COOKIE] {
+            assert!(should_forward_request_header(&name, &headers));
+        }
+    }
+
+    #[test]
+    fn response_keeps_cors_and_multiple_cookies_but_drops_connection_headers() {
+        let mut source = HeaderMap::new();
+        source.insert(header::CONNECTION, HeaderValue::from_static("X-Hop"));
+        source.insert("x-hop", HeaderValue::from_static("private"));
+        source.insert(
+            header::ACCESS_CONTROL_ALLOW_ORIGIN,
+            HeaderValue::from_static("https://client.example"),
+        );
+        source.insert(header::VARY, HeaderValue::from_static("Origin"));
+        source.append(
+            header::SET_COOKIE,
+            HeaderValue::from_static("a=1; HttpOnly"),
+        );
+        source.append(
+            header::SET_COOKIE,
+            HeaderValue::from_static("b=2; HttpOnly"),
+        );
+        let mut target = HeaderMap::new();
+        copy_response_headers(&source, &mut target);
+        assert!(!target.contains_key(header::CONNECTION));
+        assert!(!target.contains_key("x-hop"));
+        assert_eq!(
+            target[header::ACCESS_CONTROL_ALLOW_ORIGIN],
+            "https://client.example"
+        );
+        assert_eq!(target[header::VARY], "Origin");
+        assert_eq!(target.get_all(header::SET_COOKIE).iter().count(), 2);
+    }
 }
