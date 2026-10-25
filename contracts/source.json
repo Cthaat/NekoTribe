@@ -1,11 +1,38 @@
 {
-  "source_branch": "master",
-  "source_commit": "fb9c5202ed1c4e198165c547966b9c86c9b0cd4f",
-  "source_path": "doc/v2.openapi.json",
-  "sha256": "1be62fe6ea81748fe7e1ba442cfb78edba035160dd86ee98afa7452a09960495",
-  "copied_on": "2026-09-10",
-  "scope": "Versioned snapshot from the Nuxt service. This client does not require sibling backend source files.",
-  "source_worktree_sha256": "7a7ae4961bbe70f93afec5d12cd34a986a9816e90cdfc12a3a52ffdd54a603a4",
-  "source_blob": "bf8088d3a6ce00eb958d4b81ae003f3f40ee1366",
-  "line_endings": "Canonical LF, matching the source Git blob"
+  "schemaVersion": 2,
+  "authority": "Nuxt doc/v2.openapi.json",
+  "contractVersion": "2.0.0",
+  "revision": "t11-route-audit-2026-09-10",
+  "normalization": "UTF-8 without BOM; LF. SHA-256 and Git blob identify exact snapshot bytes.",
+  "source": {
+    "project": "nuxt",
+    "branch": "master",
+    "commit": "311f930b42dbbf2cfa64d5d858fab0be4c72739c"
+  },
+  "files": [
+    {
+      "path": "v2.openapi.json",
+      "sourcePath": "doc/v2.openapi.json",
+      "sha256": "78588fabac8e6c0c7077e4f4f838aa984e4ab1c3a0d94aa456de18cd83fd2b5d",
+      "gitBlob": "4c89ee26638998af98fd0c8bbf4f5caa621382ff",
+      "committedSource": {
+        "commit": "311f930b42dbbf2cfa64d5d858fab0be4c72739c",
+        "gitBlob": "4c89ee26638998af98fd0c8bbf4f5caa621382ff",
+        "sha256": "78588fabac8e6c0c7077e4f4f838aa984e4ab1c3a0d94aa456de18cd83fd2b5d"
+      },
+      "differsFromCommittedSource": false
+    },
+    {
+      "path": "runtime-addresses.md",
+      "sourcePath": "doc/runtime-addresses.md",
+      "sha256": "1fe2ee5462f55c4b516e70602fae611ab77f8027cc1278b8db4da4dc834ccc9a",
+      "gitBlob": "4e7511eb5528b6a915330cca9ba238200858eca8",
+      "committedSource": {
+        "commit": "311f930b42dbbf2cfa64d5d858fab0be4c72739c",
+        "gitBlob": "4e7511eb5528b6a915330cca9ba238200858eca8",
+        "sha256": "1fe2ee5462f55c4b516e70602fae611ab77f8027cc1278b8db4da4dc834ccc9a"
+      },
+      "differsFromCommittedSource": false
+    }
+  ]
 }
