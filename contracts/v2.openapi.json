@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "v2",
-    "description": "NekoTribe v2 final API contract for Apifox import.",
+    "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0"
   },
   "tags": [
@@ -180,14 +180,7 @@
             "description": "服务器内部错误"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "accessTokenCookie": []
-          }
-        ]
+        "security": []
       }
     },
     "/api/v2/auth/otp/verification": {
@@ -318,14 +311,7 @@
             "description": "服务器内部错误"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "accessTokenCookie": []
-          }
-        ]
+        "security": []
       }
     },
     "/api/v2/auth/registration": {
@@ -612,21 +598,14 @@
             "description": "服务器内部错误"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "accessTokenCookie": []
-          }
-        ]
+        "security": []
       }
     },
     "/api/v2/auth/tokens": {
       "post": {
         "summary": "登录并创建会话",
         "deprecated": false,
-        "description": "登录并创建会话",
+        "description": "登录并创建会话\nPublic credential exchange; no existing bearer/access cookie is required. The body returns token strings for native clients and the response sets HttpOnly access_token/refresh_token cookies (SameSite=Lax, Path=/, configurable Secure).",
         "operationId": "post_auth_tokens",
         "tags": [
           "Auth"
@@ -807,12 +786,35 @@
                             "refresh_token_expires_at": {
                               "type": "string",
                               "example": "2026-05-26T01:00:00Z"
+                            },
+                            "access_token": {
+                              "type": "string",
+                              "description": "Signed access JWT returned to native clients; also set as access_token HttpOnly cookie."
+                            },
+                            "refresh_token": {
+                              "type": "string",
+                              "description": "Signed refresh JWT returned to native clients; also set as refresh_token HttpOnly cookie. Rotated on refresh."
                             }
                           },
                           "additionalProperties": false
+                        },
+                        "two_factor_required": {
+                          "type": "boolean",
+                          "description": "False for an issued login session; true when a two-factor challenge must be completed."
+                        },
+                        "challenge_id": {
+                          "type": "string"
+                        },
+                        "account": {
+                          "type": "string"
+                        },
+                        "expires_at": {
+                          "type": "string",
+                          "format": "date-time"
                         }
                       },
-                      "additionalProperties": false
+                      "additionalProperties": false,
+                      "description": "A successful issued session contains two_factor_required=false, user and tokens. A pending 2FA result instead contains two_factor_required=true, challenge_id, account and expires_at; it does not yet issue user/tokens."
                     },
                     "meta": {
                       "type": "object",
@@ -889,21 +891,14 @@
             "description": "服务器内部错误"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "accessTokenCookie": []
-          }
-        ]
+        "security": []
       }
     },
     "/api/v2/auth/tokens/current": {
       "patch": {
         "summary": "刷新当前会话 token",
         "deprecated": false,
-        "description": "刷新当前会话 token",
+        "description": "Refresh the current session using refresh_token cookie, or JSON refresh_token when the cookie is absent. The empty security alternative represents the required JSON credential, not anonymous refresh. Bearer access token alone cannot refresh. The old stored refresh hash is checked and rotated; returns replacement access/refresh tokens and sets both HttpOnly cookies.",
         "operationId": "patch_auth_tokens_current",
         "tags": [
           "Auth"
@@ -911,7 +906,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "Session refreshed; replacement token strings returned and access_token/refresh_token HttpOnly cookies set.",
             "content": {
               "application/json": {
                 "schema": {
@@ -939,6 +934,14 @@
                         "refresh_token_expires_at": {
                           "type": "string",
                           "example": "2026-05-26T01:00:00Z"
+                        },
+                        "access_token": {
+                          "type": "string",
+                          "description": "Signed access JWT returned to native clients; also set as access_token HttpOnly cookie."
+                        },
+                        "refresh_token": {
+                          "type": "string",
+                          "description": "Signed refresh JWT returned to native clients; also set as refresh_token HttpOnly cookie. Rotated on refresh."
                         }
                       },
                       "additionalProperties": false
@@ -951,16 +954,6 @@
                     }
                   },
                   "additionalProperties": false
-                },
-                "example": {
-                  "code": 200,
-                  "message": "success",
-                  "data": {
-                    "session_id": "sess_9d6f",
-                    "access_token_expires_at": "2026-04-26T03:00:00Z",
-                    "refresh_token_expires_at": "2026-05-26T01:00:00Z"
-                  },
-                  "meta": null
                 }
               }
             },
@@ -989,14 +982,34 @@
         },
         "security": [
           {
-            "bearerAuth": []
+            "refreshTokenCookie": []
+          },
+          {}
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Required when no refresh_token cookie is supplied; a present cookie takes precedence.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refresh_token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "refresh_token"
+                ]
+              }
+            }
           }
-        ]
+        }
       },
       "delete": {
         "summary": "退出当前会话",
         "deprecated": false,
-        "description": "退出当前会话",
+        "description": "Resolve refresh_token cookie first, then optional JSON refresh_token; if neither exists, use access_token cookie or Bearer access token. A valid current session credential revokes the matching session. Cookies are cleared; absence of credentials still clears cookies and returns success. Invalid supplied JWT can be rejected by token validation. This public handler owns its credential resolution.",
         "operationId": "delete_auth_tokens_current",
         "tags": [
           "Auth"
@@ -1019,10 +1032,12 @@
                       "example": "logout success"
                     },
                     "data": {
-                      "type": "object",
-                      "additionalProperties": true,
-                      "properties": {},
-                      "nullable": true
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ],
+                      "description": "Always null on successful logout, as returned by v2Null.",
+                      "type": "object"
                     },
                     "meta": {
                       "type": "object",
@@ -1066,9 +1081,31 @@
         },
         "security": [
           {
+            "refreshTokenCookie": []
+          },
+          {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          },
+          {}
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refresh_token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
           }
-        ]
+        }
       }
     },
     "/api/v2/auth/password-reset": {
@@ -1178,14 +1215,7 @@
             "description": "服务器内部错误"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "accessTokenCookie": []
-          }
-        ]
+        "security": []
       }
     },
     "/api/v2/auth/sessions": {
@@ -1966,6 +1996,27 @@
             "bearerAuth": []
           }
         ]
+      },
+      "delete": {
+        "summary": "DELETE /api/v2/users/me",
+        "operationId": "t11_delete_api_v2_users_me",
+        "description": "Existing Nuxt route verified from server/api/v2/users/me.delete.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me.delete.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
       }
     },
     "/api/v2/users/me/avatar": {
@@ -2436,7 +2487,11 @@
                       ]
                     },
                     "meta": {
-                      "type": "null"
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
                   "required": [
@@ -7061,13 +7116,16 @@
                             "type": "string"
                           },
                           "reply_to_post_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "repost_of_post_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "quoted_post_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "media": {
                             "type": "array",
@@ -7099,10 +7157,12 @@
                                   "type": "integer"
                                 },
                                 "duration": {
-                                  "type": "null"
+                                  "type": "number",
+                                  "nullable": true
                                 },
                                 "thumbnail_url": {
-                                  "type": "null"
+                                  "type": "string",
+                                  "nullable": true
                                 },
                                 "alt_text": {
                                   "type": "string"
@@ -7782,13 +7842,16 @@
                           "type": "string"
                         },
                         "reply_to_post_id": {
-                          "type": "null"
+                          "type": "number",
+                          "nullable": true
                         },
                         "repost_of_post_id": {
-                          "type": "null"
+                          "type": "number",
+                          "nullable": true
                         },
                         "quoted_post_id": {
-                          "type": "null"
+                          "type": "number",
+                          "nullable": true
                         },
                         "media": {
                           "type": "array",
@@ -7951,7 +8014,11 @@
                       ]
                     },
                     "meta": {
-                      "type": "null"
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
                   "required": [
@@ -8224,13 +8291,16 @@
                             "type": "string"
                           },
                           "reply_to_post_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "repost_of_post_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "quoted_post_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "media": {
                             "type": "array",
@@ -8262,10 +8332,12 @@
                                   "type": "integer"
                                 },
                                 "duration": {
-                                  "type": "null"
+                                  "type": "number",
+                                  "nullable": true
                                 },
                                 "thumbnail_url": {
-                                  "type": "null"
+                                  "type": "string",
+                                  "nullable": true
                                 },
                                 "alt_text": {
                                   "type": "string"
@@ -9040,13 +9112,16 @@
                           "type": "string"
                         },
                         "reply_to_post_id": {
-                          "type": "null"
+                          "type": "number",
+                          "nullable": true
                         },
                         "repost_of_post_id": {
-                          "type": "null"
+                          "type": "number",
+                          "nullable": true
                         },
                         "quoted_post_id": {
-                          "type": "null"
+                          "type": "number",
+                          "nullable": true
                         },
                         "media": {
                           "type": "array",
@@ -9078,10 +9153,12 @@
                                 "type": "integer"
                               },
                               "duration": {
-                                "type": "null"
+                                "type": "number",
+                                "nullable": true
                               },
                               "thumbnail_url": {
-                                "type": "null"
+                                "type": "string",
+                                "nullable": true
                               },
                               "alt_text": {
                                 "type": "string"
@@ -9185,7 +9262,11 @@
                       ]
                     },
                     "meta": {
-                      "type": "null"
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
                   "required": [
@@ -9388,6 +9469,37 @@
             "bearerAuth": []
           }
         ]
+      },
+      "put": {
+        "summary": "PUT /api/v2/posts/{id}",
+        "operationId": "t11_put_api_v2_posts_id",
+        "description": "Existing Nuxt route verified from server/api/v2/posts/[id].put.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/posts/[id].put.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
       }
     },
     "/api/v2/posts/{id}/replies": {
@@ -10011,13 +10123,15 @@
                             "type": "string"
                           },
                           "reply_to_post_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "repost_of_post_id": {
                             "type": "integer"
                           },
                           "quoted_post_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "media": {
                             "type": "array",
@@ -11458,7 +11572,8 @@
                             ]
                           },
                           "parent_comment_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "root_comment_id": {
                             "type": "integer"
@@ -11771,7 +11886,8 @@
                           ]
                         },
                         "parent_comment_id": {
-                          "type": "null"
+                          "type": "number",
+                          "nullable": true
                         },
                         "root_comment_id": {
                           "type": "integer"
@@ -11830,7 +11946,11 @@
                       ]
                     },
                     "meta": {
-                      "type": "null"
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
                   "required": [
@@ -12428,7 +12548,8 @@
                           "type": "integer"
                         },
                         "thumbnail_url": {
-                          "type": "null"
+                          "type": "string",
+                          "nullable": true
                         },
                         "alt_text": {
                           "type": "string"
@@ -12457,7 +12578,11 @@
                       ]
                     },
                     "meta": {
-                      "type": "null"
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
                   "required": [
@@ -13063,13 +13188,16 @@
                             "type": "string"
                           },
                           "reply_to_post_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "repost_of_post_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "quoted_post_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "media": {
                             "type": "array",
@@ -13101,10 +13229,12 @@
                                   "type": "integer"
                                 },
                                 "duration": {
-                                  "type": "null"
+                                  "type": "number",
+                                  "nullable": true
                                 },
                                 "thumbnail_url": {
-                                  "type": "null"
+                                  "type": "string",
+                                  "nullable": true
                                 },
                                 "alt_text": {
                                   "type": "string"
@@ -13499,7 +13629,11 @@
                       ]
                     },
                     "meta": {
-                      "type": "null"
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
                   "required": [
@@ -13787,7 +13921,8 @@
                             "type": "string"
                           },
                           "resource_id": {
-                            "type": "null"
+                            "type": "number",
+                            "nullable": true
                           },
                           "priority": {
                             "type": "string"
@@ -13796,10 +13931,12 @@
                             "type": "integer"
                           },
                           "read_at": {
-                            "type": "null"
+                            "type": "string",
+                            "nullable": true
                           },
                           "deleted_at": {
-                            "type": "null"
+                            "type": "string",
+                            "nullable": true
                           },
                           "actor": {
                             "type": "object",
@@ -13885,7 +14022,32 @@
                             ]
                           },
                           "metadata": {
-                            "type": "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              {
+                                "type": "array",
+                                "items": {}
+                              },
+                              {
+                                "type": "object",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              }
+                            ]
                           },
                           "created_at": {
                             "type": "string"
@@ -14539,10 +14701,12 @@
                             "type": "string"
                           },
                           "avatar_url": {
-                            "type": "null"
+                            "type": "string",
+                            "nullable": true
                           },
                           "cover_url": {
-                            "type": "null"
+                            "type": "string",
+                            "nullable": true
                           },
                           "owner": {
                             "type": "object",
@@ -14655,13 +14819,16 @@
                                 "type": "boolean"
                               },
                               "role": {
-                                "type": "null"
+                                "type": "string",
+                                "nullable": true
                               },
                               "status": {
-                                "type": "null"
+                                "type": "string",
+                                "nullable": true
                               },
                               "joined_at": {
-                                "type": "null"
+                                "type": "string",
+                                "nullable": true
                               }
                             },
                             "required": [
@@ -14891,10 +15058,12 @@
                           "type": "string"
                         },
                         "avatar_url": {
-                          "type": "null"
+                          "type": "string",
+                          "nullable": true
                         },
                         "cover_url": {
-                          "type": "null"
+                          "type": "string",
+                          "nullable": true
                         },
                         "owner": {
                           "type": "object",
@@ -15051,7 +15220,11 @@
                       ]
                     },
                     "meta": {
-                      "type": "null"
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
                   "required": [
@@ -15195,10 +15368,12 @@
                             "type": "string"
                           },
                           "avatar_url": {
-                            "type": "null"
+                            "type": "string",
+                            "nullable": true
                           },
                           "cover_url": {
-                            "type": "null"
+                            "type": "string",
+                            "nullable": true
                           },
                           "owner": {
                             "type": "object",
@@ -15636,10 +15811,12 @@
                             "type": "string"
                           },
                           "avatar_url": {
-                            "type": "null"
+                            "type": "string",
+                            "nullable": true
                           },
                           "cover_url": {
-                            "type": "null"
+                            "type": "string",
+                            "nullable": true
                           },
                           "owner": {
                             "type": "object",
@@ -16010,10 +16187,12 @@
                           "type": "string"
                         },
                         "avatar_url": {
-                          "type": "null"
+                          "type": "string",
+                          "nullable": true
                         },
                         "cover_url": {
-                          "type": "null"
+                          "type": "string",
+                          "nullable": true
                         },
                         "owner": {
                           "type": "object",
@@ -16126,13 +16305,16 @@
                               "type": "boolean"
                             },
                             "role": {
-                              "type": "null"
+                              "type": "string",
+                              "nullable": true
                             },
                             "status": {
-                              "type": "null"
+                              "type": "string",
+                              "nullable": true
                             },
                             "joined_at": {
-                              "type": "null"
+                              "type": "string",
+                              "nullable": true
                             }
                           },
                           "required": [
@@ -16170,7 +16352,11 @@
                       ]
                     },
                     "meta": {
-                      "type": "null"
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
                   "required": [
@@ -16312,10 +16498,12 @@
                           "type": "string"
                         },
                         "avatar_url": {
-                          "type": "null"
+                          "type": "string",
+                          "nullable": true
                         },
                         "cover_url": {
-                          "type": "null"
+                          "type": "string",
+                          "nullable": true
                         },
                         "owner": {
                           "type": "object",
@@ -16428,13 +16616,16 @@
                               "type": "boolean"
                             },
                             "role": {
-                              "type": "null"
+                              "type": "string",
+                              "nullable": true
                             },
                             "status": {
-                              "type": "null"
+                              "type": "string",
+                              "nullable": true
                             },
                             "joined_at": {
-                              "type": "null"
+                              "type": "string",
+                              "nullable": true
                             }
                           },
                           "required": [
@@ -16472,7 +16663,11 @@
                       ]
                     },
                     "meta": {
-                      "type": "null"
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
                   "required": [
@@ -20654,10 +20849,12 @@
                           "type": "integer"
                         },
                         "invite_code": {
-                          "type": "null"
+                          "type": "string",
+                          "nullable": true
                         },
                         "invite_url": {
-                          "type": "null"
+                          "type": "string",
+                          "nullable": true
                         },
                         "expires_at": {
                           "type": "string"
@@ -20671,7 +20868,11 @@
                       ]
                     },
                     "meta": {
-                      "type": "null"
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
                   "required": [
@@ -21265,10 +21466,12 @@
                               "type": "string"
                             },
                             "avatar_url": {
-                              "type": "null"
+                              "type": "string",
+                              "nullable": true
                             },
                             "cover_url": {
-                              "type": "null"
+                              "type": "string",
+                              "nullable": true
                             },
                             "owner": {
                               "type": "object",
@@ -21519,7 +21722,11 @@
                       ]
                     },
                     "meta": {
-                      "type": "null"
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
                   "required": [
@@ -23768,6 +23975,1024 @@
           }
         ]
       }
+    },
+    "/api/v2/users/me/two-factor": {
+      "delete": {
+        "summary": "DELETE /api/v2/users/me/two-factor",
+        "operationId": "t11_delete_api_v2_users_me_two_factor",
+        "description": "Existing Nuxt route verified from server/api/v2/users/me/two-factor.delete.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me/two-factor.delete.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/groups/{id}/notification-preference": {
+      "get": {
+        "summary": "GET /api/v2/groups/{id}/notification-preference",
+        "operationId": "t11_get_api_v2_groups_id_notification_preference",
+        "description": "Existing Nuxt route verified from server/api/v2/groups/[id]/notification-preference.get.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/groups/[id]/notification-preference.get.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      },
+      "put": {
+        "summary": "PUT /api/v2/groups/{id}/notification-preference",
+        "operationId": "t11_put_api_v2_groups_id_notification_preference",
+        "description": "Existing Nuxt route verified from server/api/v2/groups/[id]/notification-preference.put.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/groups/[id]/notification-preference.put.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/config": {
+      "get": {
+        "summary": "GET /api/v2/integrations/sentiment-flow/config",
+        "operationId": "t11_get_api_v2_integrations_sentiment_flow_config",
+        "description": "Existing Nuxt route verified from server/api/v2/integrations/sentiment-flow/config.get.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/config.get.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/moderation/appeals": {
+      "get": {
+        "summary": "GET /api/v2/moderation/appeals",
+        "operationId": "t11_get_api_v2_moderation_appeals",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/appeals/index.get.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/appeals/index.get.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/moderation/content": {
+      "get": {
+        "summary": "GET /api/v2/moderation/content",
+        "operationId": "t11_get_api_v2_moderation_content",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/content/index.get.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/content/index.get.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/moderation/reports": {
+      "get": {
+        "summary": "GET /api/v2/moderation/reports",
+        "operationId": "t11_get_api_v2_moderation_reports",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/reports/index.get.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/reports/index.get.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/moderation/settings": {
+      "get": {
+        "summary": "GET /api/v2/moderation/settings",
+        "operationId": "t11_get_api_v2_moderation_settings",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/settings/index.get.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/settings/index.get.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      },
+      "patch": {
+        "summary": "PATCH /api/v2/moderation/settings",
+        "operationId": "t11_patch_api_v2_moderation_settings",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/settings/index.patch.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/settings/index.patch.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/moderation/stats": {
+      "get": {
+        "summary": "GET /api/v2/moderation/stats",
+        "operationId": "t11_get_api_v2_moderation_stats",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/stats.get.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/stats.get.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/moderation/users": {
+      "get": {
+        "summary": "GET /api/v2/moderation/users",
+        "operationId": "t11_get_api_v2_moderation_users",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/users/index.get.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/users/index.get.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/users/me/group-invites": {
+      "get": {
+        "summary": "GET /api/v2/users/me/group-invites",
+        "operationId": "t11_get_api_v2_users_me_group_invites",
+        "description": "Existing Nuxt route verified from server/api/v2/users/me/group-invites.get.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me/group-invites.get.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/users/me/likes": {
+      "get": {
+        "summary": "GET /api/v2/users/me/likes",
+        "operationId": "t11_get_api_v2_users_me_likes",
+        "description": "Existing Nuxt route verified from server/api/v2/users/me/likes.get.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me/likes.get.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/users/{id}/analytics/daily": {
+      "get": {
+        "summary": "GET /api/v2/users/{id}/analytics/daily",
+        "operationId": "t11_get_api_v2_users_id_analytics_daily",
+        "description": "Existing Nuxt route verified from server/api/v2/users/[id]/analytics/daily.get.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/[id]/analytics/daily.get.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/groups/{id}/members/{user_id}/roles": {
+      "patch": {
+        "summary": "PATCH /api/v2/groups/{id}/members/{user_id}/roles",
+        "operationId": "t11_patch_api_v2_groups_id_members_user_id_roles",
+        "description": "Existing Nuxt route verified from server/api/v2/groups/[id]/members/[user_id]/roles/index.patch.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/groups/[id]/members/[user_id]/roles/index.patch.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/moderation/appeals/{appeal_id}": {
+      "patch": {
+        "summary": "PATCH /api/v2/moderation/appeals/{appeal_id}",
+        "operationId": "t11_patch_api_v2_moderation_appeals_appeal_id",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/appeals/[appeal_id].patch.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [
+          {
+            "name": "appeal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/appeals/[appeal_id].patch.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/moderation/reports/{report_id}": {
+      "patch": {
+        "summary": "PATCH /api/v2/moderation/reports/{report_id}",
+        "operationId": "t11_patch_api_v2_moderation_reports_report_id",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/reports/[report_id].patch.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/reports/[report_id].patch.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/auth/two-factor/challenges": {
+      "post": {
+        "summary": "POST /api/v2/auth/two-factor/challenges",
+        "operationId": "t11_post_api_v2_auth_two_factor_challenges",
+        "description": "Existing Nuxt route verified from server/api/v2/auth/two-factor/challenges.post.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Completed two-factor login; issues a session and returns the same user/tokens login-success shape as POST /api/v2/auth/tokens."
+          },
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/auth/two-factor/challenges.post.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "challenge_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "challenge_id"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/two-factor/challenges/{id}": {
+      "post": {
+        "summary": "POST /api/v2/auth/two-factor/challenges/{id}",
+        "operationId": "t11_post_api_v2_auth_two_factor_challenges_id",
+        "description": "Existing Nuxt route verified from server/api/v2/auth/two-factor/challenges/[id].post.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Completed two-factor login; issues a session and returns the same user/tokens login-success shape as POST /api/v2/auth/tokens."
+          },
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/auth/two-factor/challenges/[id].post.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/moderation/content/bulk-actions": {
+      "post": {
+        "summary": "POST /api/v2/moderation/content/bulk-actions",
+        "operationId": "t11_post_api_v2_moderation_content_bulk_actions",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/content/bulk-actions.post.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/content/bulk-actions.post.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/moderation/content/{post_id}/actions": {
+      "post": {
+        "summary": "POST /api/v2/moderation/content/{post_id}/actions",
+        "operationId": "t11_post_api_v2_moderation_content_post_id_actions",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/content/[post_id]/actions.post.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/content/[post_id]/actions.post.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/moderation/users/{user_id}/actions": {
+      "post": {
+        "summary": "POST /api/v2/moderation/users/{user_id}/actions",
+        "operationId": "t11_post_api_v2_moderation_users_user_id_actions",
+        "description": "Existing Nuxt route verified from server/api/v2/moderation/users/[user_id]/actions.post.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/users/[user_id]/actions.post.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/reports": {
+      "post": {
+        "summary": "POST /api/v2/reports",
+        "operationId": "t11_post_api_v2_reports",
+        "description": "Existing Nuxt route verified from server/api/v2/reports/index.post.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/reports/index.post.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/users/me/two-factor/confirm": {
+      "post": {
+        "summary": "POST /api/v2/users/me/two-factor/confirm",
+        "operationId": "t11_post_api_v2_users_me_two_factor_confirm",
+        "description": "Existing Nuxt route verified from server/api/v2/users/me/two-factor/confirm.post.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me/two-factor/confirm.post.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/users/me/two-factor/setup": {
+      "post": {
+        "summary": "POST /api/v2/users/me/two-factor/setup",
+        "operationId": "t11_post_api_v2_users_me_two_factor_setup",
+        "description": "Existing Nuxt route verified from server/api/v2/users/me/two-factor/setup.post.ts. This operation records the implemented method/path; detailed body, query and response-data fields have not been exhaustively audited and are intentionally not invented here. Route presence does not establish production readiness.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response and error behavior are supplied by the referenced existing handler. Detailed payload schema remains to be audited."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me/two-factor/setup.post.ts",
+        "x-schema-audit-status": "route-verified-payload-not-exhaustively-audited"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/auth/login": {
+      "post": {
+        "summary": "SentimentFlow proxy: POST /auth/login",
+        "operationId": "t11_proxy_post_api_v2_integrations_sentiment_flow_auth_login",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/predict": {
+      "post": {
+        "summary": "SentimentFlow proxy: POST /predict",
+        "operationId": "t11_proxy_post_api_v2_integrations_sentiment_flow_predict",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/training/start": {
+      "post": {
+        "summary": "SentimentFlow proxy: POST /training/start",
+        "operationId": "t11_proxy_post_api_v2_integrations_sentiment_flow_training_start",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/training/status/{jobId}": {
+      "get": {
+        "summary": "SentimentFlow proxy: GET /training/status/{jobId}",
+        "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_training_status_jobId",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/training/jobs": {
+      "get": {
+        "summary": "SentimentFlow proxy: GET /training/jobs",
+        "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_training_jobs",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/training/cancel/{jobId}": {
+      "post": {
+        "summary": "SentimentFlow proxy: POST /training/cancel/{jobId}",
+        "operationId": "t11_proxy_post_api_v2_integrations_sentiment_flow_training_cancel_jobId",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/models": {
+      "get": {
+        "summary": "SentimentFlow proxy: GET /models",
+        "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_models",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/models/active": {
+      "get": {
+        "summary": "SentimentFlow proxy: GET /models/active",
+        "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_models_active",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      },
+      "put": {
+        "summary": "SentimentFlow proxy: PUT /models/active",
+        "operationId": "t11_proxy_put_api_v2_integrations_sentiment_flow_models_active",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/models/{modelId}": {
+      "delete": {
+        "summary": "SentimentFlow proxy: DELETE /models/{modelId}",
+        "operationId": "t11_proxy_delete_api_v2_integrations_sentiment_flow_models_modelId",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [
+          {
+            "name": "modelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Route parameter; service-level validation is defined by the referenced handler."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/stats/overview": {
+      "get": {
+        "summary": "SentimentFlow proxy: GET /stats/overview",
+        "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_stats_overview",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      }
+    },
+    "/api/v2/integrations/sentiment-flow/admin/users": {
+      "get": {
+        "summary": "SentimentFlow proxy: GET /admin/users",
+        "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_admin_users",
+        "description": "Observed Nuxt/Flutter client operation accepted by the configured Nuxt SentimentFlow proxy. Upstream business availability and payload schemas are not verified by this HTTP route audit. The integration can be disabled (503), misconfigured (500), fail upstream (502), or time out (504). The proxy forwards the upstream body and status without imposing a v2 response envelope.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Upstream response or proxy error; no unverified business schema is asserted."
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "x-implementation-kind": "dynamic-proxy",
+        "x-schema-audit-status": "upstream-business-contract-unverified"
+      }
     }
   },
   "components": {
@@ -23874,10 +25099,18 @@
             "type": "string"
           },
           "data": {
-            "type": "null"
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
           },
           "meta": {
-            "type": "null"
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
           }
         }
       },
@@ -24018,12 +25251,18 @@
             "example": 0
           },
           "last_message": {
-            "allOf": [
+            "anyOf": [
               {
                 "$ref": "#/components/schemas/V2DirectLastMessage"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
               }
-            ],
-            "type": "null"
+            ]
           },
           "created_at": {
             "type": "string",
@@ -24897,7 +26136,11 @@
             }
           },
           "meta": {
-            "type": "null"
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
           }
         }
       },
@@ -24922,7 +26165,11 @@
             "$ref": "#/components/schemas/V2ChatChannel"
           },
           "meta": {
-            "type": "null"
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
           }
         }
       },
@@ -24950,7 +26197,11 @@
             }
           },
           "meta": {
-            "type": "null"
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
           }
         }
       },
@@ -25003,7 +26254,11 @@
             "$ref": "#/components/schemas/V2ChatMessage"
           },
           "meta": {
-            "type": "null"
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
           }
         }
       },
@@ -25028,7 +26283,11 @@
             "$ref": "#/components/schemas/V2ChatReadStatusData"
           },
           "meta": {
-            "type": "null"
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
           }
         }
       },
@@ -25053,9 +26312,109 @@
             "$ref": "#/components/schemas/V2ChatChannelMuteData"
           },
           "meta": {
-            "type": "null"
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
           }
         }
+      },
+      "WsJoinChannelPayload": {
+        "type": "object",
+        "description": "JSON client frame from server/routes/_ws.ts parseClientMessage and channelIdFromData. data.channelId or data.channel_id must coerce to a positive finite number. Channel access is checked separately. Additional fields are accepted; this documents the common client shape, not every JavaScript coercion edge case.",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "chat_join_channel"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "description": "channelId takes precedence unless null or absent; channel_id is the fallback alias.",
+            "properties": {
+              "channelId": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "nullable": true,
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "channel_id": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "channelId"
+                ]
+              },
+              {
+                "required": [
+                  "channel_id"
+                ]
+              }
+            ]
+          }
+        },
+        "x-implementation-source": "server/routes/_ws.ts"
+      },
+      "WsLeaveChannelPayload": {
+        "type": "object",
+        "description": "JSON client frame; shares channel identifier parsing with chat_join_channel in server/routes/_ws.ts.",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "chat_leave_channel"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/WsJoinChannelPayload/properties/data"
+          }
+        },
+        "x-implementation-source": "server/routes/_ws.ts"
+      },
+      "WsPingPayload": {
+        "type": "object",
+        "description": "JSON ping frame. data is optional and ignored by the ping handler in server/routes/_ws.ts. The implementation also accepts a legacy non-JSON text containing ping; that fallback is outside this JSON schema.",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "ping"
+            ]
+          }
+        },
+        "x-implementation-source": "server/routes/_ws.ts"
       },
       "WsErrorEvent": {
         "type": "object",
@@ -25098,12 +26457,20 @@
             "example": "权限不足"
           },
           "data": {
-            "type": "null",
-            "example": null
+            "example": null,
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
           },
           "meta": {
-            "type": "null",
-            "example": null
+            "example": null,
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
           }
         }
       }
@@ -25277,6 +26644,12 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "access_token"
+      },
+      "refreshTokenCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "refresh_token",
+        "description": "Refresh credential; takes precedence over JSON refresh_token when present."
       }
     }
   },
