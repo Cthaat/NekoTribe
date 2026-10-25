@@ -43,3 +43,6 @@ data/oracle19c-data
 storage
 upload
 temp
+
+.test-data/
+.env*.example

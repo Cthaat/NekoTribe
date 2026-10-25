@@ -71,3 +71,4 @@ sentimentflow-models/
 *.pptx
 outputs/
 pptx-build/
+.test-data/
