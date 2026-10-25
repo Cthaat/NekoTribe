@@ -1,0 +1,1236 @@
+{
+  "scope": "Source-grounded repair of 79 invalid OAS 3.0.1 type:null Schema Objects; no service execution.",
+  "standard": "https://spec.openapis.org/oas/v3.0.1.html#schema-object",
+  "semantics": "Null-only schema uses type:object, nullable:true, enum:[null]; enum excludes all non-null objects. This base type does not widen the accepted values. Ref-or-null uses anyOf so allOf does not independently reject null.",
+  "counts": {
+    "onlyNull": 21,
+    "number": 24,
+    "string": 32,
+    "union": 2
+  },
+  "additionalRepair": "Logout successful data already had nullable:true and enum:[null]; added explicit type:object for portable OAS 3.0 behavior.",
+  "records": [
+    {
+      "pointer": "#/paths/~1api~1v2~1users~1me~1settings/patch/responses/200/content/application~1json/schema/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts/get/responses/200/content/application~1json/schema/properties/data/items/properties/reply_to_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts/get/responses/200/content/application~1json/schema/properties/data/items/properties/repost_of_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts/get/responses/200/content/application~1json/schema/properties/data/items/properties/quoted_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts/get/responses/200/content/application~1json/schema/properties/data/items/properties/media/items/properties/duration",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts/get/responses/200/content/application~1json/schema/properties/data/items/properties/media/items/properties/thumbnail_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts/post/responses/200/content/application~1json/schema/properties/data/properties/reply_to_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts/post/responses/200/content/application~1json/schema/properties/data/properties/repost_of_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts/post/responses/200/content/application~1json/schema/properties/data/properties/quoted_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts/post/responses/200/content/application~1json/schema/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1trending/get/responses/200/content/application~1json/schema/properties/data/items/properties/reply_to_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1trending/get/responses/200/content/application~1json/schema/properties/data/items/properties/repost_of_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1trending/get/responses/200/content/application~1json/schema/properties/data/items/properties/quoted_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1trending/get/responses/200/content/application~1json/schema/properties/data/items/properties/media/items/properties/duration",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1trending/get/responses/200/content/application~1json/schema/properties/data/items/properties/media/items/properties/thumbnail_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1{id}/get/responses/200/content/application~1json/schema/properties/data/properties/reply_to_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1{id}/get/responses/200/content/application~1json/schema/properties/data/properties/repost_of_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1{id}/get/responses/200/content/application~1json/schema/properties/data/properties/quoted_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1{id}/get/responses/200/content/application~1json/schema/properties/data/properties/media/items/properties/duration",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1{id}/get/responses/200/content/application~1json/schema/properties/data/properties/media/items/properties/thumbnail_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1{id}/get/responses/200/content/application~1json/schema/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1{id}~1retweets/get/responses/200/content/application~1json/schema/properties/data/items/properties/reply_to_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1{id}~1retweets/get/responses/200/content/application~1json/schema/properties/data/items/properties/quoted_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1{id}~1comments/get/responses/200/content/application~1json/schema/properties/data/items/properties/parent_comment_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1{id}~1comments/post/responses/200/content/application~1json/schema/properties/data/properties/parent_comment_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1posts~1{id}~1comments/post/responses/200/content/application~1json/schema/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1media/post/responses/200/content/application~1json/schema/properties/data/properties/thumbnail_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1media/post/responses/200/content/application~1json/schema/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1tags~1{name}~1posts/get/responses/200/content/application~1json/schema/properties/data/items/properties/reply_to_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1tags~1{name}~1posts/get/responses/200/content/application~1json/schema/properties/data/items/properties/repost_of_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1tags~1{name}~1posts/get/responses/200/content/application~1json/schema/properties/data/items/properties/quoted_post_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1tags~1{name}~1posts/get/responses/200/content/application~1json/schema/properties/data/items/properties/media/items/properties/duration",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1tags~1{name}~1posts/get/responses/200/content/application~1json/schema/properties/data/items/properties/media/items/properties/thumbnail_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1tags~1{name}~1analytics/get/responses/200/content/application~1json/schema/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1notifications/get/responses/200/content/application~1json/schema/properties/data/items/properties/resource_id",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "number",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapPost/v2MapComment/v2MapNotification",
+        "server/types/v2.d.ts: number | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1notifications/get/responses/200/content/application~1json/schema/properties/data/items/properties/read_at",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1notifications/get/responses/200/content/application~1json/schema/properties/data/items/properties/deleted_at",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1notifications/get/responses/200/content/application~1json/schema/properties/data/items/properties/metadata",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "object",
+            "additionalProperties": true
+          },
+          {
+            "type": "array",
+            "items": {}
+          },
+          {
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
+          }
+        ]
+      },
+      "evidence": [
+        "server/types/v2.d.ts: V2Json and V2Notification.metadata",
+        "server/models/v2.ts: v2MapNotification uses v2JsonValue(row.METADATA_JSON)",
+        "server/utils/v2.ts: v2JsonValue"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups/get/responses/200/content/application~1json/schema/properties/data/items/properties/avatar_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups/get/responses/200/content/application~1json/schema/properties/data/items/properties/cover_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups/get/responses/200/content/application~1json/schema/properties/data/items/properties/membership/properties/role",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups/get/responses/200/content/application~1json/schema/properties/data/items/properties/membership/properties/status",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups/get/responses/200/content/application~1json/schema/properties/data/items/properties/membership/properties/joined_at",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups/post/responses/200/content/application~1json/schema/properties/data/properties/avatar_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups/post/responses/200/content/application~1json/schema/properties/data/properties/cover_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups/post/responses/200/content/application~1json/schema/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1popular/get/responses/200/content/application~1json/schema/properties/data/items/properties/avatar_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1popular/get/responses/200/content/application~1json/schema/properties/data/items/properties/cover_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1users~1me~1groups/get/responses/200/content/application~1json/schema/properties/data/items/properties/avatar_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1users~1me~1groups/get/responses/200/content/application~1json/schema/properties/data/items/properties/cover_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1by-slug~1{slug}/get/responses/200/content/application~1json/schema/properties/data/properties/avatar_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1by-slug~1{slug}/get/responses/200/content/application~1json/schema/properties/data/properties/cover_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1by-slug~1{slug}/get/responses/200/content/application~1json/schema/properties/data/properties/membership/properties/role",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1by-slug~1{slug}/get/responses/200/content/application~1json/schema/properties/data/properties/membership/properties/status",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1by-slug~1{slug}/get/responses/200/content/application~1json/schema/properties/data/properties/membership/properties/joined_at",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1by-slug~1{slug}/get/responses/200/content/application~1json/schema/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1{id}/get/responses/200/content/application~1json/schema/properties/data/properties/avatar_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1{id}/get/responses/200/content/application~1json/schema/properties/data/properties/cover_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1{id}/get/responses/200/content/application~1json/schema/properties/data/properties/membership/properties/role",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1{id}/get/responses/200/content/application~1json/schema/properties/data/properties/membership/properties/status",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1{id}/get/responses/200/content/application~1json/schema/properties/data/properties/membership/properties/joined_at",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1{id}/get/responses/200/content/application~1json/schema/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1{id}~1invites/post/responses/200/content/application~1json/schema/properties/data/properties/invite_code",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/services/v2/groups.ts: v2CreateGroupInvite, code = payload.invitee_id ? null : v2InviteCode(), invite_url conditional"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1{id}~1invites/post/responses/200/content/application~1json/schema/properties/data/properties/invite_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/services/v2/groups.ts: v2CreateGroupInvite, code = payload.invitee_id ? null : v2InviteCode(), invite_url conditional"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1{id}~1invites/post/responses/200/content/application~1json/schema/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1invite-codes~1{code}/get/responses/200/content/application~1json/schema/properties/data/properties/group/properties/avatar_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1invite-codes~1{code}/get/responses/200/content/application~1json/schema/properties/data/properties/group/properties/cover_url",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "string",
+        "nullable": true
+      },
+      "evidence": [
+        "server/models/v2.ts: v2MapMedia/v2MapNotification/v2MapGroup",
+        "server/types/v2.d.ts: string | null declarations"
+      ]
+    },
+    {
+      "pointer": "#/paths/~1api~1v2~1groups~1invite-codes~1{code}/get/responses/200/content/application~1json/schema/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/components/schemas/V2NullResponse/properties/data",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/components/schemas/V2NullResponse/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/components/schemas/V2DirectConversation/properties/last_message",
+      "before": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2DirectLastMessage"
+          }
+        ],
+        "type": "null"
+      },
+      "after": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/V2DirectLastMessage"
+          },
+          {
+            "type": "object",
+            "nullable": true,
+            "enum": [
+              null
+            ]
+          }
+        ]
+      },
+      "evidence": [
+        "server/services/v2/chat.ts: v2DirectLastMessage returns null when LAST_MESSAGE_ID is absent, otherwise object",
+        "server/types/v2.d.ts: V2DirectConversation.last_message"
+      ]
+    },
+    {
+      "pointer": "#/components/schemas/V2ChatChannelListResponse/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/components/schemas/V2ChatChannelResponse/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/components/schemas/V2ChatMemberListResponse/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/components/schemas/V2ChatMessageResponse/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/components/schemas/V2ChatReadStatusResponse/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/components/schemas/V2ChatChannelMuteResponse/properties/meta",
+      "before": {
+        "type": "null"
+      },
+      "after": {
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/components/schemas/V2ErrorResponse/properties/data",
+      "before": {
+        "type": "null",
+        "example": null
+      },
+      "after": {
+        "example": null,
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    },
+    {
+      "pointer": "#/components/schemas/V2ErrorResponse/properties/meta",
+      "before": {
+        "type": "null",
+        "example": null
+      },
+      "after": {
+        "example": null,
+        "type": "object",
+        "nullable": true,
+        "enum": [
+          null
+        ]
+      },
+      "evidence": [
+        "server/utils/v2.ts: v2Ok defaults meta to null; v2Null and v2Throw return data/meta null",
+        "Referenced non-paginated response handlers use the default null metadata"
+      ]
+    }
+  ],
+  "verification": {
+    "validator": "Existing local ajv@6.12.6",
+    "options": {
+      "nullable": true,
+      "unknownFormats": "ignore"
+    },
+    "schemas": 79,
+    "assertions": 304,
+    "result": "passed",
+    "limitation": "Validates repaired Schema Objects against null/non-null values. Not a full service runtime or full OpenAPI document validator."
+  }
+}

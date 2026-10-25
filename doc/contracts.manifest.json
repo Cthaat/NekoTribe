@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "authority": "Nuxt doc/v2.openapi.json",
+  "contractVersion": "2.0.0",
+  "revision": "t11-route-audit-2026-09-10",
+  "normalization": "UTF-8 without BOM; LF. SHA-256 and Git blob identify exact snapshot bytes.",
+  "source": {
+    "project": "nuxt",
+    "branch": "master",
+    "commit": "311f930b42dbbf2cfa64d5d858fab0be4c72739c"
+  },
+  "files": [
+    {
+      "path": "v2.openapi.json",
+      "sourcePath": "doc/v2.openapi.json",
+      "sha256": "78588fabac8e6c0c7077e4f4f838aa984e4ab1c3a0d94aa456de18cd83fd2b5d",
+      "gitBlob": "4c89ee26638998af98fd0c8bbf4f5caa621382ff",
+      "committedSource": {
+        "commit": "311f930b42dbbf2cfa64d5d858fab0be4c72739c",
+        "gitBlob": "4c89ee26638998af98fd0c8bbf4f5caa621382ff",
+        "sha256": "78588fabac8e6c0c7077e4f4f838aa984e4ab1c3a0d94aa456de18cd83fd2b5d"
+      },
+      "differsFromCommittedSource": false
+    },
+    {
+      "path": "runtime-addresses.md",
+      "sourcePath": "doc/runtime-addresses.md",
+      "sha256": "1fe2ee5462f55c4b516e70602fae611ab77f8027cc1278b8db4da4dc834ccc9a",
+      "gitBlob": "4e7511eb5528b6a915330cca9ba238200858eca8",
+      "committedSource": {
+        "commit": "311f930b42dbbf2cfa64d5d858fab0be4c72739c",
+        "gitBlob": "4e7511eb5528b6a915330cca9ba238200858eca8",
+        "sha256": "1fe2ee5462f55c4b516e70602fae611ab77f8027cc1278b8db4da4dc834ccc9a"
+      },
+      "differsFromCommittedSource": false
+    }
+  ]
+}
