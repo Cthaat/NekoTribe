@@ -99,6 +99,20 @@ test('matching moderation constraints need no DROP even with alternate names', a
   await applySchema(db);
   assert(!ddl(db.state.calls).some(c => /DROP CONSTRAINT/.test(c.sql)));
 });
+
+test('Oracle implicit NOT NULL predicates coexist with target checks without accepting other restrictions', async () => {
+  const db = schemaFixture();
+  const table = db.state.tables.get('N_MODERATION_REPORTS');
+  table.constraints.push({ CONSTRAINT_NAME: 'SYS_C_FIXTURE', CONSTRAINT_TYPE: 'C',
+    SEARCH_CONDITION_VC: '"TARGET_TYPE" IS NOT NULL', STATUS: 'ENABLED', VALIDATED: 'VALIDATED',
+    columns: ['TARGET_TYPE'], referencedColumns: [] });
+  await applySchema(db);
+  assert(!ddl(db.state.calls).some(c => /DROP CONSTRAINT/.test(c.sql)));
+  table.constraints.push({ CONSTRAINT_NAME: 'CUSTOM_TARGET', CONSTRAINT_TYPE: 'C',
+    SEARCH_CONDITION_VC: "target_type <> 'group_post'", STATUS: 'ENABLED', VALIDATED: 'VALIDATED',
+    columns: ['TARGET_TYPE'], referencedColumns: [] });
+  await assert.rejects(applySchema(db), /Incompatible/);
+});
 test('known legacy constraint is replaced only after validated replacement; unknown predicates refuse', async () => {
   const db = schemaFixture();
   const table = db.state.tables.get('N_MODERATION_REPORTS');

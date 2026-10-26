@@ -171,7 +171,15 @@ async function inspect(adapter, step) {
     const matches = actual.some(c => matchingConstraint(expected, c));
     const legacy = expected.legacyExpression && actual.some(c => c.CONSTRAINT_TYPE === 'C' && normalizeExpression(c.SEARCH_CONDITION_VC) === normalizeExpression(expected.legacyExpression));
     if (!matches || legacy) repair = true;
-    if (expected.legacyExpression && actual.some(c => c.CONSTRAINT_TYPE === 'C' && c.columns.includes('TARGET_TYPE') && !matchingConstraint(expected, c) && normalizeExpression(c.SEARCH_CONDITION_VC) !== normalizeExpression(expected.legacyExpression))) return 'incompatible';
+    if (expected.legacyExpression && actual.some(c => {
+      if (c.CONSTRAINT_TYPE !== 'C' || !c.columns.includes('TARGET_TYPE') || matchingConstraint(expected, c)) return false;
+      const expression = normalizeExpression(c.SEARCH_CONDITION_VC);
+      // Oracle exposes NOT NULL as a separate check constraint. Its nullability
+      // was already verified above; it is not an additional target restriction.
+      const requiredNotNull = same(c.columns, ['TARGET_TYPE']) && expression === 'TARGET_TYPEISNOTNULL'
+        && step.columns.some(column => column.name === 'TARGET_TYPE' && !column.nullable);
+      return !requiredNotNull && expression !== normalizeExpression(expected.legacyExpression);
+    })) return 'incompatible';
   }
   return repair ? 'repair' : 'ready';
 }
