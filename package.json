@@ -11,6 +11,8 @@
     "typecheck": "nuxi typecheck",
     "contracts:check": "node scripts/contracts.mjs check",
     "contracts:sync": "node scripts/contracts.mjs sync",
+    "parity:check": "node scripts/parity.mjs check",
+    "parity:release": "node scripts/parity.mjs release",
     "deployment": "node scripts/deploy.mjs",
     "db:plan": "node scripts/migrate-db.mjs --plan",
     "db:check": "node scripts/migrate-db.mjs --check",
