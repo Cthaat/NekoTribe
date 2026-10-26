@@ -7,7 +7,7 @@
 | Docker Desktop | 官方安装包，Docker Inc Authenticode Valid；静默安装成功，引擎 29.9.2 | 父目录 `.codex-logs/docker-setup`，官方安装日志 |
 | Compose | v5.6.1；两种主栈 HOST/PORT 展开验证通过 | `.codex-logs/20261026-compose-config.log` |
 | Nuxt 类型检查 | 最后修复后退出 0 | `.codex-logs/20261026-final-typecheck.log` |
-| Node 全量回归 | 134 项全部通过、0 失败、0 跳过，含真实 Compose 与 Linux 脚本容器检查 | `.codex-logs/20261026-final-node-complete.log` |
+| Node 全量回归 | 139 项全部通过、0 失败、0 跳过，含真实 Compose、Linux 脚本容器和 5 项真实 Git 恢复保护检查 | `.codex-logs/20261026-final-with-restore.log` |
 | Flutter | 134 项测试通过，analyze 无问题，Web 构建成功 | Flutter `.codex-logs/20261026-flutter-{test,analyze,web-build}.log` |
 | 规范 | 162 operations / 149 明确 v2 路由 / 12 有限代理；原 39 项字段审核缺口为 0 | `node scripts/contracts.mjs check --workspace-root ..` |
 | Nuxt Linux 镜像 | 干净依赖安装及生产构建通过；两次运行问题修复后均重新构建 | `.codex-logs/20261026-nuxt-{docker-build,docker-rebuild,cors-build}.log` |
@@ -19,6 +19,12 @@
 | 单一网关 | 31005：Nuxt 页面 + Rust API/文件 + Nuxt WS，同源登录、媒体附加和认证实时连接通过 | `.codex-logs/20261026-gateway-rust-http.log` |
 | 私信与通知 | 两个虚构账号经网关：HTTP 落库、WS 私信、WS 通知与收件箱一致；默认陌生人拒绝仍有效 | `.codex-logs/20261026-realtime-gateway.log` |
 | 浏览器 | Nuxt 页面经 Rust 网关显示时间线；Flutter 真实登录并切换 Rust API、Nuxt WS 后读取同一批帖子 | `.codex-logs/20261026-nuxt-rust-gateway.png`、Flutter `.codex-logs/20261026-flutter-rust-feed.png` |
+| Windows 生产构建 | `yarn build --dotenv .env.example` 退出 0，更新本机产物；没有将日常私有配置作为构建输入 | `.codex-logs/20261026-windows-production-build.log` |
+| 干净源码构建 | 从 bundle 新恢复、Git 状态为空的 Nuxt 目录构建 Linux 镜像通过 | `.codex-logs/20261026-clean-bundle-build.log` |
+| Windows 混合运行 | 本机生产 Node 31000 + Docker Oracle/Redis，认证、文件、刷新退出、WS 全流程通过 | `.codex-logs/20261026-hybrid-runtime-31000.log` |
+| 干净源码运行 | bundle 镜像 31001 运行同样的完整流程通过 | `.codex-logs/20261026-hybrid-runtime-31001.log` |
+| 多实例一致性 | Windows 发 HTTP 私信，Linux 实例经 Redis/WS 推送私信和通知；四入口读取相同文件 SHA-256 | `.codex-logs/20261026-realtime-cross-instance.log`、`20261026-shared-files.json` |
+| 干净恢复 | Windows 四 worktree 与契约检查通过；Alpine Linux 新恢复后 36 项部署/启动检查通过 | `.workspace-exports/verification-20261026`、`.codex-logs/20261026-linux-clean-bundle.log` |
 
 Flutter Web 构建报告 secure_storage_web 等依赖的 Wasm dry-run 警告；本次通过的是默认 JavaScript Web 构建，不声称 Wasm 通过。Windows 桌面版继续按用户选择暂缓 C++ 工具链。
 
@@ -37,11 +43,19 @@ Oracle 19c 官方镜像 `container-registry.oracle.com/database/enterprise:19.3.
 
 Rust 保持已约定的业务兼容代理，不声称原生业务已补齐。它没有 `/_ws` 路由：直连 API 时 WS 单独指向 Nuxt；希望所有配置只填一个根地址时使用本次已实测的网关。Go 仍仅预留。
 
+浏览器真实观察到 Flutter 经 Rust 入口 `GET notifications 401 → PATCH tokens/current 200 → GET notifications 200`，页面保持登录并展示通知。脱敏网络证据保存在 [flutter-refresh.json](2026-10-26-runtime/flutter-refresh.json)，不包含请求头、正文或 URL 查询参数。Nuxt 网关页面重新加载后也维持登录并显示已上传媒体。
+
+干净源码构建的源 HEAD 单独核对为 `7d8ca0ab185893e1df23f4d29cb18f28c8d6d135`，源码 bundle SHA-256 为 `0cc8598ea3bd777babc5db60992589cf8fecddbe731a651f3bdc6d8eb29c2026`。BuildKit 因 Windows 副本的 owner 边界未自动捕获 Git 来源字段并发出警告，构建本身成功；不将该警告隐藏或表述成完整供应链证明。镜像标识另存 `20261026-image-ids.json`。
+
+Windows 与容器共用的上传路径仅为新建 `.test-data/20261026-shared-storage`，内容由本轮测试卷复制而来；原测试卷仍保留，日常存储目录没有搬移。本机测试通过独立 dotenv 与明确的子进程环境覆盖连接地址，包含空 Redis URL/密码，不依赖调用者的全局数据库环境。
+
+为其他机器提供校验哈希、核对四分支并恢复 worktree 的独立入口，见 [workspace-restore.md](../architecture/workspace-restore.md)。已有目标、损坏 bundle、路径越界、缺少分支和提交不符均在创建目标前拒绝；私有管理文件不复制。源码恢复套件的实际跨平台执行与完整系统部署验收分别记录，不能互相替代。
+
 ## 尚未验收
 
 - Oracle 19c 版本与原开发数据升级/恢复：官方拉取需要账户授权，Free 不能替代。
 - 另一台实际 Windows/Linux 机器及其网络、TLS、持久化与操作权限；本机 Linux 容器不能冒称跨机器完整验收。
 - Flutter Windows 桌面工具链、移动设备、Wasm，以及未纳入本次核心流程的深层业务和 SentimentFlow 训练/模型流程。
-- 干净 Git bundle 恢复与 Linux 可移植性检查继续执行，最终证据将在本记录追加。
+- 恢复套件的打包与双平台入口验证继续执行，结果写入套件 `verification.json`；这也不替代另一台真实服务器。
 
 日志和测试私有环境位于各工作区忽略的 `.codex-logs`；本文件只记录可核对结果，不提交密码、令牌或运行数据库。总目标保持进行中。

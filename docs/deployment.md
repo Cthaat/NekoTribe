@@ -4,6 +4,8 @@
 
 ## 取得本轮代码
 
+若取得源码恢复套件，先阅读套件 README，再运行 `node restore-workspace.mjs 新目录`（Windows 也可 `restore.cmd 新目录`，Linux `sh restore.sh 新目录`）。它按 manifest 校验哈希与四个分支，并建立正确 worktree 和管理文件；不覆盖已有目标，不自动安装框架或启动数据库。设计与边界见 [恢复入口](architecture/workspace-restore.md)。
+
 四个工程分别位于 `master`、`Rust`、`Flutter`、`codex/go`。本地提交尚未发布，不能把远程旧版本视为本轮交付。已提交后可以在 Nuxt 目录导出给另一台机器：
 
 ```text

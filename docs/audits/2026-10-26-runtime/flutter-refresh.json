@@ -1,0 +1,66 @@
+{
+  "scenario": "Flutter Web on Rust API: expired access token, refresh and retry",
+  "date": "2026-10-26",
+  "events": [
+    {
+      "event": "Network.requestWillBeSent",
+      "url": "http://127.0.0.1:31003/api/v2/notifications",
+      "method": "GET"
+    },
+    {
+      "event": "Network.requestWillBeSent",
+      "url": "http://127.0.0.1:31003/api/v2/notifications",
+      "method": "OPTIONS"
+    },
+    {
+      "event": "Network.responseReceived",
+      "url": "http://127.0.0.1:31003/api/v2/notifications",
+      "status": 204
+    },
+    {
+      "event": "Network.responseReceived",
+      "url": "http://127.0.0.1:31003/api/v2/notifications",
+      "status": 401
+    },
+    {
+      "event": "Network.requestWillBeSent",
+      "url": "http://127.0.0.1:31003/api/v2/auth/tokens/current",
+      "method": "PATCH"
+    },
+    {
+      "event": "Network.requestWillBeSent",
+      "url": "http://127.0.0.1:31003/api/v2/auth/tokens/current",
+      "method": "OPTIONS"
+    },
+    {
+      "event": "Network.responseReceived",
+      "url": "http://127.0.0.1:31003/api/v2/auth/tokens/current",
+      "status": 204
+    },
+    {
+      "event": "Network.responseReceived",
+      "url": "http://127.0.0.1:31003/api/v2/auth/tokens/current",
+      "status": 200
+    },
+    {
+      "event": "Network.requestWillBeSent",
+      "url": "http://127.0.0.1:31003/api/v2/notifications",
+      "method": "GET"
+    },
+    {
+      "event": "Network.responseReceived",
+      "url": "http://127.0.0.1:31003/api/v2/notifications",
+      "status": 200
+    },
+    {
+      "event": "Network.requestWillBeSent",
+      "url": "http://127.0.0.1:31003/api/v2/notifications",
+      "method": "GET"
+    },
+    {
+      "event": "Network.responseReceived",
+      "url": "http://127.0.0.1:31003/api/v2/notifications",
+      "status": 200
+    }
+  ]
+}
