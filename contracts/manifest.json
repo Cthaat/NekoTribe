@@ -2,35 +2,35 @@
   "schemaVersion": 2,
   "authority": "Nuxt doc/v2.openapi.json",
   "contractVersion": "2.0.0",
-  "revision": "t11-route-audit-2026-09-10",
+  "revision": "2026-10-25-source-payloads",
   "normalization": "UTF-8 without BOM; LF. SHA-256 and Git blob identify exact snapshot bytes.",
   "source": {
     "project": "nuxt",
     "branch": "master",
-    "commit": "311f930b42dbbf2cfa64d5d858fab0be4c72739c"
+    "commit": "4d9167e6ac3052b81a09353055eda38abe2773a7"
   },
   "files": [
     {
       "path": "v2.openapi.json",
       "sourcePath": "doc/v2.openapi.json",
-      "sha256": "78588fabac8e6c0c7077e4f4f838aa984e4ab1c3a0d94aa456de18cd83fd2b5d",
-      "gitBlob": "4c89ee26638998af98fd0c8bbf4f5caa621382ff",
+      "sha256": "a9f5f96b026cfd97a77299b0f69cd1260e4a64daf0f20b7924052370b33ec1f7",
+      "gitBlob": "67cf285269fb84de9d0d6c4196b1f8d497dcd4eb",
       "committedSource": {
-        "commit": "311f930b42dbbf2cfa64d5d858fab0be4c72739c",
-        "gitBlob": "4c89ee26638998af98fd0c8bbf4f5caa621382ff",
-        "sha256": "78588fabac8e6c0c7077e4f4f838aa984e4ab1c3a0d94aa456de18cd83fd2b5d"
+        "commit": "4d9167e6ac3052b81a09353055eda38abe2773a7",
+        "gitBlob": "67cf285269fb84de9d0d6c4196b1f8d497dcd4eb",
+        "sha256": "a9f5f96b026cfd97a77299b0f69cd1260e4a64daf0f20b7924052370b33ec1f7"
       },
       "differsFromCommittedSource": false
     },
     {
       "path": "runtime-addresses.md",
       "sourcePath": "doc/runtime-addresses.md",
-      "sha256": "1fe2ee5462f55c4b516e70602fae611ab77f8027cc1278b8db4da4dc834ccc9a",
-      "gitBlob": "4e7511eb5528b6a915330cca9ba238200858eca8",
+      "sha256": "52d5ce6b3aebf3ea8883b0a895fc41445a6839f8834fe01c70602410613c650e",
+      "gitBlob": "1a4460f080206b9e06616bac3f36686927758306",
       "committedSource": {
-        "commit": "311f930b42dbbf2cfa64d5d858fab0be4c72739c",
-        "gitBlob": "4e7511eb5528b6a915330cca9ba238200858eca8",
-        "sha256": "1fe2ee5462f55c4b516e70602fae611ab77f8027cc1278b8db4da4dc834ccc9a"
+        "commit": "4d9167e6ac3052b81a09353055eda38abe2773a7",
+        "gitBlob": "1a4460f080206b9e06616bac3f36686927758306",
+        "sha256": "52d5ce6b3aebf3ea8883b0a895fc41445a6839f8834fe01c70602410613c650e"
       },
       "differsFromCommittedSource": false
     }
