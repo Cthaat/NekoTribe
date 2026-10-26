@@ -9,7 +9,7 @@
 `contracts/v2.openapi.json` 是 `../nuxt/doc/v2.openapi.json` 的内容一致的 LF 规范化副本，尚不代表 Go 已实现其中任何接口。
 
 - 来源仓库路径：`doc/v2.openapi.json`
-- 来源规范提交：`4d9167e6ac3052b81a09353055eda38abe2773a7`
+- 来源规范提交：`55e20c27303f14c5695e17d18c8f4b5307b8b754`
 - 跨工作区 LF 文件 SHA-256：`a9f5f96b026cfd97a77299b0f69cd1260e4a64daf0f20b7924052370b33ec1f7`
 - 本次契约快照 Git blob：`67cf285269fb84de9d0d6c4196b1f8d497dcd4eb`
 - OpenAPI：`3.0.1`；API 版本：`2.0.0`
