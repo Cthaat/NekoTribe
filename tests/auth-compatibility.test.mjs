@@ -11,6 +11,7 @@ import { build } from 'esbuild';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { createApp, createRouter, defineEventHandler, setResponseHeader, toNodeListener } from 'h3';
+import { schemaFixture } from './helpers/schema-fixture.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -55,6 +56,7 @@ before(async () => {
 });
 
 function database({twoFactor = false, concurrentRefresh = false, concurrentChallenge = false, concurrentRecovery = false} = {}) {
+  const schema = schemaFixture({ baseline: true });
   const sessions = new Map();
   const challenges = new Map();
   let reads = [];
@@ -70,7 +72,8 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
       const sql = raw.replace(/\s+/g, ' ').trim();
       calls.push({sql, binds});
       const rows = values => ({rows: values});
-      if (sql.startsWith('CREATE ')) return {rowsAffected: 0};
+      const metadata = schema.query(sql, binds);
+      if (metadata !== undefined) return rows(metadata);
       if (sql.includes('WHERE email = :account')) return rows([{USER_ID: 1, USERNAME: 'test', PASSWORD_HASH: passwordHash, STATUS: 'active', IS_ACTIVE: 1}]);
       if (sql.includes('AS two_factor_enabled')) return rows([{TWO_FACTOR_ENABLED: Number(twoFactor), ENABLED_AT: twoFactor ? new Date() : null}]);
       if (sql.startsWith('SELECT COUNT')) return rows([{TOTAL: 1}]);

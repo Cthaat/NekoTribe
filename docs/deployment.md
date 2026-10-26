@@ -53,7 +53,15 @@ node scripts/deploy.mjs up --mode dependencies
 node scripts/deploy.mjs status --mode dependencies
 ```
 
-这些命令本身不会初始化数据库。首次独立空库的初始化步骤见下一节；已有开发数据不要重新导入。宿主机连接使用 `ORACLE_HOST/PORT`、`REDIS_HOST/PORT`；容器服务内部使用 `DOCKER_ORACLE_HOST/PORT` 和 `DOCKER_REDIS_*`。
+这些命令本身不会初始化数据库。首次独立空库的初始化步骤见下一节；已有开发数据不要重新导入。结构检查与增量升级统一使用下述显式迁移工具，业务请求不再临时创建结构。宿主机连接使用 `ORACLE_HOST/PORT`、`REDIS_HOST/PORT`；容器服务内部使用 `DOCKER_ORACLE_HOST/PORT` 和 `DOCKER_REDIS_*`。
+
+```text
+node scripts/migrate-db.mjs --plan
+node scripts/migrate-db.mjs --check --dotenv .env
+node scripts/migrate-db.mjs --apply --dotenv .env
+```
+
+默认/`--plan` 只显示离线步骤，不读取凭据或加载驱动。`--check` 只查询结构；`--apply` 才增量修改并登记版本。连接必须是目标 schema 所有者，管理员需明确授予迁移所需建表/序列权限及 `EXECUTE ON SYS.DBMS_LOCK`，工具不会自动提权。已有序列不重置、已有设置不覆盖；DDL 隐式提交，失败后停止并按已完成步骤恢复，不能承诺整批事务回滚。完整设计及权限见 [schema-migrations.md](architecture/schema-migrations.md)。
 
 ## 完整源码容器栈
 
@@ -69,19 +77,21 @@ node scripts/deploy.mjs logs --mode dependencies
 
 ```text
 node scripts/deploy.mjs init-db --mode source
+node scripts/deploy.mjs migrate-db --mode source
 node scripts/deploy.mjs up --mode source
 node scripts/deploy.mjs status --mode source
 node scripts/deploy.mjs logs --mode source
 node scripts/deploy.mjs stop --mode source
 ```
 
-`init-db` 是单独的显式动作，通过 `run --rm -e DB_INIT_ALLOW_EMPTY=true db-init` 进入现有保护逻辑；普通 `up` 不传此开关。已有 `N_USERS` 会跳过基线，残留/部分初始化会拒绝执行。基线固定开发 schema、账号和表空间路径，不是任意生产库的通用迁移器；外部生产 schema 应由管理员迁移。完整规则见 [startup-safety.md](startup-safety.md)。
+`init-db` 是单独的显式动作，通过 `run --rm -e DB_INIT_ALLOW_EMPTY=true db-init` 进入现有保护逻辑；普通 `up` 不传此开关。已有 `N_USERS` 会跳过基线，残留/部分初始化会拒绝执行。`migrate-db` 使用一次性 app 容器执行增量迁移，`--no-deps` 不自动启动应用依赖；先确保 Oracle 已就绪且迁移权限已明确授予。它不会执行整份基线。基线固定开发 schema、账号和表空间路径，不是任意生产库的通用迁移器。完整规则见 [startup-safety.md](startup-safety.md)。
 
 未安装 Node 的 Docker 主机也可使用对应命令：
 
 ```text
 docker compose --env-file .env -p nekotribe -f docker-compose.local.yml up -d redis oracle19c
 docker compose --env-file .env -p nekotribe -f docker-compose.local.yml run --rm -e DB_INIT_ALLOW_EMPTY=true db-init
+docker compose --env-file .env -p nekotribe -f docker-compose.local.yml run --rm --no-deps --build --entrypoint node app scripts/migrate-db.mjs --apply
 docker compose --env-file .env -p nekotribe -f docker-compose.local.yml up -d --build
 ```
 
@@ -98,7 +108,7 @@ node scripts/deploy.mjs plan --mode external --env .env.external --project nekot
 node scripts/deploy.mjs up --mode external --env .env.external --project nekotribe-external
 ```
 
-此文件仅定义 app，没有数据库、Redis、db-init 或依赖自动替代服务；初始化动作在该模式被拒绝。文件存储挂载到独立明确的 `STORAGE_ROOT_DIR`；分机后给 `BASE_URL` 或 `STORAGE_CDN_BASE_URL` 设置浏览器可访问地址。发布地址默认 loopback；需要其他机器访问时设置 `APP_BIND_ADDRESS=0.0.0.0`，并安排目标机网络和 TLS 入口。数据库和 Redis 默认仅发布 loopback，分机依赖的网络策略由对应主机管理。
+此文件仅定义 app，没有数据库、Redis、db-init 或依赖自动替代服务；整库初始化动作在该模式被拒绝。已有外部 schema 如需兼容升级，只能在管理员确认目标、备份和授权后显式执行 `migrate-db --mode external --env .env.external --project nekotribe-external`；普通启动不会执行迁移。文件存储挂载到独立明确的 `STORAGE_ROOT_DIR`；分机后给 `BASE_URL` 或 `STORAGE_CDN_BASE_URL` 设置浏览器可访问地址。发布地址默认 loopback；需要其他机器访问时设置 `APP_BIND_ADDRESS=0.0.0.0`，并安排目标机网络和 TLS 入口。数据库和 Redis 默认仅发布 loopback，分机依赖的网络策略由对应主机管理。
 
 ## 同一个公共入口切换 Nuxt / Rust
 
@@ -118,7 +128,7 @@ Nginx 模板仅替换两个上游环境变量，保留 Nginx 自身变量；WebS
 
 `.env.test.example` 是独立完整测试栈的样例。复制为 `.env.test` 后生成独立测试签名密钥，确认端口和路径，再通过 `--env .env.test --project nekotribe-test` 管理测试实例。其 Oracle/Redis 使用新实例和新命名卷，上传位于 `.test-data/storage`，不使用原 `../data/oracle-data` 或 `../storage`。
 
-先 `up --mode dependencies`，再只针对新空测试库显式 `init-db`，最后 `up --mode source`。不要把测试文件配到日常实例名；不同端口不等于数据隔离。外部测试环境必须额外确认数据库/schema、Redis 资源和上传目录均隔离，helper 不把任意外部资源声明为安全测试目标。
+先 `up --mode dependencies`，再只针对新空测试库显式 `init-db`，授权后 `migrate-db`，最后 `up --mode source`；每一步都传同一组 `--env .env.test --project nekotribe-test`。宿主机迁移使用 `node scripts/migrate-db.mjs --apply --dotenv .env.test`。不要把测试文件配到日常实例名；不同端口不等于数据隔离。外部测试环境必须额外确认数据库/schema、Redis 资源和上传目录均隔离，helper 不把任意外部资源声明为安全测试目标。
 
 ## 最后验收范围
 

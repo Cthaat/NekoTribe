@@ -12,11 +12,11 @@ const files = {
   external: 'docker-compose.external.yml',
   dependencies: 'docker-compose.local.yml'
 };
-const actions = new Set(['plan', 'up', 'stop', 'status', 'logs', 'build', 'init-db']);
+const actions = new Set(['plan', 'up', 'stop', 'status', 'logs', 'build', 'init-db', 'migrate-db']);
 
 // Planning reads configuration only; execution requires an explicit action.
 export function planDeployment({ root = projectRoot, action = 'plan', mode = 'source', envFile = '.env', project, env = process.env } = {}) {
-  if (!Object.hasOwn(files, mode) || !actions.has(action)) throw new Error('Use plan/up/stop/status/logs/build/init-db and source/image/external/dependencies.');
+  if (!Object.hasOwn(files, mode) || !actions.has(action)) throw new Error('Use plan/up/stop/status/logs/build/init-db/migrate-db and source/image/external/dependencies.');
   const environmentPath = resolve(root, envFile);
   let parsed;
   try { parsed = parseEnv(readFileSync(environmentPath, 'utf8')); }
@@ -26,7 +26,7 @@ export function planDeployment({ root = projectRoot, action = 'plan', mode = 'so
   if (!/^[a-z0-9][a-z0-9_-]*$/.test(projectName)) throw new Error('Compose project must use lowercase letters, digits, underscores or hyphens.');
   if (action === 'build' && ['image', 'dependencies'].includes(mode)) throw new Error('This mode has no application source build; use source or external.');
   if (action === 'init-db' && mode === 'external') throw new Error('External dependencies are managed externally; no database initialization is provided.');
-  if (mode === 'external' && ['up', 'build'].includes(action)) {
+  if (mode === 'external' && ['up', 'build', 'migrate-db'].includes(action)) {
     const runtime = resolveRuntimeEnvironment(values, 'start');
     const oracleHost = runtime.NUXT_ORACLE_HOST?.trim();
     if (!oracleHost || ['localhost', '127.0.0.1', '::1'].includes(oracleHost.toLowerCase())) {
@@ -51,7 +51,8 @@ export function planDeployment({ root = projectRoot, action = 'plan', mode = 'so
     status: [...base, 'ps', ...services],
     logs: [...base, 'logs', '--tail', '100', '-f', ...services],
     build: [...base, 'build', 'app'],
-    'init-db': [...base, 'run', '--rm', '-e', 'DB_INIT_ALLOW_EMPTY=true', 'db-init']
+    'init-db': [...base, 'run', '--rm', '-e', 'DB_INIT_ALLOW_EMPTY=true', 'db-init'],
+    'migrate-db': [...base, 'run', '--rm', '--no-deps', ...(mode !== 'image' ? ['--build'] : []), '--entrypoint', 'node', 'app', 'scripts/migrate-db.mjs', '--apply']
   };
   return { mode, action, project: projectName, envFile: environmentPath, composeFile: files[mode], args: commands[action], ...(action === 'plan' ? { preview: ['docker', ...commands.up] } : {}), childEnv: { ...values, ENV_FILE: environmentPath } };
 }

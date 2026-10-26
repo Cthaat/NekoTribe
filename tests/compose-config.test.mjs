@@ -12,6 +12,7 @@ test('Compose keeps container listeners stable when local HOST and PORT differ',
       cwd: root, encoding: 'utf8', windowsHide: true,
       env: { ...process.env, ENV_FILE: './.env.example', HOST: '127.0.0.1', PORT: '31999' }
     });
+    assert.ifError(result.error);
     assert.equal(result.status, 0, 'Compose configuration must parse successfully');
     const app = JSON.parse(result.stdout).services.app;
     assert.equal(app.environment.HOST, '0.0.0.0');

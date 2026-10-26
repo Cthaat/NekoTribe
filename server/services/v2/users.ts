@@ -1,3 +1,4 @@
+import { requireFeatureSchema } from '~/server/database/readiness';
 import type { H3Event } from 'h3';
 import type { File, Files } from 'formidable';
 import bcrypt from 'bcrypt';
@@ -519,103 +520,10 @@ function v2MapSettings(
   };
 }
 
-let userSettingsSchemaReady = false;
-
-const USER_SETTINGS_AI_COLUMNS = [
-  {
-    name: 'AI_SENTIMENT_ENABLED',
-    sql: `
-    ALTER TABLE n_user_settings ADD (
-      ai_sentiment_enabled NUMBER(1) DEFAULT 0 NOT NULL
-        CHECK (ai_sentiment_enabled IN (0, 1))
-    )
-    `
-  },
-  {
-    name: 'AI_SENTIMENT_MODEL_ID',
-    sql: `
-    ALTER TABLE n_user_settings ADD (
-      ai_sentiment_model_id VARCHAR2(128)
-    )
-    `
-  },
-  {
-    name: 'AI_SENTIMENT_RETURN_PROBABILITIES',
-    sql: `
-    ALTER TABLE n_user_settings ADD (
-      ai_sentiment_return_probabilities NUMBER(1) DEFAULT 1 NOT NULL
-        CHECK (ai_sentiment_return_probabilities IN (0, 1))
-    )
-    `
-  },
-  {
-    name: 'AI_SENTIMENT_INCLUDE_METADATA',
-    sql: `
-    ALTER TABLE n_user_settings ADD (
-      ai_sentiment_include_metadata NUMBER(1) DEFAULT 0 NOT NULL
-        CHECK (ai_sentiment_include_metadata IN (0, 1))
-    )
-    `
-  },
-  {
-    name: 'AI_SENTIMENT_TOP_K',
-    sql: `
-    ALTER TABLE n_user_settings ADD (
-      ai_sentiment_top_k NUMBER(2) DEFAULT 3 NOT NULL
-        CHECK (ai_sentiment_top_k BETWEEN 1 AND 10)
-    )
-    `
-  }
-];
-
-function isColumnAlreadyExistsError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    /ORA-01430|already exists/i.test(error.message)
-  );
-}
-
 async function v2EnsureSettingsSchema(
   connection: oracledb.Connection
 ): Promise<void> {
-  if (userSettingsSchemaReady) {
-    return;
-  }
-
-  const rows = await v2Rows(
-    connection,
-    `
-    SELECT column_name
-    FROM user_tab_columns
-    WHERE table_name = 'N_USER_SETTINGS'
-      AND column_name IN (
-        'AI_SENTIMENT_ENABLED',
-        'AI_SENTIMENT_MODEL_ID',
-        'AI_SENTIMENT_RETURN_PROBABILITIES',
-        'AI_SENTIMENT_INCLUDE_METADATA',
-        'AI_SENTIMENT_TOP_K'
-      )
-    `
-  );
-  const existing = new Set(
-    rows.map(row => v2String(row.COLUMN_NAME).toUpperCase())
-  );
-
-  for (const column of USER_SETTINGS_AI_COLUMNS) {
-    if (existing.has(column.name)) {
-      continue;
-    }
-
-    try {
-      await v2Execute(connection, column.sql);
-    } catch (error) {
-      if (!isColumnAlreadyExistsError(error)) {
-        throw error;
-      }
-    }
-  }
-
-  userSettingsSchemaReady = true;
+  await requireFeatureSchema(connection, 'user-settings');
 }
 
 async function v2EnsureSettings(

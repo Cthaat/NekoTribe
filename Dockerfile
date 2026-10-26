@@ -37,6 +37,8 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 COPY --from=build /app/.output ./.output
 COPY scripts/run-nuxt.mjs scripts/runtime-env.mjs ./scripts/
+COPY scripts/migrate-db.mjs ./scripts/
+COPY server/database/schema.mjs server/database/schema-definition.mjs ./server/database/
 
 EXPOSE 3000
 

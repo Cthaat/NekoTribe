@@ -9,6 +9,7 @@ import path from 'node:path';
 import { build } from 'esbuild';
 import jwt from 'jsonwebtoken';
 import { createApp, createRouter, defineEventHandler, toNodeListener } from 'h3';
+import { schemaFixture } from './helpers/schema-fixture.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -49,7 +50,12 @@ const compiled = await build({
 const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text + '\n//# sourceURL=isolated-posts-bundle.mjs').toString('base64')}`);
 const access = (payload = {}, options = {}) => jwt.sign({userId: 1, userName: 'viewer', sessionId: 'session', jti: 'current', type: 'access', ...payload}, secret, {expiresIn: 600, ...options});
 
-function database({revoked = false, expiredSession = false, failSession = false} = {}) {
+function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false} = {}) {
+  const schema = schemaFixture({ baseline: true });
+  if (missingMediaSchema) {
+    const table = schema.state.tables.get('N_MEDIA_ASSETS');
+    table.columns = table.columns.filter(column => column.COLUMN_NAME !== 'DESCRIPTION');
+  }
   const calls = [];
   const posts = [
     {POST_ID: 1, AUTHOR_ID: 2, VISIBILITY: 'public'},
@@ -64,6 +70,8 @@ function database({revoked = false, expiredSession = false, failSession = false}
     calls, close: async () => {},
     async execute(raw, binds = {}) {
       const sql = raw.replace(/\s+/g, ' ').trim(); calls.push({sql, binds});
+      const metadata = schema.query(sql, binds);
+      if (metadata !== undefined) return {rows: metadata};
       if (sql.startsWith('UPDATE n_auth_sessions')) {
         if (failSession) throw new Error('isolated database failure');
         const live = binds.userId === 1 && binds.sessionId === 'session' && binds.accessJti === 'current' && !revoked && (!expiredSession || !sql.includes('access_token_expires_at > CURRENT_TIMESTAMP'));
@@ -84,8 +92,6 @@ function database({revoked = false, expiredSession = false, failSession = false}
         return {rows: visible.sort((a, b) => b.POST_ID - a.POST_ID).slice(binds.start_row - 1, binds.end_row).map(post => ({...post, CONTENT: `post ${post.POST_ID}`, POST_TYPE: 'original', IS_LIKED: 0, IS_BOOKMARKED: 0}))};
       }
       if (sql.includes('FROM v_user_profile_public u')) return {rows: [{USER_ID: binds.user_id, USERNAME: 'author', RELATION: binds.viewer_id === binds.user_id ? 'self' : 'none'}]};
-      if (sql.startsWith('ALTER TABLE n_media_assets')) return {rowsAffected: 0};
-      if (sql.includes('FROM user_tab_columns')) return {rows: [{TOTAL: 1}]};
       if (sql.includes('FROM n_post_media') || sql.includes('FROM n_post_tags') || sql.includes('FROM n_post_mentions')) return {rows: []};
       if (sql.startsWith('UPDATE n_post_stats')) return {rowsAffected: 1};
       throw new Error(`Unexpected isolated SQL: ${sql}`);
@@ -136,6 +142,20 @@ test('anonymous detail excludes private/followers/mentioned/deleted/group posts 
     assert.equal(f.db.calls.filter(call => call.sql.startsWith('UPDATE n_post_stats')).length, 0);
     assert.equal((await f.request('/api/v2/posts/1')).status, 200);
     assert.equal(f.db.calls.filter(call => call.sql.startsWith('UPDATE n_post_stats')).length, 1);
+  } finally {await f.close();}
+});
+
+test('missing media schema returns sanitized 503 without request-time DDL or view increments', async () => {
+  const f = await fixture({missingMediaSchema: true});
+  try {
+    const response = await f.request('/api/v2/posts/1');
+    assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.equal(body.data.code, 50301);
+    assert.equal(body.data.message, '服务暂不可用，请稍后重试。');
+    assert(!/N_MEDIA|DESCRIPTION|Oracle|SELECT|migration/i.test(body.data.message));
+    assert.equal(f.db.calls.filter(call => /^(CREATE|ALTER|DROP)\b/.test(call.sql)).length, 0);
+    assert.equal(f.db.calls.filter(call => call.sql.startsWith('UPDATE n_post_stats')).length, 0);
   } finally {await f.close();}
 });
 

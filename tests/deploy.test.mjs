@@ -71,3 +71,17 @@ test('external container mappings use the same canonical environment as validati
     assert(compose.includes(`${key}: \${${key}-\${${legacy}-}}`), `Container must consume canonical ${key}, falling back to ${legacy} only if unset`);
   }
 }));
+test('feature migration is an explicit one-off command and never starts app dependencies', () => fixture(root => {
+  for (const mode of ['source', 'image', 'external', 'dependencies']) {
+    const plan = planDeployment({ root, env: {}, mode, action: 'migrate-db' });
+    assert.deepEqual(plan.args.slice(-5), ['--entrypoint', 'node', 'app', 'scripts/migrate-db.mjs', '--apply']);
+    assert(plan.args.includes('--no-deps'));
+    assert.equal(plan.args.includes('--build'), mode !== 'image');
+    assert(!plan.args.includes('DB_INIT_ALLOW_EMPTY=true'));
+  }
+  const up = planDeployment({ root, env: {}, action: 'up' });
+  assert(!up.args.includes('--apply'));
+  const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
+  assert(dockerfile.includes('COPY scripts/migrate-db.mjs ./scripts/'));
+  assert(dockerfile.includes('COPY server/database/schema.mjs server/database/schema-definition.mjs ./server/database/'));
+}));

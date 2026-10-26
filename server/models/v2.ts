@@ -1,9 +1,9 @@
+import { requireFeatureSchema } from '~/server/database/readiness';
 import type oracledb from 'oracledb';
 import {
   v2Boolean,
   v2Count,
   v2DateString,
-  v2Execute,
   v2JsonValue,
   v2NotFound,
   v2Number,
@@ -38,35 +38,10 @@ function v2OnlineStatus(value: unknown): 'online' | 'offline' | 'hidden' {
   return 'offline';
 }
 
-let mediaDescriptionColumnReady = false;
-
 export async function v2EnsureMediaDescriptionColumn(
   connection: oracledb.Connection
 ): Promise<void> {
-  if (mediaDescriptionColumnReady) return;
-
-  const exists = await v2Count(
-    connection,
-    `
-    SELECT COUNT(*) AS total
-    FROM user_tab_columns
-    WHERE table_name = 'N_MEDIA_ASSETS'
-      AND column_name = 'DESCRIPTION'
-    `
-  );
-
-  if (exists === 0) {
-    await v2Execute(
-      connection,
-      `
-      ALTER TABLE n_media_assets ADD (
-        description VARCHAR2(1000)
-      )
-      `
-    );
-  }
-
-  mediaDescriptionColumnReady = true;
+  await requireFeatureSchema(connection, 'media');
 }
 
 export function v2MapPublicUser(row: V2DbRecord): V2PublicUser {

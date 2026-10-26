@@ -1,3 +1,4 @@
+import { requireFeatureSchema } from '~/server/database/readiness';
 import type { H3Event } from 'h3';
 import type oracledb from 'oracledb';
 import {
@@ -103,146 +104,10 @@ function v2GroupTags(value: unknown): string[] {
   return result;
 }
 
-let groupFeatureSchemaReady = false;
-
-async function v2ObjectExists(
-  connection: oracledb.Connection,
-  type: 'TABLE' | 'INDEX',
-  name: string
-): Promise<boolean> {
-  const source =
-    type === 'TABLE' ? 'user_tables' : 'user_indexes';
-  const column =
-    type === 'TABLE' ? 'table_name' : 'index_name';
-  return (
-    (await v2Count(
-      connection,
-      `SELECT COUNT(*) AS total FROM ${source} WHERE ${column} = :name`,
-      { name: name.toUpperCase() }
-    )) > 0
-  );
-}
-
-async function v2ColumnExists(
-  connection: oracledb.Connection,
-  tableName: string,
-  columnName: string
-): Promise<boolean> {
-  return (
-    (await v2Count(
-      connection,
-      `
-      SELECT COUNT(*) AS total
-      FROM user_tab_columns
-      WHERE table_name = :table_name
-        AND column_name = :column_name
-      `,
-      {
-        table_name: tableName.toUpperCase(),
-        column_name: columnName.toUpperCase()
-      }
-    )) > 0
-  );
-}
-
-async function v2ExecuteDdl(
-  connection: oracledb.Connection,
-  sql: string
-): Promise<void> {
-  await connection.execute(sql);
-}
-
-function v2OracleErrorNum(error: unknown): number | null {
-  if (typeof error === 'object' && error !== null) {
-    const value = (error as { errorNum?: unknown }).errorNum;
-    if (typeof value === 'number') return value;
-  }
-  if (error instanceof Error) {
-    const match = error.message.match(/ORA-(\d+)/);
-    if (match) return Number(match[1]);
-  }
-  return null;
-}
-
-async function v2CreateTableIfMissing(
-  connection: oracledb.Connection,
-  name: string,
-  sql: string
-): Promise<void> {
-  if (await v2ObjectExists(connection, 'TABLE', name)) return;
-  try {
-    await v2ExecuteDdl(connection, sql);
-  } catch (error) {
-    const errorNum = v2OracleErrorNum(error);
-    if (errorNum === 955) return;
-    throw error;
-  }
-}
-
-async function v2AddColumnIfMissing(
-  connection: oracledb.Connection,
-  tableName: string,
-  columnName: string,
-  sql: string
-): Promise<void> {
-  if (await v2ColumnExists(connection, tableName, columnName)) {
-    return;
-  }
-  try {
-    await v2ExecuteDdl(connection, sql);
-  } catch (error) {
-    const errorNum = v2OracleErrorNum(error);
-    if (errorNum === 1430) return;
-    throw error;
-  }
-}
-
 async function v2EnsureGroupFeatureSchema(
   connection: oracledb.Connection
 ): Promise<void> {
-  if (groupFeatureSchemaReady) return;
-
-  await v2AddColumnIfMissing(
-    connection,
-    'n_groups',
-    'category',
-    'ALTER TABLE n_groups ADD (category VARCHAR2(30))'
-  );
-  await v2CreateTableIfMissing(
-    connection,
-    'n_group_tags',
-    `
-    CREATE TABLE n_group_tags (
-      group_id NUMBER(19) NOT NULL,
-      tag VARCHAR2(50) NOT NULL,
-      tag_lower VARCHAR2(50) NOT NULL,
-      created_at TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
-      CONSTRAINT pk_group_tags PRIMARY KEY (group_id, tag_lower),
-      CONSTRAINT fk_group_tags_group FOREIGN KEY (group_id)
-        REFERENCES n_groups(group_id) ON DELETE CASCADE
-    )
-    `
-  );
-  await v2CreateTableIfMissing(
-    connection,
-    'n_group_notification_preferences',
-    `
-    CREATE TABLE n_group_notification_preferences (
-      user_id NUMBER(10) NOT NULL,
-      group_id NUMBER(19) NOT NULL,
-      is_enabled NUMBER(1) DEFAULT 1 NOT NULL,
-      updated_at TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
-      CONSTRAINT pk_group_notif_prefs PRIMARY KEY (user_id, group_id),
-      CONSTRAINT ck_group_notif_prefs_enabled CHECK (is_enabled IN (0, 1)),
-      CONSTRAINT fk_group_notif_prefs_user FOREIGN KEY (user_id)
-        REFERENCES n_users(user_id) ON DELETE CASCADE,
-      CONSTRAINT fk_group_notif_prefs_group FOREIGN KEY (group_id)
-        REFERENCES n_groups(group_id) ON DELETE CASCADE
-    )
-    `
-  );
-
-  groupFeatureSchemaReady = true;
+  await requireFeatureSchema(connection, 'groups');
 }
 
 async function v2ReplaceGroupTags(

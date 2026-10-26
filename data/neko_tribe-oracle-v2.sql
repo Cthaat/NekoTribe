@@ -480,6 +480,7 @@ CREATE TABLE n_media_assets (
     duration               NUMBER(10),
     thumbnail_url          VARCHAR2(500),
     alt_text               VARCHAR2(500),
+    description            VARCHAR2(1000),
     status                 VARCHAR2(20)    DEFAULT 'ready' NOT NULL CHECK (status IN ('uploaded', 'processing', 'ready', 'failed')),
     created_at             TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at             TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1000,6 +1001,77 @@ COMMENT ON COLUMN n_moderation_settings.description IS '配置说明';
 COMMENT ON COLUMN n_moderation_settings.updated_at IS '更新时间';
 COMMENT ON COLUMN n_moderation_settings.updated_by IS '更新人用户ID';
 
+
+-- T13 feature objects; authority: server/database/schema-definition.mjs
+CREATE SEQUENCE seq_2fa_recovery_code_id
+START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+
+CREATE SEQUENCE seq_2fa_trusted_device_id
+START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+
+CREATE TABLE n_user_two_factor_secrets (
+user_id            NUMBER(10) PRIMARY KEY,
+secret_encrypted   VARCHAR2(512) NOT NULL,
+secret_iv          VARCHAR2(64) NOT NULL,
+secret_auth_tag    VARCHAR2(64) NOT NULL,
+confirmed_at       TIMESTAMP,
+enabled_at         TIMESTAMP,
+created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT fk_2fa_secret_user FOREIGN KEY (user_id)
+REFERENCES n_users(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE n_user_two_factor_recovery_codes (
+recovery_code_id   NUMBER(15) PRIMARY KEY,
+user_id            NUMBER(10) NOT NULL,
+code_hash          VARCHAR2(255) NOT NULL,
+used_at            TIMESTAMP,
+created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT fk_2fa_recovery_user FOREIGN KEY (user_id)
+REFERENCES n_users(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE n_user_two_factor_trusted_devices (
+trusted_device_id  NUMBER(15) PRIMARY KEY,
+user_id            NUMBER(10) NOT NULL,
+device_fingerprint VARCHAR2(200) NOT NULL,
+device_info        VARCHAR2(200),
+ip_address         VARCHAR2(64),
+user_agent         VARCHAR2(500),
+expires_at         TIMESTAMP NOT NULL,
+revoked_at         TIMESTAMP,
+created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+last_used_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT fk_2fa_trusted_user FOREIGN KEY (user_id)
+REFERENCES n_users(user_id) ON DELETE CASCADE,
+CONSTRAINT uk_2fa_trusted_device UNIQUE (user_id, device_fingerprint)
+);
+
+CREATE TABLE n_auth_two_factor_challenges (
+challenge_id       VARCHAR2(80) PRIMARY KEY,
+user_id            NUMBER(10) NOT NULL,
+remember_me        NUMBER(1) DEFAULT 0 NOT NULL
+CHECK (remember_me IN (0, 1)),
+device_info        VARCHAR2(200),
+device_fingerprint VARCHAR2(200),
+ip_address         VARCHAR2(64),
+user_agent         VARCHAR2(500),
+expires_at         TIMESTAMP NOT NULL,
+consumed_at        TIMESTAMP,
+created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT fk_2fa_challenge_user FOREIGN KEY (user_id)
+REFERENCES n_users(user_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_2fa_recovery_user
+ON n_user_two_factor_recovery_codes(user_id, used_at);
+
+CREATE INDEX idx_2fa_challenge_user
+ON n_auth_two_factor_challenges(user_id, expires_at, consumed_at);
+
+CREATE INDEX idx_2fa_trusted_user
+ON n_user_two_factor_trusted_devices(user_id, expires_at, revoked_at);
 
 -- ==========================================
 -- 5. 群组模块表（沿用 with-group 设计，作为 V2 正式群组模型）
