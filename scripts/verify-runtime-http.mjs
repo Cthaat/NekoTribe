@@ -35,6 +35,36 @@ assert(login.response.headers.getSetCookie().some(cookie => cookie.startsWith('a
 access = login.value.data.tokens.access_token; refresh = login.value.data.tokens.refresh_token;
 const me = await request('/api/v2/users/me');
 assert.equal(me.value.data.username, 'runtime_t16');
+// Rust's current HTTP compatibility entry deliberately uses a separate Nuxt
+// WebSocket origin (or the common gateway), as documented in runtime-addresses.
+const wsUrl = new URL('/_ws', process.env.NEKO_RUNTIME_TEST_WS_BASE ?? endpoint);
+assert(!wsUrl.username && !wsUrl.password);
+assert(['http:', 'https:', 'ws:', 'wss:'].includes(wsUrl.protocol));
+wsUrl.protocol = ['https:', 'wss:'].includes(wsUrl.protocol) ? 'wss:' : 'ws:';
+wsUrl.searchParams.set('token', access);
+await new Promise((resolve, reject) => {
+  const socket = new WebSocket(wsUrl);
+  let connected = false;
+  let settled = false;
+  const timer = setTimeout(() => finish(new Error('Authenticated WebSocket ping timed out')), 15000);
+  function finish(error) {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer); socket.close();
+    if (error) reject(error); else resolve();
+  }
+  socket.addEventListener('error', () => finish(new Error('Authenticated WebSocket failed')));
+  socket.addEventListener('message', event => {
+    try {
+      const message = JSON.parse(event.data);
+      if (message.type === 'system_notification' && message.data?.message === 'WebSocket connected') {
+        connected = true; socket.send(JSON.stringify({ type: 'ping' }));
+      }
+      if (message.type === 'pong') { assert(connected); finish(); }
+    } catch { finish(new Error('Unexpected WebSocket response')); }
+  });
+});
+observations.push('authenticated WebSocket welcome and ping/pong');
 await request('/api/v2/users/me/settings');
 await request('/api/v2/notifications');
 await request('/api/v2/groups');
@@ -60,6 +90,8 @@ const file = await fetch(new URL(media.value.data.public_url, endpoint), { signa
 assert.equal(file.status, 200); assert.match(file.headers.get('content-type'), /image\/png/);
 assert((await file.arrayBuffer()).byteLength > 0);
 observations.push('uploaded image publicly readable');
+const attached = await request(`/api/v2/posts/${postId}`, { method: 'PATCH', body: { media_ids: [media.value.data.media_id] } });
+assert(attached.value.data.media.some(item => item.media_id === media.value.data.media_id));
 const refreshed = await request('/api/v2/auth/tokens/current', { method: 'PATCH', authenticated: false, body: { refresh_token: refresh } });
 access = refreshed.value.data.access_token; refresh = refreshed.value.data.refresh_token;
 assert(access && refresh);
@@ -74,4 +106,4 @@ assert([200, 204].includes(preflight.status));
 assert.equal(preflight.headers.get('access-control-allow-origin'), 'http://127.0.0.1:30004');
 assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
 observations.push('credentialed CORS preflight uses exact allowed origin');
-console.log(JSON.stringify({ base: endpoint.origin, observations, postId, mediaId: media.value.data.media_id }));
+console.log(JSON.stringify({ base: endpoint.origin, webSocketBase: wsUrl.origin, observations, postId, mediaId: media.value.data.media_id }));
