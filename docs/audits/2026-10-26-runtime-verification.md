@@ -56,6 +56,6 @@ Windows 与容器共用的上传路径仅为新建 `.test-data/20261026-shared-s
 - Oracle 19c 版本与原开发数据升级/恢复：官方拉取需要账户授权，Free 不能替代。
 - 另一台实际 Windows/Linux 机器及其网络、TLS、持久化与操作权限；本机 Linux 容器不能冒称跨机器完整验收。
 - Flutter Windows 桌面工具链、移动设备、Wasm，以及未纳入本次核心流程的深层业务和 SentimentFlow 训练/模型流程。
-- 恢复套件的打包与双平台入口验证继续执行，结果写入套件 `verification.json`；这也不替代另一台真实服务器。
+- 恢复套件已打包并验证双平台入口，结果见 [交付记录](2026-10-26-workspace-delivery.md) 和套件 `verification.json`；这不替代另一台真实服务器。
 
 日志和测试私有环境位于各工作区忽略的 `.codex-logs`；本文件只记录可核对结果，不提交密码、令牌或运行数据库。总目标保持进行中。
