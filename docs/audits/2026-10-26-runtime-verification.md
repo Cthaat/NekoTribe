@@ -18,6 +18,7 @@
 | HTTP / WS | Nuxt 31001、Rust 31003 均通过登录、权限、帖子部分更新、文件、刷新退出、CORS、认证 WS ping/pong | `.codex-logs/20261026-runtime-final-{31001,31003}.log` |
 | 单一网关 | 31005：Nuxt 页面 + Rust API/文件 + Nuxt WS，同源登录、媒体附加和认证实时连接通过 | `.codex-logs/20261026-gateway-rust-http.log` |
 | 私信与通知 | 两个虚构账号经网关：HTTP 落库、WS 私信、WS 通知与收件箱一致；默认陌生人拒绝仍有效 | `.codex-logs/20261026-realtime-gateway.log` |
+| 群组与频道聊天 | Nuxt 31001、Rust 31003、网关 31005：创建群组/频道、成员加入、非成员 HTTP/WS 拒绝、普通成员管理拒绝、消息历史与实时投递一致、他人编辑拒绝及作者编辑推送通过 | `.codex-logs/20261026-group-runtime-{31001,31003,31005}.log` |
 | 浏览器 | Nuxt 页面经 Rust 网关显示时间线；Flutter 真实登录并切换 Rust API、Nuxt WS 后读取同一批帖子 | `.codex-logs/20261026-nuxt-rust-gateway.png`、Flutter `.codex-logs/20261026-flutter-rust-feed.png` |
 | Windows 生产构建 | `yarn build --dotenv .env.example` 退出 0，更新本机产物；没有将日常私有配置作为构建输入 | `.codex-logs/20261026-windows-production-build.log` |
 | 干净源码构建 | 从 bundle 新恢复、Git 状态为空的 Nuxt 目录构建 Linux 镜像通过 | `.codex-logs/20261026-clean-bundle-build.log` |
@@ -42,6 +43,8 @@ Oracle 19c 官方镜像 `container-registry.oracle.com/database/enterprise:19.3.
 真实迁移检查包括：请求 readiness 只读拒绝、DDL 隐式提交后 session 锁仍互斥、故障步骤无成功记录且另一连接可恢复、重复运行不产生 DDL/DML、序列从保留 ID 续接、不覆盖管理员设置、旧审核谓词升级、后续结构/ledger 漂移拒绝。额外新建权限不足账号被自动审批拒绝后，改用本基线已有的 `NEKO_READONLY`，验证权限不足时拒绝且前后零对象，没有新增账号或授权来绕过拒绝；证据为 `20261026-oracle-lock-denied.log`。
 
 Rust 保持已约定的业务兼容代理，不声称原生业务已补齐。它没有 `/_ws` 路由：直连 API 时 WS 单独指向 Nuxt；希望所有配置只填一个根地址时使用本次已实测的网关。Go 仍仅预留。
+
+群组验收入口为 `scripts/verify-runtime-groups.mjs`，需显式设置 `NEKO_RUNTIME_TEST_DISPOSABLE=true`、HTTP 根地址 `NEKO_RUNTIME_TEST_BASE`、WS 根地址 `NEKO_RUNTIME_TEST_WS_BASE`，以及两个测试账号的 `NEKO_RUNTIME_TEST_PASSWORD` / `NEKO_RUNTIME_TEST_PEER_PASSWORD`。账号默认与私信脚本相同，也可通过 `NEKO_RUNTIME_TEST_ACCOUNT` / `NEKO_RUNTIME_TEST_PEER_ACCOUNT` 指定已经准备好的虚构账号。本轮在同一独立 Free 测试库新增 `runtime_group_t16` / `runtime_group_t16_peer`，未更改已有账号密码。脚本经正常 API 新建测试群组和频道，保留消息证据，最后关闭 WS 并注销本轮会话；不会自动删除群组或初始化库。三个入口各核对九项实际观察。此证据覆盖后端群聊 HTTP/WS，不能替代 Flutter/Nuxt 群聊页面的完整交互验收。
 
 浏览器真实观察到 Flutter 经 Rust 入口 `GET notifications 401 → PATCH tokens/current 200 → GET notifications 200`，页面保持登录并展示通知。脱敏网络证据保存在 [flutter-refresh.json](2026-10-26-runtime/flutter-refresh.json)，不包含请求头、正文或 URL 查询参数。Nuxt 网关页面重新加载后也维持登录并显示已上传媒体。
 
