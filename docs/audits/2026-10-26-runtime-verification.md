@@ -58,4 +58,6 @@ Windows 与容器共用的上传路径仅为新建 `.test-data/20261026-shared-s
 - Flutter Windows 桌面工具链、移动设备、Wasm，以及未纳入本次核心流程的深层业务和 SentimentFlow 训练/模型流程。
 - 恢复套件已打包并验证双平台入口，结果见 [交付记录](2026-10-26-workspace-delivery.md) 和套件 `verification.json`；这不替代另一台真实服务器。
 
+本轮收尾已停止五个 `nekotribe-t16` 测试容器和本轮 Windows Node/Flutter 静态服务；容器最终状态保存在 `.codex-logs/20261026-test-final-states.log`，挂载清单保存在 `20261026-test-mounts.json`。未删除容器、镜像、卷或测试上传文件。Docker Desktop 已执行停止，后续状态查询无法连接；没有为核对而重新启动引擎。
+
 日志和测试私有环境位于各工作区忽略的 `.codex-logs`；本文件只记录可核对结果，不提交密码、令牌或运行数据库。总目标保持进行中。
