@@ -1,0 +1,3367 @@
+{
+  "operations": [
+    {
+      "path": "/api/v2/moderation/content",
+      "method": "get",
+      "operation": {
+        "summary": "List moderation post cases",
+        "operationId": "t11_get_api_v2_moderation_content",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\ncontentWhere/contentSort/mapContentItem, v2ListModerationContent. Only post cases, not group posts/comments. Reports array includes all target reports and nullable public reporter/handler objects.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "v2QueryNumber defaults non-finite/non-positive input to 1; effective page clamped to [1,10000]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "description": "Defaults invalid/non-positive input to 20; effective size clamped to [1,100]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "all disables filter; unsupported non-empty values normalize to pending. Empty string disables this filter.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            },
+            "x-recognized-values": [
+              "all",
+              "pending",
+              "approved",
+              "rejected",
+              "flagged",
+              "removed",
+              "restored"
+            ]
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "description": "all disables filter; unsupported non-empty values normalize to other. Empty string disables this filter.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            },
+            "x-recognized-values": [
+              "all",
+              "spam",
+              "harassment",
+              "hate",
+              "violence",
+              "adult",
+              "misinformation",
+              "copyright",
+              "other"
+            ]
+          },
+          {
+            "name": "date_range",
+            "in": "query",
+            "required": false,
+            "description": "today/yesterday use database calendar day; week/month mean trailing 7/30 days. Any other value disables time filter.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            },
+            "x-recognized-values": [
+              "all",
+              "today",
+              "yesterday",
+              "week",
+              "month"
+            ]
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Trimmed/lowercased substring search over post content, username and display name; SQL LIKE wildcards are not escaped.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Unrecognized values use newest. most_engagement is likes+retweets+replies; ties use latest report time.",
+            "schema": {
+              "type": "string",
+              "default": "newest"
+            },
+            "x-recognized-values": [
+              "newest",
+              "oldest",
+              "most_reports",
+              "most_engagement"
+            ]
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. contentWhere/contentSort/mapContentItem, v2ListModerationContent. Only post cases, not group posts/comments. Reports array includes all target reports and nullable public reporter/handler objects.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditedModerationContent"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/AuditedModerationPageMeta"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/content/index.get.ts",
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/content/index.get.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/moderation/reports",
+      "method": "get",
+      "operation": {
+        "summary": "List moderation reports",
+        "operationId": "t11_get_api_v2_moderation_reports",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\nv2ListModerationReports/mapReport. Ordered newest creation first. Reporter/handler lookup errors are caught and serialized as null.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "v2QueryNumber defaults non-finite/non-positive input to 1; effective page clamped to [1,10000]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "description": "Defaults invalid/non-positive input to 20; effective size clamped to [1,100]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "all disables filter; every other unsupported value (including empty) normalizes to pending.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            },
+            "x-recognized-values": [
+              "all",
+              "pending",
+              "in_review",
+              "resolved",
+              "dismissed"
+            ]
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "description": "all disables filter; unsupported values normalize to other.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            },
+            "x-recognized-values": [
+              "all",
+              "spam",
+              "harassment",
+              "hate",
+              "violence",
+              "adult",
+              "misinformation",
+              "copyright",
+              "other"
+            ]
+          },
+          {
+            "name": "target_type",
+            "in": "query",
+            "required": false,
+            "description": "all disables filter; unsupported values normalize to post.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            },
+            "x-recognized-values": [
+              "all",
+              "post",
+              "comment",
+              "user",
+              "group_post",
+              "group_comment"
+            ]
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. v2ListModerationReports/mapReport. Ordered newest creation first. Reporter/handler lookup errors are caught and serialized as null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditedModerationReport"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/AuditedModerationPageMeta"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/reports/index.get.ts",
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/reports/index.get.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/moderation/reports/{report_id}",
+      "method": "patch",
+      "operation": {
+        "summary": "Update moderation report status",
+        "operationId": "t11_patch_api_v2_moderation_reports_report_id",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\nv2PatchModerationReport/mapReport. Missing/unknown status -> pending; handled_by always becomes current moderator. resolved/dismissed sets resolved_at, other statuses retain prior timestamp; does not synchronize a case or moderate the target.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "v2RouterNumber requires a positive finite number; numeric strings are parsed and integerness is not enforced."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. v2PatchModerationReport/mapReport. Missing/unknown status -> pending; handled_by always becomes current moderator. resolved/dismissed sets resolved_at, other statuses retain prior timestamp; does not synchronize a case or moderate the target.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuditedModerationReport"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Non-object body or invalid JSON, invalid supplied action, no usable bulk ids, or invalid numeric path as applicable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Report id not found (after status UPDATE).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/reports/[report_id].patch.ts",
+        "requestBody": {
+          "required": true,
+          "description": "v2Body requires a JSON object; documented fields reflect service coercions/defaults. Unknown keys ignored.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditedModerationReportInput"
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/reports/[report_id].patch.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/moderation/users",
+      "method": "get",
+      "operation": {
+        "summary": "List moderation users",
+        "operationId": "t11_get_api_v2_moderation_users",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\nv2ListModerationUsers mapper. report_count includes reports about the user and their ordinary posts; active_restriction is latest active, unexpired ban/mute. Database numeric flags are returned unchanged.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "v2QueryNumber defaults non-finite/non-positive input to 1; effective page clamped to [1,10000]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "description": "Defaults invalid/non-positive input to 20; effective size clamped to [1,100]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "all disables filter; any other string (including empty) is compared directly with stored u.status.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Trimmed/lowercased LIKE search over username, display name and email; wildcard characters are not escaped.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Unrecognized values use newest. reports sorts by report_count then creation time.",
+            "schema": {
+              "type": "string",
+              "default": "newest"
+            },
+            "x-recognized-values": [
+              "newest",
+              "oldest",
+              "reports"
+            ]
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. v2ListModerationUsers mapper. report_count includes reports about the user and their ordinary posts; active_restriction is latest active, unexpired ban/mute. Database numeric flags are returned unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditedModerationUser"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/AuditedModerationPageMeta"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/users/index.get.ts",
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/users/index.get.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/moderation/users/{user_id}/actions",
+      "method": "post",
+      "operation": {
+        "summary": "Apply user moderation action",
+        "operationId": "t11_post_api_v2_moderation_users_user_id_actions",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\nv2ModerateUser and v2ListModerationUsers. ban sets suspended/is_active=0 and inserts restriction; unban sets active/is_active=1 and revokes bans; mute only inserts restriction; unmute revokes mutes; note only records action. Result lookup reuses query pagination/status/search without fallback and can return 404 after commit.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "v2RouterNumber requires a positive finite number; numeric strings are parsed and integerness is not enforced."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "v2QueryNumber defaults non-finite/non-positive input to 1; effective page clamped to [1,10000]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "description": "Defaults invalid/non-positive input to 20; effective size clamped to [1,100]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "all disables filter; any other string (including empty) is compared directly with stored u.status.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Trimmed/lowercased LIKE search over username, display name and email; wildcard characters are not escaped.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Unrecognized values use newest. reports sorts by report_count then creation time.",
+            "schema": {
+              "type": "string",
+              "default": "newest"
+            },
+            "x-recognized-values": [
+              "newest",
+              "oldest",
+              "reports"
+            ]
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. v2ModerateUser and v2ListModerationUsers. ban sets suspended/is_active=0 and inserts restriction; unban sets active/is_active=1 and revokes bans; mute only inserts restriction; unmute revokes mutes; note only records action. Result lookup reuses query pagination/status/search without fallback and can return 404 after commit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuditedModerationUser"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Non-object body or invalid JSON, invalid supplied action, no usable bulk ids, or invalid numeric path as applicable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. Also rejects moderating oneself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Target user absent OR updated user not present in the current query-filtered/paginated user list. In the latter case the mutation has already committed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/users/[user_id]/actions.post.ts",
+        "requestBody": {
+          "required": true,
+          "description": "v2Body requires a JSON object; documented fields reflect service coercions/defaults. Unknown keys ignored.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditedModerationUserActionInput"
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/users/[user_id]/actions.post.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/moderation/stats",
+      "method": "get",
+      "operation": {
+        "summary": "Read moderation statistics",
+        "operationId": "t11_get_api_v2_moderation_stats",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\nv2GetModerationStats scalar aggregate query. Not scoped to any content/list filter.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. v2GetModerationStats scalar aggregate query. Not scoped to any content/list filter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuditedModerationStats"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/stats.get.ts",
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/stats.get.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/moderation/settings",
+      "method": "get",
+      "operation": {
+        "summary": "Read moderation settings",
+        "operationId": "t11_get_api_v2_moderation_settings",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\nv2GetModerationSettings. Lists all persisted rows ordered by setting_key; value always string and value_type normalized to boolean/number/string.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. v2GetModerationSettings. Lists all persisted rows ordered by setting_key; value always string and value_type normalized to boolean/number/string.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditedModerationSetting"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/settings/index.get.ts",
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/settings/index.get.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/moderation/settings",
+      "method": "patch",
+      "operation": {
+        "summary": "Update recognized moderation settings",
+        "operationId": "t11_patch_api_v2_moderation_settings",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\nv2PatchModerationSettings -> v2GetModerationSettings. Only four DEFAULT_SETTINGS keys update. No primitive/type-range validation; unknown/non-object entries skipped; missing/non-array settings is no-op.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. v2PatchModerationSettings -> v2GetModerationSettings. Only four DEFAULT_SETTINGS keys update. No primitive/type-range validation; unknown/non-object entries skipped; missing/non-array settings is no-op.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditedModerationSetting"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Non-object body or invalid JSON, invalid supplied action, no usable bulk ids, or invalid numeric path as applicable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/settings/index.patch.ts",
+        "requestBody": {
+          "required": true,
+          "description": "v2Body requires a JSON object; documented fields reflect service coercions/defaults. Unknown keys ignored.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditedModerationSettingsInput"
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/settings/index.patch.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/moderation/appeals",
+      "method": "get",
+      "operation": {
+        "summary": "List statement appeals for moderation",
+        "operationId": "t11_get_api_v2_moderation_appeals",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\nv2ListModerationAppeals/mapAppeal. Ordered creation DESC; unlike nullable report actors, an absent appeal user causes the entire list to fail 404.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "v2QueryNumber defaults non-finite/non-positive input to 1; effective page clamped to [1,10000]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "description": "Defaults invalid/non-positive input to 20; effective size clamped to [1,100]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "all disables filter; unsupported values including empty normalize to pending.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            },
+            "x-recognized-values": [
+              "all",
+              "pending",
+              "approved",
+              "rejected"
+            ]
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. v2ListModerationAppeals/mapAppeal. Ordered creation DESC; unlike nullable report actors, an absent appeal user causes the entire list to fail 404.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditedModerationAppeal"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/AuditedModerationPageMeta"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "An appeal references a user that cannot be found by mapAppeal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/appeals/index.get.ts",
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/appeals/index.get.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/moderation/appeals/{appeal_id}",
+      "method": "patch",
+      "operation": {
+        "summary": "Resolve a moderation appeal",
+        "operationId": "t11_patch_api_v2_moderation_appeals_appeal_id",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\nv2PatchModerationAppeal/mapAppeal. Unknown/missing appeal_status -> rejected. Updates appeal and logs appeal_approved/appeal_rejected; does not itself restore/delete a post. Does not call ensureModerationSchema, so moderation action table must already exist.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [
+          {
+            "name": "appeal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "v2RouterNumber requires a positive finite number; numeric strings are parsed and integerness is not enforced."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. v2PatchModerationAppeal/mapAppeal. Unknown/missing appeal_status -> rejected. Updates appeal and logs appeal_approved/appeal_rejected; does not itself restore/delete a post. Does not call ensureModerationSchema, so moderation action table must already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuditedModerationAppeal"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Non-object body or invalid JSON, invalid supplied action, no usable bulk ids, or invalid numeric path as applicable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Appeal missing before/after update, or associated user absent in mapAppeal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/appeals/[appeal_id].patch.ts",
+        "requestBody": {
+          "required": true,
+          "description": "v2Body requires a JSON object; documented fields reflect service coercions/defaults. Unknown keys ignored.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditedModerationAppealInput"
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/appeals/[appeal_id].patch.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/moderation/content/{post_id}/actions",
+      "method": "post",
+      "operation": {
+        "summary": "Apply post moderation action",
+        "operationId": "t11_post_api_v2_moderation_content_post_id_actions",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\nv2ModeratePost/mapContentItem. IMPORTANT actual implementation: approve/remove set is_deleted=1; reject/restore clear it. flag/claim/release do not change deletion. claim assigns current moderator; release clears assignment. Case statuses approve=>approved,reject=>rejected,flag=>flagged,remove=>removed,restore=>restored,claim/release=>pending. Report statuses approve/remove/restore=>resolved,reject=>dismissed,flag/claim=>in_review,release=>pending. Query filters/pagination affect first reload attempt; unlike user action there is a by-id fallback.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "v2RouterNumber requires a positive finite number; numeric strings are parsed and integerness is not enforced."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "v2QueryNumber defaults non-finite/non-positive input to 1; effective page clamped to [1,10000]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "description": "Defaults invalid/non-positive input to 20; effective size clamped to [1,100]. Fractions are not rounded.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "all disables filter; unsupported non-empty values normalize to pending. Empty string disables this filter.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            },
+            "x-recognized-values": [
+              "all",
+              "pending",
+              "approved",
+              "rejected",
+              "flagged",
+              "removed",
+              "restored"
+            ]
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "description": "all disables filter; unsupported non-empty values normalize to other. Empty string disables this filter.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            },
+            "x-recognized-values": [
+              "all",
+              "spam",
+              "harassment",
+              "hate",
+              "violence",
+              "adult",
+              "misinformation",
+              "copyright",
+              "other"
+            ]
+          },
+          {
+            "name": "date_range",
+            "in": "query",
+            "required": false,
+            "description": "today/yesterday use database calendar day; week/month mean trailing 7/30 days. Any other value disables time filter.",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            },
+            "x-recognized-values": [
+              "all",
+              "today",
+              "yesterday",
+              "week",
+              "month"
+            ]
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Trimmed/lowercased substring search over post content, username and display name; SQL LIKE wildcards are not escaped.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Unrecognized values use newest. most_engagement is likes+retweets+replies; ties use latest report time.",
+            "schema": {
+              "type": "string",
+              "default": "newest"
+            },
+            "x-recognized-values": [
+              "newest",
+              "oldest",
+              "most_reports",
+              "most_engagement"
+            ]
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. v2ModeratePost/mapContentItem. IMPORTANT actual implementation: approve/remove set is_deleted=1; reject/restore clear it. flag/claim/release do not change deletion. claim assigns current moderator; release clears assignment. Case statuses approve=>approved,reject=>rejected,flag=>flagged,remove=>removed,restore=>restored,claim/release=>pending. Report statuses approve/remove/restore=>resolved,reject=>dismissed,flag/claim=>in_review,release=>pending. Query filters/pagination affect first reload attempt; unlike user action there is a by-id fallback.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuditedModerationContent"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Non-object body or invalid JSON, invalid supplied action, no usable bulk ids, or invalid numeric path as applicable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Post missing or moderation case cannot be reloaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/content/[post_id]/actions.post.ts",
+        "requestBody": {
+          "required": true,
+          "description": "v2Body requires a JSON object; documented fields reflect service coercions/defaults. Unknown keys ignored.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditedModerationActionInput"
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/content/[post_id]/actions.post.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/moderation/content/bulk-actions",
+      "method": "post",
+      "operation": {
+        "summary": "Apply bulk post moderation action",
+        "operationId": "t11_post_api_v2_moderation_content_bulk_actions",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here.\nv2BulkModeratePosts. Only approve/reject/flag/remove/restore. approve/remove delete, reject/restore undelete. Input duplicates retained and counted. A single final explicit commit is used, but ensureCaseForTarget performs default autoCommit writes; do not assert transactional rollback for all prior work.\nBodies must be JSON objects; unknown fields are ignored unless noted. Errors use the Nitro JSON transport with business error data nested under data; Accept:text/html can yield a Nuxt HTML error page in development or production. Static source audit only; no service/database execution or runtime acceptance.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; v2Ok envelope. v2BulkModeratePosts. Only approve/reject/flag/remove/restore. approve/remove delete, reject/restore undelete. Input duplicates retained and counted. A single final explicit commit is used, but ensureCaseForTarget performs default autoCommit writes; do not assert transactional rollback for all prior work.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "processed_count"
+                      ],
+                      "properties": {
+                        "processed_count": {
+                          "type": "number"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Non-object body or invalid JSON, invalid supplied action, no usable bulk ids, or invalid numeric path as applicable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated user not allowed by moderation account configuration. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Any retained post id does not exist; earlier schema/case initialization may already have auto-committed, so this is not a documented all-or-nothing API.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/dependency or unexpected framework failures. No successful business response shape or retry/rollback guarantees are asserted for these failures."
+          }
+        },
+        "x-implementation-source": "server/api/v2/moderation/content/bulk-actions.post.ts",
+        "requestBody": {
+          "required": true,
+          "description": "v2Body requires a JSON object; documented fields reflect service coercions/defaults. Unknown keys ignored.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditedModerationBulkInput"
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/moderation/content/bulk-actions.post.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/reports",
+      "method": "post",
+      "operation": {
+        "summary": "Submit a content or user report",
+        "operationId": "t11_post_api_v2_reports",
+        "description": "Authenticated access cookie or Bearer JWT required (cookie takes precedence); this user-facing report submission calls v2Auth only and does not require requireModerationAccess or the moderation admin allow-list.\nv2CreateReport: target_id must normalize to a positive finite number. Unsupported target_type/reason/priority normalize to post/other/normal. Supports ordinary and group posts/comments plus users; checks target table existence without filtering deletion/activity status. Reporting oneself as a user is 403. Inserts pending report, creates/synchronizes target case report count/priority and returns the serialized report with nullable reporter/handler. Success is HTTP 200, not 201. No duplicate-report prevention is implemented in this handler. ensureModerationSchema may perform DDL; no runtime calls were made.\nError JSON is Nitro transport with business error envelope nested under data; Accept:text/html may return a Nuxt HTML error page. Static source audit only.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report created and case statistics synchronized. HTTP 200; pending report status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuditedModerationReport"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body not a JSON object, invalid JSON, or missing/non-finite/non-positive target_id. Unsupported target_type/reason/priority are normalized rather than rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authenticated access session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "target_type=user and target_id equals current authenticated user. No moderation-admin gate applies.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Target does not exist in corresponding table, or inserted report cannot be reloaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Global Redis/IP rate limit may reject more than 100 requests in 10 seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedModerationHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Database/schema/DDL/framework failures; no global transaction rollback guarantee. Case creation helpers can auto-commit before the final explicit commit."
+          }
+        },
+        "x-implementation-source": "server/api/v2/reports/index.post.ts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditedModerationCreateReportInput"
+              }
+            }
+          },
+          "description": "JSON object required; target_id mandatory, other fields use documented coercions/defaults."
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/reports/index.post.ts",
+            "server/services/v2/moderation.ts",
+            "server/utils/v2.ts",
+            "server/models/v2.ts",
+            "app/types/v2.ts",
+            "server/middleware/auth.ts",
+            "server/middleware/rate-limit.ts",
+            "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+            "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+            "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+          ]
+        }
+      }
+    }
+  ],
+  "schemas": {
+    "AuditedModerationJsonValue": {
+      "description": "Any JSON value accepted by the existing input coercion/ignore paths; this is not an unspecified business response object.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/components/schemas/AuditedModerationJsonValue"
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AuditedModerationJsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      ]
+    },
+    "AuditedModerationCoercedString": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/AuditedModerationJsonValue"
+        }
+      ],
+      "description": "v2String: strings unchanged; JSON numbers/booleans converted using String(value); null, object and array values yield the caller fallback (normally empty string). The accepted JSON types here are deliberately broad because the service performs this exact coercion."
+    },
+    "AuditedModerationPageMeta": {
+      "type": "object",
+      "required": [
+        "page",
+        "page_size",
+        "total",
+        "has_next"
+      ],
+      "properties": {
+        "page": {
+          "type": "number"
+        },
+        "page_size": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        },
+        "has_next": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "description": "v2Page does not truncate fractions; page and page_size are numbers, not guaranteed integers. total is COUNT(*); has_next is page*page_size < total."
+    },
+    "AuditedModerationPublicUser": {
+      "type": "object",
+      "required": [
+        "user_id",
+        "username",
+        "display_name",
+        "avatar_url",
+        "bio",
+        "location",
+        "website",
+        "is_verified",
+        "followers_count",
+        "following_count",
+        "posts_count",
+        "likes_count",
+        "relationship",
+        "online_status",
+        "last_seen_at"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "number"
+        },
+        "username": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "bio": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "website": {
+          "type": "string"
+        },
+        "is_verified": {
+          "type": "number"
+        },
+        "followers_count": {
+          "type": "number"
+        },
+        "following_count": {
+          "type": "number"
+        },
+        "posts_count": {
+          "type": "number"
+        },
+        "likes_count": {
+          "type": "number"
+        },
+        "relationship": {
+          "type": "object",
+          "required": [
+            "is_self",
+            "is_following",
+            "is_blocked",
+            "is_blocking",
+            "relation"
+          ],
+          "properties": {
+            "is_self": {
+              "type": "boolean"
+            },
+            "is_following": {
+              "type": "boolean"
+            },
+            "is_blocked": {
+              "type": "boolean"
+            },
+            "is_blocking": {
+              "type": "boolean"
+            },
+            "relation": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "online_status": {
+          "type": "string",
+          "enum": [
+            "online",
+            "offline",
+            "hidden"
+          ]
+        },
+        "last_seen_at": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "additionalProperties": false,
+      "description": "Exact v2MapPublicUser output; numeric flags remain numbers. v2DateString can preserve unparseable strings, so timestamps are not narrowed to date-time."
+    },
+    "AuditedModerationMedia": {
+      "type": "object",
+      "required": [
+        "media_id",
+        "media_type",
+        "file_name",
+        "public_url",
+        "file_size",
+        "mime_type",
+        "width",
+        "height",
+        "duration",
+        "thumbnail_url",
+        "alt_text",
+        "description",
+        "status",
+        "created_at"
+      ],
+      "properties": {
+        "media_id": {
+          "type": "number"
+        },
+        "media_type": {
+          "type": "string"
+        },
+        "file_name": {
+          "type": "string"
+        },
+        "public_url": {
+          "type": "string"
+        },
+        "file_size": {
+          "type": "number"
+        },
+        "mime_type": {
+          "type": "string"
+        },
+        "width": {
+          "type": "number",
+          "nullable": true
+        },
+        "height": {
+          "type": "number",
+          "nullable": true
+        },
+        "duration": {
+          "type": "number",
+          "nullable": true
+        },
+        "thumbnail_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "alt_text": {
+          "type": "string",
+          "nullable": true
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Exact v2MapMedia output, including description which is missing from the older shared V2MediaAsset schema."
+    },
+    "AuditedModerationReport": {
+      "type": "object",
+      "required": [
+        "report_id",
+        "target_type",
+        "target_id",
+        "reporter",
+        "reason",
+        "description",
+        "evidence_url",
+        "status",
+        "priority",
+        "handled_by",
+        "created_at",
+        "updated_at",
+        "resolved_at"
+      ],
+      "properties": {
+        "report_id": {
+          "type": "number"
+        },
+        "target_type": {
+          "type": "string",
+          "enum": [
+            "post",
+            "comment",
+            "user",
+            "group_post",
+            "group_comment"
+          ]
+        },
+        "target_id": {
+          "type": "number"
+        },
+        "reporter": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/AuditedModerationPublicUser"
+            },
+            {
+              "type": "object",
+              "nullable": true,
+              "enum": [
+                null
+              ]
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "spam",
+            "harassment",
+            "hate",
+            "violence",
+            "adult",
+            "misinformation",
+            "copyright",
+            "other"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "evidence_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "in_review",
+            "resolved",
+            "dismissed"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "urgent"
+          ]
+        },
+        "handled_by": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/AuditedModerationPublicUser"
+            },
+            {
+              "type": "object",
+              "nullable": true,
+              "enum": [
+                null
+              ]
+            }
+          ]
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "resolved_at": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "AuditedModerationContent": {
+      "type": "object",
+      "required": [
+        "case_id",
+        "post_id",
+        "content",
+        "author",
+        "media",
+        "report_count",
+        "report_reasons",
+        "reports",
+        "status",
+        "priority",
+        "assigned_to",
+        "created_at",
+        "updated_at",
+        "reported_at",
+        "likes_count",
+        "retweets_count",
+        "replies_count"
+      ],
+      "properties": {
+        "case_id": {
+          "type": "number"
+        },
+        "post_id": {
+          "type": "number"
+        },
+        "content": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/components/schemas/AuditedModerationPublicUser"
+        },
+        "media": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AuditedModerationMedia"
+          }
+        },
+        "report_count": {
+          "type": "number"
+        },
+        "report_reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "spam",
+              "harassment",
+              "hate",
+              "violence",
+              "adult",
+              "misinformation",
+              "copyright",
+              "other"
+            ]
+          }
+        },
+        "reports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AuditedModerationReport"
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "flagged",
+            "removed",
+            "restored"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "urgent"
+          ]
+        },
+        "assigned_to": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/AuditedModerationPublicUser"
+            },
+            {
+              "type": "object",
+              "nullable": true,
+              "enum": [
+                null
+              ]
+            }
+          ]
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "reported_at": {
+          "type": "string"
+        },
+        "likes_count": {
+          "type": "number"
+        },
+        "retweets_count": {
+          "type": "number"
+        },
+        "replies_count": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AuditedModerationUser": {
+      "type": "object",
+      "required": [
+        "user_id",
+        "username",
+        "display_name",
+        "avatar_url",
+        "email",
+        "status",
+        "is_active",
+        "is_verified",
+        "followers_count",
+        "posts_count",
+        "likes_count",
+        "report_count",
+        "active_restriction",
+        "restriction_until",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "number"
+        },
+        "username": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "is_active": {
+          "type": "number"
+        },
+        "is_verified": {
+          "type": "number"
+        },
+        "followers_count": {
+          "type": "number"
+        },
+        "posts_count": {
+          "type": "number"
+        },
+        "likes_count": {
+          "type": "number"
+        },
+        "report_count": {
+          "type": "number"
+        },
+        "active_restriction": {
+          "type": "string",
+          "nullable": true,
+          "enum": [
+            "ban",
+            "mute",
+            null
+          ]
+        },
+        "restriction_until": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Exact v2ListModerationUsers mapper. is_active/is_verified are numeric database flags, not JSON booleans. status is a stored string, not an enforced API enum."
+    },
+    "AuditedModerationStats": {
+      "type": "object",
+      "required": [
+        "pending",
+        "approved",
+        "rejected",
+        "flagged",
+        "today_processed",
+        "avg_process_minutes",
+        "open_reports",
+        "appeal_success_rate"
+      ],
+      "properties": {
+        "pending": {
+          "type": "number"
+        },
+        "approved": {
+          "type": "number"
+        },
+        "rejected": {
+          "type": "number"
+        },
+        "flagged": {
+          "type": "number"
+        },
+        "today_processed": {
+          "type": "number"
+        },
+        "avg_process_minutes": {
+          "type": "number"
+        },
+        "open_reports": {
+          "type": "number"
+        },
+        "appeal_success_rate": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Counts across moderation tables (not the content-list filter). today_processed counts approve/reject/flag/remove/restore/ban/mute actions since database TRUNC(SYSDATE). avg_process_minutes is rounded average case duration; appeal_success_rate is rounded approved/(approved+rejected)*100; null aggregates become 0."
+    },
+    "AuditedModerationSetting": {
+      "type": "object",
+      "required": [
+        "key",
+        "value",
+        "value_type",
+        "label",
+        "description",
+        "updated_at"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "value_type": {
+          "type": "string",
+          "enum": [
+            "boolean",
+            "number",
+            "string"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "value is always a string, even when value_type is number or boolean. GET returns all stored setting rows, not only the four recognized PATCH keys."
+    },
+    "AuditedModerationAppeal": {
+      "type": "object",
+      "required": [
+        "appeal_id",
+        "statement_id",
+        "user",
+        "appeal_message",
+        "appeal_status",
+        "admin_response",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "appeal_id": {
+          "type": "number"
+        },
+        "statement_id": {
+          "type": "number"
+        },
+        "user": {
+          "$ref": "#/components/schemas/AuditedModerationPublicUser"
+        },
+        "appeal_message": {
+          "type": "string"
+        },
+        "appeal_status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected"
+          ]
+        },
+        "admin_response": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AuditedModerationActionInput": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "approve",
+                "reject",
+                "flag",
+                "remove",
+                "restore",
+                "claim",
+                "release"
+              ]
+            },
+            {
+              "type": "object",
+              "nullable": true,
+              "additionalProperties": true
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/AuditedModerationJsonValue"
+              }
+            }
+          ],
+          "description": "Omitted, null, object or array uses flag via v2String fallback. A supplied string must be a listed action; numbers/booleans stringify to invalid actions and produce 400.",
+          "default": "flag"
+        },
+        "reason": {
+          "$ref": "#/components/schemas/AuditedModerationCoercedString"
+        },
+        "note": {
+          "$ref": "#/components/schemas/AuditedModerationCoercedString"
+        }
+      },
+      "additionalProperties": true,
+      "description": "JSON object required; no fields required because action defaults to flag. Unknown fields ignored. duration_hours is not read by this post action handler."
+    },
+    "AuditedModerationBulkInput": {
+      "type": "object",
+      "required": [
+        "post_ids"
+      ],
+      "properties": {
+        "post_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/components/schemas/AuditedModerationJsonValue"
+          },
+          "description": "v2NumberArray retains finite JSON numbers and strings convertible by Number; null, empty strings, booleans, objects, arrays and invalid numeric strings are discarded. Zero/negative values and duplicates are retained. At least one normalized id must remain or 400; each retained value is then checked for existence (404). Duplicates are processed repeatedly and counted."
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "approve",
+                "reject",
+                "flag",
+                "remove",
+                "restore"
+              ]
+            },
+            {
+              "type": "object",
+              "nullable": true,
+              "additionalProperties": true
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/AuditedModerationJsonValue"
+              }
+            }
+          ],
+          "description": "Same fallback to flag as single-post action. claim/release are not accepted for bulk operations.",
+          "default": "flag"
+        },
+        "reason": {
+          "$ref": "#/components/schemas/AuditedModerationCoercedString"
+        },
+        "note": {
+          "$ref": "#/components/schemas/AuditedModerationCoercedString"
+        }
+      },
+      "additionalProperties": true
+    },
+    "AuditedModerationUserActionInput": {
+      "type": "object",
+      "required": [
+        "action"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "ban",
+            "unban",
+            "mute",
+            "unmute",
+            "note"
+          ]
+        },
+        "reason": {
+          "$ref": "#/components/schemas/AuditedModerationCoercedString"
+        },
+        "note": {
+          "$ref": "#/components/schemas/AuditedModerationCoercedString"
+        },
+        "duration_hours": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedModerationJsonValue"
+            }
+          ],
+          "description": "v2Number(value,24): finite numbers and finite numeric strings are used; other values fall back to 24 (null/boolean are not Number-coerced). No integer/positive restriction. ban <=0 means no end; mute uses max(value,1). unban/unmute/note ignore duration for restrictions but record it in the action log."
+        }
+      },
+      "additionalProperties": true
+    },
+    "AuditedModerationReportInput": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "status": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedModerationCoercedString"
+            }
+          ],
+          "description": "Recognized: pending, in_review, resolved, dismissed. Omitted/unknown/coerced unsupported input normalizes to pending, not 400. Only this body field is read."
+        }
+      },
+      "additionalProperties": true
+    },
+    "AuditedModerationAppealInput": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "appeal_status": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedModerationCoercedString"
+            }
+          ],
+          "description": "Recognized approved/rejected; missing or any other value normalizes to rejected."
+        },
+        "admin_response": {
+          "$ref": "#/components/schemas/AuditedModerationCoercedString"
+        }
+      },
+      "additionalProperties": true
+    },
+    "AuditedModerationSettingsInput": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "settings": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [],
+                    "properties": {
+                      "key": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/AuditedModerationCoercedString"
+                          }
+                        ],
+                        "description": "Only auto_hide_report_threshold, require_note_on_reject, allow_moderator_claim, default_mute_hours are updated; other keys silently ignored."
+                      },
+                      "value": {
+                        "$ref": "#/components/schemas/AuditedModerationCoercedString"
+                      }
+                    },
+                    "additionalProperties": true
+                  },
+                  {
+                    "not": {
+                      "type": "object"
+                    },
+                    "description": "Non-object entries are ignored. Array entries also have no recognized key and are ignored."
+                  }
+                ]
+              }
+            },
+            {
+              "not": {
+                "type": "array",
+                "items": {}
+              },
+              "description": "Non-array settings is treated as an empty update list."
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "description": "Missing settings, empty updates or unknown keys are successful no-ops. Recognized values are stored as coerced strings without numeric/boolean validation; value_type is not updated. Response lists all stored settings."
+    },
+    "AuditedModerationHttpError": {
+      "type": "object",
+      "required": [
+        "error",
+        "url",
+        "statusCode",
+        "statusMessage",
+        "message"
+      ],
+      "properties": {
+        "error": {
+          "type": "boolean",
+          "enum": [
+            true
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "statusCode": {
+          "type": "integer"
+        },
+        "statusMessage": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/V2ErrorResponse"
+            },
+            {
+              "type": "object",
+              "required": [
+                "success",
+                "message",
+                "code",
+                "timestamp"
+              ],
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "enum": [
+                    false
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "integer",
+                  "enum": [
+                    429
+                  ]
+                },
+                "timestamp": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "stack": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "description": "Nitro 2.13.3 default JSON error transport, statically read from installed prod/dev runtime. Application v2Throw/auth errors put V2ErrorResponse inside data, not at the top level. Rate limiter uses the legacy-shaped data alternative. data may be omitted for parser/unhandled errors; stack is dev-only. Nuxt 4.4.2 requests explicitly accepting text/html can receive an HTML error page in development or production; request Accept:application/json for this transport. No runtime acceptance is asserted."
+    },
+    "AuditedModerationCreateReportInput": {
+      "type": "object",
+      "required": [
+        "target_id"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "target_id": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            {
+              "type": "string",
+              "description": "Must parse using Number(value) to a finite value >0; invalid/empty values produce 400. Decimal ids are not rejected as non-integers by this helper."
+            }
+          ],
+          "description": "v2RequiredNumber; required, positive and finite after normalization; string/numeric forms accepted."
+        },
+        "target_type": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedModerationCoercedString"
+            }
+          ],
+          "description": "Recognized post/comment/user/group_post/group_comment. Missing or unrecognized values normalize to post, never a target_type validation error."
+        },
+        "reason": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedModerationCoercedString"
+            }
+          ],
+          "description": "Recognized spam/harassment/hate/violence/adult/misinformation/copyright/other; missing or unsupported normalizes to other."
+        },
+        "priority": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedModerationCoercedString"
+            }
+          ],
+          "description": "Recognized low/normal/high/urgent; missing or unsupported normalizes to normal."
+        },
+        "description": {
+          "$ref": "#/components/schemas/AuditedModerationCoercedString"
+        },
+        "evidence_url": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedModerationCoercedString"
+            }
+          ],
+          "description": "v2StringOrNull: coercion then an empty result becomes null. No URL format validation."
+        }
+      },
+      "description": "Authenticated report submission; does not require moderation account allow-list. Unknown fields ignored. DB column lengths/constraints can still fail; no application-level string length validator is asserted."
+    }
+  },
+  "evidence": [
+    {
+      "path": "/api/v2/moderation/content",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/content/index.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "contentWhere/contentSort/mapContentItem, v2ListModerationContent. Only post cases, not group posts/comments. Reports array includes all target reports and nullable public reporter/handler objects. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/reports",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/reports/index.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2ListModerationReports/mapReport. Ordered newest creation first. Reporter/handler lookup errors are caught and serialized as null. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/reports/{report_id}",
+      "method": "patch",
+      "sources": [
+        "server/api/v2/moderation/reports/[report_id].patch.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2PatchModerationReport/mapReport. Missing/unknown status -> pending; handled_by always becomes current moderator. resolved/dismissed sets resolved_at, other statuses retain prior timestamp; does not synchronize a case or moderate the target. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/users",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/users/index.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2ListModerationUsers mapper. report_count includes reports about the user and their ordinary posts; active_restriction is latest active, unexpired ban/mute. Database numeric flags are returned unchanged. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/users/{user_id}/actions",
+      "method": "post",
+      "sources": [
+        "server/api/v2/moderation/users/[user_id]/actions.post.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2ModerateUser and v2ListModerationUsers. ban sets suspended/is_active=0 and inserts restriction; unban sets active/is_active=1 and revokes bans; mute only inserts restriction; unmute revokes mutes; note only records action. Result lookup reuses query pagination/status/search without fallback and can return 404 after commit. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/stats",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/stats.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2GetModerationStats scalar aggregate query. Not scoped to any content/list filter. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/settings",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/settings/index.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2GetModerationSettings. Lists all persisted rows ordered by setting_key; value always string and value_type normalized to boolean/number/string. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/settings",
+      "method": "patch",
+      "sources": [
+        "server/api/v2/moderation/settings/index.patch.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2PatchModerationSettings -> v2GetModerationSettings. Only four DEFAULT_SETTINGS keys update. No primitive/type-range validation; unknown/non-object entries skipped; missing/non-array settings is no-op. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/appeals",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/appeals/index.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2ListModerationAppeals/mapAppeal. Ordered creation DESC; unlike nullable report actors, an absent appeal user causes the entire list to fail 404. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/appeals/{appeal_id}",
+      "method": "patch",
+      "sources": [
+        "server/api/v2/moderation/appeals/[appeal_id].patch.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2PatchModerationAppeal/mapAppeal. Unknown/missing appeal_status -> rejected. Updates appeal and logs appeal_approved/appeal_rejected; does not itself restore/delete a post. Does not call ensureModerationSchema, so moderation action table must already exist. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/content/{post_id}/actions",
+      "method": "post",
+      "sources": [
+        "server/api/v2/moderation/content/[post_id]/actions.post.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2ModeratePost/mapContentItem. IMPORTANT actual implementation: approve/remove set is_deleted=1; reject/restore clear it. flag/claim/release do not change deletion. claim assigns current moderator; release clears assignment. Case statuses approve=>approved,reject=>rejected,flag=>flagged,remove=>removed,restore=>restored,claim/release=>pending. Report statuses approve/remove/restore=>resolved,reject=>dismissed,flag/claim=>in_review,release=>pending. Query filters/pagination affect first reload attempt; unlike user action there is a by-id fallback. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/content/bulk-actions",
+      "method": "post",
+      "sources": [
+        "server/api/v2/moderation/content/bulk-actions.post.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2BulkModeratePosts. Only approve/reject/flag/remove/restore. approve/remove delete, reject/restore undelete. Input duplicates retained and counted. A single final explicit commit is used, but ensureCaseForTarget performs default autoCommit writes; do not assert transactional rollback for all prior work. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/reports",
+      "method": "post",
+      "sources": [
+        "server/api/v2/reports/index.post.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "Authenticated access cookie or Bearer JWT required (cookie takes precedence); this user-facing report submission calls v2Auth only and does not require requireModerationAccess or the moderation admin allow-list. v2CreateReport: target_id must normalize to a positive finite number. Unsupported target_type/reason/priority normalize to post/other/normal. Supports ordinary and group posts/comments plus users; checks target table existence without filtering deletion/activity status. Reporting oneself as a user is 403. Inserts pending report, creates/synchronizes target case report count/priority and returns the serialized report with nullable reporter/handler. Success is HTTP 200, not 201. No duplicate-report prevention is implemented in this handler. ensureModerationSchema may perform DDL; no runtime calls were made."
+    }
+  ]
+}

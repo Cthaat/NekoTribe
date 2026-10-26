@@ -141,7 +141,7 @@ function makeManifest(projectRoot, spec, bytes) {
     schemaVersion: 2,
     authority,
     contractVersion: spec.info.version,
-    revision: 't11-route-audit-2026-09-10',
+    revision: spec.info['x-contract-revision'] ?? spec.info.version,
     normalization: 'UTF-8 without BOM; LF. SHA-256 and Git blob identify exact snapshot bytes.',
     source: { project: 'nuxt', branch: git(projectRoot, 'branch', '--show-current').toString().trim(), commit },
     files: sources.map((sourcePath, i) => {
@@ -159,7 +159,7 @@ function makeManifest(projectRoot, spec, bytes) {
 function validateManifest(manifest, spec, bytes) {
   requireThat(manifest.schemaVersion === 2 && manifest.authority === authority && manifest.source?.project === 'nuxt', 'Wrong manifest authority or schema version');
   requireThat(typeof manifest.source.branch === 'string' && /^[0-9a-f]{40}$/.test(manifest.source.commit), 'Invalid source provenance');
-  requireThat(manifest.contractVersion === spec.info.version && typeof manifest.revision === 'string', 'Wrong contract version or revision');
+  requireThat(manifest.contractVersion === spec.info.version && manifest.revision === (spec.info['x-contract-revision'] ?? spec.info.version), 'Wrong contract version or revision');
   requireThat(manifest.files?.length === sources.length, 'Missing manifest file entries');
   for (const [i, sourcePath] of sources.entries()) {
     const file = manifest.files[i];

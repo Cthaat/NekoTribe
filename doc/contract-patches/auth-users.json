@@ -1,0 +1,1920 @@
+{
+  "operations": [
+    {
+      "path": "/api/v2/users/me",
+      "method": "delete",
+      "operation": {
+        "summary": "Delete the authenticated account",
+        "operationId": "t11_delete_api_v2_users_me",
+        "description": "Requires an active access session, current password and confirmation equal to the current username or case-insensitive DELETE. Anonymizes/disables the account, soft-deletes its posts/comments, revokes its sessions and clears auth cookies. No query parameters are read. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "v2Ok success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedAccountDeletionResponse"
+                }
+              }
+            },
+            "headers": {
+              "Set-Cookie": {
+                "description": "Deletes access_token and refresh_token cookies at path /. Multiple Set-Cookie headers may be emitted.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "40001: missing/blank password or confirmation, or confirmation mismatch. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "401": {
+            "description": "40101: missing/invalid access session or wrong password. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "403": {
+            "description": "40301: password verification found an inactive/non-active account. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "404": {
+            "description": "40401: self user/password row not found. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "default": {
+            "description": "Unhandled database, cryptography, body-parser or framework failures propagate through defineV2Handler; no invented fixed payload is specified."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me.delete.ts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                  },
+                  "confirmation": {
+                    "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                  }
+                },
+                "required": [
+                  "password",
+                  "confirmation"
+                ]
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/users/me.delete.ts",
+            "server/services/v2/users.ts",
+            "server/services/v2/auth.ts",
+            "server/models/v2.ts",
+            "server/types/v2.d.ts",
+            "server/services/v2/presence.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/users/me/two-factor",
+      "method": "delete",
+      "operation": {
+        "summary": "Disable two-factor authentication",
+        "operationId": "t11_delete_api_v2_users_me_two_factor",
+        "description": "Requires current password and either a valid six-digit TOTP or an unused recovery code. Code normalization removes whitespace/hyphens and uppercases text. Disables the secret and settings; deletes recovery codes and trusted devices. No query parameters are read. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "v2Ok success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedAccountDisableResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "40001: missing/blank password or code. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "401": {
+            "description": "40101: invalid access session, wrong password or invalid TOTP/recovery code. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "403": {
+            "description": "40301: inactive/non-active account. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "404": {
+            "description": "40401: password user row not found. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "422": {
+            "description": "42201: two-factor secret is missing or not enabled. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "default": {
+            "description": "Unhandled database, cryptography, body-parser or framework failures propagate through defineV2Handler; no invented fixed payload is specified."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me/two-factor.delete.ts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                  },
+                  "code": {
+                    "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                  }
+                },
+                "required": [
+                  "password",
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/users/me/two-factor.delete.ts",
+            "server/services/v2/auth.ts",
+            "server/models/v2.ts",
+            "server/types/v2.d.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/users/me/two-factor/setup",
+      "method": "post",
+      "operation": {
+        "summary": "Generate a two-factor setup secret",
+        "operationId": "t11_post_api_v2_users_me_two_factor_setup",
+        "description": "Requires current password. Replaces pending setup secret, resets two_factor_enabled to 0 and removes recovery codes/trusted devices. Rejects an already-enabled secret. Returns the Base32 secret and generated otpauth URI. No query parameters are read. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "v2Ok success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedAccountSetupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "40001: missing/blank password. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "401": {
+            "description": "40101: invalid access session or wrong password. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "403": {
+            "description": "40301: inactive/non-active account. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "404": {
+            "description": "40401: password/self user row not found. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "422": {
+            "description": "42201: an existing secret is already enabled. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "default": {
+            "description": "Unhandled database, cryptography, body-parser or framework failures propagate through defineV2Handler; no invented fixed payload is specified."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me/two-factor/setup.post.ts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                  }
+                },
+                "required": [
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/users/me/two-factor/setup.post.ts",
+            "server/services/v2/auth.ts",
+            "server/models/v2.ts",
+            "server/types/v2.d.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/users/me/two-factor/confirm",
+      "method": "post",
+      "operation": {
+        "summary": "Confirm two-factor setup",
+        "operationId": "t11_post_api_v2_users_me_two_factor_confirm",
+        "description": "Verifies the pending secret using a six-digit TOTP after whitespace/hyphen removal and uppercasing; recovery codes are not accepted here. Enables two-factor authentication and generates ten fresh recovery codes. Re-confirming an existing secret is not explicitly rejected by this service. No query parameters are read. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "v2Ok success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedAccountConfirmResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "40101: invalid access session or wrong/missing/malformed TOTP code. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "422": {
+            "description": "42201: no secret has been generated. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "default": {
+            "description": "Unhandled database, cryptography, body-parser or framework failures propagate through defineV2Handler; no invented fixed payload is specified."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me/two-factor/confirm.post.ts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ],
+                    "description": "Normalized through v2String, trim, whitespace/hyphen removal and uppercase. A missing code normalizes to empty text and yields 401 rather than 400."
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/users/me/two-factor/confirm.post.ts",
+            "server/services/v2/auth.ts",
+            "server/models/v2.ts",
+            "server/types/v2.d.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/auth/two-factor/challenges",
+      "method": "post",
+      "operation": {
+        "summary": "Complete a two-factor login challenge",
+        "operationId": "t11_post_api_v2_auth_two_factor_challenges",
+        "description": "Public credential endpoint: bearer/access cookies are not required and stale credentials are bypassed by auth middleware. Requires an unexpired/unconsumed challenge belonging to an active account and a valid TOTP or unused recovery code. Atomically consumes the challenge; remember_me from challenge creation controls trusted-device storage. Issues a new session and auth cookies, returning login-success data only. No query parameters are read. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level.",
+        "parameters": [
+          {
+            "name": "x-device-info",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Stored with the newly issued session; defaults to unknown."
+          },
+          {
+            "name": "x-device-fingerprint",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Stored with the newly issued session; defaults to unknown."
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "v2Ok success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedAccountLoginResponse"
+                }
+              }
+            },
+            "headers": {
+              "Set-Cookie": {
+                "description": "Sets access_token and refresh_token, HttpOnly; SameSite=Lax; Path=/; Secure depends on runtime configuration. Multiple Set-Cookie headers are emitted.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "40001: missing/blank code or challenge identifier (body challenge_id on the collection route; missing path id on the item route). Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "401": {
+            "description": "40101: challenge missing, expired, consumed or tied to inactive account; wrong TOTP/recovery code or concurrent challenge consumption. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "404": {
+            "description": "40401: self user not found while serializing the new login session. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "422": {
+            "description": "42201: two-factor secret missing or not enabled. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "default": {
+            "description": "Unhandled database, cryptography, body-parser or framework failures propagate through defineV2Handler; no invented fixed payload is specified."
+          }
+        },
+        "x-implementation-source": "server/api/v2/auth/two-factor/challenges.post.ts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                  },
+                  "challenge_id": {
+                    "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                  }
+                },
+                "required": [
+                  "code",
+                  "challenge_id"
+                ]
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/auth/two-factor/challenges.post.ts",
+            "server/services/v2/auth.ts",
+            "server/models/v2.ts",
+            "server/types/v2.d.ts",
+            "server/utils/auth-token-response.ts",
+            "server/storage/index.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/auth/two-factor/challenges/{id}",
+      "method": "post",
+      "operation": {
+        "summary": "Complete a two-factor login challenge",
+        "operationId": "t11_post_api_v2_auth_two_factor_challenges_id",
+        "description": "Public credential endpoint: bearer/access cookies are not required and stale credentials are bypassed by auth middleware. Requires an unexpired/unconsumed challenge belonging to an active account and a valid TOTP or unused recovery code. Atomically consumes the challenge; remember_me from challenge creation controls trusted-device storage. Issues a new session and auth cookies, returning login-success data only. No query parameters are read. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Challenge identifier from the URL; takes precedence over any body challenge_id."
+          },
+          {
+            "name": "x-device-info",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Stored with the newly issued session; defaults to unknown."
+          },
+          {
+            "name": "x-device-fingerprint",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Stored with the newly issued session; defaults to unknown."
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "v2Ok success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedAccountLoginResponse"
+                }
+              }
+            },
+            "headers": {
+              "Set-Cookie": {
+                "description": "Sets access_token and refresh_token, HttpOnly; SameSite=Lax; Path=/; Secure depends on runtime configuration. Multiple Set-Cookie headers are emitted.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "40001: missing/blank code or challenge identifier (body challenge_id on the collection route; missing path id on the item route). Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "401": {
+            "description": "40101: challenge missing, expired, consumed or tied to inactive account; wrong TOTP/recovery code or concurrent challenge consumption. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "404": {
+            "description": "40401: self user not found while serializing the new login session. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "422": {
+            "description": "42201: two-factor secret missing or not enabled. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "default": {
+            "description": "Unhandled database, cryptography, body-parser or framework failures propagate through defineV2Handler; no invented fixed payload is specified."
+          }
+        },
+        "x-implementation-source": "server/api/v2/auth/two-factor/challenges/[id].post.ts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/auth/two-factor/challenges/[id].post.ts",
+            "server/services/v2/auth.ts",
+            "server/models/v2.ts",
+            "server/types/v2.d.ts",
+            "server/utils/auth-token-response.ts",
+            "server/storage/index.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/users/me/group-invites",
+      "method": "get",
+      "operation": {
+        "summary": "List pending invitations for the authenticated user",
+        "operationId": "t11_get_api_v2_users_me_group_invites",
+        "description": "Lists invitations addressed to the authenticated user with status pending, not expired, and for active nondeleted groups, ordered by invitation creation descending. Serializer resolves inviter/invitee public users. Returns page metadata. No request body or other query keys are read. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Positive numeric query value; invalid/non-positive values default to 1; clamped to [1, 10000]. The helper does not enforce integrality.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "description": "Positive numeric query value; invalid/non-positive values default to 20; clamped to [1, 100]. The helper does not enforce integrality.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "v2Ok success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedAccountInviteListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "40101: missing/invalid access session. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "404": {
+            "description": "40401: an inviter/invitee public user cannot be resolved during mapping. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "default": {
+            "description": "Unhandled database, cryptography, body-parser or framework failures propagate through defineV2Handler; no invented fixed payload is specified."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me/group-invites.get.ts",
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/users/me/group-invites.get.ts",
+            "server/services/v2/groups.ts",
+            "server/models/v2.ts",
+            "server/types/v2.d.ts",
+            "server/storage/index.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/users/me/likes",
+      "method": "get",
+      "operation": {
+        "summary": "List posts liked by the authenticated user",
+        "operationId": "t11_get_api_v2_users_me_likes",
+        "description": "Lists liked posts filtered through fn_can_view_post. newest/default and oldest sort by the viewer latest like time, popular by engagement descending then creation descending. q performs case-insensitive content/location/tag search (leading # stripped for tag matching). timeline=mentions/following adds the corresponding filter; other values add neither. Returns fully serialized posts and page metadata. No request body is read. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Positive numeric query value; invalid/non-positive values default to 1; clamped to [1, 10000]. The helper does not enforce integrality.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "description": "Positive numeric query value; invalid/non-positive values default to 20; clamped to [1, 100]. The helper does not enforce integrality.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "newest (default/fallback), oldest, popular. Other text follows newest ordering.",
+            "schema": {
+              "type": "string",
+              "default": "newest"
+            }
+          },
+          {
+            "name": "timeline",
+            "in": "query",
+            "required": false,
+            "description": "home by default. mentions/following add filters; other values are unfiltered.",
+            "schema": {
+              "type": "string",
+              "default": "home"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Trimmed and lowercased search text; empty means no search filter.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "v2Ok success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedAccountLikedPostListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "40101: missing/invalid access session. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "404": {
+            "description": "40401: a post author public user cannot be resolved during mapping. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "default": {
+            "description": "Unhandled database, cryptography, body-parser or framework failures propagate through defineV2Handler; no invented fixed payload is specified."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/me/likes.get.ts",
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/users/me/likes.get.ts",
+            "server/services/v2/posts.ts",
+            "server/models/v2.ts",
+            "server/types/v2.d.ts",
+            "server/storage/index.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/users/{id}/analytics/daily",
+      "method": "get",
+      "operation": {
+        "summary": "Read a public user daily analytics series",
+        "operationId": "t11_get_api_v2_users_id_analytics_daily",
+        "description": "Requires an access session and an existing active public target user; there is no self-only check. Returns one record per day in ascending day order. days is parsed numerically, defaults to 14 for invalid/non-positive values, then clamps to [7,90] without explicit integer validation. engagement_score is likes_received + comments_received + retweets_received. No request body is read. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "Positive numeric user id; v2RouterNumber parses numeric text and does not explicitly enforce integer values."
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "description": "Positive numeric value; invalid/non-positive -> 14, then clamp [7,90]; not explicitly rounded.",
+            "schema": {
+              "type": "number",
+              "default": 14
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "v2Ok success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedAccountDailyAnalyticsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "40001: path id is missing, nonnumeric or non-positive; the router helper does not require an integer. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "401": {
+            "description": "40101: missing/invalid access session. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "404": {
+            "description": "40401: target public user is not found. Service v2Throw attaches {code, message, data:null, meta:null} to H3 error.data; the handler rethrows it. Framework HTTP error rendering is not asserted to equal the success envelope at the top level."
+          },
+          "default": {
+            "description": "Unhandled database, cryptography, body-parser or framework failures propagate through defineV2Handler; no invented fixed payload is specified."
+          }
+        },
+        "x-implementation-source": "server/api/v2/users/[id]/analytics/daily.get.ts",
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/users/[id]/analytics/daily.get.ts",
+            "server/services/v2/users.ts",
+            "server/models/v2.ts",
+            "server/types/v2.d.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
+          ]
+        }
+      }
+    }
+  ],
+  "schemas": {
+    "AuditedAccountRequiredText": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        }
+      ],
+      "description": "v2RequiredString converts strings/numbers/booleans to text, trims it and rejects an empty result. Clients should send strings."
+    },
+    "AuditedAccountRelationship": {
+      "type": "object",
+      "properties": {
+        "is_self": {
+          "type": "boolean"
+        },
+        "is_following": {
+          "type": "boolean"
+        },
+        "is_blocked": {
+          "type": "boolean"
+        },
+        "is_blocking": {
+          "type": "boolean"
+        },
+        "relation": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "is_self",
+        "is_following",
+        "is_blocked",
+        "is_blocking",
+        "relation"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountPublicUser": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "number"
+        },
+        "is_verified": {
+          "type": "number"
+        },
+        "followers_count": {
+          "type": "number"
+        },
+        "following_count": {
+          "type": "number"
+        },
+        "posts_count": {
+          "type": "number"
+        },
+        "likes_count": {
+          "type": "number"
+        },
+        "username": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "bio": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "website": {
+          "type": "string"
+        },
+        "relationship": {
+          "$ref": "#/components/schemas/AuditedAccountRelationship"
+        },
+        "online_status": {
+          "type": "string",
+          "enum": [
+            "online",
+            "offline",
+            "hidden"
+          ]
+        },
+        "last_seen_at": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "required": [
+        "user_id",
+        "is_verified",
+        "followers_count",
+        "following_count",
+        "posts_count",
+        "likes_count",
+        "username",
+        "display_name",
+        "avatar_url",
+        "bio",
+        "location",
+        "website",
+        "relationship",
+        "online_status",
+        "last_seen_at"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountSelfUser": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "number"
+        },
+        "is_verified": {
+          "type": "number"
+        },
+        "followers_count": {
+          "type": "number"
+        },
+        "following_count": {
+          "type": "number"
+        },
+        "posts_count": {
+          "type": "number"
+        },
+        "likes_count": {
+          "type": "number"
+        },
+        "username": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "bio": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "website": {
+          "type": "string"
+        },
+        "relationship": {
+          "$ref": "#/components/schemas/AuditedAccountRelationship"
+        },
+        "online_status": {
+          "type": "string",
+          "enum": [
+            "online",
+            "offline",
+            "hidden"
+          ]
+        },
+        "last_seen_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "email": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "birth_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "email_verified_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "is_active": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "user_id",
+        "is_verified",
+        "followers_count",
+        "following_count",
+        "posts_count",
+        "likes_count",
+        "username",
+        "display_name",
+        "avatar_url",
+        "bio",
+        "location",
+        "website",
+        "relationship",
+        "online_status",
+        "last_seen_at",
+        "email",
+        "phone",
+        "status",
+        "created_at",
+        "updated_at",
+        "birth_date",
+        "email_verified_at",
+        "is_active"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountTokens": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "access_token": {
+          "type": "string"
+        },
+        "refresh_token": {
+          "type": "string"
+        },
+        "access_token_expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "refresh_token_expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "session_id",
+        "access_token",
+        "refresh_token",
+        "access_token_expires_at",
+        "refresh_token_expires_at"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountLoginData": {
+      "type": "object",
+      "properties": {
+        "two_factor_required": {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        },
+        "user": {
+          "$ref": "#/components/schemas/AuditedAccountSelfUser"
+        },
+        "tokens": {
+          "$ref": "#/components/schemas/AuditedAccountTokens"
+        }
+      },
+      "required": [
+        "two_factor_required",
+        "user",
+        "tokens"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountDeletionData": {
+      "type": "object",
+      "properties": {
+        "deleted": {
+          "type": "boolean",
+          "enum": [
+            true
+          ]
+        },
+        "user_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "deleted",
+        "user_id"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountSetupData": {
+      "type": "object",
+      "properties": {
+        "secret": {
+          "type": "string",
+          "description": "Base32-encoded 20 random bytes."
+        },
+        "otpauth_url": {
+          "type": "string",
+          "description": "otpauth URI generated from the account and secret."
+        }
+      },
+      "required": [
+        "secret",
+        "otpauth_url"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountConfirmData": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "enum": [
+            true
+          ]
+        },
+        "recovery_codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 10,
+          "maxItems": 10
+        }
+      },
+      "required": [
+        "enabled",
+        "recovery_codes"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountDisableData": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountInviteGroup": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "number"
+        },
+        "member_count": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "privacy": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "required": [
+        "group_id",
+        "member_count",
+        "name",
+        "slug",
+        "description",
+        "privacy",
+        "avatar_url"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountGroupInvite": {
+      "type": "object",
+      "properties": {
+        "invite_id": {
+          "type": "number"
+        },
+        "invite_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string",
+          "nullable": true
+        },
+        "max_uses": {
+          "type": "number",
+          "nullable": true
+        },
+        "used_count": {
+          "type": "number"
+        },
+        "expires_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "group": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/AuditedAccountInviteGroup"
+            },
+            {
+              "type": "object",
+              "nullable": true,
+              "enum": [
+                null
+              ]
+            }
+          ]
+        },
+        "inviter": {
+          "$ref": "#/components/schemas/AuditedAccountPublicUser"
+        },
+        "invitee": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/AuditedAccountPublicUser"
+            },
+            {
+              "type": "object",
+              "nullable": true,
+              "enum": [
+                null
+              ]
+            }
+          ]
+        },
+        "is_valid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "invite_id",
+        "invite_code",
+        "status",
+        "message",
+        "max_uses",
+        "used_count",
+        "expires_at",
+        "created_at",
+        "group",
+        "inviter",
+        "invitee",
+        "is_valid"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountMedia": {
+      "type": "object",
+      "properties": {
+        "media_id": {
+          "type": "number"
+        },
+        "file_size": {
+          "type": "number"
+        },
+        "media_type": {
+          "type": "string"
+        },
+        "file_name": {
+          "type": "string"
+        },
+        "public_url": {
+          "type": "string"
+        },
+        "mime_type": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "width": {
+          "type": "number",
+          "nullable": true
+        },
+        "height": {
+          "type": "number",
+          "nullable": true
+        },
+        "duration": {
+          "type": "number",
+          "nullable": true
+        },
+        "thumbnail_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "alt_text": {
+          "type": "string",
+          "nullable": true
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "required": [
+        "media_id",
+        "file_size",
+        "media_type",
+        "file_name",
+        "public_url",
+        "mime_type",
+        "status",
+        "created_at",
+        "width",
+        "height",
+        "duration",
+        "thumbnail_url",
+        "alt_text",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountPostStats": {
+      "type": "object",
+      "properties": {
+        "likes_count": {
+          "type": "number"
+        },
+        "comments_count": {
+          "type": "number"
+        },
+        "replies_count": {
+          "type": "number"
+        },
+        "retweets_count": {
+          "type": "number"
+        },
+        "views_count": {
+          "type": "number"
+        },
+        "engagement_score": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "likes_count",
+        "comments_count",
+        "replies_count",
+        "retweets_count",
+        "views_count",
+        "engagement_score"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountPostViewerState": {
+      "type": "object",
+      "properties": {
+        "is_liked": {
+          "type": "boolean"
+        },
+        "is_bookmarked": {
+          "type": "boolean"
+        },
+        "can_delete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "is_liked",
+        "is_bookmarked",
+        "can_delete"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountPost": {
+      "type": "object",
+      "properties": {
+        "post_id": {
+          "type": "number"
+        },
+        "author": {
+          "$ref": "#/components/schemas/AuditedAccountPublicUser"
+        },
+        "content": {
+          "type": "string"
+        },
+        "post_type": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "reply_to_post_id": {
+          "type": "number",
+          "nullable": true
+        },
+        "repost_of_post_id": {
+          "type": "number",
+          "nullable": true
+        },
+        "quoted_post_id": {
+          "type": "number",
+          "nullable": true
+        },
+        "media": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AuditedAccountMedia"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mentions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AuditedAccountPublicUser"
+          }
+        },
+        "stats": {
+          "$ref": "#/components/schemas/AuditedAccountPostStats"
+        },
+        "viewer_state": {
+          "$ref": "#/components/schemas/AuditedAccountPostViewerState"
+        }
+      },
+      "required": [
+        "post_id",
+        "author",
+        "content",
+        "post_type",
+        "visibility",
+        "language",
+        "location",
+        "created_at",
+        "updated_at",
+        "reply_to_post_id",
+        "repost_of_post_id",
+        "quoted_post_id",
+        "media",
+        "tags",
+        "mentions",
+        "stats",
+        "viewer_state"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountDailyAnalytics": {
+      "type": "object",
+      "properties": {
+        "day": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "posts_count": {
+          "type": "number"
+        },
+        "likes_received": {
+          "type": "number"
+        },
+        "comments_received": {
+          "type": "number"
+        },
+        "retweets_received": {
+          "type": "number"
+        },
+        "likes_given": {
+          "type": "number"
+        },
+        "comments_made": {
+          "type": "number"
+        },
+        "engagement_score": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "day",
+        "posts_count",
+        "likes_received",
+        "comments_received",
+        "retweets_received",
+        "likes_given",
+        "comments_made",
+        "engagement_score"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountPaginationMeta": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "number"
+        },
+        "page_size": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        },
+        "has_next": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "page",
+        "page_size",
+        "total",
+        "has_next"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountDeletionResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/components/schemas/AuditedAccountDeletionData"
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountSetupResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/components/schemas/AuditedAccountSetupData"
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountConfirmResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/components/schemas/AuditedAccountConfirmData"
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountDisableResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/components/schemas/AuditedAccountDisableData"
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountLoginResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/components/schemas/AuditedAccountLoginData"
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountInviteListResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AuditedAccountGroupInvite"
+          }
+        },
+        "meta": {
+          "$ref": "#/components/schemas/AuditedAccountPaginationMeta"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountLikedPostListResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AuditedAccountPost"
+          }
+        },
+        "meta": {
+          "$ref": "#/components/schemas/AuditedAccountPaginationMeta"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "additionalProperties": false
+    },
+    "AuditedAccountDailyAnalyticsResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AuditedAccountDailyAnalytics"
+          }
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "evidence": [
+    {
+      "path": "/api/v2/users/me",
+      "method": "delete",
+      "sources": [
+        "server/api/v2/users/me.delete.ts",
+        "server/services/v2/users.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/services/v2/presence.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "v2DeleteMe -> v2RequireSelfUser, v2VerifyUserPassword, v2ClearAuthCookies. Confirmation comparison occurs after v2RequiredString trim; DELETE is case-insensitive, username exact. Successful response contains deleted:true,user_id and meta:null. Presence publish can propagate an unhandled failure after account changes."
+    },
+    {
+      "path": "/api/v2/users/me/two-factor",
+      "method": "delete",
+      "sources": [
+        "server/api/v2/users/me/two-factor.delete.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Requires current password and either a valid six-digit TOTP or an unused recovery code. Code normalization removes whitespace/hyphens and uppercases text. Disables the secret and settings; deletes recovery codes and trusted devices. No query parameters are read."
+    },
+    {
+      "path": "/api/v2/users/me/two-factor/setup",
+      "method": "post",
+      "sources": [
+        "server/api/v2/users/me/two-factor/setup.post.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Requires current password. Replaces pending setup secret, resets two_factor_enabled to 0 and removes recovery codes/trusted devices. Rejects an already-enabled secret. Returns the Base32 secret and generated otpauth URI. No query parameters are read."
+    },
+    {
+      "path": "/api/v2/users/me/two-factor/confirm",
+      "method": "post",
+      "sources": [
+        "server/api/v2/users/me/two-factor/confirm.post.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Verifies the pending secret using a six-digit TOTP after whitespace/hyphen removal and uppercasing; recovery codes are not accepted here. Enables two-factor authentication and generates ten fresh recovery codes. Re-confirming an existing secret is not explicitly rejected by this service. No query parameters are read."
+    },
+    {
+      "path": "/api/v2/auth/two-factor/challenges",
+      "method": "post",
+      "sources": [
+        "server/api/v2/auth/two-factor/challenges.post.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/auth-token-response.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Both handlers call v2CompleteTwoFactorLogin, not challenge creation. Existing security:[] preserved. v2IssueLoginSession returns two_factor_required:false,user,tokens and sets access_token/refresh_token HttpOnly SameSite=Lax path=/ cookies (Secure is runtime-dependent). Headers and request IP/user-agent are stored with the session. Code accepts TOTP or a single-use recovery code. Item route ignores body challenge_id."
+    },
+    {
+      "path": "/api/v2/auth/two-factor/challenges/{id}",
+      "method": "post",
+      "sources": [
+        "server/api/v2/auth/two-factor/challenges/[id].post.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/auth-token-response.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Both handlers call v2CompleteTwoFactorLogin, not challenge creation. Existing security:[] preserved. v2IssueLoginSession returns two_factor_required:false,user,tokens and sets access_token/refresh_token HttpOnly SameSite=Lax path=/ cookies (Secure is runtime-dependent). Headers and request IP/user-agent are stored with the session. Code accepts TOTP or a single-use recovery code. Item route ignores body challenge_id."
+    },
+    {
+      "path": "/api/v2/users/me/group-invites",
+      "method": "get",
+      "sources": [
+        "server/api/v2/users/me/group-invites.get.ts",
+        "server/services/v2/groups.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Lists invitations addressed to the authenticated user with status pending, not expired, and for active nondeleted groups, ordered by invitation creation descending. Serializer resolves inviter/invitee public users. Returns page metadata. No request body or other query keys are read."
+    },
+    {
+      "path": "/api/v2/users/me/likes",
+      "method": "get",
+      "sources": [
+        "server/api/v2/users/me/likes.get.ts",
+        "server/services/v2/posts.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Lists liked posts filtered through fn_can_view_post. newest/default and oldest sort by the viewer latest like time, popular by engagement descending then creation descending. q performs case-insensitive content/location/tag search (leading # stripped for tag matching). timeline=mentions/following adds the corresponding filter; other values add neither. Returns fully serialized posts and page metadata. No request body is read."
+    },
+    {
+      "path": "/api/v2/users/{id}/analytics/daily",
+      "method": "get",
+      "sources": [
+        "server/api/v2/users/[id]/analytics/daily.get.ts",
+        "server/services/v2/users.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Requires an access session and an existing active public target user; there is no self-only check. Returns one record per day in ascending day order. days is parsed numerically, defaults to 14 for invalid/non-positive values, then clamps to [7,90] without explicit integer validation. engagement_score is likes_received + comments_received + retweets_received. No request body is read."
+    }
+  ]
+}

@@ -59,6 +59,7 @@ test('check rejects wrong authority, source paths, version and content drift', (
     (m) => { m.authority = 'Rust'; },
     (m) => { m.files[0].sourcePath = '../elsewhere.json'; },
     (m) => { m.contractVersion = '9.0'; },
+    (m) => { m.revision = 'stale-revision'; },
     (m) => { m.files[0].gitBlob = '0'.repeat(40); }
   ]) {
     const manifest = JSON.parse(original);

@@ -1,0 +1,244 @@
+{
+  "path": "/api/v2/posts/{id}",
+  "patchOperation": {
+    "summary": "Partially update an owned post",
+    "operationId": "patchPostPartial",
+    "description": "Canonical PATCH entry for partial updates. Omitted scalar fields and relation arrays are preserved. Explicit relation arrays replace those relations; an empty array clears them. An empty JSON object is a no-op for an otherwise valid existing post. Existing content/media validation and author-only permissions are unchanged; this change introduces a canonical HTTP method without changing the update service.\nNo query parameters are read. Authenticated author only; deleted/missing post => 40401, another author => 42201. Empty final non-repost content without media, invalid visibility/language, invalid body/path, unusable attachments => 40001. Relationship arrays replace existing values when present; unknown keys and unsupported creation-only reference fields are ignored. Success data is complete serialized post, not a diff. Returning the updated post can also yield 40401 if it is no longer visible, or author lookup fails. Authentication accepts bearer token or access_token cookie according to auth middleware; all successful responses have meta=null (no pagination). Framework/Oracle/Redis failures can produce 5xx; source audit is not runtime acceptance.",
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMinimum": true
+        },
+        "description": "Converted with Number and required >0 by v2RouterNumber; integer-only validation is not implemented. Numeric strings including positive fractions/scientific notation are accepted if representable."
+      }
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      },
+      {
+        "accessTokenCookie": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Successful source-defined response.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityPostResponse"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "40001: invalid path/body, visibility/language, empty final non-repost or unusable attachment. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityHttpError"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "40101: missing/invalid/revoked/expired access credential. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityHttpError"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "40401: post deleted/missing/not visible after update or author missing. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityHttpError"
+            }
+          }
+        }
+      },
+      "422": {
+        "description": "42201: only post author may update. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityHttpError"
+            }
+          }
+        }
+      },
+      "default": {
+        "description": "Framework/Oracle/Redis failure or content negotiation; not assigned invented service-specific error codes. Sensitive production failures may omit data.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityHttpError"
+            }
+          }
+        }
+      }
+    },
+    "x-implementation-source": "server/api/v2/posts/[id].patch.ts",
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/AuditedCommunityUpdatePostBody"
+          }
+        }
+      }
+    },
+    "x-contract-audit": {
+      "status": "source-audited",
+      "sources": [
+        "server/api/v2/posts/[id].patch.ts",
+        "server/services/v2/posts.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ]
+    },
+    "deprecated": false
+  },
+  "legacyPutOperation": {
+    "summary": "Partially update an owned post (legacy PUT alias)",
+    "operationId": "t11_put_api_v2_posts_id",
+    "description": "Compatibility alias for PATCH /api/v2/posts/{id}; retained so existing clients continue working. Despite PUT, this endpoint keeps the existing partial-update semantics and is not a full-resource replacement. New clients should use PATCH. Omitted scalar fields and relation arrays are preserved. Explicit relation arrays replace those relations; an empty array clears them. An empty JSON object is a no-op for an otherwise valid existing post. Existing content/media validation and author-only permissions are unchanged; this change introduces a canonical HTTP method without changing the update service.\nNo query parameters are read. Authenticated author only; deleted/missing post => 40401, another author => 42201. Empty final non-repost content without media, invalid visibility/language, invalid body/path, unusable attachments => 40001. Relationship arrays replace existing values when present; unknown keys and unsupported creation-only reference fields are ignored. Success data is complete serialized post, not a diff. Returning the updated post can also yield 40401 if it is no longer visible, or author lookup fails. Authentication accepts bearer token or access_token cookie according to auth middleware; all successful responses have meta=null (no pagination). Framework/Oracle/Redis failures can produce 5xx; source audit is not runtime acceptance.",
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMinimum": true
+        },
+        "description": "Converted with Number and required >0 by v2RouterNumber; integer-only validation is not implemented. Numeric strings including positive fractions/scientific notation are accepted if representable."
+      }
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      },
+      {
+        "accessTokenCookie": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Successful source-defined response.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityPostResponse"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "40001: invalid path/body, visibility/language, empty final non-repost or unusable attachment. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityHttpError"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "40101: missing/invalid/revoked/expired access credential. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityHttpError"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "40401: post deleted/missing/not visible after update or author missing. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityHttpError"
+            }
+          }
+        }
+      },
+      "422": {
+        "description": "42201: only post author may update. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityHttpError"
+            }
+          }
+        }
+      },
+      "default": {
+        "description": "Framework/Oracle/Redis failure or content negotiation; not assigned invented service-specific error codes. Sensitive production failures may omit data.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuditedCommunityHttpError"
+            }
+          }
+        }
+      }
+    },
+    "x-implementation-source": "server/api/v2/posts/[id].put.ts",
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/AuditedCommunityUpdatePostBody"
+          }
+        }
+      }
+    },
+    "x-contract-audit": {
+      "status": "source-audited",
+      "sources": [
+        "server/api/v2/posts/[id].put.ts",
+        "server/api/v2/posts/[id].patch.ts",
+        "server/services/v2/posts.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ]
+    },
+    "deprecated": true
+  },
+  "evidence": {
+    "sources": [
+      "server/api/v2/posts/[id].patch.ts",
+      "server/api/v2/posts/[id].put.ts",
+      "server/services/v2/posts.ts",
+      "server/utils/v2.ts",
+      "app/api/v2/posts.ts",
+      "../flutter/lib/features/posts/data/posts_api.dart",
+      "tests/posts-partial-update.test.mjs"
+    ],
+    "notes": "PATCH contains the previous PUT handler; PUT re-exports that exact handler. Both call unchanged v2UpdatePost/v2ReadUpdatePostPayload. Nuxt and Flutter updatePost alone switch to PATCH. Ten isolated Node tests execute real routes/input parsing/update service plus the Nuxt API wrapper without opening sockets, starting services, or accessing Oracle/Redis. The final post reload/Oracle/cache/logging/notification boundaries are stubbed, so this is not a database or end-to-end acceptance claim. Flutter change is statically reviewed; no Dart/Flutter SDK was run."
+  }
+}

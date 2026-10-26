@@ -19,6 +19,8 @@ Flutter 设置页保存的配置优先于编译时 `--dart-define`，之后才�
 
 Nuxt 接受现有 access Cookie 或 Bearer token；Flutter 使用登录响应中的 token。刷新会轮换 token，退出后旧会话不可继续使用。测试和客户端不能把刷新前的 token 缓存为永久凭据。
 
+API 请求默认发送 `Accept: application/json`。成功沿用 v2 `{code,message,data,meta}`；现有 Nitro 的 JSON 错误体有框架外壳，业务错误封套位于其 `data`，未处理异常可省略该字段。显式请求 HTML 的调用方可能收到 HTML 错误页，不能把所有错误都解析为顶层 v2 成功封套。
+
 跨来源访问必须在 Nuxt 上配置 `CORS_ALLOWED_ORIGINS` 的精确来源（包含协议、域名与端口），不能把允许携带凭据的来源设为 `*`。CORS 放行不等于浏览器会允许跨站 Cookie；Nuxt Web 推荐通过同一个公共来源反向代理 API、页面、文件和 WebSocket。HTTPS 入口配置 `COOKIE_SECURE=true`，不要在 HTTPS 页面引用 HTTP API 或 WS 明文连接。
 
 ## 实时连接
@@ -36,5 +38,7 @@ Nuxt 的 `STORAGE_PATH`（优先）或 `STORAGE_ROOT_DIR` 指定磁盘目录；�
 日常开发共用原数据库、Redis 与上传文件。整理后的本机 Nuxt 私有配置指向 `../storage` 和原 Oracle 数据目录，其他机器应使用自己的明确路径。后端不得因为换目录而自动初始化或清空数据。
 
 测试必须使用独立数据库/schema、Redis 实例或明确隔离资源、独立上传目录及测试凭据。端口不同本身不构成数据隔离。数据库初始化由 Nuxt 现有受保护入口统一管理，Rust/Go 不在启动时执行各自的 schema 修改。
+
+已有 schema 的功能升级统一使用显式 `scripts/migrate-db.mjs`：默认离线计划，`--check` 只读，`--apply` 才修改，并用 `--dotenv` 明确选择环境。业务请求只读检查必要结构，缺失时返回通用 503；完整开发基线不可重跑来升级旧库。当前连接模型要求 schema owner，不能把本轮实现描述成已支持任意跨 owner 的低权限账号。
 
 当前依据：Nuxt `app/utils/apiBase.ts`、`server/routes/_ws.ts`、`server/storage/config.ts`、`server/middleware/00-cors.ts`；Flutter `lib/core/config/app_config.dart`、`lib/features/realtime/data/realtime_service.dart`；Rust `src/app/routes.rs`。运行组合的通过、失败与未测项以对应验收报告为准。

@@ -1,0 +1,1356 @@
+{
+  "operations": [
+    {
+      "path": "/api/v2/posts/{id}",
+      "method": "put",
+      "operation": {
+        "summary": "Partially update an owned post",
+        "operationId": "t11_put_api_v2_posts_id",
+        "description": "No query parameters are read. Authenticated author only; deleted/missing post => 40401, another author => 42201. Empty final non-repost content without media, invalid visibility/language, invalid body/path, unusable attachments => 40001. Relationship arrays replace existing values when present; unknown keys and unsupported creation-only reference fields are ignored. Success data is complete serialized post, not a diff. Returning the updated post can also yield 40401 if it is no longer visible, or author lookup fails. Authentication accepts bearer token or access_token cookie according to auth middleware; all successful responses have meta=null (no pagination). Framework/Oracle/Redis failures can produce 5xx; source audit is not runtime acceptance.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "Converted with Number and required >0 by v2RouterNumber; integer-only validation is not implemented. Numeric strings including positive fractions/scientific notation are accepted if representable."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful source-defined response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityPostResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "40001: invalid path/body, visibility/language, empty final non-repost or unusable attachment. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "40101: missing/invalid/revoked/expired access credential. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "40401: post deleted/missing/not visible after update or author missing. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "42201: only post author may update. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Framework/Oracle/Redis failure or content negotiation; not assigned invented service-specific error codes. Sensitive production failures may omit data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-source": "server/api/v2/posts/[id].put.ts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditedCommunityUpdatePostBody"
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/posts/[id].put.ts",
+            "server/services/v2/posts.ts",
+            "server/models/v2.ts",
+            "server/types/v2.d.ts",
+            "server/storage/index.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts",
+            "server/plugins/04-global-hooks.ts",
+            "server/middleware/00-cors.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/groups/{id}/notification-preference",
+      "method": "get",
+      "operation": {
+        "summary": "Read own group notification preference",
+        "operationId": "t11_get_api_v2_groups_id_notification_preference",
+        "description": "No query/body parameters are read. Requires member-level fn_has_group_permission (active/muted owner/admin/moderator/member under the baseline SQL). Missing preference row returns enabled=true and a synthesized current timestamp. A missing/inaccessible group is not separately looked up; failed member permission returns 42201. v2EnsureGroupFeatureSchema runs before the member check and can create feature tables/column if absent; this is existing implementation behavior, not proof that a read is side-effect free. Authentication accepts bearer token or access_token cookie according to auth middleware; all successful responses have meta=null (no pagination). Framework/Oracle/Redis failures can produce 5xx; source audit is not runtime acceptance.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "Converted with Number and required >0 by v2RouterNumber; integer-only validation is not implemented. Numeric strings including positive fractions/scientific notation are accepted if representable."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful source-defined response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityNotificationGetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "40001: invalid positive numeric group path parameter. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "40101: missing/invalid/revoked/expired access credential. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "42201: only group members may read preferences. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Framework/Oracle/Redis failure or content negotiation; not assigned invented service-specific error codes. Sensitive production failures may omit data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-source": "server/api/v2/groups/[id]/notification-preference.get.ts",
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/groups/[id]/notification-preference.get.ts",
+            "server/services/v2/groups.ts",
+            "server/types/v2.d.ts",
+            "data/neko_tribe-oracle-v2.sql",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts",
+            "server/plugins/04-global-hooks.ts",
+            "server/middleware/00-cors.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/groups/{id}/notification-preference",
+      "method": "put",
+      "operation": {
+        "summary": "Set own group notification preference",
+        "operationId": "t11_put_api_v2_groups_id_notification_preference",
+        "description": "No query parameters are read. Requires member-level fn_has_group_permission; upserts only caller/group preference. is_enabled is optional with permissive v2Boolean conversion; an empty JSON object writes false. Missing/inaccessible group returns member-permission 42201 rather than an asserted 404. Existing v2EnsureGroupFeatureSchema can create feature tables/column before permission check. Authentication accepts bearer token or access_token cookie according to auth middleware; all successful responses have meta=null (no pagination). Framework/Oracle/Redis failures can produce 5xx; source audit is not runtime acceptance.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "Converted with Number and required >0 by v2RouterNumber; integer-only validation is not implemented. Numeric strings including positive fractions/scientific notation are accepted if representable."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful source-defined response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityNotificationPutResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "40001: invalid positive numeric group path or non-object JSON body. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "40101: missing/invalid/revoked/expired access credential. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "42201: only group members may modify preferences. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Framework/Oracle/Redis failure or content negotiation; not assigned invented service-specific error codes. Sensitive production failures may omit data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-source": "server/api/v2/groups/[id]/notification-preference.put.ts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditedCommunityNotificationBody"
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/groups/[id]/notification-preference.put.ts",
+            "server/services/v2/groups.ts",
+            "server/types/v2.d.ts",
+            "data/neko_tribe-oracle-v2.sql",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts",
+            "server/plugins/04-global-hooks.ts",
+            "server/middleware/00-cors.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/groups/{id}/members/{user_id}/roles",
+      "method": "patch",
+      "operation": {
+        "summary": "Change a member role (plural alias)",
+        "operationId": "t11_patch_api_v2_groups_id_members_user_id_roles",
+        "description": "Re-exports ../role.patch. No query parameters read. Requires admin-level fn_has_group_permission, which includes owner and admin under baseline SQL. SQL excludes target role owner and does not check affected row count or target status; owner targets and nonexistent memberships still return 200 with requested user_id and role. Does not assign multiple roles and cannot grant owner. Authentication accepts bearer token or access_token cookie according to auth middleware; all successful responses have meta=null (no pagination). Framework/Oracle/Redis failures can produce 5xx; source audit is not runtime acceptance.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "Converted with Number and required >0 by v2RouterNumber; integer-only validation is not implemented. Numeric strings including positive fractions/scientific notation are accepted if representable."
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "Converted with Number and required >0 by v2RouterNumber; integer-only validation is not implemented. Numeric strings including positive fractions/scientific notation are accepted if representable."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful source-defined response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityMemberRoleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "40001: invalid positive numeric path, non-object body, missing/blank/unknown role. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "40101: missing/invalid/revoked/expired access credential. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "42201: caller lacks admin-level group permission. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Framework/Oracle/Redis failure or content negotiation; not assigned invented service-specific error codes. Sensitive production failures may omit data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-source": "server/api/v2/groups/[id]/members/[user_id]/roles/index.patch.ts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditedCommunityChangeRoleBody"
+              }
+            }
+          }
+        },
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/groups/[id]/members/[user_id]/roles/index.patch.ts",
+            "server/api/v2/groups/[id]/members/[user_id]/role.patch.ts",
+            "server/services/v2/groups.ts",
+            "server/types/v2.d.ts",
+            "data/neko_tribe-oracle-v2.sql",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts",
+            "server/plugins/04-global-hooks.ts",
+            "server/middleware/00-cors.ts"
+          ]
+        }
+      }
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/config",
+      "method": "get",
+      "operation": {
+        "summary": "Read SentimentFlow integration configuration",
+        "operationId": "t11_get_api_v2_integrations_sentiment_flow_config",
+        "description": "No path/query/body inputs are read. Auth middleware requires a valid access session even though handler itself is a plain defineEventHandler. No prediction request or upstream connection test occurs. Returns current configuration even when enabled=false. baseUrlConfigured can be true due to a derived localhost default; it is not a readiness assertion. Middleware authentication still uses Oracle to validate/update access session. Authentication accepts bearer token or access_token cookie according to auth middleware; all successful responses have meta=null (no pagination). Framework/Oracle/Redis failures can produce 5xx; source audit is not runtime acceptance.",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful source-defined response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunitySentimentConfigResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "40101: missing/invalid/revoked/expired access credential. V2 error metadata is nested in framework error data, rather than a flat success envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Framework/Oracle/Redis failure or content negotiation; not assigned invented service-specific error codes. Sensitive production failures may omit data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditedCommunityHttpError"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-source": "server/api/v2/integrations/sentiment-flow/config.get.ts",
+        "x-contract-audit": {
+          "status": "source-audited",
+          "sources": [
+            "server/api/v2/integrations/sentiment-flow/config.get.ts",
+            "server/utils/sentiment-flow.ts",
+            "nuxt.config.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts",
+            "server/plugins/04-global-hooks.ts",
+            "server/middleware/00-cors.ts"
+          ]
+        }
+      }
+    }
+  ],
+  "schemas": {
+    "AuditedCommunityJsonValue": {
+      "description": "Actual permissive JSON input accepted by coercion helpers; this is not an unspecified response object. Exact per-field normalization is documented on each input property.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+          }
+        }
+      ]
+    },
+    "AuditedCommunityErrorMetadata": {
+      "type": "object",
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "properties": {
+        "code": {
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      },
+      "description": "V2 metadata attached to H3 createError.data; not the top-level HTTP error body."
+    },
+    "AuditedCommunityHttpError": {
+      "type": "object",
+      "required": [
+        "statusCode"
+      ],
+      "properties": {
+        "error": {
+          "type": "boolean"
+        },
+        "url": {
+          "type": "string"
+        },
+        "statusCode": {
+          "type": "integer"
+        },
+        "statusMessage": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/components/schemas/AuditedCommunityErrorMetadata"
+        },
+        "stack": {
+          "description": "Development-only framework debugging information; representation differs between Nitro/H3 handlers.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        }
+      },
+      "description": "Framework-generated JSON error shell. Nitro production default includes error/url/statusCode/statusMessage/message and data for handled application errors. Sensitive/unhandled failures can omit data. Development can add stack. HTML error rendering is framework/content-negotiation dependent."
+    },
+    "AuditedCommunityRelationship": {
+      "type": "object",
+      "required": [
+        "is_self",
+        "is_following",
+        "is_blocked",
+        "is_blocking",
+        "relation"
+      ],
+      "properties": {
+        "is_self": {
+          "type": "boolean"
+        },
+        "is_following": {
+          "type": "boolean"
+        },
+        "is_blocked": {
+          "type": "boolean"
+        },
+        "is_blocking": {
+          "type": "boolean"
+        },
+        "relation": {
+          "type": "string"
+        }
+      },
+      "description": "v2RelationObject maps raw database relation to booleans; no closed enum is enforced on relation."
+    },
+    "AuditedCommunityPublicUser": {
+      "type": "object",
+      "required": [
+        "user_id",
+        "username",
+        "display_name",
+        "avatar_url",
+        "bio",
+        "location",
+        "website",
+        "is_verified",
+        "followers_count",
+        "following_count",
+        "posts_count",
+        "likes_count",
+        "relationship",
+        "online_status",
+        "last_seen_at"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "number"
+        },
+        "username": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "bio": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "website": {
+          "type": "string"
+        },
+        "is_verified": {
+          "type": "number"
+        },
+        "followers_count": {
+          "type": "number"
+        },
+        "following_count": {
+          "type": "number"
+        },
+        "posts_count": {
+          "type": "number"
+        },
+        "likes_count": {
+          "type": "number"
+        },
+        "relationship": {
+          "$ref": "#/components/schemas/AuditedCommunityRelationship"
+        },
+        "online_status": {
+          "type": "string",
+          "enum": [
+            "online",
+            "offline",
+            "hidden"
+          ]
+        },
+        "last_seen_at": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "description": "Complete v2MapPublicUser output, including presence fields omitted by the older V2PublicUser schema. Numeric fields use v2Number, not an asserted integer/0-or-1 schema. last_seen_at may retain an unparseable source string; no unconditional date-time format."
+    },
+    "AuditedCommunityMedia": {
+      "type": "object",
+      "required": [
+        "media_id",
+        "media_type",
+        "file_name",
+        "public_url",
+        "file_size",
+        "mime_type",
+        "width",
+        "height",
+        "duration",
+        "thumbnail_url",
+        "alt_text",
+        "description",
+        "status",
+        "created_at"
+      ],
+      "properties": {
+        "media_id": {
+          "type": "number"
+        },
+        "media_type": {
+          "type": "string"
+        },
+        "file_name": {
+          "type": "string"
+        },
+        "public_url": {
+          "type": "string"
+        },
+        "file_size": {
+          "type": "number"
+        },
+        "mime_type": {
+          "type": "string"
+        },
+        "width": {
+          "type": "number",
+          "nullable": true
+        },
+        "height": {
+          "type": "number",
+          "nullable": true
+        },
+        "duration": {
+          "type": "number",
+          "nullable": true
+        },
+        "thumbnail_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "alt_text": {
+          "type": "string",
+          "nullable": true
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        }
+      },
+      "description": "Complete v2MapMedia output. Media type/status are emitted database strings, without serializer enum validation. created_at falls back to an empty string."
+    },
+    "AuditedCommunityPost": {
+      "type": "object",
+      "required": [
+        "post_id",
+        "author",
+        "content",
+        "post_type",
+        "visibility",
+        "language",
+        "location",
+        "reply_to_post_id",
+        "repost_of_post_id",
+        "quoted_post_id",
+        "media",
+        "tags",
+        "mentions",
+        "stats",
+        "viewer_state",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "post_id": {
+          "type": "number"
+        },
+        "author": {
+          "$ref": "#/components/schemas/AuditedCommunityPublicUser"
+        },
+        "content": {
+          "type": "string"
+        },
+        "post_type": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "reply_to_post_id": {
+          "type": "number",
+          "nullable": true
+        },
+        "repost_of_post_id": {
+          "type": "number",
+          "nullable": true
+        },
+        "quoted_post_id": {
+          "type": "number",
+          "nullable": true
+        },
+        "media": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AuditedCommunityMedia"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mentions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AuditedCommunityPublicUser"
+          }
+        },
+        "stats": {
+          "type": "object",
+          "required": [
+            "likes_count",
+            "comments_count",
+            "replies_count",
+            "retweets_count",
+            "views_count",
+            "engagement_score"
+          ],
+          "properties": {
+            "likes_count": {
+              "type": "number"
+            },
+            "comments_count": {
+              "type": "number"
+            },
+            "replies_count": {
+              "type": "number"
+            },
+            "retweets_count": {
+              "type": "number"
+            },
+            "views_count": {
+              "type": "number"
+            },
+            "engagement_score": {
+              "type": "number"
+            }
+          }
+        },
+        "viewer_state": {
+          "type": "object",
+          "required": [
+            "is_liked",
+            "is_bookmarked",
+            "can_delete"
+          ],
+          "properties": {
+            "is_liked": {
+              "type": "boolean"
+            },
+            "is_bookmarked": {
+              "type": "boolean"
+            },
+            "can_delete": {
+              "type": "boolean"
+            }
+          }
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "description": "v2MapPost reads the visible feed item via fn_can_view_post. Dates can fall back to empty strings; location is always a string even when database value is null."
+    },
+    "AuditedCommunityNotificationPreference": {
+      "type": "object",
+      "required": [
+        "user_id",
+        "group_id",
+        "is_enabled",
+        "updated_at"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "number"
+        },
+        "group_id": {
+          "type": "number"
+        },
+        "is_enabled": {
+          "type": "boolean"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "description": "Always present fields. GET defaults enabled=true and updated_at=current ISO time when no row; PUT uses DB timestamp converted to string or empty string."
+    },
+    "AuditedCommunityMemberRole": {
+      "type": "object",
+      "required": [
+        "user_id",
+        "role"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "number"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "moderator",
+            "member"
+          ]
+        }
+      },
+      "description": "Requested target user id and accepted role, not proof that an existing row was updated."
+    },
+    "AuditedCommunitySentimentConfig": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "baseUrlConfigured",
+        "proxyBasePath",
+        "timeoutMs"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "baseUrlConfigured": {
+          "type": "boolean"
+        },
+        "proxyBasePath": {
+          "type": "string",
+          "enum": [
+            "/api/v2/integrations/sentiment-flow"
+          ]
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 120000
+        }
+      },
+      "description": "No upstream request occurs. enabled uses configured flag; baseUrlConfigured reflects non-empty normalized config, including derived localhost default, not network reachability. timeout defaults to 10000 and clamps parsed positive input to 1000..120000."
+    },
+    "AuditedCommunityPostResponse": {
+      "type": "object",
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string",
+          "enum": [
+            "post updated"
+          ]
+        },
+        "data": {
+          "$ref": "#/components/schemas/AuditedCommunityPost"
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      }
+    },
+    "AuditedCommunityNotificationGetResponse": {
+      "type": "object",
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string",
+          "enum": [
+            "success"
+          ]
+        },
+        "data": {
+          "$ref": "#/components/schemas/AuditedCommunityNotificationPreference"
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      }
+    },
+    "AuditedCommunityNotificationPutResponse": {
+      "type": "object",
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string",
+          "enum": [
+            "group notification preference updated"
+          ]
+        },
+        "data": {
+          "$ref": "#/components/schemas/AuditedCommunityNotificationPreference"
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      }
+    },
+    "AuditedCommunityMemberRoleResponse": {
+      "type": "object",
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string",
+          "enum": [
+            "role updated"
+          ]
+        },
+        "data": {
+          "$ref": "#/components/schemas/AuditedCommunityMemberRole"
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      }
+    },
+    "AuditedCommunitySentimentConfigResponse": {
+      "type": "object",
+      "required": [
+        "code",
+        "message",
+        "data",
+        "meta"
+      ],
+      "properties": {
+        "code": {
+          "type": "integer",
+          "enum": [
+            200
+          ]
+        },
+        "message": {
+          "type": "string",
+          "enum": [
+            "sentimentflow config"
+          ]
+        },
+        "data": {
+          "$ref": "#/components/schemas/AuditedCommunitySentimentConfig"
+        },
+        "meta": {
+          "type": "object",
+          "nullable": true,
+          "enum": [
+            null
+          ]
+        }
+      }
+    },
+    "AuditedCommunityUpdatePostBody": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+            }
+          ],
+          "description": "Optional; strings preserved, numbers/booleans String-converted, null/arrays/objects become empty string. Omitted leaves existing content. No handler max length."
+        },
+        "visibility": {
+          "type": "string",
+          "enum": [
+            "public",
+            "followers",
+            "mentioned",
+            "private"
+          ],
+          "description": "Optional exact case-sensitive enum. Omitted leaves current visibility."
+        },
+        "language": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+            }
+          ],
+          "description": "Optional. v2String then trim/lowercase; empty defaults to zh. Non-empty normalized value must match /^[a-z]{2}(-[a-z0-9]{2,7})?$/; output limited to 10 characters."
+        },
+        "location": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+            }
+          ],
+          "description": "Optional. v2String conversion; empty/null/non-scalar becomes database null, returned serializer emits empty string. Omitted unchanged."
+        },
+        "media_ids": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+            }
+          ],
+          "description": "Optional replacement. Array items convert finite numbers or numeric strings; null/empty/unconvertible filtered; non-array becomes []. Deduplicate and keep first four; each must belong to caller and status uploaded/processing/ready. No rejection solely for >4 inputs."
+        },
+        "tag_names": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+            }
+          ],
+          "description": "Optional replacement. Array items v2String-convert and trim, empty filtered; non-array becomes []. Strip one leading # then trim, deduplicate, first twenty retained."
+        },
+        "mention_user_ids": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+            }
+          ],
+          "description": "Optional replacement. Array items convert finite numbers/numeric strings; null/empty/unconvertible filtered; non-array becomes []. Unique first fifty processed; missing users silently ignored."
+        },
+        "mediaIds": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+            }
+          ],
+          "description": "Camel-case alias; ignored whenever snake-case media_ids is present, including null. Optional replacement. Array items convert finite numbers or numeric strings; null/empty/unconvertible filtered; non-array becomes []. Deduplicate and keep first four; each must belong to caller and status uploaded/processing/ready. No rejection solely for >4 inputs."
+        },
+        "tagNames": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+            }
+          ],
+          "description": "Camel-case alias; ignored whenever snake-case tag_names is present, including null. Optional replacement. Array items v2String-convert and trim, empty filtered; non-array becomes []. Strip one leading # then trim, deduplicate, first twenty retained."
+        },
+        "mentionUserIds": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+            }
+          ],
+          "description": "Camel-case alias; ignored whenever snake-case mention_user_ids is present, including null. Optional replacement. Array items convert finite numbers/numeric strings; null/empty/unconvertible filtered; non-array becomes []. Unique first fifty processed; missing users silently ignored."
+        }
+      },
+      "additionalProperties": true,
+      "description": "JSON object required; every recognized field is optional, so {} is allowed. Unknown keys ignored. Omitted fields unchanged. This PUT performs a partial update. Non-repost final state must have non-blank content or at least one media id. Repost permits empty content/media."
+    },
+    "AuditedCommunityNotificationBody": {
+      "type": "object",
+      "properties": {
+        "is_enabled": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/AuditedCommunityJsonValue"
+            }
+          ],
+          "description": "Optional, defaults false when absent. true boolean, number exactly 1, or case-insensitive strings 1/true/yes map to true; all other JSON values map false. Strings are not trimmed. Examples: true, 1, \"YES\"."
+        }
+      },
+      "additionalProperties": true,
+      "description": "JSON object required. Unknown keys ignored. {} disables notifications."
+    },
+    "AuditedCommunityChangeRoleBody": {
+      "type": "object",
+      "required": [
+        "role"
+      ],
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "moderator",
+            "member"
+          ],
+          "description": "Required non-empty string after trim; case-sensitive enum after trimming. Whitespace around a valid value is accepted."
+        }
+      },
+      "additionalProperties": true,
+      "description": "Single role, despite plural URL alias. Unknown keys ignored. Owner cannot be assigned by this endpoint."
+    }
+  },
+  "evidence": [
+    {
+      "path": "/api/v2/posts/{id}",
+      "method": "put",
+      "sources": [
+        "server/api/v2/posts/[id].put.ts",
+        "server/services/v2/posts.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ],
+      "notes": "No query parameters are read. Authenticated author only; deleted/missing post => 40401, another author => 42201. Empty final non-repost content without media, invalid visibility/language, invalid body/path, unusable attachments => 40001. Relationship arrays replace existing values when present; unknown keys and unsupported creation-only reference fields are ignored. Success data is complete serialized post, not a diff. Returning the updated post can also yield 40401 if it is no longer visible, or author lookup fails. Reviewed auth/cors middleware, common body/path/coercion and transaction/envelope helpers. Error nesting checked against installed Nitro production default and H3 sendError, without starting a service."
+    },
+    {
+      "path": "/api/v2/groups/{id}/notification-preference",
+      "method": "get",
+      "sources": [
+        "server/api/v2/groups/[id]/notification-preference.get.ts",
+        "server/services/v2/groups.ts",
+        "server/types/v2.d.ts",
+        "data/neko_tribe-oracle-v2.sql",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ],
+      "notes": "No query/body parameters are read. Requires member-level fn_has_group_permission (active/muted owner/admin/moderator/member under the baseline SQL). Missing preference row returns enabled=true and a synthesized current timestamp. A missing/inaccessible group is not separately looked up; failed member permission returns 42201. v2EnsureGroupFeatureSchema runs before the member check and can create feature tables/column if absent; this is existing implementation behavior, not proof that a read is side-effect free. Reviewed auth/cors middleware, common body/path/coercion and transaction/envelope helpers. Error nesting checked against installed Nitro production default and H3 sendError, without starting a service."
+    },
+    {
+      "path": "/api/v2/groups/{id}/notification-preference",
+      "method": "put",
+      "sources": [
+        "server/api/v2/groups/[id]/notification-preference.put.ts",
+        "server/services/v2/groups.ts",
+        "server/types/v2.d.ts",
+        "data/neko_tribe-oracle-v2.sql",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ],
+      "notes": "No query parameters are read. Requires member-level fn_has_group_permission; upserts only caller/group preference. is_enabled is optional with permissive v2Boolean conversion; an empty JSON object writes false. Missing/inaccessible group returns member-permission 42201 rather than an asserted 404. Existing v2EnsureGroupFeatureSchema can create feature tables/column before permission check. Reviewed auth/cors middleware, common body/path/coercion and transaction/envelope helpers. Error nesting checked against installed Nitro production default and H3 sendError, without starting a service."
+    },
+    {
+      "path": "/api/v2/groups/{id}/members/{user_id}/roles",
+      "method": "patch",
+      "sources": [
+        "server/api/v2/groups/[id]/members/[user_id]/roles/index.patch.ts",
+        "server/api/v2/groups/[id]/members/[user_id]/role.patch.ts",
+        "server/services/v2/groups.ts",
+        "server/types/v2.d.ts",
+        "data/neko_tribe-oracle-v2.sql",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ],
+      "notes": "Re-exports ../role.patch. No query parameters read. Requires admin-level fn_has_group_permission, which includes owner and admin under baseline SQL. SQL excludes target role owner and does not check affected row count or target status; owner targets and nonexistent memberships still return 200 with requested user_id and role. Does not assign multiple roles and cannot grant owner. Reviewed auth/cors middleware, common body/path/coercion and transaction/envelope helpers. Error nesting checked against installed Nitro production default and H3 sendError, without starting a service."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/config",
+      "method": "get",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/config.get.ts",
+        "server/utils/sentiment-flow.ts",
+        "nuxt.config.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ],
+      "notes": "No path/query/body inputs are read. Auth middleware requires a valid access session even though handler itself is a plain defineEventHandler. No prediction request or upstream connection test occurs. Returns current configuration even when enabled=false. baseUrlConfigured can be true due to a derived localhost default; it is not a readiness assertion. Middleware authentication still uses Oracle to validate/update access session. Reviewed auth/cors middleware, common body/path/coercion and transaction/envelope helpers. Error nesting checked against installed Nitro production default and H3 sendError, without starting a service."
+    }
+  ]
+}

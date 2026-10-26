@@ -1,0 +1,673 @@
+{
+  "scope": "source-only, no services executed",
+  "operations": 39,
+  "commonErrorResponsesCorrected": 7,
+  "upstreamRuntimeVerified": false,
+  "evidence": [
+    {
+      "path": "/api/v2/moderation/content",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/content/index.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "contentWhere/contentSort/mapContentItem, v2ListModerationContent. Only post cases, not group posts/comments. Reports array includes all target reports and nullable public reporter/handler objects. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/reports",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/reports/index.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2ListModerationReports/mapReport. Ordered newest creation first. Reporter/handler lookup errors are caught and serialized as null. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/reports/{report_id}",
+      "method": "patch",
+      "sources": [
+        "server/api/v2/moderation/reports/[report_id].patch.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2PatchModerationReport/mapReport. Missing/unknown status -> pending; handled_by always becomes current moderator. resolved/dismissed sets resolved_at, other statuses retain prior timestamp; does not synchronize a case or moderate the target. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/users",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/users/index.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2ListModerationUsers mapper. report_count includes reports about the user and their ordinary posts; active_restriction is latest active, unexpired ban/mute. Database numeric flags are returned unchanged. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/users/{user_id}/actions",
+      "method": "post",
+      "sources": [
+        "server/api/v2/moderation/users/[user_id]/actions.post.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2ModerateUser and v2ListModerationUsers. ban sets suspended/is_active=0 and inserts restriction; unban sets active/is_active=1 and revokes bans; mute only inserts restriction; unmute revokes mutes; note only records action. Result lookup reuses query pagination/status/search without fallback and can return 404 after commit. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/stats",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/stats.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2GetModerationStats scalar aggregate query. Not scoped to any content/list filter. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/settings",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/settings/index.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2GetModerationSettings. Lists all persisted rows ordered by setting_key; value always string and value_type normalized to boolean/number/string. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/settings",
+      "method": "patch",
+      "sources": [
+        "server/api/v2/moderation/settings/index.patch.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2PatchModerationSettings -> v2GetModerationSettings. Only four DEFAULT_SETTINGS keys update. No primitive/type-range validation; unknown/non-object entries skipped; missing/non-array settings is no-op. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/appeals",
+      "method": "get",
+      "sources": [
+        "server/api/v2/moderation/appeals/index.get.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2ListModerationAppeals/mapAppeal. Ordered creation DESC; unlike nullable report actors, an absent appeal user causes the entire list to fail 404. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/appeals/{appeal_id}",
+      "method": "patch",
+      "sources": [
+        "server/api/v2/moderation/appeals/[appeal_id].patch.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2PatchModerationAppeal/mapAppeal. Unknown/missing appeal_status -> rejected. Updates appeal and logs appeal_approved/appeal_rejected; does not itself restore/delete a post. Does not call ensureModerationSchema, so moderation action table must already exist. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/content/{post_id}/actions",
+      "method": "post",
+      "sources": [
+        "server/api/v2/moderation/content/[post_id]/actions.post.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2ModeratePost/mapContentItem. IMPORTANT actual implementation: approve/remove set is_deleted=1; reject/restore clear it. flag/claim/release do not change deletion. claim assigns current moderator; release clears assignment. Case statuses approve=>approved,reject=>rejected,flag=>flagged,remove=>removed,restore=>restored,claim/release=>pending. Report statuses approve/remove/restore=>resolved,reject=>dismissed,flag/claim=>in_review,release=>pending. Query filters/pagination affect first reload attempt; unlike user action there is a by-id fallback. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/moderation/content/bulk-actions",
+      "method": "post",
+      "sources": [
+        "server/api/v2/moderation/content/bulk-actions.post.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "v2BulkModeratePosts. Only approve/reject/flag/remove/restore. approve/remove delete, reject/restore undelete. Input duplicates retained and counted. A single final explicit commit is used, but ensureCaseForTarget performs default autoCommit writes; do not assert transactional rollback for all prior work. Authenticated access cookie or Bearer JWT required (cookie wins). requireModerationAccess allows an active user whose lowercase username or email matches MODERATION_ADMIN_ACCOUNTS (comma-separated; defaults to v2_admin). MODERATION_ALLOW_ALL=1/true/yes/on bypasses only this moderation allow-list, never authentication. No role/RBAC permission is consulted here. Most moderation endpoints call ensureModerationSchema (DDL/sequences/default settings on first use); appeal endpoints do not. This patch documents existing behavior and does not execute or change it. Runtime error serialization evidence is the currently installed Nitro 2.13.3 default handler, not a live response. Nuxt 4.4.2 error handler delegates /api JSON requests to Nitro unless Accept explicitly includes text/html, which can render an HTML error page in production as well as development."
+    },
+    {
+      "path": "/api/v2/reports",
+      "method": "post",
+      "sources": [
+        "server/api/v2/reports/index.post.ts",
+        "server/services/v2/moderation.ts",
+        "server/utils/v2.ts",
+        "server/models/v2.ts",
+        "app/types/v2.ts",
+        "server/middleware/auth.ts",
+        "server/middleware/rate-limit.ts",
+        "node_modules/nitropack/dist/runtime/internal/error/prod.mjs",
+        "node_modules/nitropack/dist/runtime/internal/error/dev.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/handlers/error.mjs",
+        "node_modules/@nuxt/nitro-server/dist/runtime/utils/error.mjs"
+      ],
+      "notes": "Authenticated access cookie or Bearer JWT required (cookie takes precedence); this user-facing report submission calls v2Auth only and does not require requireModerationAccess or the moderation admin allow-list. v2CreateReport: target_id must normalize to a positive finite number. Unsupported target_type/reason/priority normalize to post/other/normal. Supports ordinary and group posts/comments plus users; checks target table existence without filtering deletion/activity status. Reporting oneself as a user is 403. Inserts pending report, creates/synchronizes target case report count/priority and returns the serialized report with nullable reporter/handler. Success is HTTP 200, not 201. No duplicate-report prevention is implemented in this handler. ensureModerationSchema may perform DDL; no runtime calls were made."
+    },
+    {
+      "path": "/api/v2/users/me",
+      "method": "delete",
+      "sources": [
+        "server/api/v2/users/me.delete.ts",
+        "server/services/v2/users.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/services/v2/presence.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "v2DeleteMe -> v2RequireSelfUser, v2VerifyUserPassword, v2ClearAuthCookies. Confirmation comparison occurs after v2RequiredString trim; DELETE is case-insensitive, username exact. Successful response contains deleted:true,user_id and meta:null. Presence publish can propagate an unhandled failure after account changes."
+    },
+    {
+      "path": "/api/v2/users/me/two-factor",
+      "method": "delete",
+      "sources": [
+        "server/api/v2/users/me/two-factor.delete.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Requires current password and either a valid six-digit TOTP or an unused recovery code. Code normalization removes whitespace/hyphens and uppercases text. Disables the secret and settings; deletes recovery codes and trusted devices. No query parameters are read."
+    },
+    {
+      "path": "/api/v2/users/me/two-factor/setup",
+      "method": "post",
+      "sources": [
+        "server/api/v2/users/me/two-factor/setup.post.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Requires current password. Replaces pending setup secret, resets two_factor_enabled to 0 and removes recovery codes/trusted devices. Rejects an already-enabled secret. Returns the Base32 secret and generated otpauth URI. No query parameters are read."
+    },
+    {
+      "path": "/api/v2/users/me/two-factor/confirm",
+      "method": "post",
+      "sources": [
+        "server/api/v2/users/me/two-factor/confirm.post.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Verifies the pending secret using a six-digit TOTP after whitespace/hyphen removal and uppercasing; recovery codes are not accepted here. Enables two-factor authentication and generates ten fresh recovery codes. Re-confirming an existing secret is not explicitly rejected by this service. No query parameters are read."
+    },
+    {
+      "path": "/api/v2/auth/two-factor/challenges",
+      "method": "post",
+      "sources": [
+        "server/api/v2/auth/two-factor/challenges.post.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/auth-token-response.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Both handlers call v2CompleteTwoFactorLogin, not challenge creation. Existing security:[] preserved. v2IssueLoginSession returns two_factor_required:false,user,tokens and sets access_token/refresh_token HttpOnly SameSite=Lax path=/ cookies (Secure is runtime-dependent). Headers and request IP/user-agent are stored with the session. Code accepts TOTP or a single-use recovery code. Item route ignores body challenge_id."
+    },
+    {
+      "path": "/api/v2/auth/two-factor/challenges/{id}",
+      "method": "post",
+      "sources": [
+        "server/api/v2/auth/two-factor/challenges/[id].post.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/auth-token-response.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Both handlers call v2CompleteTwoFactorLogin, not challenge creation. Existing security:[] preserved. v2IssueLoginSession returns two_factor_required:false,user,tokens and sets access_token/refresh_token HttpOnly SameSite=Lax path=/ cookies (Secure is runtime-dependent). Headers and request IP/user-agent are stored with the session. Code accepts TOTP or a single-use recovery code. Item route ignores body challenge_id."
+    },
+    {
+      "path": "/api/v2/users/me/group-invites",
+      "method": "get",
+      "sources": [
+        "server/api/v2/users/me/group-invites.get.ts",
+        "server/services/v2/groups.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Lists invitations addressed to the authenticated user with status pending, not expired, and for active nondeleted groups, ordered by invitation creation descending. Serializer resolves inviter/invitee public users. Returns page metadata. No request body or other query keys are read."
+    },
+    {
+      "path": "/api/v2/users/me/likes",
+      "method": "get",
+      "sources": [
+        "server/api/v2/users/me/likes.get.ts",
+        "server/services/v2/posts.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Lists liked posts filtered through fn_can_view_post. newest/default and oldest sort by the viewer latest like time, popular by engagement descending then creation descending. q performs case-insensitive content/location/tag search (leading # stripped for tag matching). timeline=mentions/following adds the corresponding filter; other values add neither. Returns fully serialized posts and page metadata. No request body is read."
+    },
+    {
+      "path": "/api/v2/users/{id}/analytics/daily",
+      "method": "get",
+      "sources": [
+        "server/api/v2/users/[id]/analytics/daily.get.ts",
+        "server/services/v2/users.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
+      ],
+      "notes": "Requires an access session and an existing active public target user; there is no self-only check. Returns one record per day in ascending day order. days is parsed numerically, defaults to 14 for invalid/non-positive values, then clamps to [7,90] without explicit integer validation. engagement_score is likes_received + comments_received + retweets_received. No request body is read."
+    },
+    {
+      "path": "/api/v2/posts/{id}",
+      "method": "put",
+      "sources": [
+        "server/api/v2/posts/[id].put.ts",
+        "server/services/v2/posts.ts",
+        "server/models/v2.ts",
+        "server/types/v2.d.ts",
+        "server/storage/index.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ],
+      "notes": "No query parameters are read. Authenticated author only; deleted/missing post => 40401, another author => 42201. Empty final non-repost content without media, invalid visibility/language, invalid body/path, unusable attachments => 40001. Relationship arrays replace existing values when present; unknown keys and unsupported creation-only reference fields are ignored. Success data is complete serialized post, not a diff. Returning the updated post can also yield 40401 if it is no longer visible, or author lookup fails. Reviewed auth/cors middleware, common body/path/coercion and transaction/envelope helpers. Error nesting checked against installed Nitro production default and H3 sendError, without starting a service."
+    },
+    {
+      "path": "/api/v2/groups/{id}/notification-preference",
+      "method": "get",
+      "sources": [
+        "server/api/v2/groups/[id]/notification-preference.get.ts",
+        "server/services/v2/groups.ts",
+        "server/types/v2.d.ts",
+        "data/neko_tribe-oracle-v2.sql",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ],
+      "notes": "No query/body parameters are read. Requires member-level fn_has_group_permission (active/muted owner/admin/moderator/member under the baseline SQL). Missing preference row returns enabled=true and a synthesized current timestamp. A missing/inaccessible group is not separately looked up; failed member permission returns 42201. v2EnsureGroupFeatureSchema runs before the member check and can create feature tables/column if absent; this is existing implementation behavior, not proof that a read is side-effect free. Reviewed auth/cors middleware, common body/path/coercion and transaction/envelope helpers. Error nesting checked against installed Nitro production default and H3 sendError, without starting a service."
+    },
+    {
+      "path": "/api/v2/groups/{id}/notification-preference",
+      "method": "put",
+      "sources": [
+        "server/api/v2/groups/[id]/notification-preference.put.ts",
+        "server/services/v2/groups.ts",
+        "server/types/v2.d.ts",
+        "data/neko_tribe-oracle-v2.sql",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ],
+      "notes": "No query parameters are read. Requires member-level fn_has_group_permission; upserts only caller/group preference. is_enabled is optional with permissive v2Boolean conversion; an empty JSON object writes false. Missing/inaccessible group returns member-permission 42201 rather than an asserted 404. Existing v2EnsureGroupFeatureSchema can create feature tables/column before permission check. Reviewed auth/cors middleware, common body/path/coercion and transaction/envelope helpers. Error nesting checked against installed Nitro production default and H3 sendError, without starting a service."
+    },
+    {
+      "path": "/api/v2/groups/{id}/members/{user_id}/roles",
+      "method": "patch",
+      "sources": [
+        "server/api/v2/groups/[id]/members/[user_id]/roles/index.patch.ts",
+        "server/api/v2/groups/[id]/members/[user_id]/role.patch.ts",
+        "server/services/v2/groups.ts",
+        "server/types/v2.d.ts",
+        "data/neko_tribe-oracle-v2.sql",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ],
+      "notes": "Re-exports ../role.patch. No query parameters read. Requires admin-level fn_has_group_permission, which includes owner and admin under baseline SQL. SQL excludes target role owner and does not check affected row count or target status; owner targets and nonexistent memberships still return 200 with requested user_id and role. Does not assign multiple roles and cannot grant owner. Reviewed auth/cors middleware, common body/path/coercion and transaction/envelope helpers. Error nesting checked against installed Nitro production default and H3 sendError, without starting a service."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/config",
+      "method": "get",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/config.get.ts",
+        "server/utils/sentiment-flow.ts",
+        "nuxt.config.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/plugins/04-global-hooks.ts",
+        "server/middleware/00-cors.ts"
+      ],
+      "notes": "No path/query/body inputs are read. Auth middleware requires a valid access session even though handler itself is a plain defineEventHandler. No prediction request or upstream connection test occurs. Returns current configuration even when enabled=false. baseUrlConfigured can be true due to a derived localhost default; it is not a readiness assertion. Middleware authentication still uses Oracle to validate/update access session. Reviewed auth/cors middleware, common body/path/coercion and transaction/envelope helpers. Error nesting checked against installed Nitro production default and H3 sendError, without starting a service."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/auth/login",
+      "method": "post",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/auth.py": "ac25a3897da264e6fd217aa686b1642c40b8a6738c83c18f3032fbf3d013c309",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4"
+        },
+        "behavior": "stub"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/predict",
+      "method": "post",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/predict.py": "fa4b4c3e9170a8ece85d3eeef99a8d6bb95ae3e75a700a7fbb6bf2449ddaaa8b",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4",
+          "backend/app/schemas/predict.py": "f0e17260b09167f1725a507f4c6edb3e8294fc315acdcc6cfbe02ff29287ee37"
+        },
+        "behavior": "implemented"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/training/start",
+      "method": "post",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/training.py": "36eb119829a2756a969ddfd14e2328442476772d1550560810ba7ee556b62010",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4",
+          "backend/app/schemas/training.py": "6a8fd737552881d8a374c4aaf05a9eba2a43ac3f7201c6b53522aecafe96ccb3"
+        },
+        "behavior": "implemented"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/training/status/{jobId}",
+      "method": "get",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/training.py": "36eb119829a2756a969ddfd14e2328442476772d1550560810ba7ee556b62010",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4",
+          "backend/app/schemas/training.py": "6a8fd737552881d8a374c4aaf05a9eba2a43ac3f7201c6b53522aecafe96ccb3"
+        },
+        "behavior": "implemented"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/training/jobs",
+      "method": "get",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/training.py": "36eb119829a2756a969ddfd14e2328442476772d1550560810ba7ee556b62010",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4",
+          "backend/app/schemas/training.py": "6a8fd737552881d8a374c4aaf05a9eba2a43ac3f7201c6b53522aecafe96ccb3"
+        },
+        "behavior": "implemented"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/training/cancel/{jobId}",
+      "method": "post",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/training.py": "36eb119829a2756a969ddfd14e2328442476772d1550560810ba7ee556b62010",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4"
+        },
+        "behavior": "implemented"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/models",
+      "method": "get",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/models.py": "f2afa0d5c42baec81aa18b657dc97c2c76895633d0b9212bff86ee51e01ee958",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4",
+          "backend/app/schemas/models.py": "4f3e06a4597f25034125414d6d30bd11550fd5268584b6f853f83d0574af5311"
+        },
+        "behavior": "implemented"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/models/active",
+      "method": "get",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/models.py": "f2afa0d5c42baec81aa18b657dc97c2c76895633d0b9212bff86ee51e01ee958",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4",
+          "backend/app/schemas/models.py": "4f3e06a4597f25034125414d6d30bd11550fd5268584b6f853f83d0574af5311"
+        },
+        "behavior": "implemented"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/models/active",
+      "method": "put",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/models.py": "f2afa0d5c42baec81aa18b657dc97c2c76895633d0b9212bff86ee51e01ee958",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4",
+          "backend/app/schemas/models.py": "4f3e06a4597f25034125414d6d30bd11550fd5268584b6f853f83d0574af5311"
+        },
+        "behavior": "implemented"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/models/{modelId}",
+      "method": "delete",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/models.py": "f2afa0d5c42baec81aa18b657dc97c2c76895633d0b9212bff86ee51e01ee958",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4"
+        },
+        "behavior": "implemented"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/stats/overview",
+      "method": "get",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/stats.py": "8b168f44753a2ca1f95ee7ced5348f699791e6d5b04ae55da9af5d495da211b0",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4"
+        },
+        "behavior": "stub"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    },
+    {
+      "path": "/api/v2/integrations/sentiment-flow/admin/users",
+      "method": "get",
+      "sources": [
+        "server/api/v2/integrations/sentiment-flow/[...path].ts",
+        "server/middleware/auth.ts"
+      ],
+      "upstream": {
+        "repository": "SentimentFlow",
+        "commit": "744b7a448588266f1c54b1d1db38e07ae7e0894e",
+        "sourceSha256": {
+          "backend/app/api/admin.py": "0763cf690a114dc39ebddb3b9eabb246582761fcb54cd63e8b54be5b47c9ba60",
+          "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4"
+        },
+        "behavior": "stub"
+      },
+      "notes": "Source-only review; upstream dependencies are unpinned in its requirements, runtime/remote image still needs verification."
+    }
+  ],
+  "schemaRefactor": {
+    "sources": [
+      "server/database/schema.mjs",
+      "server/database/readiness.ts"
+    ],
+    "note": "Operation evidence was collected before extracting runtime DDL. The final authority additionally reflects read-only feature readiness, explicit migrations and sanitized 503 errors."
+  }
+}
