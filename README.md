@@ -9,9 +9,9 @@
 `contracts/v2.openapi.json` 是 `../nuxt/doc/v2.openapi.json` 的内容一致的 LF 规范化副本，尚不代表 Go 已实现其中任何接口。
 
 - 来源仓库路径：`doc/v2.openapi.json`
-- 来源规范提交：`311f930b42dbbf2cfa64d5d858fab0be4c72739c`
-- 跨工作区 LF 文件 SHA-256：`78588fabac8e6c0c7077e4f4f838aa984e4ab1c3a0d94aa456de18cd83fd2b5d`
-- 本次契约快照 Git blob：`4c89ee26638998af98fd0c8bbf4f5caa621382ff`
+- 来源规范提交：`4d9167e6ac3052b81a09353055eda38abe2773a7`
+- 跨工作区 LF 文件 SHA-256：`a9f5f96b026cfd97a77299b0f69cd1260e4a64daf0f20b7924052370b33ec1f7`
+- 本次契约快照 Git blob：`67cf285269fb84de9d0d6c4196b1f8d497dcd4eb`
 - OpenAPI：`3.0.1`；API 版本：`2.0.0`
 
 完整来源记录在 `contracts/manifest.json`，包括契约版本、审计修订、两个文件的 LF SHA-256、Git blob 和已提交来源。当前两个快照均与上述规范提交的 Git blob 完全一致，`differsFromCommittedSource=false`；该标记会在未来同步未提交来源时变为 true，不能把工作树修订冒称为旧提交的内容。`contracts/runtime-addresses.md` 同步记录地址、鉴权、实时连接、存储与数据隔离约定。更新时从 Nuxt 审核后的来源同步，不能在各语言工作区独立定义不兼容接口。
