@@ -220,7 +220,7 @@ export async function v2UpdatePost(
   return await v2RequestData<V2Post, V2UpdatePostPayload>(
     `/api/v2/posts/${postId}`,
     {
-      method: 'PUT',
+      method: 'PATCH',
       body: payload
     }
   );

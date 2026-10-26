@@ -1,9 +1,10 @@
 import { getCurrentInstance } from 'vue';
-import type { FetchError } from 'ofetch';
+import type { $Fetch, FetchError, FetchOptions } from 'ofetch';
+import { withJsonAccept } from '~/utils/apiHeaders';
 
-export type ApiFetchOptions = NonNullable<
-  Parameters<typeof $fetch>[1]
->;
+// This transport also targets external Rust/Nuxt deployments. Its options should
+// not recursively depend on every locally generated Nitro route return type.
+export type ApiFetchOptions = FetchOptions<'json'>;
 export type ApiFetchBody =
   ApiFetchOptions extends { body?: infer TBody }
     ? TBody | undefined
@@ -641,12 +642,12 @@ export const apiFetch = async <T>(
     baseURL: getApiBase(nuxtApp),
     credentials: 'include',
     ...options,
-    headers: {
+    headers: withJsonAccept({
       ...getForwardedRequestHeaders(isServer),
       ...traceHeaders,
       ...getClientDeviceHeaders(isServer),
       ...headersToRecord(options.headers)
-    }
+    })
   };
 
   const requestLogPayload = {
@@ -662,7 +663,7 @@ export const apiFetch = async <T>(
   logApiRequest(requestLogPayload);
 
   try {
-    const response = await $fetch<T, string>(path, mergedOptions);
+    const response = await ($fetch as $Fetch)<T>(path, mergedOptions);
     logApiResponse({
       ...requestLogPayload,
       durationMs: Date.now() - startAt,
@@ -691,7 +692,7 @@ export const apiFetch = async <T>(
         await new Promise(resolve =>
           setTimeout(resolve, 100)
         );
-        const response = await $fetch<T, string>(path, mergedOptions);
+        const response = await ($fetch as $Fetch)<T>(path, mergedOptions);
         logApiResponse({
           ...requestLogPayload,
           durationMs: Date.now() - startAt,

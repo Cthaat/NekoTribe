@@ -1,5 +1,6 @@
 import { useFetch } from '#app';
 import { getCurrentInstance, watch } from 'vue';
+import { withJsonAccept } from '~/utils/apiHeaders';
 
 type UseApiFetchOptions<T> = NonNullable<
   Parameters<typeof useFetch<T>>[1]
@@ -155,9 +156,9 @@ export function useApiFetch<T>(
   const componentName = getComponentName();
   const stackSource = buildStackSource();
 
-  const headers: Record<string, string> = {
-    ...headersToRecord(resolvedOptions.headers)
-  };
+  const headers = withJsonAccept(
+    headersToRecord(resolvedOptions.headers)
+  );
   if (route?.fullPath) {
     headers['x-client-route'] = toSafeHeaderValue(
       sanitizeUrlLikeForHeader(String(route.fullPath))
