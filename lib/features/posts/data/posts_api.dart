@@ -144,7 +144,7 @@ class PostsApi {
   }) {
     return _client.requestData<V2Post>(
       '${ApiPaths.posts}/$postId',
-      method: 'PUT',
+      method: 'PATCH',
       data: {
         if (content != null) 'content': content,
         if (visibility != null) 'visibility': visibility,

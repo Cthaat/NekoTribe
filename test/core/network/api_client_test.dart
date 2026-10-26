@@ -13,6 +13,86 @@ import 'package:nekotribe/features/auth/data/auth_api.dart';
 import 'package:nekotribe/features/auth/data/auth_repository.dart';
 
 void main() {
+  test('API requests negotiate JSON by default', () async {
+    RequestOptions? captured;
+    final dio = Dio()
+      ..httpClientAdapter = _JsonAdapter((options) {
+        captured = options;
+        return const _JsonResponse(
+          statusCode: 200,
+          body: {'code': 200, 'message': 'ok', 'data': null},
+        );
+      });
+    final client = ApiClient(
+      config: _testConfig,
+      tokenStore: _FakeTokenStore(),
+      dio: dio,
+    );
+
+    await client.requestData<dynamic>(ApiPaths.health);
+
+    final acceptHeaders = captured!.headers.entries.where(
+      (entry) => entry.key.toLowerCase() == 'accept',
+    );
+    expect(acceptHeaders, hasLength(1));
+    expect(acceptHeaders.single.value, 'application/json');
+  });
+
+  for (final name in ['Accept', 'accept', 'ACCEPT', 'aCcEpT']) {
+    test('preserves injected Dio $name instead of replacing it', () async {
+      RequestOptions? captured;
+      final dio = Dio(BaseOptions(headers: {name: 'text/event-stream'}))
+        ..httpClientAdapter = _JsonAdapter((options) {
+          captured = options;
+          return const _JsonResponse(
+            statusCode: 200,
+            body: {'code': 200, 'message': 'ok', 'data': null},
+          );
+        });
+      final client = ApiClient(
+        config: _testConfig,
+        tokenStore: _FakeTokenStore(),
+        dio: dio,
+      );
+
+      await client.requestData<dynamic>(ApiPaths.health);
+
+      final acceptHeaders = captured!.headers.entries.where(
+        (entry) => entry.key.toLowerCase() == 'accept',
+      );
+      expect(acceptHeaders, hasLength(1));
+      expect(acceptHeaders.single.value, 'text/event-stream');
+    });
+
+    test('preserves per-request $name without duplicate JSON default', () async {
+      RequestOptions? captured;
+      final dio = Dio()
+        ..httpClientAdapter = _JsonAdapter((options) {
+          captured = options;
+          return const _JsonResponse(
+            statusCode: 200,
+            body: {'code': 200, 'message': 'ok', 'data': null},
+          );
+        });
+      final client = ApiClient(
+        config: _testConfig,
+        tokenStore: _FakeTokenStore(),
+        dio: dio,
+      );
+
+      await client.requestData<dynamic>(
+        ApiPaths.health,
+        headers: {name: 'application/problem+json'},
+      );
+
+      final acceptHeaders = captured!.headers.entries.where(
+        (entry) => entry.key.toLowerCase() == 'accept',
+      );
+      expect(acceptHeaders, hasLength(1));
+      expect(acceptHeaders.single.value, 'application/problem+json');
+    });
+  }
+
   test(
     '401 without a stored refresh token does not leak an unhandled refresh error',
     () async {

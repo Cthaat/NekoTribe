@@ -290,7 +290,9 @@ class ApiClient {
             options.headers['Authorization'] = 'Bearer ${pair.accessToken}';
           }
         }
-        if (!options.headers.containsKey('Accept')) {
+        if (!options.headers.keys.any(
+          (key) => key.toLowerCase() == 'accept',
+        )) {
           options.headers['Accept'] = 'application/json';
         }
         handler.next(options);
