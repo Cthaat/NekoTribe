@@ -23,6 +23,8 @@ API 请求默认发送 `Accept: application/json`。成功沿用 v2 `{code,messa
 
 跨来源访问必须在 Nuxt 上配置 `CORS_ALLOWED_ORIGINS` 的精确来源（包含协议、域名与端口），不能把允许携带凭据的来源设为 `*`。CORS 放行不等于浏览器会允许跨站 Cookie；Nuxt Web 推荐通过同一个公共来源反向代理 API、页面、文件和 WebSocket。HTTPS 入口配置 `COOKIE_SECURE=true`，不要在 HTTPS 页面引用 HTTP API 或 WS 明文连接。
 
+Flutter 默认发送 `x-request-id`、`x-client-platform`、`x-device-fingerprint` 和 `x-device-info`，它们与 Authorization、Content-Type、Accept 一起属于明确的 CORS 请求头白名单。预检必须覆盖实际客户端请求头；只验证不带这些头的 OPTIONS 不能证明 Flutter 已打通。未允许的来源、方法和请求头仍拒绝。
+
 ## 实时连接
 
 Nuxt `/_ws` 从查询参数 `token`、Authorization 或 access Cookie 验证登录会话。Flutter 当前把 token 放入握手查询参数；代理及访问日志不要记录该查询内容。未认证连接收到错误后关闭。
