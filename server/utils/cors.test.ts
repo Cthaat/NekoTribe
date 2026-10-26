@@ -39,6 +39,19 @@ test('request headers and methods are allowlisted rather than reflected', () => 
   assert.equal(corsHeadersForRequest({...base, requestMethod: 'get'}), null);
 });
 
+test('Flutter request metadata passes exact-origin credentialed preflight', () => {
+  const headers = corsHeadersForRequest({
+    origin: 'http://localhost:30004', allowedOrigins: ['http://localhost:30004'], requestMethod: 'GET',
+    requestHeaders: 'x-request-id,x-client-platform,x-device-fingerprint,x-device-info,accept'
+  });
+  assert.equal(headers?.['Access-Control-Allow-Origin'], 'http://localhost:30004');
+  assert.equal(headers?.['Access-Control-Allow-Credentials'], 'true');
+  assert.match(headers?.['Access-Control-Allow-Headers'] ?? '', /x-request-id/);
+  assert.equal(corsHeadersForRequest({
+    origin: 'https://unlisted.example', allowedOrigins: ['http://localhost:30004'], requestMethod: 'GET', requestHeaders: 'x-request-id'
+  }), null);
+});
+
 test('Vary preserves existing values and wildcard and avoids duplicate Origin', () => {
   assert.equal(mergeCorsVary('*'), '*');
   const merged = mergeCorsVary(['Accept-Encoding', 'origin']);

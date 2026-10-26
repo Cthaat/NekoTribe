@@ -1,5 +1,5 @@
 export const DEFAULT_CORS_ALLOWED_HEADERS =
-  'authorization,content-type,accept,origin,x-requested-with,' +
+  'authorization,content-type,accept,origin,x-requested-with,x-request-id,' +
   'x-client-platform,x-client-route,x-client-component,' +
   'x-client-source,x-client-referer,x-device-fingerprint,x-device-info';
 
