@@ -1,0 +1,4747 @@
+{
+  "schemaVersion": 1,
+  "kind": "planning-source-inventory-not-acceptance-ledger",
+  "date": "2026-10-26",
+  "sourceCommits": {
+    "nuxt": "c5bd9b2",
+    "rust": "0261ffe3",
+    "flutter": "448e2a51",
+    "go": "f2a88662"
+  },
+  "contract": {
+    "source": "doc/v2.openapi.json",
+    "sha256": "a9f5f96b026cfd97a77299b0f69cd1260e4a64daf0f20b7924052370b33ec1f7",
+    "operations": 162
+  },
+  "counts": {
+    "v1RouteFiles": 67,
+    "v2RouteFiles": 151
+  },
+  "limitations": [
+    "Route presence is not feature parity or acceptance.",
+    "Legacy routes must be classified as alias, distinct product capability, or diagnostic before scope is finalized.",
+    "Inspect source hooks, jobs, storage, auth, cache and frontend calls beyond HTTP paths.",
+    "Rust proxy classification comes from current wildcard router; WS has no Rust route.",
+    "No executable parity completion gate exists yet."
+  ],
+  "operations": [
+    {
+      "operationId": "post_auth_otp",
+      "method": "POST",
+      "path": "/api/v2/auth/otp",
+      "summary": "创建邮箱验证码 OTP",
+      "tags": [
+        "Auth"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/auth/otp.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_auth_otp_verification",
+      "method": "POST",
+      "path": "/api/v2/auth/otp/verification",
+      "summary": "校验 OTP",
+      "tags": [
+        "Auth"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/auth/otp/verification.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_auth_registration",
+      "method": "POST",
+      "path": "/api/v2/auth/registration",
+      "summary": "注册用户",
+      "tags": [
+        "Auth"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/auth/registration.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_auth_tokens",
+      "method": "POST",
+      "path": "/api/v2/auth/tokens",
+      "summary": "登录并创建会话",
+      "tags": [
+        "Auth"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/auth/tokens.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "patch_auth_tokens_current",
+      "method": "PATCH",
+      "path": "/api/v2/auth/tokens/current",
+      "summary": "刷新当前会话 token",
+      "tags": [
+        "Auth"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/auth/tokens/current.patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_auth_tokens_current",
+      "method": "DELETE",
+      "path": "/api/v2/auth/tokens/current",
+      "summary": "退出当前会话",
+      "tags": [
+        "Auth"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/auth/tokens/current.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_auth_password_reset",
+      "method": "POST",
+      "path": "/api/v2/auth/password-reset",
+      "summary": "重置密码",
+      "tags": [
+        "Auth"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/auth/password-reset.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_auth_sessions",
+      "method": "GET",
+      "path": "/api/v2/auth/sessions",
+      "summary": "获取我的登录会话",
+      "tags": [
+        "Auth"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/auth/sessions/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_auth_sessions_id",
+      "method": "DELETE",
+      "path": "/api/v2/auth/sessions/{id}",
+      "summary": "注销指定会话",
+      "tags": [
+        "Auth"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/auth/sessions/[id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_auth_sessions_others",
+      "method": "DELETE",
+      "path": "/api/v2/auth/sessions/others",
+      "summary": "注销其他会话",
+      "tags": [
+        "Auth"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/auth/sessions/others.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_me",
+      "method": "GET",
+      "path": "/api/v2/users/me",
+      "summary": "获取当前用户资料",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "patch_users_me",
+      "method": "PATCH",
+      "path": "/api/v2/users/me",
+      "summary": "更新当前用户资料",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me.patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_delete_api_v2_users_me",
+      "method": "DELETE",
+      "path": "/api/v2/users/me",
+      "summary": "Delete the authenticated account",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/users/me.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "put_users_me_avatar",
+      "method": "PUT",
+      "path": "/api/v2/users/me/avatar",
+      "summary": "替换当前用户头像",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/avatar.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "patch_users_me_email",
+      "method": "PATCH",
+      "path": "/api/v2/users/me/email",
+      "summary": "修改当前用户邮箱",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/email.patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_me_settings",
+      "method": "GET",
+      "path": "/api/v2/users/me/settings",
+      "summary": "获取当前用户设置",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/settings.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "patch_users_me_settings",
+      "method": "PATCH",
+      "path": "/api/v2/users/me/settings",
+      "summary": "更新当前用户设置",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/settings.patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_me_account_statements",
+      "method": "GET",
+      "path": "/api/v2/users/me/account-statements",
+      "summary": "获取账户处置记录",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/account-statements/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "patch_users_me_account_statements_id",
+      "method": "PATCH",
+      "path": "/api/v2/users/me/account-statements/{id}",
+      "summary": "更新账户处置记录状态",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/account-statements/[id].patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_users_me_account_statements_id_appeals",
+      "method": "POST",
+      "path": "/api/v2/users/me/account-statements/{id}/appeals",
+      "summary": "提交处置申诉",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/account-statements/[id]/appeals.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users",
+      "method": "GET",
+      "path": "/api/v2/users",
+      "summary": "搜索用户",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_recommendations",
+      "method": "GET",
+      "path": "/api/v2/users/recommendations",
+      "summary": "获取推荐用户",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/recommendations.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_id",
+      "method": "GET",
+      "path": "/api/v2/users/{id}",
+      "summary": "获取用户公开资料",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/[id].get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_id_analytics",
+      "method": "GET",
+      "path": "/api/v2/users/{id}/analytics",
+      "summary": "获取用户分析数据",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/[id]/analytics.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_id_posts",
+      "method": "GET",
+      "path": "/api/v2/users/{id}/posts",
+      "summary": "获取指定用户帖子",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/[id]/posts.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_me_posts",
+      "method": "GET",
+      "path": "/api/v2/users/me/posts",
+      "summary": "获取我的帖子",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/posts.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_me_bookmarks",
+      "method": "GET",
+      "path": "/api/v2/users/me/bookmarks",
+      "summary": "获取我的收藏帖子",
+      "tags": [
+        "Users"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/bookmarks.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_users_id_followers",
+      "method": "POST",
+      "path": "/api/v2/users/{id}/followers",
+      "summary": "关注用户",
+      "tags": [
+        "Relationships"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/[id]/followers.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_users_id_followers",
+      "method": "DELETE",
+      "path": "/api/v2/users/{id}/followers",
+      "summary": "取消关注用户",
+      "tags": [
+        "Relationships"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/[id]/followers.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_id_followers",
+      "method": "GET",
+      "path": "/api/v2/users/{id}/followers",
+      "summary": "获取粉丝列表",
+      "tags": [
+        "Relationships"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/[id]/followers.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_id_following",
+      "method": "GET",
+      "path": "/api/v2/users/{id}/following",
+      "summary": "获取关注列表",
+      "tags": [
+        "Relationships"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/[id]/following.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_id_mutual_following",
+      "method": "GET",
+      "path": "/api/v2/users/{id}/mutual-following",
+      "summary": "获取共同关注",
+      "tags": [
+        "Relationships"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/[id]/mutual-following.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_me_blocks",
+      "method": "GET",
+      "path": "/api/v2/users/me/blocks",
+      "summary": "获取我的屏蔽列表",
+      "tags": [
+        "Relationships"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/blocks.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_users_me_blocks_target_id",
+      "method": "POST",
+      "path": "/api/v2/users/me/blocks/{target_id}",
+      "summary": "屏蔽用户",
+      "tags": [
+        "Relationships"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/blocks/[target_id].post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_users_me_blocks_target_id",
+      "method": "DELETE",
+      "path": "/api/v2/users/me/blocks/{target_id}",
+      "summary": "取消屏蔽用户",
+      "tags": [
+        "Relationships"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/blocks/[target_id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_me_mutes",
+      "method": "GET",
+      "path": "/api/v2/users/me/mutes",
+      "summary": "获取我的静音列表",
+      "tags": [
+        "Relationships"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/mutes.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_users_me_mutes_target_id",
+      "method": "POST",
+      "path": "/api/v2/users/me/mutes/{target_id}",
+      "summary": "静音用户",
+      "tags": [
+        "Relationships"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/mutes/[target_id].post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_users_me_mutes_target_id",
+      "method": "DELETE",
+      "path": "/api/v2/users/me/mutes/{target_id}",
+      "summary": "取消静音用户",
+      "tags": [
+        "Relationships"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/mutes/[target_id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_posts",
+      "method": "GET",
+      "path": "/api/v2/posts",
+      "summary": "获取帖子列表或搜索帖子",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_posts",
+      "method": "POST",
+      "path": "/api/v2/posts",
+      "summary": "创建帖子",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/index.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_posts_trending",
+      "method": "GET",
+      "path": "/api/v2/posts/trending",
+      "summary": "获取热门帖子",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/trending.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_posts_id",
+      "method": "GET",
+      "path": "/api/v2/posts/{id}",
+      "summary": "获取帖子详情",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id].get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_posts_id",
+      "method": "DELETE",
+      "path": "/api/v2/posts/{id}",
+      "summary": "删除帖子",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_put_api_v2_posts_id",
+      "method": "PUT",
+      "path": "/api/v2/posts/{id}",
+      "summary": "Partially update an owned post (legacy PUT alias)",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id].put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "patchPostPartial",
+      "method": "PATCH",
+      "path": "/api/v2/posts/{id}",
+      "summary": "Partially update an owned post",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id].patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_posts_id_replies",
+      "method": "GET",
+      "path": "/api/v2/posts/{id}/replies",
+      "summary": "获取帖子回复流",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id]/replies.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_posts_id_retweets",
+      "method": "GET",
+      "path": "/api/v2/posts/{id}/retweets",
+      "summary": "获取帖子转发列表",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id]/retweets.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_posts_id_retweets",
+      "method": "POST",
+      "path": "/api/v2/posts/{id}/retweets",
+      "summary": "创建转发",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id]/retweets.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_posts_id_likes",
+      "method": "GET",
+      "path": "/api/v2/posts/{id}/likes",
+      "summary": "获取帖子点赞用户",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id]/likes.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_posts_id_likes",
+      "method": "POST",
+      "path": "/api/v2/posts/{id}/likes",
+      "summary": "点赞帖子",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id]/likes.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_posts_id_likes",
+      "method": "DELETE",
+      "path": "/api/v2/posts/{id}/likes",
+      "summary": "取消点赞帖子",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id]/likes.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_posts_id_bookmarks",
+      "method": "POST",
+      "path": "/api/v2/posts/{id}/bookmarks",
+      "summary": "收藏帖子",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id]/bookmarks.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_posts_id_bookmarks",
+      "method": "DELETE",
+      "path": "/api/v2/posts/{id}/bookmarks",
+      "summary": "取消收藏帖子",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id]/bookmarks.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_posts_id_comments",
+      "method": "GET",
+      "path": "/api/v2/posts/{id}/comments",
+      "summary": "获取帖子评论",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id]/comments.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_posts_id_comments",
+      "method": "POST",
+      "path": "/api/v2/posts/{id}/comments",
+      "summary": "发表评论",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id]/comments.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_posts_id_analytics",
+      "method": "GET",
+      "path": "/api/v2/posts/{id}/analytics",
+      "summary": "获取帖子分析数据",
+      "tags": [
+        "Posts"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/posts/[id]/analytics.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_comments_id",
+      "method": "DELETE",
+      "path": "/api/v2/comments/{id}",
+      "summary": "删除评论",
+      "tags": [
+        "Comments"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/comments/[id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_comments_id_likes",
+      "method": "POST",
+      "path": "/api/v2/comments/{id}/likes",
+      "summary": "点赞评论",
+      "tags": [
+        "Comments"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/comments/[id]/likes.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_comments_id_likes",
+      "method": "DELETE",
+      "path": "/api/v2/comments/{id}/likes",
+      "summary": "取消点赞评论",
+      "tags": [
+        "Comments"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/comments/[id]/likes.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_media",
+      "method": "POST",
+      "path": "/api/v2/media",
+      "summary": "上传媒体资源",
+      "tags": [
+        "Media"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/media/index.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_media_id",
+      "method": "DELETE",
+      "path": "/api/v2/media/{id}",
+      "summary": "删除媒体资源",
+      "tags": [
+        "Media"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/media/[id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_tags",
+      "method": "GET",
+      "path": "/api/v2/tags",
+      "summary": "搜索话题",
+      "tags": [
+        "Tags"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/tags/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_tags_trending",
+      "method": "GET",
+      "path": "/api/v2/tags/trending",
+      "summary": "获取热门话题",
+      "tags": [
+        "Tags"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/tags/trending.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_tags_name_posts",
+      "method": "GET",
+      "path": "/api/v2/tags/{name}/posts",
+      "summary": "获取话题下帖子",
+      "tags": [
+        "Tags"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/tags/[name]/posts.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_tags_name_analytics",
+      "method": "GET",
+      "path": "/api/v2/tags/{name}/analytics",
+      "summary": "获取话题分析数据",
+      "tags": [
+        "Tags"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/tags/[name]/analytics.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_recommendations_feedback",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "summary": "提交推荐反馈",
+      "tags": [
+        "Recommendations"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/recommendations/feedback.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_notifications",
+      "method": "GET",
+      "path": "/api/v2/notifications",
+      "summary": "获取通知列表",
+      "tags": [
+        "Notifications"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/notifications/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "put_notifications_id_read_status",
+      "method": "PUT",
+      "path": "/api/v2/notifications/{id}/read-status",
+      "summary": "更新单条通知已读状态",
+      "tags": [
+        "Notifications"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/notifications/[id]/read-status.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "put_notifications_read_status",
+      "method": "PUT",
+      "path": "/api/v2/notifications/read-status",
+      "summary": "批量标记通知已读",
+      "tags": [
+        "Notifications"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/notifications/read-status.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_notifications_id",
+      "method": "DELETE",
+      "path": "/api/v2/notifications/{id}",
+      "summary": "删除通知",
+      "tags": [
+        "Notifications"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/notifications/[id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "put_notifications_id_restore_status",
+      "method": "PUT",
+      "path": "/api/v2/notifications/{id}/restore-status",
+      "summary": "恢复通知",
+      "tags": [
+        "Notifications"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/notifications/[id]/restore-status.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_groups",
+      "method": "GET",
+      "path": "/api/v2/groups",
+      "summary": "搜索/发现群组",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_groups",
+      "method": "POST",
+      "path": "/api/v2/groups",
+      "summary": "创建群组",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/index.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_groups_popular",
+      "method": "GET",
+      "path": "/api/v2/groups/popular",
+      "summary": "获取热门群组",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/popular.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_users_me_groups",
+      "method": "GET",
+      "path": "/api/v2/users/me/groups",
+      "summary": "获取我加入的群组",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/users/me/groups.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_groups_by_slug_slug",
+      "method": "GET",
+      "path": "/api/v2/groups/by-slug/{slug}",
+      "summary": "通过 slug 获取群组详情",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/by-slug/[slug].get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_groups_id",
+      "method": "GET",
+      "path": "/api/v2/groups/{id}",
+      "summary": "获取群组详情",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id].get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "patch_groups_id",
+      "method": "PATCH",
+      "path": "/api/v2/groups/{id}",
+      "summary": "更新群组信息",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id].patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_groups_id",
+      "method": "DELETE",
+      "path": "/api/v2/groups/{id}",
+      "summary": "解散群组",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_groups_id_members_current",
+      "method": "POST",
+      "path": "/api/v2/groups/{id}/members/current",
+      "summary": "加入群组",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/members/current.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_groups_id_members_current",
+      "method": "DELETE",
+      "path": "/api/v2/groups/{id}/members/current",
+      "summary": "退出群组",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/members/current.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_groups_id_members",
+      "method": "GET",
+      "path": "/api/v2/groups/{id}/members",
+      "summary": "获取群组成员",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/members/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "put_groups_id_members_member_id_approval_status",
+      "method": "PUT",
+      "path": "/api/v2/groups/{id}/members/{member_id}/approval-status",
+      "summary": "审批群组成员",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/members/[user_id]/approval-status.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_groups_id_members_user_id",
+      "method": "DELETE",
+      "path": "/api/v2/groups/{id}/members/{user_id}",
+      "summary": "移除群组成员",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/members/[user_id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "patch_groups_id_members_user_id_role",
+      "method": "PATCH",
+      "path": "/api/v2/groups/{id}/members/{user_id}/role",
+      "summary": "变更成员角色",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/members/[user_id]/role.patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "put_groups_id_members_user_id_mute_status",
+      "method": "PUT",
+      "path": "/api/v2/groups/{id}/members/{user_id}/mute-status",
+      "summary": "禁言成员",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/members/[user_id]/mute-status.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_groups_id_members_user_id_mute_status",
+      "method": "DELETE",
+      "path": "/api/v2/groups/{id}/members/{user_id}/mute-status",
+      "summary": "解除成员禁言",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/members/[user_id]/mute-status.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "put_groups_id_ownership",
+      "method": "PUT",
+      "path": "/api/v2/groups/{id}/ownership",
+      "summary": "转让群主",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/ownership.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_groups_id_posts",
+      "method": "GET",
+      "path": "/api/v2/groups/{id}/posts",
+      "summary": "获取群组帖子",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_groups_id_posts",
+      "method": "POST",
+      "path": "/api/v2/groups/{id}/posts",
+      "summary": "发布群组帖子",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/index.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_groups_id_posts_post_id",
+      "method": "GET",
+      "path": "/api/v2/groups/{id}/posts/{post_id}",
+      "summary": "获取群组帖子详情",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/[post_id].get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_groups_id_posts_post_id",
+      "method": "DELETE",
+      "path": "/api/v2/groups/{id}/posts/{post_id}",
+      "summary": "删除群组帖子",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/[post_id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "put_groups_id_posts_post_id_pin_status",
+      "method": "PUT",
+      "path": "/api/v2/groups/{id}/posts/{post_id}/pin-status",
+      "summary": "更新群组帖子置顶状态",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/[post_id]/pin-status.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_groups_id_posts_post_id_likes",
+      "method": "POST",
+      "path": "/api/v2/groups/{id}/posts/{post_id}/likes",
+      "summary": "点赞群组帖子",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/[post_id]/likes.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_groups_id_posts_post_id_likes",
+      "method": "DELETE",
+      "path": "/api/v2/groups/{id}/posts/{post_id}/likes",
+      "summary": "取消点赞群组帖子",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/[post_id]/likes.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_groups_id_posts_post_id_comments",
+      "method": "GET",
+      "path": "/api/v2/groups/{id}/posts/{post_id}/comments",
+      "summary": "获取群组帖子评论",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/[post_id]/comments/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_groups_id_posts_post_id_comments",
+      "method": "POST",
+      "path": "/api/v2/groups/{id}/posts/{post_id}/comments",
+      "summary": "发布群组评论",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/[post_id]/comments/index.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_groups_id_posts_post_id_comments_comment_id",
+      "method": "DELETE",
+      "path": "/api/v2/groups/{id}/posts/{post_id}/comments/{comment_id}",
+      "summary": "删除群组评论",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/[post_id]/comments/[comment_id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_groups_id_posts_post_id_comments_comment_id_likes",
+      "method": "POST",
+      "path": "/api/v2/groups/{id}/posts/{post_id}/comments/{comment_id}/likes",
+      "summary": "点赞群组评论",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/[post_id]/comments/[comment_id]/likes.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "delete_groups_id_posts_post_id_comments_comment_id_likes",
+      "method": "DELETE",
+      "path": "/api/v2/groups/{id}/posts/{post_id}/comments/{comment_id}/likes",
+      "summary": "取消点赞群组评论",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/posts/[post_id]/comments/[comment_id]/likes.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_groups_id_invites",
+      "method": "POST",
+      "path": "/api/v2/groups/{id}/invites",
+      "summary": "创建群组邀请",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/invites.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_groups_id_invites",
+      "method": "GET",
+      "path": "/api/v2/groups/{id}/invites",
+      "summary": "获取群组邀请列表",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/invites.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_groups_invite_codes_code",
+      "method": "GET",
+      "path": "/api/v2/groups/invite-codes/{code}",
+      "summary": "验证邀请码",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/invite-codes/[code].get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "post_groups_invites_invite_id_responses",
+      "method": "POST",
+      "path": "/api/v2/groups/invites/{invite_id}/responses",
+      "summary": "响应私人邀请",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/invites/[invite_id]/responses.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "get_groups_id_audit_logs",
+      "method": "GET",
+      "path": "/api/v2/groups/{id}/audit-logs",
+      "summary": "获取群组审计日志",
+      "tags": [
+        "Groups"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/audit-logs.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "listChatGroups",
+      "method": "GET",
+      "path": "/api/v2/chat/groups",
+      "summary": "获取当前用户可访问的聊天群组列表",
+      "tags": [
+        "群组聊天"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/groups.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "listChatChannels",
+      "method": "GET",
+      "path": "/api/v2/chat/groups/{id}/channels",
+      "summary": "获取指定群组的频道列表",
+      "tags": [
+        "群组聊天"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/groups/[id]/channels.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "createChatChannel",
+      "method": "POST",
+      "path": "/api/v2/chat/groups/{id}/channels",
+      "summary": "创建聊天频道",
+      "tags": [
+        "群组聊天"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/groups/[id]/channels.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "updateChatChannel",
+      "method": "PATCH",
+      "path": "/api/v2/chat/channels/{channel_id}",
+      "summary": "编辑聊天频道",
+      "tags": [
+        "群组聊天"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/channels/[channel_id].patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "deleteChatChannel",
+      "method": "DELETE",
+      "path": "/api/v2/chat/channels/{channel_id}",
+      "summary": "删除聊天频道",
+      "tags": [
+        "群组聊天"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/channels/[channel_id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "listChatMembers",
+      "method": "GET",
+      "path": "/api/v2/chat/groups/{id}/members",
+      "summary": "获取群组聊天成员列表",
+      "tags": [
+        "群组聊天"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/groups/[id]/members.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "listChatMessages",
+      "method": "GET",
+      "path": "/api/v2/chat/channels/{channel_id}/messages",
+      "summary": "分页获取频道消息",
+      "tags": [
+        "频道消息"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/channels/[channel_id]/messages.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "createChatMessage",
+      "method": "POST",
+      "path": "/api/v2/chat/channels/{channel_id}/messages",
+      "summary": "发送频道消息",
+      "tags": [
+        "频道消息"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/channels/[channel_id]/messages.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "updateChatMessage",
+      "method": "PATCH",
+      "path": "/api/v2/chat/messages/{message_id}",
+      "summary": "编辑消息内容",
+      "tags": [
+        "频道消息"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/messages/[message_id].patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "deleteChatMessage",
+      "method": "DELETE",
+      "path": "/api/v2/chat/messages/{message_id}",
+      "summary": "删除消息",
+      "tags": [
+        "频道消息"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/messages/[message_id].delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "setChatMessagePinStatus",
+      "method": "PUT",
+      "path": "/api/v2/chat/messages/{message_id}/pin-status",
+      "summary": "设置消息置顶状态",
+      "tags": [
+        "频道消息"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/messages/[message_id]/pin-status.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "createChatReaction",
+      "method": "POST",
+      "path": "/api/v2/chat/messages/{message_id}/reactions",
+      "summary": "添加消息表情反应",
+      "tags": [
+        "频道消息"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/messages/[message_id]/reactions.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "deleteChatReaction",
+      "method": "DELETE",
+      "path": "/api/v2/chat/messages/{message_id}/reactions",
+      "summary": "删除消息表情反应",
+      "tags": [
+        "频道消息"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/messages/[message_id]/reactions.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "setChatChannelReadStatus",
+      "method": "PUT",
+      "path": "/api/v2/chat/channels/{channel_id}/read-status",
+      "summary": "设置频道已读状态",
+      "tags": [
+        "频道消息"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/channels/[channel_id]/read-status.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "setChatChannelMuteStatus",
+      "method": "PUT",
+      "path": "/api/v2/chat/channels/{channel_id}/mute-status",
+      "summary": "设置当前用户对频道的静音状态",
+      "tags": [
+        "频道消息"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/channels/[channel_id]/mute-status.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "chatWebSocketProtocol",
+      "method": "GET",
+      "path": "/_ws",
+      "summary": "WebSocket 聊天实时协议说明",
+      "tags": [
+        "WebSocket 实时协议"
+      ],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "not-implemented",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "listDirectConversations",
+      "method": "GET",
+      "path": "/api/v2/chat/direct-conversations",
+      "summary": "获取当前用户的私聊会话列表",
+      "tags": [
+        "私聊会话"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/direct-conversations.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "createDirectConversation",
+      "method": "POST",
+      "path": "/api/v2/chat/direct-conversations",
+      "summary": "创建或获取与目标用户的私聊会话",
+      "tags": [
+        "私聊会话"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/direct-conversations.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "listDirectMessages",
+      "method": "GET",
+      "path": "/api/v2/chat/direct-conversations/{conversation_id}/messages",
+      "summary": "获取私聊消息列表",
+      "tags": [
+        "私聊消息"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/direct-conversations/[conversation_id]/messages.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "createDirectMessage",
+      "method": "POST",
+      "path": "/api/v2/chat/direct-conversations/{conversation_id}/messages",
+      "summary": "发送私聊消息",
+      "tags": [
+        "私聊消息"
+      ],
+      "sourceRoutes": [
+        "server/api/v2/chat/direct-conversations/[conversation_id]/messages.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_delete_api_v2_users_me_two_factor",
+      "method": "DELETE",
+      "path": "/api/v2/users/me/two-factor",
+      "summary": "Disable two-factor authentication",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/users/me/two-factor.delete.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_get_api_v2_groups_id_notification_preference",
+      "method": "GET",
+      "path": "/api/v2/groups/{id}/notification-preference",
+      "summary": "Read own group notification preference",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/notification-preference.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_put_api_v2_groups_id_notification_preference",
+      "method": "PUT",
+      "path": "/api/v2/groups/{id}/notification-preference",
+      "summary": "Set own group notification preference",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/notification-preference.put.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_get_api_v2_integrations_sentiment_flow_config",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/config",
+      "summary": "Read SentimentFlow integration configuration",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/integrations/sentiment-flow/config.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_get_api_v2_moderation_appeals",
+      "method": "GET",
+      "path": "/api/v2/moderation/appeals",
+      "summary": "List statement appeals for moderation",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/appeals/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_get_api_v2_moderation_content",
+      "method": "GET",
+      "path": "/api/v2/moderation/content",
+      "summary": "List moderation post cases",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/content/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_get_api_v2_moderation_reports",
+      "method": "GET",
+      "path": "/api/v2/moderation/reports",
+      "summary": "List moderation reports",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/reports/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_get_api_v2_moderation_settings",
+      "method": "GET",
+      "path": "/api/v2/moderation/settings",
+      "summary": "Read moderation settings",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/settings/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_patch_api_v2_moderation_settings",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "summary": "Update recognized moderation settings",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/settings/index.patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_get_api_v2_moderation_stats",
+      "method": "GET",
+      "path": "/api/v2/moderation/stats",
+      "summary": "Read moderation statistics",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/stats.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_get_api_v2_moderation_users",
+      "method": "GET",
+      "path": "/api/v2/moderation/users",
+      "summary": "List moderation users",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/users/index.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_get_api_v2_users_me_group_invites",
+      "method": "GET",
+      "path": "/api/v2/users/me/group-invites",
+      "summary": "List pending invitations for the authenticated user",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/users/me/group-invites.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_get_api_v2_users_me_likes",
+      "method": "GET",
+      "path": "/api/v2/users/me/likes",
+      "summary": "List posts liked by the authenticated user",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/users/me/likes.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_get_api_v2_users_id_analytics_daily",
+      "method": "GET",
+      "path": "/api/v2/users/{id}/analytics/daily",
+      "summary": "Read a public user daily analytics series",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/users/[id]/analytics/daily.get.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_patch_api_v2_groups_id_members_user_id_roles",
+      "method": "PATCH",
+      "path": "/api/v2/groups/{id}/members/{user_id}/roles",
+      "summary": "Change a member role (plural alias)",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/groups/[id]/members/[user_id]/roles/index.patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_patch_api_v2_moderation_appeals_appeal_id",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/{appeal_id}",
+      "summary": "Resolve a moderation appeal",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/appeals/[appeal_id].patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_patch_api_v2_moderation_reports_report_id",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/reports/{report_id}",
+      "summary": "Update moderation report status",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/reports/[report_id].patch.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_post_api_v2_auth_two_factor_challenges",
+      "method": "POST",
+      "path": "/api/v2/auth/two-factor/challenges",
+      "summary": "Complete a two-factor login challenge",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/auth/two-factor/challenges.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_post_api_v2_auth_two_factor_challenges_id",
+      "method": "POST",
+      "path": "/api/v2/auth/two-factor/challenges/{id}",
+      "summary": "Complete a two-factor login challenge",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/auth/two-factor/challenges/[id].post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_post_api_v2_moderation_content_bulk_actions",
+      "method": "POST",
+      "path": "/api/v2/moderation/content/bulk-actions",
+      "summary": "Apply bulk post moderation action",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/content/bulk-actions.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_post_api_v2_moderation_content_post_id_actions",
+      "method": "POST",
+      "path": "/api/v2/moderation/content/{post_id}/actions",
+      "summary": "Apply post moderation action",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/content/[post_id]/actions.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_post_api_v2_moderation_users_user_id_actions",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/{user_id}/actions",
+      "summary": "Apply user moderation action",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/moderation/users/[user_id]/actions.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_post_api_v2_reports",
+      "method": "POST",
+      "path": "/api/v2/reports",
+      "summary": "Submit a content or user report",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/reports/index.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_post_api_v2_users_me_two_factor_confirm",
+      "method": "POST",
+      "path": "/api/v2/users/me/two-factor/confirm",
+      "summary": "Confirm two-factor setup",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/users/me/two-factor/confirm.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_post_api_v2_users_me_two_factor_setup",
+      "method": "POST",
+      "path": "/api/v2/users/me/two-factor/setup",
+      "summary": "Generate a two-factor setup secret",
+      "tags": [],
+      "sourceRoutes": [
+        "server/api/v2/users/me/two-factor/setup.post.ts"
+      ],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": ""
+    },
+    {
+      "operationId": "t11_proxy_post_api_v2_integrations_sentiment_flow_auth_login",
+      "method": "POST",
+      "path": "/api/v2/integrations/sentiment-flow/auth/login",
+      "summary": "SentimentFlow proxy: POST /auth/login",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_proxy_post_api_v2_integrations_sentiment_flow_predict",
+      "method": "POST",
+      "path": "/api/v2/integrations/sentiment-flow/predict",
+      "summary": "SentimentFlow proxy: POST /predict",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_proxy_post_api_v2_integrations_sentiment_flow_training_start",
+      "method": "POST",
+      "path": "/api/v2/integrations/sentiment-flow/training/start",
+      "summary": "SentimentFlow proxy: POST /training/start",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_training_status_jobId",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/training/status/{jobId}",
+      "summary": "SentimentFlow proxy: GET /training/status/{jobId}",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_training_jobs",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/training/jobs",
+      "summary": "SentimentFlow proxy: GET /training/jobs",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_proxy_post_api_v2_integrations_sentiment_flow_training_cancel_jobId",
+      "method": "POST",
+      "path": "/api/v2/integrations/sentiment-flow/training/cancel/{jobId}",
+      "summary": "SentimentFlow proxy: POST /training/cancel/{jobId}",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_models",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/models",
+      "summary": "SentimentFlow proxy: GET /models",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_models_active",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/models/active",
+      "summary": "SentimentFlow proxy: GET /models/active",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_proxy_put_api_v2_integrations_sentiment_flow_models_active",
+      "method": "PUT",
+      "path": "/api/v2/integrations/sentiment-flow/models/active",
+      "summary": "SentimentFlow proxy: PUT /models/active",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_proxy_delete_api_v2_integrations_sentiment_flow_models_modelId",
+      "method": "DELETE",
+      "path": "/api/v2/integrations/sentiment-flow/models/{modelId}",
+      "summary": "SentimentFlow proxy: DELETE /models/{modelId}",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_stats_overview",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/stats/overview",
+      "summary": "SentimentFlow proxy: GET /stats/overview",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    },
+    {
+      "operationId": "t11_proxy_get_api_v2_integrations_sentiment_flow_admin_users",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/admin/users",
+      "summary": "SentimentFlow proxy: GET /admin/users",
+      "tags": [],
+      "sourceRoutes": [],
+      "nuxt": {
+        "state": "source-present-requires-behavior-audit",
+        "accepted": false
+      },
+      "rust": {
+        "state": "nuxt-proxy",
+        "accepted": false
+      },
+      "go": {
+        "state": "not-started",
+        "accepted": false
+      },
+      "scenarioIds": [],
+      "notes": "Shared Python upstream remains external; adapter behavior and existing stubs require explicit audit."
+    }
+  ],
+  "legacyRoutes": [
+    {
+      "method": "GET",
+      "path": "/api/v1/account/sessions",
+      "source": "server/api/v1/account/sessions/index.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/account/sessions/others",
+      "source": "server/api/v1/account/sessions/others.delete.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/account/sessions/{id}",
+      "source": "server/api/v1/account/sessions/[id].delete.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/account/settings",
+      "source": "server/api/v1/account/settings/index.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/account/settings",
+      "source": "server/api/v1/account/settings/index.put.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/account/statements",
+      "source": "server/api/v1/account/statements/index.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/account/statements/{id}/appeal",
+      "source": "server/api/v1/account/statements/[id]/appeal.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/account/statements/{id}",
+      "source": "server/api/v1/account/statements/[id].put.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/tweets/{tweetId}/stats",
+      "source": "server/api/v1/analytics/tweets/[tweetId]/stats.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "source": "server/api/v1/analytics/type.d.ts",
+      "classification": "requires-source-audit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/users/{userId}/stats",
+      "source": "server/api/v1/analytics/users/[userId]/stats.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/check-verification",
+      "source": "server/api/v1/auth/check-verification.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/get-verification",
+      "source": "server/api/v1/auth/get-verification.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "source": "server/api/v1/auth/login.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/logout",
+      "source": "server/api/v1/auth/logout.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/refresh",
+      "source": "server/api/v1/auth/refresh.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/register",
+      "source": "server/api/v1/auth/register.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/reset-password",
+      "source": "server/api/v1/auth/reset-password.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "source": "server/api/v1/auth/type.d.ts",
+      "classification": "requires-source-audit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/follow/action",
+      "source": "server/api/v1/follow/action.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/follow/blocked",
+      "source": "server/api/v1/follow/blocked.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "source": "server/api/v1/follow/type.d.ts",
+      "classification": "requires-source-audit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/follow/{userId}/followers",
+      "source": "server/api/v1/follow/[userId]/followers.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/follow/{userId}/following",
+      "source": "server/api/v1/follow/[userId]/following.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/follow/{userId}/mutual-follows",
+      "source": "server/api/v1/follow/[userId]/mutual-follows.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hashtags/search",
+      "source": "server/api/v1/hashtags/search.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hashtags/stats",
+      "source": "server/api/v1/hashtags/stats.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hashtags/trending",
+      "source": "server/api/v1/hashtags/trending.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "source": "server/api/v1/hashtags/type.d.ts",
+      "classification": "requires-source-audit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hashtags/{tag}/tweets",
+      "source": "server/api/v1/hashtags/[tag]/tweets.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/interactions/bookmark",
+      "source": "server/api/v1/interactions/bookmark.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/interactions/comment",
+      "source": "server/api/v1/interactions/comment.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/interactions/comments/{commentId}",
+      "source": "server/api/v1/interactions/comments/[commentId].delete.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/interactions/like",
+      "source": "server/api/v1/interactions/like.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "source": "server/api/v1/interactions/type.d.ts",
+      "classification": "requires-source-audit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/batch-send",
+      "source": "server/api/v1/notifications/batch-send.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications/list",
+      "source": "server/api/v1/notifications/list.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/notifications/read-all",
+      "source": "server/api/v1/notifications/read-all.put.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/send",
+      "source": "server/api/v1/notifications/send.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "source": "server/api/v1/notifications/type.d.ts",
+      "classification": "requires-source-audit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/{notificationId}/restore",
+      "source": "server/api/v1/notifications/[notificationId]/restore.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/notifications/{notificationId}",
+      "source": "server/api/v1/notifications/[notificationId].delete.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/notifications/{notificationId}",
+      "source": "server/api/v1/notifications/[notificationId].put.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/config",
+      "source": "server/api/v1/system/config.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/test/test-oracle",
+      "source": "server/api/v1/test/test-oracle.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tweets/list",
+      "source": "server/api/v1/tweets/list.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tweets/media/upload",
+      "source": "server/api/v1/tweets/media/upload.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/tweets/media/{tweetId}/{mediaId}",
+      "source": "server/api/v1/tweets/media/[tweetId]/[mediaId].delete.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tweets/search",
+      "source": "server/api/v1/tweets/search.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tweets/send-tweets",
+      "source": "server/api/v1/tweets/send-tweets.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "source": "server/api/v1/tweets/type.d.ts",
+      "classification": "requires-source-audit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tweets/{tweetId}/comments",
+      "source": "server/api/v1/tweets/[tweetId]/comments.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tweets/{tweetId}/likes",
+      "source": "server/api/v1/tweets/[tweetId]/likes.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tweets/{tweetId}/replies",
+      "source": "server/api/v1/tweets/[tweetId]/replies.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tweets/{tweetId}/retweets",
+      "source": "server/api/v1/tweets/[tweetId]/retweets.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/tweets/{tweetId}",
+      "source": "server/api/v1/tweets/[tweetId].delete.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tweets/{tweetId}",
+      "source": "server/api/v1/tweets/[tweetId].get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/me/avatar",
+      "source": "server/api/v1/users/me/avatar.post.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/users/me/email",
+      "source": "server/api/v1/users/me/email.put.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/me",
+      "source": "server/api/v1/users/me.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/users/me",
+      "source": "server/api/v1/users/me.put.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/search",
+      "source": "server/api/v1/users/search.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/suggestions",
+      "source": "server/api/v1/users/suggestions.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "source": "server/api/v1/users/type.d.ts",
+      "classification": "requires-source-audit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/{userId}/isfollow",
+      "source": "server/api/v1/users/[userId]/isfollow.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/{userId}/stats",
+      "source": "server/api/v1/users/[userId]/stats.get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/{userId}",
+      "source": "server/api/v1/users/[userId].get.ts",
+      "classification": "explicit",
+      "requirementClassification": "unreviewed",
+      "rust": "not-implemented",
+      "go": "not-started"
+    }
+  ],
+  "otherRequiredSources": [
+    "server/routes/storage/[...segments].get.ts",
+    "server/routes/upload/[...segments].get.ts",
+    "server/routes/uploads/[...segments].get.ts",
+    "server/routes/_ws.ts",
+    "server/plugins/01-redisClient.ts",
+    "server/plugins/02-oracle.ts",
+    "server/plugins/03-log.ts",
+    "server/plugins/04-global-hooks.ts",
+    "server/plugins/05-security-headers.ts",
+    "server/middleware/00-cors.ts",
+    "server/middleware/auth.ts",
+    "server/middleware/rate-limit.ts",
+    "server/services/v2/auth.ts",
+    "server/services/v2/chat.ts",
+    "server/services/v2/groups.ts",
+    "server/services/v2/media.ts",
+    "server/services/v2/moderation.ts",
+    "server/services/v2/notifications.ts",
+    "server/services/v2/posts.ts",
+    "server/services/v2/presence.ts",
+    "server/services/v2/users.ts"
+  ]
+}
