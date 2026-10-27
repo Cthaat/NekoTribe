@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-27-native-registration"
+    "x-contract-revision": "2026-10-27-native-password-reset"
   },
   "tags": [
     {
@@ -1214,29 +1214,47 @@
                 "type": "object",
                 "properties": {
                   "email": {
-                    "type": "string",
-                    "example": "demo@example.com"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                      }
+                    ]
                   },
                   "verification_id": {
-                    "type": "string",
-                    "example": "otp_9d6f"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                      }
+                    ]
                   },
                   "code": {
-                    "type": "string",
-                    "example": "123456"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                      }
+                    ]
                   },
                   "new_password": {
-                    "type": "string",
-                    "example": "NewPassword123"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                      }
+                    ]
                   }
                 },
-                "additionalProperties": false
+                "additionalProperties": true,
+                "required": [
+                  "email",
+                  "verification_id",
+                  "code",
+                  "new_password"
+                ]
               },
               "example": {
-                "email": "edge27452696803@gmail.com",
-                "verification_id": "otp_68089f55-e7e8-46ae-973a-790c75f6173c",
-                "code": "196807",
-                "new_password": "123456..a"
+                "email": "fake@example.test",
+                "verification_id": "otp_fixture",
+                "code": "123456",
+                "new_password": "synthetic-password"
               }
             }
           },
@@ -1284,24 +1302,76 @@
             "headers": {}
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest",
-            "description": "请求参数错误"
+            "description": "参数错误或验证码过期",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized",
-            "description": "未认证或 token 无效"
+            "description": "验证码错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "403": {
             "$ref": "#/components/responses/Forbidden",
             "description": "权限不足"
           },
           "404": {
-            "$ref": "#/components/responses/NotFound",
-            "description": "资源不存在"
+            "description": "用户不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "500": {
-            "$ref": "#/components/responses/InternalError",
-            "description": "服务器内部错误"
+            "description": "内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": []
