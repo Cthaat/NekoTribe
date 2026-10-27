@@ -40,6 +40,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			login(w, r, codec, repository, refresh)
 			return
 		}
+		if r.URL.EscapedPath() == "/api/v2/auth/otp/verification" && r.Method == http.MethodPost {
+			verifyOTP(w, r, repository, refresh)
+			return
+		}
 		if r.URL.EscapedPath() == "/api/v2/auth/two-factor/challenges" && r.Method == http.MethodPost {
 			completeTwoFactor(w, r, codec, repository, refresh, "")
 			return
