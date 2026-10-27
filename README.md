@@ -10,7 +10,15 @@ JWT 合法不代表数据库会话有效。后续认证服务必须核对会话�
 
 签名算法和 JWT 编解码使用精确锁定的 `jsonwebtoken =10.3.0`，禁用默认 PEM 功能，选择 `rust_crypto` provider；没有手写 HMAC 或 JWT 签名，也未在本模块实现密码哈希。官方来源：[Validation API](https://docs.rs/jsonwebtoken/10.3.0/jsonwebtoken/struct.Validation.html)、[decode 源码](https://github.com/Keats/jsonwebtoken/blob/v10.3.0/src/decoding.rs)、[provider 源码](https://github.com/Keats/jsonwebtoken/blob/v10.3.0/src/crypto/mod.rs)、[版本及 features](https://docs.rs/crate/jsonwebtoken/10.3.0/source/Cargo.toml)。库负责签名及算法白名单验证，时间 claim 由 codec 按注入时钟验证。
 
-`contracts/scenarios/auth-tokens.json` revision 2 是 Nuxt 同一 25 项公开合成向量的工程内固定副本，测试只读取本工程文件，不 include 兄弟源码。`cargo test --locked --test auth_tokens_test -j 2` 包含 4 项测试函数，覆盖全部向量、签发回验及非法输入。Windows 首次构建因缺 MSVC `link.exe` 未执行断言；后续在既有 WSL Ubuntu 中使用工作区内独立安装的官方 Rust 1.95.0 实际执行通过，全部默认测试为 26 项通过、2 项真实依赖测试忽略。日志位于 `.codex-logs/20261027-rust-native-tokens.log`、`20261027-rust-unit.log`。未启动 Docker、应用服务或数据库，也未安装 Windows C++ 工具链；这不证明原生 Windows 编译或真实认证业务通过。数字字符串未完整实现 JavaScript Number 的 hex/boolean/array 宽转换，仍按共同需求审查。
+`contracts/scenarios/auth-tokens.json` revision 2 是 Nuxt 同一 25 项公开合成向量的工程内固定副本，测试只读取本工程文件，不 include 兄弟源码。`cargo test --locked --test auth_tokens_test -j 2` 包含 4 项测试函数，覆盖全部向量、签发回验及非法输入。Windows 首次构建因缺 MSVC `link.exe` 未执行断言；后续在既有 WSL Ubuntu 中使用工作区内独立安装的官方 Rust 1.95.0 实际执行通过。认证增量日志位于 `.codex-logs/20261027-rust-native-tokens.log`、`20261027-rust-unit.log`；最新全部默认测试结果见下节。未启动 Docker、应用服务或数据库，也未安装 Windows C++ 工具链；这不证明原生 Windows 编译或真实认证业务通过。数字字符串未完整实现 JavaScript Number 的 hex/boolean/array 宽转换，仍按共同需求审查。
+
+## 模型配置组件
+
+`src/ai/model_config.rs` 按 `contracts/requirements/ai-model-configuration.md` 实现严格校验、独立选择快照、RwLock 版本比较及原子替换；失败不安装部分配置。`contracts/scenarios/ai-model-config.json` 含三端相同的 52 个组件场景，另有并发、隔离和错误边界测试。Linux 默认测试共 31 项通过、2 个真实依赖连通测试忽略；日志为 `.codex-logs/20261027-model-config-52-full.log`。格式检查通过。
+
+本模块没有接入 HTTP 路由，不读取模型密钥/环境变量，不访问真实模型；adapter 字段仅为标识，真实推理适配器、能力探测、索引和产品流程仍待开发。完整产品权限及切换验收见本地 `contracts/requirements/ai-product-scope.md`、`ai-model-switching.md`，不能以配置场景通过宣称完整 AI 业务通过。
+
+管理目录可执行 `node nuxt/scripts/parity.mjs check --workspace-root .` 核对公共需求/样例的 Rust/Go 副本；独立 Rust 编译和测试仍只读取本工程文件。
 
 ## 构建与验证
 
