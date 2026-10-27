@@ -17,27 +17,6 @@ const consumeRecoverySQL = `UPDATE n_user_two_factor_recovery_codes SET used_at=
 const consumeChallengeSQL = `UPDATE n_auth_two_factor_challenges SET consumed_at=CURRENT_TIMESTAMP WHERE challenge_id=:challenge_id AND consumed_at IS NULL AND expires_at>CURRENT_TIMESTAMP`
 const trustedMergeSQL = `MERGE INTO n_user_two_factor_trusted_devices target USING (SELECT :user_id AS user_id,:device_fingerprint AS device_fingerprint FROM dual) src ON (target.user_id=src.user_id AND target.device_fingerprint=src.device_fingerprint) WHEN MATCHED THEN UPDATE SET device_info=:device_info,ip_address=:ip_address,user_agent=:user_agent,expires_at=:expires_at,revoked_at=NULL,last_used_at=CURRENT_TIMESTAMP WHEN NOT MATCHED THEN INSERT (trusted_device_id,user_id,device_fingerprint,device_info,ip_address,user_agent,expires_at) VALUES (:trusted_device_id,:user_id,:device_fingerprint,:device_info,:ip_address,:user_agent,:expires_at)`
 
-var twoFactorReadinessSQL = []string{
-	`SELECT user_id,secret_encrypted,secret_iv,secret_auth_tag,confirmed_at,enabled_at,created_at,updated_at FROM n_user_two_factor_secrets WHERE 1=0`,
-	`SELECT recovery_code_id,user_id,code_hash,used_at,created_at FROM n_user_two_factor_recovery_codes WHERE 1=0`,
-	`SELECT trusted_device_id,user_id,device_fingerprint,device_info,ip_address,user_agent,expires_at,revoked_at,created_at,last_used_at FROM n_user_two_factor_trusted_devices WHERE 1=0`,
-	`SELECT challenge_id,user_id,remember_me,device_info,device_fingerprint,ip_address,user_agent,expires_at,consumed_at,created_at FROM n_auth_two_factor_challenges WHERE 1=0`,
-}
-
-// Read-only availability check; full migration ledger/constraint verification remains pending.
-func (s OracleSessions) CheckTwoFactorSchema(ctx context.Context) error {
-	for _, q := range twoFactorReadinessSQL {
-		rows, err := s.DB.QueryContext(ctx, q)
-		if err != nil {
-			return errSessionStore
-		}
-		if rows.Close() != nil {
-			return errSessionStore
-		}
-	}
-	return nil
-}
-
 func (s OracleSessions) UseTrustedDevice(ctx context.Context, user int64, fingerprint, info, ip, agent string) (bool, error) {
 	var id int64
 	err := s.DB.QueryRowContext(ctx, trustedDeviceSQL, sql.Named("user_id", user), sql.Named("device_fingerprint", fingerprint)).Scan(&id)

@@ -71,6 +71,12 @@ func beginTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.TokenMan
 			return
 		}
 	}
+	// Nuxt rechecks readiness before creating a challenge, after the trusted
+	// device lookup. Never assume an earlier successful check is still current.
+	if err := store.CheckTwoFactorSchema(r.Context()); err != nil {
+		respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
+		return
+	}
 	id, err := randomUUID()
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
@@ -124,6 +130,12 @@ func completeTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.Token
 	}
 	if !found {
 		respond(w, 401, 40101, "双因素验证已过期，请重新登录", nil)
+		return
+	}
+	// Nuxt rechecks immediately before loading the 2FA secret. A previous
+	// readiness result is not cached and cannot authorize a later schema state.
+	if err := store.CheckTwoFactorSchema(r.Context()); err != nil {
+		respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
 		return
 	}
 	secret, found, err := factor.FindFactorSecret(r.Context(), challenge.UserID)

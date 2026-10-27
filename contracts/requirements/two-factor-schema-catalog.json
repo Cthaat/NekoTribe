@@ -1,0 +1,471 @@
+{
+  "id": "AUTH-2FA-SCHEMA-CATALOG",
+  "revision": 1,
+  "scope": "Read-only Nuxt two-factor schema expectations; absence of ledger is allowed",
+  "sources": [
+    {
+      "path": "server/database/schema-definition.mjs",
+      "sha256": "426031b8b16fa3bfacb1f9a13084e0b83e313d9dab12bf72b3ce80fdee5e832f"
+    },
+    {
+      "path": "server/database/schema.mjs",
+      "sha256": "b89fef1561c91240659512e293d5b67aa76b945260cc7d3d4e755d16d38c9516"
+    }
+  ],
+  "ledger": {
+    "id": "ledger",
+    "kind": "table",
+    "name": "N_SCHEMA_MIGRATIONS",
+    "sql": "CREATE TABLE N_SCHEMA_MIGRATIONS (step_id VARCHAR2(128) PRIMARY KEY, checksum VARCHAR2(64) NOT NULL, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)",
+    "table": "N_SCHEMA_MIGRATIONS",
+    "columns": [
+      {
+        "name": "STEP_ID",
+        "type": "VARCHAR2(128)",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "CHECKSUM",
+        "type": "VARCHAR2(64)",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "APPLIED_AT",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "NT13_9A3B3BE8E5C218A6F138",
+        "type": "P",
+        "columns": [
+          "STEP_ID"
+        ]
+      }
+    ]
+  },
+  "migrationChecksums": {
+    "t13-two-factor-seq_2fa_recovery_code_id": "90a60fd64eabdac15f4e7a8af14f0c8a9d6279510f95293897e2c966cee41b1d",
+    "t13-two-factor-seq_2fa_trusted_device_id": "e1be11f71aa8d6be57b7a3b5e8d20e15421567610ba1b3cddf5159464b3d0dbf",
+    "t13-two-factor-n_user_two_factor_secrets": "eec88e92a4d4d900267f80ff3be6e3e9cd69c664bcf9830ee774846bc172b026",
+    "t13-two-factor-n_user_two_factor_recovery_codes": "3ce7a82c83a40f59fc0081d48a637f8fd956218450903186b1362f54701d871f",
+    "t13-two-factor-n_user_two_factor_trusted_devices": "700bdd8d49a9af8adddd06c273b71f7dcf0fda39a6aa6ac30d658f013c93233b",
+    "t13-two-factor-n_auth_two_factor_challenges": "078982767691a10f78cef2caa4b0c90760229716787eac9d3a2bfd9ff645400a",
+    "t13-two-factor-idx_2fa_recovery_user": "8b8a085d364783454d847c3e4bc8b56af8db3122dca8747460c981b7923d8a16",
+    "t13-two-factor-idx_2fa_challenge_user": "af04f4b78cd4722563dc151eaf32b32abf4ab5db98bb7cc4784f8782c76b1ef8",
+    "t13-two-factor-idx_2fa_trusted_user": "19d550d058941b16d36705207bdb97d003fe95e3ba19dfa3c07245aa07b85f77",
+    "t13-groups-n_groups.category": "2f2e8d093fa3ede4e3f65796bbf0fd58c48c7ca79b86190e824b4bfd43417730",
+    "t13-groups-n_group_tags": "625fc1ad4ee3bfda1f2b5e3cc32b2578ba733c9e312ac3a82cdb6ca94bb5412c",
+    "t13-groups-n_group_notification_preferences": "69a376d5f260e4d249b28bfab864a7b71449c4789d939499a15bbf8ea17d69cb",
+    "t13-user-settings-n_user_settings.ai_sentiment_enabled": "87657e2892f4105025b0867e8eb0f0319c16773dc33b5eff3f78e769454084b9",
+    "t13-user-settings-n_user_settings.ai_sentiment_model_id": "c2f00af40a085886758b63aba13a48714bcd44f786dc1058a97c532901cc5d8a",
+    "t13-user-settings-n_user_settings.ai_sentiment_return_probabilities": "366d16b922b8961e2f0f1a2b8798cf6d28d46949391c2085062a3a5293ff0ecc",
+    "t13-user-settings-n_user_settings.ai_sentiment_include_metadata": "32ab1799ea7fe0562085f2d483138da949ff5dbf4fbd8878cb247c8e3eaf32ed",
+    "t13-user-settings-n_user_settings.ai_sentiment_top_k": "d4d1a9a97c497742f6e94329c1a29758fc6f86c2fc7e2c27e4a272312070276d",
+    "t13-media-n_media_assets.description": "2ef10c2feaa37efa3284ad7faffb38d565f029df86500e4c0a0fdc14612a2fa5",
+    "t13-moderation-seq_moderation_report_id": "c0207c97f84c6174f99c90d673d9e896279a19b755f2528735b255da9a4374ab",
+    "t13-moderation-seq_moderation_case_id": "185e1e8f1919e6a1fbf41f2951fe5b8c6921cbb93c42fbfe47c528eb3ed5f9e2",
+    "t13-moderation-seq_moderation_action_id": "bc98876f5b9bff506e77d1aeec58a2a01127b301d3c74e0895045aa361a7b595",
+    "t13-moderation-seq_moderation_restriction_id": "ad41babe6a28e6e7b2a18fc370b34a59034e06a1a6ecd8ba69da822d7d18ee5f",
+    "t13-moderation-n_moderation_reports": "f8f911a0bee6177055aa544921fe21ba336b907f166cb9182283749c65ab41ad",
+    "t13-moderation-n_moderation_cases": "5b88cee5f425cd015b0cfae7e50f1b507af6e74a4739346fd22e2559d1cda63a",
+    "t13-moderation-n_moderation_actions": "28207ecee7bb8b07f20cc173eb11e65c81df988261bb6d8097084a8c83857162",
+    "t13-moderation-n_moderation_user_restrictions": "216c00410ff5ceb75c6ea230071ab6ec0c6a46bcf60d11610f3bc785bc785b7a",
+    "t13-moderation-n_moderation_settings": "775881d4124f1a65fdfdd1c2b78cd6fbe32d514bd5f631c3eeda425a9567c31f",
+    "t13-moderation-setting-auto_hide_report_threshold": "524d97889ef4d7dff5e20909a02aa8b3c07d3a22344879b7489bcbdfc182bd13",
+    "t13-moderation-setting-require_note_on_reject": "d842365391fb11ee1149780828d47be6df8e8f57405c9c5a2f3f0399e078b556",
+    "t13-moderation-setting-allow_moderator_claim": "2b83d8bfe4a90c8a6ef5f22e0542f0485ecef6c8261291d49e5791fcb225f2a7",
+    "t13-moderation-setting-default_mute_hours": "3c8ea3dec55c1119293a4e69f6f32bc83857aeac4a600fe7211a47ff979ca5bd"
+  },
+  "feature": {
+    "id": "two-factor",
+    "steps": [
+      {
+        "id": "t13-two-factor-seq_2fa_recovery_code_id",
+        "kind": "sequence",
+        "name": "SEQ_2FA_RECOVERY_CODE_ID",
+        "sql": "CREATE SEQUENCE seq_2fa_recovery_code_id\nSTART WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE",
+        "targetTable": "N_USER_TWO_FACTOR_RECOVERY_CODES",
+        "targetColumn": "RECOVERY_CODE_ID"
+      },
+      {
+        "id": "t13-two-factor-seq_2fa_trusted_device_id",
+        "kind": "sequence",
+        "name": "SEQ_2FA_TRUSTED_DEVICE_ID",
+        "sql": "CREATE SEQUENCE seq_2fa_trusted_device_id\nSTART WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE",
+        "targetTable": "N_USER_TWO_FACTOR_TRUSTED_DEVICES",
+        "targetColumn": "TRUSTED_DEVICE_ID"
+      },
+      {
+        "id": "t13-two-factor-n_user_two_factor_secrets",
+        "kind": "table",
+        "name": "N_USER_TWO_FACTOR_SECRETS",
+        "sql": "CREATE TABLE n_user_two_factor_secrets (\nuser_id            NUMBER(10) PRIMARY KEY,\nsecret_encrypted   VARCHAR2(512) NOT NULL,\nsecret_iv          VARCHAR2(64) NOT NULL,\nsecret_auth_tag    VARCHAR2(64) NOT NULL,\nconfirmed_at       TIMESTAMP,\nenabled_at         TIMESTAMP,\ncreated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\nupdated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\nCONSTRAINT fk_2fa_secret_user FOREIGN KEY (user_id)\nREFERENCES n_users(user_id) ON DELETE CASCADE\n)",
+        "table": "N_USER_TWO_FACTOR_SECRETS",
+        "columns": [
+          {
+            "name": "USER_ID",
+            "type": "NUMBER(10)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "SECRET_ENCRYPTED",
+            "type": "VARCHAR2(512)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "SECRET_IV",
+            "type": "VARCHAR2(64)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "SECRET_AUTH_TAG",
+            "type": "VARCHAR2(64)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "CONFIRMED_AT",
+            "type": "TIMESTAMP",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "ENABLED_AT",
+            "type": "TIMESTAMP",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "CREATED_AT",
+            "type": "TIMESTAMP",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "UPDATED_AT",
+            "type": "TIMESTAMP",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "constraints": [
+          {
+            "name": "NT13_D140B50A4FCE5037E23B",
+            "type": "P",
+            "columns": [
+              "USER_ID"
+            ]
+          },
+          {
+            "name": "FK_2FA_SECRET_USER",
+            "type": "R",
+            "columns": [
+              "USER_ID"
+            ],
+            "referencedTable": "N_USERS",
+            "referencedColumns": [
+              "USER_ID"
+            ],
+            "deleteRule": "CASCADE"
+          }
+        ]
+      },
+      {
+        "id": "t13-two-factor-n_user_two_factor_recovery_codes",
+        "kind": "table",
+        "name": "N_USER_TWO_FACTOR_RECOVERY_CODES",
+        "sql": "CREATE TABLE n_user_two_factor_recovery_codes (\nrecovery_code_id   NUMBER(15) PRIMARY KEY,\nuser_id            NUMBER(10) NOT NULL,\ncode_hash          VARCHAR2(255) NOT NULL,\nused_at            TIMESTAMP,\ncreated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\nCONSTRAINT fk_2fa_recovery_user FOREIGN KEY (user_id)\nREFERENCES n_users(user_id) ON DELETE CASCADE\n)",
+        "table": "N_USER_TWO_FACTOR_RECOVERY_CODES",
+        "columns": [
+          {
+            "name": "RECOVERY_CODE_ID",
+            "type": "NUMBER(15)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "USER_ID",
+            "type": "NUMBER(10)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "CODE_HASH",
+            "type": "VARCHAR2(255)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "USED_AT",
+            "type": "TIMESTAMP",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "CREATED_AT",
+            "type": "TIMESTAMP",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "constraints": [
+          {
+            "name": "NT13_BC728A36F078E2A40E23",
+            "type": "P",
+            "columns": [
+              "RECOVERY_CODE_ID"
+            ]
+          },
+          {
+            "name": "FK_2FA_RECOVERY_USER",
+            "type": "R",
+            "columns": [
+              "USER_ID"
+            ],
+            "referencedTable": "N_USERS",
+            "referencedColumns": [
+              "USER_ID"
+            ],
+            "deleteRule": "CASCADE"
+          }
+        ]
+      },
+      {
+        "id": "t13-two-factor-n_user_two_factor_trusted_devices",
+        "kind": "table",
+        "name": "N_USER_TWO_FACTOR_TRUSTED_DEVICES",
+        "sql": "CREATE TABLE n_user_two_factor_trusted_devices (\ntrusted_device_id  NUMBER(15) PRIMARY KEY,\nuser_id            NUMBER(10) NOT NULL,\ndevice_fingerprint VARCHAR2(200) NOT NULL,\ndevice_info        VARCHAR2(200),\nip_address         VARCHAR2(64),\nuser_agent         VARCHAR2(500),\nexpires_at         TIMESTAMP NOT NULL,\nrevoked_at         TIMESTAMP,\ncreated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\nlast_used_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\nCONSTRAINT fk_2fa_trusted_user FOREIGN KEY (user_id)\nREFERENCES n_users(user_id) ON DELETE CASCADE,\nCONSTRAINT uk_2fa_trusted_device UNIQUE (user_id, device_fingerprint)\n)",
+        "table": "N_USER_TWO_FACTOR_TRUSTED_DEVICES",
+        "columns": [
+          {
+            "name": "TRUSTED_DEVICE_ID",
+            "type": "NUMBER(15)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "USER_ID",
+            "type": "NUMBER(10)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "DEVICE_FINGERPRINT",
+            "type": "VARCHAR2(200)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "DEVICE_INFO",
+            "type": "VARCHAR2(200)",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "IP_ADDRESS",
+            "type": "VARCHAR2(64)",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "USER_AGENT",
+            "type": "VARCHAR2(500)",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "EXPIRES_AT",
+            "type": "TIMESTAMP",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "REVOKED_AT",
+            "type": "TIMESTAMP",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "CREATED_AT",
+            "type": "TIMESTAMP",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "LAST_USED_AT",
+            "type": "TIMESTAMP",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "constraints": [
+          {
+            "name": "NT13_67186354EB07A5A56CF4",
+            "type": "P",
+            "columns": [
+              "TRUSTED_DEVICE_ID"
+            ]
+          },
+          {
+            "name": "FK_2FA_TRUSTED_USER",
+            "type": "R",
+            "columns": [
+              "USER_ID"
+            ],
+            "referencedTable": "N_USERS",
+            "referencedColumns": [
+              "USER_ID"
+            ],
+            "deleteRule": "CASCADE"
+          },
+          {
+            "name": "UK_2FA_TRUSTED_DEVICE",
+            "type": "U",
+            "columns": [
+              "USER_ID",
+              "DEVICE_FINGERPRINT"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "t13-two-factor-n_auth_two_factor_challenges",
+        "kind": "table",
+        "name": "N_AUTH_TWO_FACTOR_CHALLENGES",
+        "sql": "CREATE TABLE n_auth_two_factor_challenges (\nchallenge_id       VARCHAR2(80) PRIMARY KEY,\nuser_id            NUMBER(10) NOT NULL,\nremember_me        NUMBER(1) DEFAULT 0 NOT NULL\nCHECK (remember_me IN (0, 1)),\ndevice_info        VARCHAR2(200),\ndevice_fingerprint VARCHAR2(200),\nip_address         VARCHAR2(64),\nuser_agent         VARCHAR2(500),\nexpires_at         TIMESTAMP NOT NULL,\nconsumed_at        TIMESTAMP,\ncreated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\nCONSTRAINT fk_2fa_challenge_user FOREIGN KEY (user_id)\nREFERENCES n_users(user_id) ON DELETE CASCADE\n)",
+        "table": "N_AUTH_TWO_FACTOR_CHALLENGES",
+        "columns": [
+          {
+            "name": "CHALLENGE_ID",
+            "type": "VARCHAR2(80)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "USER_ID",
+            "type": "NUMBER(10)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "REMEMBER_ME",
+            "type": "NUMBER(1)",
+            "nullable": false,
+            "default": "0"
+          },
+          {
+            "name": "DEVICE_INFO",
+            "type": "VARCHAR2(200)",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "DEVICE_FINGERPRINT",
+            "type": "VARCHAR2(200)",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "IP_ADDRESS",
+            "type": "VARCHAR2(64)",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "USER_AGENT",
+            "type": "VARCHAR2(500)",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "EXPIRES_AT",
+            "type": "TIMESTAMP",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "CONSUMED_AT",
+            "type": "TIMESTAMP",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "CREATED_AT",
+            "type": "TIMESTAMP",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "constraints": [
+          {
+            "name": "NT13_11A941585178E9CC81AF",
+            "type": "P",
+            "columns": [
+              "CHALLENGE_ID"
+            ]
+          },
+          {
+            "name": "NT13_9598F3F912102F87A1CC",
+            "type": "C",
+            "expression": "remember_me IN (0, 1)"
+          },
+          {
+            "name": "FK_2FA_CHALLENGE_USER",
+            "type": "R",
+            "columns": [
+              "USER_ID"
+            ],
+            "referencedTable": "N_USERS",
+            "referencedColumns": [
+              "USER_ID"
+            ],
+            "deleteRule": "CASCADE"
+          }
+        ]
+      },
+      {
+        "id": "t13-two-factor-idx_2fa_recovery_user",
+        "kind": "index",
+        "name": "IDX_2FA_RECOVERY_USER",
+        "sql": "CREATE INDEX idx_2fa_recovery_user\nON n_user_two_factor_recovery_codes(user_id, used_at)",
+        "table": "N_USER_TWO_FACTOR_RECOVERY_CODES",
+        "columns": [
+          "USER_ID",
+          "USED_AT"
+        ]
+      },
+      {
+        "id": "t13-two-factor-idx_2fa_challenge_user",
+        "kind": "index",
+        "name": "IDX_2FA_CHALLENGE_USER",
+        "sql": "CREATE INDEX idx_2fa_challenge_user\nON n_auth_two_factor_challenges(user_id, expires_at, consumed_at)",
+        "table": "N_AUTH_TWO_FACTOR_CHALLENGES",
+        "columns": [
+          "USER_ID",
+          "EXPIRES_AT",
+          "CONSUMED_AT"
+        ]
+      },
+      {
+        "id": "t13-two-factor-idx_2fa_trusted_user",
+        "kind": "index",
+        "name": "IDX_2FA_TRUSTED_USER",
+        "sql": "CREATE INDEX idx_2fa_trusted_user\nON n_user_two_factor_trusted_devices(user_id, expires_at, revoked_at)",
+        "table": "N_USER_TWO_FACTOR_TRUSTED_DEVICES",
+        "columns": [
+          "USER_ID",
+          "EXPIRES_AT",
+          "REVOKED_AT"
+        ]
+      }
+    ]
+  }
+}
