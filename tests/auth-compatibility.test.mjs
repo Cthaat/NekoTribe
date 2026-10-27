@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { before, test } from 'node:test';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -19,8 +20,8 @@ const require = createRequire(import.meta.url);
 const runtime = { accessSecret: 'isolated-test-access-secret', refreshSecret: 'isolated-test-refresh-secret', accessExpiresIn: 900, refreshExpiresIn: 3600 };
 const stubs = {
   '#imports': `export const useRuntimeConfig = () => (${JSON.stringify(runtime)});`,
-  '~/server/models/v2': 'export const v2RequireSelfUser = async (_, id) => ({user_id: id, username: "test"});',
-  './notifications': 'export const v2CreateNotification = async () => {};',
+  '~/server/models/v2': 'export const v2RequireSelfUser = async (_, id) => { if (globalThis.__loginProfileError) throw globalThis.__loginProfileError; return {user_id: id, username: "test"}; };',
+  './notifications': 'export const v2CreateNotification = async () => { if (globalThis.__loginAlertError) throw globalThis.__loginAlertError; };',
   './api-cache': 'export const readApiResponseCache = async () => ({status:"disabled"}); export const writeApiResponseCache = async () => {}; export const invalidateApiResponseCache = async () => {}; export const shouldInvalidateApiResponseCache = () => false;',
   './logging': 'export const getRequestLogContext = () => null; export const logError = (_, payload) => globalThis.__authCompatErrors?.push(payload); export const logInfo = () => {}; export const serializeLogError = error => ({message: error?.message, stack: error?.stack});',
   oracledb: 'export default {OUT_FORMAT_OBJECT: 4002};',
@@ -56,7 +57,30 @@ before(async () => {
   recoveryHash = await bcrypt.hash('ABCDEFGHIJKLMNO', 4);
 });
 
-function database({twoFactor = false, concurrentRefresh = false, concurrentChallenge = false, concurrentRecovery = false} = {}) {
+test('shared bcrypt fixtures match the Nuxt password verifier, including byte truncation', async () => {
+  const vectors = JSON.parse(readFileSync(path.join(root, 'specifications/scenarios/auth-bcrypt.json'), 'utf8'));
+  assert.equal(vectors.id, 'AUTH-BCRYPT');
+  for (const vector of vectors.cases) {
+    assert.equal(await bcrypt.compare(vector.password, vector.hash), vector.valid, vector.id);
+  }
+});
+
+test('shared 2FA ciphertext fixtures match the Nuxt AES-GCM format and reject tampering', () => {
+  const vectors = JSON.parse(readFileSync(path.join(root, 'specifications/scenarios/auth-twofactor-crypto.json'), 'utf8'));
+  assert.equal(vectors.id, 'AUTH-2FA-CRYPTO');
+  for (const vector of vectors.cases) {
+    let result = null;
+    try {
+      const key = crypto.createHash('sha256').update(vector.refreshSecret).digest();
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(vector.iv, 'base64'));
+      decipher.setAuthTag(Buffer.from(vector.tag, 'base64'));
+      result = Buffer.concat([decipher.update(Buffer.from(vector.encrypted, 'base64')), decipher.final()]).toString('utf8');
+    } catch { /* invalid key or tag must not authenticate */ }
+    assert.equal(result, vector.expected, vector.id);
+  }
+});
+
+function database({twoFactor = false, concurrentRefresh = false, concurrentChallenge = false, concurrentRecovery = false, newDevice = false} = {}) {
   const schema = schemaFixture({ baseline: true });
   const sessions = new Map();
   const challenges = new Map();
@@ -77,7 +101,8 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
       if (metadata !== undefined) return rows(metadata);
       if (sql.includes('WHERE email = :account')) return rows([{USER_ID: 1, USERNAME: 'test', PASSWORD_HASH: passwordHash, STATUS: 'active', IS_ACTIVE: 1}]);
       if (sql.includes('AS two_factor_enabled')) return rows([{TWO_FACTOR_ENABLED: Number(twoFactor), ENABLED_AT: twoFactor ? new Date() : null}]);
-      if (sql.startsWith('SELECT COUNT')) return rows([{TOTAL: 1}]);
+      if (sql.startsWith('SELECT COUNT')) return rows([{TOTAL: newDevice ? 0 : 1}]);
+      if (sql.includes('AS login_alerts')) return rows([{EMAIL: 'fixture@example.test', LOGIN_ALERTS: 1, EMAIL_NOTIFICATION_ENABLED: 1}]);
       if (sql.startsWith('INSERT INTO n_auth_sessions')) { sessions.set(binds.session_id, {...binds, revoked: false}); return {rowsAffected: 1}; }
       if (sql.startsWith('UPDATE n_users')) return {rowsAffected: 1};
       if (sql.startsWith('INSERT INTO n_auth_two_factor_challenges')) {challenges.set(binds.challenge_id, {...binds}); return {rowsAffected: 1};}
@@ -201,6 +226,38 @@ test('login returns matching Cookie/body tokens; body refresh rotates immediatel
     assert.equal((await f.request('/api/v2/private', 'GET', undefined, {authorization: `Bearer ${first.access_token}`})).status, 401);
     assert.equal((await f.request('/api/v2/private', 'GET', undefined, {authorization: `Bearer ${third.access_token}`})).status, 200);
   } finally { await f.close(); }
+});
+
+test('new-device alert failures do not leak raw errors or block login', async () => {
+  const f = await fixture({newDevice: true});
+  const priorError = console.error;
+  const logs = [];
+  console.error = (...args) => logs.push(args.map(value => value instanceof Error ? value.stack ?? value.message : String(value)));
+  globalThis.__loginAlertError = new Error('synthetic-alert-password-and-token');
+  try {
+    const response = await f.login();
+    assert.equal(response.status, 200);
+    assertTokens(response, (await response.json()).data.tokens);
+    assert.doesNotMatch(JSON.stringify(logs), /synthetic-alert-password-and-token/);
+  } finally {
+    console.error = priorError;
+    delete globalThis.__loginAlertError;
+    await f.close();
+  }
+});
+
+test('login profile failure cannot return authentication cookies after the session was written', async () => {
+  const f = await fixture();
+  globalThis.__loginProfileError = Object.assign(new Error('synthetic-profile-unavailable'), {statusCode: 503, statusMessage: 'Unavailable'});
+  try {
+    const response = await f.login();
+    assert.equal(response.status, 500);
+    assert.deepEqual(response.headers.getSetCookie(), []);
+    assert.equal(f.db.sessions.size, 1);
+  } finally {
+    delete globalThis.__loginProfileError;
+    await f.close();
+  }
 });
 
 test('Cookie refresh has precedence over body and supports requests without JSON', async () => {

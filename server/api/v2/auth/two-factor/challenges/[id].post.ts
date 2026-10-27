@@ -3,11 +3,12 @@ import {
   defineV2Handler,
   v2RouterParam
 } from '~/server/utils/v2';
+import { safeAuthEntry } from '~/server/utils/auth-entry-errors';
 
-export default defineV2Handler((event, connection) =>
+export default defineV2Handler(safeAuthEntry((event, connection) =>
   v2CompleteTwoFactorLogin(
     event,
     connection,
     v2RouterParam(event, 'id')
   )
-);
+));

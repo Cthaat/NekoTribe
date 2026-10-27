@@ -315,7 +315,7 @@
       },
       {
         "path": "server/api/v2/auth/tokens.post.ts",
-        "sha256": "4ab6d33c246e5d52cc19ef6d30511faef9a40485f7b5b609ca9b3676b42c8433"
+        "sha256": "345b4829c44674590e8c648e7361e3553181c50ac0580e37a2184182e02be096"
       },
       {
         "path": "server/api/v2/auth/tokens/current.delete.ts",
@@ -327,11 +327,11 @@
       },
       {
         "path": "server/api/v2/auth/two-factor/challenges.post.ts",
-        "sha256": "36db720722d99608a772770f0b99a77e8b0564f4e578ca4945d5c4b3f7f728c2"
+        "sha256": "4a54097e4c77934848ea4c7c8a8eb719b38db842a3b608dce7ce4fc61f148770"
       },
       {
         "path": "server/api/v2/auth/two-factor/challenges/[id].post.ts",
-        "sha256": "c961f41689258b935f3c62b000c169b5c128b67db18becc3e272440c0ee8c5da"
+        "sha256": "ffe9ee44094febef4cfbad1a38b5043a51f63242e8ba8460e1aec379d1fc868f"
       },
       {
         "path": "server/api/v2/chat/channels/[channel_id].delete.ts",
@@ -967,7 +967,7 @@
       },
       {
         "path": "server/services/v2/auth.ts",
-        "sha256": "bf48e94a3b8d44a2c280782a3cf6a3fe7ef90976979aef26c12999485a0ed23c"
+        "sha256": "970605163f1e4bd6db0be88659b77cae93f0a72ba90539a3b72e928c2261ef54"
       },
       {
         "path": "server/services/v2/chat.ts",
@@ -1040,6 +1040,10 @@
       {
         "path": "server/utils/api-cache.ts",
         "sha256": "5b6a112582a9c924e9989b98535f485f8864420363be7b7f70d929c58fbf21d5"
+      },
+      {
+        "path": "server/utils/auth-entry-errors.ts",
+        "sha256": "616db50116f97e8153a7009166917b57dd3fefbbd03698c47fc9812a65f635ca"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -1281,52 +1285,114 @@
       }
     },
     {
-      "id": "API-post_auth_tokens",
-      "title": "POST /api/v2/auth/tokens: 登录并创建会话",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
+      "id": "AUTH-LOGIN",
+      "title": "密码登录、双因素挑战与会话签发",
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/auth-login.md",
       "sourceFiles": [
-        "server/api/v2/auth/tokens.post.ts"
+        "server/api/v2/auth/tokens.post.ts",
+        "server/api/v2/auth/two-factor/challenges.post.ts",
+        "server/api/v2/auth/two-factor/challenges/[id].post.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/database/readiness.ts",
+        "server/database/schema.mjs",
+        "server/utils/auth-entry-errors.ts",
+        "server/utils/auth-token-response.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
       ],
       "operations": [
-        "POST /api/v2/auth/tokens"
+        "POST /api/v2/auth/tokens",
+        "POST /api/v2/auth/two-factor/challenges",
+        "POST /api/v2/auth/two-factor/challenges/{id}"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "AUTH-LOGIN",
+          "file": "specifications/scenarios/auth-login.json"
+        },
+        {
+          "id": "AUTH-BCRYPT",
+          "file": "specifications/scenarios/auth-bcrypt.json"
+        },
+        {
+          "id": "AUTH-2FA-CRYPTO",
+          "file": "specifications/scenarios/auth-twofactor-crypto.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/auth/tokens; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "nuxt: implement password login, full user profile, 2FA challenge initiation/completion, device trust, and new-device alerts from the common requirements without a Nuxt fallback.",
+            "nuxt: run shared bcrypt vectors and complete isolated real Oracle, cross-backend/clients, notification and deployment acceptance before marking accepted.",
+            "nuxt: track remaining readiness, data side effects and framework-specific gaps explicitly."
           ],
           "sourceFiles": [
-            "server/api/v2/auth/tokens.post.ts"
+            "server/api/v2/auth/tokens.post.ts",
+            "server/api/v2/auth/two-factor/challenges.post.ts",
+            "server/api/v2/auth/two-factor/challenges/[id].post.ts",
+            "server/services/v2/auth.ts",
+            "server/models/v2.ts",
+            "server/database/readiness.ts",
+            "server/database/schema.mjs",
+            "server/utils/auth-entry-errors.ts",
+            "server/utils/auth-token-response.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/auth/tokens natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "rust: implement password login, full user profile, 2FA challenge initiation/completion, device trust, and new-device alerts from the common requirements without a Nuxt fallback.",
+            "rust: run shared bcrypt vectors and complete isolated real Oracle, cross-backend/clients, notification and deployment acceptance before marking accepted.",
+            "rust: track remaining readiness, data side effects and framework-specific gaps explicitly."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/main.rs",
+            "src/auth/mod.rs",
+            "src/auth/login.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/tokens.rs",
+            "Cargo.toml",
+            "Cargo.lock"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/auth/tokens natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "go: implement password login, full user profile, 2FA challenge initiation/completion, device trust, and new-device alerts from the common requirements without a Nuxt fallback.",
+            "go: run shared bcrypt vectors and complete isolated real Oracle, cross-backend/clients, notification and deployment acceptance before marking accepted.",
+            "go: track remaining readiness, data side effects and framework-specific gaps explicitly."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/login.go",
+            "internal/server/login_repository.go",
+            "internal/server/login_alert_repository.go",
+            "internal/server/twofactor_login.go",
+            "internal/server/twofactor_repository.go",
+            "internal/server/server.go",
+            "internal/auth/tokens.go",
+            "internal/server/config.go",
+            "internal/server/refresh.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "supersedes": [
+        "API-post_auth_tokens",
+        "API-t11_post_api_v2_auth_two_factor_challenges",
+        "API-t11_post_api_v2_auth_two_factor_challenges_id"
+      ]
     },
     {
       "id": "API-patch_auth_tokens_current",
@@ -7617,102 +7683,6 @@
       }
     },
     {
-      "id": "API-t11_post_api_v2_auth_two_factor_challenges",
-      "title": "POST /api/v2/auth/two-factor/challenges: Complete a two-factor login challenge",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
-      "sourceFiles": [
-        "server/api/v2/auth/two-factor/challenges.post.ts"
-      ],
-      "operations": [
-        "POST /api/v2/auth/two-factor/challenges"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
-          "state": "in-progress",
-          "targetRevision": 1,
-          "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/auth/two-factor/challenges; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
-          ],
-          "sourceFiles": [
-            "server/api/v2/auth/two-factor/challenges.post.ts"
-          ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement POST /api/v2/auth/two-factor/challenges natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement POST /api/v2/auth/two-factor/challenges natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
-      "id": "API-t11_post_api_v2_auth_two_factor_challenges_id",
-      "title": "POST /api/v2/auth/two-factor/challenges/{id}: Complete a two-factor login challenge",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
-      "sourceFiles": [
-        "server/api/v2/auth/two-factor/challenges/[id].post.ts"
-      ],
-      "operations": [
-        "POST /api/v2/auth/two-factor/challenges/{id}"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
-          "state": "in-progress",
-          "targetRevision": 1,
-          "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/auth/two-factor/challenges/{id}; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
-          ],
-          "sourceFiles": [
-            "server/api/v2/auth/two-factor/challenges/[id].post.ts"
-          ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement POST /api/v2/auth/two-factor/challenges/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement POST /api/v2/auth/two-factor/challenges/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
       "id": "API-t11_post_api_v2_moderation_content_bulk_actions",
       "title": "POST /api/v2/moderation/content/bulk-actions: Apply bulk post moderation action",
       "revision": 1,
@@ -9827,6 +9797,46 @@
       "copies": {
         "rust": "contracts/scenarios/auth-logout.json",
         "go": "contracts/scenarios/auth-logout.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/auth-login.md",
+        "sha256": "e6109176b8d38d83661e535b4682497a1520f1218d7960c6beffa7238074739e"
+      },
+      "copies": {
+        "rust": "contracts/requirements/auth-login.md",
+        "go": "contracts/requirements/auth-login.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-login.json",
+        "sha256": "c776c61d131a4566861b7e4ce595520481642bfe554ee9954093196b3933bf02"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/auth-login.json",
+        "go": "contracts/scenarios/auth-login.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-bcrypt.json",
+        "sha256": "b25edc85ff4ae93bf71b63a044e6d1cd047f940b318fca8c276c7c50fd4fc6f3"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/auth-bcrypt.json",
+        "go": "contracts/scenarios/auth-bcrypt.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-twofactor-crypto.json",
+        "sha256": "cca0d2d83841b2465dd5ed603f38f70584f3570582ba4c068a19caf1be385f74"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/auth-twofactor-crypto.json",
+        "go": "contracts/scenarios/auth-twofactor-crypto.json"
       }
     }
   ]

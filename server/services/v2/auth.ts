@@ -1114,8 +1114,6 @@ async function v2IssueLoginSession(
     { user_id: userId }
   );
 
-  v2SetAuthCookies(event, accessToken, refreshToken);
-
   try {
     await v2SendLoginAlert(
       event,
@@ -1126,13 +1124,16 @@ async function v2IssueLoginSession(
       deviceFingerprint,
       knownDeviceCount === 0
     );
-  } catch (error) {
-    console.error('[auth] login alert failed', error);
+  } catch {
+    console.error('[auth] login alert failed');
   }
+
+  const user = await v2RequireSelfUser(connection, userId);
+  v2SetAuthCookies(event, accessToken, refreshToken);
 
   return {
     two_factor_required: false,
-    user: await v2RequireSelfUser(connection, userId),
+    user,
     tokens: buildV2TokenData({
       sessionId,
       accessToken,

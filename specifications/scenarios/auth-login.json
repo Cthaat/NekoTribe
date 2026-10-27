@@ -1,0 +1,17 @@
+{
+  "id": "AUTH-LOGIN",
+  "revision": 1,
+  "scope": "Required behaviors for eventual real Oracle and cross-backend acceptance; scenarios are not proof of execution",
+  "cases": [
+    {"id":"LOGIN-001","description":"Email and username login succeed with valid bcrypt; absent or wrong credentials are 401, inactive account is 403 and issues no session."},
+    {"id":"LOGIN-002","description":"Successful login returns complete self user and signed tokens with matching HttpOnly cookies; session hashes and JTI, device fields and last_login are correct."},
+    {"id":"LOGIN-003","description":"Missing 2FA schema is reported safely and never bypasses second-factor checks."},
+    {"id":"LOGIN-004","description":"Enabled 2FA on an untrusted device returns a 300-second challenge with no session, login cookies or last_login update."},
+    {"id":"LOGIN-005","description":"Valid TOTP or unused recovery code consumes the active challenge once and issues the full session; replay and concurrent use are rejected."},
+    {"id":"LOGIN-006","description":"Remembered device is managed with the same data fields and expiration; revoked or expired device is not trusted."},
+    {"id":"LOGIN-007","description":"New-device notification and configured email side effects follow existing rules; failures do not log raw secrets or block successful login."},
+    {"id":"LOGIN-008","description":"Profile and close failures never send new auth cookies; earlier auto-committed writes are recorded as potentially persisted."},
+    {"id":"LOGIN-009","description":"All backends run the shared public bcrypt vectors including 72-byte and Unicode compatibility."},
+    {"id":"LOGIN-010","description":"Cross-backend login, challenge completion, refresh and logout work with a shared isolated Oracle and signing keys, from both Web and Flutter clients."}
+  ]
+}
