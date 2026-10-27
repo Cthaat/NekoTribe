@@ -268,6 +268,11 @@ func issueLogin(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager
 		respond(w, 404, 40401, "用户不存在", nil)
 		return
 	}
+	profile.AvatarURL, err = normalizeAvatarURL(config.Storage, profile.AvatarURL)
+	if err != nil {
+		respond(w, 500, 50001, "服务器内部错误", nil)
+		return
+	}
 	for _, c := range []struct {
 		name, value string
 		age         int

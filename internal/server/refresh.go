@@ -31,6 +31,7 @@ type RefreshConfig struct {
 	AccessSeconds, RefreshSeconds int
 	CookieSecure                  bool
 	TrustProxy                    bool
+	Storage                       StorageURLPolicy
 	clock                         func() time.Time
 }
 

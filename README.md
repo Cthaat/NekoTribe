@@ -29,7 +29,7 @@ go build ./...
 
 `POST /api/v2/auth/tokens` 直接查询 Oracle 用户并校验 bcrypt（按 Nuxt 的 72 字节限制），生成 session 和完整令牌响应。启用双因素时支持可信设备、创建挑战、`POST /api/v2/auth/two-factor/challenges` 与 `/challenges/{id}` 完成 TOTP 或恢复码，以及 remember-me 设备；密钥使用当前必填 refresh secret 的 SHA-256 与 Nuxt AES-GCM 数据格式互通。挑战、恢复码和 session 更新独立提交，提交或后续步骤故障可能留下已消费凭据或已创建 session，不承诺事务回滚。profile 查询成功后才发送 Cookie。
 
-登录和双因素挑战使用随 Go 可执行程序内嵌的共享 schema catalog，在同一数据库连接上只读检查当前 schema owner、可选迁移账本及其记录、两条序列、四张表的列和约束以及三个索引；密码通过后、挑战创建前及完成挑战读取密钥前都会检查，缺失或不兼容时返回 503。检查结果不缓存，也不自动迁移；检查连接和后续业务连接是独立会话。当前已通过共享模拟字典场景，但真实 Oracle 元数据及运行时表现仍待联测。新设备提醒会根据 `login_alerts` 和通知类型偏好持久化通知，但 Redis/WebSocket 推送和 SMTP 邮件尚未实现。IP 默认取连接地址；仅显式启用 `TRUST_PROXY`（`1/true/yes/on`）时读取 `X-Forwarded-For`，只应在可信反向代理后使用。设备裁剪按 Unicode 字符而非 JavaScript UTF-16 单元；头像默认路径已覆盖但自定义存储/CDN URL 归一化尚未完成。请求正文上限 1 MiB 与 Nuxt 有差异。这些都是待补齐项，不表示业务等价或真实 Oracle 已通过。Nuxt 的 2FA 派生存在 access-secret/fallback 路径，而此原生模式要求 refresh secret 非空，故只覆盖该正常配置路径。
+登录和双因素挑战使用随 Go 可执行程序内嵌的共享 schema catalog，在同一数据库连接上只读检查当前 schema owner、可选迁移账本及其记录、两条序列、四张表的列和约束以及三个索引；密码通过后、挑战创建前及完成挑战读取密钥前都会检查，缺失或不兼容时返回 503。检查结果不缓存，也不自动迁移；检查连接和后续业务连接是独立会话。当前已通过共享模拟字典场景，但真实 Oracle 元数据及运行时表现仍待联测。新设备提醒会根据 `login_alerts` 和通知类型偏好持久化通知，但 Redis/WebSocket 推送和 SMTP 邮件尚未实现。IP 默认取连接地址；仅显式启用 `TRUST_PROXY`（`1/true/yes/on`）时读取 `X-Forwarded-For`，只应在可信反向代理后使用。设备裁剪按 Unicode 字符而非 JavaScript UTF-16 单元；登录资料的头像地址按 STORAGE_PUBLIC_BASE、BASE_URL 与 STORAGE_CDN_BASE_URL 映射；相同配置和常用路径有共同隔离样例，非标准 URL 与真实跨机文件读取仍待验证。请求正文上限 1 MiB 与 Nuxt 有差异。这些都是待补齐项，不表示业务等价或真实 Oracle 已通过。Nuxt 的 2FA 派生存在 access-secret/fallback 路径，而此原生模式要求 refresh secret 非空，故只覆盖该正常配置路径。
 
 HTTP 设置头/读写/闲置超时，退出先停止 HTTP 再关闭数据库。`ORACLE_POOL_MAX` 限制 database/sql 打开连接数，`ORACLE_POOL_MIN` 设置最大闲置连接数，不承诺预热或最少常驻连接。touch 与 revoke 是两次提交，不能撤回已获准的并发请求；真实 Oracle 19c/Free、多实例与双前端验收仍待执行。
 

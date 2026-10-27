@@ -22,6 +22,7 @@ type loginFixtureStore struct {
 	updateCount                                                       int
 	known, alertFail                                                  bool
 	alertCount                                                        int
+	avatar                                                            string
 }
 
 func (s *loginFixtureStore) LookupLogin(_ context.Context, account string) (LoginAccount, bool, error) {
@@ -51,7 +52,7 @@ func (s *loginFixtureStore) SelfProfile(context.Context, int64) (SelfUser, bool,
 	if s.profileFail {
 		return SelfUser{}, false, errSessionStore
 	}
-	return SelfUser{UserID: s.account.UserID, Username: s.account.Username}, s.profileOK, nil
+	return SelfUser{UserID: s.account.UserID, Username: s.account.Username, AvatarURL: s.avatar}, s.profileOK, nil
 }
 func (s *loginFixtureStore) KnownLoginDevice(context.Context, int64, string) (bool, error) {
 	return s.known, nil

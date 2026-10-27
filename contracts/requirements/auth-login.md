@@ -7,7 +7,7 @@
 1. 公开路由读取 account/password；当前 Nuxt 的 `v2RequiredString` 对部分非字符串先转字符串再 trim，使用 email 或 username 原样匹配。无账号与密码错误均 401/40101 `账号或密码错误`；找到账号但 `is_active != 1` 或 status 非 active 时先返回 403/40301 `账号不可用`。只接受安全参数化查询，密码、哈希、令牌与密钥不得进入响应或日志。
 2. 密码按平台现存 bcrypt 格式校验；Nuxt 的 bcrypt 按 UTF-8 字节在 72 字节截断，公共样例 `scenarios/auth-bcrypt.json` 固定 `$2a$`/`$2b$`、中文、长输入、错误及损坏哈希等合成情况。测试使用低成本哈希仅为快速验证，不是推荐新密码配置。不得用自行实现的加密或明文密码替代 bcrypt。
 3. 密码通过后先检查双因素数据结构就绪，Nuxt 用迁移账本、当前 schema、表列/约束、索引和序列元数据只读检查；不合格返回安全 503，不在请求中自动建表/迁移。三端以 `two-factor-schema-catalog.json` 中 Nuxt 导出的只读规则与全部迁移校验值作为共同检查基础；`scenarios/two-factor-readiness.json` 包含共同字典快照和负向样例。账本不存在或存在但为空时，只要其他结构满足要求可以就绪；账本存在时任一已有记录未知或校验值不符都须拒绝，包括其他功能的记录。一次检查使用同一数据库连接，检查完成后不缓存成功结果。只在设置启用且 secret 已启用时要求第二因素；任何结构/查询异常不能绕过 2FA。
-4. 未启用 2FA 或命中现有受信设备才签发会话：生成 `sess_` 加 UUID、随机 access jti 和 refresh jti、两种 JWT；Oracle 保存 access jti 和 refresh token SHA-256，而非明文 token。记录原有设备 header、IP、UA、期限，更新用户 last_login_at；返回 `{two_factor_required:false,user,tokens}`，`user` 为完整 self profile，非简化字段；token 和 Cookie 与 `auth-refresh.md` 契约一致。普通登录 `remember_me` 不改变 TTL。JWT 密钥及用户/session 数据必须跨端共享。
+4. 未启用 2FA 或命中现有受信设备才签发会话：生成 `sess_` 加 UUID、随机 access jti 和 refresh jti、两种 JWT；Oracle 保存 access jti 和 refresh token SHA-256，而非明文 token。记录原有设备 header、IP、UA、期限，更新用户 last_login_at；返回 `{two_factor_required:false,user,tokens}`，`user` 为完整 self profile，非简化字段；头像公共地址遵循 `storage-public-urls.md`，token 和 Cookie 与 `auth-refresh.md` 契约一致。普通登录 `remember_me` 不改变 TTL。JWT 密钥及用户/session 数据必须跨端共享。
 5. 查历史设备、插入 session、更新 last_login、通知和读取用户资料依既有 Nuxt 逐语句提交，不声称整个登录是事务。登录资料读取成功后才设置 Cookie；session 已提交后资料或关闭步骤失败，仍可能留下服务端会话。新设备判断依历史 fingerprint 数量（包含已撤销或过期会话）。提醒先受 login_alerts 控制；通知类型偏好决定是否存储、push 开关决定是否推送，email 开关独立决定是否发邮件，通知类型禁用并不必然阻止邮件。提醒失败不阻断登录，错误处理不能记录凭据或内部原始异常。该副作用不可省略后称为完整登录。
 
 ## 双因素

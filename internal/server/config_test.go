@@ -65,6 +65,24 @@ func TestRefreshConfig(t *testing.T) {
 	}
 }
 
+func TestConfigLoadsStorageURLs(t *testing.T) {
+	env := validEnv()
+	env["STORAGE_PUBLIC_BASE"] = "/media"
+	env["STORAGE_CDN_BASE_URL"] = "https://user:private-url-secret@cdn.example"
+	c, err := LoadConfig(func(k string) (string, bool) { value, ok := env[k]; return value, ok })
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, format := range []string{"%v", "%+v", "%#v"} {
+		if strings.Contains(fmt.Sprintf(format, c.Refresh.Storage), "private-url-secret") {
+			t.Fatal("storage policy leaked credentials")
+		}
+	}
+	if _, err := normalizeAvatarURL(c.Refresh.Storage, "/uploads/a.png"); err == nil {
+		t.Fatal("public URL accepted credentials")
+	}
+}
+
 func TestTrustProxyRequiresExplicitRecognizedValue(t *testing.T) {
 	for _, tc := range []struct {
 		raw      string
