@@ -21,7 +21,7 @@ const stubs = {
   '~/server/models/v2': 'export const v2RequireSelfUser = async (_, id) => ({user_id: id, username: "test"});',
   './notifications': 'export const v2CreateNotification = async () => {};',
   './api-cache': 'export const readApiResponseCache = async () => ({status:"disabled"}); export const writeApiResponseCache = async () => {}; export const invalidateApiResponseCache = async () => {}; export const shouldInvalidateApiResponseCache = () => false;',
-  './logging': 'export const getRequestLogContext = () => null; export const logError = () => {}; export const logInfo = () => {}; export const serializeLogError = () => ({});',
+  './logging': 'export const getRequestLogContext = () => null; export const logError = (_, payload) => globalThis.__authCompatErrors?.push(payload); export const logInfo = () => {}; export const serializeLogError = error => ({message: error?.message, stack: error?.stack});',
   oracledb: 'export default {OUT_FORMAT_OBJECT: 4002};',
   nodemailer: 'export default {createTransport(){throw new Error("Test forbids mail transport");}};'
 };
@@ -104,7 +104,7 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
       }
       if (sql.startsWith('SELECT session_id, user_id')) {
         const row = sessions.get(binds.session_id);
-        const result = rows(row && !row.revoked && row.refresh_token_hash === binds.refresh_token_hash && row.refresh_token_expires_at > new Date() ? [{SESSION_ID: row.session_id, USER_ID: row.user_id}] : []);
+        const result = rows(row && row.user_id === binds.user_id && !row.revoked && row.refresh_token_hash === binds.refresh_token_hash && row.refresh_token_expires_at > new Date() ? [{SESSION_ID: row.session_id, USER_ID: row.user_id}] : []);
         if (concurrentRefresh) {
           await new Promise(resolve => {reads.push(resolve); if (reads.length === 2) {reads.forEach(done => done()); reads = [];}});
         }
@@ -113,7 +113,9 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
       if (sql.startsWith('UPDATE n_auth_sessions')) {
         const row = sessions.get(binds.session_id ?? binds.sessionId);
         if (!row || row.revoked) return {rowsAffected: 0};
+        if (row.user_id !== (binds.user_id ?? binds.userId)) return {rowsAffected: 0};
         if (sql.includes('refresh_token_hash = :old_refresh_token_hash') && row.refresh_token_hash !== binds.old_refresh_token_hash) return {rowsAffected: 0};
+        if (sql.includes('AND refresh_token_expires_at > CURRENT_TIMESTAMP') && row.refresh_token_expires_at <= new Date()) return {rowsAffected: 0};
         if (sql.includes('AND refresh_token_hash = :refresh_token_hash') && row.refresh_token_hash !== binds.refresh_token_hash) return {rowsAffected: 0};
         if (sql.includes('AND access_jti = :access_jti') && row.access_jti !== binds.access_jti) return {rowsAffected: 0};
         if (sql.includes('AND access_jti = :accessJti') && row.access_jti !== binds.accessJti) return {rowsAffected: 0};
@@ -159,6 +161,7 @@ async function fixture(options) {
     db,
     close: () => new Promise(resolve => server.close(resolve)),
     request: (url, method, body, headers = {}) => fetch(base + url, {method, headers: {...(body === undefined ? {} : {'content-type': 'application/json'}), ...headers}, body: body === undefined ? undefined : JSON.stringify(body)}),
+    refreshForm: token => fetch(base + '/api/v2/auth/tokens/current', {method: 'PATCH', headers: {'content-type': 'application/x-www-form-urlencoded', cookie: 'access_token=expired'}, body: new URLSearchParams({refresh_token: token})}),
     login: () => fetch(base + '/api/v2/auth/tokens', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({account: 'test', password: 'test-password'})})
   };
 }
@@ -208,6 +211,60 @@ test('Cookie refresh has precedence over body and supports requests without JSON
     assert.equal(refreshed.status, 200); assertTokens(refreshed, (await refreshed.json()).data);
     assert.equal((await f.request('/api/v2/auth/tokens/current', 'PATCH', {refresh_token: 123})).status, 401);
   } finally {await f.close();}
+});
+
+test('refresh does not fall back from a whitespace-only cookie or bypass session ownership and expiry', async () => {
+  const f = await fixture();
+  try {
+    const tokens = (await (await f.login()).json()).data.tokens;
+    const row = f.db.sessions.get(tokens.session_id);
+    const endpoint = '/api/v2/auth/tokens/current';
+    const body = {refresh_token: tokens.refresh_token};
+    const spaces = await f.request(endpoint, 'PATCH', body, {cookie: 'refresh_token=%20%20'});
+    assert.equal(spaces.status, 401);
+    assert.deepEqual(spaces.headers.getSetCookie(), []);
+    row.user_id = 2;
+    const foreign = await f.request(endpoint, 'PATCH', body);
+    assert.equal(foreign.status, 401);
+    assert.deepEqual(foreign.headers.getSetCookie(), []);
+    row.user_id = 1;
+    row.refresh_token_expires_at = new Date(Date.now() - 1000);
+    const expired = await f.request(endpoint, 'PATCH', body);
+    assert.equal(expired.status, 401);
+    assert.deepEqual(expired.headers.getSetCookie(), []);
+  } finally { await f.close(); }
+});
+
+test('refresh accepts form data even with a stale access cookie', async () => {
+  const f = await fixture();
+  try {
+    const tokens = (await (await f.login()).json()).data.tokens;
+    const response = await f.refreshForm(tokens.refresh_token);
+    assert.equal(response.status, 200);
+    const refreshed = (await response.json()).data;
+    assert.equal(refreshed.session_id, tokens.session_id);
+    assertTokens(response, refreshed);
+  } finally { await f.close(); }
+});
+
+test('refresh hides storage failures and never sends newly issued cookies', async () => {
+  for (const statement of ['SELECT session_id, user_id', 'UPDATE n_auth_sessions']) {
+    const f = await fixture();
+    try {
+      const tokens = (await (await f.login()).json()).data.tokens;
+      const execute = f.db.execute;
+      f.db.execute = async (sql, binds) => {
+        if (sql.replace(/\s+/g, ' ').trim().startsWith(statement)) throw new Error('synthetic-storage-secret');
+        return execute.call(f.db, sql, binds);
+      };
+      globalThis.__authCompatErrors = [];
+      const response = await f.request('/api/v2/auth/tokens/current', 'PATCH', {refresh_token: tokens.refresh_token});
+      assert.equal(response.status, 500);
+      assert.deepEqual(response.headers.getSetCookie(), []);
+      assert.doesNotMatch(await response.text(), /synthetic-storage-secret/);
+      assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors), /synthetic-storage-secret/);
+    } finally { await f.close(); }
+  }
 });
 
 test('two-factor challenge returns no token; valid completion issues Cookie/body tokens', async () => {

@@ -1694,7 +1694,7 @@ export async function v2RefreshCurrentToken(
       user_id: payload.userId,
       refresh_token_hash: v2HashToken(refreshToken)
     }
-  );
+  ).catch(() => v2ServerError());
   if (!row) v2Unauthorized();
 
   const accessJti = crypto.randomUUID();
@@ -1740,7 +1740,7 @@ export async function v2RefreshCurrentToken(
       user_id: payload.userId,
       old_refresh_token_hash: v2HashToken(refreshToken)
     }
-  );
+  ).catch(() => v2ServerError());
   if (rotated !== 1) v2Unauthorized();
 
   v2SetAuthCookies(event, newAccessToken, newRefreshToken);

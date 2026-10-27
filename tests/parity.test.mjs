@@ -104,10 +104,20 @@ test('release check fails when implementations or requirements remain incomplete
 function accept(context) {
   const { root, workspace, write, ledger, save } = context;
   const feature = ledger.features[0];
-  write('specifications/example.md', 'Example behavior must be identical.');
-  write('specifications/example-case.json', { id: 'EXAMPLE-OK', cases: [{ action: 'get', expected: 200 }] });
-  feature.review = 'reviewed'; feature.definition = 'specifications/example.md';
-  feature.scenarios = [{ id: 'EXAMPLE-OK', file: 'specifications/example-case.json' }];
+  write('specifications/requirements/example.md', 'Example behavior must be identical.');
+  write('specifications/scenarios/example-case.json', { id: 'EXAMPLE-OK', cases: [{ action: 'get', expected: 200 }] });
+  feature.review = 'reviewed'; feature.definition = 'specifications/requirements/example.md';
+  feature.scenarios = [{ id: 'EXAMPLE-OK', file: 'specifications/scenarios/example-case.json' }];
+  ledger.sharedFiles = [feature.definition, feature.scenarios[0].file].map(path => {
+    const content = readFileSync(join(root, path));
+    const copy = path.replace(/^specifications\//, 'contracts/');
+    for (const backend of ['rust', 'go']) {
+      const destination = join(workspace, backend, copy);
+      mkdirSync(join(destination, '..'), { recursive: true });
+      writeFileSync(destination, content);
+    }
+    return { source: { path, sha256: sha(content) }, copies: { rust: copy, go: copy } };
+  });
   for (const backend of ['nuxt', 'rust', 'go']) {
     const component = join(workspace, backend);
     mkdirSync(join(component, 'src'), { recursive: true });
@@ -130,6 +140,20 @@ test('release accepts a fully reviewed feature only with matching native receipt
   const report = checkParity({ projectRoot: context.root, workspaceRoot: context.workspace, release: true });
   assert.equal(report.ready, true); assert.equal(report.accepted, 1);
 }));
+test('reviewed requirement must be registered for both backends', () => fixture(context => {
+  accept(context);
+  context.ledger.sharedFiles = context.ledger.sharedFiles.filter(entry => entry.source.path !== context.ledger.features[0].definition);
+  context.save();
+  assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace, release: true }),
+    /EXAMPLE.*requirement.*shared/i);
+}));
+test('reviewed scenario must be registered for both backends', () => fixture(context => {
+  accept(context);
+  context.ledger.sharedFiles = context.ledger.sharedFiles.filter(entry => entry.source.path !== context.ledger.features[0].scenarios[0].file);
+  context.save();
+  assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace, release: true }),
+    /EXAMPLE.*scenario.*shared/i);
+}));
 test('Nuxt proxy receipts do not prove independent backend acceptance', () => fixture(context => {
   accept(context);
   const path = 'specifications/evidence/rust.json';
@@ -139,7 +163,12 @@ test('Nuxt proxy receipts do not prove independent backend acceptance', () => fi
 }));
 test('receipt from an earlier requirement cannot be reused', () => fixture(context => {
   accept(context);
-  context.write('specifications/example.md', 'Different behavior.');
+  const path = context.ledger.features[0].definition;
+  context.write(path, 'Different behavior.');
+  const entry = context.ledger.sharedFiles.find(item => item.source.path === path);
+  entry.source.sha256 = sha('Different behavior.');
+  for (const backend of ['rust', 'go']) writeFileSync(join(context.workspace, backend, entry.copies[backend]), 'Different behavior.');
+  context.save();
   assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace }), /requirement.*checksum/i);
 }));
 test('changed source invalidates recorded acceptance', () => fixture(context => {

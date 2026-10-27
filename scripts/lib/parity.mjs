@@ -105,7 +105,7 @@ function checkReceipt(projectRoot, workspaceRoot, feature, backend, implementati
   for (const source of receipt.sources) checksum(componentRoot, source, `${feature.id}/${backend}: source checksum mismatch`);
 }
 
-function checkFeature(root, workspaceRoot, feature, operations, owners, scenarioIds) {
+function checkFeature(root, workspaceRoot, feature, operations, owners, scenarioIds, sharedSources) {
   ensure(nonempty(feature.id) && /^[A-Za-z0-9._:-]+$/.test(feature.id), 'Invalid feature ID');
   ensure(Number.isSafeInteger(feature.revision) && feature.revision > 0, `${feature.id}: invalid revision`);
   ensure(['unreviewed', 'reviewed'].includes(feature.review), `${feature.id}: invalid requirement review state`);
@@ -126,6 +126,9 @@ function checkFeature(root, workspaceRoot, feature, operations, owners, scenario
   if (feature.review === 'reviewed') {
     file(root, feature.definition);
     ensure(feature.scenarios.length > 0, `${feature.id}: reviewed requirement requires scenarios`);
+    ensure(sharedSources.has(feature.definition), `${feature.id}: reviewed requirement must be registered in shared files: ${feature.definition}`);
+    for (const scenario of feature.scenarios) ensure(sharedSources.has(scenario.file),
+      `${feature.id}: reviewed scenario must be registered in shared files: ${scenario.file}`);
   }
   ensure(feature.implementations && Object.keys(feature.implementations).length === backends.length,
     `${feature.id}: each nuxt/rust/go implementation task is required`);
@@ -151,6 +154,7 @@ export function checkParity({ projectRoot, workspaceRoot, release = false }) {
   const ledger = json(publicDirectory(root, 'specifications'), 'parity.json');
   ensure(ledger.schemaVersion === 1, 'Unsupported parity schema version');
   const sharedFileCount = sharedCopies(root, workspaceRoot, ledger.sharedFiles ?? []);
+  const sharedSources = new Set((ledger.sharedFiles ?? []).map(entry => entry.source.path));
   checksum(root, ledger.baseline?.openapi, 'Baseline changed; review and update requirements before re-pinning', true);
   ensure(Array.isArray(ledger.baseline.sources) && ledger.baseline.sources.length > 0, 'Source baseline required');
   strings(ledger.baseline.sourceRoots, 'Source roots');
@@ -169,7 +173,7 @@ export function checkParity({ projectRoot, workspaceRoot, release = false }) {
   const owners = new Map();
   const scenarioIds = new Set();
   const pending = [];
-  for (const feature of ledger.features) if (!checkFeature(root, workspaceRoot, feature, operations, owners, scenarioIds)) pending.push(feature.id);
+  for (const feature of ledger.features) if (!checkFeature(root, workspaceRoot, feature, operations, owners, scenarioIds, sharedSources)) pending.push(feature.id);
   for (const operation of operations) ensure(owners.has(operation), `Unowned operation: ${operation}`);
   const audits = ledger.sourceAudits ?? [];
   ensure(Array.isArray(audits), 'Source audits must be an array');

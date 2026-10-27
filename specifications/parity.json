@@ -967,7 +967,7 @@
       },
       {
         "path": "server/services/v2/auth.ts",
-        "sha256": "1c517df3dc683af7ad73aa4eaf170f239167b56698b3eadc9abd46c2d14f961d"
+        "sha256": "f54274c9a3d660116f47a856403492495d8d75dcc514a97d9ab774e073e29632"
       },
       {
         "path": "server/services/v2/chat.ts",
@@ -1091,7 +1091,7 @@
       },
       {
         "path": "server/utils/oracle.ts",
-        "sha256": "2a1434804759e09ffb0499ea09658d043f9e6dc09427a72004c1853756aeac50"
+        "sha256": "682166098a948803848696f78af6189abaa2160e1b54859477db626aabc356d9"
       },
       {
         "path": "server/utils/redis-config.ts",
@@ -1331,47 +1331,76 @@
     {
       "id": "API-patch_auth_tokens_current",
       "title": "PATCH /api/v2/auth/tokens/current: 刷新当前会话 token",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/auth-refresh.md",
       "sourceFiles": [
-        "server/api/v2/auth/tokens/current.patch.ts"
+        "server/api/v2/auth/tokens/current.patch.ts",
+        "server/services/v2/auth.ts",
+        "server/utils/auth-token-response.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
       ],
       "operations": [
         "PATCH /api/v2/auth/tokens/current"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "AUTH-REFRESH",
+          "file": "specifications/scenarios/auth-refresh.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for PATCH /api/v2/auth/tokens/current; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "nuxt: implement and maintain the native refresh contract and isolated route/JWT/store tests; retain documented nonstandard-token differences.",
+            "nuxt: execute shared acceptance scenarios with isolated real Oracle and cross-backend/clients before recording acceptance.",
+            "nuxt: complete the remaining login, logout, 2FA and other business endpoints separately."
           ],
           "sourceFiles": [
-            "server/api/v2/auth/tokens/current.patch.ts"
+            "server/api/v2/auth/tokens/current.patch.ts",
+            "server/services/v2/auth.ts",
+            "server/utils/auth-token-response.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement PATCH /api/v2/auth/tokens/current natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "rust: implement and maintain the native refresh contract and isolated route/JWT/store tests; retain documented nonstandard-token differences.",
+            "rust: execute shared acceptance scenarios with isolated real Oracle and cross-backend/clients before recording acceptance.",
+            "rust: complete the remaining login, logout, 2FA and other business endpoints separately."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/app/routes.rs",
+            "src/config/env.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/tokens.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement PATCH /api/v2/auth/tokens/current natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "go: implement and maintain the native refresh contract and isolated route/JWT/store tests; retain documented nonstandard-token differences.",
+            "go: execute shared acceptance scenarios with isolated real Oracle and cross-backend/clients before recording acceptance.",
+            "go: complete the remaining login, logout, 2FA and other business endpoints separately."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "cmd/server/main.go",
+            "internal/server/config.go",
+            "internal/server/server.go",
+            "internal/server/refresh.go",
+            "internal/server/repository.go",
+            "internal/auth/tokens.go"
+          ],
           "evidence": []
         }
       }
@@ -9730,6 +9759,26 @@
       "copies": {
         "go": "contracts/scenarios/auth-session-revocation.json",
         "rust": "contracts/scenarios/auth-session-revocation.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/auth-refresh.md",
+        "sha256": "159a4b51b15e21875432c81252037dc4b5b6618a5eae9530a0c5277d93223b0b"
+      },
+      "copies": {
+        "rust": "contracts/requirements/auth-refresh.md",
+        "go": "contracts/requirements/auth-refresh.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-refresh.json",
+        "sha256": "346aacdbc0c89443c52214638e1cdef402b6d7849ca343b90b3f30c665f39e06"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/auth-refresh.json",
+        "go": "contracts/scenarios/auth-refresh.json"
       }
     }
   ]

@@ -4,8 +4,7 @@ import {
 import oracledb from 'oracledb';
 import {
   logError,
-  logInfo,
-  serializeLogError
+  logInfo
 } from '~/server/utils/logging';
 import { clearOracleQueryCacheSource } from '~/server/utils/oracle-query-cache';
 
@@ -47,9 +46,15 @@ export async function initOraclePool(): Promise<oracledb.Pool> {
     });
     return pool;
   } catch (error) {
+    let code: unknown;
+    try { code = (error as { code?: unknown } | null)?.code; }
+    catch { code = undefined; }
     logError('oracle', {
       event: 'pool:create:error',
-      error: serializeLogError(error)
+      category: 'oracle_pool_initialization_failed',
+      code: typeof code === 'string' && /^(?:ORA-\d{5}|NJS-\d{3,5}|DPI-\d{4})$/.test(code)
+        ? code
+        : 'unknown'
     });
     throw error;
   }
