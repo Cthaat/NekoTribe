@@ -1,0 +1,289 @@
+{
+  "id": "AUTH-REGISTRATION",
+  "revision": 1,
+  "base": {
+    "email": "new@example.test",
+    "username": "newuser",
+    "password": "synthetic-password",
+    "confirm_password": "synthetic-password",
+    "display_name": "New User",
+    "verification_id": "otp_fixture",
+    "agree_to_terms": true
+  },
+  "profile": {
+    "user_id": 123,
+    "username": "newuser",
+    "display_name": "New User",
+    "avatar_url": "/storage/default-avatar.png",
+    "bio": "",
+    "location": "",
+    "website": "",
+    "is_verified": 0,
+    "followers_count": 0,
+    "following_count": 0,
+    "posts_count": 0,
+    "likes_count": 0,
+    "relationship": {
+      "is_self": true,
+      "is_following": false,
+      "is_blocked": false,
+      "is_blocking": false,
+      "relation": "self"
+    },
+    "online_status": "online",
+    "last_seen_at": null,
+    "email": "new@example.test",
+    "phone": "",
+    "birth_date": null,
+    "email_verified_at": "2026-01-02T03:04:05.000Z",
+    "is_active": 1,
+    "status": "active",
+    "created_at": "2026-01-02T03:04:05.000Z",
+    "updated_at": "2026-01-02T03:04:05.000Z"
+  },
+  "cases": [
+    {
+      "id": "REG-01",
+      "patch": {},
+      "status": 200,
+      "inserts": 1
+    },
+    {
+      "id": "REG-02",
+      "patch": {
+        "email": null
+      },
+      "status": 400,
+      "inserts": 0
+    },
+    {
+      "id": "REG-03",
+      "patch": {
+        "username": "  "
+      },
+      "status": 400,
+      "inserts": 0
+    },
+    {
+      "id": "REG-04",
+      "patch": {
+        "password": ""
+      },
+      "status": 400,
+      "inserts": 0
+    },
+    {
+      "id": "REG-05",
+      "patch": {
+        "confirm_password": null
+      },
+      "status": 400,
+      "inserts": 0
+    },
+    {
+      "id": "REG-06",
+      "patch": {
+        "display_name": []
+      },
+      "status": 400,
+      "inserts": 0
+    },
+    {
+      "id": "REG-07",
+      "patch": {
+        "verification_id": null
+      },
+      "status": 400,
+      "inserts": 0
+    },
+    {
+      "id": "REG-08",
+      "patch": {
+        "agree_to_terms": 1
+      },
+      "status": 400,
+      "inserts": 0
+    },
+    {
+      "id": "REG-09",
+      "patch": {
+        "confirm_password": "different"
+      },
+      "status": 400,
+      "inserts": 0
+    },
+    {
+      "id": "REG-10",
+      "patch": {},
+      "otp": "missing",
+      "status": 422,
+      "inserts": 0
+    },
+    {
+      "id": "REG-11",
+      "patch": {},
+      "otp": "expired",
+      "status": 422,
+      "inserts": 0
+    },
+    {
+      "id": "REG-12",
+      "patch": {},
+      "otp": "unverified",
+      "status": 422,
+      "inserts": 0
+    },
+    {
+      "id": "REG-13",
+      "patch": {},
+      "duplicate": true,
+      "status": 409,
+      "inserts": 0
+    },
+    {
+      "id": "REG-14",
+      "patch": {},
+      "fault": "otp",
+      "status": 500,
+      "inserts": 0
+    },
+    {
+      "id": "REG-15",
+      "patch": {},
+      "fault": "duplicate",
+      "status": 500,
+      "inserts": 0
+    },
+    {
+      "id": "REG-16",
+      "patch": {},
+      "fault": "sequence",
+      "status": 500,
+      "inserts": 0
+    },
+    {
+      "id": "REG-17",
+      "patch": {},
+      "fault": "insert",
+      "status": 500,
+      "inserts": 0
+    },
+    {
+      "id": "REG-18",
+      "patch": {},
+      "fault": "profile",
+      "status": 500,
+      "inserts": 1
+    },
+    {
+      "id": "REG-19",
+      "patch": {
+        "bio": "  retained  ",
+        "location": false,
+        "phone": 123
+      },
+      "status": 200,
+      "inserts": 1
+    },
+    {
+      "id": "REG-20",
+      "patch": {
+        "password": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "confirm_password": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "status": 200,
+      "inserts": 1
+    },
+    {
+      "id": "REG-21",
+      "patch": {
+        "password": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中",
+        "confirm_password": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中"
+      },
+      "status": 200,
+      "inserts": 1
+    },
+    {
+      "id": "REG-22",
+      "patch": {
+        "email": "other@example.test"
+      },
+      "status": 422,
+      "inserts": 0
+    },
+    {
+      "id": "REG-23",
+      "patch": {
+        "verification_id": "otp_other"
+      },
+      "status": 422,
+      "inserts": 0
+    },
+    {
+      "id": "REG-24",
+      "patch": {},
+      "profile_missing": true,
+      "status": 404,
+      "inserts": 1
+    },
+    {
+      "id": "REG-25",
+      "patch": {
+        "phone": 123.0
+      },
+      "expected_phone": "123",
+      "status": 200,
+      "inserts": 1
+    },
+    {
+      "id": "REG-26",
+      "patch": {
+        "phone": 1e20
+      },
+      "expected_phone": "100000000000000000000",
+      "status": 200,
+      "inserts": 1
+    },
+    {
+      "id": "REG-27",
+      "patch": {
+        "phone": 1e-7
+      },
+      "expected_phone": "1e-7",
+      "status": 200,
+      "inserts": 1
+    },
+    {
+      "id": "REG-28",
+      "patch": {
+        "phone": 9007199254740993
+      },
+      "expected_phone": "9007199254740992",
+      "status": 200,
+      "inserts": 1
+    },
+    {
+      "id": "REG-29",
+      "patch": {
+        "phone": -0.0
+      },
+      "expected_phone": "0",
+      "status": 200,
+      "inserts": 1
+    }
+  ],
+  "hashInterop": {
+    "password": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中",
+    "wrongPassword": "日中中中中中中中中中中中中中中中中中中中中中中中中中中中中中",
+    "hashes": [
+      {
+        "producer": "go",
+        "hash": "$2a$10$6/612hJt39kHCQpB75oCCus11ARt8yoWU2X/56cc4l9istYUNhIFq"
+      },
+      {
+        "producer": "rust",
+        "hash": "$2b$10$jCDK2LIiQ/4G0t0JgkO6.uoZ36nXvATRF6OyNS.Vz4t0uVbZoH5MO"
+      }
+    ]
+  }
+}

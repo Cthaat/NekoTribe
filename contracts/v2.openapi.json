@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-27-otp-creation"
+    "x-contract-revision": "2026-10-27-native-registration"
   },
   "tags": [
     {
@@ -337,7 +337,7 @@
       "post": {
         "summary": "注册用户",
         "deprecated": false,
-        "description": "注册用户",
+        "description": "注册需要已验证且未过期的注册验证码；成功后返回用户资料，不创建登录会话。用户写入后若资料读取失败，已创建的用户可能保留。",
         "operationId": "post_auth_registration",
         "tags": [
           "Auth"
@@ -350,23 +350,43 @@
                 "type": "object",
                 "properties": {
                   "email": {
-                    "type": "string",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                      }
+                    ],
                     "example": "demo@example.com"
                   },
                   "username": {
-                    "type": "string",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                      }
+                    ],
                     "example": "demo"
                   },
                   "password": {
-                    "type": "string",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                      }
+                    ],
                     "example": "Password123"
                   },
                   "confirm_password": {
-                    "type": "string",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                      }
+                    ],
                     "example": "Password123"
                   },
                   "display_name": {
-                    "type": "string",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                      }
+                    ],
                     "example": "Demo"
                   },
                   "bio": {
@@ -386,15 +406,31 @@
                     "example": "2000-01-01"
                   },
                   "verification_id": {
-                    "type": "string",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/AuditedAccountRequiredText"
+                      }
+                    ],
                     "example": "otp_9d6f"
                   },
                   "agree_to_terms": {
                     "type": "boolean",
+                    "enum": [
+                      true
+                    ],
                     "example": true
                   }
                 },
-                "additionalProperties": false
+                "additionalProperties": true,
+                "required": [
+                  "email",
+                  "username",
+                  "password",
+                  "confirm_password",
+                  "display_name",
+                  "verification_id",
+                  "agree_to_terms"
+                ]
               },
               "example": {
                 "email": "edge27452696803@gmail.com",
@@ -611,6 +647,40 @@
           "404": {
             "$ref": "#/components/responses/NotFound",
             "description": "资源不存在"
+          },
+          "409": {
+            "description": "邮箱或用户名已被注册",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "请先完成验证码校验",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/InternalError",

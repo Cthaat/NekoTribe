@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -175,12 +176,31 @@ func loginString(value interface{}) string {
 	case string:
 		return strings.TrimFunc(v, jsTrimSpace)
 	case float64:
-		return strings.TrimSpace(fmt.Sprint(v))
+		return jsNumberString(v)
 	case bool:
 		return fmt.Sprint(v)
 	default:
 		return ""
 	}
+}
+func jsNumberString(value float64) string {
+	if value == 0 {
+		return "0"
+	}
+	if math.IsNaN(value) {
+		return "NaN"
+	}
+	if math.IsInf(value, 1) {
+		return "Infinity"
+	}
+	if math.IsInf(value, -1) {
+		return "-Infinity"
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
 }
 func jsTrimSpace(r rune) bool {
 	switch r {
