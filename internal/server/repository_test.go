@@ -129,6 +129,26 @@ func TestOracleRepositoryBindsAndCommits(t *testing.T) {
 		t.Fatal("preflight mutation")
 	}
 }
+
+func TestPasswordResetRepositoryBindsAndCommits(t *testing.T) {
+	state := &driverState{}
+	db := sql.OpenDB(testConnector{state})
+	defer db.Close()
+	count, err := (OracleSessions{db}).ResetPassword(context.Background(), "fake';--", "synthetic-hash")
+	if err != nil || count != 1 || state.commits != 1 || strings.Contains(state.sql, "fake';--") {
+		t.Fatal("reset operation failed", err)
+	}
+	want := map[string]interface{}{"email": "fake';--", "password_hash": "synthetic-hash"}
+	for _, arg := range state.args {
+		if want[arg.Name] != arg.Value {
+			t.Fatal("incorrect bind", arg.Name)
+		}
+		delete(want, arg.Name)
+	}
+	if len(want) != 0 {
+		t.Fatal("missing binds")
+	}
+}
 func TestOracleRepositoryErrors(t *testing.T) {
 	for _, fault := range []string{"connect", "execute", "commit"} {
 		t.Run(fault, func(t *testing.T) {

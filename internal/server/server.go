@@ -52,6 +52,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			register(w, r, repository, refresh)
 			return
 		}
+		if r.URL.EscapedPath() == "/api/v2/auth/password-reset" && r.Method == http.MethodPost {
+			passwordReset(w, r, repository)
+			return
+		}
 		if r.URL.EscapedPath() == "/api/v2/auth/two-factor/challenges" && r.Method == http.MethodPost {
 			completeTwoFactor(w, r, codec, repository, refresh, "")
 			return
