@@ -71,7 +71,11 @@ pub(crate) fn scalar(value: Option<&Value>) -> String {
     match value {
         Some(Value::String(s)) => s.clone(),
         Some(Value::Bool(b)) => b.to_string(),
-        Some(Value::Number(n)) => n.to_string(),
+        Some(Value::Number(n)) => match n.as_f64() {
+            Some(value) if value == 0.0 => "0".to_owned(),
+            Some(value) => ryu_js::Buffer::new().format(value).to_owned(),
+            None => String::new(),
+        },
         _ => String::new(),
     }
 }

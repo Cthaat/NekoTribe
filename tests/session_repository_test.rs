@@ -17,6 +17,87 @@ struct Executor {
 }
 
 #[derive(Default)]
+struct RegistrationExecutor {
+    calls: Mutex<Vec<(&'static str, BindMap)>>,
+}
+impl SessionExecutor for RegistrationExecutor {
+    fn execute(&self, q: &'static str, b: BindMap) -> StoreFuture<'_, u64> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((q, b));
+            Ok(1)
+        })
+    }
+    fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn query(&self, q: &'static str, b: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((q, b));
+            if q.contains("n_auth_otp_events") {
+                Ok(vec![DbRow::from([(
+                    "VERIFIED_AT".into(),
+                    DbValue::String("2026-01-02T03:04:05Z".into()),
+                )])])
+            } else if q.contains("COUNT(*)") {
+                Ok(vec![DbRow::from([("TOTAL".into(), DbValue::I64(0))])])
+            } else {
+                Ok(vec![DbRow::from([("ID".into(), DbValue::I64(123))])])
+            }
+        })
+    }
+}
+#[tokio::test]
+async fn registration_repository_binds_otp_duplicate_sequence_and_insert() {
+    use nekotribe_backend::auth::registration::RegistrationRecord;
+    let repo = OracleSessions {
+        executor: RegistrationExecutor::default(),
+    };
+    assert!(repo
+        .registration_otp("fake';--", "otp_fixture")
+        .await
+        .unwrap());
+    assert!(!repo
+        .registration_exists("fake';--", "username")
+        .await
+        .unwrap());
+    let id = repo.registration_next_id().await.unwrap();
+    assert_eq!(id, 123);
+    let record = RegistrationRecord {
+        user_id: id,
+        email: "fake';--".into(),
+        username: "username".into(),
+        password_hash: "synthetic-hash".into(),
+        display_name: "Test".into(),
+        bio: "  retained  ".into(),
+        location: String::new(),
+        phone: String::new(),
+        birth_date: String::new(),
+    };
+    repo.registration_insert(&record).await.unwrap();
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 4);
+    assert!(
+        calls[0].0.contains("expires_at > CURRENT_TIMESTAMP")
+            && calls[0].0.contains("verified_at IS NOT NULL")
+    );
+    assert!(!calls[0].0.contains("fake';--"));
+    assert_eq!(calls[0].1["account"], DbValue::String("fake';--".into()));
+    assert_eq!(
+        calls[0].1["verification_id"],
+        DbValue::String("otp_fixture".into())
+    );
+    assert_eq!(calls[1].1["username"], DbValue::String("username".into()));
+    assert!(calls[2].0.contains("seq_user_id.NEXTVAL"));
+    assert!(calls[3].0.contains("TO_DATE(:birth_date, 'YYYY-MM-DD')"));
+    assert_eq!(calls[3].1["birth_date"], DbValue::Null);
+    assert_eq!(calls[3].1["bio"], DbValue::String("  retained  ".into()));
+    assert_eq!(
+        calls[3].1["password_hash"],
+        DbValue::String("synthetic-hash".into())
+    );
+}
+
+#[derive(Default)]
 struct OtpExecutor {
     calls: Mutex<Vec<(&'static str, BindMap)>>,
 }

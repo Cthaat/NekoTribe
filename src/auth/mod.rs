@@ -2,6 +2,7 @@
 pub mod login;
 pub mod otp;
 pub mod readiness;
+pub mod registration;
 pub mod session_list;
 pub mod session_repository;
 pub mod sessions;

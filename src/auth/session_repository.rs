@@ -35,6 +35,76 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn registration_otp<'a>(&'a self, email: &'a str, id: &'a str) -> StoreFuture<'a, bool> {
+        Box::pin(async move {
+            let b = BindMap::from([
+                ("account".into(), DbValue::String(email.into())),
+                ("verification_id".into(), DbValue::String(id.into())),
+            ]);
+            let rows=self.executor.query("SELECT verified_at FROM n_auth_otp_events WHERE account = :account AND otp_type = 'register' AND verification_id = :verification_id AND expires_at > CURRENT_TIMESTAMP AND verified_at IS NOT NULL",b).await?;
+            Ok(!rows.is_empty())
+        })
+    }
+    fn registration_exists<'a>(
+        &'a self,
+        email: &'a str,
+        username: &'a str,
+    ) -> StoreFuture<'a, bool> {
+        Box::pin(async move {
+            let b = BindMap::from([
+                ("email".into(), DbValue::String(email.into())),
+                ("username".into(), DbValue::String(username.into())),
+            ]);
+            let rows=self.executor.query("SELECT COUNT(*) AS total FROM n_users WHERE email = :email OR username = :username",b).await?;
+            Ok(rows
+                .first()
+                .map(|r| row_number(r, "TOTAL"))
+                .unwrap_or_default()
+                > 0)
+        })
+    }
+    fn registration_next_id<'a>(&'a self) -> StoreFuture<'a, u64> {
+        Box::pin(async move {
+            let rows = self
+                .executor
+                .query("SELECT seq_user_id.NEXTVAL AS id FROM dual", BindMap::new())
+                .await?;
+            row_id(rows.first().ok_or(SessionStoreError)?, "ID")
+        })
+    }
+    fn registration_insert<'a>(
+        &'a self,
+        r: &'a crate::auth::registration::RegistrationRecord,
+    ) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            let nullable = |s: &str| {
+                if s.is_empty() {
+                    DbValue::Null
+                } else {
+                    DbValue::String(s.into())
+                }
+            };
+            let b = BindMap::from([
+                ("user_id".into(), DbValue::I64(r.user_id as i64)),
+                ("email".into(), DbValue::String(r.email.clone())),
+                ("username".into(), DbValue::String(r.username.clone())),
+                (
+                    "password_hash".into(),
+                    DbValue::String(r.password_hash.clone()),
+                ),
+                (
+                    "display_name".into(),
+                    DbValue::String(r.display_name.clone()),
+                ),
+                ("bio".into(), nullable(&r.bio)),
+                ("location".into(), nullable(&r.location)),
+                ("phone".into(), nullable(&r.phone)),
+                ("birth_date".into(), nullable(&r.birth_date)),
+            ]);
+            self.executor.execute("INSERT INTO n_users (user_id,email,username,password_hash,display_name,bio,location,phone,birth_date,email_verified_at,status) VALUES (:user_id,:email,:username,:password_hash,:display_name,:bio,:location,:phone,CASE WHEN :birth_date IS NULL THEN NULL ELSE TO_DATE(:birth_date, 'YYYY-MM-DD') END,CURRENT_TIMESTAMP,'active')",b).await?;
+            Ok(())
+        })
+    }
     fn otp_next_id<'a>(&'a self) -> StoreFuture<'a, u64> {
         Box::pin(async move {
             let rows = self

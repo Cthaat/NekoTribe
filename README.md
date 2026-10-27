@@ -1,6 +1,8 @@
 # NekoTribe Rust 后端（兼容模式与原生会话切片）
 
-本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册登录/2FA 挑战、会话列表与撤销、验证码创建和校验、令牌刷新与退出和进程健康检查，直接访问 Oracle，不注册其他业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
+本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册登录/2FA 挑战、会话列表与撤销、验证码创建和校验、账号注册、令牌刷新与退出和进程健康检查，直接访问 Oracle，不注册其他业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
+
+注册先检查已验证且未过期的注册验证码，再查重、插入用户并读取资料；INSERT 独立提交，后续资料读取失败仍可能保留用户。真实 Oracle 触发器、并发注册和跨后端登录仍需联测。
 
 验证码邮件使用 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER` 和 `SMTP_PASS`，以隐式 TLS 验证服务器证书；`NUXT_SMTP_*` 变量优先。配置可以留空让服务启动，但邮件发送会失败。短信验证码当前返回 501。真实邮件服务器、Oracle 和跨后端流程仍需联测；登录提醒邮件另待实现。
 
@@ -10,7 +12,7 @@
 
 `src/auth/tokens.rs` 提供独立 `TokenCodec::sign` / `verify`。签发使用 HS256，包含 Nuxt 的 `userId/userName/sessionId/type/iat/exp/jti`；调用方提供 Unix 秒时间与 session/jti。验签必须明确传入 access 或 refresh，分别选择对应密钥，只接受 HS256/384/512。`userId` 只接受正 JavaScript 安全整数（兼容数字字符串），sessionId/jti 必须是非空字符串。`verify` 的 `now` 参数用于零宽限时间验证：`exp <= now` 或 `nbf > now` 拒绝；不强制 exp 存在，也不拒绝未来 iat，以保持当前 Nuxt 库语义。
 
-JWT 合法不代表数据库会话有效。native 模式的会话撤销 DELETE 每次验 access token 后 touch Oracle，核对用户、session、JTI、过期和撤销条件，成功才独立提交撤销。`{id}` 保留原始百分号编码；字面 `others` 撤销其他未撤销会话，包括到期会话。当前会话撤销成功才清两类 Cookie；数据库、提交或连接关闭错误返回安全错误，不授权后续撤销。注册、密码重置和其他认证端点仍待实现。签名 key、Oracle/Redis 配置 Debug 脱敏，错误不携带 token、SQL 或底层连接细节。
+JWT 合法不代表数据库会话有效。native 模式的会话撤销 DELETE 每次验 access token 后 touch Oracle，核对用户、session、JTI、过期和撤销条件，成功才独立提交撤销。`{id}` 保留原始百分号编码；字面 `others` 撤销其他未撤销会话，包括到期会话。当前会话撤销成功才清两类 Cookie；数据库、提交或连接关闭错误返回安全错误，不授权后续撤销。密码重置和其他认证端点仍待实现。签名 key、Oracle/Redis 配置 Debug 脱敏，错误不携带 token、SQL 或底层连接细节。
 
 公开退出接口优先使用 refresh Cookie 或正文，只有没有有效字符串形式的 refresh 凭据才选择 access Cookie 或严格 Bearer 头；非空但无效 refresh 不回退 access。通过签名验证后，SQL 同时匹配用户、会话、未撤销状态及当前 refresh hash 或 access jti；不读取其他会话、不要求数据库过期时间仍有效。无效、陈旧或不存在的凭据仍返回 `logout success` 并清理两个 Cookie。存储失败返回安全 500，提交结果可能未知；与并发刷新竞争时，如果刷新先完成，旧 refresh 的退出可能成功响应但不会撤销新凭据。真实 Oracle、跨端互通及两前端仍需验收。
 

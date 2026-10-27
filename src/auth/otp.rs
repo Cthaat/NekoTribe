@@ -138,7 +138,7 @@ fn random_id() -> Result<String, ApiError> {
     Ok(format!("otp_{}", uuid::Uuid::from_bytes(bytes)))
 }
 
-fn required(body: &Value, key: &str) -> Result<String, ApiError> {
+pub(crate) fn required(body: &Value, key: &str) -> Result<String, ApiError> {
     let value = scalar(body.get(key));
     let value = js_trim(&value);
     if value.is_empty() {

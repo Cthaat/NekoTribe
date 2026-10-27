@@ -25,6 +25,25 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    fn registration_otp<'a>(&'a self, _email: &'a str, _id: &'a str) -> StoreFuture<'a, bool> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn registration_exists<'a>(
+        &'a self,
+        _email: &'a str,
+        _username: &'a str,
+    ) -> StoreFuture<'a, bool> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn registration_next_id<'a>(&'a self) -> StoreFuture<'a, u64> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn registration_insert<'a>(
+        &'a self,
+        _record: &'a crate::auth::registration::RegistrationRecord,
+    ) -> StoreFuture<'a, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn otp_next_id<'a>(&'a self) -> StoreFuture<'a, u64> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -258,6 +277,10 @@ pub fn build_native_router_with_mail(
             post(crate::auth::otp::verify_otp),
         )
         .route("/api/v2/auth/otp", post(crate::auth::otp::create_otp))
+        .route(
+            "/api/v2/auth/registration",
+            post(crate::auth::registration::register),
+        )
         .route(
             "/api/v2/auth/two-factor/challenges",
             post(crate::auth::login::complete_challenge),
