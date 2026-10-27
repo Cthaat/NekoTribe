@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "8e3e60624d752ff111299b4bfa0db0cda35eaef2a93bd421e5527c98ff780caa"
+      "sha256": "6cbdd37acee45ead647af809504e1df515289e407c82d0a00cbf44142db1323a"
     },
     "sources": [
       {
@@ -295,7 +295,7 @@
       },
       {
         "path": "server/api/v2/auth/password-reset.post.ts",
-        "sha256": "40780e8d3e28f4c4b298fd97c74c9e58d7c8a4df1a19bd89b1306fb397d0beaf"
+        "sha256": "f2db9faceefe7629429075d69b98a978d2cee5be6fec80cd94cf09cd91fa975e"
       },
       {
         "path": "server/api/v2/auth/registration.post.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "7a97b2f723d60efc2f76a88e6faa1c67a0855234d09fdf9969a77abb8bcbfada"
+        "sha256": "369b7dd956ddd67148adb9c564bf1e6b32d60718d52bef8634a872d921a6afa3"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -1657,50 +1657,79 @@
     {
       "id": "API-post_auth_password_reset",
       "title": "POST /api/v2/auth/password-reset: 重置密码",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
+      "definition": "specifications/requirements/auth-password-reset.md",
       "sourceFiles": [
-        "server/api/v2/auth/password-reset.post.ts"
+        "server/api/v2/auth/password-reset.post.ts",
+        "server/services/v2/auth.ts",
+        "server/utils/auth-entry-errors.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
       ],
       "operations": [
         "POST /api/v2/auth/password-reset"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "AUTH-PASSWORD-RESET",
+          "file": "specifications/scenarios/auth-password-reset.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/auth/password-reset; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "nuxt: implement the shared OTP password-reset path with safe errors and bound database operations.",
+            "nuxt: address OTP reuse and active-session revocation consistently across backends; perform real Oracle and cross-backend acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/auth/password-reset.post.ts"
+            "server/api/v2/auth/password-reset.post.ts",
+            "server/services/v2/auth.ts",
+            "server/utils/auth-entry-errors.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/auth/password-reset natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "rust: implement the shared OTP password-reset path with safe errors and bound database operations.",
+            "rust: address OTP reuse and active-session revocation consistently across backends; perform real Oracle and cross-backend acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/auth/password_reset.rs",
+            "src/auth/otp.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs",
+            "src/auth/login.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/auth/password-reset natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "go: implement the shared OTP password-reset path with safe errors and bound database operations.",
+            "go: address OTP reuse and active-session revocation consistently across backends; perform real Oracle and cross-backend acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/password_reset.go",
+            "internal/server/otp_verification.go",
+            "internal/server/server.go",
+            "internal/server/login.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/auth-password-reset.md",
+        "specifications/scenarios/auth-password-reset.json",
+        "specifications/requirements/auth-otp-verification.md"
+      ]
     },
     {
       "id": "API-get_auth_sessions",
@@ -10195,6 +10224,26 @@
       "copies": {
         "rust": "contracts/scenarios/ai-agent-runtime.json",
         "go": "contracts/scenarios/ai-agent-runtime.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/auth-password-reset.md",
+        "sha256": "85d78a1f9bd0a3202511d2336e2d74634a03467982c9882942b6cf4f41209f27"
+      },
+      "copies": {
+        "rust": "contracts/requirements/auth-password-reset.md",
+        "go": "contracts/requirements/auth-password-reset.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-password-reset.json",
+        "sha256": "08317f348debbfd592ba02cbbc6049125c3a0c1d8306319bd53ea3e22853043c"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/auth-password-reset.json",
+        "go": "contracts/scenarios/auth-password-reset.json"
       }
     }
   ]

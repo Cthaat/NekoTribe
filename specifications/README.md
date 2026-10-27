@@ -11,7 +11,8 @@
 - `requirements/auth-otp-verification.md` 与 `auth-otp-creation.md`：验证码校验和邮件创建的共同规则与隔离场景；短信提供方、真实邮件及数据库联测仍需完成。
 - `requirements/auth-registration.md`：三端注册、验证码门槛与 29 条隔离场景；真实 Oracle 触发器、并发注册和跨后端登录尚待验收。
 - `requirements/ai-agent-runtime.md`：知识库、持久化上下文与 Skills 的三端共同目标，10 条验收场景尚未执行；框架尚未选定。
-- 检查器校验任务、版本、源码覆盖和证据链接，以及36份公共需求/样例在Rust/Go的固定副本。自动复制工具、真实业务场景runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
+- `requirements/auth-password-reset.md`：三端密码重置的过渡兼容规则及 17 条隔离场景；OTP 一次性消费和会话撤销尚需三端统一修复。
+- 检查器校验任务、版本、源码覆盖和证据链接，以及38份公共需求/样例在Rust/Go的固定副本。自动复制工具、真实业务场景runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
 
 ## 两种检查
 

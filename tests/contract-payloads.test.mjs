@@ -32,6 +32,23 @@ test('registration contract requires consent and documents duplicate or unverifi
   for(const status of ['409','422']) {const pointer='/api/v2/auth/registration'.replaceAll('/','~1');const validateError=ajv.compile({$ref:`${base}#/paths/${pointer}/post/responses/${status}/content/application~1json/schema`});assert.equal(validateError({code:Number(status)*100+1,message:'test',data:null,meta:null}),true);}
 });
 
+test('password reset contract requires scalar fields and documents both error transports', () => {
+  const validateRequest = requestValidator('post', '/api/v2/auth/password-reset');
+  const body = {email:'fake@example.test',verification_id:'otp_fixture',code:'123456',new_password:'synthetic'};
+  assert.equal(validateRequest(body),true);
+  assert.equal(validateRequest({...body,email:'  '}),false);
+  assert.equal(validateRequest({...body,code:123456,extension:true}),true);
+  const missing = {...body}; delete missing.new_password;
+  assert.equal(validateRequest(missing),false);
+  for (const status of ['400','401','404','500']) {
+    const pointer='/api/v2/auth/password-reset'.replaceAll('/','~1');
+    const validateError=ajv.compile({$ref:`${base}#/paths/${pointer}/post/responses/${status}/content/application~1json/schema`});
+    const business={code:Number(status)*100+1,message:'test',data:null,meta:null};
+    assert.equal(validateError(business),true);
+    assert.equal(validateError({error:true,url:'/api/v2/auth/password-reset',statusCode:Number(status),statusMessage:'test',message:'test',data:business}),true);
+  }
+});
+
 test('the 39 audited operations have concrete success contracts and retain evidence', () => {
   assert.equal(evidence.operations, 39);
   const keys = new Set();

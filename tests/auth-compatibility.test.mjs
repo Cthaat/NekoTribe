@@ -38,6 +38,7 @@ const compiled = await build({
     export {default as verifyOtp} from './server/api/v2/auth/otp/verification.post';
     export {default as createOtp} from './server/api/v2/auth/otp.post';
     export {default as register} from './server/api/v2/auth/registration.post';
+    export {default as resetPassword} from './server/api/v2/auth/password-reset.post';
     export {v2ListSessions} from './server/services/v2/auth';
   `, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm',
@@ -152,7 +153,15 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
       }
       if (sql.startsWith('SELECT verified_at FROM n_auth_otp_events')) {
         if (db.otpFault === 'readback') throw new Error('otp-internal-sensitive-fixture');
-        return rows([{VERIFIED_AT: new Date(db.otp.verified_at)}]);
+        return rows(db.resetEmptyReadback ? [] : [{VERIFIED_AT: new Date(db.otp.verified_at)}]);
+      }
+      if (sql.startsWith('UPDATE n_users SET password_hash')) {
+        db.resetPasswordWrites = (db.resetPasswordWrites ?? 0) + 1;
+        if (db.resetPasswordFault === 'write') throw new Error('reset-private-fixture');
+        if (db.resetMissingUser) return {rowsAffected: 0};
+        db.resetPasswordHash = binds.password_hash;
+        assert.equal(binds.email, 'fake@example.test');
+        return {rowsAffected: 1};
       }
       if (sql.includes('WHERE email = :account')) return rows([{USER_ID: 1, USERNAME: 'test', PASSWORD_HASH: passwordHash, STATUS: 'active', IS_ACTIVE: 1}]);
       if (sql.includes('AS two_factor_enabled')) return rows([{TWO_FACTOR_ENABLED: Number(twoFactor), ENABLED_AT: twoFactor ? new Date() : null}]);
@@ -236,6 +245,7 @@ async function fixture(options) {
   router.post('/api/v2/auth/otp/verification', routes.verifyOtp);
   router.post('/api/v2/auth/otp', routes.createOtp);
   router.post('/api/v2/auth/registration', routes.register);
+  router.post('/api/v2/auth/password-reset', routes.resetPassword);
   router.get('/api/v2/private', defineEventHandler(() => ({ok: true})));
   app.use(router);
   const server = createServer(toNodeListener(app));
@@ -249,6 +259,40 @@ async function fixture(options) {
     login: () => fetch(base + '/api/v2/auth/tokens', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({account: 'test', password: 'test-password'})})
   };
 }
+
+test('shared password reset scenarios preserve validation, side effects and error privacy', async () => {
+  const vectors = JSON.parse(readFileSync(path.join(root, 'specifications/scenarios/auth-password-reset.json'), 'utf8'));
+  assert.equal(vectors.cases.length, 17);
+  const f = await fixture();
+  const otpHash = await bcrypt.hash('123456', 4);
+  globalThis.__authCompatErrors = [];
+  try {
+    for (const vector of vectors.cases) {
+      f.db.otp = {account:'fake@example.test',type:'password_reset',verification_id:'otp_fixture',hash:otpHash,verified_at:'2026-01-02T03:04:05.000Z',expired:!!vector.expired};
+      f.db.otpUpdates = 0;
+      f.db.otpFault = vector.fault === 'mark' ? 'update' : vector.fault;
+      f.db.resetPasswordWrites = 0;
+      f.db.resetPasswordFault = vector.fault;
+      f.db.resetMissingUser = !!vector.missing_user;
+      f.db.resetEmptyReadback = !!vector.empty_readback;
+      f.db.resetPasswordHash = null;
+      const response = await f.request('/api/v2/auth/password-reset', 'POST', {...vectors.base,...vector.patch}, {cookie:'access_token=expired'});
+      const text = await response.text();
+      assert.equal(response.status, vector.status, vector.id);
+      assert.equal(f.db.otpUpdates, vector.marks, vector.id);
+      assert.equal(f.db.resetPasswordWrites, vector.writes, vector.id);
+      assert.equal(response.headers.getSetCookie().length, 0, vector.id);
+      assert.doesNotMatch(text, /synthetic-new-password|reset-private-fixture|otp-internal-sensitive-fixture/, vector.id);
+      const result = JSON.parse(text);
+      assert.equal(response.status === 200 ? result.message : result.data?.message, vector.message, vector.id);
+      if (vector.status === 200) {
+        assert.deepEqual(result, {code:200,message:'password reset success',data:null,meta:null}, vector.id);
+        assert.ok(await bcrypt.compare(String(vector.patch.new_password ?? vectors.base.new_password).trim(), f.db.resetPasswordHash), vector.id);
+      }
+    }
+    assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors), /reset-private-fixture|otp-internal-sensitive-fixture/);
+  } finally { await f.close(); delete globalThis.__authCompatErrors; }
+});
 
 test('isolated OTP creation, verification and registration form one Nuxt flow', async () => {
   const vectors=JSON.parse(readFileSync(path.join(root,'specifications/scenarios/auth-registration.json'),'utf8'));const f=await fixture();let code;
