@@ -9,7 +9,6 @@ import {
   Settings as SettingsIcon,
   ShieldCheck
 } from 'lucide-vue-next';
-import AiSentimentControlPanel from '@/components/AiSentimentControlPanel.vue';
 import SecurityPage from '@/components/SecurityPage.vue';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -126,8 +125,6 @@ onMounted(loadSettings);
     </section>
 
     <SecurityPage />
-
-    <AiSentimentControlPanel />
 
     <section
       class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
