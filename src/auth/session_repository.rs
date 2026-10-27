@@ -693,6 +693,29 @@ fn profile_date(text: &str) -> String {
 mod profile_tests {
     use super::*;
     #[test]
+    fn self_profile_mapping_matches_shared_fixture() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../contracts/scenarios/user-self-profile.json"
+        ))
+        .unwrap();
+        let mut row = DbRow::new();
+        for (key, value) in [
+            ("USERNAME", "selfuser"),
+            ("EMAIL", "self@example.test"),
+            ("DISPLAY_NAME", "New User"),
+            ("STATUS", "active"),
+            ("RELATION", "self"),
+            ("EMAIL_VERIFIED_AT", "2026-01-02T03:04:05.000Z"),
+            ("CREATED_AT", "2026-01-02T03:04:05.000Z"),
+            ("UPDATED_AT", "2026-01-02T03:04:05.000Z"),
+        ] {
+            row.insert(key.into(), DbValue::String(value.into()));
+        }
+        row.insert("USER_ID".into(), DbValue::I64(42));
+        row.insert("IS_ACTIVE".into(), DbValue::I64(1));
+        assert_eq!(profile_json(&row), fixture["profile"]);
+    }
+    #[test]
     fn oracle_timestamp_and_whitespace_avatar_map_like_default_nuxt_shape() {
         use chrono::TimeZone;
         let text = oracle::sql_type::Timestamp::new(2017, 8, 9, 11, 22, 33, 500_000_000)

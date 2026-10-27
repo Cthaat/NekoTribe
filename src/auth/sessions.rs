@@ -303,6 +303,7 @@ pub fn build_native_router_with_mail(
             post(crate::auth::login::complete_challenge),
         )
         .route("/api/v2/auth/tokens/current", patch(refresh).delete(logout))
+        .route("/api/v2/users/me", get(crate::users::self_profile::get_me))
         .fallback(|| async { ApiError::route_not_found() })
         .layer(middleware::from_fn_with_state(cors, cors_middleware))
         .with_state(NativeState {

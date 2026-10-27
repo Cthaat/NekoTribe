@@ -1,0 +1,112 @@
+{
+  "id": "USER-SELF-PROFILE",
+  "revision": 1,
+  "profile": {
+    "user_id": 42,
+    "username": "selfuser",
+    "display_name": "New User",
+    "avatar_url": "/storage/default-avatar.png",
+    "bio": "",
+    "location": "",
+    "website": "",
+    "is_verified": 0,
+    "followers_count": 0,
+    "following_count": 0,
+    "posts_count": 0,
+    "likes_count": 0,
+    "relationship": {
+      "is_self": true,
+      "is_following": false,
+      "is_blocked": false,
+      "is_blocking": false,
+      "relation": "self"
+    },
+    "online_status": "online",
+    "last_seen_at": null,
+    "email": "self@example.test",
+    "phone": "",
+    "birth_date": null,
+    "email_verified_at": "2026-01-02T03:04:05.000Z",
+    "is_active": 1,
+    "status": "active",
+    "created_at": "2026-01-02T03:04:05.000Z",
+    "updated_at": "2026-01-02T03:04:05.000Z"
+  },
+  "cases": [
+    {
+      "id": "ME-01",
+      "auth": "valid",
+      "status": 200,
+      "touches": 1,
+      "profiles": 1
+    },
+    {
+      "id": "ME-02",
+      "auth": "cookie",
+      "status": 200,
+      "touches": 1,
+      "profiles": 1
+    },
+    {
+      "id": "ME-03",
+      "auth": "none",
+      "status": 401,
+      "touches": 0,
+      "profiles": 0
+    },
+    {
+      "id": "ME-04",
+      "auth": "bad-cookie",
+      "status": 401,
+      "touches": 0,
+      "profiles": 0
+    },
+    {
+      "id": "ME-05",
+      "auth": "expired",
+      "status": 401,
+      "touches": 0,
+      "profiles": 0
+    },
+    {
+      "id": "ME-06",
+      "auth": "valid",
+      "revoked": true,
+      "status": 401,
+      "touches": 1,
+      "profiles": 0
+    },
+    {
+      "id": "ME-07",
+      "auth": "valid",
+      "touch_fail": true,
+      "status": 401,
+      "touches": 1,
+      "profiles": 0
+    },
+    {
+      "id": "ME-08",
+      "auth": "valid",
+      "missing": true,
+      "status": 404,
+      "touches": 1,
+      "profiles": 1
+    },
+    {
+      "id": "ME-09",
+      "auth": "valid",
+      "fault": true,
+      "status": 500,
+      "touches": 1,
+      "profiles": 1
+    },
+    {
+      "id": "ME-10",
+      "auth": "valid",
+      "query": "?user_id=7",
+      "status": 200,
+      "touches": 1,
+      "profiles": 1
+    }
+  ]
+}

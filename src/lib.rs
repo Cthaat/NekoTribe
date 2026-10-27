@@ -7,3 +7,4 @@ pub mod db;
 pub mod httpx;
 pub mod middleware;
 pub mod proxy;
+pub mod users;
