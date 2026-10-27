@@ -34,6 +34,24 @@ fn native_config_validates_and_redacts() {
         assert!(!debug.contains(secret), "debug leaked {secret}")
     }
 }
+
+#[test]
+fn native_config_loads_storage_url_settings_without_logging_credentials() {
+    let mut e = env();
+    e.insert("STORAGE_PUBLIC_BASE".into(), "/media".into());
+    e.insert(
+        "STORAGE_CDN_BASE_URL".into(),
+        "https://user:private-url-secret@cdn.example".into(),
+    );
+    let config = AppConfig::native_from_lookup(|key| e.get(key).cloned()).unwrap();
+    assert!(!format!("{config:?}").contains("private-url-secret"));
+    assert!(config
+        .native
+        .unwrap()
+        .storage_urls
+        .normalize_avatar("/uploads/a.png")
+        .is_err());
+}
 #[test]
 fn native_config_rejects_missing_or_invalid_values() {
     for (key, value) in [

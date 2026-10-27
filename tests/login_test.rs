@@ -6,7 +6,8 @@ use nekotribe_backend::auth::{
         RecoveryCode,
     },
     sessions::{
-        build_native_router, CorsPolicy, SessionRepository, SessionStoreError, StoreFuture,
+        build_native_router, build_native_router_with_storage, CorsPolicy, RefreshPolicy,
+        SessionRepository, SessionStoreError, StoreFuture,
     },
     TokenClaims, TokenCodec,
 };
@@ -329,11 +330,19 @@ async fn password_login_issues_persisted_session_and_challenge_never_issues_toke
             barrier: None,
         });
         let codec = TokenCodec::new(b"access", b"refresh").unwrap();
-        let app = build_native_router(
+        let storage =
+            nekotribe_backend::auth::storage_urls::StorageUrlPolicy::from_lookup(|key| match key {
+                "STORAGE_PUBLIC_BASE" => Some("/media".to_owned()),
+                "STORAGE_CDN_BASE_URL" => Some("https://cdn.example".to_owned()),
+                _ => None,
+            });
+        let app = build_native_router_with_storage(
             codec,
             store.clone(),
             CorsPolicy::default(),
             Arc::new(|| 1700000000),
+            RefreshPolicy::default(),
+            storage,
         );
         let request = Request::builder()
             .method("POST")
@@ -353,6 +362,12 @@ async fn password_login_issues_persisted_session_and_challenge_never_issues_toke
             serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes())
                 .unwrap();
         assert_eq!(body["data"]["two_factor_required"], two_factor);
+        if !two_factor {
+            assert_eq!(
+                body["data"]["user"]["avatar_url"],
+                "https://cdn.example/media/default-avatar.png"
+            );
+        }
         assert_eq!(
             store.sessions.lock().unwrap().len(),
             usize::from(!two_factor)
@@ -371,6 +386,61 @@ async fn password_login_issues_persisted_session_and_challenge_never_issues_toke
             );
         }
     }
+}
+
+#[tokio::test]
+async fn unsafe_storage_configuration_does_not_emit_login_cookies() {
+    let store = Arc::new(LoginStore {
+        two_factor: false,
+        profile_fails: false,
+        schema_fails: false,
+        trusted: false,
+        remember: false,
+        trust_calls: AtomicUsize::new(0),
+        sessions: Mutex::new(vec![]),
+        challenges: Mutex::new(vec![]),
+        consumed: Mutex::new(HashSet::new()),
+        recovery_used: Mutex::new(false),
+        recovery_attempts: AtomicUsize::new(0),
+        barrier: None,
+    });
+    let policy = nekotribe_backend::auth::storage_urls::StorageUrlPolicy::from_lookup(|key| {
+        (key == "BASE_URL").then(|| "https://user:synthetic-password@host.example".to_owned())
+    });
+    let app = build_native_router_with_storage(
+        TokenCodec::new(b"access", b"refresh").unwrap(),
+        store,
+        CorsPolicy::default(),
+        Arc::new(|| 1700000000),
+        RefreshPolicy::default(),
+        policy,
+    );
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v2/auth/tokens")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"account":"test","password":"correct-password"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 500);
+    assert_eq!(response.headers().get_all("set-cookie").iter().count(), 0);
+    let text = String::from_utf8(
+        response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(!text.contains("synthetic-password"));
 }
 
 #[tokio::test]

@@ -505,12 +505,24 @@ async fn issue_session(
         // Nuxt treats alert delivery as best effort after the session commits.
         let _ = state.repository.record_login_alert(&session).await;
     }
-    let profile = state
+    let mut profile = state
         .repository
         .login_profile(user_id)
         .await
         .map_err(|_| server_error())?
         .ok_or_else(|| ApiError::not_found("用户不存在"))?;
+    let avatar = profile
+        .get("avatar_url")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let avatar = state
+        .storage_urls
+        .normalize_avatar(avatar)
+        .map_err(|_| server_error())?;
+    profile
+        .as_object_mut()
+        .ok_or_else(server_error)?
+        .insert("avatar_url".into(), serde_json::Value::String(avatar));
     let mut response = Json(V2Response::ok_with_message(json!({"two_factor_required":false,"user":profile,"tokens":{
         "session_id":session_id,"access_token":access,"refresh_token":refresh,"access_token_expires_at":access_date,"refresh_token_expires_at":refresh_date
     }}), "login success")).into_response();

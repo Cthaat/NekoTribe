@@ -45,6 +45,7 @@ pub struct NativeOptions {
     pub keys: SigningKeys,
     pub cors: crate::auth::sessions::CorsPolicy,
     pub refresh_policy: crate::auth::sessions::RefreshPolicy,
+    pub storage_urls: crate::auth::storage_urls::StorageUrlPolicy,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -182,6 +183,7 @@ impl AppConfig {
                     refresh_seconds,
                     cookie_secure: get("COOKIE_SECURE").as_deref() == Some("true"),
                 },
+                storage_urls: crate::auth::storage_urls::StorageUrlPolicy::from_lookup(&get),
             }),
             server: ServerConfig {
                 host,

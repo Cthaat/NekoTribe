@@ -160,6 +160,7 @@ pub(crate) struct NativeState {
     pub(crate) repository: Arc<dyn SessionRepository>,
     pub(crate) clock: Arc<dyn Fn() -> u64 + Send + Sync>,
     pub(crate) refresh_policy: RefreshPolicy,
+    pub(crate) storage_urls: crate::auth::storage_urls::StorageUrlPolicy,
 }
 pub fn build_native_router(
     codec: TokenCodec,
@@ -175,6 +176,23 @@ pub fn build_native_router_with_refresh(
     cors: CorsPolicy,
     clock: Arc<dyn Fn() -> u64 + Send + Sync>,
     refresh_policy: RefreshPolicy,
+) -> Router {
+    build_native_router_with_storage(
+        codec,
+        repository,
+        cors,
+        clock,
+        refresh_policy,
+        crate::auth::storage_urls::StorageUrlPolicy::default(),
+    )
+}
+pub fn build_native_router_with_storage(
+    codec: TokenCodec,
+    repository: Arc<dyn SessionRepository>,
+    cors: CorsPolicy,
+    clock: Arc<dyn Fn() -> u64 + Send + Sync>,
+    refresh_policy: RefreshPolicy,
+    storage_urls: crate::auth::storage_urls::StorageUrlPolicy,
 ) -> Router {
     Router::new()
         .route(
@@ -200,6 +218,7 @@ pub fn build_native_router_with_refresh(
             repository,
             clock,
             refresh_policy,
+            storage_urls,
         })
 }
 
