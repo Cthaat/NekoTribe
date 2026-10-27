@@ -1,6 +1,21 @@
-# NekoTribe Go 预留工作区
+# NekoTribe Go 后端（原生业务开发中）
 
-状态：**尚未开始实现**。此目录仅保留未来 Go 后端的 API 契约与边界说明，没有可运行服务、Go 模块或启动命令；当前不需要安装 Go SDK。
+状态：已建立独立 Go 模块和原生 token codec，尚未实现 HTTP 业务服务、完整登录/会话/数据库接线。不能把库测试通过当作完整后端可用，也没有占位健康服务或启动命令。
+
+## 当前构建与验证
+
+使用 Go 1.26 以上；本轮 Windows 实测 Go 1.27.3，SDK 从 Go 官方下载页取得并核对官方 SHA-256，未修改系统 PATH。固定依赖 `github.com/golang-jwt/jwt/v5 v5.3.1`，采用其验签与签发 API；算法白名单、JSON Number 和时钟行为依据[固定版本源码](https://github.com/golang-jwt/jwt/blob/v5.3.1/parser_option.go)。本模块不需要 C++、Oracle 客户端或运行数据库。
+
+```text
+go mod download
+go test ./...
+go vet ./...
+go build ./...
+```
+
+`internal/auth/tokens.go` 以分开的 access/refresh 密钥验证指定类型，支持 HS256 签发、HS256/384/512 验签。时间使用注入的整秒时钟，原始 exp/nbf 数值保留小数精度，避免库 NumericDate 默认截断差异；缺少 exp 和未来 iat 按 Nuxt 现有库语义处理。安全整数 userId、sessionId/jti 和脱敏错误有明确检查，密钥不通过格式化输出。
+
+本地 `contracts/scenarios/auth-tokens.json` revision 2 为三后端相同的 25 个公开合成样例；测试只读取本工程副本。Windows 包测试与 vet 已通过，另已用 Nuxt JWT 库核对 Go 签发的 access/refresh 格式；这不是实际 HTTP、会话撤销或数据库业务验收。JWT 签名有效后仍须核对真实数据库会话、过期、撤销及 refresh hash 轮换。Hex/boolean/array 等 JavaScript Number 宽转换仍属共同认证需求的规则审查范围，不声称已完整复刻。
 
 本工作区位于 `C:/Code/NekoTribe/go`，分支为 `codex/go`，与 Nuxt、Rust、Flutter 共用 `../nuxt/.git`。继承的 Nuxt 应用文件已从此分支移除，原历史仍保留在 Git 中。
 
