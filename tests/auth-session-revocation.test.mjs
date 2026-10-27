@@ -150,6 +150,15 @@ test('session list bypasses all response Redis reads',async()=>{
   try {assert.deepEqual(await routes.readApiResponseCache(event,'v2'),{status:'bypass',reason:'not_cacheable'});assert.equal(reads,0)}
   finally {response.destroy();socket.destroy()}
 });
+test('self profile bypasses response Redis reads when other backends can modify it',async()=>{
+  const socket=new Socket();const request=new IncomingMessage(socket);request.url='/api/v2/users/me';request.method='GET';
+  const response=new ServerResponse(request);const event=createEvent(request,response);
+  let reads=0;
+  event.context.auth={userId:42,sessionId:'current'};
+  event.context.redis={async mget(){reads++;return[]},async get(){reads++;return null}};
+  try {assert.deepEqual(await routes.readApiResponseCache(event,'v2'),{status:'bypass',reason:'not_cacheable'});assert.equal(reads,0)}
+  finally {response.destroy();socket.destroy()}
+});
 test('session contract defines opaque string IDs',()=>{
   const spec=JSON.parse(readFileSync(new URL('../doc/v2.openapi.json',import.meta.url)));
   const operation=Object.values(spec.paths).flatMap(path=>Object.values(path)).find(operation=>operation?.operationId==='delete_auth_sessions_id');

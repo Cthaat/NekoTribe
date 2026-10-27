@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "6cbdd37acee45ead647af809504e1df515289e407c82d0a00cbf44142db1323a"
+      "sha256": "b1a7d76a4c08ca3a519f348a62ea9a2e6666313cec55c867acdff7edde76d47f"
     },
     "sources": [
       {
@@ -791,7 +791,7 @@
       },
       {
         "path": "server/api/v2/users/me.get.ts",
-        "sha256": "cb7a50ec9f3dc2b6c904a28e2844da24d1e37d4ebd135400061dd9e5ed590ce2"
+        "sha256": "5aab69a350ab261b2aa97a4f384e11b47b83ec357b4123dc4b0e41b17da74ba9"
       },
       {
         "path": "server/api/v2/users/me.patch.ts",
@@ -1039,7 +1039,7 @@
       },
       {
         "path": "server/utils/api-cache.ts",
-        "sha256": "5b6a112582a9c924e9989b98535f485f8864420363be7b7f70d929c58fbf21d5"
+        "sha256": "f8ca5c06f12cbdc547f955675c26021b2e9cd18111137d0e640b54b38d365a49"
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
@@ -1901,47 +1901,83 @@
     {
       "id": "API-get_users_me",
       "title": "GET /api/v2/users/me: 获取当前用户资料",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/user-self-profile.md",
       "sourceFiles": [
-        "server/api/v2/users/me.get.ts"
+        "server/api/v2/users/me.get.ts",
+        "server/services/v2/users.ts",
+        "server/models/v2.ts",
+        "server/utils/api-cache.ts",
+        "server/utils/oracle-query-cache.ts",
+        "server/utils/auth-entry-errors.ts",
+        "server/middleware/auth.ts"
       ],
       "operations": [
         "GET /api/v2/users/me"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "USER-SELF-PROFILE",
+          "file": "specifications/scenarios/user-self-profile.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/users/me; create shared acceptance scenarios."
+            "nuxt: implement authenticated self profile using shared user ID, profile mapping, avatar policy and safe errors.",
+            "nuxt: verify real Oracle views, cache freshness, cross-backend updates and both clients before acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/users/me.get.ts"
+            "server/api/v2/users/me.get.ts",
+            "server/services/v2/users.ts",
+            "server/models/v2.ts",
+            "server/utils/api-cache.ts",
+            "server/utils/oracle-query-cache.ts",
+            "server/utils/auth-entry-errors.ts",
+            "server/middleware/auth.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/users/me natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: implement authenticated self profile using shared user ID, profile mapping, avatar policy and safe errors.",
+            "rust: verify real Oracle views, cache freshness, cross-backend updates and both clients before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/users/self_profile.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs",
+            "src/auth/storage_urls.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/users/me natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: implement authenticated self profile using shared user ID, profile mapping, avatar policy and safe errors.",
+            "go: verify real Oracle views, cache freshness, cross-backend updates and both clients before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/self_profile.go",
+            "internal/server/server.go",
+            "internal/server/login_repository.go",
+            "internal/server/storage_urls.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/user-self-profile.md",
+        "specifications/scenarios/user-self-profile.json",
+        "specifications/requirements/authentication.md",
+        "specifications/requirements/storage-public-urls.md"
+      ]
     },
     {
       "id": "API-patch_users_me",
@@ -10246,6 +10282,26 @@
       "copies": {
         "rust": "contracts/scenarios/auth-password-reset.json",
         "go": "contracts/scenarios/auth-password-reset.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/user-self-profile.md",
+        "sha256": "b5a0f817eccd6d8a45626dc523161d6d0f868fd9b2b8af997d031d65c1db0b0d"
+      },
+      "copies": {
+        "rust": "contracts/requirements/user-self-profile.md",
+        "go": "contracts/requirements/user-self-profile.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/user-self-profile.json",
+        "sha256": "083f22eef380675f92819f6b5d65bdee7200009db09633de9fc045b722cdfc0b"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/user-self-profile.json",
+        "go": "contracts/scenarios/user-self-profile.json"
       }
     }
   ]

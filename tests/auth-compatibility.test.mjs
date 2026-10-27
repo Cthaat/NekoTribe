@@ -20,7 +20,9 @@ const require = createRequire(import.meta.url);
 const runtime = { accessSecret: 'isolated-test-access-secret', refreshSecret: 'isolated-test-refresh-secret', accessExpiresIn: 900, refreshExpiresIn: 3600 };
 const stubs = {
   '#imports': `export const useRuntimeConfig = () => (${JSON.stringify(runtime)});`,
-  '~/server/models/v2': 'export const v2RequireSelfUser = async (_, id) => { if (globalThis.__loginProfileError) throw globalThis.__loginProfileError; return globalThis.__registrationProfile ?? {user_id: id, username: "test"}; };',
+  '~/server/models/v2': 'export const v2RequireSelfUser = async (_, id) => { globalThis.__selfProfileCalls?.push(id); if (globalThis.__loginProfileError) throw globalThis.__loginProfileError; return globalThis.__registrationProfile ?? {user_id: id, username: "test"}; }; export const v2MapPublicUser = () => ({}); export const v2RequirePublicUser = async () => ({});',
+  '~/server/storage': 'export const deleteStorageReference=async()=>{}; export const ensureStorageTempDir=async()=>{}; export const STORAGE_AVATAR_MAX_SIZE=1; export const storeAvatarFile=async()=>({});',
+  './presence': 'export const v2PublishUserPresence=async()=>{};',
   './notifications': 'export const v2CreateNotification = async () => { if (globalThis.__loginAlertError) throw globalThis.__loginAlertError; };',
   './api-cache': 'export const readApiResponseCache = async () => ({status:"disabled"}); export const writeApiResponseCache = async () => {}; export const invalidateApiResponseCache = async () => {}; export const shouldInvalidateApiResponseCache = () => false;',
   './logging': 'export const getRequestLogContext = () => null; export const logError = (_, payload) => globalThis.__authCompatErrors?.push(payload); export const logInfo = () => {}; export const serializeLogError = error => ({message: error?.message, stack: error?.stack});',
@@ -39,6 +41,7 @@ const compiled = await build({
     export {default as createOtp} from './server/api/v2/auth/otp.post';
     export {default as register} from './server/api/v2/auth/registration.post';
     export {default as resetPassword} from './server/api/v2/auth/password-reset.post';
+    export {default as getMe} from './server/api/v2/users/me.get';
     export {v2ListSessions} from './server/services/v2/auth';
   `, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm',
@@ -225,6 +228,7 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
         return result;
       }
       if (sql.startsWith('UPDATE n_auth_sessions')) {
+        if (sql.includes('SET last_accessed_at')) { db.profileTouches = (db.profileTouches ?? 0) + 1; if (db.profileTouchFail) throw new Error('private-profile-fixture'); }
         const row = sessions.get(binds.session_id ?? binds.sessionId);
         if (!row || row.revoked) return {rowsAffected: 0};
         if (row.user_id !== (binds.user_id ?? binds.userId)) return {rowsAffected: 0};
@@ -270,6 +274,7 @@ async function fixture(options) {
   router.post('/api/v2/auth/otp', routes.createOtp);
   router.post('/api/v2/auth/registration', routes.register);
   router.post('/api/v2/auth/password-reset', routes.resetPassword);
+  router.get('/api/v2/users/me', routes.getMe);
   router.get('/api/v2/private', defineEventHandler(() => ({ok: true})));
   app.use(router);
   const server = createServer(toNodeListener(app));
@@ -283,6 +288,28 @@ async function fixture(options) {
     login: () => fetch(base + '/api/v2/auth/tokens', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({account: 'test', password: 'test-password'})})
   };
 }
+
+test('shared self-profile scenarios enforce session identity and safe errors', async () => {
+  const vectors=JSON.parse(readFileSync(path.join(root,'specifications/scenarios/user-self-profile.json'),'utf8'));
+  const f=await fixture();const oldError=console.error;const errors=[];console.error=(...args)=>errors.push(args.map(String).join(' '));
+  globalThis.__authCompatErrors=[];globalThis.__registrationProfile=vectors.profile;
+  const payload={userId:42,userName:'selfuser',sessionId:'fixture-session-42',jti:'fixture-access-jti-42',type:'access'};
+  const token=jwt.sign(payload,runtime.accessSecret,{expiresIn:900});
+  const expired=jwt.sign(payload,runtime.accessSecret,{expiresIn:-1});
+  try {
+    for(const vector of vectors.cases){
+      f.db.sessions.set('fixture-session-42',{user_id:42,session_id:'fixture-session-42',access_jti:'fixture-access-jti-42',access_token_expires_at:new Date(Date.now()+900000),revoked:!!vector.revoked});
+      f.db.profileTouches=0;f.db.profileTouchFail=!!vector.touch_fail;globalThis.__selfProfileCalls=[];
+      globalThis.__loginProfileError=vector.missing ? createError({statusCode:404,message:'用户不存在',data:{code:40401,message:'用户不存在',data:null,meta:null}}) : vector.fault ? new Error('private-profile-fixture') : null;
+      const headers={};if(vector.auth==='valid')headers.authorization=`Bearer ${token}`;if(vector.auth==='cookie')headers.cookie=`access_token=${token}`;if(vector.auth==='bad-cookie'){headers.authorization=`Bearer ${token}`;headers.cookie='access_token=bad';}if(vector.auth==='expired')headers.authorization=`Bearer ${expired}`;
+      const response=await f.request('/api/v2/users/me'+(vector.query??''),'GET',undefined,headers);const text=await response.text();
+      assert.equal(response.status,vector.status,vector.id);assert.equal(f.db.profileTouches,vector.touches,vector.id);assert.equal(globalThis.__selfProfileCalls.length,vector.profiles,vector.id);assert.equal(response.headers.getSetCookie().length,0,vector.id);
+      assert.doesNotMatch(text,/private-profile-fixture/,vector.id);
+      if(vector.status===200){assert.equal(response.headers.get('cache-control'),'private, no-store',vector.id);assert.deepEqual(JSON.parse(text),{code:200,message:'success',data:vectors.profile,meta:null},vector.id);assert.deepEqual(globalThis.__selfProfileCalls,[42],vector.id);}
+    }
+    assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors),/private-profile-fixture/);assert.doesNotMatch(errors.join('\n'),/private-profile-fixture/);
+  } finally {console.error=oldError;delete globalThis.__authCompatErrors;delete globalThis.__selfProfileCalls;delete globalThis.__loginProfileError;delete globalThis.__registrationProfile;await f.close();}
+});
 
 test('shared password reset scenarios preserve validation, side effects and error privacy', async () => {
   const vectors = JSON.parse(readFileSync(path.join(root, 'specifications/scenarios/auth-password-reset.json'), 'utf8'));

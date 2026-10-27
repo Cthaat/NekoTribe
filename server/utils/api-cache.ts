@@ -397,8 +397,9 @@ async function buildCacheContext(
 
   const url = getRequestURL(event);
   if (!url.pathname.startsWith('/api/v2/')) return null;
-  // Session state is shared by native backends which need not share this cache.
-  if (url.pathname.replace(/\/+$/, '') === '/api/v2/auth/sessions') return null;
+  // Shared session and self-profile data may be changed by other backends
+  // without invalidating this Nuxt response cache.
+  if (['/api/v2/auth/sessions', '/api/v2/users/me'].includes(url.pathname.replace(/\/+$/, ''))) return null;
 
   const auth = authOf(event);
   const tags = tagsForPath(url.pathname, auth);

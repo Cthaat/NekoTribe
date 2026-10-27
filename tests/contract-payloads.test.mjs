@@ -91,6 +91,23 @@ test('account required text matches scalar coercion without accepting blank or o
   for (const value of ['', '   ', null, {}, []]) assert.equal(validate('AuditedAccountRequiredText', value), false);
 });
 
+test('self profile contract represents nullable fields, online status and both error transports', () => {
+  const fixture=JSON.parse(readFileSync(new URL('../specifications/scenarios/user-self-profile.json',import.meta.url)));
+  const pointer='/api/v2/users/me'.replaceAll('/','~1');
+  const success=ajv.compile({$ref:`${base}#/paths/${pointer}/get/responses/200/content/application~1json/schema`});
+  assert.equal(success({code:200,message:'success',data:fixture.profile,meta:null}),true);
+  const missing={...fixture.profile};delete missing.email;
+  assert.equal(success({code:200,message:'success',data:missing,meta:null}),false);
+  for(const status of ['401','404','500']) {
+    const check=ajv.compile({$ref:`${base}#/paths/${pointer}/get/responses/${status}/content/application~1json/schema`});
+    const business={code:Number(status)*100+1,message:'test',data:null,meta:null};
+    assert.equal(check(business),true);
+    assert.equal(check({error:true,url:'/api/v2/users/me',statusCode:Number(status),statusMessage:'test',message:'test',data:business}),true);
+  }
+  assert.deepEqual(spec.paths['/api/v2/users/me'].get.security,[{bearerAuth:[]},{accessTokenCookie:[]}]);
+  assert.equal(spec.paths['/api/v2/users/me'].get.responses['200'].headers['Cache-Control'].schema.enum[0],'private, no-store');
+});
+
 test('SentimentFlow contracts preserve the pinned upstream body and explicitly identify stubs', () => {
   assert.equal(validate('AuditedSentimentPredictRequest', { text: 'hello', model: null }), true);
   assert.equal(validate('AuditedSentimentPredictRequest', { text: '', model: 'lstm' }), false);
