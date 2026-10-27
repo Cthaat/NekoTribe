@@ -134,11 +134,11 @@ func TestPasswordResetRepositoryBindsAndCommits(t *testing.T) {
 	state := &driverState{}
 	db := sql.OpenDB(testConnector{state})
 	defer db.Close()
-	count, err := (OracleSessions{db}).ResetPassword(context.Background(), "fake';--", "synthetic-hash")
-	if err != nil || count != 1 || state.commits != 1 || strings.Contains(state.sql, "fake';--") {
+	count, err := (OracleSessions{db}).ResetPasswordAtomic(context.Background(), "fake';--", "otp_fixture", "otp-hash", "synthetic-hash")
+	if err != nil || count != resetCommitted || state.commits != 1 || strings.Contains(state.sql, "fake';--") || !strings.Contains(state.sql, "UPDATE n_auth_sessions") {
 		t.Fatal("reset operation failed", err)
 	}
-	want := map[string]interface{}{"email": "fake';--", "password_hash": "synthetic-hash"}
+	want := map[string]interface{}{"email": "fake';--"}
 	for _, arg := range state.args {
 		if want[arg.Name] != arg.Value {
 			t.Fatal("incorrect bind", arg.Name)

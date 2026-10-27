@@ -9,14 +9,64 @@ import (
 )
 
 type passwordResetStore interface {
-	otpVerificationStore
-	ResetPassword(context.Context, string, string) (int64, error)
+	FindOTP(context.Context, string, string, string) (string, bool, error)
+	ResetPasswordAtomic(context.Context, string, string, string, string) (int, error)
 }
 
-const resetPasswordSQL = `UPDATE n_users SET password_hash = :password_hash WHERE email = :email`
+const (
+	resetCommitted = iota
+	resetExpired
+	resetUserMissing
+)
 
-func (s OracleSessions) ResetPassword(ctx context.Context, email, hash string) (int64, error) {
-	return s.execute(ctx, resetPasswordSQL, sql.Named("password_hash", hash), sql.Named("email", email))
+const claimResetOTPSQL = `UPDATE n_auth_otp_events SET verified_at = CURRENT_TIMESTAMP, expires_at = CURRENT_TIMESTAMP, verification_code_hash = '!consumed!' WHERE account = :account AND otp_type = 'password_reset' AND verification_id = :verification_id AND verification_code_hash = :code_hash AND expires_at > CURRENT_TIMESTAMP`
+const resetPasswordSQL = `UPDATE n_users SET password_hash = :password_hash WHERE email = :email`
+const revokeResetSessionsSQL = `UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id IN (SELECT user_id FROM n_users WHERE email = :email) AND revoked_at IS NULL`
+
+func (s OracleSessions) ResetPasswordAtomic(ctx context.Context, email, id, codeHash, newHash string) (outcome int, err error) {
+	conn, e := s.DB.Conn(ctx)
+	if e != nil {
+		return 0, errSessionStore
+	}
+	defer func() {
+		if conn.Close() != nil {
+			outcome, err = 0, errSessionStore
+		}
+	}()
+	tx, e := conn.BeginTx(ctx, nil)
+	if e != nil {
+		return 0, errSessionStore
+	}
+	defer tx.Rollback()
+	result, e := tx.ExecContext(ctx, claimResetOTPSQL, sql.Named("account", email), sql.Named("verification_id", id), sql.Named("code_hash", codeHash))
+	if e != nil {
+		return 0, errSessionStore
+	}
+	count, e := result.RowsAffected()
+	if e != nil || count > 1 {
+		return 0, errSessionStore
+	}
+	if count == 0 {
+		return resetExpired, nil
+	}
+	result, e = tx.ExecContext(ctx, resetPasswordSQL, sql.Named("password_hash", newHash), sql.Named("email", email))
+	if e != nil {
+		return 0, errSessionStore
+	}
+	count, e = result.RowsAffected()
+	if e != nil || count > 1 {
+		return 0, errSessionStore
+	}
+	if count == 0 {
+		return resetUserMissing, nil
+	}
+	if _, e = tx.ExecContext(ctx, revokeResetSessionsSQL, sql.Named("email", email)); e != nil {
+		return 0, errSessionStore
+	}
+	if e = tx.Commit(); e != nil {
+		return 0, errSessionStore
+	}
+	return resetCommitted, nil
 }
 
 func passwordReset(w http.ResponseWriter, r *http.Request, repository SessionRepository) {
@@ -51,14 +101,6 @@ func passwordReset(w http.ResponseWriter, r *http.Request, repository SessionRep
 		respond(w, 401, 40101, "验证码错误", nil)
 		return
 	}
-	if err = store.MarkOTPVerified(r.Context(), values["verification_id"]); err != nil {
-		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
-	}
-	if _, err = store.OTPVerifiedAt(r.Context(), values["verification_id"]); err != nil {
-		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
-	}
 	password := []byte(values["new_password"])
 	if len(password) > 72 {
 		password = password[:72]
@@ -68,13 +110,21 @@ func passwordReset(w http.ResponseWriter, r *http.Request, repository SessionRep
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return
 	}
-	count, err := store.ResetPassword(r.Context(), values["email"], string(newHash))
+	outcome, err := store.ResetPasswordAtomic(r.Context(), values["email"], values["verification_id"], hash, string(newHash))
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return
 	}
-	if count == 0 {
+	if outcome == resetExpired {
+		respond(w, 400, 40001, "验证码不存在或已过期", nil)
+		return
+	}
+	if outcome == resetUserMissing {
 		respond(w, 404, 40401, "用户不存在", nil)
+		return
+	}
+	if outcome != resetCommitted {
+		respond(w, 500, 50001, "服务器内部错误", nil)
 		return
 	}
 	respond(w, 200, 200, "password reset success", nil)

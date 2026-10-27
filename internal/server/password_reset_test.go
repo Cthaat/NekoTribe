@@ -9,17 +9,16 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 type resetFixture struct {
 	*memorySessions
-	fault                           string
-	expired, missing, emptyReadback bool
-	marks, writes                   int
-	otpHash, passwordHash           string
+	fault                      string
+	expired, missing, lostRace bool
+	marks, writes              int
+	otpHash, passwordHash      string
 }
 
 func (s *resetFixture) FindOTP(_ context.Context, email, kind, id string) (string, bool, error) {
@@ -28,33 +27,20 @@ func (s *resetFixture) FindOTP(_ context.Context, email, kind, id string) (strin
 	}
 	return s.otpHash, !s.expired && email == "fake@example.test" && kind == "password_reset" && id == "otp_fixture", nil
 }
-func (s *resetFixture) MarkOTPVerified(_ context.Context, _ string) error {
-	if s.fault == "mark" {
-		return errors.New("reset-private-fixture")
-	}
-	s.marks++
-	return nil
-}
-func (s *resetFixture) OTPVerifiedAt(_ context.Context, _ string) (*time.Time, error) {
-	if s.fault == "readback" {
-		return nil, errors.New("reset-private-fixture")
-	}
-	if s.emptyReadback {
-		return nil, nil
-	}
-	at := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	return &at, nil
-}
-func (s *resetFixture) ResetPassword(_ context.Context, email, hash string) (int64, error) {
-	s.writes++
-	if s.fault == "write" {
+func (s *resetFixture) ResetPasswordAtomic(_ context.Context, email, id, otpHash, hash string) (int, error) {
+	if s.fault == "mark" || s.fault == "write" || s.fault == "revoke" {
 		return 0, errors.New("reset-private-fixture")
 	}
-	if email != "fake@example.test" || s.missing {
-		return 0, nil
+	if s.lostRace || id != "otp_fixture" || otpHash != s.otpHash {
+		return resetExpired, nil
 	}
+	if email != "fake@example.test" || s.missing {
+		return resetUserMissing, nil
+	}
+	s.marks++
+	s.writes++
 	s.passwordHash = hash
-	return 1, nil
+	return resetCommitted, nil
 }
 
 func TestSharedPasswordReset(t *testing.T) {
@@ -69,7 +55,7 @@ func TestSharedPasswordReset(t *testing.T) {
 			Patch                 map[string]interface{}
 			Expired               bool `json:"expired"`
 			Missing               bool `json:"missing_user"`
-			Empty                 bool `json:"empty_readback"`
+			LostRace              bool `json:"lost_race"`
 			Status, Marks, Writes int
 		}
 	}
@@ -97,7 +83,7 @@ func TestSharedPasswordReset(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			s := &resetFixture{memorySessions: store(), fault: tc.Fault, expired: tc.Expired, missing: tc.Missing, emptyReadback: tc.Empty, otpHash: string(hash)}
+			s := &resetFixture{memorySessions: store(), fault: tc.Fault, expired: tc.Expired, missing: tc.Missing, lostRace: tc.LostRace, otpHash: string(hash)}
 			req := httptest.NewRequest("POST", "/api/v2/auth/password-reset", bytes.NewReader(data))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Cookie", "access_token=expired")
