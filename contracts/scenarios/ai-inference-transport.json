@@ -1,0 +1,3847 @@
+{
+  "schemaVersion": 1,
+  "id": "AI-INFERENCE-TRANSPORT",
+  "revision": 1,
+  "scope": "Synthetic non-streaming transport component vectors; not product acceptance",
+  "cases": [
+    {
+      "id": "TRANSPORT-O01",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-C01",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-O02",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": "AI_TEST_KEY",
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {
+        "AI_TEST_KEY": "synthetic-key"
+      },
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedAuthorization": "Bearer synthetic-key"
+    },
+    {
+      "id": "TRANSPORT-O03",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "tools": [
+          {
+            "name": "search_public",
+            "description": "Search public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "toJSON": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        },
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_public",
+              "description": "Search public posts",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "toJSON": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "",
+          "thinking": "never-return-this",
+          "tool_calls": [
+            {
+              "function": {
+                "name": "search_public",
+                "arguments": {
+                  "query": "公开内容",
+                  "toJSON": "ordinary JSON data"
+                }
+              }
+            }
+          ]
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expected": {
+        "text": "",
+        "toolCalls": [
+          {
+            "id": "ollama-0",
+            "name": "search_public",
+            "arguments": {
+              "query": "公开内容",
+              "toJSON": "ordinary JSON data"
+            }
+          }
+        ],
+        "finishReason": "tool-calls",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-O04",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        },
+        "format": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"summary\":\"公开摘要\"}",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expected": {
+        "text": "{\"summary\":\"公开摘要\"}",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-O05",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": null,
+          "outputTokens": null
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-O06",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "length",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "length",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-O07",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 401,
+      "response": {
+        "error": "never-return-this synthetic-key"
+      },
+      "expectedError": "PROVIDER_REJECTED"
+    },
+    {
+      "id": "TRANSPORT-O08",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        },
+        "format": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "[]",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-O09",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": -1
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-O10",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-C02",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": "AI_TEST_KEY",
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {
+        "AI_TEST_KEY": "synthetic-key"
+      },
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedAuthorization": "Bearer synthetic-key"
+    },
+    {
+      "id": "TRANSPORT-C03",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "tools": [
+          {
+            "name": "search_public",
+            "description": "Search public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "toJSON": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512,
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_public",
+              "description": "Search public posts",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "toJSON": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": null,
+              "reasoning": "never-return-this",
+              "tool_calls": [
+                {
+                  "id": "call-1",
+                  "type": "function",
+                  "function": {
+                    "name": "search_public",
+                    "arguments": "{\"query\":\"公开内容\",\"toJSON\":\"ordinary JSON data\"}"
+                  }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "",
+        "toolCalls": [
+          {
+            "id": "call-1",
+            "name": "search_public",
+            "arguments": {
+              "query": "公开内容",
+              "toJSON": "ordinary JSON data"
+            }
+          }
+        ],
+        "finishReason": "tool-calls",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-C04",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "output",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "summary"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\"summary\":\"公开摘要\"}",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "{\"summary\":\"公开摘要\"}",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-C05",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": null,
+          "outputTokens": null
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-C06",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "length",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-C07",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 401,
+      "response": {
+        "error": "never-return-this synthetic-key"
+      },
+      "expectedError": "PROVIDER_REJECTED"
+    },
+    {
+      "id": "TRANSPORT-C08",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "output",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "summary"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "[]",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-C09",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": -1
+        }
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-C10",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-I01",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "url": "http://never-use"
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I02",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": []
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I03",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "tool",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I04",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": null
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I05",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "tools": [
+          {
+            "name": "search_public",
+            "description": "Search public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "toJSON": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "search_public",
+            "description": "Search public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "toJSON": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I06",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "tools": [
+          {
+            "name": "search_public",
+            "description": "Search public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "toJSON": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I07",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "responseSchema": null
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I08",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "tools": [
+          {
+            "name": "search_public",
+            "description": "Search public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "toJSON": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "UNSUPPORTED_CAPABILITY",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I09",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "UNSUPPORTED_CAPABILITY",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I10",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": "AI_TEST_KEY",
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "MISSING_CREDENTIAL",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I11",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": "AI_TEST_KEY",
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {
+        "AI_TEST_KEY": "unsafe\r\nInjected: header"
+      },
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "MISSING_CREDENTIAL",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I12",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": "AI_TEST_KEY",
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {
+        "AI_TEST_KEY": "synthetic-密钥"
+      },
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "MISSING_CREDENTIAL",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I13",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": "AI_TEST_KEY",
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {
+        "AI_TEST_KEY": "contains space"
+      },
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "MISSING_CREDENTIAL",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-I14",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "nested": {
+            "nested": {
+              "nested": {
+                "nested": {
+                  "nested": {
+                    "nested": {
+                      "nested": {
+                        "nested": {
+                          "nested": {
+                            "nested": {
+                              "nested": {
+                                "nested": {
+                                  "nested": {
+                                    "nested": {
+                                      "nested": {
+                                        "nested": {
+                                          "nested": {
+                                            "nested": {
+                                              "nested": {
+                                                "nested": {
+                                                  "nested": {
+                                                    "nested": {
+                                                      "nested": {
+                                                        "nested": {
+                                                          "nested": {
+                                                            "nested": {
+                                                              "nested": {
+                                                                "nested": {
+                                                                  "nested": {
+                                                                    "nested": {
+                                                                      "nested": {
+                                                                        "nested": {
+                                                                          "nested": {
+                                                                            "nested": {
+                                                                              "nested": {
+                                                                                "nested": {
+                                                                                  "nested": {
+                                                                                    "nested": {
+                                                                                      "nested": {
+                                                                                        "nested": {
+                                                                                          "nested": {
+                                                                                            "nested": {
+                                                                                              "nested": {
+                                                                                                "nested": {
+                                                                                                  "nested": {
+                                                                                                    "nested": {
+                                                                                                      "nested": {
+                                                                                                        "nested": {
+                                                                                                          "nested": {
+                                                                                                            "nested": {
+                                                                                                              "nested": {
+                                                                                                                "nested": {
+                                                                                                                  "nested": {
+                                                                                                                    "nested": {
+                                                                                                                      "nested": {
+                                                                                                                        "nested": {
+                                                                                                                          "nested": {
+                                                                                                                            "nested": {
+                                                                                                                              "nested": {
+                                                                                                                                "nested": {
+                                                                                                                                  "nested": {
+                                                                                                                                    "nested": {
+                                                                                                                                      "nested": {
+                                                                                                                                        "nested": {}
+                                                                                                                                      }
+                                                                                                                                    }
+                                                                                                                                  }
+                                                                                                                                }
+                                                                                                                              }
+                                                                                                                            }
+                                                                                                                          }
+                                                                                                                        }
+                                                                                                                      }
+                                                                                                                    }
+                                                                                                                  }
+                                                                                                                }
+                                                                                                              }
+                                                                                                            }
+                                                                                                          }
+                                                                                                        }
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TRANSPORT-O11",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": false,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-C11",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          },
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-O12",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this",
+          "tool_calls": [
+            {
+              "function": {
+                "name": "unregistered_tool",
+                "arguments": {}
+              }
+            }
+          ]
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-C12",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this",
+              "tool_calls": [
+                {
+                  "id": "call-1",
+                  "type": "function",
+                  "function": {
+                    "name": "unregistered_tool",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-C13",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "content_filter"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "content-filter",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-O14",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": [
+          "stop"
+        ],
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-O15",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            },
+            "toJSON": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        },
+        "format": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            },
+            "toJSON": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"summary\":\"公开摘要\"}",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3,
+        "toJSON": "ordinary JSON data"
+      },
+      "expected": {
+        "text": "{\"summary\":\"公开摘要\"}",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-O16",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "responseText": "﻿{\"done\":true,\"done_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\"合成回复\",\"thinking\":\"never-return-this\"},\"prompt_eval_count\":7,\"eval_count\":3}",
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-O17",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "responseText": "{\"done\":true,\"done_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\"合成回复\",\"thinking\":\"never-return-this\"},\"prompt_eval_count\":7e0,\"eval_count\":3.0}"
+    },
+    {
+      "id": "TRANSPORT-O18",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "responseText": "{\"done\":true,\"done_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\"\\ud800\",\"thinking\":\"never-return-this\"},\"prompt_eval_count\":7,\"eval_count\":3}",
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-O19",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "tools": [
+          {
+            "name": "search_public",
+            "description": "Search public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "toJSON": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        },
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_public",
+              "description": "Search public posts",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "toJSON": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "responseText": "{\"done\":true,\"done_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\"合成回复\",\"thinking\":\"never-return-this\",\"tool_calls\":[{\"function\":{\"name\":\"search_public\",\"arguments\":{\"query\":\"\\ud800\"}}}]},\"prompt_eval_count\":7,\"eval_count\":3}",
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-O20",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        },
+        "format": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"summary\":\"\\ud800\"}",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-O21",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expected": {
+        "text": "😺",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "responseText": "{\"done\":true,\"done_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\"\\ud83d\\ude3a\",\"thinking\":\"never-return-this\"},\"prompt_eval_count\":7,\"eval_count\":3}"
+    },
+    {
+      "id": "TRANSPORT-C14",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": [
+              "stop"
+            ]
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-C15",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            },
+            "toJSON": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "output",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string"
+                },
+                "toJSON": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "summary"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\"summary\":\"公开摘要\"}",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        },
+        "toJSON": "ordinary JSON data"
+      },
+      "expected": {
+        "text": "{\"summary\":\"公开摘要\"}",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TRANSPORT-C16",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "responseText": "﻿{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"合成回复\",\"reasoning\":\"never-return-this\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3}}",
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-C17",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "responseText": "{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"合成回复\",\"reasoning\":\"never-return-this\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":7e0,\"completion_tokens\":3.0}}"
+    },
+    {
+      "id": "TRANSPORT-C18",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "responseText": "{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"\\ud800\",\"reasoning\":\"never-return-this\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3}}",
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-C19",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "tools": [
+          {
+            "name": "search_public",
+            "description": "Search public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "toJSON": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512,
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_public",
+              "description": "Search public posts",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "toJSON": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "responseText": "{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"合成回复\",\"reasoning\":\"never-return-this\",\"tool_calls\":[{\"id\":\"call-1\",\"type\":\"function\",\"function\":{\"name\":\"search_public\",\"arguments\":\"{\\\"query\\\":\\\"\\\\ud800\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3}}",
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-C20",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "output",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "summary"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\"summary\":\"\\ud800\"}",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expectedError": "INVALID_PROVIDER_RESPONSE"
+    },
+    {
+      "id": "TRANSPORT-C21",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "公开测试问题"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "😺",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "responseText": "{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"\\ud83d\\ude3a\",\"reasoning\":\"never-return-this\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3}}"
+    }
+  ]
+}
