@@ -8410,6 +8410,52 @@
           "evidence": []
         }
       }
+    },
+    {
+      "id": "AI-MODEL-SWITCHING",
+      "revision": 1,
+      "review": "reviewed",
+      "definition": "specifications/requirements/ai-model-switching.md",
+      "sourceFiles": [],
+      "operations": [],
+      "scenarios": [
+        {
+          "id": "AI-MODEL-SWITCHING",
+          "file": "specifications/scenarios/ai-model-switching.json"
+        }
+      ],
+      "implementations": {
+        "nuxt": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "nuxt: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
+            "nuxt: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "rust": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "rust: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
+            "rust: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "go": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "go: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
+            "go: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        }
+      }
     }
   ],
   "sourceAudits": [
