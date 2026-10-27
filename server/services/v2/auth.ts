@@ -1792,7 +1792,7 @@ export async function v2LogoutCurrent(
           ? { refresh_token_hash: v2HashToken(refreshToken) }
           : { access_jti: auth.jti })
       }
-    );
+    ).catch(() => v2ServerError());
   }
   v2ClearAuthCookies(event);
   return v2Null('logout success');

@@ -10,6 +10,7 @@ import { build } from 'esbuild';
 import jwt from 'jsonwebtoken';
 import { createApp, createRouter, defineEventHandler, toNodeListener } from 'h3';
 import { schemaFixture } from './helpers/schema-fixture.mjs';
+import { listenForFetch } from './helpers/loopback-listener.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -118,8 +119,7 @@ async function fixture(options) {
   for (const mode of ['me', 'bookmarks', 'likes']) router.get(`/isolated/${mode}`, routes.defineV2Handler((event, connection) => routes.v2ListPosts(event, connection, {mode})));
   app.use(router);
   const server = createServer(toNodeListener(app));
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const base = await listenForFetch(server);
   return {db, close: () => new Promise(resolve => server.close(resolve)), request: (url, headers = {}, method = 'GET') => fetch(base + url, {method, headers})};
 }
 

@@ -967,7 +967,7 @@
       },
       {
         "path": "server/services/v2/auth.ts",
-        "sha256": "f54274c9a3d660116f47a856403492495d8d75dcc514a97d9ab774e073e29632"
+        "sha256": "bf48e94a3b8d44a2c280782a3cf6a3fe7ef90976979aef26c12999485a0ed23c"
       },
       {
         "path": "server/services/v2/chat.ts",
@@ -1408,47 +1408,75 @@
     {
       "id": "API-delete_auth_tokens_current",
       "title": "DELETE /api/v2/auth/tokens/current: 退出当前会话",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/auth-logout.md",
       "sourceFiles": [
-        "server/api/v2/auth/tokens/current.delete.ts"
+        "server/api/v2/auth/tokens/current.delete.ts",
+        "server/services/v2/auth.ts",
+        "server/utils/auth-token-response.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
       ],
       "operations": [
         "DELETE /api/v2/auth/tokens/current"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "AUTH-LOGOUT",
+          "file": "specifications/scenarios/auth-logout.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for DELETE /api/v2/auth/tokens/current; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "nuxt: implement and maintain the native logout contract and isolated HTTP/JWT/store tests.",
+            "nuxt: execute shared acceptance scenarios against isolated real Oracle and cross-backend clients before recording acceptance.",
+            "nuxt: complete remaining login, 2FA and other business endpoints separately."
           ],
           "sourceFiles": [
-            "server/api/v2/auth/tokens/current.delete.ts"
+            "server/api/v2/auth/tokens/current.delete.ts",
+            "server/services/v2/auth.ts",
+            "server/utils/auth-token-response.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement DELETE /api/v2/auth/tokens/current natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "rust: implement and maintain the native logout contract and isolated HTTP/JWT/store tests.",
+            "rust: execute shared acceptance scenarios against isolated real Oracle and cross-backend clients before recording acceptance.",
+            "rust: complete remaining login, 2FA and other business endpoints separately."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/app/routes.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/tokens.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement DELETE /api/v2/auth/tokens/current natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "go: implement and maintain the native logout contract and isolated HTTP/JWT/store tests.",
+            "go: execute shared acceptance scenarios against isolated real Oracle and cross-backend clients before recording acceptance.",
+            "go: complete remaining login, 2FA and other business endpoints separately."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "cmd/server/main.go",
+            "internal/server/server.go",
+            "internal/server/logout.go",
+            "internal/server/refresh.go",
+            "internal/server/repository.go",
+            "internal/auth/tokens.go"
+          ],
           "evidence": []
         }
       }
@@ -9779,6 +9807,26 @@
       "copies": {
         "rust": "contracts/scenarios/auth-refresh.json",
         "go": "contracts/scenarios/auth-refresh.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/auth-logout.md",
+        "sha256": "4a417991ab774291375a4c600dc3f05932056a5f1a86ac031126a9e26be60d2d"
+      },
+      "copies": {
+        "rust": "contracts/requirements/auth-logout.md",
+        "go": "contracts/requirements/auth-logout.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-logout.json",
+        "sha256": "c87a4d97fe1937e2955e5e9a14111dbdf872a5d78e03b16405eec28553467d6d"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/auth-logout.json",
+        "go": "contracts/scenarios/auth-logout.json"
       }
     }
   ]

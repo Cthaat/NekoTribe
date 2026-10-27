@@ -11,6 +11,7 @@ import { build } from 'esbuild';
 import { createApp, createRouter, defineEventHandler, toNodeListener, createEvent, setResponseHeader } from 'h3';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Socket } from 'node:net';
+import { listenForFetch } from './helpers/loopback-listener.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -91,8 +92,8 @@ async function withServer(item, run, closeFailure = false) {
   router.delete('/api/v2/auth/sessions/:id',routes.revoke);
   app.use(router);
   const server = createServer(toNodeListener(app));
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-  try {await run(`http://127.0.0.1:${server.address().port}`,db)}
+  const origin = await listenForFetch(server);
+  try {await run(origin,db)}
   finally {server.closeAllConnections(); await new Promise(resolve=>server.close(resolve))}
 }
 function clearedCookies(response) {

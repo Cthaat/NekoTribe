@@ -12,6 +12,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { createApp, createRouter, defineEventHandler, setResponseHeader, toNodeListener } from 'h3';
 import { schemaFixture } from './helpers/schema-fixture.mjs';
+import { listenForFetch } from './helpers/loopback-listener.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -155,13 +156,13 @@ async function fixture(options) {
   router.get('/api/v2/private', defineEventHandler(() => ({ok: true})));
   app.use(router);
   const server = createServer(toNodeListener(app));
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const base = await listenForFetch(server);
   return {
     db,
     close: () => new Promise(resolve => server.close(resolve)),
     request: (url, method, body, headers = {}) => fetch(base + url, {method, headers: {...(body === undefined ? {} : {'content-type': 'application/json'}), ...headers}, body: body === undefined ? undefined : JSON.stringify(body)}),
     refreshForm: token => fetch(base + '/api/v2/auth/tokens/current', {method: 'PATCH', headers: {'content-type': 'application/x-www-form-urlencoded', cookie: 'access_token=expired'}, body: new URLSearchParams({refresh_token: token})}),
+    logoutForm: token => fetch(base + '/api/v2/auth/tokens/current', {method: 'DELETE', headers: {'content-type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams({refresh_token: token})}),
     login: () => fetch(base + '/api/v2/auth/tokens', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({account: 'test', password: 'test-password'})})
   };
 }
@@ -378,6 +379,112 @@ test('stale logout credentials and invalid Cookie cannot revoke a rotated sessio
       assert.equal(f.db.sessions.get(first.session_id).revoked, false);
     }
   } finally {await f.close();}
+});
+
+test('logout ignores invalid refresh but whitespace-only refresh falls back to access', async () => {
+  const f = await fixture();
+  try {
+    const tokens = (await (await f.login()).json()).data.tokens;
+    const path = '/api/v2/auth/tokens/current';
+    const failed = await f.request(path, 'DELETE', {refresh_token: tokens.refresh_token}, {
+      cookie: 'refresh_token=invalid', authorization: `Bearer ${tokens.access_token}`
+    });
+    assert.equal(failed.status, 200);
+    assert.equal(f.db.sessions.get(tokens.session_id).revoked, false);
+    const cleared = await f.request(path, 'DELETE', {refresh_token: 'invalid'}, {
+      cookie: 'refresh_token=%20%20', authorization: `Bearer ${tokens.access_token}`
+    });
+    assert.equal(cleared.status, 200);
+    assert.equal(f.db.sessions.get(tokens.session_id).revoked, true);
+    assert.equal(cleared.headers.getSetCookie().filter(cookie => /Max-Age=0/.test(cookie)).length, 2);
+  } finally { await f.close(); }
+});
+
+test('logout hides storage failures and does not clear cookies on failed writes', async () => {
+  const f = await fixture();
+  try {
+    const tokens = (await (await f.login()).json()).data.tokens;
+    const execute = f.db.execute;
+    f.db.execute = async (sql, binds) => {
+      if (sql.replace(/\s+/g, ' ').trim().startsWith('UPDATE n_auth_sessions')) throw new Error('synthetic-logout-storage-secret');
+      return execute.call(f.db, sql, binds);
+    };
+    globalThis.__authCompatErrors = [];
+    const response = await f.request('/api/v2/auth/tokens/current', 'DELETE', {refresh_token: tokens.refresh_token});
+    assert.equal(response.status, 500);
+    assert.deepEqual(response.headers.getSetCookie(), []);
+    assert.doesNotMatch(await response.text(), /synthetic-logout-storage-secret/);
+    assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors), /synthetic-logout-storage-secret/);
+    assert.equal(f.db.sessions.get(tokens.session_id).revoked, false);
+  } finally { await f.close(); }
+});
+
+test('logout preserves cookie priority, and a raw Authorization token is not Bearer', async () => {
+  const f = await fixture();
+  try {
+    const tokens = (await (await f.login()).json()).data.tokens;
+    const path = '/api/v2/auth/tokens/current';
+    for (const headers of [
+      {cookie: 'access_token=invalid', authorization: `Bearer ${tokens.access_token}`},
+      {authorization: tokens.access_token}
+    ]) {
+      assert.equal((await f.request(path, 'DELETE', undefined, headers)).status, 200);
+      assert.equal(f.db.sessions.get(tokens.session_id).revoked, false);
+    }
+  } finally { await f.close(); }
+});
+
+test('logout close failure hides cookie changes but cannot undo a committed revoke', async () => {
+  const f = await fixture();
+  try {
+    const tokens = (await (await f.login()).json()).data.tokens;
+    f.db.close = async () => { throw new Error('synthetic-close-secret'); };
+    const response = await f.request('/api/v2/auth/tokens/current', 'DELETE', {refresh_token: tokens.refresh_token});
+    assert.equal(response.status, 500);
+    assert.deepEqual(response.headers.getSetCookie(), []);
+    assert.doesNotMatch(await response.text(), /synthetic-close-secret/);
+    assert.equal(f.db.sessions.get(tokens.session_id).revoked, true);
+  } finally { await f.close(); }
+});
+
+test('logout form can revoke a matching session even after its database expiry', async () => {
+  const f = await fixture();
+  try {
+    const tokens = (await (await f.login()).json()).data.tokens;
+    const row = f.db.sessions.get(tokens.session_id);
+    row.refresh_token_expires_at = new Date(Date.now() - 1000);
+    const response = await f.logoutForm(tokens.refresh_token);
+    assert.equal(response.status, 200);
+    assert.equal(row.revoked, true);
+    assert.equal(response.headers.getSetCookie().filter(cookie => /Max-Age=0/.test(cookie)).length, 2);
+  } finally { await f.close(); }
+});
+
+test('a logout committed before refresh prevents the old refresh from rotating', async () => {
+  const f = await fixture();
+  try {
+    const tokens = (await (await f.login()).json()).data.tokens;
+    const path = '/api/v2/auth/tokens/current';
+    assert.equal((await f.request(path, 'DELETE', {refresh_token: tokens.refresh_token})).status, 200);
+    const refresh = await f.request(path, 'PATCH', {refresh_token: tokens.refresh_token});
+    assert.equal(refresh.status, 401);
+    assert.deepEqual(refresh.headers.getSetCookie(), []);
+  } finally { await f.close(); }
+});
+
+test('logout identifies the selected refresh session, independent of another access session', async () => {
+  const f = await fixture();
+  try {
+    const first = (await (await f.login()).json()).data.tokens;
+    const second = (await (await f.login()).json()).data.tokens;
+    assert.notEqual(first.session_id, second.session_id);
+    const response = await f.request('/api/v2/auth/tokens/current', 'DELETE', {refresh_token: first.refresh_token}, {
+      authorization: `Bearer ${second.access_token}`
+    });
+    assert.equal(response.status, 200);
+    assert.equal(f.db.sessions.get(first.session_id).revoked, true);
+    assert.equal(f.db.sessions.get(second.session_id).revoked, false);
+  } finally { await f.close(); }
 });
 
 test('production with COOKIE_SECURE=true retains Secure cookies and denies localhost origin', async () => {

@@ -3,13 +3,14 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { AiInferenceTransport } from '../server/services/ai/inference-transport.ts';
+import { listenForFetch } from './helpers/loopback-listener.mjs';
 
 const fixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-inference-transport.json', import.meta.url)));
 assert.equal(fixture.cases.length, 55);
 async function serverFor(handler, run) {
   const server = createServer(handler);
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  try { await run(`http://127.0.0.1:${server.address().port}`); }
+  const origin = await listenForFetch(server);
+  try { await run(origin); }
   finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 }
 function safeError(code) {
