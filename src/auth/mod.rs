@@ -1,6 +1,7 @@
 //! Token codecs and native session revocation with persisted session checks.
 pub mod login;
 pub mod otp;
+pub mod password_reset;
 pub mod readiness;
 pub mod registration;
 pub mod session_list;

@@ -35,6 +35,19 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn reset_password<'a>(&'a self, email: &'a str, hash: &'a str) -> StoreFuture<'a, u64> {
+        Box::pin(async move {
+            self.executor
+                .execute(
+                    "UPDATE n_users SET password_hash = :password_hash WHERE email = :email",
+                    BindMap::from([
+                        ("password_hash".into(), DbValue::String(hash.into())),
+                        ("email".into(), DbValue::String(email.into())),
+                    ]),
+                )
+                .await
+        })
+    }
     fn registration_otp<'a>(&'a self, email: &'a str, id: &'a str) -> StoreFuture<'a, bool> {
         Box::pin(async move {
             let b = BindMap::from([

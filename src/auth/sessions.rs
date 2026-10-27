@@ -25,6 +25,9 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    fn reset_password<'a>(&'a self, _email: &'a str, _hash: &'a str) -> StoreFuture<'a, u64> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn registration_otp<'a>(&'a self, _email: &'a str, _id: &'a str) -> StoreFuture<'a, bool> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -277,6 +280,10 @@ pub fn build_native_router_with_mail(
             post(crate::auth::otp::verify_otp),
         )
         .route("/api/v2/auth/otp", post(crate::auth::otp::create_otp))
+        .route(
+            "/api/v2/auth/password-reset",
+            post(crate::auth::password_reset::password_reset),
+        )
         .route(
             "/api/v2/auth/registration",
             post(crate::auth::registration::register),

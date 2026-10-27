@@ -20,6 +20,27 @@ struct Executor {
 struct RegistrationExecutor {
     calls: Mutex<Vec<(&'static str, BindMap)>>,
 }
+
+#[tokio::test]
+async fn password_reset_repository_binds_email_and_hash() {
+    let repo = OracleSessions {
+        executor: RegistrationExecutor::default(),
+    };
+    assert_eq!(
+        repo.reset_password("fake';--", "synthetic-hash")
+            .await
+            .unwrap(),
+        1
+    );
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert!(!calls[0].0.contains("fake';--"));
+    assert_eq!(calls[0].1["email"], DbValue::String("fake';--".into()));
+    assert_eq!(
+        calls[0].1["password_hash"],
+        DbValue::String("synthetic-hash".into())
+    );
+}
 impl SessionExecutor for RegistrationExecutor {
     fn execute(&self, q: &'static str, b: BindMap) -> StoreFuture<'_, u64> {
         Box::pin(async move {
