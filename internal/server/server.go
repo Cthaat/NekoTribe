@@ -23,12 +23,26 @@ type CorsPolicy struct {
 }
 
 func NewHandler(codec *auth.TokenManager, repository SessionRepository, cors CorsPolicy) http.Handler {
+	return NewHandlerWithConfig(codec, repository, cors, RefreshConfig{})
+}
+
+func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository, cors CorsPolicy, refresh RefreshConfig) http.Handler {
+	refresh = refresh.defaults()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if preflight(w, r, cors) {
 			return
 		}
 		if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/health" {
 			respond(w, 200, 200, "ok", map[string]string{"status": "ok", "service": "nekotribe-go"})
+			return
+		}
+		if r.URL.EscapedPath() == "/api/v2/auth/tokens/current" {
+			if r.Method != http.MethodPatch {
+				w.Header().Set("Allow", "PATCH, OPTIONS")
+				respond(w, 405, 40501, "Method not allowed", nil)
+				return
+			}
+			refreshCurrent(w, r, codec, repository, refresh)
 			return
 		}
 		const prefix = "/api/v2/auth/sessions/"

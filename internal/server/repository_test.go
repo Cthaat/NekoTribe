@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 )
 
 type driverState struct {
@@ -147,6 +148,47 @@ func TestOracleRepositoryErrors(t *testing.T) {
 			t.Fatal("preflight accepted", fault)
 		}
 		db.Close()
+	}
+}
+
+func TestOracleRotationUsesAtomicCompareAndSwap(t *testing.T) {
+	state := &driverState{}
+	db := sql.OpenDB(testConnector{state})
+	defer db.Close()
+	a := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	r := Rotation{UserID: 42, SessionID: "fixture-session", OldHash: "old-hash", NewHash: "new-hash", AccessJTI: "new-jti", AccessExpiresAt: a, RefreshExpiresAt: a.Add(time.Hour)}
+	n, err := (OracleSessions{db}).Rotate(context.Background(), r)
+	if err != nil || n != 1 || state.commits != 1 {
+		t.Fatal(n, err, state.commits)
+	}
+	for _, fragment := range []string{"UPDATE n_auth_sessions", "refresh_token_hash = :old_refresh_token_hash", "user_id = :user_id", "session_id = :session_id", "revoked_at IS NULL", "refresh_token_expires_at > CURRENT_TIMESTAMP", "access_jti = :access_jti", "last_refresh_at = CURRENT_TIMESTAMP"} {
+		if !strings.Contains(state.sql, fragment) {
+			t.Fatalf("missing SQL condition %s", fragment)
+		}
+	}
+	expected := map[string]interface{}{"access_jti": r.AccessJTI, "refresh_token_hash": r.NewHash, "access_token_expires_at": r.AccessExpiresAt, "refresh_token_expires_at": r.RefreshExpiresAt, "session_id": r.SessionID, "user_id": r.UserID, "old_refresh_token_hash": r.OldHash}
+	for _, value := range state.args {
+		if expected[value.Name] != value.Value {
+			t.Fatalf("incorrect bind %s", value.Name)
+		}
+		delete(expected, value.Name)
+	}
+	if len(expected) != 0 {
+		t.Fatal("missing binds", expected)
+	}
+}
+
+func TestOracleRotationFailuresDoNotReportSuccess(t *testing.T) {
+	for _, fault := range []string{"connect", "execute", "commit"} {
+		t.Run(fault, func(t *testing.T) {
+			state := &driverState{fail: fault}
+			db := sql.OpenDB(testConnector{state})
+			defer db.Close()
+			n, err := (OracleSessions{db}).Rotate(context.Background(), Rotation{})
+			if err == nil || n != 0 || strings.Contains(err.Error(), "private") {
+				t.Fatalf("unsafe result: %d %v", n, err)
+			}
+		})
 	}
 }
 func TestDatabaseShutdownClosesDriverAndRedactsFailure(t *testing.T) {

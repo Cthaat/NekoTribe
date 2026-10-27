@@ -15,7 +15,14 @@ const RevokeSQL = `UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP
 WHERE user_id = :user_id AND session_id = :session_id AND revoked_at IS NULL`
 const RevokeOthersSQL = `UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP
 WHERE user_id = :user_id AND session_id <> :session_id AND revoked_at IS NULL`
-const PreflightSQL = `SELECT user_id, session_id, access_jti, access_token_expires_at, revoked_at, last_accessed_at
+const RotateSQL = `UPDATE n_auth_sessions
+SET access_jti = :access_jti, refresh_token_hash = :refresh_token_hash,
+access_token_expires_at = :access_token_expires_at, refresh_token_expires_at = :refresh_token_expires_at,
+last_refresh_at = CURRENT_TIMESTAMP, last_accessed_at = CURRENT_TIMESTAMP
+WHERE session_id = :session_id AND user_id = :user_id AND refresh_token_hash = :old_refresh_token_hash
+AND revoked_at IS NULL AND refresh_token_expires_at > CURRENT_TIMESTAMP`
+const PreflightSQL = `SELECT user_id, session_id, access_jti, access_token_expires_at, revoked_at, last_accessed_at,
+refresh_token_hash, refresh_token_expires_at, last_refresh_at
 FROM n_auth_sessions WHERE 1 = 0`
 
 var errSessionStore = errors.New("session store unavailable")
@@ -30,6 +37,12 @@ func (s OracleSessions) Revoke(ctx context.Context, u int64, id string) (int64, 
 }
 func (s OracleSessions) RevokeOthers(ctx context.Context, u int64, id string) (int64, error) {
 	return s.execute(ctx, RevokeOthersSQL, sql.Named("user_id", u), sql.Named("session_id", id))
+}
+func (s OracleSessions) Rotate(ctx context.Context, rotation Rotation) (int64, error) {
+	return s.execute(ctx, RotateSQL, sql.Named("access_jti", rotation.AccessJTI),
+		sql.Named("refresh_token_hash", rotation.NewHash), sql.Named("access_token_expires_at", rotation.AccessExpiresAt),
+		sql.Named("refresh_token_expires_at", rotation.RefreshExpiresAt), sql.Named("session_id", rotation.SessionID),
+		sql.Named("user_id", rotation.UserID), sql.Named("old_refresh_token_hash", rotation.OldHash))
 }
 
 // Each operation commits independently. A successful touch never commits a later

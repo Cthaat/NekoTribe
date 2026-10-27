@@ -55,6 +55,16 @@ func (manager *TokenManager) key(kind Kind) []byte {
 // It does not require exp or validate future iat: that compatibility is explicit
 // in the common vectors, and never removes the mandatory database session check.
 func (manager *TokenManager) Verify(token string, kind Kind) (Claims, error) {
+	return manager.verify(token, kind, true)
+}
+
+// Nuxt's refresh verifier does not require a jti. The database hash remains
+// mandatory for every refresh, including older tokens without that claim.
+func (manager *TokenManager) VerifyRefreshForRotation(token string) (Claims, error) {
+	return manager.verify(token, Refresh, false)
+}
+
+func (manager *TokenManager) verify(token string, kind Kind, requireJTI bool) (Claims, error) {
 	key := manager.key(kind)
 	if len(key) == 0 || manager.clock == nil {
 		return Claims{}, ErrInvalidToken
@@ -100,7 +110,7 @@ func (manager *TokenManager) Verify(token string, kind Kind) (Claims, error) {
 	jti, _ := payload["jti"].(string)
 	tokenType, _ := payload["type"].(string)
 	claims := Claims{UserID: userID, UserName: name, SessionID: session, JTI: jti, Kind: Kind(tokenType)}
-	if !validClaims(claims) || claims.Kind != kind {
+	if claims.UserID <= 0 || claims.UserID > maxSafeInteger || claims.SessionID == "" || (requireJTI && claims.JTI == "") || claims.Kind != kind {
 		return Claims{}, ErrInvalidToken
 	}
 	return claims, nil

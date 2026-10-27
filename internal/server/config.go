@@ -13,6 +13,7 @@ type Config struct {
 	OracleHost, OracleService, OracleUser, OraclePassword string
 	OraclePort, PoolMin, PoolMax                          int
 	Cors                                                  CorsPolicy
+	Refresh                                               RefreshConfig
 }
 
 func (c Config) String() string   { return "ServerConfig [redacted]" }
@@ -43,6 +44,26 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 	if c.PoolMax, err = configInt(get("ORACLE_POOL_MAX"), 10, 1, 10000); err != nil || c.PoolMin > c.PoolMax {
 		return Config{}, errConfig
 	}
+	accessTTL := get("NUXT_ACCESS_EXPIRES_IN")
+	if accessTTL == "" {
+		accessTTL = get("ACCESS_EXPIRES_IN")
+	}
+	refreshTTL := get("NUXT_REFRESH_EXPIRES_IN")
+	if refreshTTL == "" {
+		refreshTTL = get("REFRESH_EXPIRES_IN")
+	}
+	if c.Refresh.AccessSeconds, err = configInt(accessTTL, 900, 1, 2147483647); err != nil {
+		return Config{}, errConfig
+	}
+	if c.Refresh.RefreshSeconds, err = configInt(refreshTTL, 2592000, 1, 2147483647); err != nil {
+		return Config{}, errConfig
+	}
+	// The Oracle session constraint requires refresh expiry after access expiry.
+	// Bound seconds also keep the later seconds-to-Duration conversion safe.
+	if c.Refresh.RefreshSeconds <= c.Refresh.AccessSeconds {
+		return Config{}, errConfig
+	}
+	c.Refresh.CookieSecure = get("COOKIE_SECURE") == "true"
 	for _, value := range []string{c.Host, c.AccessKey, c.RefreshKey, c.OracleHost, c.OracleService, c.OracleUser, c.OraclePassword} {
 		if strings.TrimSpace(value) == "" {
 			return Config{}, errConfig

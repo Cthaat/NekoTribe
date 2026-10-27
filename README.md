@@ -1,6 +1,6 @@
 # NekoTribe Go 后端（原生业务开发中）
 
-状态：已实现独立原生 HTTP 会话撤销切片、token codec、模型配置及提供方传输组件。`cmd/server` 仅注册两条 DELETE 会话撤销与进程存活检查；完整登录、刷新、会话列表和其余业务仍待实现。
+状态：已实现独立原生 HTTP 会话撤销及令牌刷新切片、token codec、模型配置及提供方传输组件。`cmd/server` 注册两条 DELETE 会话撤销、PATCH 刷新与进程存活检查；完整登录、会话列表和其余业务仍待实现。
 
 ## 当前构建与验证
 
@@ -23,6 +23,8 @@ go build ./...
 
 `DELETE /api/v2/auth/sessions/{id}` 与 `/others` 每次先验 access token，再直接 touch Oracle 会话，成功后独立提交撤销。`id` 保留原始百分号编码，`others` 字面优先；当前会话撤销成功清两类 Cookie，随后请求被数据库拒绝。错误返回安全 v2 envelope；原生 CORS 先处理 OPTIONS，精确来源及 Flutter 头策略与共同规范一致。未实现路由、存储、WebSocket 均不代理 Nuxt。`GET /api/health` 仅表示进程存活。
 
+`PATCH /api/v2/auth/tokens/current` 验证 refresh Cookie 或正文，并在同一条 Oracle 条件更新中轮换 access jti、refresh 哈希和期限；提交成功才返回新令牌及 Cookie。默认期限分别为 900 秒和 2592000 秒，可通过 `ACCESS_EXPIRES_IN`、`REFRESH_EXPIRES_IN` 配置（若设置了相应 `NUXT_` 前缀值则优先），生产 HTTPS 设置 `COOKIE_SECURE=true`。期限须为 1 至 2147483647 秒，且刷新期限必须长于访问期限；Go 在启动时拒绝无效配置，这是相对 Nuxt 的 AUTH-907 安全收紧。正文支持 JSON 与 URL 编码表单，限 1 MiB；非标准 JWT claim 的兼容差异见 `contracts/requirements/auth-refresh.md`。正常连接下隔离模拟验证了旧令牌重放和并发仅一次成功，真实 Oracle 的事务、驱动和跨后端互通仍需验证。提交或网络故障可能产生未知结果，不能假设旧令牌仍可用。
+
 HTTP 设置头/读写/闲置超时，退出先停止 HTTP 再关闭数据库。`ORACLE_POOL_MAX` 限制 database/sql 打开连接数，`ORACLE_POOL_MIN` 设置最大闲置连接数，不承诺预热或最少常驻连接。touch 与 revoke 是两次提交，不能撤回已获准的并发请求；真实 Oracle 19c/Free、多实例与双前端验收仍待执行。
 
 ## 模型配置组件
@@ -37,7 +39,7 @@ HTTP 设置头/读写/闲置超时，退出先停止 HTTP 再关闭数据库。`
 
 ## 契约来源
 
-`contracts/v2.openapi.json` 是 `../nuxt/doc/v2.openapi.json` 的内容一致的 LF 规范化副本。当前只实现上述会话撤销切片，不能据契约副本声称其他接口已实现。
+`contracts/v2.openapi.json` 是 `../nuxt/doc/v2.openapi.json` 的内容一致的 LF 规范化副本。当前只实现上述会话撤销及刷新切片，不能据契约副本声称其他接口已实现。
 
 - 来源仓库路径：`doc/v2.openapi.json`
 - OpenAPI：`3.0.1`；API 版本：`2.0.0`

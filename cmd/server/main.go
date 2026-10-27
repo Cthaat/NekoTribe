@@ -50,7 +50,7 @@ func run() (err error) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	handler := server.NewHandler(codec, server.OracleSessions{DB: db}, config.Cors)
+	handler := server.NewHandlerWithConfig(codec, server.OracleSessions{DB: db}, config.Cors, config.Refresh)
 	fmt.Println("nekotribe go native session service listening")
 	return server.Serve(ctx, server.NewHTTPServer(listener.Addr().String(), handler), listener)
 }
