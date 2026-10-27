@@ -7,7 +7,8 @@
 - `requirements/authentication.md`：16 项兼容需求、35 个待执行完整业务场景、7 项需统一修订的缺口。另有三端相同的25个token样例和29个会话撤销HTTP/JWT隔离场景；后者需求见 `auth-session-revocation.md`，不能代替真实Oracle或完整认证验收。
 - `requirements/ai-product-scope.md`：三个已确认 AI 方向与角色权限；`ai-model-switching.md` 是完整切换要求；`ai-model-configuration.md` 和 `ai-inference-transport.md` 是已实现的配置/非流式传输组件。52 个配置样例和 55 个传输样例已在三端通过，后者使用合成 loopback 提供方；实际模型调用、产品权限接线及完整场景仍未验收。
 - `parity.json`：164个登记项覆盖原162个规范操作及新增AI和公共存储地址工作；会话撤销与登录/双因素相关操作分别合为工作项，旧登记ID保存在 `supersedes`，不删除HTTP接口。282个server源码文件固定LF SHA-256，其他130个入口待分类/关联。13个旧情感分析操作标记退役；所有功能均未获得完整三后端业务验收。
-- 检查器校验任务、版本、源码覆盖和证据链接，以及26份公共需求/样例在Rust/Go的固定副本。自动复制工具、真实业务场景runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
+- `requirements/auth-session-list.md`：三端会话列表行为及 16 条分页样例；隔离测试不代替真实 Oracle、时区与跨实例验收。
+- 检查器校验任务、版本、源码覆盖和证据链接，以及28份公共需求/样例在Rust/Go的固定副本。自动复制工具、真实业务场景runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
 
 ## 两种检查
 

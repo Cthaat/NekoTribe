@@ -1618,55 +1618,76 @@
     {
       "id": "API-get_auth_sessions",
       "title": "GET /api/v2/auth/sessions: 获取我的登录会话",
-      "revision": 2,
+      "revision": 3,
       "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
+      "definition": "specifications/requirements/auth-session-list.md",
       "sourceFiles": [
         "server/api/v2/auth/sessions/index.get.ts",
+        "server/services/v2/auth.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
         "server/utils/api-cache.ts"
       ],
       "operations": [
         "GET /api/v2/auth/sessions"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "AUTH-SESSION-PAGINATION",
+          "file": "specifications/scenarios/auth-session-pagination.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/auth/sessions; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance.",
-            "Session list must bypass API response caches for cross-native-backend freshness; preserve remaining list semantics until its dedicated migration and acceptance."
+            "nuxt: maintain native list/authentication and the shared pagination behavior.",
+            "nuxt: test complete shared HTTP scenarios, actual Oracle dates/concurrency and cross-backend deployments before acceptance."
           ],
           "sourceFiles": [
             "server/api/v2/auth/sessions/index.get.ts",
+            "server/services/v2/auth.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts",
             "server/utils/api-cache.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 2,
+          "state": "in-progress",
+          "targetRevision": 3,
           "tasks": [
-            "Implement GET /api/v2/auth/sessions natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance.",
-            "Session list must bypass API response caches for cross-native-backend freshness; preserve remaining list semantics until its dedicated migration and acceptance."
+            "rust: maintain native list/authentication and the shared pagination behavior.",
+            "rust: test complete shared HTTP scenarios, actual Oracle dates/concurrency and cross-backend deployments before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/auth/session_list.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 2,
+          "state": "in-progress",
+          "targetRevision": 3,
           "tasks": [
-            "Implement GET /api/v2/auth/sessions natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance.",
-            "Session list must bypass API response caches for cross-native-backend freshness; preserve remaining list semantics until its dedicated migration and acceptance."
+            "go: maintain native list/authentication and the shared pagination behavior.",
+            "go: test complete shared HTTP scenarios, actual Oracle dates/concurrency and cross-backend deployments before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/session_list.go",
+            "internal/server/server.go",
+            "internal/server/repository.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/auth-session-list.md",
+        "specifications/scenarios/auth-session-pagination.json",
+        "specifications/requirements/auth-session-revocation.md"
+      ]
     },
     {
       "id": "AUTH-SESSION-REVOCATION",
@@ -9827,7 +9848,7 @@
     {
       "source": {
         "path": "specifications/requirements/auth-session-revocation.md",
-        "sha256": "5591718485357e728307c40fb076d4606f700bdd0dec91afbf453201013539c2"
+        "sha256": "45078ddbf4d685a99b4be03f22f6ecbcff7238a0db6728b319c09dd9919f9f92"
       },
       "copies": {
         "go": "contracts/requirements/auth-session-revocation.md",
@@ -9962,6 +9983,26 @@
       "copies": {
         "rust": "contracts/scenarios/storage-public-urls.json",
         "go": "contracts/scenarios/storage-public-urls.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/auth-session-list.md",
+        "sha256": "a861e1025c89592b49c846d8c3a2ed62c70f912177c138a84c361c030f84c865"
+      },
+      "copies": {
+        "rust": "contracts/requirements/auth-session-list.md",
+        "go": "contracts/requirements/auth-session-list.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-session-pagination.json",
+        "sha256": "f1e7360130dacfd5a58d8e3b960408df58e3fb3a9172ed07f9ff70e59f4531c2"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/auth-session-pagination.json",
+        "go": "contracts/scenarios/auth-session-pagination.json"
       }
     }
   ]

@@ -27,7 +27,7 @@ Nuxt 现有 bind 名为 camelCase，可保留语言惯例，但条件和值必�
 
 ## 跨后端新鲜性
 
-Nuxt 的 session 列表停止使用 API 响应缓存；Rust/Go 将来实现列表时也直接读 Oracle。这样一个原生实例的撤销可被其他实例下一次鉴权/列表读取看到，无需借助某实例特有的 Redis 写入，不能用历史 SQL touch 的误分类来保证新鲜性。现有其他业务缓存和 Redis 协议不在本切片重写；Nuxt 已有 mutation 失效仍保留。
+Nuxt 的 session 列表停止使用 API 响应缓存；Rust/Go 的列表实现同样直接读 Oracle。这样一个原生实例的撤销可被其他实例下一次鉴权/列表读取看到，无需借助某实例特有的 Redis 写入，不能用历史 SQL touch 的误分类来保证新鲜性。现有其他业务缓存和 Redis 协议不在本切片重写；Nuxt 已有 mutation 失效仍保留。真实跨实例效果仍需集中联测。
 
 源码复核纠正旧 AUTH-906 观察：真实 Nuxt 连接有 oracle-query-cache 包装，session SELECT 不进 SQL缓存，INSERT/UPDATE 成功同时失效 API auth/account tags；touch 的 WHERE revoked_at 会导致其并非 neutral。因此不能将“2FA route-neutral 必然使列表陈旧”写成既有完整路径事实。列表包含到期记录、排序/分页/时区等其余行为本次保持，完整 GET 迁移另做切片。
 

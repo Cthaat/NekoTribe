@@ -35,6 +35,7 @@ const compiled = await build({
     export {default as refresh} from './server/api/v2/auth/tokens/current.patch';
     export {default as logout} from './server/api/v2/auth/tokens/current.delete';
     export {default as twoFactor} from './server/api/v2/auth/two-factor/challenges.post';
+    export {v2ListSessions} from './server/services/v2/auth';
   `, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm',
   plugins: [{ name: 'isolated-boundaries', setup(builder) {
@@ -50,6 +51,19 @@ const compiled = await build({
   }}]
 });
 const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+test('session list preserves the SQL filters, pagination and current-session mapping', async () => {
+  const calls = [];
+  const connection = {async execute(sql, binds) {
+    calls.push({sql: sql.replace(/\s+/g, ' ').trim(), binds});
+    if (calls.length === 1) return {rows: [{TOTAL: 3}]};
+    return {rows: [{SESSION_ID:'fixture-session-42',DEVICE_INFO:null,IP_ADDRESS:'127.0.0.1',LAST_ACCESSED_AT:new Date('2026-01-01T00:00:00Z'),CREATED_AT:null}]};
+  }};
+  const result = await routes.v2ListSessions({path:'/api/v2/auth/sessions?page=2&page_size=1',context:{auth:{userId:42,sessionId:'fixture-session-42'}}}, connection);
+  assert.deepEqual(result,{code:200,message:'success',data:[{session_id:'fixture-session-42',device_info:'',ip_address:'127.0.0.1',last_accessed_at:'2026-01-01T00:00:00.000Z',created_at:'',is_current:true}],meta:{page:2,page_size:1,total:3,has_next:true}});
+  assert.match(calls[0].sql,/user_id = :user_id AND revoked_at IS NULL/);
+  assert.match(calls[1].sql,/ROW_NUMBER\(\) OVER \(ORDER BY last_accessed_at DESC\)/);
+  assert.deepEqual(calls[1].binds,{user_id:42,start_row:2,end_row:2});
+});
 let passwordHash;
 let recoveryHash;
 before(async () => {
