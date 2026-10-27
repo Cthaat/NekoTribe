@@ -1287,7 +1287,7 @@
     {
       "id": "AUTH-LOGIN",
       "title": "密码登录、双因素挑战与会话签发",
-      "revision": 2,
+      "revision": 3,
       "review": "reviewed",
       "definition": "specifications/requirements/auth-login.md",
       "sourceFiles": [
@@ -1320,16 +1320,21 @@
         {
           "id": "AUTH-2FA-CRYPTO",
           "file": "specifications/scenarios/auth-twofactor-crypto.json"
+        },
+        {
+          "id": "AUTH-2FA-READINESS",
+          "file": "specifications/scenarios/two-factor-readiness.json"
         }
       ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "nuxt: implement password login, full user profile, 2FA challenge initiation/completion, device trust, and new-device alerts from the common requirements without a Nuxt fallback.",
             "nuxt: run shared bcrypt vectors and complete isolated real Oracle, cross-backend/clients, notification and deployment acceptance before marking accepted.",
-            "nuxt: track remaining readiness, data side effects and framework-specific gaps explicitly."
+            "nuxt: track remaining readiness, data side effects and framework-specific gaps explicitly.",
+            "Implement the common read-only schema and migration-ledger readiness checks with every shared vector; validate against isolated real Oracle before acceptance."
           ],
           "sourceFiles": [
             "server/api/v2/auth/tokens.post.ts",
@@ -1348,11 +1353,12 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "rust: implement password login, full user profile, 2FA challenge initiation/completion, device trust, and new-device alerts from the common requirements without a Nuxt fallback.",
             "rust: run shared bcrypt vectors and complete isolated real Oracle, cross-backend/clients, notification and deployment acceptance before marking accepted.",
-            "rust: track remaining readiness, data side effects and framework-specific gaps explicitly."
+            "rust: track remaining readiness, data side effects and framework-specific gaps explicitly.",
+            "Implement the common read-only schema and migration-ledger readiness checks with every shared vector; validate against isolated real Oracle before acceptance."
           ],
           "sourceFiles": [
             "src/main.rs",
@@ -1362,17 +1368,21 @@
             "src/auth/session_repository.rs",
             "src/auth/tokens.rs",
             "Cargo.toml",
-            "Cargo.lock"
+            "Cargo.lock",
+            "src/auth/readiness.rs",
+            "src/db/pool.rs",
+            "src/db/oracle.rs"
           ],
           "evidence": []
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "go: implement password login, full user profile, 2FA challenge initiation/completion, device trust, and new-device alerts from the common requirements without a Nuxt fallback.",
             "go: run shared bcrypt vectors and complete isolated real Oracle, cross-backend/clients, notification and deployment acceptance before marking accepted.",
-            "go: track remaining readiness, data side effects and framework-specific gaps explicitly."
+            "go: track remaining readiness, data side effects and framework-specific gaps explicitly.",
+            "Implement the common read-only schema and migration-ledger readiness checks with every shared vector; validate against isolated real Oracle before acceptance."
           ],
           "sourceFiles": [
             "internal/server/login.go",
@@ -1383,7 +1393,9 @@
             "internal/server/server.go",
             "internal/auth/tokens.go",
             "internal/server/config.go",
-            "internal/server/refresh.go"
+            "internal/server/refresh.go",
+            "contracts/schema_catalog.go",
+            "internal/server/schema_readiness.go"
           ],
           "evidence": []
         }
@@ -1392,6 +1404,9 @@
         "API-post_auth_tokens",
         "API-t11_post_api_v2_auth_two_factor_challenges",
         "API-t11_post_api_v2_auth_two_factor_challenges_id"
+      ],
+      "sharedDependencies": [
+        "specifications/requirements/two-factor-schema-catalog.json"
       ]
     },
     {
@@ -9802,7 +9817,7 @@
     {
       "source": {
         "path": "specifications/requirements/auth-login.md",
-        "sha256": "e6109176b8d38d83661e535b4682497a1520f1218d7960c6beffa7238074739e"
+        "sha256": "ffd5153fa7b61d81ed2e44cf23f307c8da72e4036a32144b37112592ec6f6ccc"
       },
       "copies": {
         "rust": "contracts/requirements/auth-login.md",
@@ -9837,6 +9852,26 @@
       "copies": {
         "rust": "contracts/scenarios/auth-twofactor-crypto.json",
         "go": "contracts/scenarios/auth-twofactor-crypto.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/two-factor-schema-catalog.json",
+        "sha256": "368e876e20a2288d6788a980f8e8495d3445d0fb4352dcdc58139df2477702fc"
+      },
+      "copies": {
+        "rust": "contracts/requirements/two-factor-schema-catalog.json",
+        "go": "contracts/requirements/two-factor-schema-catalog.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/two-factor-readiness.json",
+        "sha256": "a52f37c64ffed48f6ea1f6db9c6910a2bc4ff56c6296c400e28b6c83551b015f"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/two-factor-readiness.json",
+        "go": "contracts/scenarios/two-factor-readiness.json"
       }
     }
   ]

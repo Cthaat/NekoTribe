@@ -6,8 +6,8 @@
 
 - `requirements/authentication.md`：16 项兼容需求、35 个待执行完整业务场景、7 项需统一修订的缺口。另有三端相同的25个token样例和29个会话撤销HTTP/JWT隔离场景；后者需求见 `auth-session-revocation.md`，不能代替真实Oracle或完整认证验收。
 - `requirements/ai-product-scope.md`：三个已确认 AI 方向与角色权限；`ai-model-switching.md` 是完整切换要求；`ai-model-configuration.md` 和 `ai-inference-transport.md` 是已实现的配置/非流式传输组件。52 个配置样例和 55 个传输样例已在三端通过，后者使用合成 loopback 提供方；实际模型调用、产品权限接线及完整场景仍未验收。
-- `parity.json`：165个登记项覆盖原162个规范操作及4个新增AI方向；两条会话撤销操作合为 `AUTH-SESSION-REVOCATION`，旧登记ID保存在其supersedes，不删除HTTP接口、不复用旧ID。281个server源码文件固定LF SHA-256，其他130个入口待分类/关联。13个旧情感分析操作标记退役；所有功能均未获得完整三后端业务验收。
-- 检查器校验任务、版本、源码覆盖和证据链接，以及14份公共需求/样例在Rust/Go的固定副本。自动复制工具、真实业务场景runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
+- `parity.json`：163个登记项覆盖原162个规范操作及4个新增AI方向；会话撤销与登录/双因素相关操作分别合为工作项，旧登记ID保存在 `supersedes`，不删除HTTP接口。282个server源码文件固定LF SHA-256，其他130个入口待分类/关联。13个旧情感分析操作标记退役；所有功能均未获得完整三后端业务验收。
+- 检查器校验任务、版本、源码覆盖和证据链接，以及24份公共需求/样例在Rust/Go的固定副本。自动复制工具、真实业务场景runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
 
 ## 两种检查
 
@@ -40,6 +40,7 @@ node scripts/parity.mjs release --workspace-root C:/Code/NekoTribe
 - `schemaVersion:1`、`featureId`、需求 `revision`、`backend`、`result:passed`、`mode:native`。
 - Nuxt 的 `nuxtDependency:self`；Rust/Go 的 `nuxtDependency:blocked`，由真实测试运行过程验证阻断，而非仅手填一个标志。
 - `requirementsSha256`、全部场景的 `{id,sha256}`，以及实际实现源码 `{path,sha256}`。这些证据哈希是文件原始字节，绑定当次实际检出；Git 换行或源码更改后需重新核对/生成证据。
+- 功能声明 `sharedDependencies` 时，凭据还必须包含 `dependencies` 数组，逐项记录相同依赖路径和文件原始字节的 `{path,sha256}`；目录更新后旧凭据不能继续通过。所声明依赖必须登记到共享文件清单并与其他后端副本一致。
 - 源码证据必须覆盖实现声明的 `sourceFiles`，Nuxt 还必须覆盖功能声明的 `sourceFiles`。共享依赖与测试代码也需纳入实际测试记录，声明遗漏由需求/实现审查发现，不是检查器自动推导完整依赖图。
 
 检查器校验这些记录与当前文件的对应关系，**不认证手填记录的真实性，也不执行 HTTP/SQL/WS 场景**。真实记录必须来自受审查的测试执行流程，保存源码提交、命令/结果和必要的隔离环境证据；当前没有任何实际验收记录。单元测试中的临时假项目/记录仅测试检查器拒绝逻辑，不是 Nuxt/Rust/Go 业务通过证据。

@@ -39,6 +39,17 @@ function checksum(root, entry, description, normalize = false) {
   ensure(digest(normalize ? bytes.toString('utf8').replaceAll('\r\n', '\n') : bytes) === entry.sha256, `${description}: ${entry.path}`);
 }
 
+function checkTwoFactorCatalogSources(root, path) {
+  if (path !== 'specifications/requirements/two-factor-schema-catalog.json') return;
+  const catalog = json(root, path);
+  const expected = new Set(['server/database/schema.mjs', 'server/database/schema-definition.mjs']);
+  const sources = catalog?.sources;
+  ensure(catalog?.id === 'AUTH-2FA-SCHEMA-CATALOG' && Array.isArray(sources) && sources.length === expected.size &&
+    sources.every(source => expected.has(source?.path)) && new Set(sources.map(source => source.path)).size === expected.size,
+  '2FA catalog sources must contain the two fixed schema source paths exactly once');
+  for (const source of sources) checksum(root, source, '2FA catalog source changed; regenerate the catalog', true);
+}
+
 function sharedCopies(root, workspaceRoot, entries) {
   ensure(Array.isArray(entries), 'Shared file registry must be an array');
   unique(entries.map(entry => entry?.source?.path), 'Shared sources');
@@ -50,6 +61,7 @@ function sharedCopies(root, workspaceRoot, entries) {
     ensure(sourceDirectory, 'Invalid shared source path');
     checksum(publicDirectory(root, sourceDirectory), { path: source.path.slice(sourceDirectory.length + 1), sha256: source.sha256 },
       'Shared source changed; review requirements before re-pinning', true);
+    checkTwoFactorCatalogSources(root, source.path);
     const copies = entry.copies;
     ensure(copies && typeof copies === 'object' && !Array.isArray(copies) && copies.rust && copies.go &&
       Object.keys(copies).every(backend => ['rust', 'go', 'flutter'].includes(backend)), 'Shared copies must include Rust and Go');
@@ -93,6 +105,15 @@ function checkReceipt(projectRoot, workspaceRoot, feature, backend, implementati
     const recorded = receipt.scenarios.find(item => item.id === scenario.id);
     ensure(recorded.sha256 === digest(file(projectRoot, scenario.file)), `${feature.id}/${backend}: scenario checksum mismatch`);
   }
+  const dependencies = feature.sharedDependencies ?? [];
+  if (dependencies.length || receipt.dependencies !== undefined) {
+    ensure(Array.isArray(receipt.dependencies), `${feature.id}/${backend}: shared dependency evidence required`);
+    unique(receipt.dependencies.map(item => item.path), 'Evidence dependencies');
+    ensure(JSON.stringify(receipt.dependencies.map(item => item.path).sort()) === JSON.stringify([...dependencies].sort()),
+      `${feature.id}/${backend}: dependency evidence must cover every shared dependency`);
+    for (const dependency of receipt.dependencies) checksum(projectRoot, dependency,
+      `${feature.id}/${backend}: dependency evidence checksum mismatch`);
+  }
   ensure(backend === 'nuxt' || workspaceRoot, `${feature.id}/${backend}: --workspace-root required to verify accepted sources`);
   const componentRoot = backend === 'nuxt' ? projectRoot : resolve(workspaceRoot, backend);
   ensure(Array.isArray(receipt.sources) && receipt.sources.length > 0, `${feature.id}/${backend}: source evidence required`);
@@ -129,6 +150,10 @@ function checkFeature(root, workspaceRoot, feature, operations, owners, scenario
     ensure(sharedSources.has(feature.definition), `${feature.id}: reviewed requirement must be registered in shared files: ${feature.definition}`);
     for (const scenario of feature.scenarios) ensure(sharedSources.has(scenario.file),
       `${feature.id}: reviewed scenario must be registered in shared files: ${scenario.file}`);
+    strings(feature.sharedDependencies ?? [], `${feature.id}: shared dependencies`);
+    unique(feature.sharedDependencies ?? [], `${feature.id}: shared dependencies`);
+    for (const dependency of feature.sharedDependencies ?? []) ensure(sharedSources.has(dependency),
+      `${feature.id}: shared dependency must be registered in shared files: ${dependency}`);
   }
   ensure(feature.implementations && Object.keys(feature.implementations).length === backends.length,
     `${feature.id}: each nuxt/rust/go implementation task is required`);

@@ -77,6 +77,66 @@ test('Git CRLF conversion does not create a false source drift', () => fixture((
   write('server/source.ts', 'one\r\ntwo\r\n');
   assert.equal(checkParity({ projectRoot: root }).ready, false);
 }));
+
+function registerTwoFactorCatalog(context) {
+  const sourcePaths = ['server/database/schema.mjs', 'server/database/schema-definition.mjs'];
+  const sources = sourcePaths.map((path, index) => {
+    const content = `// schema source ${index}\n`;
+    context.write(path, content);
+    context.ledger.baseline.sources.push({ path, sha256: sha(content) });
+    context.ledger.features[0].sourceFiles.push(path);
+    return { path, sha256: sha(content) };
+  });
+  const catalogPath = 'specifications/requirements/two-factor-schema-catalog.json';
+  const catalog = { id: 'AUTH-2FA-SCHEMA-CATALOG', sources };
+  const entry = { source: { path: catalogPath, sha256: '' }, copies: {
+    rust: 'contracts/requirements/two-factor-schema-catalog.json',
+    go: 'contracts/requirements/two-factor-schema-catalog.json'
+  }};
+  context.ledger.sharedFiles = [entry];
+  const saveCatalog = () => {
+    const content = JSON.stringify(catalog);
+    context.write(catalogPath, content);
+    entry.source.sha256 = sha(content);
+    for (const backend of ['rust', 'go']) {
+      const copy = join(context.workspace, backend, entry.copies[backend]);
+      mkdirSync(join(copy, '..'), { recursive: true });
+      writeFileSync(copy, content);
+    }
+    context.save();
+  };
+  saveCatalog();
+  return { catalog, saveCatalog, sourcePaths };
+}
+
+test('registered 2FA catalog accepts its current fixed sources, including CRLF checkout', () => fixture(context => {
+  const { sourcePaths } = registerTwoFactorCatalog(context);
+  context.write(sourcePaths[0], '// schema source 0\r\n');
+  assert.equal(checkParity({ projectRoot: context.root, workspaceRoot: context.workspace }).sharedFiles, 1);
+}));
+
+test('registered 2FA catalog rejects schema source drift even when baseline is re-pinned', () => fixture(context => {
+  const { sourcePaths } = registerTwoFactorCatalog(context);
+  context.write(sourcePaths[0], '// modified schema source\n');
+  context.ledger.baseline.sources.find(item => item.path === sourcePaths[0]).sha256 = sha('// modified schema source\n');
+  context.save();
+  assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace }), /catalog.*source/i);
+}));
+
+for (const [name, alter] of [
+  ['missing source', sources => sources.pop()],
+  ['duplicate source', sources => { sources[1] = structuredClone(sources[0]); }],
+  ['extra source', sources => sources.push({path: 'server/source.ts', sha256: sha('export const example = true;')})],
+  ['external source', sources => { sources[1].path = '../private.env'; }],
+  ['invalid hash', sources => { sources[1].sha256 = 'invalid'; }]
+]) {
+  test(`registered 2FA catalog rejects ${name}`, () => fixture(context => {
+    const { catalog, saveCatalog } = registerTwoFactorCatalog(context);
+    alter(catalog.sources);
+    saveCatalog();
+    assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace }), /catalog.*source/i);
+  }));
+}
 test('contract edits cannot silently leave backend tasks behind', () => fixture(({ root, write, spec }) => {
   spec.paths['/api/v2/new'] = { post: { operationId: 'newExample' } }; write('doc/api.json', spec);
   assert.throws(() => checkParity({ projectRoot: root }), /baseline changed.*api.json/i);
@@ -153,6 +213,48 @@ test('reviewed scenario must be registered for both backends', () => fixture(con
   context.save();
   assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace, release: true }),
     /EXAMPLE.*scenario.*shared/i);
+}));
+
+test('reviewed feature rejects an unregistered shared dependency', () => fixture(context => {
+  accept(context);
+  context.ledger.features[0].sharedDependencies = ['specifications/requirements/catalog.json'];
+  context.save();
+  assert.throws(() => checkParity({projectRoot: context.root, workspaceRoot: context.workspace}), /shared dependency/i);
+}));
+
+test('accepted feature requires evidence for every shared dependency', () => fixture(context => {
+  accept(context);
+  const path = 'specifications/requirements/catalog.json';
+  const content = 'shared catalog version one';
+  context.write(path, content);
+  for (const backend of ['rust', 'go']) {
+    const copy = join(context.workspace, backend, 'contracts/requirements/catalog.json');
+    mkdirSync(join(copy, '..'), {recursive: true});
+    writeFileSync(copy, content);
+  }
+  context.ledger.sharedFiles.push({source: {path, sha256: sha(content)}, copies: {
+    rust: 'contracts/requirements/catalog.json', go: 'contracts/requirements/catalog.json'
+  }});
+  context.ledger.features[0].sharedDependencies = [path];
+  context.save();
+  assert.throws(() => checkParity({projectRoot: context.root, workspaceRoot: context.workspace, release: true}), /dependency.*evidence/i);
+  for (const backend of ['nuxt', 'rust', 'go']) {
+    const receiptPath = `specifications/evidence/${backend}.json`;
+    const receipt = JSON.parse(readFileSync(join(context.root, receiptPath), 'utf8'));
+    receipt.dependencies = [{path, sha256: sha(content)}];
+    context.write(receiptPath, receipt);
+  }
+  assert.equal(checkParity({projectRoot: context.root, workspaceRoot: context.workspace, release: true}).ready, true);
+  context.ledger.features[0].sharedDependencies = [];
+  context.save();
+  assert.throws(() => checkParity({projectRoot: context.root, workspaceRoot: context.workspace, release: true}), /dependency.*evidence/i);
+  context.ledger.features[0].sharedDependencies = [path];
+  const changed = 'shared catalog version two';
+  context.write(path, changed);
+  for (const backend of ['rust', 'go']) writeFileSync(join(context.workspace, backend, 'contracts/requirements/catalog.json'), changed);
+  context.ledger.sharedFiles.find(entry => entry.source.path === path).source.sha256 = sha(changed);
+  context.save();
+  assert.throws(() => checkParity({projectRoot: context.root, workspaceRoot: context.workspace, release: true}), /dependency.*checksum/i);
 }));
 test('Nuxt proxy receipts do not prove independent backend acceptance', () => fixture(context => {
   accept(context);
