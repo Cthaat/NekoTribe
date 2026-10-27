@@ -1822,29 +1822,42 @@ export async function v2PasswordReset(
     code: v2RequiredString(body, 'code'),
     new_password: v2RequiredString(body, 'new_password')
   };
-  await v2VerifyOtpCode(
-    connection,
-    payload.email,
-    'password_reset',
-    payload.verification_id,
-    payload.code
-  );
-  const updated = await v2Execute(
-    connection,
-    `
-    UPDATE n_users
-    SET password_hash = :password_hash
-    WHERE email = :email
-    `,
-    {
-      password_hash: await bcrypt.hash(
-        payload.new_password,
-        10
-      ),
-      email: payload.email
-    }
-  );
-  if (updated === 0) v2NotFound('用户不存在');
+  const otp = await v2One(connection, `
+    SELECT verification_code_hash
+    FROM n_auth_otp_events
+    WHERE account = :account AND otp_type = :otp_type
+      AND verification_id = :verification_id AND expires_at > CURRENT_TIMESTAMP
+    ORDER BY created_at DESC FETCH FIRST 1 ROWS ONLY
+    `, {account: payload.email, otp_type: 'password_reset', verification_id: payload.verification_id});
+  if (!otp) v2BadRequest('验证码不存在或已过期');
+  const codeHash = v2String(otp.VERIFICATION_CODE_HASH);
+  if (!await bcrypt.compare(payload.code, codeHash)) v2Unauthorized('验证码错误');
+  const passwordHash = await bcrypt.hash(payload.new_password, 10);
+
+  try {
+    const claimed = await v2Execute(connection, `
+      UPDATE n_auth_otp_events SET verified_at = CURRENT_TIMESTAMP, expires_at = CURRENT_TIMESTAMP,
+        verification_code_hash = '!consumed!'
+      WHERE account = :account AND otp_type = 'password_reset'
+        AND verification_id = :verification_id AND verification_code_hash = :code_hash
+        AND expires_at > CURRENT_TIMESTAMP
+      `, {account: payload.email, verification_id: payload.verification_id, code_hash: codeHash}, false);
+    if (claimed === 0) v2BadRequest('验证码不存在或已过期');
+    if (claimed !== 1) v2ServerError();
+    const updated = await v2Execute(connection, `
+      UPDATE n_users SET password_hash = :password_hash WHERE email = :email
+      `, {password_hash: passwordHash, email: payload.email}, false);
+    if (updated === 0) v2NotFound('用户不存在');
+    if (updated !== 1) v2ServerError();
+    await v2Execute(connection, `
+      UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP
+      WHERE user_id IN (SELECT user_id FROM n_users WHERE email = :email) AND revoked_at IS NULL
+      `, {email: payload.email}, false);
+    await connection.commit();
+  } catch (error) {
+    try { await connection.rollback(); } catch { v2ServerError(); }
+    throw error;
+  }
   return v2Null('password reset success');
 }
 

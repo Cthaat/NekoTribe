@@ -111,9 +111,17 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
   const encrypted = Buffer.concat([cipher.update(secret), cipher.final()]);
   const db = {
     sessions, calls, close: async () => {},
-    async execute(raw, binds = {}) {
+    async commit() {
+      if (db.resetCommitFail) throw new Error('reset-private-fixture');
+      if (db.pendingReset) {
+        db.otpUpdates++; db.resetPasswordWrites++; db.resetPasswordHash = db.pendingReset.hash;
+        db.otp.expired = true; db.otp.verified = true; db.otp.hash = '!consumed!'; db.resetRevoked = true; db.pendingReset = null;
+      }
+    },
+    async rollback() { db.pendingReset = null; },
+    async execute(raw, binds = {}, options = {}) {
       const sql = raw.replace(/\s+/g, ' ').trim();
-      calls.push({sql, binds});
+      calls.push({sql, binds, options});
       const rows = values => ({rows: values});
       const metadata = schema.query(sql, binds);
       if (metadata !== undefined) return rows(metadata);
@@ -145,6 +153,17 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
         const otp = db.otp;
         return rows(otp && !otp.expired && otp.account === binds.account && otp.type === binds.otp_type && otp.verification_id === binds.verification_id ? [{VERIFICATION_CODE_HASH: otp.hash}] : []);
       }
+      if (sql.startsWith('UPDATE n_auth_otp_events SET verified_at') && sql.includes('expires_at = CURRENT_TIMESTAMP')) {
+        if (db.otpFault === 'update') throw new Error('otp-internal-sensitive-fixture');
+        assert.match(sql, /verification_code_hash = '!consumed!'/);
+        assert.match(sql, /verification_code_hash = :code_hash/);
+        assert.match(sql, /otp_type = 'password_reset'/);
+        assert.equal(binds.account, 'fake@example.test'); assert.equal(binds.verification_id, 'otp_fixture');
+        if (db.resetLostRace || db.otp.expired || db.otp.hash !== binds.code_hash) return {rowsAffected:0};
+        assert.equal(options.autoCommit, false);
+        db.pendingReset = {};
+        return {rowsAffected:1};
+      }
       if (sql.startsWith('UPDATE n_auth_otp_events SET verified_at')) {
         if (db.otpFault === 'update') throw new Error('otp-internal-sensitive-fixture');
         db.otpUpdates = (db.otpUpdates ?? 0) + 1;
@@ -153,15 +172,20 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
       }
       if (sql.startsWith('SELECT verified_at FROM n_auth_otp_events')) {
         if (db.otpFault === 'readback') throw new Error('otp-internal-sensitive-fixture');
-        return rows(db.resetEmptyReadback ? [] : [{VERIFIED_AT: new Date(db.otp.verified_at)}]);
+        return rows([{VERIFIED_AT: new Date(db.otp.verified_at)}]);
       }
       if (sql.startsWith('UPDATE n_users SET password_hash')) {
-        db.resetPasswordWrites = (db.resetPasswordWrites ?? 0) + 1;
         if (db.resetPasswordFault === 'write') throw new Error('reset-private-fixture');
         if (db.resetMissingUser) return {rowsAffected: 0};
-        db.resetPasswordHash = binds.password_hash;
+        assert.equal(options.autoCommit, false);
+        db.pendingReset.hash = binds.password_hash;
         assert.equal(binds.email, 'fake@example.test');
         return {rowsAffected: 1};
+      }
+      if (sql.startsWith('UPDATE n_auth_sessions SET revoked_at') && sql.includes('SELECT user_id FROM n_users WHERE email')) {
+        if (db.resetPasswordFault === 'revoke') throw new Error('reset-private-fixture');
+        assert.equal(options.autoCommit, false); assert.equal(binds.email, 'fake@example.test');
+        return {rowsAffected: 2};
       }
       if (sql.includes('WHERE email = :account')) return rows([{USER_ID: 1, USERNAME: 'test', PASSWORD_HASH: passwordHash, STATUS: 'active', IS_ACTIVE: 1}]);
       if (sql.includes('AS two_factor_enabled')) return rows([{TWO_FACTOR_ENABLED: Number(twoFactor), ENABLED_AT: twoFactor ? new Date() : null}]);
@@ -274,7 +298,9 @@ test('shared password reset scenarios preserve validation, side effects and erro
       f.db.resetPasswordWrites = 0;
       f.db.resetPasswordFault = vector.fault;
       f.db.resetMissingUser = !!vector.missing_user;
-      f.db.resetEmptyReadback = !!vector.empty_readback;
+      f.db.resetLostRace = !!vector.lost_race;
+      f.db.resetRevoked = false;
+      f.db.pendingReset = null;
       f.db.resetPasswordHash = null;
       const response = await f.request('/api/v2/auth/password-reset', 'POST', {...vectors.base,...vector.patch}, {cookie:'access_token=expired'});
       const text = await response.text();
@@ -288,10 +314,33 @@ test('shared password reset scenarios preserve validation, side effects and erro
       if (vector.status === 200) {
         assert.deepEqual(result, {code:200,message:'password reset success',data:null,meta:null}, vector.id);
         assert.ok(await bcrypt.compare(String(vector.patch.new_password ?? vectors.base.new_password).trim(), f.db.resetPasswordHash), vector.id);
+        assert.equal(f.db.otp.expired, true, vector.id);
+        assert.equal(f.db.otp.hash, '!consumed!', vector.id);
+        assert.equal(f.db.resetRevoked, true, vector.id);
+      } else if (vector.marks === 0) {
+        assert.equal(f.db.pendingReset, null, vector.id);
       }
     }
+    const replay = await f.request('/api/v2/auth/password-reset', 'POST', vectors.base);
+    assert.equal(replay.status, 400, 'the committed OTP cannot be replayed');
+    assert.equal(f.db.resetPasswordWrites, 1);
     assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors), /reset-private-fixture|otp-internal-sensitive-fixture/);
   } finally { await f.close(); delete globalThis.__authCompatErrors; }
+});
+
+test('password reset commit failure does not report success and attempts rollback', async () => {
+  const f = await fixture();
+  f.db.otp = {account:'fake@example.test',type:'password_reset',verification_id:'otp_fixture',hash:await bcrypt.hash('123456',4),verified_at:'2026-01-02T03:04:05.000Z'};
+  f.db.otpUpdates = 0; f.db.resetPasswordWrites = 0; f.db.resetCommitFail = true;
+  try {
+    const response = await f.request('/api/v2/auth/password-reset', 'POST', {email:'fake@example.test',verification_id:'otp_fixture',code:'123456',new_password:'synthetic'});
+    assert.equal(response.status, 500);
+    assert.equal(f.db.pendingReset, null);
+    assert.equal(f.db.otpUpdates, 0);
+    assert.equal(f.db.resetPasswordWrites, 0);
+    assert.notEqual(f.db.otp.hash, '!consumed!');
+    assert.doesNotMatch(await response.text(), /reset-private-fixture/);
+  } finally { await f.close(); }
 });
 
 test('isolated OTP creation, verification and registration form one Nuxt flow', async () => {

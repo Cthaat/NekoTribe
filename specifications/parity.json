@@ -967,7 +967,7 @@
       },
       {
         "path": "server/services/v2/auth.ts",
-        "sha256": "9e145dc3acb532350d5078afa0137ed10399989db20009c5055c4102177637c6"
+        "sha256": "e2e1ebad89c31a377951c16b55eb7afaf2385d4c8c4489568ad2304ca8e2df02"
       },
       {
         "path": "server/services/v2/chat.ts",
@@ -1657,7 +1657,7 @@
     {
       "id": "API-post_auth_password_reset",
       "title": "POST /api/v2/auth/password-reset: 重置密码",
-      "revision": 2,
+      "revision": 3,
       "review": "unreviewed",
       "definition": "specifications/requirements/auth-password-reset.md",
       "sourceFiles": [
@@ -1679,10 +1679,10 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
-            "nuxt: implement the shared OTP password-reset path with safe errors and bound database operations.",
-            "nuxt: address OTP reuse and active-session revocation consistently across backends; perform real Oracle and cross-backend acceptance."
+            "nuxt: maintain atomic OTP consumption, password update and existing-session revocation per auth-password-reset.md.",
+            "nuxt: address concurrent stale-login/2FA issuance and live WebSocket revocation; validate real Oracle concurrency and cross-backend acceptance."
           ],
           "sourceFiles": [
             "server/api/v2/auth/password-reset.post.ts",
@@ -1695,26 +1695,28 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
-            "rust: implement the shared OTP password-reset path with safe errors and bound database operations.",
-            "rust: address OTP reuse and active-session revocation consistently across backends; perform real Oracle and cross-backend acceptance."
+            "rust: maintain atomic OTP consumption, password update and existing-session revocation per auth-password-reset.md.",
+            "rust: address concurrent stale-login/2FA issuance and live WebSocket revocation; validate real Oracle concurrency and cross-backend acceptance."
           ],
           "sourceFiles": [
             "src/auth/password_reset.rs",
             "src/auth/otp.rs",
             "src/auth/session_repository.rs",
             "src/auth/sessions.rs",
-            "src/auth/login.rs"
+            "src/auth/login.rs",
+            "src/auth/password_reset_transaction.rs",
+            "src/db/tx.rs"
           ],
           "evidence": []
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
-            "go: implement the shared OTP password-reset path with safe errors and bound database operations.",
-            "go: address OTP reuse and active-session revocation consistently across backends; perform real Oracle and cross-backend acceptance."
+            "go: maintain atomic OTP consumption, password update and existing-session revocation per auth-password-reset.md.",
+            "go: address concurrent stale-login/2FA issuance and live WebSocket revocation; validate real Oracle concurrency and cross-backend acceptance."
           ],
           "sourceFiles": [
             "internal/server/password_reset.go",
@@ -9899,7 +9901,7 @@
     {
       "source": {
         "path": "specifications/requirements/authentication.md",
-        "sha256": "1b5932dc889af34341762844cf5923e5c91c4a8d9309c86976352aea024c3f40"
+        "sha256": "f350bc55c9dbb53f8f89b2d63f9960aac7f39275457bc834f3cc742885f4d10e"
       },
       "copies": {
         "rust": "contracts/requirements/authentication.md",
@@ -10229,7 +10231,7 @@
     {
       "source": {
         "path": "specifications/requirements/auth-password-reset.md",
-        "sha256": "85d78a1f9bd0a3202511d2336e2d74634a03467982c9882942b6cf4f41209f27"
+        "sha256": "2d528ed632ed311cdad1e2e3d94093952d9516810d7bca030998de44542f84a4"
       },
       "copies": {
         "rust": "contracts/requirements/auth-password-reset.md",
@@ -10239,7 +10241,7 @@
     {
       "source": {
         "path": "specifications/scenarios/auth-password-reset.json",
-        "sha256": "08317f348debbfd592ba02cbbc6049125c3a0c1d8306319bd53ea3e22853043c"
+        "sha256": "197767fcbbe551772087ef468824c1c93e824e8fdafaa0253e533503b9c17802"
       },
       "copies": {
         "rust": "contracts/scenarios/auth-password-reset.json",
