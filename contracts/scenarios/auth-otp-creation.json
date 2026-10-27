@@ -1,0 +1,18 @@
+{
+  "id":"AUTH-OTP-CREATE",
+  "revision":2,
+  "cases":[
+    {"id":"OTP-C01","body":{"account":"fake@example.test","type":"register"},"status":200,"inserts":1,"sends":1},
+    {"id":"OTP-C02","body":{"account":" fake@example.test ","type":" password_reset ","channel":"email"},"status":200,"inserts":1,"sends":1},
+    {"id":"OTP-C03","body":{"account":"fake@example.test","type":"change_email","channel":null},"status":200,"inserts":1,"sends":1},
+    {"id":"OTP-C04","body":{"account":"fake@example.test","type":"register","channel":"sms"},"status":501,"inserts":0,"sends":0},
+    {"id":"OTP-C05","body":{"account":"fake@example.test","type":"invalid"},"status":400,"inserts":0,"sends":0},
+    {"id":"OTP-C06","body":{"account":"fake@example.test","type":"register","channel":" email "},"status":400,"inserts":0,"sends":0},
+    {"id":"OTP-C07","body":{"account":"fake@example.test","type":"register","channel":true},"status":400,"inserts":0,"sends":0},
+    {"id":"OTP-C08","body":{"account":"","type":"register"},"status":400,"inserts":0,"sends":0},
+    {"id":"OTP-C09","body":{"account":"fake@example.test"},"status":400,"inserts":0,"sends":0},
+    {"id":"OTP-C10","body":{"account":"fake@example.test","type":"register"},"fault":"insert","status":500,"inserts":0,"sends":0},
+    {"id":"OTP-C11","body":{"account":"fake@example.test","type":"register"},"fault":"mail","status":500,"inserts":1,"sends":1},
+    {"id":"OTP-C12","body":{"account":"fake@example.test","type":"register","channel":{}},"status":200,"inserts":1,"sends":1}
+  ]
+}

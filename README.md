@@ -1,6 +1,8 @@
 # NekoTribe Rust 后端（兼容模式与原生会话切片）
 
-本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册登录/2FA 挑战、两条 DELETE 会话撤销、`PATCH /api/v2/auth/tokens/current` 刷新、`DELETE /api/v2/auth/tokens/current` 退出和进程健康检查，直接访问 Oracle，不注册其他业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
+本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册登录/2FA 挑战、会话列表与撤销、验证码创建和校验、令牌刷新与退出和进程健康检查，直接访问 Oracle，不注册其他业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
+
+验证码邮件使用 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER` 和 `SMTP_PASS`，以隐式 TLS 验证服务器证书；`NUXT_SMTP_*` 变量优先。配置可以留空让服务启动，但邮件发送会失败。短信验证码当前返回 501。真实邮件服务器、Oracle 和跨后端流程仍需联测；登录提醒邮件另待实现。
 
 原生登录实现密码 bcrypt 校验（兼容 Nuxt 的72字节截断）、账号状态、受信设备与双因素挑战、Nuxt AES-GCM 密文和 TOTP/恢复码条件消费，并在会话落库后查询个人资料、最后设置 Cookie。登录与挑战入口的每次 SELECT-only 双因素元数据检查都在一个连接内完成，按共同 catalog 对 schema owner、表列、约束、索引、序列和存在时的迁移账本/全部记录做校验；检查后的业务操作使用独立连接。账本不存在本身不阻止登录，与 Nuxt 的现状一致。元数据错误返回503；当前公共场景和采集器以隔离替身测试，真实 Oracle 行为与时区仍待验收。历史设备计数及站内新设备通知按用户和通知类型偏好持久化；实时消息推送和登录提醒邮件尚未实现。登录资料的头像地址按 STORAGE_PUBLIC_BASE、BASE_URL 与 STORAGE_CDN_BASE_URL 映射；相同配置和常用路径有共同隔离样例，非标准 URL 与真实跨机文件读取仍待验证；资料日期按本机时区解释无时区 TIMESTAMP，数据库会话时区和跨机语义尚待真实 Oracle 验证。信任反向代理需显式 `TRUST_PROXY=true`；默认只记录连接对端地址，不采信转发头。Rust 自身未接入真实 Oracle、Redis、跨后端或两个客户端验收，本切片不得称为完整登录或完整后端。
 
@@ -8,7 +10,7 @@
 
 `src/auth/tokens.rs` 提供独立 `TokenCodec::sign` / `verify`。签发使用 HS256，包含 Nuxt 的 `userId/userName/sessionId/type/iat/exp/jti`；调用方提供 Unix 秒时间与 session/jti。验签必须明确传入 access 或 refresh，分别选择对应密钥，只接受 HS256/384/512。`userId` 只接受正 JavaScript 安全整数（兼容数字字符串），sessionId/jti 必须是非空字符串。`verify` 的 `now` 参数用于零宽限时间验证：`exp <= now` 或 `nbf > now` 拒绝；不强制 exp 存在，也不拒绝未来 iat，以保持当前 Nuxt 库语义。
 
-JWT 合法不代表数据库会话有效。native 模式的会话撤销 DELETE 每次验 access token 后 touch Oracle，核对用户、session、JTI、过期和撤销条件，成功才独立提交撤销。`{id}` 保留原始百分号编码；字面 `others` 撤销其他未撤销会话，包括到期会话。当前会话撤销成功才清两类 Cookie；数据库、提交或连接关闭错误返回安全错误，不授权后续撤销。会话列表及其他认证端点仍待实现。签名 key、Oracle/Redis 配置 Debug 脱敏，错误不携带 token、SQL 或底层连接细节。
+JWT 合法不代表数据库会话有效。native 模式的会话撤销 DELETE 每次验 access token 后 touch Oracle，核对用户、session、JTI、过期和撤销条件，成功才独立提交撤销。`{id}` 保留原始百分号编码；字面 `others` 撤销其他未撤销会话，包括到期会话。当前会话撤销成功才清两类 Cookie；数据库、提交或连接关闭错误返回安全错误，不授权后续撤销。注册、密码重置和其他认证端点仍待实现。签名 key、Oracle/Redis 配置 Debug 脱敏，错误不携带 token、SQL 或底层连接细节。
 
 公开退出接口优先使用 refresh Cookie 或正文，只有没有有效字符串形式的 refresh 凭据才选择 access Cookie 或严格 Bearer 头；非空但无效 refresh 不回退 access。通过签名验证后，SQL 同时匹配用户、会话、未撤销状态及当前 refresh hash 或 access jti；不读取其他会话、不要求数据库过期时间仍有效。无效、陈旧或不存在的凭据仍返回 `logout success` 并清理两个 Cookie。存储失败返回安全 500，提交结果可能未知；与并发刷新竞争时，如果刷新先完成，旧 refresh 的退出可能成功响应但不会撤销新凭据。真实 Oracle、跨端互通及两前端仍需验收。
 

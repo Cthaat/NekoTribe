@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-27-native-session-revocation"
+    "x-contract-revision": "2026-10-27-otp-creation"
   },
   "tags": [
     {
@@ -58,7 +58,7 @@
       "post": {
         "summary": "创建邮箱验证码 OTP",
         "deprecated": false,
-        "description": "创建邮箱验证码 OTP",
+        "description": "创建邮箱验证码 OTP。短信通道尚未接入，提交 sms 时在写入前返回 501；邮件投递失败时已创建的验证码记录可能保留。",
         "operationId": "post_auth_otp",
         "tags": [
           "Auth"
@@ -89,7 +89,8 @@
                       "email",
                       "sms"
                     ],
-                    "example": "email"
+                    "example": "email",
+                    "description": "email 为默认通道；sms 暂不可用并返回 501。"
                   }
                 },
                 "additionalProperties": false
@@ -179,6 +180,23 @@
           "500": {
             "$ref": "#/components/responses/InternalError",
             "description": "服务器内部错误"
+          },
+          "501": {
+            "description": "短信验证码暂不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": []

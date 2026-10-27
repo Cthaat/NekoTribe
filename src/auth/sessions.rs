@@ -25,6 +25,12 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    fn otp_next_id<'a>(&'a self) -> StoreFuture<'a, u64> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn otp_insert<'a>(&'a self, _event: &'a crate::auth::otp::OtpEvent) -> StoreFuture<'a, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn otp_lookup<'a>(
         &'a self,
         _account: &'a str,
@@ -182,6 +188,7 @@ pub(crate) struct NativeState {
     pub(crate) clock: Arc<dyn Fn() -> u64 + Send + Sync>,
     pub(crate) refresh_policy: RefreshPolicy,
     pub(crate) storage_urls: crate::auth::storage_urls::StorageUrlPolicy,
+    pub(crate) otp_mailer: Arc<dyn crate::auth::otp::OtpMailer>,
 }
 pub fn build_native_router(
     codec: TokenCodec,
@@ -215,6 +222,25 @@ pub fn build_native_router_with_storage(
     refresh_policy: RefreshPolicy,
     storage_urls: crate::auth::storage_urls::StorageUrlPolicy,
 ) -> Router {
+    build_native_router_with_mail(
+        codec,
+        repository,
+        cors,
+        clock,
+        refresh_policy,
+        storage_urls,
+        Arc::new(crate::auth::otp::SmtpConfig::default()),
+    )
+}
+pub fn build_native_router_with_mail(
+    codec: TokenCodec,
+    repository: Arc<dyn SessionRepository>,
+    cors: CorsPolicy,
+    clock: Arc<dyn Fn() -> u64 + Send + Sync>,
+    refresh_policy: RefreshPolicy,
+    storage_urls: crate::auth::storage_urls::StorageUrlPolicy,
+    otp_mailer: Arc<dyn crate::auth::otp::OtpMailer>,
+) -> Router {
     Router::new()
         .route(
             "/api/health",
@@ -231,6 +257,7 @@ pub fn build_native_router_with_storage(
             "/api/v2/auth/otp/verification",
             post(crate::auth::otp::verify_otp),
         )
+        .route("/api/v2/auth/otp", post(crate::auth::otp::create_otp))
         .route(
             "/api/v2/auth/two-factor/challenges",
             post(crate::auth::login::complete_challenge),
@@ -248,6 +275,7 @@ pub fn build_native_router_with_storage(
             clock,
             refresh_policy,
             storage_urls,
+            otp_mailer,
         })
 }
 

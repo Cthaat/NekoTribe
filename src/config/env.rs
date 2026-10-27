@@ -46,6 +46,7 @@ pub struct NativeOptions {
     pub cors: crate::auth::sessions::CorsPolicy,
     pub refresh_policy: crate::auth::sessions::RefreshPolicy,
     pub storage_urls: crate::auth::storage_urls::StorageUrlPolicy,
+    pub smtp: crate::auth::otp::SmtpConfig,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -184,6 +185,7 @@ impl AppConfig {
                     cookie_secure: get("COOKIE_SECURE").as_deref() == Some("true"),
                 },
                 storage_urls: crate::auth::storage_urls::StorageUrlPolicy::from_lookup(&get),
+                smtp: crate::auth::otp::SmtpConfig::from_lookup(&get),
             }),
             server: ServerConfig {
                 host,

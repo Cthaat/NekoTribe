@@ -19,9 +19,11 @@ base64 = "=0.22.1"
 bcrypt = "=0.17.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 hex = "0.4"
+getrandom = "=0.3.4"
 hmac = "=0.12.1"
 http = "1"
 jsonwebtoken = { version = "=10.3.0", default-features = false, features = ["rust_crypto"] }
+lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "webpki-roots"] }
 oracle = { version = "0.6.3", features = ["chrono"] }
 redis = { version = "1.2.1", features = ["tokio-comp", "connection-manager"] }
 regex = "1"
@@ -42,4 +44,5 @@ uuid = { version = "1", features = ["v4"] }
 [dev-dependencies]
 dotenvy = "0.15"
 http-body-util = "0.1"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 tower = { version = "0.5", features = ["util"] }

@@ -1,0 +1,1 @@
+These are a self-signed, localhost-only certificate and private key generated solely for the isolated SMTP test. They are public test fixtures, not deployment credentials; never use them in a real mail service.

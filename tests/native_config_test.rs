@@ -36,6 +36,26 @@ fn native_config_validates_and_redacts() {
 }
 
 #[test]
+fn smtp_prefers_nuxt_variables_and_redacts_credentials() {
+    use nekotribe_backend::auth::otp::SmtpConfig;
+    let both = BTreeMap::from([
+        ("SMTP_HOST", "ignored.test"),
+        ("NUXT_SMTP_HOST", "selected.test"),
+        ("SMTP_PASS", "synthetic-mail-password"),
+    ]);
+    let expected = BTreeMap::from([
+        ("SMTP_HOST", "selected.test"),
+        ("SMTP_PASS", "synthetic-mail-password"),
+    ]);
+    let actual = SmtpConfig::from_lookup(&|key| both.get(key).map(|v| v.to_string()));
+    assert_eq!(
+        actual,
+        SmtpConfig::from_lookup(&|key| expected.get(key).map(|v| v.to_string()))
+    );
+    assert!(!format!("{actual:?}").contains("synthetic-mail-password"));
+}
+
+#[test]
 fn native_config_loads_storage_url_settings_without_logging_credentials() {
     let mut e = env();
     e.insert("STORAGE_PUBLIC_BASE".into(), "/media".into());

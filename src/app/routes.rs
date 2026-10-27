@@ -74,13 +74,14 @@ fn native_router(
 ) -> Result<Router, SessionStoreError> {
     let options = config.native.as_ref().ok_or(SessionStoreError)?;
     let codec = options.keys.codec().map_err(|_| SessionStoreError)?;
-    Ok(sessions::build_native_router_with_storage(
+    Ok(sessions::build_native_router_with_mail(
         codec,
         repository,
         options.cors.clone(),
         Arc::new(|| Utc::now().timestamp().max(0) as u64),
         options.refresh_policy,
         options.storage_urls.clone(),
+        Arc::new(options.smtp.clone()),
     )
     .layer(axum_middleware::from_fn_with_state(
         config,

@@ -35,6 +35,42 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn otp_next_id<'a>(&'a self) -> StoreFuture<'a, u64> {
+        Box::pin(async move {
+            let rows = self
+                .executor
+                .query(
+                    "SELECT seq_otp_event_id.NEXTVAL AS id FROM dual",
+                    BindMap::new(),
+                )
+                .await?;
+            row_id(rows.first().ok_or(SessionStoreError)?, "ID")
+        })
+    }
+    fn otp_insert<'a>(&'a self, event: &'a crate::auth::otp::OtpEvent) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            let binds = BindMap::from([
+                ("otp_event_id".into(), DbValue::I64(event.sequence as i64)),
+                ("account".into(), DbValue::String(event.account.clone())),
+                ("otp_type".into(), DbValue::String(event.kind.clone())),
+                (
+                    "send_channel".into(),
+                    DbValue::String(event.channel.clone()),
+                ),
+                (
+                    "verification_code_hash".into(),
+                    DbValue::String(event.hash.clone()),
+                ),
+                ("verification_id".into(), DbValue::String(event.id.clone())),
+                (
+                    "expires_at".into(),
+                    DbValue::String(oracle_time(&event.expires)),
+                ),
+            ]);
+            self.executor.execute("INSERT INTO n_auth_otp_events (otp_event_id,account,otp_type,send_channel,verification_code_hash,verification_id,expires_at) VALUES (:otp_event_id,:account,:otp_type,:send_channel,:verification_code_hash,:verification_id,CAST(TO_TIMESTAMP_TZ(:expires_at, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP))",binds).await?;
+            Ok(())
+        })
+    }
     fn otp_lookup<'a>(
         &'a self,
         account: &'a str,

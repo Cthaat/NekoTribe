@@ -33,7 +33,9 @@ impl SessionExecutor for OtpExecutor {
     fn query(&self, q: &'static str, b: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
         Box::pin(async move {
             self.calls.lock().unwrap().push((q, b));
-            if q.contains("verification_code_hash") {
+            if q.contains("seq_otp_event_id.NEXTVAL") {
+                Ok(vec![DbRow::from([("ID".into(), DbValue::I64(123))])])
+            } else if q.contains("verification_code_hash") {
                 Ok(vec![DbRow::from([(
                     "VERIFICATION_CODE_HASH".into(),
                     DbValue::String("synthetic-hash".into()),
@@ -45,6 +47,46 @@ impl SessionExecutor for OtpExecutor {
                 )])])
             }
         })
+    }
+}
+#[tokio::test]
+async fn otp_creation_repository_uses_sequence_and_bound_insert() {
+    use nekotribe_backend::auth::otp::OtpEvent;
+    let repo = OracleSessions {
+        executor: OtpExecutor::default(),
+    };
+    let id = repo.otp_next_id().await.unwrap();
+    assert_eq!(id, 123);
+    let event = OtpEvent {
+        sequence: id,
+        account: "fake';--".into(),
+        kind: "register".into(),
+        channel: "email".into(),
+        hash: "synthetic-hash".into(),
+        id: "otp_fixture".into(),
+        expires: "2026-01-02T03:09:05.000Z".into(),
+    };
+    repo.otp_insert(&event).await.unwrap();
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(calls[0].0.contains("seq_otp_event_id.NEXTVAL"));
+    assert!(!calls[1].0.contains("fake';--"));
+    for (key, value) in [
+        ("account", DbValue::String("fake';--".into())),
+        ("otp_type", DbValue::String("register".into())),
+        ("send_channel", DbValue::String("email".into())),
+        (
+            "verification_code_hash",
+            DbValue::String("synthetic-hash".into()),
+        ),
+        ("verification_id", DbValue::String("otp_fixture".into())),
+        (
+            "expires_at",
+            DbValue::String("2026-01-02T03:09:05.000+00:00".into()),
+        ),
+        ("otp_event_id", DbValue::I64(123)),
+    ] {
+        assert_eq!(calls[1].1[key], value);
     }
 }
 #[tokio::test]
