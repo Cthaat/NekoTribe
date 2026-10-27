@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "a9f5f96b026cfd97a77299b0f69cd1260e4a64daf0f20b7924052370b33ec1f7"
+      "sha256": "b9788a77efc871e830ad3f73538c2df3a830a9c59c4893196da681eb8c8b4c37"
     },
     "sources": [
       {
@@ -911,7 +911,7 @@
       },
       {
         "path": "server/middleware/auth.ts",
-        "sha256": "d0cb2d459498f3a91c8c3c1ec7ee692bddbdbddf811c28edd7fa130e8d6667c8"
+        "sha256": "dc4dbe903a949ab5eca46f08ecfde8a24eff0c0302b03ca30b308ca6a2929dda"
       },
       {
         "path": "server/middleware/rate-limit.ts",
@@ -967,7 +967,7 @@
       },
       {
         "path": "server/services/v2/auth.ts",
-        "sha256": "9fe4113ea3d2cf6269b7c5cb49b904e960aaa288edb3cd4ccd3e34e0178cb492"
+        "sha256": "1c517df3dc683af7ad73aa4eaf170f239167b56698b3eadc9abd46c2d14f961d"
       },
       {
         "path": "server/services/v2/chat.ts",
@@ -1039,7 +1039,7 @@
       },
       {
         "path": "server/utils/api-cache.ts",
-        "sha256": "95cfdcde736ec48c05ccfa339941f972768812b72d1658b359e39aebadca4125"
+        "sha256": "5b6a112582a9c924e9989b98535f485f8864420363be7b7f70d929c58fbf21d5"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -1079,7 +1079,7 @@
       },
       {
         "path": "server/utils/logging.ts",
-        "sha256": "0f50a2ff08c0d2e7c4ca1f6531bb873f8e66d09e6781914e817fd046d0bbc347"
+        "sha256": "95e3e1b26691c8b35c02b16bab21f02ecd21e2fd77bf288fccdcce164c24f97d"
       },
       {
         "path": "server/utils/media/upload-media-check.ts",
@@ -1127,7 +1127,7 @@
       },
       {
         "path": "server/utils/v2.ts",
-        "sha256": "03ae764b27f33b201166b1f98854efe580da764101c1feedbc9c6b5c775256ef"
+        "sha256": "84df31a9ab036b1ac0c14ef55ba3edcb3322391fd9d736dbf95dccd0470dcd70"
       },
       {
         "path": "server/utils/wsSession.ts",
@@ -1475,11 +1475,12 @@
     {
       "id": "API-get_auth_sessions",
       "title": "GET /api/v2/auth/sessions: 获取我的登录会话",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
       "definition": "specifications/requirements/authentication.md",
       "sourceFiles": [
-        "server/api/v2/auth/sessions/index.get.ts"
+        "server/api/v2/auth/sessions/index.get.ts",
+        "server/utils/api-cache.ts"
       ],
       "operations": [
         "GET /api/v2/auth/sessions"
@@ -1488,32 +1489,36 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/auth/sessions; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance.",
+            "Session list must bypass API response caches for cross-native-backend freshness; preserve remaining list semantics until its dedicated migration and acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/auth/sessions/index.get.ts"
+            "server/api/v2/auth/sessions/index.get.ts",
+            "server/utils/api-cache.ts"
           ],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Implement GET /api/v2/auth/sessions natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance.",
+            "Session list must bypass API response caches for cross-native-backend freshness; preserve remaining list semantics until its dedicated migration and acceptance."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Implement GET /api/v2/auth/sessions natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance.",
+            "Session list must bypass API response caches for cross-native-backend freshness; preserve remaining list semantics until its dedicated migration and acceptance."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -1521,97 +1526,92 @@
       }
     },
     {
-      "id": "API-delete_auth_sessions_id",
-      "title": "DELETE /api/v2/auth/sessions/{id}: 注销指定会话",
+      "id": "AUTH-SESSION-REVOCATION",
+      "title": "会话撤销：指定会话与其他会话",
       "revision": 1,
-      "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
+      "review": "reviewed",
+      "supersedes": [
+        "API-delete_auth_sessions_id",
+        "API-delete_auth_sessions_others"
+      ],
+      "definition": "specifications/requirements/auth-session-revocation.md",
       "sourceFiles": [
-        "server/api/v2/auth/sessions/[id].delete.ts"
+        "server/api/v2/auth/sessions/[id].delete.ts",
+        "server/api/v2/auth/sessions/others.delete.ts",
+        "server/middleware/auth.ts",
+        "server/services/v2/auth.ts",
+        "server/utils/v2.ts",
+        "server/utils/api-cache.ts",
+        "server/utils/logging.ts"
       ],
       "operations": [
-        "DELETE /api/v2/auth/sessions/{id}"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
-          "state": "in-progress",
-          "targetRevision": 1,
-          "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for DELETE /api/v2/auth/sessions/{id}; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
-          ],
-          "sourceFiles": [
-            "server/api/v2/auth/sessions/[id].delete.ts"
-          ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement DELETE /api/v2/auth/sessions/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement DELETE /api/v2/auth/sessions/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
-      "id": "API-delete_auth_sessions_others",
-      "title": "DELETE /api/v2/auth/sessions/others: 注销其他会话",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
-      "sourceFiles": [
-        "server/api/v2/auth/sessions/others.delete.ts"
-      ],
-      "operations": [
+        "DELETE /api/v2/auth/sessions/{id}",
         "DELETE /api/v2/auth/sessions/others"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "AUTH-SESSION-REVOCATION",
+          "file": "specifications/scenarios/auth-session-revocation.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for DELETE /api/v2/auth/sessions/others; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "nuxt: implement native access-session Oracle touch and both owner-scoped revocation routes from the shared requirement; preserve raw path ID, Cookie rules, safe errors and no Nuxt fallback.",
+            "nuxt: run shared HTTP/JWT vectors and production repository SQL/bind/lifecycle tests; complete isolated real Oracle 19c/Free and cross-backend/new-request rejection acceptance before accepted.",
+            "nuxt: keep full login/refresh/2FA/list and AI/backend scope in the overall plan; this slice is not a complete backend."
           ],
           "sourceFiles": [
-            "server/api/v2/auth/sessions/others.delete.ts"
+            "server/api/v2/auth/sessions/[id].delete.ts",
+            "server/api/v2/auth/sessions/others.delete.ts",
+            "server/middleware/auth.ts",
+            "server/services/v2/auth.ts",
+            "server/utils/v2.ts",
+            "server/utils/api-cache.ts",
+            "server/utils/logging.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement DELETE /api/v2/auth/sessions/others natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "rust: implement native access-session Oracle touch and both owner-scoped revocation routes from the shared requirement; preserve raw path ID, Cookie rules, safe errors and no Nuxt fallback.",
+            "rust: run shared HTTP/JWT vectors and production repository SQL/bind/lifecycle tests; complete isolated real Oracle 19c/Free and cross-backend/new-request rejection acceptance before accepted.",
+            "rust: keep full login/refresh/2FA/list and AI/backend scope in the overall plan; this slice is not a complete backend."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/main.rs",
+            "src/app/routes.rs",
+            "src/config/env.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/tokens.rs",
+            "src/db/pool.rs",
+            "src/db/oracle.rs",
+            "src/httpx/errors.rs",
+            "src/httpx/response.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement DELETE /api/v2/auth/sessions/others natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "go: implement native access-session Oracle touch and both owner-scoped revocation routes from the shared requirement; preserve raw path ID, Cookie rules, safe errors and no Nuxt fallback.",
+            "go: run shared HTTP/JWT vectors and production repository SQL/bind/lifecycle tests; complete isolated real Oracle 19c/Free and cross-backend/new-request rejection acceptance before accepted.",
+            "go: keep full login/refresh/2FA/list and AI/backend scope in the overall plan; this slice is not a complete backend."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "cmd/server/main.go",
+            "internal/server/config.go",
+            "internal/server/server.go",
+            "internal/server/runtime.go",
+            "internal/server/repository.go",
+            "internal/auth/tokens.go"
+          ],
           "evidence": []
         }
       }
@@ -9625,7 +9625,7 @@
     {
       "source": {
         "path": "specifications/requirements/authentication.md",
-        "sha256": "e3a0843513b136b8cff23129a13edc135349f9df2e90676a5c020f79ef584bba"
+        "sha256": "8eeec3c83845ffc19e52fcfb9fcd8889e4bb3bb3c23cf88e279f4c68a642f232"
       },
       "copies": {
         "rust": "contracts/requirements/authentication.md",
@@ -9710,6 +9710,26 @@
       "copies": {
         "rust": "contracts/scenarios/ai-inference-transport.json",
         "go": "contracts/scenarios/ai-inference-transport.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/auth-session-revocation.md",
+        "sha256": "5591718485357e728307c40fb076d4606f700bdd0dec91afbf453201013539c2"
+      },
+      "copies": {
+        "go": "contracts/requirements/auth-session-revocation.md",
+        "rust": "contracts/requirements/auth-session-revocation.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-session-revocation.json",
+        "sha256": "f97a12cec536ab1c85e03c2a18d9d7fd626bcbc20172c8f2309b21de855c42ef"
+      },
+      "copies": {
+        "go": "contracts/scenarios/auth-session-revocation.json",
+        "rust": "contracts/scenarios/auth-session-revocation.json"
       }
     }
   ]

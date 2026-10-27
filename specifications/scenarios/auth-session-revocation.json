@@ -1,0 +1,2056 @@
+{
+  "id": "AUTH-SESSION-REVOCATION",
+  "revision": 1,
+  "scope": "HTTP and JWT with isolated Oracle boundary; not real database or native full-auth acceptance",
+  "now": 1700000000,
+  "keys": {
+    "access": "public-fixture-access-key-never-use-in-production-2026",
+    "refresh": "public-fixture-refresh-key-never-use-in-production-2026"
+  },
+  "cases": [
+    {
+      "id": "SESSION-R001",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "session revoked",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "peer",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R002",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/foreign",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 404,
+          "expectedEnvelope": {
+            "code": 40401,
+            "message": "会话不存在",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R003",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/missing",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 404,
+          "expectedEnvelope": {
+            "code": 40401,
+            "message": "会话不存在",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R004",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/revoked",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 404,
+          "expectedEnvelope": {
+            "code": 40401,
+            "message": "会话不存在",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R005",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/expired",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "session revoked",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "expired",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R006",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/fixture-session-42",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "session revoked",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": [
+            "access_token",
+            "refresh_token"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 401,
+          "expectedEnvelope": {
+            "code": 40101,
+            "message": "Token无效或已过期",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 2,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "fixture-session-42",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R007",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/others",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "other sessions revoked",
+            "data": {
+              "revoked_count": 2
+            },
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "expired",
+        "peer",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R008",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/others",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "other sessions revoked",
+            "data": {
+              "revoked_count": 0
+            },
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R009",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {},
+          "expectedStatus": 401,
+          "expectedEnvelope": {
+            "code": 40101,
+            "message": "请先登录",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 0,
+      "expectedRevokes": 0,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": []
+    },
+    {
+      "id": "SESSION-R010",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer bad-fixture-token"
+          },
+          "expectedStatus": 401,
+          "expectedEnvelope": {
+            "code": 40101,
+            "message": "Token无效或已过期",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 0,
+      "expectedRevokes": 0,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": []
+    },
+    {
+      "id": "SESSION-R011",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999999,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 401,
+          "expectedEnvelope": {
+            "code": 40101,
+            "message": "Token无效或已过期",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 0,
+      "expectedRevokedSessionIds": [
+        "fixture-session-42",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": []
+    },
+    {
+      "id": "SESSION-R012",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "rotated-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 401,
+          "expectedEnvelope": {
+            "code": 40101,
+            "message": "Token无效或已过期",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 0,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": []
+    },
+    {
+      "id": "SESSION-R013",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 7,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 401,
+          "expectedEnvelope": {
+            "code": 40101,
+            "message": "Token无效或已过期",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 0,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": []
+    },
+    {
+      "id": "SESSION-R014",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000000,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 401,
+          "expectedEnvelope": {
+            "code": 40101,
+            "message": "Token无效或已过期",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 0,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": []
+    },
+    {
+      "id": "SESSION-R015",
+      "sessions": [
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 401,
+          "expectedEnvelope": {
+            "code": 40101,
+            "message": "Token无效或已过期",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 0,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": []
+    },
+    {
+      "id": "SESSION-R016",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4",
+            "cookie": "access_token=bad-fixture-token"
+          },
+          "expectedStatus": 401,
+          "expectedEnvelope": {
+            "code": 40101,
+            "message": "Token无效或已过期",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 0,
+      "expectedRevokes": 0,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": []
+    },
+    {
+      "id": "SESSION-R017",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4",
+            "cookie": "access_token="
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "session revoked",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "peer",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R018",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "session revoked",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "peer",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R019",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "cookie": "access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9%2EeyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0%2Ebz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "session revoked",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "peer",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R020",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/%70eer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 404,
+          "expectedEnvelope": {
+            "code": 40401,
+            "message": "会话不存在",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R021",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/%6fthers",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 404,
+          "expectedEnvelope": {
+            "code": 40401,
+            "message": "会话不存在",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R022",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 401,
+          "expectedEnvelope": {
+            "code": 40101,
+            "message": "Token无效或已过期",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 0,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [],
+      "fault": "touch"
+    },
+    {
+      "id": "SESSION-R023",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 500,
+          "expectedEnvelope": {
+            "code": 50001,
+            "message": "服务器内部错误",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ],
+      "fault": "revoke"
+    },
+    {
+      "id": "SESSION-R024",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "bEaReR eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.2PyljXG0awMQnXc_LkqqUDWAb38_HK5Dx9bfskcxalNOd_oaGMlHN65gjjgIOJRhrmU_8MO0UxnCfgK1x24gVw"
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "session revoked",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "peer",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R025",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "session revoked",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 404,
+          "expectedEnvelope": {
+            "code": 40401,
+            "message": "会话不存在",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 2,
+      "expectedRevokes": 2,
+      "expectedRevokedSessionIds": [
+        "peer",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R026",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "cookie": "access_token=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4\""
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "session revoked",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "peer",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R027",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "cookie": "access_token=; access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          },
+          "expectedStatus": 401,
+          "expectedEnvelope": {
+            "code": 40101,
+            "message": "请先登录",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 0,
+      "expectedRevokes": 0,
+      "expectedRevokedSessionIds": [
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": []
+    },
+    {
+      "id": "SESSION-R028",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4",
+            "cookie": "access_token=; access_token=bad-fixture-token"
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "session revoked",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": []
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "peer",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    },
+    {
+      "id": "SESSION-R029",
+      "sessions": [
+        {
+          "sessionId": "fixture-session-42",
+          "userId": 42,
+          "accessJti": "fixture-access-jti-42",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "peer",
+          "userId": 42,
+          "accessJti": "peer-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "expired",
+          "userId": 42,
+          "accessJti": "expired-jti",
+          "accessExpiresAt": 1699999999,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "foreign",
+          "userId": 7,
+          "accessJti": "foreign-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": null,
+          "lastAccessedAt": 1699999940
+        },
+        {
+          "sessionId": "revoked",
+          "userId": 42,
+          "accessJti": "revoked-jti",
+          "accessExpiresAt": 1700000900,
+          "revokedAt": 1699999990,
+          "lastAccessedAt": 1699999940
+        }
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/v2/auth/sessions/peer",
+          "headers": {
+            "authorization": "Bearer bad-fixture-token"
+          },
+          "expectedStatus": 200,
+          "expectedEnvelope": {
+            "code": 200,
+            "message": "session revoked",
+            "data": null,
+            "meta": null
+          },
+          "expectedClearedCookies": [],
+          "cookieFields": [
+            "harmless=1",
+            "access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.bz2TmA-WZbfRulj_Bq85AjLnm0pu6Lol-gzkpPnLlP4"
+          ]
+        }
+      ],
+      "expectedTouches": 1,
+      "expectedRevokes": 1,
+      "expectedRevokedSessionIds": [
+        "peer",
+        "revoked"
+      ],
+      "expectedTouchedSessionIds": [
+        "fixture-session-42"
+      ]
+    }
+  ]
+}

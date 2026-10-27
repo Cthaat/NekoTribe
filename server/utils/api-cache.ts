@@ -397,6 +397,8 @@ async function buildCacheContext(
 
   const url = getRequestURL(event);
   if (!url.pathname.startsWith('/api/v2/')) return null;
+  // Session state is shared by native backends which need not share this cache.
+  if (url.pathname.replace(/\/+$/, '') === '/api/v2/auth/sessions') return null;
 
   const auth = authOf(event);
   const tags = tagsForPath(url.pathname, auth);

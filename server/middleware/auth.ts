@@ -233,6 +233,7 @@ export default defineEventHandler(async event => {
   }
 
   let connection: oracledb.Connection | null = null;
+  let verifiedPayload: CommonAuthPayload | null = null;
   try {
     const decoded = jwt.verify(
       token,
@@ -248,10 +249,16 @@ export default defineEventHandler(async event => {
       event.context as unknown as AuthEventContext;
     connection = await context.getOracleConnection();
     await policy.updateSession(connection, payload, token);
-    context.auth = payload;
+    verifiedPayload = payload;
   } catch (error) {
     throw authError(policy, 'Token无效或已过期');
   } finally {
-    if (connection) await connection.close();
+    if (connection) {
+      try { await connection.close(); }
+      catch { throw authError(policy, 'Token无效或已过期'); }
+    }
+  }
+  if (verifiedPayload) {
+    (event.context as unknown as AuthEventContext).auth = verifiedPayload;
   }
 });

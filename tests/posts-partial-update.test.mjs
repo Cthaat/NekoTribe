@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
+import { ServerResponse } from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { build } from 'esbuild';
@@ -75,11 +76,13 @@ function database(overrides = {}) {
 
 async function invoke(method, payload, db, auth = { userId: 1 }) {
   const request = { method, url: '/api/v2/posts/7', headers: { 'content-type': 'application/json' }, body: payload };
-  const event = createEvent(request, {});
+  const response = new ServerResponse(request);
+  const event = createEvent(request, response);
   event.context.params = { id: '7' };
   event.context.auth = auth;
   event.context.getOracleConnection = async () => db;
-  return routes[method.toLowerCase()](event);
+  try { return await routes[method.toLowerCase()](event); }
+  finally { response.destroy(); }
 }
 
 test('canonical PATCH and legacy PUT export the identical live handler', () => {

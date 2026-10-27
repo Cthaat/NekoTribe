@@ -33,6 +33,7 @@ import {
   v2RequestIp,
   v2RequiredString,
   v2Rows,
+  v2ServerError,
   v2String,
   v2StringOrNull,
   v2Unauthorized,
@@ -1904,13 +1905,22 @@ export async function v2ListSessions(
   );
 }
 
+async function v2ExecuteSessionRevocation(
+  connection: oracledb.Connection,
+  sql: string,
+  binds: oracledb.BindParameters
+): Promise<number> {
+  try { return await v2Execute(connection, sql, binds); }
+  catch { v2ServerError(); }
+}
+
 export async function v2RevokeSession(
   event: H3Event,
   connection: oracledb.Connection,
   sessionId: string
 ): Promise<V2Response<null>> {
   const auth = v2Auth(event);
-  const updated = await v2Execute(
+  const updated = await v2ExecuteSessionRevocation(
     connection,
     `
     UPDATE n_auth_sessions
@@ -1932,7 +1942,7 @@ export async function v2RevokeOtherSessions(
   connection: oracledb.Connection
 ): Promise<V2Response<{ revoked_count: number }>> {
   const auth = v2Auth(event);
-  const count = await v2Execute(
+  const count = await v2ExecuteSessionRevocation(
     connection,
     `
     UPDATE n_auth_sessions

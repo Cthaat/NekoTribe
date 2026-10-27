@@ -137,6 +137,11 @@ function sanitizeSearchParams(searchParams: URLSearchParams): void {
   }
 }
 
+function sanitizeSessionPath(value: string): string {
+  return value.replace(/^(\/api\/v2\/auth\/sessions\/)([^/]+)(\/?)$/, (path: string, prefix: string, id: string, suffix: string) =>
+    id === 'others' ? path : `${prefix}[session]${suffix}`);
+}
+
 function sanitizeUrlLikeValue(value: string): string {
   if (!value || value === '-') {
     return value;
@@ -145,6 +150,7 @@ function sanitizeUrlLikeValue(value: string): string {
   try {
     const url = new URL(value, 'http://localhost');
     sanitizeSearchParams(url.searchParams);
+    url.pathname = sanitizeSessionPath(url.pathname);
     const sanitized =
       url.pathname + url.search + url.hash;
     return value.startsWith('http://') ||
@@ -173,7 +179,7 @@ export function createRequestLogContext(
     rawUrl: sanitizeUrlLikeValue(
       event.node.req.url || url.pathname
     ),
-    path: url.pathname,
+    path: sanitizeSessionPath(url.pathname),
     query: sanitizeQueryRecord(queryRecord(url)),
     ip: requestIp(event),
     userAgent:
@@ -271,23 +277,30 @@ export function serializeLogError(
   };
 }
 
+function safeLogPaths(payload: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(payload).map(([key, value]) => {
+    const sessionPath = key === 'path' && typeof value === 'string' && value.startsWith('/api/v2/auth/sessions/');
+    return [key, typeof value === 'string' && (sessionPath || key === 'rawUrl') ? sanitizeUrlLikeValue(value) : value];
+  }));
+}
+
 export function logInfo(
   scope: string,
   payload: Record<string, unknown>
 ): void {
-  console.info(`[${scope}]`, payload);
+  console.info(`[${scope}]`, safeLogPaths(payload));
 }
 
 export function logWarn(
   scope: string,
   payload: Record<string, unknown>
 ): void {
-  console.warn(`[${scope}]`, payload);
+  console.warn(`[${scope}]`, safeLogPaths(payload));
 }
 
 export function logError(
   scope: string,
   payload: Record<string, unknown>
 ): void {
-  console.error(`[${scope}]`, payload);
+  console.error(`[${scope}]`, safeLogPaths(payload));
 }

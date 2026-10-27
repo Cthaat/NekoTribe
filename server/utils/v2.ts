@@ -3,8 +3,11 @@ import {
   createError,
   defineEventHandler,
   getQuery,
+  getResponseHeader,
   getRouterParam,
-  readBody
+  readBody,
+  removeResponseHeader,
+  setResponseHeader
 } from 'h3';
 import oracledb from 'oracledb';
 import {
@@ -228,11 +231,22 @@ export async function v2WithConnection<T>(
     connection: oracledb.Connection
   ) => Promise<V2Response<T>>
 ): Promise<V2Response<T>> {
-  const connection = await v2Connection(event);
+  const existingCookies = getResponseHeader(event, 'set-cookie');
+  const cookiesBeforeHandler = Array.isArray(existingCookies) ? [...existingCookies] : existingCookies;
+  let connection: oracledb.Connection;
+  try { connection = await v2Connection(event); }
+  catch { v2ServerError(); }
   try {
     return await handler(connection);
   } finally {
-    await connection.close();
+    try { await connection.close(); }
+    catch {
+      // A committed database write is not undone by a close failure. Avoid
+      // publishing additional client cookie state with the error response.
+      if (cookiesBeforeHandler === undefined) removeResponseHeader(event, 'set-cookie');
+      else setResponseHeader(event, 'set-cookie', cookiesBeforeHandler);
+      v2ServerError();
+    }
   }
 }
 
