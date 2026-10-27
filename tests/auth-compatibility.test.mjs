@@ -35,6 +35,7 @@ const compiled = await build({
     export {default as refresh} from './server/api/v2/auth/tokens/current.patch';
     export {default as logout} from './server/api/v2/auth/tokens/current.delete';
     export {default as twoFactor} from './server/api/v2/auth/two-factor/challenges.post';
+    export {default as verifyOtp} from './server/api/v2/auth/otp/verification.post';
     export {v2ListSessions} from './server/services/v2/auth';
   `, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm',
@@ -113,6 +114,20 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
       const rows = values => ({rows: values});
       const metadata = schema.query(sql, binds);
       if (metadata !== undefined) return rows(metadata);
+      if (sql.startsWith('SELECT verification_code_hash FROM n_auth_otp_events')) {
+        if (db.otpFault === 'lookup') throw new Error('otp-internal-sensitive-fixture');
+        const otp = db.otp;
+        return rows(otp && !otp.expired && otp.account === binds.account && otp.type === binds.otp_type && otp.verification_id === binds.verification_id ? [{VERIFICATION_CODE_HASH: otp.hash}] : []);
+      }
+      if (sql.startsWith('UPDATE n_auth_otp_events SET verified_at')) {
+        if (db.otpFault === 'update') throw new Error('otp-internal-sensitive-fixture');
+        db.otpUpdates = (db.otpUpdates ?? 0) + 1;
+        return {rowsAffected: 1};
+      }
+      if (sql.startsWith('SELECT verified_at FROM n_auth_otp_events')) {
+        if (db.otpFault === 'readback') throw new Error('otp-internal-sensitive-fixture');
+        return rows([{VERIFIED_AT: new Date(db.otp.verified_at)}]);
+      }
       if (sql.includes('WHERE email = :account')) return rows([{USER_ID: 1, USERNAME: 'test', PASSWORD_HASH: passwordHash, STATUS: 'active', IS_ACTIVE: 1}]);
       if (sql.includes('AS two_factor_enabled')) return rows([{TWO_FACTOR_ENABLED: Number(twoFactor), ENABLED_AT: twoFactor ? new Date() : null}]);
       if (sql.startsWith('SELECT COUNT')) return rows([{TOTAL: newDevice ? 0 : 1}]);
@@ -192,6 +207,7 @@ async function fixture(options) {
   router.patch('/api/v2/auth/tokens/current', routes.refresh);
   router.delete('/api/v2/auth/tokens/current', routes.logout);
   router.post('/api/v2/auth/two-factor/challenges', routes.twoFactor);
+  router.post('/api/v2/auth/otp/verification', routes.verifyOtp);
   router.get('/api/v2/private', defineEventHandler(() => ({ok: true})));
   app.use(router);
   const server = createServer(toNodeListener(app));
@@ -205,6 +221,34 @@ async function fixture(options) {
     login: () => fetch(base + '/api/v2/auth/tokens', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({account: 'test', password: 'test-password'})})
   };
 }
+
+test('shared OTP verification scenarios use the real Nuxt route and bcrypt', async () => {
+  const vectors = JSON.parse(readFileSync(path.join(root, 'specifications/scenarios/auth-otp-verification.json'), 'utf8'));
+  assert.equal(vectors.cases.length, 16);
+  const f = await fixture();
+  const oldConsoleError = console.error; const consoleErrors = []; globalThis.__authCompatErrors = [];
+  console.error = (...args) => consoleErrors.push(args.map(String).join(' '));
+  try {
+    for (const vector of vectors.cases) {
+      f.db.otp = {...vectors.fixture, expired: !!vector.expired}; f.db.otpFault = vector.fault; f.db.otpUpdates = 0;
+      const count = vector.repeat ? 2 : 1;
+      for (let i = 0; i < count; i++) {
+        const response = await f.request('/api/v2/auth/otp/verification', 'POST', vector.body, {cookie:'access_token=expired'});
+        assert.equal(response.status,vector.status, vector.id);
+        assert.equal(response.headers.getSetCookie().length, 0, vector.id);
+        const raw = await response.text();
+        assert.doesNotMatch(raw,/otp-internal-sensitive-fixture/,vector.id);
+        if (vector.status === 200) {
+          const payload = JSON.parse(raw);
+          assert.deepEqual(payload.data,{account:vectors.fixture.account,verified:true,verified_at:vectors.fixture.verified_at}, vector.id);
+        }
+      }
+      assert.equal(f.db.otpUpdates,vector.updates,vector.id);
+    }
+    assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors),/otp-internal-sensitive-fixture/);
+    assert.doesNotMatch(consoleErrors.join('\n'),/otp-internal-sensitive-fixture/);
+  } finally {console.error = oldConsoleError; delete globalThis.__authCompatErrors; await f.close();}
+});
 
 function assertTokens(response, tokens) {
   assert.equal(typeof tokens.access_token, 'string');

@@ -291,7 +291,7 @@
       },
       {
         "path": "server/api/v2/auth/otp/verification.post.ts",
-        "sha256": "cfe9d93a568c468757ed7111f024e7d5af23d58133a448b89a6070426dd2a1db"
+        "sha256": "d91e7b9bf401962af13fc8445d61a1f934e59f2dcd4edd0f8c8debc8b132cb54"
       },
       {
         "path": "server/api/v2/auth/password-reset.post.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "616db50116f97e8153a7009166917b57dd3fefbbd03698c47fc9812a65f635ca"
+        "sha256": "20f41e34cf781c937bde710f88f6659541b6cedcd5dfbe55d44b6181f27e7279"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -1191,50 +1191,76 @@
     {
       "id": "API-post_auth_otp_verification",
       "title": "POST /api/v2/auth/otp/verification: 校验 OTP",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
+      "definition": "specifications/requirements/auth-otp-verification.md",
       "sourceFiles": [
-        "server/api/v2/auth/otp/verification.post.ts"
+        "server/api/v2/auth/otp/verification.post.ts",
+        "server/services/v2/auth.ts",
+        "server/utils/auth-entry-errors.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
       ],
       "operations": [
         "POST /api/v2/auth/otp/verification"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "AUTH-OTP-VERIFY",
+          "file": "specifications/scenarios/auth-otp-verification.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/auth/otp/verification; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "nuxt: maintain shared OTP verification and failure semantics.",
+            "nuxt: verify shared Oracle expiry, SMTP creation, concurrent behavior and end-to-end registration before acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/auth/otp/verification.post.ts"
+            "server/api/v2/auth/otp/verification.post.ts",
+            "server/services/v2/auth.ts",
+            "server/utils/auth-entry-errors.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/auth/otp/verification natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "rust: maintain shared OTP verification and failure semantics.",
+            "rust: verify shared Oracle expiry, SMTP creation, concurrent behavior and end-to-end registration before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/auth/otp.rs",
+            "src/auth/login.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/auth/otp/verification natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "go: maintain shared OTP verification and failure semantics.",
+            "go: verify shared Oracle expiry, SMTP creation, concurrent behavior and end-to-end registration before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/otp_verification.go",
+            "internal/server/login.go",
+            "internal/server/server.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/auth-otp-verification.md",
+        "specifications/scenarios/auth-otp-verification.json"
+      ]
     },
     {
       "id": "API-post_auth_registration",
@@ -10003,6 +10029,26 @@
       "copies": {
         "rust": "contracts/scenarios/auth-session-pagination.json",
         "go": "contracts/scenarios/auth-session-pagination.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/auth-otp-verification.md",
+        "sha256": "9daf94594d010c147a0a703563a8d8f7d6d099aa4cbfd7fe5239fe52e7d6886a"
+      },
+      "copies": {
+        "rust": "contracts/requirements/auth-otp-verification.md",
+        "go": "contracts/requirements/auth-otp-verification.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-otp-verification.json",
+        "sha256": "21b3e6c4887719bdbce64375d7e9697e409503eb68f391777aae92db1800ef39"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/auth-otp-verification.json",
+        "go": "contracts/scenarios/auth-otp-verification.json"
       }
     }
   ]
