@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-25-source-payloads"
+    "x-contract-revision": "2026-10-27-native-session-revocation"
   },
   "tags": [
     {
@@ -1372,7 +1372,8 @@
             "required": true,
             "example": "sess_680cff75-0359-45b7-9a9c-88ce681e4c2d",
             "schema": {
-              "type": "integer"
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
