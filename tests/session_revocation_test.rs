@@ -401,7 +401,6 @@ async fn native_mode_router_has_zero_calls_to_counted_nuxt() {
     let client = reqwest::Client::new();
     for path in [
         "/api/v2/auth/login",
-        "/api/v2/auth/sessions",
         "/storage/file",
         "/uploads/file",
         "/_ws",
@@ -416,6 +415,15 @@ async fn native_mode_router_has_zero_calls_to_counted_nuxt() {
             404
         )
     }
+    assert_eq!(
+        client
+            .get(format!("{base}/api/v2/auth/sessions"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
     assert_eq!(
         client
             .delete(format!("{base}/api/v2/auth/sessions/peer"))

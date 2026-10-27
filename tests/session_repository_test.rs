@@ -16,6 +16,71 @@ struct Executor {
     fail: bool,
 }
 
+#[derive(Default)]
+struct ListExecutor {
+    calls: Mutex<Vec<(&'static str, BindMap)>>,
+}
+impl SessionExecutor for ListExecutor {
+    fn execute(&self, _: &'static str, _: BindMap) -> StoreFuture<'_, u64> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((sql, binds));
+            if sql.contains("COUNT(*)") {
+                return Ok(vec![DbRow::from([("TOTAL".into(), DbValue::I64(2))])]);
+            }
+            Ok(vec![DbRow::from([
+                ("SESSION_ID".into(), DbValue::String("a".into())),
+                ("DEVICE_INFO".into(), DbValue::Null),
+                ("IP_ADDRESS".into(), DbValue::String("127.0.0.1".into())),
+                (
+                    "LAST_ACCESSED_AT".into(),
+                    DbValue::String("2026-01-01T08:00:00+08:00".into()),
+                ),
+                ("CREATED_AT".into(), DbValue::Null),
+            ])])
+        })
+    }
+}
+#[tokio::test]
+async fn list_session_repository_binds_identity_pagination_and_maps_rows() {
+    use nekotribe_backend::auth::session_list::SessionPage;
+    let repo = OracleSessions {
+        executor: ListExecutor::default(),
+    };
+    let (items, total) = repo
+        .list_sessions(
+            42,
+            SessionPage {
+                page: 1.0,
+                page_size: 1.0,
+                start: 1.5,
+                end: 4.5,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(total, 2);
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].session_id, "a");
+    assert_eq!(items[0].device_info, "");
+    assert_eq!(items[0].last_accessed_at, "2026-01-01T00:00:00.000Z");
+    assert_eq!(items[0].created_at, "");
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(calls[0].0.contains("revoked_at IS NULL"));
+    assert!(calls[1]
+        .0
+        .contains("ROW_NUMBER() OVER (ORDER BY last_accessed_at DESC)"));
+    assert_eq!(calls[1].1["user_id"], DbValue::I64(42));
+    assert_eq!(calls[1].1["start_row"], DbValue::F64(1.5));
+    assert_eq!(calls[1].1["end_row"], DbValue::F64(4.5));
+}
+
 #[tokio::test]
 async fn logout_repository_binds_exact_user_session_and_current_credential() {
     let repo = OracleSessions {

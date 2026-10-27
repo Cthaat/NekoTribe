@@ -28,6 +28,13 @@ pub trait SessionRepository: Send + Sync {
     fn touch<'a>(&'a self, claims: &'a TokenClaims) -> StoreFuture<'a, u64>;
     fn revoke<'a>(&'a self, user_id: u64, id: &'a str) -> StoreFuture<'a, u64>;
     fn revoke_others<'a>(&'a self, user_id: u64, current: &'a str) -> StoreFuture<'a, u64>;
+    fn list_sessions<'a>(
+        &'a self,
+        _user_id: u64,
+        _page: crate::auth::session_list::SessionPage,
+    ) -> StoreFuture<'a, (Vec<crate::auth::session_list::SessionItem>, u64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn revoke_current<'a>(
         &'a self,
         _user_id: u64,
@@ -200,6 +207,10 @@ pub fn build_native_router_with_storage(
             get(|| async { Json(json!({"status":"ok","service":"nekotribe"})) }),
         )
         .route("/api/v2/auth/sessions/others", delete(revoke))
+        .route(
+            "/api/v2/auth/sessions",
+            get(crate::auth::session_list::list_sessions),
+        )
         .route("/api/v2/auth/sessions/{id}", delete(revoke))
         .route("/api/v2/auth/tokens", post(crate::auth::login::login))
         .route(
@@ -512,7 +523,7 @@ async fn revoke(
     }
     Ok(response)
 }
-fn access_token(headers: &HeaderMap) -> String {
+pub(crate) fn access_token(headers: &HeaderMap) -> String {
     // Repeated Cookie fields are ordered like one semicolon-joined value.
     // Select the first matching name across every field, including empty values,
     // before deciding whether Authorization is the fallback.

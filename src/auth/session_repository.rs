@@ -35,6 +35,41 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn list_sessions<'a>(
+        &'a self,
+        user: u64,
+        page: crate::auth::session_list::SessionPage,
+    ) -> StoreFuture<'a, (Vec<crate::auth::session_list::SessionItem>, u64)> {
+        Box::pin(async move {
+            let count = self.executor.query("SELECT COUNT(*) AS total FROM n_auth_sessions WHERE user_id = :user_id AND revoked_at IS NULL", user_bind(user)).await?;
+            let total = u64::try_from(
+                count
+                    .first()
+                    .map(|r| row_number(r, "TOTAL"))
+                    .unwrap_or_default(),
+            )
+            .map_err(|_| SessionStoreError)?;
+            let binds = BindMap::from([
+                ("user_id".into(), DbValue::I64(user as i64)),
+                ("start_row".into(), DbValue::F64(page.start)),
+                ("end_row".into(), DbValue::F64(page.end)),
+            ]);
+            let rows=self.executor.query("SELECT session_id, device_info, ip_address, last_accessed_at, created_at FROM (SELECT session_id, device_info, ip_address, last_accessed_at, created_at, ROW_NUMBER() OVER (ORDER BY last_accessed_at DESC) AS rn FROM n_auth_sessions WHERE user_id = :user_id AND revoked_at IS NULL) WHERE rn BETWEEN :start_row AND :end_row",binds).await?;
+            Ok((
+                rows.iter()
+                    .map(|row| crate::auth::session_list::SessionItem {
+                        session_id: row_text(row, "SESSION_ID"),
+                        device_info: row_text(row, "DEVICE_INFO"),
+                        ip_address: row_text(row, "IP_ADDRESS"),
+                        last_accessed_at: profile_date(&row_text(row, "LAST_ACCESSED_AT")),
+                        created_at: profile_date(&row_text(row, "CREATED_AT")),
+                        is_current: false,
+                    })
+                    .collect(),
+                total,
+            ))
+        })
+    }
     fn two_factor_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
         Box::pin(async move {
             let snapshot = self.executor.readiness_snapshot().await?;

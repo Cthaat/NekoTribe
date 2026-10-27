@@ -1,0 +1,22 @@
+{
+  "id": "AUTH-SESSION-PAGINATION",
+  "revision": 1,
+  "cases": [
+    {"id":"P01","query":"","page":1,"page_size":20,"start":1,"end":20},
+    {"id":"P02","query":"page=2&page_size=3","page":2,"page_size":3,"start":4,"end":6},
+    {"id":"P03","query":"page=0&page_size=-1","page":1,"page_size":20,"start":1,"end":20},
+    {"id":"P04","query":"page=2.5&page_size=4","page":2.5,"page_size":4,"start":7,"end":10},
+    {"id":"P05","query":"page=0.25&page_size=0.5","page":1,"page_size":1,"start":1,"end":1},
+    {"id":"P06","query":"page=10001&page_size=101","page":10000,"page_size":100,"start":999901,"end":1000000},
+    {"id":"P07","query":"page=1e2&page_size=2e1","page":100,"page_size":20,"start":1981,"end":2000},
+    {"id":"P08","query":"page=0x10&page_size=0b10","page":16,"page_size":2,"start":31,"end":32},
+    {"id":"P09","query":"page=Infinity&page_size=NaN","page":1,"page_size":20,"start":1,"end":20},
+    {"id":"P10","query":"page=3&page=4&page_size=2&page_size=3","page":1,"page_size":20,"start":1,"end":20},
+    {"id":"P11","query":"page=&page_size=%20","page":1,"page_size":20,"start":1,"end":20},
+    {"id":"P12","query":"page=%2B2&page_size=3.5","page":2,"page_size":3.5,"start":4.5,"end":7},
+    {"id":"P13","query":"page=0o10&page_size=0x4","page":8,"page_size":4,"start":29,"end":32},
+    {"id":"P14","query":"page=1.2e9999&page_size=2x","page":1,"page_size":20,"start":1,"end":20},
+    {"id":"P15","query":"ignored=3&page=%C2%A02%C2%A0","page":2,"page_size":20,"start":21,"end":40},
+    {"id":"P16","query":"page=2&page=%zz","page":1,"page_size":20,"start":1,"end":20}
+  ]
+}
