@@ -64,6 +64,10 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, errConfig
 	}
 	c.Refresh.CookieSecure = get("COOKIE_SECURE") == "true"
+	switch strings.ToLower(strings.TrimSpace(get("TRUST_PROXY"))) {
+	case "1", "true", "yes", "on":
+		c.Refresh.TrustProxy = true
+	}
 	for _, value := range []string{c.Host, c.AccessKey, c.RefreshKey, c.OracleHost, c.OracleService, c.OracleUser, c.OraclePassword} {
 		if strings.TrimSpace(value) == "" {
 			return Config{}, errConfig

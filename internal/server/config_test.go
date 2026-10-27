@@ -65,6 +65,20 @@ func TestRefreshConfig(t *testing.T) {
 	}
 }
 
+func TestTrustProxyRequiresExplicitRecognizedValue(t *testing.T) {
+	for _, tc := range []struct {
+		raw      string
+		expected bool
+	}{{"", false}, {" TRUE ", true}, {"yes", true}, {"on", true}, {"1", true}, {"false", false}, {"other", false}} {
+		env := validEnv()
+		env["TRUST_PROXY"] = tc.raw
+		config, err := LoadConfig(func(k string) (string, bool) { value, ok := env[k]; return value, ok })
+		if err != nil || config.Refresh.TrustProxy != tc.expected {
+			t.Fatalf("TRUST_PROXY=%q expected %v", tc.raw, tc.expected)
+		}
+	}
+}
+
 func TestRefreshTTLRelationAndDurationBoundary(t *testing.T) {
 	for _, tc := range []struct {
 		name, access, refresh string

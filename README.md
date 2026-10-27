@@ -1,6 +1,6 @@
 # NekoTribe Go 后端（原生业务开发中）
 
-状态：已实现独立原生 HTTP 会话撤销、令牌刷新与当前会话退出切片、token codec、模型配置及提供方传输组件。`cmd/server` 注册两条 DELETE 会话撤销、PATCH 刷新、DELETE 退出与进程存活检查；完整登录、会话列表和其余业务仍待实现。
+状态：已实现独立原生 HTTP 会话撤销、令牌刷新、当前会话退出，以及密码登录和双因素挑战的开发中路径；还包括 token codec、模型配置及提供方传输组件。会话列表和其余业务仍待实现，登录路径与 Nuxt 尚有以下差异，不能视作完整认证验收。
 
 ## 当前构建与验证
 
@@ -26,6 +26,10 @@ go build ./...
 `PATCH /api/v2/auth/tokens/current` 验证 refresh Cookie 或正文，并在同一条 Oracle 条件更新中轮换 access jti、refresh 哈希和期限；提交成功才返回新令牌及 Cookie。默认期限分别为 900 秒和 2592000 秒，可通过 `ACCESS_EXPIRES_IN`、`REFRESH_EXPIRES_IN` 配置（若设置了相应 `NUXT_` 前缀值则优先），生产 HTTPS 设置 `COOKIE_SECURE=true`。期限须为 1 至 2147483647 秒，且刷新期限必须长于访问期限；Go 在启动时拒绝无效配置，这是相对 Nuxt 的 AUTH-907 安全收紧。正文支持 JSON 与 URL 编码表单，限 1 MiB；非标准 JWT claim 的兼容差异见 `contracts/requirements/auth-refresh.md`。正常连接下隔离模拟验证了旧令牌重放和并发仅一次成功，真实 Oracle 的事务、驱动和跨后端互通仍需验证。提交或网络故障可能产生未知结果，不能假设旧令牌仍可用。
 
 `DELETE /api/v2/auth/tokens/current` 是公开退出入口，优先使用 refresh Cookie 或正文；没有 refresh 时使用 access Cookie 或严格 Bearer 头。它依据当前 refresh 哈希或 access jti 对用户和会话执行单条条件撤销；无效或过时凭据不撤销会话，正常情况下仍清除两类 Cookie 并返回成功。该接口不校验数据库中的会话到期时间。刷新与旧凭据退出并发时，若刷新先提交，退出可能返回成功但不会撤销新令牌；提交故障也可能使数据库结果未知。此路径目前只验证隔离存储和模拟驱动，真实 Oracle 与多后端仍待联测。
+
+`POST /api/v2/auth/tokens` 直接查询 Oracle 用户并校验 bcrypt（按 Nuxt 的 72 字节限制），生成 session 和完整令牌响应。启用双因素时支持可信设备、创建挑战、`POST /api/v2/auth/two-factor/challenges` 与 `/challenges/{id}` 完成 TOTP 或恢复码，以及 remember-me 设备；密钥使用当前必填 refresh secret 的 SHA-256 与 Nuxt AES-GCM 数据格式互通。挑战、恢复码和 session 更新独立提交，提交或后续步骤故障可能留下已消费凭据或已创建 session，不承诺事务回滚。profile 查询成功后才发送 Cookie。
+
+登录时对四个 2FA 表及所需列做只读预检，缺失时拒绝登录；**尚未实现 Nuxt 的完整 schema/迁移账本、约束及索引 readiness 检查**。新设备提醒会根据 `login_alerts` 和通知类型偏好持久化通知，但 Redis/WebSocket 推送和 SMTP 邮件尚未实现。IP 默认取连接地址；仅显式启用 `TRUST_PROXY`（`1/true/yes/on`）时读取 `X-Forwarded-For`，只应在可信反向代理后使用。设备裁剪按 Unicode 字符而非 JavaScript UTF-16 单元；头像默认路径已覆盖但自定义存储/CDN URL 归一化尚未完成。请求正文上限 1 MiB 与 Nuxt 有差异。这些都是待补齐项，不表示业务等价或真实 Oracle 已通过。Nuxt 的 2FA 派生存在 access-secret/fallback 路径，而此原生模式要求 refresh secret 非空，故只覆盖该正常配置路径。
 
 HTTP 设置头/读写/闲置超时，退出先停止 HTTP 再关闭数据库。`ORACLE_POOL_MAX` 限制 database/sql 打开连接数，`ORACLE_POOL_MIN` 设置最大闲置连接数，不承诺预热或最少常驻连接。touch 与 revoke 是两次提交，不能撤回已获准的并发请求；真实 Oracle 19c/Free、多实例与双前端验收仍待执行。
 

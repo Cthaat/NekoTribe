@@ -36,6 +36,24 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			respond(w, 200, 200, "ok", map[string]string{"status": "ok", "service": "nekotribe-go"})
 			return
 		}
+		if r.URL.EscapedPath() == "/api/v2/auth/tokens" && r.Method == http.MethodPost {
+			login(w, r, codec, repository, refresh)
+			return
+		}
+		if r.URL.EscapedPath() == "/api/v2/auth/two-factor/challenges" && r.Method == http.MethodPost {
+			completeTwoFactor(w, r, codec, repository, refresh, "")
+			return
+		}
+		const challengesPrefix = "/api/v2/auth/two-factor/challenges/"
+		if strings.HasPrefix(r.URL.EscapedPath(), challengesPrefix) && r.Method == http.MethodPost {
+			id := strings.TrimPrefix(r.URL.EscapedPath(), challengesPrefix)
+			if id == "" || strings.Contains(id, "/") {
+				respond(w, 404, 40404, "API route not found", nil)
+				return
+			}
+			completeTwoFactor(w, r, codec, repository, refresh, id)
+			return
+		}
 		if r.URL.EscapedPath() == "/api/v2/auth/tokens/current" {
 			switch r.Method {
 			case http.MethodPatch:

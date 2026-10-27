@@ -1,6 +1,10 @@
 package auth
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"math"
@@ -10,6 +14,40 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 )
+
+// OpenTwoFactorSecret reads the AES-256-GCM representation produced by Nuxt.
+// All decode/authentication failures use a single redacted error.
+func (manager *TokenManager) OpenTwoFactorSecret(encrypted, iv, tag string) (string, error) {
+	if manager == nil || len(manager.refreshKey) == 0 {
+		return "", ErrInvalidToken
+	}
+	key := sha256.Sum256(manager.refreshKey)
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return "", ErrInvalidToken
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", ErrInvalidToken
+	}
+	nonce, err := base64.StdEncoding.DecodeString(iv)
+	if err != nil || len(nonce) != gcm.NonceSize() {
+		return "", ErrInvalidToken
+	}
+	data, err := base64.StdEncoding.DecodeString(encrypted)
+	if err != nil {
+		return "", ErrInvalidToken
+	}
+	authTag, err := base64.StdEncoding.DecodeString(tag)
+	if err != nil || len(authTag) != gcm.Overhead() {
+		return "", ErrInvalidToken
+	}
+	plain, err := gcm.Open(nil, nonce, append(data, authTag...), nil)
+	if err != nil {
+		return "", ErrInvalidToken
+	}
+	return string(plain), nil
+}
 
 // Token errors deliberately omit the token, key, and parser diagnostic.
 var ErrInvalidToken = errors.New("invalid token")

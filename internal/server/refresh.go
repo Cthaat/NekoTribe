@@ -30,6 +30,7 @@ type RefreshRepository interface {
 type RefreshConfig struct {
 	AccessSeconds, RefreshSeconds int
 	CookieSecure                  bool
+	TrustProxy                    bool
 	clock                         func() time.Time
 }
 
