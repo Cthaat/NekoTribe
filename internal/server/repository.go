@@ -15,6 +15,12 @@ const RevokeSQL = `UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP
 WHERE user_id = :user_id AND session_id = :session_id AND revoked_at IS NULL`
 const RevokeOthersSQL = `UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP
 WHERE user_id = :user_id AND session_id <> :session_id AND revoked_at IS NULL`
+const LogoutRefreshSQL = `UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP
+WHERE session_id = :session_id AND user_id = :user_id AND revoked_at IS NULL
+AND refresh_token_hash = :refresh_token_hash`
+const LogoutAccessSQL = `UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP
+WHERE session_id = :session_id AND user_id = :user_id AND revoked_at IS NULL
+AND access_jti = :access_jti`
 const RotateSQL = `UPDATE n_auth_sessions
 SET access_jti = :access_jti, refresh_token_hash = :refresh_token_hash,
 access_token_expires_at = :access_token_expires_at, refresh_token_expires_at = :refresh_token_expires_at,
@@ -37,6 +43,12 @@ func (s OracleSessions) Revoke(ctx context.Context, u int64, id string) (int64, 
 }
 func (s OracleSessions) RevokeOthers(ctx context.Context, u int64, id string) (int64, error) {
 	return s.execute(ctx, RevokeOthersSQL, sql.Named("user_id", u), sql.Named("session_id", id))
+}
+func (s OracleSessions) RevokeRefresh(ctx context.Context, c auth.Claims, hash string) (int64, error) {
+	return s.execute(ctx, LogoutRefreshSQL, sql.Named("session_id", c.SessionID), sql.Named("user_id", c.UserID), sql.Named("refresh_token_hash", hash))
+}
+func (s OracleSessions) RevokeAccess(ctx context.Context, c auth.Claims) (int64, error) {
+	return s.execute(ctx, LogoutAccessSQL, sql.Named("session_id", c.SessionID), sql.Named("user_id", c.UserID), sql.Named("access_jti", c.JTI))
 }
 func (s OracleSessions) Rotate(ctx context.Context, rotation Rotation) (int64, error) {
 	return s.execute(ctx, RotateSQL, sql.Named("access_jti", rotation.AccessJTI),

@@ -37,12 +37,15 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			return
 		}
 		if r.URL.EscapedPath() == "/api/v2/auth/tokens/current" {
-			if r.Method != http.MethodPatch {
-				w.Header().Set("Allow", "PATCH, OPTIONS")
+			switch r.Method {
+			case http.MethodPatch:
+				refreshCurrent(w, r, codec, repository, refresh)
+			case http.MethodDelete:
+				logoutCurrent(w, r, codec, repository)
+			default:
+				w.Header().Set("Allow", "PATCH, DELETE, OPTIONS")
 				respond(w, 405, 40501, "Method not allowed", nil)
-				return
 			}
-			refreshCurrent(w, r, codec, repository, refresh)
 			return
 		}
 		const prefix = "/api/v2/auth/sessions/"

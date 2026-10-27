@@ -191,6 +191,70 @@ func TestOracleRotationFailuresDoNotReportSuccess(t *testing.T) {
 		})
 	}
 }
+
+func TestOracleLogoutUsesCurrentCredentialAndCommits(t *testing.T) {
+	for _, tc := range []struct {
+		name, condition, key, value string
+		call                        func(OracleSessions, auth.Claims) (int64, error)
+	}{
+		{"refresh", "refresh_token_hash = :refresh_token_hash", "refresh_token_hash", "synthetic-hash", func(repo OracleSessions, c auth.Claims) (int64, error) {
+			return repo.RevokeRefresh(context.Background(), c, "synthetic-hash")
+		}},
+		{"access", "access_jti = :access_jti", "access_jti", "synthetic-jti", func(repo OracleSessions, c auth.Claims) (int64, error) {
+			return repo.RevokeAccess(context.Background(), c)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := &driverState{}
+			db := sql.OpenDB(testConnector{state})
+			defer db.Close()
+			claims := auth.Claims{UserID: 42, SessionID: "opaque';--", JTI: "synthetic-jti"}
+			n, err := tc.call(OracleSessions{db}, claims)
+			if err != nil || n != 1 || state.commits != 1 {
+				t.Fatalf("result %d %v commits %d", n, err, state.commits)
+			}
+			for _, fragment := range []string{"UPDATE n_auth_sessions", "revoked_at = CURRENT_TIMESTAMP", "session_id = :session_id", "user_id = :user_id", "revoked_at IS NULL", tc.condition} {
+				if !strings.Contains(state.sql, fragment) {
+					t.Fatalf("missing %s", fragment)
+				}
+			}
+			if strings.Contains(state.sql, "expires_at") || strings.Contains(state.sql, claims.SessionID) {
+				t.Fatal("expiration or unbound input in logout SQL")
+			}
+			expected := map[string]interface{}{"session_id": claims.SessionID, "user_id": claims.UserID, tc.key: tc.value}
+			for _, value := range state.args {
+				if expected[value.Name] != value.Value {
+					t.Fatalf("incorrect binding %s", value.Name)
+				}
+				delete(expected, value.Name)
+			}
+			if len(expected) != 0 {
+				t.Fatalf("missing bindings %v", expected)
+			}
+		})
+	}
+}
+
+func TestOracleLogoutFailuresAreSanitized(t *testing.T) {
+	for _, fault := range []string{"connect", "execute", "commit"} {
+		t.Run(fault, func(t *testing.T) {
+			state := &driverState{fail: fault}
+			db := sql.OpenDB(testConnector{state})
+			defer db.Close()
+			for _, run := range []func() (int64, error){
+				func() (int64, error) {
+					return (OracleSessions{db}).RevokeRefresh(context.Background(), auth.Claims{}, "hash")
+				},
+				func() (int64, error) { return (OracleSessions{db}).RevokeAccess(context.Background(), auth.Claims{}) },
+			} {
+				n, err := run()
+				if err == nil || n != 0 || strings.Contains(err.Error(), "private") {
+					t.Fatalf("unsafe result %d %v", n, err)
+				}
+			}
+		})
+	}
+}
 func TestDatabaseShutdownClosesDriverAndRedactsFailure(t *testing.T) {
 	for _, fault := range []string{"", "close"} {
 		s := &driverState{fail: fault}

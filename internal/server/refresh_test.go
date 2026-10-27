@@ -243,7 +243,7 @@ func TestRefreshCORSAndMethod(t *testing.T) {
 	}
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, httptest.NewRequest("GET", "/api/v2/auth/tokens/current", nil))
-	if w.Code != 405 || w.Header().Get("Allow") != "PATCH, OPTIONS" {
+	if w.Code != 405 || w.Header().Get("Allow") != "PATCH, DELETE, OPTIONS" {
 		t.Fatal("wrong method")
 	}
 }
