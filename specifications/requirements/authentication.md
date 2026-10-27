@@ -179,3 +179,5 @@
 ## 验收记录要求
 
 所有AUTH-S001至AUTH-S035当前为 `not-run`。每个场景分别记录Nuxt/Rust/Go提交、规则版本、运行模式、隔离Oracle/Redis身份、输入/HTTP/Cookie、数据库前后状态及事件证据；跨后端token签发/验证/轮换/吊销必须覆盖三个发行者与三个接收者，不可只做各自闭环。Flutter与Web分别验证Cookie和Bearer/body refresh路径。条件更新竞争必须真实Oracle执行；失败注入需检查逐语句提交副作用。已有测试源码只作为可复用测试设计来源，本轮未执行，且不覆盖真实Oracle/Redis/mail/部署。未经这些证据不把任何路由标为accepted。
+
+原生 token codec 的共同单元样例另见 `specifications/scenarios/auth-tokens.json`。它只验证签发格式、签名、类型及数值边界，不替代上述业务场景。数字字符串当前覆盖普通十进制和首尾空白；Nuxt `Number()` 更宽的十六进制/boolean/array 转换仍属于 AUTH-904 的统一规则审查，不据这些单元样例宣称所有畸形 claim 行为完全一致。
