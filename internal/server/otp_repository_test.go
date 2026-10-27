@@ -30,7 +30,36 @@ func (c *otpSQLConn) QueryContext(_ context.Context, q string, args []driver.Nam
 	if strings.Contains(q, "verification_code_hash") {
 		return &alertRows{values: []driver.Value{"$2b$04$synthetic"}}, nil
 	}
+	if strings.Contains(q, "seq_otp_event_id.NEXTVAL") {
+		return &alertRows{values: []driver.Value{int64(123)}}, nil
+	}
 	return &alertRows{values: []driver.Value{time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}}, nil
+}
+
+func TestOTPCreateRepositoryUsesSequenceAndBinds(t *testing.T) {
+	state := &otpSQLState{exec: &driverState{}}
+	db := sql.OpenDB(otpSQLConnector{state})
+	defer db.Close()
+	repo := OracleSessions{db}
+	id, err := repo.NextOTPID(context.Background())
+	if err != nil || id != 123 {
+		t.Fatal("sequence failed", err)
+	}
+	expires := time.Date(2026, 1, 2, 3, 9, 5, 0, time.UTC)
+	event := OTPEvent{Sequence: id, Account: "fake';--", Kind: "register", Channel: "email", Hash: "synthetic-hash", ID: "otp_fixture", Expires: expires}
+	if err = repo.InsertOTP(context.Background(), event); err != nil || state.exec.commits != 1 || strings.Contains(state.exec.sql, "fake';--") {
+		t.Fatal("insert failed", err)
+	}
+	want := map[string]interface{}{"otp_event_id": int64(123), "account": "fake';--", "otp_type": "register", "send_channel": "email", "verification_code_hash": "synthetic-hash", "verification_id": "otp_fixture", "expires_at": expires}
+	for _, arg := range state.exec.args {
+		if want[arg.Name] != arg.Value {
+			t.Fatal("wrong bind", arg.Name)
+		}
+		delete(want, arg.Name)
+	}
+	if len(want) != 0 {
+		t.Fatal("missing binds", len(want))
+	}
 }
 func TestOTPRepositoryUsesBoundQueriesAndCommittedUpdate(t *testing.T) {
 	state := &otpSQLState{exec: &driverState{}}

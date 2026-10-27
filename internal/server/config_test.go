@@ -34,6 +34,23 @@ func TestConfigValidatesAndRedacts(t *testing.T) {
 		t.Fatal(c, e)
 	}
 }
+
+func TestRefreshConfigRedactsSMTPSecrets(t *testing.T) {
+	env := validEnv()
+	env["SMTP_HOST"] = "mail.example.test"
+	env["SMTP_PORT"] = "465"
+	env["SMTP_USER"] = "sender@example.test"
+	env["SMTP_PASS"] = "synthetic-mail-password"
+	config, err := LoadConfig(func(k string) (string, bool) { v, ok := env[k]; return v, ok })
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, format := range []string{"%v", "%+v", "%#v"} {
+		if strings.Contains(fmt.Sprintf(format, config.Refresh), "synthetic-mail-password") {
+			t.Fatal("refresh config exposed SMTP password")
+		}
+	}
+}
 func TestConfigRejectsInvalid(t *testing.T) {
 	for _, tc := range []struct{ key, value string }{{"ACCESS_SECRET", ""}, {"REFRESH_SECRET", ""}, {"GO_BACKEND_PORT", "0"}, {"PORT", "65536"}, {"ORACLE_PORT", "-1"}, {"ORACLE_HOST", ""}, {"ORACLE_SERVICE_NAME", ""}, {"ORACLE_USER", ""}, {"ORACLE_PASSWORD", ""}, {"ORACLE_POOL_MIN", "x"}, {"ORACLE_POOL_MIN", "11"}, {"ORACLE_POOL_MAX", "0"}, {"ACCESS_EXPIRES_IN", "0"}, {"REFRESH_EXPIRES_IN", "-1"}, {"NUXT_ACCESS_EXPIRES_IN", "invalid"}, {"REFRESH_EXPIRES_IN", "2147483648"}} {
 		t.Run(tc.key+tc.value, func(t *testing.T) {

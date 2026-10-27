@@ -32,8 +32,12 @@ type RefreshConfig struct {
 	CookieSecure                  bool
 	TrustProxy                    bool
 	Storage                       StorageURLPolicy
+	otpMailer                     otpMailSender
 	clock                         func() time.Time
 }
+
+func (RefreshConfig) String() string   { return "RefreshConfig [redacted]" }
+func (RefreshConfig) GoString() string { return "RefreshConfig [redacted]" }
 
 func (c RefreshConfig) defaults() RefreshConfig {
 	if c.AccessSeconds == 0 {
