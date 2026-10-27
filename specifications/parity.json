@@ -1003,7 +1003,7 @@
       },
       {
         "path": "server/storage/config.ts",
-        "sha256": "16f92ebc9f51882e7d02d4eaee62d3cad59867b31bdbb44b1455be55322598af"
+        "sha256": "0a02b825a129f697b594b76dc0327ce1870d7bb62a0603978eb737edb259cd5e"
       },
       {
         "path": "server/storage/http.ts",
@@ -1287,7 +1287,7 @@
     {
       "id": "AUTH-LOGIN",
       "title": "密码登录、双因素挑战与会话签发",
-      "revision": 3,
+      "revision": 4,
       "review": "reviewed",
       "definition": "specifications/requirements/auth-login.md",
       "sourceFiles": [
@@ -1329,7 +1329,7 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 3,
+          "targetRevision": 4,
           "tasks": [
             "nuxt: implement password login, full user profile, 2FA challenge initiation/completion, device trust, and new-device alerts from the common requirements without a Nuxt fallback.",
             "nuxt: run shared bcrypt vectors and complete isolated real Oracle, cross-backend/clients, notification and deployment acceptance before marking accepted.",
@@ -1353,7 +1353,7 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 3,
+          "targetRevision": 4,
           "tasks": [
             "rust: implement password login, full user profile, 2FA challenge initiation/completion, device trust, and new-device alerts from the common requirements without a Nuxt fallback.",
             "rust: run shared bcrypt vectors and complete isolated real Oracle, cross-backend/clients, notification and deployment acceptance before marking accepted.",
@@ -1371,13 +1371,16 @@
             "Cargo.lock",
             "src/auth/readiness.rs",
             "src/db/pool.rs",
-            "src/db/oracle.rs"
+            "src/db/oracle.rs",
+            "src/auth/storage_urls.rs",
+            "src/config/env.rs",
+            "src/app/routes.rs"
           ],
           "evidence": []
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 3,
+          "targetRevision": 4,
           "tasks": [
             "go: implement password login, full user profile, 2FA challenge initiation/completion, device trust, and new-device alerts from the common requirements without a Nuxt fallback.",
             "go: run shared bcrypt vectors and complete isolated real Oracle, cross-backend/clients, notification and deployment acceptance before marking accepted.",
@@ -1395,7 +1398,8 @@
             "internal/server/config.go",
             "internal/server/refresh.go",
             "contracts/schema_catalog.go",
-            "internal/server/schema_readiness.go"
+            "internal/server/schema_readiness.go",
+            "internal/server/storage_urls.go"
           ],
           "evidence": []
         }
@@ -1406,7 +1410,8 @@
         "API-t11_post_api_v2_auth_two_factor_challenges_id"
       ],
       "sharedDependencies": [
-        "specifications/requirements/two-factor-schema-catalog.json"
+        "specifications/requirements/two-factor-schema-catalog.json",
+        "specifications/requirements/storage-public-urls.md"
       ]
     },
     {
@@ -8719,6 +8724,71 @@
           "evidence": []
         }
       }
+    },
+    {
+      "id": "STORAGE-PUBLIC-URLS",
+      "title": "登录头像与存储公共地址映射",
+      "revision": 1,
+      "review": "reviewed",
+      "definition": "specifications/requirements/storage-public-urls.md",
+      "sourceFiles": [
+        "server/storage/index.ts",
+        "server/storage/config.ts",
+        "server/models/v2.ts"
+      ],
+      "operations": [],
+      "scenarios": [
+        {
+          "id": "STORAGE-PUBLIC-URLS",
+          "file": "specifications/scenarios/storage-public-urls.json"
+        }
+      ],
+      "implementations": {
+        "nuxt": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "nuxt: maintain the shared public URL mapping, safe configuration and login response integration.",
+            "nuxt: verify other storage endpoints and actual Windows/Linux/CDN/file delivery before acceptance."
+          ],
+          "sourceFiles": [
+            "server/storage/index.ts",
+            "server/storage/config.ts",
+            "server/models/v2.ts"
+          ],
+          "evidence": []
+        },
+        "rust": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "rust: maintain the shared public URL mapping, safe configuration and login response integration.",
+            "rust: verify other storage endpoints and actual Windows/Linux/CDN/file delivery before acceptance."
+          ],
+          "sourceFiles": [
+            "src/auth/storage_urls.rs",
+            "src/auth/login.rs",
+            "src/config/env.rs",
+            "src/app/routes.rs"
+          ],
+          "evidence": []
+        },
+        "go": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "go: maintain the shared public URL mapping, safe configuration and login response integration.",
+            "go: verify other storage endpoints and actual Windows/Linux/CDN/file delivery before acceptance."
+          ],
+          "sourceFiles": [
+            "internal/server/storage_urls.go",
+            "internal/server/login.go",
+            "internal/server/config.go",
+            "internal/server/refresh.go"
+          ],
+          "evidence": []
+        }
+      }
     }
   ],
   "sourceAudits": [
@@ -9817,7 +9887,7 @@
     {
       "source": {
         "path": "specifications/requirements/auth-login.md",
-        "sha256": "ffd5153fa7b61d81ed2e44cf23f307c8da72e4036a32144b37112592ec6f6ccc"
+        "sha256": "d2eb419b78a9a217a2e2e2a2a92a8f47e8fb7398cac11fe62d6f992d8034339b"
       },
       "copies": {
         "rust": "contracts/requirements/auth-login.md",
@@ -9872,6 +9942,26 @@
       "copies": {
         "rust": "contracts/scenarios/two-factor-readiness.json",
         "go": "contracts/scenarios/two-factor-readiness.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/storage-public-urls.md",
+        "sha256": "e336b54c3461f6ab3f2cee09538668f279a09eac5a811c582b5d54d1191efbd2"
+      },
+      "copies": {
+        "rust": "contracts/requirements/storage-public-urls.md",
+        "go": "contracts/requirements/storage-public-urls.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/storage-public-urls.json",
+        "sha256": "9093b964e356c0a2def42ab6bc3dc0a125819c10771a0991445c4b56ca63f642"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/storage-public-urls.json",
+        "go": "contracts/scenarios/storage-public-urls.json"
       }
     }
   ]

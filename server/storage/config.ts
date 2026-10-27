@@ -15,6 +15,10 @@ function envValue(key: string): string | undefined {
 }
 
 function normalizePublicBasePath(value: string): string {
+  const slashValue = value.replace(/\\/g, '/');
+  if (/^\/+$/u.test(slashValue) || slashValue.startsWith('//')) {
+    throw new Error('Invalid public storage base path');
+  }
   const normalized = value
     .replace(/\\/g, '/')
     .replace(/\/+$/, '');
@@ -43,6 +47,11 @@ function normalizeBaseUrl(
     return null;
   }
 
+  let parsed: URL | null = null;
+  try { parsed = new URL(value); } catch { /* Existing invalid-URL behavior remains at use time. */ }
+  if (parsed?.username || parsed?.password) {
+    throw new Error('Public storage base URL must not contain credentials');
+  }
   return value.replace(/\/+$/, '');
 }
 
