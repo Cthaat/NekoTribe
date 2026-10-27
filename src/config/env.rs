@@ -2,11 +2,48 @@ use std::{env, error::Error, fmt};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AppConfig {
+    pub backend_mode: BackendMode,
+    pub native: Option<NativeOptions>,
     pub server: ServerConfig,
     pub auth: AuthConfig,
     pub oracle: OracleConfig,
     pub redis: RedisConfig,
     pub legacy_backend: LegacyBackendConfig,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BackendMode {
+    Compat,
+    Native,
+}
+impl BackendMode {
+    pub fn parse(raw: Option<&str>) -> Result<Self, ConfigError> {
+        match raw {
+            None | Some("compat") => Ok(Self::Compat),
+            Some("native") => Ok(Self::Native),
+            _ => Err(ConfigError::new("invalid backend mode")),
+        }
+    }
+}
+#[derive(Clone, PartialEq, Eq)]
+pub struct SigningKeys {
+    access: String,
+    refresh: String,
+}
+impl fmt::Debug for SigningKeys {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("SigningKeys [redacted]")
+    }
+}
+impl SigningKeys {
+    pub fn codec(&self) -> Result<crate::auth::TokenCodec, crate::auth::TokenError> {
+        crate::auth::TokenCodec::new(self.access.as_bytes(), self.refresh.as_bytes())
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeOptions {
+    pub keys: SigningKeys,
+    pub cors: crate::auth::sessions::CorsPolicy,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -20,7 +57,7 @@ pub struct AuthConfig {
     pub cookie_secure: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct OracleConfig {
     pub host: String,
     pub port: u16,
@@ -31,13 +68,23 @@ pub struct OracleConfig {
     pub pool_max: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+impl fmt::Debug for OracleConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("OracleConfig [redacted]")
+    }
+}
+#[derive(Clone, PartialEq, Eq)]
 pub struct RedisConfig {
     pub url: Option<String>,
     pub host: String,
     pub port: u16,
     pub db: u8,
     pub password: Option<String>,
+}
+impl fmt::Debug for RedisConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("RedisConfig [redacted]")
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,7 +114,78 @@ impl fmt::Display for ConfigError {
 impl Error for ConfigError {}
 
 impl AppConfig {
+    pub fn native_from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self, ConfigError> {
+        let required = |key: &str| {
+            get(key)
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| ConfigError::new("missing native configuration"))
+        };
+        let port =
+            |key: &str, default: u16| get(key).map(|v| native_port(&v)).unwrap_or(Ok(default));
+        let pool = |key: &str, default: usize| {
+            get(key)
+                .map(|v| {
+                    v.parse::<usize>()
+                        .map_err(|_| ConfigError::new("invalid pool range"))
+                })
+                .unwrap_or(Ok(default))
+        };
+        let pool_min = pool("ORACLE_POOL_MIN", 2)?;
+        let pool_max = pool("ORACLE_POOL_MAX", 10)?;
+        if pool_max == 0 || pool_min > pool_max || pool_max > 10000 {
+            return Err(ConfigError::new("invalid pool range"));
+        }
+        let server_port = get("RUST_BACKEND_PORT")
+            .or_else(|| get("PORT"))
+            .map(|v| native_port(&v))
+            .transpose()?
+            .unwrap_or(8080);
+        let host = get("HOST").unwrap_or_else(|| "127.0.0.1".into());
+        if host.trim().is_empty() {
+            return Err(ConfigError::new("invalid host"));
+        }
+        Ok(Self {
+            backend_mode: BackendMode::Native,
+            native: Some(NativeOptions {
+                keys: SigningKeys {
+                    access: required("ACCESS_SECRET")?,
+                    refresh: required("REFRESH_SECRET")?,
+                },
+                cors: crate::auth::sessions::CorsPolicy::from_lookup(&get),
+            }),
+            server: ServerConfig {
+                host,
+                port: server_port,
+            },
+            auth: AuthConfig {
+                cookie_secure: parse_bool(get("COOKIE_SECURE").as_deref()),
+            },
+            oracle: OracleConfig {
+                host: required("ORACLE_HOST")?,
+                port: port("ORACLE_PORT", 1521)?,
+                service_name: required("ORACLE_SERVICE_NAME")?,
+                user: required("ORACLE_USER")?,
+                password: required("ORACLE_PASSWORD")?,
+                pool_min,
+                pool_max,
+            },
+            redis: RedisConfig {
+                url: None,
+                host: "127.0.0.1".into(),
+                port: 6379,
+                db: 0,
+                password: None,
+            },
+            legacy_backend: LegacyBackendConfig {
+                base_url: String::new(),
+            },
+        })
+    }
     pub fn from_env() -> Result<Self, ConfigError> {
+        if BackendMode::parse(env::var("RUST_BACKEND_MODE").ok().as_deref())? == BackendMode::Native
+        {
+            return Self::native_from_lookup(|key| env::var(key).ok());
+        }
         let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
         let port = env_var("RUST_BACKEND_PORT")
             .or_else(|| env_var("PORT"))
@@ -118,6 +236,8 @@ impl AppConfig {
             .unwrap_or(0);
 
         Ok(Self {
+            backend_mode: BackendMode::Compat,
+            native: None,
             server: ServerConfig { host, port },
             auth: AuthConfig {
                 cookie_secure: parse_bool(env_var("COOKIE_SECURE").as_deref()),
@@ -156,6 +276,8 @@ impl AppConfig {
 
     pub fn for_test() -> Self {
         Self {
+            backend_mode: BackendMode::Compat,
+            native: None,
             server: ServerConfig {
                 host: "127.0.0.1".to_string(),
                 port: 8080,
@@ -289,6 +411,12 @@ fn pick_env_value_optional(
 fn parse_port(raw: &str) -> Result<u16, ConfigError> {
     raw.parse::<u16>()
         .map_err(|_| ConfigError::new(format!("invalid port value: {raw}")))
+}
+fn native_port(raw: &str) -> Result<u16, ConfigError> {
+    raw.parse::<u16>()
+        .ok()
+        .filter(|n| *n > 0)
+        .ok_or_else(|| ConfigError::new("invalid port value"))
 }
 
 fn parse_bool(raw: Option<&str>) -> bool {

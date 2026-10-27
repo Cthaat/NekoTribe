@@ -16,6 +16,25 @@ pub struct OraclePool {
     semaphore: Arc<Semaphore>,
 }
 
+fn complete_operation<T>(
+    result: Result<T, DbError>,
+    closed: Result<(), DbError>,
+) -> Result<T, DbError> {
+    closed?;
+    result
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    #[test]
+    fn connection_close_failure_is_not_ignored() {
+        assert!(complete_operation(Ok(1), Err(DbError::SemaphoreClosed)).is_err());
+        assert_eq!(complete_operation(Ok(1), Ok(())).unwrap(), 1);
+        assert!(complete_operation::<u64>(Err(DbError::SemaphoreClosed), Ok(())).is_err())
+    }
+}
+
 impl OraclePool {
     pub fn new(config: OracleConfig) -> Self {
         let max = config.pool_max.max(1);
@@ -89,7 +108,7 @@ impl OraclePool {
 
     async fn run_blocking<F, T>(&self, operation: F) -> Result<T, DbError>
     where
-        F: FnOnce(::oracle::Connection) -> Result<T, DbError> + Send + 'static,
+        F: FnOnce(&::oracle::Connection) -> Result<T, DbError> + Send + 'static,
         T: Send + 'static,
     {
         let permit = self
@@ -103,7 +122,10 @@ impl OraclePool {
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
             let connection = oracle::connect(&config)?;
-            operation(connection)
+            let result = operation(&connection);
+            // Close errors are part of the store outcome, including after a
+            // committed touch. Never authorize a later revoke on that error.
+            complete_operation(result, connection.close().map_err(DbError::from))
         })
         .await?
     }

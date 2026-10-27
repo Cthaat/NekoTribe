@@ -7,8 +7,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let config = AppConfig::from_env()?;
     let bind_addr = config.server.bind_addr();
+    let router = app::routes::prepare_router(config).await?;
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
-    let router = app::routes::build_router(config);
 
     tracing::info!(%bind_addr, "nekotribe rust backend listening");
     axum::serve(listener, router)

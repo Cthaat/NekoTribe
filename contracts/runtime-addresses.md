@@ -1,6 +1,6 @@
 # 地址、实时连接与文件约定
 
-这是现有实现的配置约定，与 `v2.openapi.json` 一起维护。Rust 当前代理 Nuxt 业务接口，Go 尚未实现服务。
+这是现有实现的配置约定，与 `v2.openapi.json` 一起维护。Rust 默认compat仍代理Nuxt；新增native模式与Go独立服务当前只接入会话鉴权和两条撤销端点，其余业务仍待原生迁移，不能将进程健康或这两条端点通过当完整后端。
 
 ## 地址配置
 
@@ -15,9 +15,13 @@ Flutter 设置页保存的配置优先于编译时 `--dart-define`，之后才�
 
 监听地址与对外地址分开：`HOST=0.0.0.0` 用于监听网卡，不能作为客户端目的地址。远端客户端不能使用服务器的 `localhost`，容器服务名也不能直接交给外部浏览器。端口、域名、HTTP/HTTPS 必须组成完整且可达的地址。
 
+Go原生入口为 `go run ./cmd/server` 或构建后的程序，`GO_BACKEND_PORT` 优先 `PORT`，缺省30006；30005保留给公共网关。Rust用 `RUST_BACKEND_MODE=native` 显式选择原生入口，缺省compat；端口仍为 `RUST_BACKEND_PORT` 优先 `PORT`。两者只读显式进程环境，不自动到父目录读取私有 `.env`。启动前只读预检所需Oracle会话结构，不初始化/迁移数据。当前native仅有 `DELETE /api/v2/auth/sessions/{id}` 和 `/others`；具体配置见各工程 `env.example`。
+
 ## HTTP 鉴权与浏览器
 
 Nuxt 接受现有 access Cookie 或 Bearer token；Flutter 使用登录响应中的 token。刷新会轮换 token，退出后旧会话不可继续使用。测试和客户端不能把刷新前的 token 缓存为永久凭据。
+
+共享账号/会话时，三后端的 `ACCESS_SECRET` 必须互相一致，`REFRESH_SECRET` 也必须互相一致；access与refresh各自用独立密钥，不是给不同后端分别生成不兼容的签名密钥。原生撤销先验JWT再核对Oracle user/session/jti/到期/撤销状态。会话列表绕过响应缓存；撤销后新请求不能凭旧缓存继续授权。session路径id为opaque string，保留现有Nuxt原始百分号编码的路径片段语义，不强制转换为数字。
 
 API 请求默认发送 `Accept: application/json`。成功沿用 v2 `{code,message,data,meta}`；现有 Nitro 的 JSON 错误体有框架外壳，业务错误封套位于其 `data`，未处理异常可省略该字段。显式请求 HTML 的调用方可能收到 HTML 错误页，不能把所有错误都解析为顶层 v2 成功封套。
 
@@ -31,7 +35,7 @@ Nuxt `/_ws` 从查询参数 `token`、Authorization 或 access Cookie 验证登�
 
 消息使用 JSON，包含 `type` 和可选 `data`。客户端 `ping` 得到 `pong`；聊天频道订阅使用 `chat_join_channel` / `chat_leave_channel`，权限仍由服务端验证。连接建立、心跳成功不代表聊天、通知和断线恢复的完整业务矩阵已验收。
 
-Rust 当前没有 `/_ws` 路由。直接访问 Rust API 时，WebSocket 必须另配可达的 Nuxt 地址，或由公共反向代理把 `/_ws` 转发到 Nuxt。不能把 Rust 健康检查通过解释为实时连接已兼容。部署网关必须传递 Upgrade/Connection，并设置适合长连接的超时。
+Rust/Go native当前没有 `/_ws` 或文件业务路由，不会把未实现请求偷偷转给Nuxt。Rust compat模式直接访问时，WebSocket仍须另配可达Nuxt地址，或由公共反向代理转发；这是历史兼容方式，不算原生独立验收。不能把健康检查通过解释为实时连接已兼容。部署网关必须传递 Upgrade/Connection，并设置适合长连接的超时。
 
 ## 文件与数据
 

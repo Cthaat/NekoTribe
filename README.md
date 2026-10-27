@@ -1,12 +1,20 @@
-# NekoTribe Rust 兼容后端
+# NekoTribe Rust 后端（兼容模式与原生会话切片）
 
-本分支是独立 Rust 工程。当前业务接口仍通过 HTTP 转发给 Nuxt；已实现 Rust 健康检查、响应工具、中间件以及 Oracle/Redis 基础设施，尚未完成原生业务迁移。
+本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 只注册两条 DELETE 会话撤销和进程健康检查，直接访问 Oracle，不注册其他业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
 
-## 原生 Token Codec（未接入认证端点）
+## 原生 Token Codec 与会话撤销
 
 `src/auth/tokens.rs` 提供独立 `TokenCodec::sign` / `verify`。签发使用 HS256，包含 Nuxt 的 `userId/userName/sessionId/type/iat/exp/jti`；调用方提供 Unix 秒时间与 session/jti。验签必须明确传入 access 或 refresh，分别选择对应密钥，只接受 HS256/384/512。`userId` 只接受正 JavaScript 安全整数（兼容数字字符串），sessionId/jti 必须是非空字符串。`verify` 的 `now` 参数用于零宽限时间验证：`exp <= now` 或 `nbf > now` 拒绝；不强制 exp 存在，也不拒绝未来 iat，以保持当前 Nuxt 库语义。
 
-JWT 合法不代表数据库会话有效。后续认证服务必须核对会话存在、所属用户、过期、撤销以及 refresh 轮换状态；本模块没有实现登录、Cookie、端点、会话存储或配置接线，当前路由仍通过 Nuxt 代理。密钥类型不实现 Debug，错误不携带 token 或底层密钥细节。
+JWT 合法不代表数据库会话有效。native 模式的两条 DELETE 每次验 access token 后 touch Oracle，核对用户、session、JTI、过期和撤销条件，成功才独立提交撤销。`{id}` 保留原始百分号编码；字面 `others` 撤销其他未撤销会话，包括到期会话。当前会话撤销成功才清两类 Cookie；数据库、提交或连接关闭错误返回安全错误，不授权后续撤销。登录、refresh 轮换、会话列表及其他认证端点仍待实现。签名 key、Oracle/Redis 配置 Debug 脱敏，错误不携带 token、SQL 或底层连接细节。
+
+`src/auth/session_repository.rs` 的生产实现复用 `OraclePool` 的 `spawn_blocking` 和命名参数执行，每次 touch/revoke 单独提交、显式关闭连接；不是一笔事务，也不保证撤回已获准的并发请求。native 启动需要 access/refresh keys 及显式 Oracle host/service/user/password，端口与池范围严格校验；不加载父目录 `.env`，不回退代理。监听前只读预检会话列，不创建或迁移 schema；优雅关闭等待 HTTP 请求结束。既有 OraclePool 是连接并发限制器，每次操作连接并关闭，pool_min 不代表预热或最少常驻连接。
+
+native CORS 在鉴权前处理 OPTIONS，复用共同 origin、method/header、Vary、credentials 规则，含 Flutter 自定义头；实际请求仍须鉴权。`GET /api/health` 仅报告进程存活。原生错误直接使用 v2 envelope；Nuxt 外层差异见 `contracts/requirements/auth-session-revocation.md`。
+
+`contracts/scenarios/auth-session-revocation.json` 的 29 个公开场景经真实 Axum HTTP/JWT 与隔离 session 存储验证，另测生产 SQL/bind 执行器、关闭错误、配置、CORS 与计数上游零调用；这些不是实际 Oracle 或完整 AUTH-S001..035 验收。未启动 Docker、实际应用、数据库或模型。真实 Oracle 19c/Free、多实例和双前端仍待集中验证。
+
+本轮最终 WSL 默认测试共48项通过、2项真实 Oracle/Redis 连通测试忽略，`cargo build --locked -j 2` 和格式检查通过。证据见 `.codex-logs/session-native-all-green.log`、`session-final-build.log`；Cookie 引号与重复名称修复另有 `session-cookie-review-red.log` / `session-cookie-review-green.log`，重复 Cookie 字段修复见 `session-repeated-cookie-red.log` / `session-repeated-cookie-green.log`。
 
 签名算法和 JWT 编解码使用精确锁定的 `jsonwebtoken =10.3.0`，禁用默认 PEM 功能，选择 `rust_crypto` provider；没有手写 HMAC 或 JWT 签名，也未在本模块实现密码哈希。官方来源：[Validation API](https://docs.rs/jsonwebtoken/10.3.0/jsonwebtoken/struct.Validation.html)、[decode 源码](https://github.com/Keats/jsonwebtoken/blob/v10.3.0/src/decoding.rs)、[provider 源码](https://github.com/Keats/jsonwebtoken/blob/v10.3.0/src/crypto/mod.rs)、[版本及 features](https://docs.rs/crate/jsonwebtoken/10.3.0/source/Cargo.toml)。库负责签名及算法白名单验证，时间 claim 由 codec 按注入时钟验证。
 
@@ -16,7 +24,7 @@ JWT 合法不代表数据库会话有效。后续认证服务必须核对会话�
 
 `src/ai/model_config.rs` 按 `contracts/requirements/ai-model-configuration.md` 实现严格校验、独立选择快照、RwLock 版本比较及原子替换；失败不安装部分配置。`contracts/scenarios/ai-model-config.json` 含三端相同的 52 个组件场景，另有并发、隔离和错误边界测试。Linux 默认测试共 31 项通过、2 个真实依赖连通测试忽略；日志为 `.codex-logs/20261027-model-config-52-full.log`。格式检查通过。
 
-本模块没有接入 HTTP 路由，不读取模型密钥/环境变量，不访问真实模型；adapter 字段仅为标识，真实推理适配器、能力探测、索引和产品流程仍待开发。完整产品权限及切换验收见本地 `contracts/requirements/ai-product-scope.md`、`ai-model-switching.md`，不能以配置场景通过宣称完整 AI 业务通过。
+`src/ai/transport.rs` 已实现 OpenAI-compatible/Ollama JSON HTTP 传输、调用级密钥解析、超时/取消和安全错误，使用 loopback 提供方测试。配置与传输组件尚未接入应用 AI 路由，没有调用真实模型、能力探测、索引或完整产品流程。完整产品权限及切换验收见本地 `contracts/requirements/ai-product-scope.md`、`ai-model-switching.md`，不能以配置或传输组件通过宣称完整 AI 业务通过。
 
 管理目录可执行 `node nuxt/scripts/parity.mjs check --workspace-root .` 核对公共需求/样例的 Rust/Go 副本；独立 Rust 编译和测试仍只读取本工程文件。
 
@@ -48,6 +56,8 @@ cargo run --locked -j 2
 
 Nuxt 上游不可用时，代理业务接口无法正常工作。Docker 内监听 8080，需按实际网络设置 `DOCKER_LEGACY_BACKEND_BASE_URL`；`docker build -t nekotribe-rust:local .` 仅构建本工程，不创建或初始化 Oracle、Redis、Nuxt。继承自旧混合分支的 Nuxt Compose 与发布工作流已经移除。
 
+原生会话服务启动：在同一进程显式设置 `RUST_BACKEND_MODE=native`、与 Nuxt/Go 一致的对应 access/refresh key 及 Oracle 变量后运行同一 `cargo run`。需要可加载的 Oracle Instant Client；隔离单元/HTTP 测试不需要它。native 不读取 Docker/legacy 后备数据库地址，不注册 Nuxt fallback；未实现业务返回404。下列既有 Compose 与代理说明描述 compat 模式，不作为 native 部署或真实库验证证据。
+
 本目录 `compose.yaml` 只定义 Rust 容器，构建上下文为本目录，不挂载或读取兄弟源码。未来需要实际部署时，可复制 `env.example` 为自行保管的配置文件，例如 `.env.deploy`，检查变量后执行：
 
 ```text
@@ -61,10 +71,10 @@ docker compose --env-file .env.deploy up -d --build
 
 ## HTTP、文件与实时通信边界
 
-- 规范内 v2 路由的 OPTIONS 请求转发给 Nuxt，由 Nuxt 精确来源 CORS 策略处理；Rust 不自行放开来源。规范外路径仍返回 404。
+- compat 的规范内 v2 路由 OPTIONS 转发给 Nuxt；native 使用上述原生 CORS。规范外路径仍返回 404。
 - 代理过滤标准逐跳头及 `Connection` 指定的头；上游 CORS 响应头与多条 `Set-Cookie` 保留。当前请求和响应仍整包缓冲，且 HTTP 客户端仍使用默认重定向策略；流式传输和重定向链上的 Cookie/CORS 行为尚未完成真实联调。
 - 既有 SentimentFlow 非 OPTIONS 前缀例外暂时保留；该可选集成预检未覆盖，不表示已经联调。
-- `/storage/**`、`/uploads/**` 的读取依赖 Nuxt 上游。Rust 自身不持有上传目录。
+- compat 的 `/storage/**`、`/uploads/**` 读取依赖 Nuxt 上游；native 返回404。Rust 自身不持有上传目录。
 - 当前 Rust 没有 `/_ws` 路由。客户端必须单独配置 Nuxt 的公共 WebSocket 地址，或使用将 WebSocket 路由到 Nuxt 的统一入口；只改成 Rust 端口不能获得 WebSocket 支持。
 
 ## 规范与历史

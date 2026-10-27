@@ -6,10 +6,16 @@ use axum::{
 };
 use chrono::{SecondsFormat, Utc};
 use serde::Serialize;
+use std::sync::Arc;
 
 use crate::{
     app::state::AppState,
-    config::env::AppConfig,
+    auth::{
+        session_repository::OracleSessions,
+        sessions::{self, SessionRepository, SessionStoreError},
+    },
+    config::env::{AppConfig, BackendMode},
+    db::pool::OraclePool,
     httpx::errors::ApiError,
     middleware::{logging, request_id, security_headers},
     proxy::legacy,
@@ -23,6 +29,14 @@ struct HealthResponse {
 }
 
 pub fn build_router(config: AppConfig) -> Router {
+    if config.backend_mode == BackendMode::Native {
+        let repository = Arc::new(OracleSessions {
+            executor: OraclePool::new(config.oracle.clone()),
+        });
+        return native_router(config, repository).unwrap_or_else(|_| {
+            Router::new().fallback(|| async { ApiError::server_error("服务器内部错误") })
+        });
+    }
     let state = AppState::new(config.clone());
 
     Router::new()
@@ -38,6 +52,39 @@ pub fn build_router(config: AppConfig) -> Router {
         ))
         .layer(axum_middleware::from_fn(request_id::request_id))
         .with_state(state)
+}
+
+// Startup preflight precedes binding a listening socket. Unit/HTTP tests can
+// inject a SessionRepository without touching Oracle or a legacy upstream.
+pub async fn prepare_router(config: AppConfig) -> Result<Router, SessionStoreError> {
+    if config.backend_mode == BackendMode::Compat {
+        return Ok(build_router(config));
+    }
+    let repository = Arc::new(OracleSessions {
+        executor: OraclePool::new(config.oracle.clone()),
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(15), repository.preflight())
+        .await
+        .map_err(|_| SessionStoreError)??;
+    native_router(config, repository)
+}
+fn native_router(
+    config: AppConfig,
+    repository: Arc<dyn SessionRepository>,
+) -> Result<Router, SessionStoreError> {
+    let options = config.native.as_ref().ok_or(SessionStoreError)?;
+    let codec = options.keys.codec().map_err(|_| SessionStoreError)?;
+    Ok(sessions::build_native_router(
+        codec,
+        repository,
+        options.cors.clone(),
+        Arc::new(|| Utc::now().timestamp().max(0) as u64),
+    )
+    .layer(axum_middleware::from_fn_with_state(
+        config,
+        security_headers::security_headers,
+    ))
+    .layer(axum_middleware::from_fn(request_id::request_id)))
 }
 
 async fn health() -> Json<HealthResponse> {

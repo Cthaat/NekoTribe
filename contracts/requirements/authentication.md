@@ -1,6 +1,6 @@
 # 认证与会话需求基线
 
-版本：2026-10-26 / 0.1（源码提炼，未共同验收）。范围：Nuxt v2；Rust、Go 必须原生独立实现同一业务，Flutter 仅为客户端。共享 Oracle、Redis 和 files；认证不依赖 SentimentFlow。关联计划：[native-backend-parity](../../docs/plans/2026-10-26-native-backend-parity.md)。
+版本：2026-10-27 / 0.2（源码提炼与会话撤销增量，未共同验收）。范围：Nuxt v2；Rust、Go 必须原生独立实现同一业务，Flutter 仅为客户端。共享 Oracle、Redis 和 files；认证不依赖 SentimentFlow。会话撤销、资源错误和列表缓存的新规则见 [撤销切片](auth-session-revocation.md)，其余行为及缺口继续沿用下述基线。关联计划：[native-backend-parity](../../docs/plans/2026-10-26-native-backend-parity.md)。
 
 本文的“已观察”表示静态源码事实，不表示线上正确、实际数据库已安装该结构或三后端通过验收。AUTH-001 至 AUTH-016 是兼容基线；AUTH-901 至 AUTH-907 是需统一决策的缺口，不能擅自把修复后的理想行为当作 Nuxt 现状。场景是语言无关的待执行断言，尚无本轮真实服务/Oracle/Redis测试证据。本轮未启动服务或 Docker，未访问数据库、私有环境文件及密钥。
 
@@ -52,7 +52,7 @@
 
 ### AUTH-002 受保护接口身份验证
 
-已观察：`access_token` Cookie非空时优先于Authorization；否则中间件去除可选的Bearer前缀并trim（并非严格要求Bearer）。v2要求userId正安全整数、type=access、非空sessionId/jti，按accessSecret验证JWT。Oracle更新匹配userId/sessionId/access_jti、未吊销且access过期时间仍有效的唯一会话，并autoCommit更新last_accessed_at，恰好一行才建立auth上下文。try块内的校验、连接获取及会话更新异常变401 `Token无效或已过期`；finally中的connection.close异常位于catch外，可能覆盖原成功或401。此处未检查n_users状态。公开认证路径按正则跳过中间件，不受过期access Cookie阻挡；公开posts GET无凭据可访问，有凭据则须校验。来源：`server/middleware/auth.ts:65-100,132-187,213-257`。
+已观察：`access_token` Cookie非空时优先于Authorization；否则中间件去除可选的Bearer前缀并trim（并非严格要求Bearer）。v2要求userId正安全整数、type=access、非空sessionId/jti，按accessSecret验证JWT。Oracle更新匹配userId/sessionId/access_jti、未吊销且access过期时间仍有效的唯一会话，并autoCommit更新last_accessed_at，恰好一行才建立auth上下文。校验、连接获取、会话更新和关闭异常均变401 `Token无效或已过期`；0.2修复finally关闭异常覆盖结果/泄露底层错误，成功关闭后才发布auth上下文。此处未检查n_users状态。公开认证路径按正则跳过中间件，不受过期access Cookie阻挡；公开posts GET无凭据可访问，有凭据则须校验。来源：`server/middleware/auth.ts`。
 
 - AUTH-S003：有效Cookie与另一有效Bearer同时提供时，使用Cookie所属身份；失效Cookie加有效Bearer仍401。
 - AUTH-S004：错误签名、到期、refresh类型、无jti、无sessionId、不安全userId、已吊销或DB access过期均401；有效请求仅更新对应会话last_accessed_at。
@@ -150,10 +150,10 @@
 
 已观察：签发会话前按相同fingerprint的全部历史session计数（含到期/吊销，unknown也参与），0视为新设备；login_alerts默认开，创建high/login_alert通知含session/device/IP/UA元数据；通知type preference控制存储，push preference控制本地WS及Redis `ws:user:{userId}` 的notification_created，带server_id/timestamp。email_notification_enabled默认开，存在email则发邮件。整个提醒异常被登录catch记录，不回滚session/Cookie。Redis不是OTP/session真值库，但存在通知与通用响应缓存副作用。Redis不可用发布函数跳过/捕获错误。
 
-会话GET经通用API缓存，按用户+session隔离，基础TTL20秒、最高120秒；middleware先校验Oracle会话才进入缓存读取。成功变更按tag失效：OTP/verification、challenge完成、PATCH refresh列为cache neutral；其他auth变更失效auth tag，sessions另带account/user，registration另带users。登录/退出是公开入口没有auth上下文，因此只按能得出的tag失效。challenge完成可创建session但不失效列表缓存，可能短暂陈旧。来源：`auth.ts:95-162,1051-1063,1118-1130`及本节来源表。
+0.2起会话列表GET绕过API响应缓存，直接读Oracle，避免原生实例撤销后需要依赖另一个实例的专有缓存写入。历史API层曾按用户+session隔离、TTL20..120秒；但实际连接还包oracle-query-cache，session SELECT本就不缓存，成功INSERT/UPDATE会同时失效API auth/account tag，touch的WHERE含revoked_at也使它未被判neutral。因此旧0.1仅凭challenge路由neutral就认定新增列表会陈旧，遗漏了SQL层失效路径，不作为已确认运行事实。其他成功变更原有tag/neutral规则保留，Redis降级不阻止已提交业务。来源：`plugins/02-oracle.ts`、`utils/oracle-query-cache.ts`、`utils/api-cache.ts`及本节来源表。
 
 - AUTH-S032：新fingerprint且提醒启用时按偏好检查通知存库/WS/Redis/邮件；关闭login_alerts全跳过；邮件或Redis故障不改变成功登录结果；不得承诺可靠恰好一次投递。
-- AUTH-S033：两session列表缓存不能互相误标is_current；吊销后凭据即使缓存命中也401；分别核对成功mutation tag和neutral例外，2FA完成后可能短时列表旧值作为AUTH-906记录。
+- AUTH-S033：不同session读取列表不能误标is_current；列表不读响应缓存，原生实例吊销后的新请求被Oracle拒绝，其他实例列表看到新状态；其他业务核对API与SQL包装共同的mutation tag/neutral路径，不只检查路由分类。
 
 ### AUTH-016 共享结构、就绪与提交边界
 
@@ -173,7 +173,7 @@
 | AUTH-903 | 多语句autoCommit导致setup/confirm/disable及恢复码→challenge→信任→session流程部分完成；单行消费防重放不等于全流程原子。决定事务边界、外部邮件/WS/Redis投递时机、失败恢复。 | S007/S020/S035；v2:263-273 |
 | AUTH-904 | service token verifier仅要求type为access或refresh，refresh流程不强制refresh；userId规范化比middleware宽松，refresh及受保护请求未重新检查账号可用；JWT验算法未固定allowlist且无iss/aud。决定统一校验、停用生效及密钥兼容策略。 | S004/S014/S024；auth:405-493,1664-1697；middleware:78-100,237-250 |
 | AUTH-905 | 重置密码不吊销session或受信设备，不消费OTP；注册/新密码缺少后端强度/格式规则，必填密码trim。决定安全基线及兼容迁移；不可未经决策重写成现状。 | S010/S027-028；auth:1396-1505,1800-1838 |
-| AUTH-906 | session列表含过期记录、外层查询无ORDER BY且同时间戳无稳定排序；challenge完成被缓存视为neutral，新增会话列表可能陈旧。决定列表定义、响应排序和跨后端缓存失效协议。 | S031/S033；auth:1840-1905；api-cache:563-569 |
+| AUTH-906 | session列表含过期记录、外层查询无ORDER BY且同时间戳无稳定排序，分页可为小数，日期解释跨主机需核对；这些列表语义仍待统一。0.2已选择列表绕过响应缓存，并纠正仅看challenge路由neutral的旧观察；实际SQL层也失效API tag。 | S031/S033；auth:1840-1905；api-cache与oracle-query-cache实际包装 |
 | AUTH-907 | TTL配置缺正值/大小关系预检，DB却要求refresh>access；2FA key派生有固定fallback，改secret后旧密文可无法解密；基本schema双副本及注册并发唯一错误映射未统一。决定配置拒绝条件、密钥轮换/版本、迁移权威和并发错误契约。 | S011/S014/S034；auth:290-337,363-371；DDL:304-306 |
 
 ## 验收记录要求
