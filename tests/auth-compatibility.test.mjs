@@ -11,7 +11,7 @@ import crypto from 'node:crypto';
 import { build } from 'esbuild';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { createApp, createRouter, defineEventHandler, setResponseHeader, toNodeListener } from 'h3';
+import { createApp, createError, createRouter, defineEventHandler, setResponseHeader, toNodeListener } from 'h3';
 import { schemaFixture } from './helpers/schema-fixture.mjs';
 import { listenForFetch } from './helpers/loopback-listener.mjs';
 
@@ -20,7 +20,7 @@ const require = createRequire(import.meta.url);
 const runtime = { accessSecret: 'isolated-test-access-secret', refreshSecret: 'isolated-test-refresh-secret', accessExpiresIn: 900, refreshExpiresIn: 3600 };
 const stubs = {
   '#imports': `export const useRuntimeConfig = () => (${JSON.stringify(runtime)});`,
-  '~/server/models/v2': 'export const v2RequireSelfUser = async (_, id) => { if (globalThis.__loginProfileError) throw globalThis.__loginProfileError; return {user_id: id, username: "test"}; };',
+  '~/server/models/v2': 'export const v2RequireSelfUser = async (_, id) => { if (globalThis.__loginProfileError) throw globalThis.__loginProfileError; return globalThis.__registrationProfile ?? {user_id: id, username: "test"}; };',
   './notifications': 'export const v2CreateNotification = async () => { if (globalThis.__loginAlertError) throw globalThis.__loginAlertError; };',
   './api-cache': 'export const readApiResponseCache = async () => ({status:"disabled"}); export const writeApiResponseCache = async () => {}; export const invalidateApiResponseCache = async () => {}; export const shouldInvalidateApiResponseCache = () => false;',
   './logging': 'export const getRequestLogContext = () => null; export const logError = (_, payload) => globalThis.__authCompatErrors?.push(payload); export const logInfo = () => {}; export const serializeLogError = error => ({message: error?.message, stack: error?.stack});',
@@ -37,6 +37,7 @@ const compiled = await build({
     export {default as twoFactor} from './server/api/v2/auth/two-factor/challenges.post';
     export {default as verifyOtp} from './server/api/v2/auth/otp/verification.post';
     export {default as createOtp} from './server/api/v2/auth/otp.post';
+    export {default as register} from './server/api/v2/auth/registration.post';
     export {v2ListSessions} from './server/services/v2/auth';
   `, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm',
@@ -115,6 +116,24 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
       const rows = values => ({rows: values});
       const metadata = schema.query(sql, binds);
       if (metadata !== undefined) return rows(metadata);
+      if (sql.startsWith('SELECT verified_at FROM n_auth_otp_events WHERE account')) {
+        if (db.registrationFault === 'otp') throw new Error('registration-internal-fixture');
+        if (db.registrationFromOTP) {const otp=db.otp;return rows(otp?.verified && !otp.expired && otp.account===binds.account && otp.type===binds.otp_type && otp.verification_id===binds.verification_id ? [{VERIFIED_AT:new Date('2026-01-02T03:04:05Z')}] : []);}
+        const r=db.registrationState;
+        return rows(r && !r.otp && binds.account==='new@example.test' && binds.otp_type==='register' && binds.verification_id==='otp_fixture' ? [{VERIFIED_AT:new Date('2026-01-02T03:04:05Z')}] : []);
+      }
+      if (sql.startsWith('SELECT COUNT(*) AS total FROM n_users WHERE email')) {
+        if (db.registrationFault === 'duplicate') throw new Error('registration-internal-fixture');
+        return rows([{TOTAL:db.registrationState?.duplicate ? 1 : 0}]);
+      }
+      if (sql.startsWith('SELECT seq_user_id.NEXTVAL')) {
+        if (db.registrationFault === 'sequence') throw new Error('registration-internal-fixture');
+        return rows([{ID:123}]);
+      }
+      if (sql.startsWith('INSERT INTO n_users')) {
+        if (db.registrationFault === 'insert') throw new Error('registration-internal-fixture');
+        db.registrationInserts = (db.registrationInserts ?? 0)+1;db.registrationInserted=binds;return {rowsAffected:1};
+      }
       if (sql.startsWith('SELECT seq_otp_event_id.NEXTVAL')) return rows([{ID:123}]);
       if (sql.startsWith('INSERT INTO n_auth_otp_events')) {
         if (db.otpCreateFault === 'insert') throw new Error('otp-create-private-fixture');
@@ -128,6 +147,7 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
       if (sql.startsWith('UPDATE n_auth_otp_events SET verified_at')) {
         if (db.otpFault === 'update') throw new Error('otp-internal-sensitive-fixture');
         db.otpUpdates = (db.otpUpdates ?? 0) + 1;
+        if (db.otp) db.otp.verified=true;
         return {rowsAffected: 1};
       }
       if (sql.startsWith('SELECT verified_at FROM n_auth_otp_events')) {
@@ -215,6 +235,7 @@ async function fixture(options) {
   router.post('/api/v2/auth/two-factor/challenges', routes.twoFactor);
   router.post('/api/v2/auth/otp/verification', routes.verifyOtp);
   router.post('/api/v2/auth/otp', routes.createOtp);
+  router.post('/api/v2/auth/registration', routes.register);
   router.get('/api/v2/private', defineEventHandler(() => ({ok: true})));
   app.use(router);
   const server = createServer(toNodeListener(app));
@@ -228,6 +249,34 @@ async function fixture(options) {
     login: () => fetch(base + '/api/v2/auth/tokens', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({account: 'test', password: 'test-password'})})
   };
 }
+
+test('isolated OTP creation, verification and registration form one Nuxt flow', async () => {
+  const vectors=JSON.parse(readFileSync(path.join(root,'specifications/scenarios/auth-registration.json'),'utf8'));const f=await fixture();let code;
+  globalThis.__registrationProfile=vectors.profile;globalThis.__otpTestMail=async (_,message)=>{code=message.text.match(/\b\d{6}\b/)?.[0];};
+  try {
+    const created=await f.request('/api/v2/auth/otp','POST',{account:vectors.base.email,type:'register'});assert.equal(created.status,200);const data=(await created.json()).data;
+    f.db.otp={account:data.account,type:'register',verification_id:data.verification_id,hash:f.db.otpCreated.verification_code_hash,verified_at:'2026-01-02T03:04:05.000Z'};
+    f.db.registrationFromOTP=true;const early=await f.request('/api/v2/auth/registration','POST',{...vectors.base,verification_id:data.verification_id});assert.equal(early.status,422);
+    const verified=await f.request('/api/v2/auth/otp/verification','POST',{account:data.account,type:'register',verification_id:data.verification_id,code});assert.equal(verified.status,200);
+    const registered=await f.request('/api/v2/auth/registration','POST',{...vectors.base,verification_id:data.verification_id});assert.equal(registered.status,200);assert.equal((await registered.json()).data.user.user_id,123);assert.equal(registered.headers.getSetCookie().length,0);
+  } finally {delete globalThis.__registrationProfile;delete globalThis.__otpTestMail;await f.close();}
+});
+
+test('shared registration scenarios preserve validation, commits and error privacy', async () => {
+  const vectors=JSON.parse(readFileSync(path.join(root,'specifications/scenarios/auth-registration.json'),'utf8'));
+  const f=await fixture();const oldError=console.error;console.error=()=>{};globalThis.__authCompatErrors=[];
+  try {
+    assert.equal(vectors.hashInterop.hashes.length,2);for(const sample of vectors.hashInterop.hashes){assert.ok(await bcrypt.compare(vectors.hashInterop.password,sample.hash));assert.equal(await bcrypt.compare(vectors.hashInterop.wrongPassword,sample.hash),false);}
+    for (const vector of vectors.cases) {
+      f.db.registrationState=vector;f.db.registrationFault=vector.fault;f.db.registrationInserts=0;f.db.registrationInserted=null;
+      globalThis.__registrationProfile=vectors.profile;globalThis.__loginProfileError=vector.fault==='profile'?new Error('registration-internal-fixture'):vector.profile_missing?createError({statusCode:404,message:'用户不存在',data:{code:40401,message:'用户不存在',data:null,meta:null}}):null;
+      const body={...vectors.base,...vector.patch};const startCalls=f.db.calls.length;const response=await f.request('/api/v2/auth/registration','POST',body,{cookie:'access_token=expired'});const text=await response.text();
+      assert.equal(response.status,vector.status,vector.id);assert.equal(response.headers.getSetCookie().length,0,vector.id);assert.equal(f.db.registrationInserts,vector.inserts,vector.id);assert.doesNotMatch(text,/registration-internal-fixture|synthetic-password/,vector.id);
+      if(vector.status===200){assert.deepEqual(JSON.parse(text).data.user,vectors.profile,vector.id);assert.ok(await bcrypt.compare(body.password.trim(),f.db.registrationInserted.password_hash));assert.equal(f.db.registrationInserted.user_id,123);const calls=f.db.calls.slice(startCalls);assert.match(calls[0].sql,/expires_at > CURRENT_TIMESTAMP AND verified_at IS NOT NULL/);assert.deepEqual(calls[0].binds,{account:'new@example.test',otp_type:'register',verification_id:'otp_fixture'});assert.match(calls[1].sql,/email = :email OR username = :username/);assert.match(calls[3].sql,/TO_DATE\(:birth_date, 'YYYY-MM-DD'\)/);if(vector.expected_phone!==undefined)assert.equal(f.db.registrationInserted.phone,vector.expected_phone,vector.id);if(vector.id==='REG-19'){assert.equal(f.db.registrationInserted.bio,'  retained  ');assert.equal(f.db.registrationInserted.location,'false');assert.equal(f.db.registrationInserted.phone,'123');}}
+    }
+    assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors),/registration-internal-fixture|synthetic-password/);
+  } finally {console.error=oldError;delete globalThis.__authCompatErrors;delete globalThis.__registrationProfile;delete globalThis.__loginProfileError;await f.close();}
+});
 
 test('shared OTP creation scenarios preserve commits, safe failures and delivery boundaries', async () => {
   const vectors = JSON.parse(readFileSync(path.join(root, 'specifications/scenarios/auth-otp-creation.json'), 'utf8'));

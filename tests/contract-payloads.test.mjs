@@ -25,6 +25,13 @@ test('OTP SMS failure is documented for Nuxt and native error envelopes', () => 
   assert.equal(validate501({error:true,url:'/api/v2/auth/otp',statusCode:501,statusMessage:'短信验证码暂不可用',message:'短信验证码暂不可用',data:business}),true);
 });
 
+test('registration contract requires consent and documents duplicate or unverified OTP', () => {
+  const validateRequest=requestValidator('post','/api/v2/auth/registration');
+  const body={email:'new@example.test',username:'newuser',password:'synthetic',confirm_password:'synthetic',display_name:'New User',verification_id:'otp_fixture',agree_to_terms:true};
+  assert.equal(validateRequest(body),true);assert.equal(validateRequest({...body,agree_to_terms:false}),false);assert.equal(validateRequest({...body,display_name:'   '}),false);assert.equal(validateRequest({...body,username:123}),true);
+  for(const status of ['409','422']) {const pointer='/api/v2/auth/registration'.replaceAll('/','~1');const validateError=ajv.compile({$ref:`${base}#/paths/${pointer}/post/responses/${status}/content/application~1json/schema`});assert.equal(validateError({code:Number(status)*100+1,message:'test',data:null,meta:null}),true);}
+});
+
 test('the 39 audited operations have concrete success contracts and retain evidence', () => {
   assert.equal(evidence.operations, 39);
   const keys = new Set();

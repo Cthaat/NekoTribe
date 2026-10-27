@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "9bb8613d7dddcb85b3a74cdee446c2334db89ba77a7272f749a987b2e6c4db4e"
+      "sha256": "8e3e60624d752ff111299b4bfa0db0cda35eaef2a93bd421e5527c98ff780caa"
     },
     "sources": [
       {
@@ -299,7 +299,7 @@
       },
       {
         "path": "server/api/v2/auth/registration.post.ts",
-        "sha256": "75bbdeb44bcb7fb5fa2b9f402ab485123b28b86aaede5f6d9c18fdcdc46e3234"
+        "sha256": "b9743827abb85af302ba46dd3495487a0391dc1f7dff62bc93120cce0cb7d83e"
       },
       {
         "path": "server/api/v2/auth/sessions/[id].delete.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "6846d7716e864134db6fb28cd27e820f381f10c8d443eed93948a81ce8002bf0"
+        "sha256": "7a97b2f723d60efc2f76a88e6faa1c67a0855234d09fdf9969a77abb8bcbfada"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -1294,50 +1294,82 @@
     {
       "id": "API-post_auth_registration",
       "title": "POST /api/v2/auth/registration: 注册用户",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
+      "definition": "specifications/requirements/auth-registration.md",
       "sourceFiles": [
-        "server/api/v2/auth/registration.post.ts"
+        "server/api/v2/auth/registration.post.ts",
+        "server/services/v2/auth.ts",
+        "server/models/v2.ts",
+        "server/utils/auth-entry-errors.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
       ],
       "operations": [
         "POST /api/v2/auth/registration"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "AUTH-REGISTRATION",
+          "file": "specifications/scenarios/auth-registration.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/auth/registration; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "nuxt: maintain registration with verified OTP, bcrypt, committed insert and full self profile.",
+            "nuxt: verify real Oracle constraints, triggers, concurrent signup and cross-backend login before acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/auth/registration.post.ts"
+            "server/api/v2/auth/registration.post.ts",
+            "server/services/v2/auth.ts",
+            "server/models/v2.ts",
+            "server/utils/auth-entry-errors.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/auth/registration natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "rust: maintain registration with verified OTP, bcrypt, committed insert and full self profile.",
+            "rust: verify real Oracle constraints, triggers, concurrent signup and cross-backend login before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/auth/registration.rs",
+            "src/auth/otp.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs",
+            "src/auth/login.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/auth/registration natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "go: maintain registration with verified OTP, bcrypt, committed insert and full self profile.",
+            "go: verify real Oracle constraints, triggers, concurrent signup and cross-backend login before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/registration.go",
+            "internal/server/server.go",
+            "internal/server/login_repository.go",
+            "internal/server/login.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/auth-registration.md",
+        "specifications/scenarios/auth-registration.json",
+        "specifications/requirements/auth-otp-verification.md",
+        "specifications/requirements/storage-public-urls.md"
+      ]
     },
     {
       "id": "AUTH-LOGIN",
@@ -8665,7 +8697,7 @@
     },
     {
       "id": "AI-KNOWLEDGE-WRITING",
-      "revision": 1,
+      "revision": 2,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
@@ -8679,39 +8711,46 @@
       "implementations": {
         "nuxt": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "nuxt: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
-            "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance."
+            "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
+            "nuxt: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "rust: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
-            "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance."
+            "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
+            "rust: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "go: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
-            "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance."
+            "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
+            "go: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/ai-agent-runtime.md",
+        "specifications/scenarios/ai-agent-runtime.json"
+      ]
     },
     {
       "id": "AI-GROUP-AGENT",
-      "revision": 1,
+      "revision": 2,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
@@ -8720,44 +8759,55 @@
         {
           "id": "AI-GROUP-AGENT",
           "file": "specifications/scenarios/ai-group-agent.json"
+        },
+        {
+          "id": "AI-AGENT-RUNTIME",
+          "file": "specifications/scenarios/ai-agent-runtime.json"
         }
       ],
       "implementations": {
         "nuxt": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "nuxt: Target-group-admin-only bounded public-content tools and draft workflow; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
-            "nuxt: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance."
+            "nuxt: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance.",
+            "nuxt: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "rust: Target-group-admin-only bounded public-content tools and draft workflow; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
-            "rust: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance."
+            "rust: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance.",
+            "rust: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "go: Target-group-admin-only bounded public-content tools and draft workflow; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
-            "go: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance."
+            "go: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance.",
+            "go: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/ai-agent-runtime.md",
+        "specifications/scenarios/ai-agent-runtime.json"
+      ]
     },
     {
       "id": "AI-MODERATION-AID",
-      "revision": 1,
+      "revision": 2,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
@@ -8771,35 +8821,42 @@
       "implementations": {
         "nuxt": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "nuxt: Moderator-only evidence-based suggestions with human-controlled enforcement; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
-            "nuxt: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance."
+            "nuxt: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance.",
+            "nuxt: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "rust: Moderator-only evidence-based suggestions with human-controlled enforcement; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
-            "rust: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance."
+            "rust: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance.",
+            "rust: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "go: Moderator-only evidence-based suggestions with human-controlled enforcement; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
-            "go: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance."
+            "go: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance.",
+            "go: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/ai-agent-runtime.md",
+        "specifications/scenarios/ai-agent-runtime.json"
+      ]
     },
     {
       "id": "STORAGE-PUBLIC-URLS",
@@ -10098,6 +10155,46 @@
       "copies": {
         "rust": "contracts/scenarios/auth-otp-creation.json",
         "go": "contracts/scenarios/auth-otp-creation.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/auth-registration.md",
+        "sha256": "e0f42f36fccabebdc50b0e9f13eaa3965656feafda10ebb1a1f1c7e82375915d"
+      },
+      "copies": {
+        "rust": "contracts/requirements/auth-registration.md",
+        "go": "contracts/requirements/auth-registration.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-registration.json",
+        "sha256": "b44fe783d6726078d5100349917ad930791b79dd72fc7c6d5e0b73dfb52079e7"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/auth-registration.json",
+        "go": "contracts/scenarios/auth-registration.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-agent-runtime.md",
+        "sha256": "adf68938f70f72c92d5af1bd274e68c4f7a04bb041e6bb85ab1257c6f2c72c2e"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-agent-runtime.md",
+        "go": "contracts/requirements/ai-agent-runtime.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-agent-runtime.json",
+        "sha256": "5c0c818a21ac04c84d68aa0c0b3fabe49dd5a74dc84fee07206977ffa34c4a14"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-agent-runtime.json",
+        "go": "contracts/scenarios/ai-agent-runtime.json"
       }
     }
   ]
