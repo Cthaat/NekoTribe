@@ -17,6 +17,74 @@ struct Executor {
 }
 
 #[derive(Default)]
+struct OtpExecutor {
+    calls: Mutex<Vec<(&'static str, BindMap)>>,
+}
+impl SessionExecutor for OtpExecutor {
+    fn execute(&self, q: &'static str, b: BindMap) -> StoreFuture<'_, u64> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((q, b));
+            Ok(1)
+        })
+    }
+    fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn query(&self, q: &'static str, b: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((q, b));
+            if q.contains("verification_code_hash") {
+                Ok(vec![DbRow::from([(
+                    "VERIFICATION_CODE_HASH".into(),
+                    DbValue::String("synthetic-hash".into()),
+                )])])
+            } else {
+                Ok(vec![DbRow::from([(
+                    "VERIFIED_AT".into(),
+                    DbValue::String("2026-01-02T11:04:05+08:00".into()),
+                )])])
+            }
+        })
+    }
+}
+#[tokio::test]
+async fn otp_repository_binds_values_and_maps_date() {
+    let repo = OracleSessions {
+        executor: OtpExecutor::default(),
+    };
+    assert_eq!(
+        repo.otp_lookup("fake';--", "register", "otp_fixture")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("synthetic-hash")
+    );
+    repo.otp_mark("otp_fixture").await.unwrap();
+    assert_eq!(
+        repo.otp_verified_at("otp_fixture")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("2026-01-02T03:04:05.000Z")
+    );
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert!(calls[0].0.contains("expires_at > CURRENT_TIMESTAMP"));
+    assert!(!calls[0].0.contains("fake';--"));
+    assert_eq!(calls[0].1["account"], DbValue::String("fake';--".into()));
+    assert_eq!(calls[0].1["otp_type"], DbValue::String("register".into()));
+    for call in calls.iter() {
+        assert_eq!(
+            call.1["verification_id"],
+            DbValue::String("otp_fixture".into())
+        );
+    }
+    assert!(calls[1]
+        .0
+        .starts_with("UPDATE n_auth_otp_events SET verified_at"));
+}
+
+#[derive(Default)]
 struct ListExecutor {
     calls: Mutex<Vec<(&'static str, BindMap)>>,
 }

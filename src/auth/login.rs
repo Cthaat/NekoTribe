@@ -67,7 +67,7 @@ pub struct RecoveryCode {
     pub hash: String,
 }
 
-fn scalar(value: Option<&Value>) -> String {
+pub(crate) fn scalar(value: Option<&Value>) -> String {
     match value {
         Some(Value::String(s)) => s.clone(),
         Some(Value::Bool(b)) => b.to_string(),
@@ -75,7 +75,7 @@ fn scalar(value: Option<&Value>) -> String {
         _ => String::new(),
     }
 }
-fn js_trim(value: &str) -> &str {
+pub(crate) fn js_trim(value: &str) -> &str {
     value.trim_matches(|c: char| (c.is_whitespace() && c != '\u{0085}') || c == '\u{feff}')
 }
 fn timestamp(seconds: u64) -> Option<String> {
@@ -123,7 +123,7 @@ fn client_ip(headers: &HeaderMap, extensions: &http::Extensions) -> String {
 fn server_error() -> ApiError {
     ApiError::server_error("服务器内部错误")
 }
-fn request_body(headers: &HeaderMap, bytes: &[u8]) -> Result<Value, ApiError> {
+pub(crate) fn request_body(headers: &HeaderMap, bytes: &[u8]) -> Result<Value, ApiError> {
     let content_type = headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())

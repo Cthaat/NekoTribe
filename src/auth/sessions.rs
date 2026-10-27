@@ -25,6 +25,20 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    fn otp_lookup<'a>(
+        &'a self,
+        _account: &'a str,
+        _kind: &'a str,
+        _id: &'a str,
+    ) -> StoreFuture<'a, Option<String>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn otp_mark<'a>(&'a self, _id: &'a str) -> StoreFuture<'a, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn otp_verified_at<'a>(&'a self, _id: &'a str) -> StoreFuture<'a, Option<String>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn touch<'a>(&'a self, claims: &'a TokenClaims) -> StoreFuture<'a, u64>;
     fn revoke<'a>(&'a self, user_id: u64, id: &'a str) -> StoreFuture<'a, u64>;
     fn revoke_others<'a>(&'a self, user_id: u64, current: &'a str) -> StoreFuture<'a, u64>;
@@ -213,6 +227,10 @@ pub fn build_native_router_with_storage(
         )
         .route("/api/v2/auth/sessions/{id}", delete(revoke))
         .route("/api/v2/auth/tokens", post(crate::auth::login::login))
+        .route(
+            "/api/v2/auth/otp/verification",
+            post(crate::auth::otp::verify_otp),
+        )
         .route(
             "/api/v2/auth/two-factor/challenges",
             post(crate::auth::login::complete_challenge),

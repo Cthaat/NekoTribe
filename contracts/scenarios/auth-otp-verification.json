@@ -1,0 +1,23 @@
+{
+  "id":"AUTH-OTP-VERIFY",
+  "revision":1,
+  "fixture":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","hash":"$2b$04$abcdefghijklmnopqrstuuFwMibPVIyV1/Vdxb3PVZCmM4bYxIada","verified_at":"2026-01-02T03:04:05.000Z"},
+  "cases":[
+    {"id":"OTP-V01","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","code":"123456"},"status":200,"updates":1},
+    {"id":"OTP-V02","body":{"account":" fake@example.test ","type":"register","verification_id":"otp_fixture","code":123456},"status":200,"updates":1},
+    {"id":"OTP-V03","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","code":"wrong"},"status":401,"updates":0},
+    {"id":"OTP-V04","body":{"account":"other@example.test","type":"register","verification_id":"otp_fixture","code":"123456"},"status":400,"updates":0},
+    {"id":"OTP-V05","body":{"account":"fake@example.test","type":"password_reset","verification_id":"otp_fixture","code":"123456"},"status":400,"updates":0},
+    {"id":"OTP-V06","body":{"account":"fake@example.test","type":"register","verification_id":"otp_other","code":"123456"},"status":400,"updates":0},
+    {"id":"OTP-V07","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","code":"123456"},"expired":true,"status":400,"updates":0},
+    {"id":"OTP-V08","body":{"account":"fake@example.test","type":"invalid","verification_id":"otp_fixture","code":"123456"},"status":400,"updates":0},
+    {"id":"OTP-V09","body":{"account":"","type":"register","verification_id":"otp_fixture","code":"123456"},"status":400,"updates":0},
+    {"id":"OTP-V10","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","code":"123456"},"fault":"lookup","status":500,"updates":0},
+    {"id":"OTP-V11","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","code":"123456"},"fault":"update","status":500,"updates":0},
+    {"id":"OTP-V12","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","code":"123456"},"fault":"readback","status":500,"updates":1},
+    {"id":"OTP-V13","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","code":"123456"},"repeat":true,"status":200,"updates":2},
+    {"id":"OTP-V14","body":{"account":"fake@example.test","verification_id":"otp_fixture","code":"123456"},"status":400,"updates":0},
+    {"id":"OTP-V15","body":{"account":"fake@example.test","type":"register","code":"123456"},"status":400,"updates":0},
+    {"id":"OTP-V16","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture"},"status":400,"updates":0}
+  ]
+}

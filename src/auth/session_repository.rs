@@ -35,6 +35,38 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn otp_lookup<'a>(
+        &'a self,
+        account: &'a str,
+        kind: &'a str,
+        id: &'a str,
+    ) -> StoreFuture<'a, Option<String>> {
+        Box::pin(async move {
+            let binds = BindMap::from([
+                ("account".into(), DbValue::String(account.into())),
+                ("otp_type".into(), DbValue::String(kind.into())),
+                ("verification_id".into(), DbValue::String(id.into())),
+            ]);
+            let rows=self.executor.query("SELECT verification_code_hash FROM n_auth_otp_events WHERE account = :account AND otp_type = :otp_type AND verification_id = :verification_id AND expires_at > CURRENT_TIMESTAMP ORDER BY created_at DESC FETCH FIRST 1 ROWS ONLY",binds).await?;
+            Ok(rows.first().map(|r| row_text(r, "VERIFICATION_CODE_HASH")))
+        })
+    }
+    fn otp_mark<'a>(&'a self, id: &'a str) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            self.executor.execute("UPDATE n_auth_otp_events SET verified_at = CURRENT_TIMESTAMP WHERE verification_id = :verification_id",BindMap::from([("verification_id".into(),DbValue::String(id.into()))])).await?;
+            Ok(())
+        })
+    }
+    fn otp_verified_at<'a>(&'a self, id: &'a str) -> StoreFuture<'a, Option<String>> {
+        Box::pin(async move {
+            let rows=self.executor.query("SELECT verified_at FROM n_auth_otp_events WHERE verification_id = :verification_id",BindMap::from([("verification_id".into(),DbValue::String(id.into()))])).await?;
+            Ok(rows
+                .first()
+                .map(|r| row_text(r, "VERIFIED_AT"))
+                .filter(|v| !v.is_empty())
+                .map(|v| profile_date(&v)))
+        })
+    }
     fn list_sessions<'a>(
         &'a self,
         user: u64,
