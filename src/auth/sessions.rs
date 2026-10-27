@@ -8,7 +8,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{delete, get, patch},
+    routing::{delete, get, patch, post},
     Json, Router,
 };
 use serde_json::json;
@@ -37,6 +37,84 @@ pub trait SessionRepository: Send + Sync {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn rotate<'a>(&'a self, _rotation: &'a SessionRotation) -> StoreFuture<'a, u64> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn login_account<'a>(
+        &'a self,
+        _account: &'a str,
+    ) -> StoreFuture<'a, Option<crate::auth::login::LoginAccount>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn login_two_factor<'a>(&'a self, _user: u64) -> StoreFuture<'a, bool> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn two_factor_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn login_trusted_device<'a>(
+        &'a self,
+        _user: u64,
+        _device: &'a crate::auth::login::LoginDevice,
+    ) -> StoreFuture<'a, bool> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn login_challenge<'a>(
+        &'a self,
+        _challenge: &'a crate::auth::login::LoginChallenge,
+    ) -> StoreFuture<'a, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn login_insert_session<'a>(
+        &'a self,
+        _session: &'a crate::auth::login::LoginSession,
+    ) -> StoreFuture<'a, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn known_login_device<'a>(
+        &'a self,
+        _user: u64,
+        _fingerprint: &'a str,
+    ) -> StoreFuture<'a, bool> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn record_login_alert<'a>(
+        &'a self,
+        _session: &'a crate::auth::login::LoginSession,
+    ) -> StoreFuture<'a, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn login_profile<'a>(&'a self, _user: u64) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn challenge_lookup<'a>(
+        &'a self,
+        _id: &'a str,
+    ) -> StoreFuture<'a, Option<crate::auth::login::ChallengeRow>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn two_factor_secret<'a>(
+        &'a self,
+        _user: u64,
+    ) -> StoreFuture<'a, Option<crate::auth::login::EncryptedSecret>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn recovery_codes<'a>(
+        &'a self,
+        _user: u64,
+    ) -> StoreFuture<'a, Vec<crate::auth::login::RecoveryCode>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn consume_recovery<'a>(&'a self, _id: u64) -> StoreFuture<'a, u64> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn consume_challenge<'a>(&'a self, _id: &'a str) -> StoreFuture<'a, u64> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn trust_challenge_device<'a>(
+        &'a self,
+        _row: &'a crate::auth::login::ChallengeRow,
+        _expires_at: &'a str,
+    ) -> StoreFuture<'a, ()> {
         Box::pin(async { Err(SessionStoreError) })
     }
 }
@@ -77,11 +155,11 @@ pub struct CorsPolicy {
     pub localhost: bool,
 }
 #[derive(Clone)]
-struct NativeState {
-    codec: Arc<TokenCodec>,
-    repository: Arc<dyn SessionRepository>,
-    clock: Arc<dyn Fn() -> u64 + Send + Sync>,
-    refresh_policy: RefreshPolicy,
+pub(crate) struct NativeState {
+    pub(crate) codec: Arc<TokenCodec>,
+    pub(crate) repository: Arc<dyn SessionRepository>,
+    pub(crate) clock: Arc<dyn Fn() -> u64 + Send + Sync>,
+    pub(crate) refresh_policy: RefreshPolicy,
 }
 pub fn build_native_router(
     codec: TokenCodec,
@@ -105,6 +183,15 @@ pub fn build_native_router_with_refresh(
         )
         .route("/api/v2/auth/sessions/others", delete(revoke))
         .route("/api/v2/auth/sessions/{id}", delete(revoke))
+        .route("/api/v2/auth/tokens", post(crate::auth::login::login))
+        .route(
+            "/api/v2/auth/two-factor/challenges",
+            post(crate::auth::login::complete_challenge),
+        )
+        .route(
+            "/api/v2/auth/two-factor/challenges/{id}",
+            post(crate::auth::login::complete_challenge),
+        )
         .route("/api/v2/auth/tokens/current", patch(refresh).delete(logout))
         .fallback(|| async { ApiError::route_not_found() })
         .layer(middleware::from_fn_with_state(cors, cors_middleware))

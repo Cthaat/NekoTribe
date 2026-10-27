@@ -11,9 +11,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
 
     tracing::info!(%bind_addr, "nekotribe rust backend listening");
-    axum::serve(listener, router)
-        .with_graceful_shutdown(app::shutdown::shutdown_signal())
-        .await?;
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(app::shutdown::shutdown_signal())
+    .await?;
 
     Ok(())
 }

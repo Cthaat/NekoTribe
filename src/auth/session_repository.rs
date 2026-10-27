@@ -5,7 +5,7 @@ use crate::{
         },
         TokenClaims,
     },
-    db::{oracle::BindMap, pool::OraclePool, value::DbValue},
+    db::{oracle::BindMap, pool::OraclePool, row::DbRow, value::DbValue},
 };
 
 pub const TOUCH_SQL:&str="UPDATE n_auth_sessions SET last_accessed_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND session_id = :session_id AND access_jti = :access_jti AND revoked_at IS NULL AND access_token_expires_at > CURRENT_TIMESTAMP";
@@ -19,6 +19,9 @@ pub const ROTATE_SQL: &str = "UPDATE n_auth_sessions SET access_jti = :access_jt
 pub trait SessionExecutor: Send + Sync {
     fn execute(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, u64>;
     fn preflight(&self, sql: &'static str) -> StoreFuture<'_, ()>;
+    fn query(&self, _sql: &'static str, _binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
 }
 pub struct OracleSessions<E> {
     pub executor: E,
@@ -29,6 +32,283 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn two_factor_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            for sql in [
+                "SELECT user_id,secret_encrypted,secret_iv,secret_auth_tag,enabled_at FROM n_user_two_factor_secrets WHERE 1=0",
+                "SELECT recovery_code_id,user_id,code_hash,used_at,created_at FROM n_user_two_factor_recovery_codes WHERE 1=0",
+                "SELECT trusted_device_id,user_id,device_fingerprint,device_info,ip_address,user_agent,expires_at,revoked_at,last_used_at FROM n_user_two_factor_trusted_devices WHERE 1=0",
+                "SELECT challenge_id,user_id,remember_me,device_info,device_fingerprint,ip_address,user_agent,expires_at,consumed_at FROM n_auth_two_factor_challenges WHERE 1=0",
+                "SELECT user_id,two_factor_enabled FROM n_user_settings WHERE 1=0"
+            ] { self.executor.query(sql,BindMap::new()).await?; }
+            Ok(())
+        })
+    }
+    fn login_account<'a>(
+        &'a self,
+        account: &'a str,
+    ) -> StoreFuture<'a, Option<crate::auth::login::LoginAccount>> {
+        Box::pin(async move {
+            let rows = self.executor.query("SELECT user_id, username, password_hash, status, is_active FROM n_users WHERE email = :account OR username = :account FETCH FIRST 1 ROWS ONLY", BindMap::from([("account".into(), DbValue::String(account.into()))])).await?;
+            rows.first()
+                .map(|r| {
+                    Ok(crate::auth::login::LoginAccount {
+                        user_id: row_id(r, "USER_ID")?,
+                        username: row_text(r, "USERNAME"),
+                        password_hash: row_text(r, "PASSWORD_HASH"),
+                        status: row_text(r, "STATUS"),
+                        active: row_number(r, "IS_ACTIVE") == 1,
+                    })
+                })
+                .transpose()
+        })
+    }
+    fn login_two_factor<'a>(&'a self, user: u64) -> StoreFuture<'a, bool> {
+        Box::pin(async move {
+            let rows = self.executor.query("SELECT NVL(us.two_factor_enabled, 0) AS two_factor_enabled, tf.enabled_at FROM n_users u LEFT JOIN n_user_settings us ON us.user_id = u.user_id LEFT JOIN n_user_two_factor_secrets tf ON tf.user_id = u.user_id WHERE u.user_id = :user_id", user_bind(user)).await?;
+            Ok(rows.first().is_some_and(|r| {
+                row_number(r, "TWO_FACTOR_ENABLED") != 0
+                    && r.get("ENABLED_AT")
+                        .is_some_and(|v| !matches!(v, DbValue::Null))
+            }))
+        })
+    }
+    fn login_trusted_device<'a>(
+        &'a self,
+        user: u64,
+        device: &'a crate::auth::login::LoginDevice,
+    ) -> StoreFuture<'a, bool> {
+        Box::pin(async move {
+            let fingerprint: String = device.fingerprint.chars().take(200).collect();
+            if fingerprint.is_empty() || fingerprint == "unknown" {
+                return Ok(false);
+            }
+            let mut binds = user_bind(user);
+            binds.insert("device_fingerprint".into(), DbValue::String(fingerprint));
+            let rows = self.executor.query("SELECT trusted_device_id FROM n_user_two_factor_trusted_devices WHERE user_id = :user_id AND device_fingerprint = :device_fingerprint AND expires_at > CURRENT_TIMESTAMP AND revoked_at IS NULL FETCH FIRST 1 ROWS ONLY", binds).await?;
+            let Some(row) = rows.first() else {
+                return Ok(false);
+            };
+            let id = row_id(row, "TRUSTED_DEVICE_ID")?;
+            let mut binds = device_bind(device, true);
+            binds.remove("device_fingerprint");
+            binds.insert("trusted_device_id".into(), DbValue::I64(id as i64));
+            self.executor.execute("UPDATE n_user_two_factor_trusted_devices SET last_used_at = CURRENT_TIMESTAMP, device_info = :device_info, ip_address = :ip_address, user_agent = :user_agent WHERE trusted_device_id = :trusted_device_id", binds).await?;
+            Ok(true)
+        })
+    }
+    fn login_challenge<'a>(
+        &'a self,
+        c: &'a crate::auth::login::LoginChallenge,
+    ) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            let mut b = device_bind(&c.device, true);
+            b.extend(user_bind(c.user_id));
+            b.insert("challenge_id".into(), DbValue::String(c.id.clone()));
+            b.insert("remember_me".into(), DbValue::I64(i64::from(c.remember)));
+            b.insert(
+                "expires_at".into(),
+                DbValue::String(oracle_time(&c.expires_at)),
+            );
+            self.executor.execute("INSERT INTO n_auth_two_factor_challenges (challenge_id,user_id,remember_me,device_info,device_fingerprint,ip_address,user_agent,expires_at) VALUES (:challenge_id,:user_id,:remember_me,:device_info,:device_fingerprint,:ip_address,:user_agent,CAST(TO_TIMESTAMP_TZ(:expires_at, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP))", b).await?;
+            Ok(())
+        })
+    }
+    fn login_insert_session<'a>(
+        &'a self,
+        s: &'a crate::auth::login::LoginSession,
+    ) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            let mut b = device_bind(&s.device, false);
+            b.extend(user_bind(s.user_id));
+            b.insert("session_id".into(), DbValue::String(s.id.clone()));
+            b.insert("access_jti".into(), DbValue::String(s.access_jti.clone()));
+            b.insert(
+                "refresh_token_hash".into(),
+                DbValue::String(s.refresh_hash.clone()),
+            );
+            b.insert(
+                "access_token_expires_at".into(),
+                DbValue::String(oracle_time(&s.access_expires_at)),
+            );
+            b.insert(
+                "refresh_token_expires_at".into(),
+                DbValue::String(oracle_time(&s.refresh_expires_at)),
+            );
+            self.executor.execute("INSERT INTO n_auth_sessions (session_id,user_id,access_jti,refresh_token_hash,device_info,device_fingerprint,ip_address,user_agent,access_token_expires_at,refresh_token_expires_at) VALUES (:session_id,:user_id,:access_jti,:refresh_token_hash,:device_info,:device_fingerprint,:ip_address,:user_agent,CAST(TO_TIMESTAMP_TZ(:access_token_expires_at, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP),CAST(TO_TIMESTAMP_TZ(:refresh_token_expires_at, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP))", b).await?;
+            self.executor
+                .execute(
+                    "UPDATE n_users SET last_login_at = CURRENT_TIMESTAMP WHERE user_id = :user_id",
+                    user_bind(s.user_id),
+                )
+                .await?;
+            Ok(())
+        })
+    }
+    fn known_login_device<'a>(&'a self, user: u64, fingerprint: &'a str) -> StoreFuture<'a, bool> {
+        Box::pin(async move {
+            let mut b = user_bind(user);
+            b.insert(
+                "device_fingerprint".into(),
+                DbValue::String(fingerprint.into()),
+            );
+            let rows=self.executor.query("SELECT COUNT(*) AS total FROM n_auth_sessions WHERE user_id=:user_id AND device_fingerprint=:device_fingerprint",b).await?;
+            let row = rows.first().ok_or(SessionStoreError)?;
+            Ok(row_number(row, "TOTAL") > 0)
+        })
+    }
+    fn record_login_alert<'a>(
+        &'a self,
+        session: &'a crate::auth::login::LoginSession,
+    ) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            let rows=self.executor.query("SELECT NVL(us.login_alerts,1) AS login_alerts,NVL(us.email_notification_enabled,1) AS email_notification_enabled FROM n_users u LEFT JOIN n_user_settings us ON us.user_id=u.user_id WHERE u.user_id=:user_id",user_bind(session.user_id)).await?;
+            if rows
+                .first()
+                .is_some_and(|r| row_number(r, "LOGIN_ALERTS") == 0)
+            {
+                return Ok(());
+            }
+            let mut b = user_bind(session.user_id);
+            b.insert(
+                "notification_type".into(),
+                DbValue::String("login_alert".into()),
+            );
+            let rows=self.executor.query("SELECT NVL(us.push_notification_enabled,1) AS push_notification_enabled,NVL(np.is_enabled,1) AS type_enabled FROM n_users u LEFT JOIN n_user_settings us ON us.user_id=u.user_id LEFT JOIN n_notification_preferences np ON np.user_id=u.user_id AND np.notification_type=:notification_type WHERE u.user_id=:user_id AND u.is_active=1",b).await?;
+            if rows
+                .first()
+                .is_none_or(|r| row_number(r, "TYPE_ENABLED") == 0)
+            {
+                return Ok(());
+            }
+            let ids = self
+                .executor
+                .query(
+                    "SELECT seq_notification_id.NEXTVAL AS id FROM dual",
+                    BindMap::new(),
+                )
+                .await?;
+            let id = row_id(ids.first().ok_or(SessionStoreError)?, "ID")?;
+            let device = &session.device;
+            let metadata=serde_json::json!({"session_id":session.id,"device_info":device.info,"device_fingerprint":device.fingerprint,"ip_address":device.ip,"user_agent":device.user_agent}).to_string();
+            let mut b = user_bind(session.user_id);
+            b.insert("notification_id".into(), DbValue::I64(id as i64));
+            b.insert("actor_id".into(), DbValue::Null);
+            b.insert("type".into(), DbValue::String("login_alert".into()));
+            b.insert("title".into(), DbValue::String("新设备登录提醒".into()));
+            b.insert(
+                "message".into(),
+                DbValue::String(format!(
+                    "你的账号刚刚通过新设备登录：{}",
+                    if device.info.is_empty() {
+                        "unknown"
+                    } else {
+                        &device.info
+                    }
+                )),
+            );
+            b.insert(
+                "resource_type".into(),
+                DbValue::String("auth_session".into()),
+            );
+            b.insert("resource_id".into(), DbValue::Null);
+            b.insert("priority".into(), DbValue::String("high".into()));
+            b.insert("metadata_json".into(), DbValue::String(metadata));
+            self.executor.execute("INSERT INTO n_notifications (notification_id,user_id,actor_id,type,title,message,resource_type,resource_id,priority,metadata_json) VALUES (:notification_id,:user_id,:actor_id,:type,:title,:message,:resource_type,:resource_id,:priority,:metadata_json)",b).await?;
+            Ok(())
+        })
+    }
+    fn login_profile<'a>(&'a self, user: u64) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async move {
+            let mut b = user_bind(user);
+            b.insert("viewer_id".into(), DbValue::I64(user as i64));
+            let rows = self.executor.query("SELECT user_id,email,username,avatar_url,display_name,bio,location,website,phone,TO_CHAR(birth_date,'YYYY-MM-DD') AS birth_date,email_verified_at,is_verified,is_active,status,followers_count,following_count,posts_count,likes_count,bookmarks_count,comments_count,'online' AS online_status,(SELECT MAX(s.last_accessed_at) FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL) AS last_seen_at,created_at,updated_at,fn_get_user_relationship(:viewer_id,u.user_id) AS relation FROM v_user_profile_self u WHERE u.user_id=:user_id", b).await?;
+            Ok(rows.first().map(profile_json))
+        })
+    }
+    fn challenge_lookup<'a>(
+        &'a self,
+        id: &'a str,
+    ) -> StoreFuture<'a, Option<crate::auth::login::ChallengeRow>> {
+        Box::pin(async move {
+            let b = BindMap::from([("challenge_id".into(), DbValue::String(id.into()))]);
+            let rows=self.executor.query("SELECT c.challenge_id,c.user_id,c.remember_me,c.device_info,c.device_fingerprint,c.ip_address,c.user_agent,u.username FROM n_auth_two_factor_challenges c JOIN n_users u ON u.user_id=c.user_id WHERE c.challenge_id=:challenge_id AND c.expires_at>CURRENT_TIMESTAMP AND c.consumed_at IS NULL AND u.is_active=1 AND u.status='active'",b).await?;
+            rows.first()
+                .map(|r| {
+                    Ok(crate::auth::login::ChallengeRow {
+                        user_id: row_id(r, "USER_ID")?,
+                        username: row_text(r, "USERNAME"),
+                        remember: row_number(r, "REMEMBER_ME") != 0,
+                        device: crate::auth::login::LoginDevice {
+                            fingerprint: row_text(r, "DEVICE_FINGERPRINT"),
+                            info: row_text(r, "DEVICE_INFO"),
+                            ip: row_text(r, "IP_ADDRESS"),
+                            user_agent: row_text(r, "USER_AGENT"),
+                        },
+                    })
+                })
+                .transpose()
+        })
+    }
+    fn two_factor_secret<'a>(
+        &'a self,
+        user: u64,
+    ) -> StoreFuture<'a, Option<crate::auth::login::EncryptedSecret>> {
+        Box::pin(async move {
+            let rows=self.executor.query("SELECT secret_encrypted,secret_iv,secret_auth_tag,enabled_at FROM n_user_two_factor_secrets WHERE user_id=:user_id",user_bind(user)).await?;
+            Ok(rows.first().map(|r| crate::auth::login::EncryptedSecret {
+                encrypted: row_text(r, "SECRET_ENCRYPTED"),
+                iv: row_text(r, "SECRET_IV"),
+                tag: row_text(r, "SECRET_AUTH_TAG"),
+                enabled: r
+                    .get("ENABLED_AT")
+                    .is_some_and(|v| !matches!(v, DbValue::Null)),
+            }))
+        })
+    }
+    fn recovery_codes<'a>(
+        &'a self,
+        user: u64,
+    ) -> StoreFuture<'a, Vec<crate::auth::login::RecoveryCode>> {
+        Box::pin(async move {
+            self.executor.query("SELECT recovery_code_id,code_hash FROM n_user_two_factor_recovery_codes WHERE user_id=:user_id AND used_at IS NULL ORDER BY created_at ASC",user_bind(user)).await?.iter().map(|r|Ok(crate::auth::login::RecoveryCode{id:row_id(r,"RECOVERY_CODE_ID")?,hash:row_text(r,"CODE_HASH")})).collect()
+        })
+    }
+    fn consume_recovery<'a>(&'a self, id: u64) -> StoreFuture<'a, u64> {
+        self.executor.execute("UPDATE n_user_two_factor_recovery_codes SET used_at=CURRENT_TIMESTAMP WHERE recovery_code_id=:recovery_code_id AND used_at IS NULL",BindMap::from([("recovery_code_id".into(),DbValue::I64(id as i64))]))
+    }
+    fn consume_challenge<'a>(&'a self, id: &'a str) -> StoreFuture<'a, u64> {
+        self.executor.execute("UPDATE n_auth_two_factor_challenges SET consumed_at=CURRENT_TIMESTAMP WHERE challenge_id=:challenge_id AND consumed_at IS NULL AND expires_at>CURRENT_TIMESTAMP",BindMap::from([("challenge_id".into(),DbValue::String(id.into()))]))
+    }
+    fn trust_challenge_device<'a>(
+        &'a self,
+        row: &'a crate::auth::login::ChallengeRow,
+        expires_at: &'a str,
+    ) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            let fingerprint: String = row.device.fingerprint.chars().take(200).collect();
+            if fingerprint.is_empty() || fingerprint == "unknown" {
+                return Ok(());
+            }
+            let idrows = self
+                .executor
+                .query(
+                    "SELECT seq_2fa_trusted_device_id.NEXTVAL AS id FROM dual",
+                    BindMap::new(),
+                )
+                .await?;
+            let id = row_id(idrows.first().ok_or(SessionStoreError)?, "ID")?;
+            let mut b = device_bind(&row.device, true);
+            b.extend(user_bind(row.user_id));
+            b.insert("trusted_device_id".into(), DbValue::I64(id as i64));
+            b.insert(
+                "expires_at".into(),
+                DbValue::String(oracle_time(expires_at)),
+            );
+            self.executor.execute("MERGE INTO n_user_two_factor_trusted_devices target USING (SELECT :user_id AS user_id,:device_fingerprint AS device_fingerprint FROM dual) src ON (target.user_id=src.user_id AND target.device_fingerprint=src.device_fingerprint) WHEN MATCHED THEN UPDATE SET device_info=:device_info,ip_address=:ip_address,user_agent=:user_agent,expires_at=CAST(TO_TIMESTAMP_TZ(:expires_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP),revoked_at=NULL,last_used_at=CURRENT_TIMESTAMP WHEN NOT MATCHED THEN INSERT (trusted_device_id,user_id,device_fingerprint,device_info,ip_address,user_agent,expires_at) VALUES (:trusted_device_id,:user_id,:device_fingerprint,:device_info,:ip_address,:user_agent,CAST(TO_TIMESTAMP_TZ(:expires_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP))",b).await?;
+            Ok(())
+        })
+    }
     fn touch<'a>(&'a self, claims: &'a TokenClaims) -> StoreFuture<'a, u64> {
         let mut binds = session_binds(claims.user_id, &claims.session_id);
         binds.insert("access_jti".into(), DbValue::String(claims.jti.clone()));
@@ -89,6 +369,13 @@ fn session_binds(user: u64, id: &str) -> BindMap {
     ])
 }
 impl SessionExecutor for OraclePool {
+    fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
+        Box::pin(async move {
+            self.query_rows(sql, binds)
+                .await
+                .map_err(|_| SessionStoreError)
+        })
+    }
     fn execute(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, u64> {
         Box::pin(async move {
             OraclePool::execute(self, sql, binds)
@@ -104,5 +391,110 @@ impl SessionExecutor for OraclePool {
                 .map(|_| ())
                 .map_err(|_| SessionStoreError)
         })
+    }
+}
+
+fn user_bind(user: u64) -> BindMap {
+    BindMap::from([("user_id".into(), DbValue::I64(user as i64))])
+}
+fn row_number(row: &DbRow, key: &str) -> i64 {
+    row.get(key).and_then(DbValue::as_i64).unwrap_or_default()
+}
+fn row_id(row: &DbRow, key: &str) -> Result<u64, SessionStoreError> {
+    u64::try_from(row_number(row, key))
+        .ok()
+        .filter(|n| *n > 0 && *n <= 9_007_199_254_740_991)
+        .ok_or(SessionStoreError)
+}
+fn row_text(row: &DbRow, key: &str) -> String {
+    row.get(key)
+        .and_then(DbValue::as_str)
+        .unwrap_or_default()
+        .to_owned()
+}
+fn oracle_time(value: &str) -> String {
+    value.trim_end_matches('Z').to_owned() + "+00:00"
+}
+fn device_bind(device: &crate::auth::login::LoginDevice, truncate: bool) -> BindMap {
+    let text = |value: &str| {
+        if truncate {
+            value.chars().take(200).collect()
+        } else {
+            value.to_owned()
+        }
+    };
+    BindMap::from([
+        (
+            "device_fingerprint".into(),
+            DbValue::String(text(&device.fingerprint)),
+        ),
+        ("device_info".into(), DbValue::String(text(&device.info))),
+        ("ip_address".into(), DbValue::String(device.ip.clone())),
+        (
+            "user_agent".into(),
+            DbValue::String(device.user_agent.clone()),
+        ),
+    ])
+}
+fn profile_json(r: &DbRow) -> serde_json::Value {
+    let relation = row_text(r, "RELATION");
+    let avatar = row_text(r, "AVATAR_URL");
+    let avatar = avatar.trim();
+    let optional = |key| r.get(key).and_then(DbValue::as_str).map(str::to_owned);
+    serde_json::json!({"user_id":row_number(r,"USER_ID"),"username":row_text(r,"USERNAME"),"display_name":row_text(r,"DISPLAY_NAME"),"avatar_url":if avatar.is_empty() || avatar=="/default-avatar.png" || avatar=="default-avatar.png" {"/storage/default-avatar.png"} else {avatar},"bio":row_text(r,"BIO"),"location":row_text(r,"LOCATION"),"website":row_text(r,"WEBSITE"),"is_verified":row_number(r,"IS_VERIFIED"),"followers_count":row_number(r,"FOLLOWERS_COUNT"),"following_count":row_number(r,"FOLLOWING_COUNT"),"posts_count":row_number(r,"POSTS_COUNT"),"likes_count":row_number(r,"LIKES_COUNT"),"relationship":{"is_self":relation=="self","is_following":relation=="following" || relation=="mutual_follow","is_blocked":relation=="blocked_by","is_blocking":relation=="blocking","relation":if relation.is_empty(){"none"}else{&relation}},"online_status":"online","last_seen_at":optional("LAST_SEEN_AT").map(|s|profile_date(&s)),"email":row_text(r,"EMAIL"),"phone":row_text(r,"PHONE"),"birth_date":optional("BIRTH_DATE"),"email_verified_at":optional("EMAIL_VERIFIED_AT").map(|s|profile_date(&s)),"is_active":row_number(r,"IS_ACTIVE"),"status":row_text(r,"STATUS"),"created_at":optional("CREATED_AT").map(|s|profile_date(&s)).unwrap_or_default(),"updated_at":optional("UPDATED_AT").map(|s|profile_date(&s)).unwrap_or_default()})
+}
+
+fn profile_date(text: &str) -> String {
+    use chrono::{SecondsFormat, TimeZone};
+    if let Ok(date) = chrono::DateTime::parse_from_rfc3339(text) {
+        return date
+            .with_timezone(&chrono::Utc)
+            .to_rfc3339_opts(SecondsFormat::Millis, true);
+    }
+    if let Ok(date) = chrono::DateTime::parse_from_str(text, "%Y-%m-%d %H:%M:%S%.f %:z") {
+        return date
+            .with_timezone(&chrono::Utc)
+            .to_rfc3339_opts(SecondsFormat::Millis, true);
+    }
+    if let Ok(date) = chrono::NaiveDateTime::parse_from_str(text, "%Y-%m-%d %H:%M:%S%.f") {
+        if let Some(local) = chrono::Local.from_local_datetime(&date).earliest() {
+            return local
+                .with_timezone(&chrono::Utc)
+                .to_rfc3339_opts(SecondsFormat::Millis, true);
+        }
+    }
+    text.to_owned()
+}
+
+#[cfg(test)]
+mod profile_tests {
+    use super::*;
+    #[test]
+    fn oracle_timestamp_and_whitespace_avatar_map_like_default_nuxt_shape() {
+        use chrono::TimeZone;
+        let text = oracle::sql_type::Timestamp::new(2017, 8, 9, 11, 22, 33, 500_000_000)
+            .unwrap()
+            .to_string();
+        let expected = chrono::Local
+            .with_ymd_and_hms(2017, 8, 9, 11, 22, 33)
+            .earliest()
+            .unwrap()
+            .with_timezone(&chrono::Utc)
+            .format("%Y-%m-%dT%H:%M:%S.500Z")
+            .to_string();
+        let row = DbRow::from([
+            (
+                "AVATAR_URL".into(),
+                DbValue::String(" /default-avatar.png ".into()),
+            ),
+            ("CREATED_AT".into(), DbValue::String(text)),
+        ]);
+        let profile = profile_json(&row);
+        assert_eq!(profile["avatar_url"], "/storage/default-avatar.png");
+        assert_eq!(profile["created_at"], expected);
+        assert_eq!(
+            profile_date("2017-08-09 11:22:33.500 -08:00"),
+            "2017-08-09T19:22:33.500Z"
+        );
     }
 }

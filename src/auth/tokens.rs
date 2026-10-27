@@ -1,6 +1,7 @@
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 const MAX_SAFE_USER_ID: u64 = 9_007_199_254_740_991;
 
@@ -66,6 +67,7 @@ pub struct TokenCodec {
     access_decoding: DecodingKey,
     refresh_encoding: EncodingKey,
     refresh_decoding: DecodingKey,
+    two_factor_key: [u8; 32],
 }
 
 impl TokenCodec {
@@ -78,7 +80,12 @@ impl TokenCodec {
             access_decoding: DecodingKey::from_secret(access_key),
             refresh_encoding: EncodingKey::from_secret(refresh_key),
             refresh_decoding: DecodingKey::from_secret(refresh_key),
+            two_factor_key: Sha256::digest(refresh_key).into(),
         })
+    }
+
+    pub(crate) fn two_factor_key(&self) -> &[u8; 32] {
+        &self.two_factor_key
     }
 
     pub fn sign(&self, input: &IssuedToken) -> Result<String, TokenError> {

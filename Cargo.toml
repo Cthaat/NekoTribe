@@ -13,9 +13,13 @@ name = "nekotribe-backend"
 path = "src/main.rs"
 
 [dependencies]
+aes-gcm = "=0.10.3"
 axum = "0.8"
+base64 = "=0.22.1"
+bcrypt = "=0.17.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 hex = "0.4"
+hmac = "=0.12.1"
 http = "1"
 jsonwebtoken = { version = "=10.3.0", default-features = false, features = ["rust_crypto"] }
 oracle = { version = "0.6.3", features = ["chrono"] }
@@ -24,7 +28,9 @@ regex = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "stream"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha1 = "=0.10.6"
 sha2 = "0.10"
+subtle = "2"
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync"] }
 tower = "0.5"

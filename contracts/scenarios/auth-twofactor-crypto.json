@@ -1,0 +1,31 @@
+{
+  "id": "AUTH-2FA-CRYPTO",
+  "revision": 1,
+  "scope": "Public synthetic Node AES-256-GCM samples; never production credentials",
+  "cases": [
+    {
+      "id": "2FA-CRYPTO-001",
+      "refreshSecret": "synthetic-2fa-refresh-secret-public-test-only",
+      "encrypted": "WOm/PMv0LChzuOCS9aDVWw==",
+      "iv": "AAECAwQFBgcICQoL",
+      "tag": "hqe2sDecz5JLsEso/8+emw==",
+      "expected": "JBSWY3DPEHPK3PXP"
+    },
+    {
+      "id": "2FA-CRYPTO-002",
+      "refreshSecret": "synthetic-2fa-refresh-secret-public-test-only",
+      "encrypted": "WOm/PMv0LChzuOCS9aDVWw==",
+      "iv": "AAECAwQFBgcICQoL",
+      "tag": "h6e2sDecz5JLsEso/8+emw==",
+      "expected": null
+    },
+    {
+      "id": "2FA-CRYPTO-003",
+      "refreshSecret": "wrong-public-test-secret",
+      "encrypted": "WOm/PMv0LChzuOCS9aDVWw==",
+      "iv": "AAECAwQFBgcICQoL",
+      "tag": "hqe2sDecz5JLsEso/8+emw==",
+      "expected": null
+    }
+  ]
+}

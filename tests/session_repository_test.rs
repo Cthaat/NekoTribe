@@ -1,12 +1,13 @@
 use nekotribe_backend::{
     auth::{
+        login::{LoginChallenge, LoginDevice, LoginSession},
         session_repository::{OracleSessions, SessionExecutor},
         sessions::{
             SessionCredential, SessionRepository, SessionRotation, SessionStoreError, StoreFuture,
         },
         TokenClaims, TokenKind,
     },
-    db::{oracle::BindMap, value::DbValue},
+    db::{oracle::BindMap, row::DbRow, value::DbValue},
 };
 use std::sync::Mutex;
 #[derive(Default)]
@@ -61,6 +62,16 @@ async fn logout_repository_binds_exact_user_session_and_current_credential() {
     );
 }
 impl SessionExecutor for Executor {
+    fn query(&self, q: &'static str, b: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((q, b));
+            if self.fail {
+                Err(SessionStoreError)
+            } else {
+                Ok(vec![])
+            }
+        })
+    }
     fn execute(&self, q: &'static str, b: BindMap) -> StoreFuture<'_, u64> {
         Box::pin(async move {
             self.calls.lock().unwrap().push((q, b));
@@ -80,6 +91,198 @@ impl SessionExecutor for Executor {
                 Ok(())
             }
         })
+    }
+}
+
+#[tokio::test]
+async fn two_factor_readiness_checks_all_required_tables_using_select_only() {
+    let repo = OracleSessions {
+        executor: Executor::default(),
+    };
+    repo.two_factor_readiness().await.unwrap();
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 5);
+    for (sql, binds) in calls.iter() {
+        assert!(sql.starts_with("SELECT "));
+        assert!(sql.contains("WHERE 1=0"));
+        assert!(binds.is_empty());
+    }
+    for table in [
+        "n_user_two_factor_secrets",
+        "n_user_two_factor_recovery_codes",
+        "n_user_two_factor_trusted_devices",
+        "n_auth_two_factor_challenges",
+        "n_user_settings",
+    ] {
+        assert!(calls.iter().any(|(sql, _)| sql.contains(table)));
+    }
+    drop(calls);
+    let broken = OracleSessions {
+        executor: Executor {
+            fail: true,
+            ..Default::default()
+        },
+    };
+    assert!(broken.two_factor_readiness().await.is_err());
+}
+
+#[tokio::test]
+async fn native_login_queries_and_writes_use_named_binds_and_independent_operations() {
+    let repo = OracleSessions {
+        executor: Executor::default(),
+    };
+    assert!(repo
+        .login_account("untrusted' OR 1=1--")
+        .await
+        .unwrap()
+        .is_none());
+    let device = || LoginDevice {
+        fingerprint: "device".into(),
+        info: "browser".into(),
+        ip: "127.0.0.1".into(),
+        user_agent: "test".into(),
+    };
+    let challenge = LoginChallenge {
+        id: "2fa_id".into(),
+        user_id: 42,
+        remember: true,
+        device: device(),
+        expires_at: "2023-11-14T22:18:20.000Z".into(),
+    };
+    repo.login_challenge(&challenge).await.unwrap();
+    let session = LoginSession {
+        id: "sess_id".into(),
+        user_id: 42,
+        access_jti: "jti".into(),
+        refresh_hash: "hash".into(),
+        device: device(),
+        access_expires_at: "2023-11-14T22:28:20.000Z".into(),
+        refresh_expires_at: "2023-12-14T22:13:20.000Z".into(),
+    };
+    repo.login_insert_session(&session).await.unwrap();
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 4);
+    assert!(!calls[0].0.contains("untrusted"));
+    assert_eq!(
+        calls[0].1["account"],
+        DbValue::String("untrusted' OR 1=1--".into())
+    );
+    assert!(calls[1]
+        .0
+        .contains("INSERT INTO n_auth_two_factor_challenges"));
+    assert_eq!(calls[1].1["challenge_id"], DbValue::String("2fa_id".into()));
+    assert!(calls[2].0.contains("INSERT INTO n_auth_sessions"));
+    assert_eq!(
+        calls[2].1["refresh_token_hash"],
+        DbValue::String("hash".into())
+    );
+    assert!(calls[3].0.contains("UPDATE n_users SET last_login_at"));
+    assert_eq!(calls[3].1["user_id"], DbValue::I64(42));
+}
+
+#[tokio::test]
+async fn trusted_device_lookup_requires_unexpired_and_unrevoked_owner_match() {
+    let repo = OracleSessions {
+        executor: Executor::default(),
+    };
+    let device = LoginDevice {
+        fingerprint: "device';--".into(),
+        info: "browser".into(),
+        ip: "127.0.0.1".into(),
+        user_agent: "test".into(),
+    };
+    assert!(!repo.login_trusted_device(42, &device).await.unwrap());
+    let calls = repo.executor.calls.lock().unwrap();
+    let (sql, binds) = &calls[0];
+    assert!(sql.contains("user_id = :user_id"));
+    assert!(sql.contains("expires_at > CURRENT_TIMESTAMP"));
+    assert!(sql.contains("revoked_at IS NULL"));
+    assert!(!sql.contains("device';--"));
+    assert_eq!(binds["user_id"], DbValue::I64(42));
+    assert_eq!(
+        binds["device_fingerprint"],
+        DbValue::String("device';--".into())
+    );
+}
+
+struct AlertExecutor {
+    enabled: bool,
+    kind_enabled: bool,
+    calls: Mutex<Vec<(&'static str, BindMap)>>,
+}
+impl SessionExecutor for AlertExecutor {
+    fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn execute(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, u64> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((sql, binds));
+            Ok(1)
+        })
+    }
+    fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((sql, binds));
+            let row = if sql.contains("COUNT(*)") {
+                DbRow::from([("TOTAL".into(), DbValue::I64(0))])
+            } else if sql.contains("login_alerts") {
+                DbRow::from([("LOGIN_ALERTS".into(), DbValue::I64(i64::from(self.enabled)))])
+            } else if sql.contains("type_enabled") {
+                DbRow::from([(
+                    "TYPE_ENABLED".into(),
+                    DbValue::I64(i64::from(self.kind_enabled)),
+                )])
+            } else if sql.contains("NEXTVAL") {
+                DbRow::from([("ID".into(), DbValue::I64(12))])
+            } else {
+                return Err(SessionStoreError);
+            };
+            Ok(vec![row])
+        })
+    }
+}
+
+#[tokio::test]
+async fn login_alert_honors_device_history_and_both_preference_gates() {
+    for (enabled, kind_enabled, expected_insert) in [
+        (false, true, false),
+        (true, false, false),
+        (true, true, true),
+    ] {
+        let repo = OracleSessions {
+            executor: AlertExecutor {
+                enabled,
+                kind_enabled,
+                calls: Mutex::new(vec![]),
+            },
+        };
+        assert!(!repo.known_login_device(42, "dev").await.unwrap());
+        let session = LoginSession {
+            id: "sess_1".into(),
+            user_id: 42,
+            access_jti: "jti".into(),
+            refresh_hash: "hash".into(),
+            device: LoginDevice {
+                fingerprint: "dev".into(),
+                info: "browser".into(),
+                ip: "127.0.0.1".into(),
+                user_agent: "test".into(),
+            },
+            access_expires_at: "".into(),
+            refresh_expires_at: "".into(),
+        };
+        repo.record_login_alert(&session).await.unwrap();
+        let calls = repo.executor.calls.lock().unwrap();
+        let insert = calls
+            .iter()
+            .find(|(sql, _)| sql.starts_with("INSERT INTO n_notifications"));
+        assert_eq!(insert.is_some(), expected_insert);
+        if let Some((sql, binds)) = insert {
+            assert!(!sql.contains("sess_1"));
+            assert_eq!(binds["user_id"], DbValue::I64(42));
+            assert_eq!(binds["type"], DbValue::String("login_alert".into()));
+            assert!(binds["metadata_json"].as_str().unwrap().contains("sess_1"));
+        }
     }
 }
 #[tokio::test]
