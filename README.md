@@ -17,6 +17,14 @@ go build ./...
 
 本地 `contracts/scenarios/auth-tokens.json` revision 2 为三后端相同的 25 个公开合成样例；测试只读取本工程副本。Windows 包测试与 vet 已通过，另已用 Nuxt JWT 库核对 Go 签发的 access/refresh 格式；这不是实际 HTTP、会话撤销或数据库业务验收。JWT 签名有效后仍须核对真实数据库会话、过期、撤销及 refresh hash 轮换。Hex/boolean/array 等 JavaScript Number 宽转换仍属共同认证需求的规则审查范围，不声称已完整复刻。
 
+## 模型配置组件
+
+`internal/ai/model_config.go` 按 `contracts/requirements/ai-model-configuration.md` 校验提供方/模型/用途绑定，返回独立选择快照；`Replace` 用版本比较和互斥锁原子发布，失败保留旧配置。模型名称自由配置，凭据仅引用环境变量名；本组件不读取环境、不联网，也没有实现提供方 HTTP 适配器、模型能力探测、索引或完整 AI 接口。
+
+`contracts/scenarios/ai-model-config.json` 的 52 个共享组件场景已通过，补充测试覆盖配置隔离和并发。`go test ./...`、`go vet ./...` 通过。产品权限和完整验收要求位于 `contracts/requirements/ai-product-scope.md`、`ai-model-switching.md`，相关产品场景仍为 not-run；不能把配置选择成功当作真实模型切换通过。
+
+公共需求和场景副本由 Nuxt 的 `specifications/parity.json` 固定 LF SHA-256；在管理目录执行 `node nuxt/scripts/parity.mjs check --workspace-root .` 可检查 Rust/Go 是否遗漏最新副本。独立克隆的 Go 编译/测试只读取本工程，不需要兄弟源码。
+
 本工作区位于 `C:/Code/NekoTribe/go`，分支为 `codex/go`，与 Nuxt、Rust、Flutter 共用 `../nuxt/.git`。继承的 Nuxt 应用文件已从此分支移除，原历史仍保留在 Git 中。
 
 ## 契约来源
