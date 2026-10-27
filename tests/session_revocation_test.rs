@@ -301,6 +301,37 @@ async fn native_cors_precedes_auth_and_unknown_routes_do_not_proxy() {
 }
 
 #[tokio::test]
+async fn refresh_without_credentials_is_unauthorized() {
+    use axum::{body::Body, http::Request};
+    use tower::ServiceExt;
+    let f = fixture();
+    let repo = Arc::new(Repository(Mutex::new(Memory {
+        rows: vec![],
+        now: f.now,
+        fault: None,
+        touches: 0,
+        revokes: 0,
+    })));
+    let router = build_native_router(
+        TokenCodec::new(f.keys.access.as_bytes(), f.keys.refresh.as_bytes()).unwrap(),
+        repo,
+        CorsPolicy::default(),
+        Arc::new(move || f.now),
+    );
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/api/v2/auth/tokens/current")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 401);
+}
+
+#[tokio::test]
 async fn native_actual_cors_ignores_preflight_only_headers() {
     let f = fixture();
     let repo = Arc::new(Repository(Mutex::new(Memory {

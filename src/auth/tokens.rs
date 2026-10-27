@@ -98,6 +98,21 @@ impl TokenCodec {
         expected_kind: TokenKind,
         now: u64,
     ) -> Result<TokenClaims, TokenError> {
+        self.verify_inner(token, expected_kind, now, true)
+    }
+
+    /// Nuxt's refresh endpoint does not inspect the refresh JWT's jti.
+    pub fn verify_for_rotation(&self, token: &str, now: u64) -> Result<TokenClaims, TokenError> {
+        self.verify_inner(token, TokenKind::Refresh, now, false)
+    }
+
+    fn verify_inner(
+        &self,
+        token: &str,
+        expected_kind: TokenKind,
+        now: u64,
+        require_jti: bool,
+    ) -> Result<TokenClaims, TokenError> {
         let key = match expected_kind {
             TokenKind::Access => &self.access_decoding,
             TokenKind::Refresh => &self.refresh_decoding,
@@ -162,7 +177,15 @@ impl TokenCodec {
             // iat is informational, and future iat is accepted like Nuxt.
             issued_at: payload.get("iat").and_then(Value::as_f64),
             expires_at,
-            jti: string_claim("jti")?,
+            jti: if require_jti {
+                string_claim("jti")?
+            } else {
+                payload
+                    .get("jti")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned()
+            },
         })
     }
 }

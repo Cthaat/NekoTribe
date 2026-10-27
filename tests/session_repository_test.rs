@@ -1,7 +1,7 @@
 use nekotribe_backend::{
     auth::{
         session_repository::{OracleSessions, SessionExecutor},
-        sessions::{SessionRepository, SessionStoreError, StoreFuture},
+        sessions::{SessionRepository, SessionRotation, SessionStoreError, StoreFuture},
         TokenClaims, TokenKind,
     },
     db::{oracle::BindMap, value::DbValue},
@@ -87,4 +87,40 @@ async fn production_repository_errors_are_safe() {
         "session store unavailable"
     );
     assert!(r.preflight().await.is_err())
+}
+
+#[tokio::test]
+async fn rotation_uses_one_atomic_conditional_update_with_bound_values() {
+    let r = OracleSessions {
+        executor: Executor::default(),
+    };
+    let rotation = SessionRotation {
+        user_id: 42,
+        session_id: "sess_test".into(),
+        old_refresh_hash: "old".into(),
+        refresh_hash: "new".into(),
+        access_jti: "new-jti".into(),
+        access_expires_at: "2026-10-27T12:00:00.000Z".into(),
+        refresh_expires_at: "2026-11-27T12:00:00.000Z".into(),
+    };
+    assert_eq!(r.rotate(&rotation).await.unwrap(), 1);
+    let calls = r.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    let (sql, binds) = &calls[0];
+    for clause in [
+        "refresh_token_hash = :old_refresh_hash",
+        "user_id = :user_id",
+        "session_id = :session_id",
+        "revoked_at IS NULL",
+        "refresh_token_expires_at > CURRENT_TIMESTAMP",
+        "last_refresh_at = CURRENT_TIMESTAMP",
+    ] {
+        assert!(sql.contains(clause), "{clause}");
+    }
+    assert_eq!(binds["old_refresh_hash"], DbValue::String("old".into()));
+    assert_eq!(binds["refresh_token_hash"], DbValue::String("new".into()));
+    assert_eq!(
+        binds["access_expires_at"],
+        DbValue::String("2026-10-27T12:00:00.000+00:00".into())
+    );
 }

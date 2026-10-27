@@ -1,5 +1,5 @@
 use crate::{
-    auth::{TokenClaims, TokenCodec, TokenKind},
+    auth::{IssuedToken, TokenClaims, TokenCodec, TokenKind},
     httpx::{errors::ApiError, response::V2Response},
 };
 use axum::{
@@ -8,10 +8,11 @@ use axum::{
     http::{HeaderMap, HeaderValue, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{delete, get},
+    routing::{delete, get, patch},
     Json, Router,
 };
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::{
     future::Future,
     pin::Pin,
@@ -27,6 +28,35 @@ pub trait SessionRepository: Send + Sync {
     fn touch<'a>(&'a self, claims: &'a TokenClaims) -> StoreFuture<'a, u64>;
     fn revoke<'a>(&'a self, user_id: u64, id: &'a str) -> StoreFuture<'a, u64>;
     fn revoke_others<'a>(&'a self, user_id: u64, current: &'a str) -> StoreFuture<'a, u64>;
+    fn rotate<'a>(&'a self, _rotation: &'a SessionRotation) -> StoreFuture<'a, u64> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+}
+
+pub struct SessionRotation {
+    pub user_id: u64,
+    pub session_id: String,
+    pub old_refresh_hash: String,
+    pub refresh_hash: String,
+    pub access_jti: String,
+    pub access_expires_at: String,
+    pub refresh_expires_at: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RefreshPolicy {
+    pub access_seconds: u64,
+    pub refresh_seconds: u64,
+    pub cookie_secure: bool,
+}
+impl Default for RefreshPolicy {
+    fn default() -> Self {
+        Self {
+            access_seconds: 900,
+            refresh_seconds: 2_592_000,
+            cookie_secure: false,
+        }
+    }
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CorsPolicy {
@@ -38,12 +68,22 @@ struct NativeState {
     codec: Arc<TokenCodec>,
     repository: Arc<dyn SessionRepository>,
     clock: Arc<dyn Fn() -> u64 + Send + Sync>,
+    refresh_policy: RefreshPolicy,
 }
 pub fn build_native_router(
     codec: TokenCodec,
     repository: Arc<dyn SessionRepository>,
     cors: CorsPolicy,
     clock: Arc<dyn Fn() -> u64 + Send + Sync>,
+) -> Router {
+    build_native_router_with_refresh(codec, repository, cors, clock, RefreshPolicy::default())
+}
+pub fn build_native_router_with_refresh(
+    codec: TokenCodec,
+    repository: Arc<dyn SessionRepository>,
+    cors: CorsPolicy,
+    clock: Arc<dyn Fn() -> u64 + Send + Sync>,
+    refresh_policy: RefreshPolicy,
 ) -> Router {
     Router::new()
         .route(
@@ -52,12 +92,173 @@ pub fn build_native_router(
         )
         .route("/api/v2/auth/sessions/others", delete(revoke))
         .route("/api/v2/auth/sessions/{id}", delete(revoke))
+        .route("/api/v2/auth/tokens/current", patch(refresh))
         .fallback(|| async { ApiError::route_not_found() })
         .layer(middleware::from_fn_with_state(cors, cors_middleware))
         .with_state(NativeState {
             codec: Arc::new(codec),
             repository,
             clock,
+            refresh_policy,
+        })
+}
+
+async fn refresh(
+    State(state): State<NativeState>,
+    request: Request<Body>,
+) -> Result<Response, ApiError> {
+    let (parts, body) = request.into_parts();
+    let headers = parts.headers;
+    let cookie = named_cookie(&headers, "refresh_token");
+    // Nuxt decides whether to read JSON using the untrimmed Cookie value.
+    let token = match cookie.filter(|v| !v.is_empty()) {
+        Some(value) => value.trim().to_owned(),
+        None => {
+            // Ignore malformed or oversized bodies, just like a failed Nuxt body parse.
+            let bytes = axum::body::to_bytes(body, 1024 * 1024)
+                .await
+                .unwrap_or_default();
+            body_refresh_token(&headers, &bytes).unwrap_or_default()
+        }
+    };
+    let unauthorized = || ApiError::unauthorized("未认证或 token 无效");
+    if token.is_empty() {
+        return Err(unauthorized());
+    }
+    let now = (state.clock)();
+    let claims = state
+        .codec
+        .verify_for_rotation(&token, now)
+        .map_err(|_| unauthorized())?;
+    let policy = state.refresh_policy;
+    let access_expiry = now
+        .checked_add(policy.access_seconds)
+        .ok_or_else(|| ApiError::server_error("服务器内部错误"))?;
+    let refresh_expiry = now
+        .checked_add(policy.refresh_seconds)
+        .ok_or_else(|| ApiError::server_error("服务器内部错误"))?;
+    let iso = |time: u64| {
+        chrono::DateTime::from_timestamp(i64::try_from(time).ok()?, 0)
+            .map(|t| t.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+    };
+    let access_date = iso(access_expiry).ok_or_else(|| ApiError::server_error("服务器内部错误"))?;
+    let refresh_date =
+        iso(refresh_expiry).ok_or_else(|| ApiError::server_error("服务器内部错误"))?;
+    let access_jti = uuid::Uuid::new_v4().to_string();
+    let issue = |kind, expires_at, jti| IssuedToken {
+        user_id: claims.user_id,
+        user_name: claims.user_name.clone().unwrap_or_default(),
+        session_id: claims.session_id.clone(),
+        kind,
+        issued_at: now,
+        expires_at,
+        jti,
+    };
+    let access = state
+        .codec
+        .sign(&issue(TokenKind::Access, access_expiry, access_jti.clone()))
+        .map_err(|_| ApiError::server_error("服务器内部错误"))?;
+    let refresh = state
+        .codec
+        .sign(&issue(
+            TokenKind::Refresh,
+            refresh_expiry,
+            uuid::Uuid::new_v4().to_string(),
+        ))
+        .map_err(|_| ApiError::server_error("服务器内部错误"))?;
+    let hash = |s: &str| hex::encode(Sha256::digest(s.as_bytes()));
+    let rotation = SessionRotation {
+        user_id: claims.user_id,
+        session_id: claims.session_id.clone(),
+        old_refresh_hash: hash(&token),
+        refresh_hash: hash(&refresh),
+        access_jti,
+        access_expires_at: access_date.clone(),
+        refresh_expires_at: refresh_date.clone(),
+    };
+    let count = state
+        .repository
+        .rotate(&rotation)
+        .await
+        .map_err(|_| ApiError::server_error("服务器内部错误"))?;
+    if count != 1 {
+        return Err(unauthorized());
+    }
+    let mut response = Json(V2Response::ok(json!({
+        "session_id": claims.session_id, "access_token": access, "refresh_token": refresh,
+        "access_token_expires_at": access_date, "refresh_token_expires_at": refresh_date,
+    })))
+    .into_response();
+    for (name, value, max_age) in [
+        ("access_token", &access, policy.access_seconds),
+        ("refresh_token", &refresh, policy.refresh_seconds),
+    ] {
+        let secure = if policy.cookie_secure { "; Secure" } else { "" };
+        let cookie =
+            format!("{name}={value}; Max-Age={max_age}; Path=/; HttpOnly; SameSite=Lax{secure}");
+        response.headers_mut().append(
+            "set-cookie",
+            HeaderValue::from_str(&cookie).map_err(|_| ApiError::server_error("服务器内部错误"))?,
+        );
+    }
+    Ok(response)
+}
+
+fn body_refresh_token(headers: &HeaderMap, body: &[u8]) -> Option<String> {
+    let content_type = headers
+        .get("content-type")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    if content_type.starts_with("text/") {
+        return None;
+    }
+    if content_type
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .eq_ignore_ascii_case("application/x-www-form-urlencoded")
+    {
+        let mut url = reqwest::Url::parse("http://localhost/").ok()?;
+        let text = std::str::from_utf8(body).ok()?;
+        url.set_query(Some(text));
+        let values: Vec<_> = url
+            .query_pairs()
+            .filter(|(k, _)| k == "refresh_token")
+            .collect();
+        return if values.len() == 1 {
+            Some(values[0].1.trim().to_owned())
+        } else {
+            None
+        };
+    }
+    serde_json::from_slice::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| {
+            v.get("refresh_token")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .map(str::to_owned)
+        })
+}
+
+fn named_cookie(headers: &HeaderMap, target: &str) -> Option<String> {
+    headers
+        .get_all("cookie")
+        .iter()
+        .filter_map(|h| h.to_str().ok())
+        .flat_map(|raw| raw.split(';'))
+        .find_map(|cookie| {
+            let (name, value) = cookie.trim_start().split_once('=')?;
+            if name.trim() != target {
+                return None;
+            }
+            let value = value.trim();
+            let value = value
+                .strip_prefix('"')
+                .and_then(|v| v.strip_suffix('"'))
+                .unwrap_or(value);
+            Some(percent_decode(value).unwrap_or_else(|| value.to_owned()))
         })
 }
 async fn revoke(

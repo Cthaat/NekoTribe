@@ -44,6 +44,7 @@ impl SigningKeys {
 pub struct NativeOptions {
     pub keys: SigningKeys,
     pub cors: crate::auth::sessions::CorsPolicy,
+    pub refresh_policy: crate::auth::sessions::RefreshPolicy,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -144,6 +145,30 @@ impl AppConfig {
         if host.trim().is_empty() {
             return Err(ConfigError::new("invalid host"));
         }
+        let ttl = |nuxt_key: &str, legacy_key: &str, default: u64| {
+            get(nuxt_key)
+                .or_else(|| get(legacy_key))
+                .map(|v| {
+                    v.trim()
+                        .parse::<u64>()
+                        .ok()
+                        .filter(|v| *v > 0)
+                        .ok_or_else(|| ConfigError::new("invalid token lifetime"))
+                })
+                .unwrap_or(Ok(default))
+        };
+        let access_seconds = ttl("NUXT_ACCESS_EXPIRES_IN", "ACCESS_EXPIRES_IN", 900)?;
+        let refresh_seconds = ttl("NUXT_REFRESH_EXPIRES_IN", "REFRESH_EXPIRES_IN", 2_592_000)?;
+        let now = chrono::Utc::now().timestamp().max(0) as u64;
+        let max_timestamp = chrono::DateTime::<chrono::Utc>::MAX_UTC.timestamp() as u64;
+        if refresh_seconds <= access_seconds
+            || refresh_seconds > i32::MAX as u64
+            || now
+                .checked_add(refresh_seconds)
+                .is_none_or(|value| value > max_timestamp)
+        {
+            return Err(ConfigError::new("invalid token lifetime"));
+        }
         Ok(Self {
             backend_mode: BackendMode::Native,
             native: Some(NativeOptions {
@@ -152,6 +177,11 @@ impl AppConfig {
                     refresh: required("REFRESH_SECRET")?,
                 },
                 cors: crate::auth::sessions::CorsPolicy::from_lookup(&get),
+                refresh_policy: crate::auth::sessions::RefreshPolicy {
+                    access_seconds,
+                    refresh_seconds,
+                    cookie_secure: get("COOKIE_SECURE").as_deref() == Some("true"),
+                },
             }),
             server: ServerConfig {
                 host,

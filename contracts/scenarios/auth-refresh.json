@@ -1,0 +1,17 @@
+{
+  "id": "AUTH-REFRESH",
+  "revision": 1,
+  "scope": "Acceptance requirements; not a claim that real Oracle or cross-backend tests have run",
+  "cases": [
+    {"id": "REFRESH-001", "description": "Existing valid refresh Cookie succeeds without body, with the expected envelope, two matching HttpOnly cookies and unchanged session identity."},
+    {"id": "REFRESH-002", "description": "Without a nonempty Cookie, a valid JSON or URL-encoded form body token succeeds; an expired access Cookie must not block this public endpoint."},
+    {"id": "REFRESH-003", "description": "An invalid nonempty refresh Cookie takes precedence over a valid body; a nonempty whitespace-only Cookie does not fall back to the body."},
+    {"id": "REFRESH-004", "description": "With normal database connection and close, absent, non-string, unparseable, expired and wrong-signature credentials return 401 with no new cookie and no session mutation."},
+    {"id": "REFRESH-005", "description": "Incorrect user, session or stored refresh hash, revoked and expired database sessions do not rotate."},
+    {"id": "REFRESH-006", "description": "A successful rotation invalidates old access and refresh credentials; a second same-second rotation creates a distinct refresh token."},
+    {"id": "REFRESH-007", "description": "With normal database and network behavior, concurrent use of one old refresh token has exactly one successful conditional update and one failed response without cookies."},
+    {"id": "REFRESH-008", "description": "Database failures return a safe error and no new cookies; an unknown commit outcome is not represented as a guaranteed rollback."},
+    {"id": "REFRESH-009", "description": "CORS preflight is handled before authentication and does not query the session store."},
+    {"id": "REFRESH-010", "description": "With shared signing keys, each backend accepts and rotates tokens issued by each backend against one isolated Oracle database; Web and Flutter complete refresh and a subsequent supported protected request using their configured backend."}
+  ]
+}

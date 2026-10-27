@@ -79,3 +79,58 @@ fn cors_config_preserves_explicit_empty_and_serialized_origin_rules() {
     assert!(!p.localhost);
     assert_eq!(p.origins, vec!["https://app.example"])
 }
+
+#[test]
+fn native_refresh_lifetimes_and_cookie_secure_are_validated() {
+    let mut e = env();
+    let defaults = AppConfig::native_from_lookup(|k| e.get(k).cloned()).unwrap();
+    let policy = defaults.native.unwrap().refresh_policy;
+    assert_eq!(
+        (
+            policy.access_seconds,
+            policy.refresh_seconds,
+            policy.cookie_secure
+        ),
+        (900, 2_592_000, false)
+    );
+    e.insert("ACCESS_EXPIRES_IN".into(), "100".into());
+    e.insert("REFRESH_EXPIRES_IN".into(), "200".into());
+    e.insert("COOKIE_SECURE".into(), "true".into());
+    let policy = AppConfig::native_from_lookup(|k| e.get(k).cloned())
+        .unwrap()
+        .native
+        .unwrap()
+        .refresh_policy;
+    assert_eq!(
+        (
+            policy.access_seconds,
+            policy.refresh_seconds,
+            policy.cookie_secure
+        ),
+        (100, 200, true)
+    );
+    e.insert("COOKIE_SECURE".into(), "TRUE".into());
+    assert!(
+        !AppConfig::native_from_lookup(|k| e.get(k).cloned())
+            .unwrap()
+            .native
+            .unwrap()
+            .refresh_policy
+            .cookie_secure
+    );
+    for value in [
+        "100",
+        "99",
+        "0",
+        "-1",
+        "2147483648",
+        "1000000000000",
+        "18446744073709551615",
+    ] {
+        e.insert("REFRESH_EXPIRES_IN".into(), value.into());
+        assert!(
+            AppConfig::native_from_lookup(|k| e.get(k).cloned()).is_err(),
+            "accepted {value}"
+        );
+    }
+}

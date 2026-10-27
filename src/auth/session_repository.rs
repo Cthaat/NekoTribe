@@ -1,6 +1,6 @@
 use crate::{
     auth::{
-        sessions::{SessionRepository, SessionStoreError, StoreFuture},
+        sessions::{SessionRepository, SessionRotation, SessionStoreError, StoreFuture},
         TokenClaims,
     },
     db::{oracle::BindMap, pool::OraclePool, value::DbValue},
@@ -9,7 +9,8 @@ use crate::{
 pub const TOUCH_SQL:&str="UPDATE n_auth_sessions SET last_accessed_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND session_id = :session_id AND access_jti = :access_jti AND revoked_at IS NULL AND access_token_expires_at > CURRENT_TIMESTAMP";
 pub const REVOKE_SQL:&str="UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND session_id = :session_id AND revoked_at IS NULL";
 pub const REVOKE_OTHERS_SQL:&str="UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND session_id <> :session_id AND revoked_at IS NULL";
-pub const PREFLIGHT_SQL:&str="SELECT user_id, session_id, access_jti, access_token_expires_at, revoked_at, last_accessed_at FROM n_auth_sessions WHERE 1 = 0";
+pub const PREFLIGHT_SQL:&str="SELECT user_id, session_id, access_jti, access_token_expires_at, refresh_token_hash, refresh_token_expires_at, last_refresh_at, revoked_at, last_accessed_at FROM n_auth_sessions WHERE 1 = 0";
+pub const ROTATE_SQL: &str = "UPDATE n_auth_sessions SET access_jti = :access_jti, refresh_token_hash = :refresh_token_hash, access_token_expires_at = CAST(TO_TIMESTAMP_TZ(:access_expires_at, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP), refresh_token_expires_at = CAST(TO_TIMESTAMP_TZ(:refresh_expires_at, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP), last_refresh_at = CURRENT_TIMESTAMP, last_accessed_at = CURRENT_TIMESTAMP WHERE session_id = :session_id AND user_id = :user_id AND refresh_token_hash = :old_refresh_hash AND revoked_at IS NULL AND refresh_token_expires_at > CURRENT_TIMESTAMP";
 
 pub trait SessionExecutor: Send + Sync {
     fn execute(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, u64>;
@@ -36,6 +37,26 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
     fn revoke_others<'a>(&'a self, user_id: u64, current: &'a str) -> StoreFuture<'a, u64> {
         self.executor
             .execute(REVOKE_OTHERS_SQL, session_binds(user_id, current))
+    }
+    fn rotate<'a>(&'a self, rotation: &'a SessionRotation) -> StoreFuture<'a, u64> {
+        let mut binds = session_binds(rotation.user_id, &rotation.session_id);
+        for (key, value) in [
+            ("access_jti", &rotation.access_jti),
+            ("refresh_token_hash", &rotation.refresh_hash),
+            ("old_refresh_hash", &rotation.old_refresh_hash),
+        ] {
+            binds.insert(key.into(), DbValue::String(value.clone()));
+        }
+        for (key, value) in [
+            ("access_expires_at", &rotation.access_expires_at),
+            ("refresh_expires_at", &rotation.refresh_expires_at),
+        ] {
+            binds.insert(
+                key.into(),
+                DbValue::String(value.trim_end_matches('Z').to_owned() + "+00:00"),
+            );
+        }
+        self.executor.execute(ROTATE_SQL, binds)
     }
 }
 fn session_binds(user: u64, id: &str) -> BindMap {
