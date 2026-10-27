@@ -4,9 +4,10 @@
 
 ## 当前范围
 
-- `requirements/authentication.md`：认证与会话源码基线，16 项兼容需求、35 个待执行场景、7 项需统一修订的缺口；不是已执行的集成用例。
-- `parity.json`：162 个规范操作各有唯一任务归属和三套实现任务，279 个 server 源码文件固定 LF SHA-256；其他 130 个源码入口待分类/关联。当前所有功能均未获得三后端共同验收。
-- 检查器是 P1 的首个增量：校验任务、版本、源码覆盖和已登记证据之间的链接。共享规范副本的扩展同步、实际场景 runner、流水线及全量业务需求还原仍需继续实现。
+- `requirements/authentication.md`：16 项兼容需求、35 个待执行业务场景、7 项需统一修订的缺口。另有三端相同的 25 个 token 单元样例已验证，不能代替完整认证业务。
+- `requirements/ai-product-scope.md`：三个已确认 AI 方向与角色权限；`ai-model-switching.md` 是完整切换要求；`ai-model-configuration.md` 是已实现的配置组件格式。52 个组件样例已在三端通过，实际模型调用/产品用例仍未验收。
+- `parity.json`：166 个登记项（162 个规范操作和 4 个新增 AI 功能）；280 个 server 源码文件固定 LF SHA-256，其他 130 个源码入口待分类/关联。13 个旧情感分析操作标记退役任务，不能继续按旧目标新增实现。所有功能均未获得完整三后端业务验收。
+- 检查器校验任务、版本、源码覆盖和证据链接，以及 10 份公共需求/样例在 Rust/Go 的固定副本。自动复制工具、实际业务场景 runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
 
 ## 两种检查
 
@@ -20,6 +21,8 @@ node scripts/parity.mjs release --workspace-root C:/Code/NekoTribe
 `check` 是开发期完整性检查：检查命令退出 0 只表示登记结构有效；必须读取 `ready`、`accepted` 和 `pending`，不代表三套后端已完成。当前应返回 `ready:false`、`accepted:0`。`release` 额外拒绝所有未验收功能、未审查来源，因此当前应退出 1。命令只读文件，不联网、不启动服务、不读取 `.env`，也不会替你修改或重新固定源码哈希。
 
 `--workspace-root` 用于核对验收记录所绑定的 Rust/Go 源码，必须是包含此 Nuxt 项目的管理目录。未验收状态下独立 Nuxt 克隆可以运行普通 `check`；有 Rust/Go `accepted` 记录时，缺少实际工程目录就拒绝核对，不跳过来源验证。将来发行仍需专用三分支测试检出流程。
+
+该参数还核对 `sharedFiles` 的 Rust/Go 公共副本，返回 `sharedScope:workspace`；不传参数只核对 Nuxt 的公开源文件并返回 `Nuxt-only`。公共源只从物理 `specifications/requirements` / `scenarios` 读取，副本只从各组件物理 `contracts` 读取，符号链接不能绕到私有目录。变更共同文档/样例后，审核并显式更新 LF 哈希和两端副本；漏掉一个实现就会因旧副本失败。现阶段命令只读，不自动覆盖文件。
 
 ## 变更登记
 

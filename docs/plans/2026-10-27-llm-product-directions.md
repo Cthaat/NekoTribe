@@ -4,7 +4,9 @@
 
 ## 1. 项目依据
 
-当前项目已有帖子/评论、标签/搜索、群组/成员权限、聊天、通知、媒体及审核功能。Nuxt `app/pages/account/settings.vue` 引入旧 `AiSentimentControlPanel`；`server/api/v2/integrations/sentiment-flow` 提供旧配置与代理入口。不能只删设置页就声称旧模块完全移除，还需处理前端调用、服务端代理、配置/部署、文档/测试及其他分支的契约副本。
+当前项目已有帖子/评论、标签/搜索、群组/成员权限、聊天、通知、媒体及审核功能。Nuxt 设置页已取消旧 `AiSentimentControlPanel` 的导入与挂载；旧组件源码和 `server/api/v2/integrations/sentiment-flow` 配置/代理暂留。整模块退役仍需统一处理服务端、契约、配置/部署、文档/测试及其他分支，不能把页面取消挂载当作完全移除。
+
+权限已确认：登录用户使用问答/写作，目标群管理员使用运营 Agent，平台审核人员使用审核助手。详见 [产品共同需求](../../specifications/requirements/ai-product-scope.md)。首期的数据公开范围不会因为管理员权限而自动扩展到私密群或私信。
 
 开发机只读检查：RTX 4060 Laptop GPU，8188 MiB 显存，系统报告约 13.7 GiB 内存；不是 GPU 性能或模型运行验收。没有据此决定生产服务器规格。
 

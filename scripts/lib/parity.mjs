@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 
@@ -9,9 +9,12 @@ const ensure = (condition, message) => { if (!condition) throw new Error(message
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
 
-function inside(root, path) {
+function relativePath(path) {
   ensure(nonempty(path) && !isAbsolute(path) && !path.includes('\\') &&
     path.split('/').every(part => part && part !== '..' && part !== '.') && !path.includes(':'), `Invalid relative path: ${path}`);
+}
+function inside(root, path) {
+  relativePath(path);
   const absolute = resolve(root, path);
   const actual = realpathSync(absolute);
   const delta = relative(realpathSync(root), actual);
@@ -19,11 +22,45 @@ function inside(root, path) {
   return actual;
 }
 function file(root, path) { return readFileSync(inside(root, path)); }
+function publicDirectory(root, path) {
+  relativePath(path);
+  let directory = root;
+  for (const part of path.split('/')) {
+    directory = resolve(directory, part);
+    ensure(!lstatSync(directory).isSymbolicLink(), 'Shared public directory cannot be a symlink');
+  }
+  return inside(root, path);
+}
 function json(root, path) { return JSON.parse(file(root, path).toString('utf8')); }
 function checksum(root, entry, description, normalize = false) {
   ensure(entry && /^[a-f0-9]{64}$/.test(entry.sha256), `${description}: invalid checksum`);
   const bytes = file(root, entry.path);
+  if (normalize) ensure(Buffer.from(bytes.toString('utf8')).equals(bytes), `${description}: invalid UTF-8`);
   ensure(digest(normalize ? bytes.toString('utf8').replaceAll('\r\n', '\n') : bytes) === entry.sha256, `${description}: ${entry.path}`);
+}
+
+function sharedCopies(root, workspaceRoot, entries) {
+  ensure(Array.isArray(entries), 'Shared file registry must be an array');
+  unique(entries.map(entry => entry?.source?.path), 'Shared sources');
+  for (const entry of entries) {
+    const source = entry?.source;
+    relativePath(source?.path);
+    const sourceDirectory = source.path.startsWith('specifications/requirements/') ? 'specifications/requirements' :
+      source.path.startsWith('specifications/scenarios/') ? 'specifications/scenarios' : null;
+    ensure(sourceDirectory, 'Invalid shared source path');
+    checksum(publicDirectory(root, sourceDirectory), { path: source.path.slice(sourceDirectory.length + 1), sha256: source.sha256 },
+      'Shared source changed; review requirements before re-pinning', true);
+    const copies = entry.copies;
+    ensure(copies && typeof copies === 'object' && !Array.isArray(copies) && copies.rust && copies.go &&
+      Object.keys(copies).every(backend => ['rust', 'go', 'flutter'].includes(backend)), 'Shared copies must include Rust and Go');
+    for (const [backend, path] of Object.entries(copies)) {
+      relativePath(path);
+      ensure(path.startsWith('contracts/'), 'Invalid shared copy path');
+      if (workspaceRoot) checksum(publicDirectory(resolve(workspaceRoot, backend), 'contracts'),
+        { path: path.slice('contracts/'.length), sha256: source.sha256 }, `Shared copy mismatch: ${backend}`, true);
+    }
+  }
+  return entries.length;
 }
 function sourceInventory(root, directory) {
   return readdirSync(inside(root, directory), { withFileTypes: true }).flatMap(item => {
@@ -111,8 +148,9 @@ function checkFeature(root, workspaceRoot, feature, operations, owners, scenario
 export function checkParity({ projectRoot, workspaceRoot, release = false }) {
   const root = realpathSync(projectRoot);
   if (workspaceRoot) ensure(realpathSync(resolve(workspaceRoot, 'nuxt')) === root, '--workspace-root must contain this Nuxt project');
-  const ledger = json(root, 'specifications/parity.json');
+  const ledger = json(publicDirectory(root, 'specifications'), 'parity.json');
   ensure(ledger.schemaVersion === 1, 'Unsupported parity schema version');
+  const sharedFileCount = sharedCopies(root, workspaceRoot, ledger.sharedFiles ?? []);
   checksum(root, ledger.baseline?.openapi, 'Baseline changed; review and update requirements before re-pinning', true);
   ensure(Array.isArray(ledger.baseline.sources) && ledger.baseline.sources.length > 0, 'Source baseline required');
   strings(ledger.baseline.sourceRoots, 'Source roots');
@@ -165,5 +203,6 @@ export function checkParity({ projectRoot, workspaceRoot, release = false }) {
   if (release) ensure(pending.length === 0, `Parity not ready: ${pending.join(', ')}`);
   return { features: ledger.features.length, operations: operations.size, scenarios: scenarioIds.size,
     accepted: ledger.features.filter(feature => !pending.includes(feature.id)).length,
-    sourceAudits: audits.length, ready: pending.length === 0, pending };
+    sourceAudits: audits.length, sharedFiles: sharedFileCount, sharedScope: workspaceRoot ? 'workspace' : 'Nuxt-only',
+    ready: pending.length === 0, pending };
 }

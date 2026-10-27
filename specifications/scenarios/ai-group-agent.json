@@ -1,0 +1,35 @@
+{
+  "id": "AI-GROUP-AGENT",
+  "revision": 1,
+  "executionStatus": "not-run",
+  "scope": "product-acceptance-definitions-not-runtime-results",
+  "cases": [
+    {
+      "id": "AI-GROUP-AGENT-ACCESS",
+      "given": "Correct and incorrect account/group/moderation roles",
+      "when": "Invoke the AI business capability",
+      "then": [
+        "Only the confirmed role may proceed",
+        "No private content is included by elevated tool permissions"
+      ]
+    },
+    {
+      "id": "AI-GROUP-AGENT-SUCCESS",
+      "given": "Available configured model and current approved public content/rules",
+      "when": "Target-group-admin-only bounded public-content tools and draft workflow",
+      "then": [
+        "Outputs retain citations and intended draft/advisory status",
+        "Actual model/configuration is recorded without exposing secrets"
+      ]
+    },
+    {
+      "id": "AI-GROUP-AGENT-FAILURE",
+      "given": "Missing evidence, upstream timeout or content visibility change",
+      "when": "Continue or retry generation",
+      "then": [
+        "No invented success, stale-private citation or automatic privileged action occurs",
+        "The shared failure/cancellation contract and resource limit apply"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -31,7 +31,10 @@ function fixture(run) {
   const save = () => write('specifications/parity.json', ledger);
   save();
   try { return run({ root, workspace, write, ledger, save, spec }); }
-  finally { rmSync(workspace, { recursive: true, force: true }); }
+  finally {
+    assert(workspace.startsWith(join(tmpdir(), 'neko-parity-')));
+    rmSync(workspace, { recursive: true, force: true });
+  }
 }
 
 test('development check reports pending work without claiming acceptance', () => fixture(({ root }) => {
@@ -175,4 +178,56 @@ test('classified feature audits must be included in the referenced feature evide
   context.ledger.sourceAudits = [{ id: 'LEGACY-ONE', source: 'server/legacy.ts', disposition: 'alias', featureIds: ['EXAMPLE'], reason: 'Compatibility alias' }];
   context.save();
   assert.throws(() => checkParity({ projectRoot: context.root }), /audit source.*feature.*scope/i);
+}));
+
+function sharedFiles(context) {
+  context.write('specifications/scenarios/shared.json', '{"case":"current"}\n');
+  const hash = sha('{"case":"current"}\n');
+  for (const backend of ['rust', 'go']) {
+    mkdirSync(join(context.workspace, backend, 'contracts/scenarios'), { recursive: true });
+    writeFileSync(join(context.workspace, backend, 'contracts/scenarios/shared.json'), '{"case":"current"}\n');
+  }
+  context.ledger.sharedFiles = [{ source: { path: 'specifications/scenarios/shared.json', sha256: hash },
+    copies: { rust: 'contracts/scenarios/shared.json', go: 'contracts/scenarios/shared.json' } }];
+  context.save();
+}
+test('workspace checks verify versioned shared requirement and scenario copies', () => fixture(context => {
+  sharedFiles(context);
+  const report = checkParity({ projectRoot: context.root, workspaceRoot: context.workspace });
+  assert.equal(report.sharedFiles, 1);
+}));
+test('Go cannot keep an old scenario while Nuxt changes its requirement baseline', () => fixture(context => {
+  sharedFiles(context);
+  writeFileSync(join(context.workspace, 'go/contracts/scenarios/shared.json'), '{"case":"old"}\n');
+  assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace }), /shared.*copy.*go/i);
+}));
+test('shared source changes require an explicit reviewed hash update', () => fixture(context => {
+  sharedFiles(context);
+  context.write('specifications/scenarios/shared.json', '{"case":"changed"}\n');
+  assert.throws(() => checkParity({ projectRoot: context.root }), /shared.*source/i);
+}));
+test('shared file mapping cannot read outside component contracts', () => fixture(context => {
+  sharedFiles(context);
+  context.ledger.sharedFiles[0].copies.go = '../private.env'; context.save();
+  assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace }), /shared.*path|relative path/i);
+}));
+test('shared copies cannot follow a contracts link into private component files', () => fixture(context => {
+  sharedFiles(context);
+  const directory = join(context.workspace, 'go/contracts/scenarios');
+  const privateDirectory = join(context.workspace, 'go/private-data');
+  mkdirSync(privateDirectory);
+  writeFileSync(join(privateDirectory, 'shared.json'), '{"case":"current"}\n');
+  unlinkSync(join(directory, 'shared.json')); rmdirSync(directory);
+  symlinkSync(privateDirectory, directory, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace }), /escapes|symlink/i);
+}));
+test('shared sources cannot redirect a public requirement directory into private files', () => fixture(context => {
+  sharedFiles(context);
+  const directory = join(context.root, 'specifications/scenarios');
+  const privateDirectory = join(context.root, 'private-data');
+  mkdirSync(privateDirectory);
+  writeFileSync(join(privateDirectory, 'shared.json'), '{"case":"current"}\n');
+  unlinkSync(join(directory, 'shared.json')); rmdirSync(directory);
+  symlinkSync(privateDirectory, directory, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace }), /escapes|symlink/i);
 }));

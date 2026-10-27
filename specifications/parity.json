@@ -958,6 +958,10 @@
         "sha256": "23178b2bc4fd21601a7c001b4e6239c93221e5a86e11cb8b4ab6498109d35722"
       },
       {
+        "path": "server/services/ai/model-configuration.ts",
+        "sha256": "8ed5369cd394c578c3f5e383434743b5344afcf14c8dce9a054eecfe0e5451ad"
+      },
+      {
         "path": "server/services/v2/auth.ts",
         "sha256": "9fe4113ea3d2cf6269b7c5cb49b904e960aaa288edb3cd4ccd3e34e0178cb492"
       },
@@ -1110,12 +1114,12 @@
         "sha256": "260e40ad13ee75dd0e81fae75a4631cbdfe8e8ef597443fcf334cb04e09ae0d6"
       },
       {
-        "path": "server/utils/userSettingsStore.ts",
-        "sha256": "92673b4f5640c3326a6f79207beb840fcee7f602a8e41e1b0f6a8e7e6ff24e77"
-      },
-      {
         "path": "server/utils/users/upload-avatar-check.ts",
         "sha256": "da2be4886e3a5b797e2297391d72c5cfba134e965bf124f34f7f3612bb26196b"
+      },
+      {
+        "path": "server/utils/userSettingsStore.ts",
+        "sha256": "92673b4f5640c3326a6f79207beb840fcee7f602a8e41e1b0f6a8e7e6ff24e77"
       },
       {
         "path": "server/utils/v2.ts",
@@ -6920,9 +6924,9 @@
     {
       "id": "API-t11_get_api_v2_integrations_sentiment_flow_config",
       "title": "GET /api/v2/integrations/sentiment-flow/config: Read SentimentFlow integration configuration",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [
         "server/api/v2/integrations/sentiment-flow/config.get.ts"
       ],
@@ -6933,9 +6937,10 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/integrations/sentiment-flow/config; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [
             "server/api/v2/integrations/sentiment-flow/config.get.ts"
@@ -6944,23 +6949,26 @@
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/config natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/config natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_get_api_v2_moderation_appeals",
@@ -7922,9 +7930,9 @@
     {
       "id": "API-t11_proxy_post_api_v2_integrations_sentiment_flow_auth_login",
       "title": "POST /api/v2/integrations/sentiment-flow/auth/login: SentimentFlow proxy: POST /auth/login",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "POST /api/v2/integrations/sentiment-flow/auth/login"
@@ -7933,39 +7941,43 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/integrations/sentiment-flow/auth/login; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/integrations/sentiment-flow/auth/login natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/integrations/sentiment-flow/auth/login natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_proxy_post_api_v2_integrations_sentiment_flow_predict",
       "title": "POST /api/v2/integrations/sentiment-flow/predict: SentimentFlow proxy: POST /predict",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "POST /api/v2/integrations/sentiment-flow/predict"
@@ -7974,39 +7986,43 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/integrations/sentiment-flow/predict; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/integrations/sentiment-flow/predict natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/integrations/sentiment-flow/predict natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_proxy_post_api_v2_integrations_sentiment_flow_training_start",
       "title": "POST /api/v2/integrations/sentiment-flow/training/start: SentimentFlow proxy: POST /training/start",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "POST /api/v2/integrations/sentiment-flow/training/start"
@@ -8015,39 +8031,43 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/integrations/sentiment-flow/training/start; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/integrations/sentiment-flow/training/start natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/integrations/sentiment-flow/training/start natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_proxy_get_api_v2_integrations_sentiment_flow_training_status_jobId",
       "title": "GET /api/v2/integrations/sentiment-flow/training/status/{jobId}: SentimentFlow proxy: GET /training/status/{jobId}",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "GET /api/v2/integrations/sentiment-flow/training/status/{jobId}"
@@ -8056,39 +8076,43 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/integrations/sentiment-flow/training/status/{jobId}; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/training/status/{jobId} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/training/status/{jobId} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_proxy_get_api_v2_integrations_sentiment_flow_training_jobs",
       "title": "GET /api/v2/integrations/sentiment-flow/training/jobs: SentimentFlow proxy: GET /training/jobs",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "GET /api/v2/integrations/sentiment-flow/training/jobs"
@@ -8097,39 +8121,43 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/integrations/sentiment-flow/training/jobs; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/training/jobs natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/training/jobs natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_proxy_post_api_v2_integrations_sentiment_flow_training_cancel_jobId",
       "title": "POST /api/v2/integrations/sentiment-flow/training/cancel/{jobId}: SentimentFlow proxy: POST /training/cancel/{jobId}",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "POST /api/v2/integrations/sentiment-flow/training/cancel/{jobId}"
@@ -8138,39 +8166,43 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/integrations/sentiment-flow/training/cancel/{jobId}; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/integrations/sentiment-flow/training/cancel/{jobId} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/integrations/sentiment-flow/training/cancel/{jobId} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_proxy_get_api_v2_integrations_sentiment_flow_models",
       "title": "GET /api/v2/integrations/sentiment-flow/models: SentimentFlow proxy: GET /models",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "GET /api/v2/integrations/sentiment-flow/models"
@@ -8179,39 +8211,43 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/integrations/sentiment-flow/models; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/models natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/models natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_proxy_get_api_v2_integrations_sentiment_flow_models_active",
       "title": "GET /api/v2/integrations/sentiment-flow/models/active: SentimentFlow proxy: GET /models/active",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "GET /api/v2/integrations/sentiment-flow/models/active"
@@ -8220,39 +8256,43 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/integrations/sentiment-flow/models/active; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/models/active natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/models/active natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_proxy_put_api_v2_integrations_sentiment_flow_models_active",
       "title": "PUT /api/v2/integrations/sentiment-flow/models/active: SentimentFlow proxy: PUT /models/active",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "PUT /api/v2/integrations/sentiment-flow/models/active"
@@ -8261,39 +8301,43 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for PUT /api/v2/integrations/sentiment-flow/models/active; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement PUT /api/v2/integrations/sentiment-flow/models/active natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement PUT /api/v2/integrations/sentiment-flow/models/active natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_proxy_delete_api_v2_integrations_sentiment_flow_models_modelId",
       "title": "DELETE /api/v2/integrations/sentiment-flow/models/{modelId}: SentimentFlow proxy: DELETE /models/{modelId}",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "DELETE /api/v2/integrations/sentiment-flow/models/{modelId}"
@@ -8302,39 +8346,43 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for DELETE /api/v2/integrations/sentiment-flow/models/{modelId}; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement DELETE /api/v2/integrations/sentiment-flow/models/{modelId} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement DELETE /api/v2/integrations/sentiment-flow/models/{modelId} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_proxy_get_api_v2_integrations_sentiment_flow_stats_overview",
       "title": "GET /api/v2/integrations/sentiment-flow/stats/overview: SentimentFlow proxy: GET /stats/overview",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "GET /api/v2/integrations/sentiment-flow/stats/overview"
@@ -8343,39 +8391,43 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/integrations/sentiment-flow/stats/overview; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/stats/overview natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/stats/overview natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "API-t11_proxy_get_api_v2_integrations_sentiment_flow_admin_users",
       "title": "GET /api/v2/integrations/sentiment-flow/admin/users: SentimentFlow proxy: GET /admin/users",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
       "operations": [
         "GET /api/v2/integrations/sentiment-flow/admin/users"
@@ -8384,44 +8436,109 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/integrations/sentiment-flow/admin/users; create shared acceptance scenarios."
+            "nuxt: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/admin/users natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/integrations/sentiment-flow/admin/users natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: retire this legacy SentimentFlow operation through a coordinated route/contract/client/deployment migration; do not port the old sentiment prediction/training service as a new target.",
+            "Keep historical data/models and existing contract state until explicit versioned removal is implemented and tested across all backends."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "lifecycle": "retiring"
     },
     {
       "id": "AI-MODEL-SWITCHING",
       "revision": 1,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-model-switching.md",
-      "sourceFiles": [],
+      "sourceFiles": [
+        "server/services/ai/model-configuration.ts"
+      ],
       "operations": [],
       "scenarios": [
         {
           "id": "AI-MODEL-SWITCHING",
           "file": "specifications/scenarios/ai-model-switching.json"
+        },
+        {
+          "id": "AI-MODEL-CONFIG",
+          "file": "specifications/scenarios/ai-model-config.json"
+        }
+      ],
+      "implementations": {
+        "nuxt": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "nuxt: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
+            "nuxt: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle.",
+            "Configuration/select/CAS component implemented and tested; complete actual transport, provider capability verification, request/stream integration and MODEL-S001..008 before acceptance."
+          ],
+          "sourceFiles": [
+            "server/services/ai/model-configuration.ts"
+          ],
+          "evidence": []
+        },
+        "rust": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "rust: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
+            "rust: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle.",
+            "Configuration/select/CAS component implemented and tested; complete actual transport, provider capability verification, request/stream integration and MODEL-S001..008 before acceptance."
+          ],
+          "sourceFiles": [
+            "src/ai/model_config.rs"
+          ],
+          "evidence": []
+        },
+        "go": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "go: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
+            "go: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle.",
+            "Configuration/select/CAS component implemented and tested; complete actual transport, provider capability verification, request/stream integration and MODEL-S001..008 before acceptance."
+          ],
+          "sourceFiles": [
+            "internal/ai/model_config.go"
+          ],
+          "evidence": []
+        }
+      }
+    },
+    {
+      "id": "AI-KNOWLEDGE-WRITING",
+      "revision": 1,
+      "review": "reviewed",
+      "definition": "specifications/requirements/ai-product-scope.md",
+      "sourceFiles": [],
+      "operations": [],
+      "scenarios": [
+        {
+          "id": "AI-KNOWLEDGE-WRITING",
+          "file": "specifications/scenarios/ai-knowledge-writing.json"
         }
       ],
       "implementations": {
@@ -8429,8 +8546,8 @@
           "state": "not-started",
           "targetRevision": 1,
           "tasks": [
-            "nuxt: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
-            "nuxt: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle."
+            "nuxt: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
+            "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -8439,8 +8556,8 @@
           "state": "not-started",
           "targetRevision": 1,
           "tasks": [
-            "rust: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
-            "rust: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle."
+            "rust: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
+            "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -8449,8 +8566,100 @@
           "state": "not-started",
           "targetRevision": 1,
           "tasks": [
-            "go: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
-            "go: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle."
+            "go: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
+            "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        }
+      }
+    },
+    {
+      "id": "AI-GROUP-AGENT",
+      "revision": 1,
+      "review": "reviewed",
+      "definition": "specifications/requirements/ai-product-scope.md",
+      "sourceFiles": [],
+      "operations": [],
+      "scenarios": [
+        {
+          "id": "AI-GROUP-AGENT",
+          "file": "specifications/scenarios/ai-group-agent.json"
+        }
+      ],
+      "implementations": {
+        "nuxt": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "nuxt: Target-group-admin-only bounded public-content tools and draft workflow; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
+            "nuxt: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "rust": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "rust: Target-group-admin-only bounded public-content tools and draft workflow; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
+            "rust: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "go": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "go: Target-group-admin-only bounded public-content tools and draft workflow; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
+            "go: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        }
+      }
+    },
+    {
+      "id": "AI-MODERATION-AID",
+      "revision": 1,
+      "review": "reviewed",
+      "definition": "specifications/requirements/ai-product-scope.md",
+      "sourceFiles": [],
+      "operations": [],
+      "scenarios": [
+        {
+          "id": "AI-MODERATION-AID",
+          "file": "specifications/scenarios/ai-moderation-aid.json"
+        }
+      ],
+      "implementations": {
+        "nuxt": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "nuxt: Moderator-only evidence-based suggestions with human-controlled enforcement; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
+            "nuxt: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "rust": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "rust: Moderator-only evidence-based suggestions with human-controlled enforcement; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
+            "rust: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "go": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "go: Moderator-only evidence-based suggestions with human-controlled enforcement; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
+            "go: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -9368,6 +9577,108 @@
       "disposition": "unreviewed",
       "featureIds": [],
       "reason": ""
+    }
+  ],
+  "sharedFiles": [
+    {
+      "source": {
+        "path": "specifications/requirements/ai-model-configuration.md",
+        "sha256": "9540543db7706b5cd322430c76cf617342daf161c079b4f364b338fe36a3b234"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-model-configuration.md",
+        "go": "contracts/requirements/ai-model-configuration.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-model-config.json",
+        "sha256": "8fce35b32df31dadc95762afa0b66aa2e4c5497084f6b4b56b7501091f252cf9"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-model-config.json",
+        "go": "contracts/scenarios/ai-model-config.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-tokens.json",
+        "sha256": "cec0d03d91d9c45526b57ae2a652b3f38ebaf4008d4e61118dfb184702e85b7f"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/auth-tokens.json",
+        "go": "contracts/scenarios/auth-tokens.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/authentication.md",
+        "sha256": "e3a0843513b136b8cff23129a13edc135349f9df2e90676a5c020f79ef584bba"
+      },
+      "copies": {
+        "rust": "contracts/requirements/authentication.md",
+        "go": "contracts/requirements/authentication.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-model-switching.md",
+        "sha256": "89c3f6a8762eff2ac11e6da58ad51eba2f9697dbe5ac229d07e8f42e5cbb15d5"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-model-switching.md",
+        "go": "contracts/requirements/ai-model-switching.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-model-switching.json",
+        "sha256": "cd177d4a49a181e40ddb14baff8e3c2c9fd273a2a10d90604a84e831b048908e"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-model-switching.json",
+        "go": "contracts/scenarios/ai-model-switching.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-product-scope.md",
+        "sha256": "29caf8c6e559f31d67884fd4e216e19f9b6c0088955f5281fd08a52154b6507d"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-product-scope.md",
+        "go": "contracts/requirements/ai-product-scope.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-knowledge-writing.json",
+        "sha256": "695f9bf7c3a76de694e111aa0e57367604356de805f48c95cf71cfba18af9112"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-knowledge-writing.json",
+        "go": "contracts/scenarios/ai-knowledge-writing.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-group-agent.json",
+        "sha256": "4acfa9b894987baa3a5c17b0dddd69242fcd9dae44949e4c825f8b0dc063ecea"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-group-agent.json",
+        "go": "contracts/scenarios/ai-group-agent.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-moderation-aid.json",
+        "sha256": "f7b44885232396c395f343fff6cb51d9730b9ddfc9dee76fd283181e553416aa"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-moderation-aid.json",
+        "go": "contracts/scenarios/ai-moderation-aid.json"
+      }
     }
   ]
 }
