@@ -25,7 +25,7 @@ const stubs = {
   './api-cache': 'export const readApiResponseCache = async () => ({status:"disabled"}); export const writeApiResponseCache = async () => {}; export const invalidateApiResponseCache = async () => {}; export const shouldInvalidateApiResponseCache = () => false;',
   './logging': 'export const getRequestLogContext = () => null; export const logError = (_, payload) => globalThis.__authCompatErrors?.push(payload); export const logInfo = () => {}; export const serializeLogError = error => ({message: error?.message, stack: error?.stack});',
   oracledb: 'export default {OUT_FORMAT_OBJECT: 4002};',
-  nodemailer: 'export default {createTransport(){throw new Error("Test forbids mail transport");}};'
+  nodemailer: 'export default {createTransport(options){if (!globalThis.__otpTestMail) throw new Error("Test forbids mail transport"); return {sendMail: async message => globalThis.__otpTestMail(options, message)};}};'
 };
 const compiled = await build({
   stdin: { contents: `
@@ -36,6 +36,7 @@ const compiled = await build({
     export {default as logout} from './server/api/v2/auth/tokens/current.delete';
     export {default as twoFactor} from './server/api/v2/auth/two-factor/challenges.post';
     export {default as verifyOtp} from './server/api/v2/auth/otp/verification.post';
+    export {default as createOtp} from './server/api/v2/auth/otp.post';
     export {v2ListSessions} from './server/services/v2/auth';
   `, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm',
@@ -114,6 +115,11 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
       const rows = values => ({rows: values});
       const metadata = schema.query(sql, binds);
       if (metadata !== undefined) return rows(metadata);
+      if (sql.startsWith('SELECT seq_otp_event_id.NEXTVAL')) return rows([{ID:123}]);
+      if (sql.startsWith('INSERT INTO n_auth_otp_events')) {
+        if (db.otpCreateFault === 'insert') throw new Error('otp-create-private-fixture');
+        db.otpCreated = binds; db.otpInserts = (db.otpInserts ?? 0) + 1; return {rowsAffected:1};
+      }
       if (sql.startsWith('SELECT verification_code_hash FROM n_auth_otp_events')) {
         if (db.otpFault === 'lookup') throw new Error('otp-internal-sensitive-fixture');
         const otp = db.otp;
@@ -208,6 +214,7 @@ async function fixture(options) {
   router.delete('/api/v2/auth/tokens/current', routes.logout);
   router.post('/api/v2/auth/two-factor/challenges', routes.twoFactor);
   router.post('/api/v2/auth/otp/verification', routes.verifyOtp);
+  router.post('/api/v2/auth/otp', routes.createOtp);
   router.get('/api/v2/private', defineEventHandler(() => ({ok: true})));
   app.use(router);
   const server = createServer(toNodeListener(app));
@@ -221,6 +228,38 @@ async function fixture(options) {
     login: () => fetch(base + '/api/v2/auth/tokens', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({account: 'test', password: 'test-password'})})
   };
 }
+
+test('shared OTP creation scenarios preserve commits, safe failures and delivery boundaries', async () => {
+  const vectors = JSON.parse(readFileSync(path.join(root, 'specifications/scenarios/auth-otp-creation.json'), 'utf8'));
+  const f = await fixture(); const oldError = console.error; console.error = () => {};
+  const keys = ['SMTP_HOST','NUXT_SMTP_HOST','SMTP_PORT','NUXT_SMTP_PORT','SMTP_USER','NUXT_SMTP_USER','SMTP_PASS','NUXT_SMTP_PASS'];
+  const original = Object.fromEntries(keys.map(key => [key,process.env[key]]));
+  for (const key of keys) delete process.env[key];
+  process.env.SMTP_HOST = 'unused.example.test'; process.env.NUXT_SMTP_HOST = 'mail.example.test';
+  process.env.SMTP_PORT = '2465'; process.env.SMTP_USER = 'sender@example.test'; process.env.SMTP_PASS = 'synthetic-mail-password';
+  globalThis.__authCompatErrors = [];
+  try {
+    for (const vector of vectors.cases) {
+      f.db.otpInserts = 0; f.db.otpCreated = null; f.db.otpCreateFault = vector.fault; let sent = 0; let mail;
+      globalThis.__otpTestMail = async (config, message) => {sent++; mail = message; assert.equal(config.host,'mail.example.test'); assert.equal(config.port,2465); assert.equal(config.auth.user,'sender@example.test'); assert.equal(config.secure,true); assert.equal(f.db.otpInserts,1,vector.id); if (vector.fault === 'mail') throw new Error('otp-create-private-fixture');};
+      const start = Date.now();
+      const response = await f.request('/api/v2/auth/otp', 'POST', vector.body, {cookie:'access_token=expired'});
+      const text = await response.text(); assert.equal(response.status,vector.status,vector.id); assert.doesNotMatch(text,/otp-create-private-fixture/,vector.id);
+      assert.equal(response.headers.getSetCookie().length,0,vector.id); assert.equal(f.db.otpInserts,vector.inserts,vector.id); assert.equal(sent,vector.sends,vector.id);
+      if (vector.status === 200) {
+        const data = JSON.parse(text).data; const code = mail.text.match(/\b\d{6}\b/)?.[0];
+        assert.match(data.verification_id,/^otp_[0-9a-f-]{36}$/); assert.equal(data.account,'fake@example.test');
+        assert.ok(Date.parse(data.expires_at) >= start+300000 && Date.parse(data.expires_at) <= Date.now()+300000);
+        assert.ok(code && await bcrypt.compare(code,f.db.otpCreated.verification_code_hash)); assert.equal(f.db.otpCreated.verification_id,data.verification_id);
+        assert.equal(text.includes(code),false,vector.id);
+        f.db.otp = {account:data.account,type:f.db.otpCreated.otp_type,verification_id:data.verification_id,hash:f.db.otpCreated.verification_code_hash,verified_at:'2026-01-02T03:04:05.000Z'};
+        const verified = await f.request('/api/v2/auth/otp/verification','POST',{account:data.account,type:f.db.otpCreated.otp_type,verification_id:data.verification_id,code});
+        assert.equal(verified.status,200,vector.id);
+      }
+    }
+    assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors),/otp-create-private-fixture|synthetic-mail-password/);
+  } finally {for (const key of keys) original[key] === undefined ? delete process.env[key] : process.env[key] = original[key]; delete globalThis.__authCompatErrors; delete globalThis.__otpTestMail; console.error = oldError; await f.close();}
+});
 
 test('shared OTP verification scenarios use the real Nuxt route and bcrypt', async () => {
   const vectors = JSON.parse(readFileSync(path.join(root, 'specifications/scenarios/auth-otp-verification.json'), 'utf8'));

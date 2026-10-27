@@ -1,6 +1,6 @@
 # 认证与会话需求基线
 
-版本：2026-10-27 / 0.2（源码提炼与会话撤销增量，未共同验收）。范围：Nuxt v2；Rust、Go 必须原生独立实现同一业务，Flutter 仅为客户端。共享 Oracle、Redis 和 files；认证不依赖 SentimentFlow。会话撤销、资源错误和列表缓存的新规则见 [撤销切片](auth-session-revocation.md)，其余行为及缺口继续沿用下述基线。关联计划：[native-backend-parity](../../docs/plans/2026-10-26-native-backend-parity.md)。
+版本：2026-10-27 / 0.3（源码提炼、会话撤销和验证码创建增量，未共同验收）。范围：Nuxt v2；Rust、Go 必须原生独立实现同一业务，Flutter 仅为客户端。共享 Oracle、Redis 和 files；认证不依赖 SentimentFlow。会话撤销见 [撤销切片](auth-session-revocation.md)，验证码创建修订见 [验证码创建](auth-otp-creation.md)，其余行为及缺口继续沿用下述基线。关联计划：[native-backend-parity](../../docs/plans/2026-10-26-native-backend-parity.md)。
 
 本文的“已观察”表示静态源码事实，不表示线上正确、实际数据库已安装该结构或三后端通过验收。AUTH-001 至 AUTH-016 是兼容基线；AUTH-901 至 AUTH-907 是需统一决策的缺口，不能擅自把修复后的理想行为当作 Nuxt 现状。场景是语言无关的待执行断言，尚无本轮真实服务/Oracle/Redis测试证据。本轮未启动服务或 Docker，未访问数据库、私有环境文件及密钥。
 
@@ -60,10 +60,10 @@
 
 ### AUTH-003 OTP创建与投递
 
-已观察：account/type必填；type仅register/password_reset/change_email，channel默认email，仅email/sms。6位十进制随机码（当前Math.random），有效300秒；生成 `otp_`+UUID与序列ID，bcrypt成本10持久化code hash。先插入Oracle后发邮件；email使用SMTP secure=true，sms分支没有发送实现。响应只含account/verification_id/expires_at，不含code。没有在服务内观察到频率/尝试次数限制或发送前账号存在性校验。来源：`auth.ts:49-55,64-84,164-175,495-591`。
+当前规则：account/type必填；type仅register/password_reset/change_email，channel默认email。6位十进制码使用安全随机源，有效300秒；生成 `otp_`+UUID与序列ID，bcrypt成本10持久化code hash。先插入Oracle后以隐式TLS发邮件；sms在写入前返回501。响应只含account/verification_id/expires_at，不含code。尚无服务内频率/尝试次数限制或发送前账号存在性校验。具体兼容变更与验收边界见 `auth-otp-creation.md`。
 
 - AUTH-S006：默认email创建一条OTP并调用邮件投递，核对300秒、hash可验证且无明文code存库/响应；非法type/channel400。
-- AUTH-S007：模拟邮件失败，核对请求失败但已自动提交的OTP仍存在；sms仅记录不实际发送的现状标记为AUTH-901，不据成功响应宣称短信可用。
+- AUTH-S007：模拟邮件失败，核对请求失败但已自动提交的OTP仍存在；sms返回501且不写入，不据成功响应宣称短信可用。
 
 ### AUTH-004 OTP验证与用途隔离
 
@@ -168,7 +168,7 @@
 
 | ID | 现存缺口与决策 | 关联场景/来源 |
 | --- | --- | --- |
-| AUTH-901 | OTP使用Math.random、无此服务内限流/尝试次数/消费机制；sms接受但不发送。决定验证码安全随机源、限流存储、一次性语义、短信能力与失败响应。不可假设已经Redis限流。 | S006-009/S028；auth:164-168,526-675 |
+| AUTH-901 | OTP已升级安全随机源，sms改为明确不可用；服务内限流、尝试次数、消费机制和实际短信能力仍缺失。需统一实现及迁移策略，不可假设已经Redis限流。 | S006-009/S028；auth-otp-creation.md |
 | AUTH-902 | 受信凭据只有客户端fingerprint，无服务器签发设备秘密；挑战完成没有绑定请求设备/IP；决定共享信任凭据与挑战绑定规则。 | S021-022；auth:843-961,1599-1662 |
 | AUTH-903 | 多语句autoCommit导致setup/confirm/disable及恢复码→challenge→信任→session流程部分完成；单行消费防重放不等于全流程原子。决定事务边界、外部邮件/WS/Redis投递时机、失败恢复。 | S007/S020/S035；v2:263-273 |
 | AUTH-904 | service token verifier仅要求type为access或refresh，refresh流程不强制refresh；userId规范化比middleware宽松，refresh及受保护请求未重新检查账号可用；JWT验算法未固定allowlist且无iss/aud。决定统一校验、停用生效及密钥兼容策略。 | S004/S014/S024；auth:405-493,1664-1697；middleware:78-100,237-250 |

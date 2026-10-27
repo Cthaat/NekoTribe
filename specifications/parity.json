@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "b9788a77efc871e830ad3f73538c2df3a830a9c59c4893196da681eb8c8b4c37"
+      "sha256": "9bb8613d7dddcb85b3a74cdee446c2334db89ba77a7272f749a987b2e6c4db4e"
     },
     "sources": [
       {
@@ -287,7 +287,7 @@
       },
       {
         "path": "server/api/v2/auth/otp.post.ts",
-        "sha256": "5d4794ce3fc992fbdc01ff0eb4bd0d80fa4e0cdf94c77c1124d13af6caac619e"
+        "sha256": "1ad6eaf3c0b3e961a97bc220a428b29c559b9f56a5ddbc924d8ed94633ec5437"
       },
       {
         "path": "server/api/v2/auth/otp/verification.post.ts",
@@ -967,7 +967,7 @@
       },
       {
         "path": "server/services/v2/auth.ts",
-        "sha256": "970605163f1e4bd6db0be88659b77cae93f0a72ba90539a3b72e928c2261ef54"
+        "sha256": "9e145dc3acb532350d5078afa0137ed10399989db20009c5055c4102177637c6"
       },
       {
         "path": "server/services/v2/chat.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "20f41e34cf781c937bde710f88f6659541b6cedcd5dfbe55d44b6181f27e7279"
+        "sha256": "6846d7716e864134db6fb28cd27e820f381f10c8d443eed93948a81ce8002bf0"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -1143,50 +1143,79 @@
     {
       "id": "API-post_auth_otp",
       "title": "POST /api/v2/auth/otp: 创建邮箱验证码 OTP",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": "specifications/requirements/authentication.md",
+      "definition": "specifications/requirements/auth-otp-creation.md",
       "sourceFiles": [
-        "server/api/v2/auth/otp.post.ts"
+        "server/api/v2/auth/otp.post.ts",
+        "server/services/v2/auth.ts",
+        "server/utils/auth-entry-errors.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
       ],
       "operations": [
         "POST /api/v2/auth/otp"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "AUTH-OTP-CREATE",
+          "file": "specifications/scenarios/auth-otp-creation.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/auth/otp; create shared acceptance scenarios.",
-            "nuxt: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "nuxt: maintain secure OTP creation, explicit SMS failure and encrypted SMTP delivery.",
+            "nuxt: test real SMTP, Oracle, rate limiting and cross-backend registration before acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/auth/otp.post.ts"
+            "server/api/v2/auth/otp.post.ts",
+            "server/services/v2/auth.ts",
+            "server/utils/auth-entry-errors.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/auth/otp natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "rust: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "rust: maintain secure OTP creation, explicit SMS failure and encrypted SMTP delivery.",
+            "rust: test real SMTP, Oracle, rate limiting and cross-backend registration before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/auth/otp.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs",
+            "src/config/env.rs",
+            "src/app/routes.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/auth/otp natively from reviewed shared requirements and scenarios, with no Nuxt business fallback.",
-            "go: review AUTH-001..016 and AUTH-901..907 in specifications/requirements/authentication.md; extract relevant executable AUTH-S scenarios before claiming native acceptance."
+            "go: maintain secure OTP creation, explicit SMS failure and encrypted SMTP delivery.",
+            "go: test real SMTP, Oracle, rate limiting and cross-backend registration before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/otp_creation.go",
+            "internal/server/smtp.go",
+            "internal/server/server.go",
+            "internal/server/config.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/auth-otp-creation.md",
+        "specifications/scenarios/auth-otp-creation.json",
+        "specifications/requirements/authentication.md"
+      ]
     },
     {
       "id": "API-post_auth_otp_verification",
@@ -9784,7 +9813,7 @@
     {
       "source": {
         "path": "specifications/requirements/authentication.md",
-        "sha256": "8eeec3c83845ffc19e52fcfb9fcd8889e4bb3bb3c23cf88e279f4c68a642f232"
+        "sha256": "1b5932dc889af34341762844cf5923e5c91c4a8d9309c86976352aea024c3f40"
       },
       "copies": {
         "rust": "contracts/requirements/authentication.md",
@@ -10049,6 +10078,26 @@
       "copies": {
         "rust": "contracts/scenarios/auth-otp-verification.json",
         "go": "contracts/scenarios/auth-otp-verification.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/auth-otp-creation.md",
+        "sha256": "23b6e0fa60638c3addbbc74d03cfe8e6801c7a194967311b30e229c3f4ad7a32"
+      },
+      "copies": {
+        "rust": "contracts/requirements/auth-otp-creation.md",
+        "go": "contracts/requirements/auth-otp-creation.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/auth-otp-creation.json",
+        "sha256": "e5faac7256bdba582b8057e98e04f1cd34e4d537d64c1f6c0244da5fa7b6fd8d"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/auth-otp-creation.json",
+        "go": "contracts/scenarios/auth-otp-creation.json"
       }
     }
   ]

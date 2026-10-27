@@ -17,6 +17,14 @@ function requestValidator(method, path) {
   return ajv.compile({ $ref: `${base}#/paths/${pointer}/${method}/requestBody/content/application~1json/schema` });
 }
 
+test('OTP SMS failure is documented for Nuxt and native error envelopes', () => {
+  const path='/api/v2/auth/otp'.replaceAll('~','~0').replaceAll('/','~1');
+  const validate501=ajv.compile({$ref:`${base}#/paths/${path}/post/responses/501/content/application~1json/schema`});
+  const business={code:50101,message:'短信验证码暂不可用',data:null,meta:null};
+  assert.equal(validate501(business),true);
+  assert.equal(validate501({error:true,url:'/api/v2/auth/otp',statusCode:501,statusMessage:'短信验证码暂不可用',message:'短信验证码暂不可用',data:business}),true);
+});
+
 test('the 39 audited operations have concrete success contracts and retain evidence', () => {
   assert.equal(evidence.operations, 39);
   const keys = new Set();

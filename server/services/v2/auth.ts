@@ -36,6 +36,7 @@ import {
   v2ServerError,
   v2String,
   v2StringOrNull,
+  v2Throw,
   v2Unauthorized,
   v2Unprocessable,
   v2UserAgent
@@ -66,17 +67,24 @@ async function v2SendMail(
   options: V2MailOptions
 ): Promise<void> {
   const runtimeConfig = useRuntimeConfig();
+  const host = process.env.NUXT_SMTP_HOST ?? process.env.SMTP_HOST ?? runtimeConfig.smtpHost;
+  const port = process.env.NUXT_SMTP_PORT ?? process.env.SMTP_PORT ?? runtimeConfig.smtpPort;
+  const user = process.env.NUXT_SMTP_USER ?? process.env.SMTP_USER ?? runtimeConfig.smtpUser;
+  const pass = process.env.NUXT_SMTP_PASS ?? process.env.SMTP_PASS ?? runtimeConfig.smtpPass;
   const transporter = nodemailer.createTransport({
-    host: runtimeConfig.smtpHost,
-    port: Number(runtimeConfig.smtpPort),
+    host,
+    port: Number(port),
     secure: true,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000,
     auth: {
-      user: runtimeConfig.smtpUser,
-      pass: runtimeConfig.smtpPass
+      user,
+      pass
     }
   });
   await transporter.sendMail({
-    from: runtimeConfig.smtpUser,
+    from: user,
     to: options.to,
     subject: options.subject,
     text: options.text,
@@ -164,7 +172,7 @@ async function v2SendLoginAlert(
 
 function v2RandomCode(): string {
   return Array.from({ length: 6 })
-    .map(() => Math.floor(Math.random() * 10))
+    .map(() => crypto.randomInt(0, 10))
     .join('');
 }
 
@@ -529,6 +537,7 @@ export async function v2CreateOtp(
   connection: oracledb.Connection
 ): Promise<V2Response<V2AuthOtpData>> {
   const payload = await v2ParseOtpPayload(event);
+  if (payload.channel === 'sms') v2Throw(501, '短信验证码暂不可用');
   const code = v2RandomCode();
   const verificationId = `otp_${crypto.randomUUID()}`;
   const expiresAt = new Date(
