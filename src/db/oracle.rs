@@ -14,6 +14,8 @@ pub enum DbError {
     Join(#[from] tokio::task::JoinError),
     #[error("database concurrency limiter closed")]
     SemaphoreClosed,
+    #[error("database schema is not ready")]
+    SchemaNotReady,
     #[error("expected numeric value for column {0}")]
     ExpectedNumber(String),
 }

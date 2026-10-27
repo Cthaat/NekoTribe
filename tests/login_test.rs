@@ -32,6 +32,112 @@ impl SessionRepository for Unavailable {
     }
 }
 
+#[derive(Default)]
+struct SecondReadinessFails {
+    checks: AtomicUsize,
+    writes: AtomicUsize,
+    secret_reads: AtomicUsize,
+}
+impl SessionRepository for SecondReadinessFails {
+    fn touch<'a>(&'a self, _: &'a TokenClaims) -> StoreFuture<'a, u64> {
+        Box::pin(async { Ok(0) })
+    }
+    fn revoke<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, u64> {
+        Box::pin(async { Ok(0) })
+    }
+    fn revoke_others<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, u64> {
+        Box::pin(async { Ok(0) })
+    }
+    fn two_factor_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            if self.checks.fetch_add(1, Ordering::SeqCst) == 0 {
+                Ok(())
+            } else {
+                Err(SessionStoreError)
+            }
+        })
+    }
+    fn login_account<'a>(&'a self, _: &'a str) -> StoreFuture<'a, Option<LoginAccount>> {
+        Box::pin(async {
+            Ok(Some(LoginAccount {
+                user_id: 1,
+                username: "test".into(),
+                password_hash: "$2b$04$OJWTcv5D1yfCJ2aUI/L8beKZveutMxfKeV2DaIORCbtM4pJEKuwVK"
+                    .into(),
+                status: "active".into(),
+                active: true,
+            }))
+        })
+    }
+    fn login_two_factor<'a>(&'a self, _: u64) -> StoreFuture<'a, bool> {
+        Box::pin(async { Ok(true) })
+    }
+    fn login_trusted_device<'a>(&'a self, _: u64, _: &'a LoginDevice) -> StoreFuture<'a, bool> {
+        Box::pin(async { Ok(false) })
+    }
+    fn login_challenge<'a>(&'a self, _: &'a LoginChallenge) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            self.writes.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
+    }
+    fn challenge_lookup<'a>(&'a self, _: &'a str) -> StoreFuture<'a, Option<ChallengeRow>> {
+        Box::pin(async {
+            Ok(Some(ChallengeRow {
+                user_id: 1,
+                username: "test".into(),
+                remember: false,
+                device: LoginDevice {
+                    fingerprint: "unknown".into(),
+                    info: "unknown".into(),
+                    ip: "unknown".into(),
+                    user_agent: "unknown".into(),
+                },
+            }))
+        })
+    }
+    fn two_factor_secret<'a>(&'a self, _: u64) -> StoreFuture<'a, Option<EncryptedSecret>> {
+        Box::pin(async move {
+            self.secret_reads.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        })
+    }
+}
+
+#[tokio::test]
+async fn second_readiness_failure_does_not_create_or_consume_credentials() {
+    for (path, body) in [
+        (
+            "/api/v2/auth/tokens",
+            r#"{"account":"test","password":"correct-password"}"#,
+        ),
+        (
+            "/api/v2/auth/two-factor/challenges",
+            r#"{"challenge_id":"2fa-test","code":"123456"}"#,
+        ),
+    ] {
+        let store = Arc::new(SecondReadinessFails::default());
+        let app = build_native_router(
+            TokenCodec::new(b"access", b"refresh").unwrap(),
+            store.clone(),
+            CorsPolicy::default(),
+            Arc::new(|| 1700000000),
+        );
+        let request = Request::builder()
+            .method("POST")
+            .uri(path)
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let response = app.oneshot(request).await.unwrap();
+        assert_eq!(response.status(), 503, "{path}");
+        assert_eq!(response.headers().get_all("set-cookie").iter().count(), 0);
+        assert_eq!(store.checks.load(Ordering::SeqCst), 2);
+        assert_eq!(store.writes.load(Ordering::SeqCst), 0);
+        assert_eq!(store.secret_reads.load(Ordering::SeqCst), 0);
+    }
+}
+
 struct LoginStore {
     two_factor: bool,
     profile_fails: bool,

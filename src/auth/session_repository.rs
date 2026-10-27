@@ -22,6 +22,9 @@ pub trait SessionExecutor: Send + Sync {
     fn query(&self, _sql: &'static str, _binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
 }
 pub struct OracleSessions<E> {
     pub executor: E,
@@ -34,14 +37,8 @@ impl<E: SessionExecutor> OracleSessions<E> {
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
     fn two_factor_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
         Box::pin(async move {
-            for sql in [
-                "SELECT user_id,secret_encrypted,secret_iv,secret_auth_tag,enabled_at FROM n_user_two_factor_secrets WHERE 1=0",
-                "SELECT recovery_code_id,user_id,code_hash,used_at,created_at FROM n_user_two_factor_recovery_codes WHERE 1=0",
-                "SELECT trusted_device_id,user_id,device_fingerprint,device_info,ip_address,user_agent,expires_at,revoked_at,last_used_at FROM n_user_two_factor_trusted_devices WHERE 1=0",
-                "SELECT challenge_id,user_id,remember_me,device_info,device_fingerprint,ip_address,user_agent,expires_at,consumed_at FROM n_auth_two_factor_challenges WHERE 1=0",
-                "SELECT user_id,two_factor_enabled FROM n_user_settings WHERE 1=0"
-            ] { self.executor.query(sql,BindMap::new()).await?; }
-            Ok(())
+            let snapshot = self.executor.readiness_snapshot().await?;
+            crate::auth::readiness::validate_snapshot(&snapshot)
         })
     }
     fn login_account<'a>(
@@ -369,6 +366,13 @@ fn session_binds(user: u64, id: &str) -> BindMap {
     ])
 }
 impl SessionExecutor for OraclePool {
+    fn readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
+        Box::pin(async move {
+            self.run_blocking(crate::auth::readiness::collect_snapshot)
+                .await
+                .map_err(|_| SessionStoreError)
+        })
+    }
     fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
         Box::pin(async move {
             self.query_rows(sql, binds)

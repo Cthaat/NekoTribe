@@ -106,7 +106,7 @@ impl OraclePool {
             .ok_or_else(|| DbError::ExpectedNumber("TOTAL".to_string()))
     }
 
-    async fn run_blocking<F, T>(&self, operation: F) -> Result<T, DbError>
+    pub(crate) async fn run_blocking<F, T>(&self, operation: F) -> Result<T, DbError>
     where
         F: FnOnce(&::oracle::Connection) -> Result<T, DbError> + Send + 'static,
         T: Send + 'static,

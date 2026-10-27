@@ -229,6 +229,13 @@ pub(crate) async fn login(
             .await
             .map_err(|_| server_error())?
     {
+        state.repository.two_factor_readiness().await.map_err(|_| {
+            ApiError::new(
+                http::StatusCode::SERVICE_UNAVAILABLE,
+                50301,
+                "服务暂不可用，请稍后重试。",
+            )
+        })?;
         let now = (state.clock)();
         let expiry =
             timestamp(now.checked_add(300).ok_or_else(server_error)?).ok_or_else(server_error)?;
@@ -355,6 +362,13 @@ pub(crate) async fn complete_challenge(
         .await
         .map_err(|_| server_error())?
         .ok_or_else(|| ApiError::unauthorized("双因素验证已过期，请重新登录"))?;
+    state.repository.two_factor_readiness().await.map_err(|_| {
+        ApiError::new(
+            http::StatusCode::SERVICE_UNAVAILABLE,
+            50301,
+            "服务暂不可用，请稍后重试。",
+        )
+    })?;
     let secret = state
         .repository
         .two_factor_secret(row.user_id)

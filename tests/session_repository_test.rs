@@ -62,6 +62,18 @@ async fn logout_repository_binds_exact_user_session_and_current_credential() {
     );
 }
 impl SessionExecutor for Executor {
+    fn readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
+        Box::pin(async move {
+            if self.fail {
+                return Err(SessionStoreError);
+            }
+            let fixture: serde_json::Value = serde_json::from_str(include_str!(
+                "../contracts/scenarios/two-factor-readiness.json"
+            ))
+            .unwrap();
+            Ok(fixture["baseline"].clone())
+        })
+    }
     fn query(&self, q: &'static str, b: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
         Box::pin(async move {
             self.calls.lock().unwrap().push((q, b));
@@ -95,28 +107,11 @@ impl SessionExecutor for Executor {
 }
 
 #[tokio::test]
-async fn two_factor_readiness_checks_all_required_tables_using_select_only() {
+async fn two_factor_readiness_requires_a_valid_metadata_snapshot() {
     let repo = OracleSessions {
         executor: Executor::default(),
     };
     repo.two_factor_readiness().await.unwrap();
-    let calls = repo.executor.calls.lock().unwrap();
-    assert_eq!(calls.len(), 5);
-    for (sql, binds) in calls.iter() {
-        assert!(sql.starts_with("SELECT "));
-        assert!(sql.contains("WHERE 1=0"));
-        assert!(binds.is_empty());
-    }
-    for table in [
-        "n_user_two_factor_secrets",
-        "n_user_two_factor_recovery_codes",
-        "n_user_two_factor_trusted_devices",
-        "n_auth_two_factor_challenges",
-        "n_user_settings",
-    ] {
-        assert!(calls.iter().any(|(sql, _)| sql.contains(table)));
-    }
-    drop(calls);
     let broken = OracleSessions {
         executor: Executor {
             fail: true,
