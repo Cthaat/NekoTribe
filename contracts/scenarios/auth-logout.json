@@ -1,0 +1,17 @@
+{
+  "id": "AUTH-LOGOUT",
+  "revision": 1,
+  "scope": "Acceptance requirements; real database and cross-backend execution remain outstanding",
+  "cases": [
+    {"id": "LOGOUT-001", "description": "Valid refresh cookie and JSON or URL-encoded body each revoke the matching session, clear both cookies and return the success envelope."},
+    {"id": "LOGOUT-002", "description": "Without refresh, valid access cookie or strictly formatted Bearer header revokes the matching current session."},
+    {"id": "LOGOUT-003", "description": "Invalid nonempty refresh wins over valid body and access; whitespace-only refresh cookie suppresses body but falls back to access."},
+    {"id": "LOGOUT-004", "description": "Invalid nonempty access cookie wins over valid Bearer; bare Authorization is not a Bearer credential."},
+    {"id": "LOGOUT-005", "description": "Absent, expired, wrong-signature, wrong-type and stale credentials leave all sessions unchanged and return success with cleared cookies when database lifecycle succeeds."},
+    {"id": "LOGOUT-006", "description": "A valid JWT can revoke a matching session with expired database timestamps; a mismatched user, session, hash or access jti cannot revoke it."},
+    {"id": "LOGOUT-007", "description": "Storage error returns a safe failure with no new cookie changes; closing after a committed update may leave the session revoked despite the failure."},
+    {"id": "LOGOUT-008", "description": "Logout first makes a competing refresh fail; refresh first makes logout using the old refresh return success without revoking the rotated session."},
+    {"id": "LOGOUT-009", "description": "Allowed and rejected CORS preflight occurs without session storage access."},
+    {"id": "LOGOUT-010", "description": "With shared keys and isolated Oracle, each backend revokes tokens issued by each backend; Nuxt Web and Flutter observe subsequent authenticated requests fail."}
+  ]
+}

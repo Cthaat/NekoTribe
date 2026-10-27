@@ -1,7 +1,9 @@
 use nekotribe_backend::{
     auth::{
         session_repository::{OracleSessions, SessionExecutor},
-        sessions::{SessionRepository, SessionRotation, SessionStoreError, StoreFuture},
+        sessions::{
+            SessionCredential, SessionRepository, SessionRotation, SessionStoreError, StoreFuture,
+        },
         TokenClaims, TokenKind,
     },
     db::{oracle::BindMap, value::DbValue},
@@ -11,6 +13,52 @@ use std::sync::Mutex;
 struct Executor {
     calls: Mutex<Vec<(&'static str, BindMap)>>,
     fail: bool,
+}
+
+#[tokio::test]
+async fn logout_repository_binds_exact_user_session_and_current_credential() {
+    let repo = OracleSessions {
+        executor: Executor::default(),
+    };
+    assert_eq!(
+        repo.revoke_current(
+            42,
+            "session';--",
+            &SessionCredential::AccessJti("old-jti".into())
+        )
+        .await
+        .unwrap(),
+        1
+    );
+    assert_eq!(
+        repo.revoke_current(
+            42,
+            "session';--",
+            &SessionCredential::RefreshHash("old-hash".into())
+        )
+        .await
+        .unwrap(),
+        1
+    );
+    let calls = repo.executor.calls.lock().unwrap();
+    for (sql, binds) in calls.iter() {
+        assert!(sql.contains("session_id = :session_id"));
+        assert!(sql.contains("user_id = :user_id"));
+        assert!(sql.contains("revoked_at IS NULL"));
+        assert!(!sql.contains("expires_at"));
+        assert!(!sql.contains("session';--"));
+        assert_eq!(binds["user_id"], DbValue::I64(42));
+        assert_eq!(binds["session_id"], DbValue::String("session';--".into()));
+    }
+    assert!(calls[0].0.contains("access_jti = :access_jti"));
+    assert_eq!(calls[0].1["access_jti"], DbValue::String("old-jti".into()));
+    assert!(calls[1]
+        .0
+        .contains("refresh_token_hash = :refresh_token_hash"));
+    assert_eq!(
+        calls[1].1["refresh_token_hash"],
+        DbValue::String("old-hash".into())
+    );
 }
 impl SessionExecutor for Executor {
     fn execute(&self, q: &'static str, b: BindMap) -> StoreFuture<'_, u64> {

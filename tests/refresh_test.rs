@@ -2,8 +2,8 @@ use axum::{body::Body, http::Request, Router};
 use http_body_util::BodyExt;
 use nekotribe_backend::auth::{
     sessions::{
-        build_native_router_with_refresh, CorsPolicy, RefreshPolicy, SessionRepository,
-        SessionRotation, SessionStoreError, StoreFuture,
+        build_native_router_with_refresh, CorsPolicy, RefreshPolicy, SessionCredential,
+        SessionRepository, SessionRotation, SessionStoreError, StoreFuture,
     },
     IssuedToken, TokenClaims, TokenCodec, TokenKind,
 };
@@ -61,6 +61,32 @@ impl SessionRepository for Store {
     }
     fn revoke_others<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, u64> {
         Box::pin(async { Ok(0) })
+    }
+    fn revoke_current<'a>(
+        &'a self,
+        user: u64,
+        session: &'a str,
+        credential: &'a SessionCredential,
+    ) -> StoreFuture<'a, u64> {
+        Box::pin(async move {
+            let mut r = self.0.lock().unwrap();
+            if r.fail {
+                return Err(SessionStoreError);
+            }
+            let matches = match credential {
+                SessionCredential::RefreshHash(hash) => r.refresh_hash == *hash,
+                SessionCredential::AccessJti(jti) => r.access_jti == *jti,
+            };
+            if r.revoked || user != 42 || session != "sess_test" || !matches {
+                return Ok(0);
+            }
+            r.revoked = true;
+            r.writes += 1;
+            if r.fail_after_write {
+                return Err(SessionStoreError);
+            }
+            Ok(1)
+        })
     }
     fn rotate<'a>(&'a self, rotation: &'a SessionRotation) -> StoreFuture<'a, u64> {
         Box::pin(async move {
@@ -131,6 +157,503 @@ fn request(cookie: Option<&str>, body: &str, content_type: &str) -> Request<Body
 }
 async fn body(response: axum::response::Response) -> serde_json::Value {
     serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap()
+}
+
+fn logout(
+    cookie: Option<&str>,
+    authorization: Option<&str>,
+    payload: &str,
+    content_type: &str,
+) -> Request<Body> {
+    let mut r = Request::builder()
+        .method("DELETE")
+        .uri("/api/v2/auth/tokens/current")
+        .header("content-type", content_type);
+    if let Some(v) = cookie {
+        r = r.header("cookie", v);
+    }
+    if let Some(v) = authorization {
+        r = r.header("authorization", v);
+    }
+    r.body(Body::from(payload.to_owned())).unwrap()
+}
+
+async fn assert_logout(response: axum::response::Response) {
+    assert_eq!(response.status(), 200);
+    let cookies: Vec<_> = response
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .map(|v| v.to_str().unwrap().to_string())
+        .collect();
+    assert_eq!(cookies.len(), 2);
+    for name in ["access_token", "refresh_token"] {
+        assert!(cookies.iter().any(|v| v.starts_with(&format!("{name}="))
+            && v.contains("Max-Age=0")
+            && v.contains("Path=/")));
+    }
+    assert_eq!(
+        body(response).await,
+        serde_json::json!({"code":200,"message":"logout success","data":null,"meta":null})
+    );
+}
+
+#[tokio::test]
+async fn logout_by_refresh_or_access_revokes_only_matching_session_and_clears_cookies() {
+    for mode in 0..4 {
+        let (router, store, refresh, access) = setup(false);
+        let cookie = match mode {
+            0 => Some(format!("refresh_token={refresh}")),
+            2 => Some(format!("access_token={access}")),
+            _ => None,
+        };
+        let bearer = (mode == 3).then(|| format!("Bearer {access}"));
+        let payload = if mode == 1 {
+            format!("{{\"refresh_token\":\"{refresh}\"}}")
+        } else {
+            "{}".into()
+        };
+        let response = router
+            .clone()
+            .oneshot(logout(
+                cookie.as_deref(),
+                bearer.as_deref(),
+                &payload,
+                "application/json",
+            ))
+            .await
+            .unwrap();
+        assert_logout(response).await;
+        assert!(store.0.lock().unwrap().revoked, "mode {mode}");
+        assert_eq!(
+            router
+                .oneshot(request(
+                    None,
+                    &format!("{{\"refresh_token\":\"{refresh}\"}}"),
+                    "application/json"
+                ))
+                .await
+                .unwrap()
+                .status(),
+            401
+        );
+    }
+}
+
+#[tokio::test]
+async fn logout_precedence_and_stale_credentials_never_revoke_another_session() {
+    for mode in 0..8 {
+        let (router, store, refresh, access) = setup(false);
+        let stale = signed(TokenKind::Refresh, "stale");
+        let (cookie, auth, payload): (Option<String>, Option<String>, String) = match mode {
+            0 => (
+                Some("refresh_token=invalid".into()),
+                Some(format!("Bearer {access}")),
+                format!("{{\"refresh_token\":\"{refresh}\"}}"),
+            ),
+            1 => (
+                None,
+                Some(format!("Bearer {access}")),
+                format!("{{\"refresh_token\":\"{stale}\"}}"),
+            ),
+            2 => (
+                Some("access_token=invalid".into()),
+                Some(format!("Bearer {access}")),
+                "{}".into(),
+            ),
+            3 => (None, Some(access), "{}".into()),
+            4 => (None, None, "{}".into()),
+            5 => (Some("refresh_token=invalid".into()), None, "{}".into()),
+            6 => (None, Some(format!("Bearer {access} trailing")), "{}".into()),
+            _ => (None, Some(format!("Bearer {access} ")), "{}".into()),
+        };
+        assert_logout(
+            router
+                .oneshot(logout(
+                    cookie.as_deref(),
+                    auth.as_deref(),
+                    &payload,
+                    "application/json",
+                ))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert!(!store.0.lock().unwrap().revoked, "mode {mode}");
+        assert_eq!(store.0.lock().unwrap().writes, 0);
+    }
+}
+
+#[tokio::test]
+async fn logout_refresh_cookie_and_form_priority_and_storage_errors() {
+    let (router, store, refresh, access) = setup(false);
+    let response = router
+        .oneshot(logout(
+            Some("refresh_token=%20%20"),
+            Some(&format!("Bearer {access}")),
+            &format!("{{\"refresh_token\":\"{refresh}\"}}"),
+            "application/json",
+        ))
+        .await
+        .unwrap();
+    assert_logout(response).await;
+    assert!(store.0.lock().unwrap().revoked);
+    let (router, store, refresh, _) = setup(false);
+    let response = router
+        .oneshot(logout(
+            None,
+            None,
+            &format!("refresh_token={refresh}"),
+            "application/x-www-form-urlencoded",
+        ))
+        .await
+        .unwrap();
+    assert_logout(response).await;
+    assert!(store.0.lock().unwrap().revoked);
+    let (router, store, refresh, _) = setup(false);
+    store.0.lock().unwrap().fail = true;
+    let response = router
+        .oneshot(logout(
+            None,
+            None,
+            &format!("{{\"refresh_token\":\"{refresh}\"}}"),
+            "application/json",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 500);
+    assert!(response.headers().get("set-cookie").is_none());
+    assert!(!body(response).await.to_string().contains(&refresh));
+}
+
+#[tokio::test]
+async fn logout_accepts_legacy_refresh_without_jti_and_ignores_database_expiry() {
+    let (router, store, _, _) = setup(false);
+    let token = jsonwebtoken::encode(&jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+        &serde_json::json!({"userId":42,"userName":"kitty","sessionId":"sess_test","type":"refresh","iat":NOW-1,"exp":NOW+100}),
+        &jsonwebtoken::EncodingKey::from_secret(REFRESH_KEY)).unwrap();
+    {
+        let mut row = store.0.lock().unwrap();
+        row.refresh_hash = digest(&token);
+        row.expired = true;
+    }
+    assert_logout(
+        router
+            .oneshot(logout(
+                Some(&format!("refresh_token={token}")),
+                None,
+                "",
+                "application/json",
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert!(store.0.lock().unwrap().revoked);
+}
+
+#[tokio::test]
+async fn valid_refresh_selects_its_session_even_with_a_different_access_identity() {
+    let (router, store, refresh, _) = setup(false);
+    let other_access = codec()
+        .sign(&IssuedToken {
+            user_id: 7,
+            user_name: "other".into(),
+            session_id: "different".into(),
+            kind: TokenKind::Access,
+            issued_at: NOW - 1,
+            expires_at: NOW + 100,
+            jti: "other-jti".into(),
+        })
+        .unwrap();
+    let response = router
+        .oneshot(logout(
+            Some(&format!(
+                "refresh_token={refresh}; access_token={other_access}"
+            )),
+            Some(&format!("Bearer {other_access}")),
+            "{}",
+            "application/json",
+        ))
+        .await
+        .unwrap();
+    assert_logout(response).await;
+    assert!(store.0.lock().unwrap().revoked);
+}
+
+#[tokio::test]
+async fn logout_with_two_accounts_never_revokes_the_unselected_access_session() {
+    struct Entry {
+        user: u64,
+        jti: String,
+        hash: String,
+        revoked: bool,
+    }
+    struct TwoSessions(Mutex<std::collections::HashMap<String, Entry>>);
+    impl SessionRepository for TwoSessions {
+        fn touch<'a>(&'a self, claims: &'a TokenClaims) -> StoreFuture<'a, u64> {
+            Box::pin(async move {
+                let rows = self.0.lock().unwrap();
+                Ok(u64::from(rows.get(&claims.session_id).is_some_and(|row| {
+                    !row.revoked && row.user == claims.user_id && row.jti == claims.jti
+                })))
+            })
+        }
+        fn revoke<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, u64> {
+            Box::pin(async { Ok(0) })
+        }
+        fn revoke_others<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, u64> {
+            Box::pin(async { Ok(0) })
+        }
+        fn revoke_current<'a>(
+            &'a self,
+            user: u64,
+            session: &'a str,
+            credential: &'a SessionCredential,
+        ) -> StoreFuture<'a, u64> {
+            Box::pin(async move {
+                let mut rows = self.0.lock().unwrap();
+                let Some(row) = rows.get_mut(session) else {
+                    return Ok(0);
+                };
+                let matches = match credential {
+                    SessionCredential::AccessJti(jti) => row.jti == *jti,
+                    SessionCredential::RefreshHash(hash) => row.hash == *hash,
+                };
+                if row.user != user || row.revoked || !matches {
+                    return Ok(0);
+                }
+                row.revoked = true;
+                Ok(1)
+            })
+        }
+    }
+    let refresh = signed(TokenKind::Refresh, "original-refresh");
+    let other = codec()
+        .sign(&IssuedToken {
+            user_id: 7,
+            user_name: "other".into(),
+            session_id: "different".into(),
+            kind: TokenKind::Access,
+            issued_at: NOW - 1,
+            expires_at: NOW + 100,
+            jti: "other-jti".into(),
+        })
+        .unwrap();
+    let store = Arc::new(TwoSessions(Mutex::new(std::collections::HashMap::from([
+        (
+            "sess_test".into(),
+            Entry {
+                user: 42,
+                jti: "original-access".into(),
+                hash: digest(&refresh),
+                revoked: false,
+            },
+        ),
+        (
+            "different".into(),
+            Entry {
+                user: 7,
+                jti: "other-jti".into(),
+                hash: "other-hash".into(),
+                revoked: false,
+            },
+        ),
+    ]))));
+    let router = build_native_router_with_refresh(
+        codec(),
+        store.clone(),
+        CorsPolicy::default(),
+        Arc::new(|| NOW),
+        RefreshPolicy::default(),
+    );
+    assert_logout(
+        router
+            .clone()
+            .oneshot(logout(
+                Some(&format!("refresh_token={refresh}; access_token={other}")),
+                None,
+                "{}",
+                "application/json",
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    {
+        let rows = store.0.lock().unwrap();
+        assert!(rows["sess_test"].revoked);
+        assert!(!rows["different"].revoked);
+    }
+    let protected = router
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v2/auth/sessions/others")
+                .header("authorization", format!("Bearer {other}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(protected.status(), 200);
+}
+
+#[tokio::test]
+async fn stale_logout_after_rotation_cannot_revoke_new_session() {
+    let (router, store, old_refresh, old_access) = setup(false);
+    let response = router
+        .clone()
+        .oneshot(request(
+            None,
+            &format!("{{\"refresh_token\":\"{old_refresh}\"}}"),
+            "application/json",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let updated = body(response).await;
+    let attempts: [(Option<String>, Option<String>, String); 3] = [
+        (
+            None,
+            None,
+            format!("{{\"refresh_token\":\"{old_refresh}\"}}"),
+        ),
+        (None, Some(format!("Bearer {old_access}")), "{}".into()),
+        (
+            Some("refresh_token=invalid".into()),
+            None,
+            format!(
+                "{{\"refresh_token\":\"{}\"}}",
+                updated["data"]["refresh_token"].as_str().unwrap()
+            ),
+        ),
+    ];
+    for (cookie, auth, payload) in attempts {
+        assert_logout(
+            router
+                .clone()
+                .oneshot(logout(
+                    cookie.as_deref(),
+                    auth.as_deref(),
+                    &payload,
+                    "application/json",
+                ))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert!(!store.0.lock().unwrap().revoked);
+    }
+    let new_access = updated["data"]["access_token"].as_str().unwrap();
+    let protected = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v2/auth/sessions/others")
+                .header("authorization", format!("Bearer {new_access}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(protected.status(), 200);
+    let new_refresh = updated["data"]["refresh_token"].as_str().unwrap();
+    assert_logout(
+        router
+            .oneshot(logout(
+                None,
+                None,
+                &format!("{{\"refresh_token\":\"{new_refresh}\"}}"),
+                "application/json",
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert!(store.0.lock().unwrap().revoked);
+}
+
+#[tokio::test]
+async fn logout_rejects_mismatched_identity_and_handles_unknown_commit() {
+    for (user_id, session_id) in [(43, "sess_test"), (42, "other_session")] {
+        let (router, store, _, _) = setup(false);
+        let token = codec()
+            .sign(&IssuedToken {
+                user_id,
+                user_name: "kitty".into(),
+                session_id: session_id.into(),
+                kind: TokenKind::Refresh,
+                issued_at: NOW - 1,
+                expires_at: NOW + 100,
+                jti: "test".into(),
+            })
+            .unwrap();
+        store.0.lock().unwrap().refresh_hash = digest(&token);
+        assert_logout(
+            router
+                .oneshot(logout(
+                    None,
+                    None,
+                    &format!("{{\"refresh_token\":\"{token}\"}}"),
+                    "application/json",
+                ))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert!(!store.0.lock().unwrap().revoked);
+    }
+    let (router, store, refresh, _) = setup(false);
+    store.0.lock().unwrap().fail_after_write = true;
+    let response = router
+        .clone()
+        .oneshot(logout(
+            None,
+            None,
+            &format!("{{\"refresh_token\":\"{refresh}\"}}"),
+            "application/json",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 500);
+    assert!(response.headers().get("set-cookie").is_none());
+    assert!(store.0.lock().unwrap().revoked);
+    store.0.lock().unwrap().fail_after_write = false;
+    assert_logout(
+        router
+            .oneshot(logout(
+                None,
+                None,
+                &format!("{{\"refresh_token\":\"{refresh}\"}}"),
+                "application/json",
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(store.0.lock().unwrap().writes, 1);
+}
+
+#[tokio::test]
+async fn logout_cors_preflight_does_not_touch_storage() {
+    let (router, store, _, _) = setup(false);
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/api/v2/auth/tokens/current")
+                .header("origin", "https://app.example")
+                .header("access-control-request-method", "DELETE")
+                .header("access-control-request-headers", "content-type")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 204);
+    assert_eq!(store.0.lock().unwrap().writes, 0);
 }
 
 #[tokio::test]

@@ -28,9 +28,22 @@ pub trait SessionRepository: Send + Sync {
     fn touch<'a>(&'a self, claims: &'a TokenClaims) -> StoreFuture<'a, u64>;
     fn revoke<'a>(&'a self, user_id: u64, id: &'a str) -> StoreFuture<'a, u64>;
     fn revoke_others<'a>(&'a self, user_id: u64, current: &'a str) -> StoreFuture<'a, u64>;
+    fn revoke_current<'a>(
+        &'a self,
+        _user_id: u64,
+        _session: &'a str,
+        _credential: &'a SessionCredential,
+    ) -> StoreFuture<'a, u64> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn rotate<'a>(&'a self, _rotation: &'a SessionRotation) -> StoreFuture<'a, u64> {
         Box::pin(async { Err(SessionStoreError) })
     }
+}
+
+pub enum SessionCredential {
+    AccessJti(String),
+    RefreshHash(String),
 }
 
 pub struct SessionRotation {
@@ -92,7 +105,7 @@ pub fn build_native_router_with_refresh(
         )
         .route("/api/v2/auth/sessions/others", delete(revoke))
         .route("/api/v2/auth/sessions/{id}", delete(revoke))
-        .route("/api/v2/auth/tokens/current", patch(refresh))
+        .route("/api/v2/auth/tokens/current", patch(refresh).delete(logout))
         .fallback(|| async { ApiError::route_not_found() })
         .layer(middleware::from_fn_with_state(cors, cors_middleware))
         .with_state(NativeState {
@@ -101,6 +114,84 @@ pub fn build_native_router_with_refresh(
             clock,
             refresh_policy,
         })
+}
+
+async fn logout(
+    State(state): State<NativeState>,
+    request: Request<Body>,
+) -> Result<Response, ApiError> {
+    let (parts, body) = request.into_parts();
+    let headers = parts.headers;
+    let refresh_cookie = named_cookie(&headers, "refresh_token");
+    let refresh = match refresh_cookie.filter(|value| !value.is_empty()) {
+        Some(value) => value.trim().to_owned(),
+        None => {
+            let bytes = axum::body::to_bytes(body, 1024 * 1024)
+                .await
+                .unwrap_or_default();
+            body_refresh_token(&headers, &bytes).unwrap_or_default()
+        }
+    };
+    let access = || {
+        if let Some(cookie) =
+            named_cookie(&headers, "access_token").filter(|value| !value.is_empty())
+        {
+            return cookie;
+        }
+        static BEARER: OnceLock<regex::Regex> = OnceLock::new();
+        let value = headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        BEARER
+            .get_or_init(|| {
+                regex::Regex::new(r"(?i)^Bearer\s+(\S+)$").expect("static bearer regex")
+            })
+            .captures(value)
+            .and_then(|captures| captures.get(1))
+            .map(|capture| capture.as_str().to_owned())
+            .unwrap_or_default()
+    };
+    let now = (state.clock)();
+    let verified = if !refresh.is_empty() {
+        state
+            .codec
+            .verify_for_rotation(&refresh, now)
+            .ok()
+            .map(|claims| {
+                (
+                    claims,
+                    SessionCredential::RefreshHash(hex::encode(Sha256::digest(refresh.as_bytes()))),
+                )
+            })
+    } else {
+        let token = access();
+        state
+            .codec
+            .verify(&token, TokenKind::Access, now)
+            .ok()
+            .map(|claims| {
+                let credential = SessionCredential::AccessJti(claims.jti.clone());
+                (claims, credential)
+            })
+    };
+    if let Some((claims, credential)) = verified {
+        state
+            .repository
+            .revoke_current(claims.user_id, &claims.session_id, &credential)
+            .await
+            .map_err(|_| ApiError::server_error("服务器内部错误"))?;
+    }
+    let mut response = Json(V2Response::null("logout success")).into_response();
+    for value in [
+        "access_token=; Max-Age=0; Path=/",
+        "refresh_token=; Max-Age=0; Path=/",
+    ] {
+        response
+            .headers_mut()
+            .append("set-cookie", HeaderValue::from_static(value));
+    }
+    Ok(response)
 }
 
 async fn refresh(

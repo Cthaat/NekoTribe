@@ -1,12 +1,14 @@
 # NekoTribe Rust 后端（兼容模式与原生会话切片）
 
-本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册两条 DELETE 会话撤销、`PATCH /api/v2/auth/tokens/current` 刷新和进程健康检查，直接访问 Oracle，不注册其他业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
+本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册两条 DELETE 会话撤销、`PATCH /api/v2/auth/tokens/current` 刷新、`DELETE /api/v2/auth/tokens/current` 退出和进程健康检查，直接访问 Oracle，不注册其他业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
 
 ## 原生 Token Codec 与会话撤销
 
 `src/auth/tokens.rs` 提供独立 `TokenCodec::sign` / `verify`。签发使用 HS256，包含 Nuxt 的 `userId/userName/sessionId/type/iat/exp/jti`；调用方提供 Unix 秒时间与 session/jti。验签必须明确传入 access 或 refresh，分别选择对应密钥，只接受 HS256/384/512。`userId` 只接受正 JavaScript 安全整数（兼容数字字符串），sessionId/jti 必须是非空字符串。`verify` 的 `now` 参数用于零宽限时间验证：`exp <= now` 或 `nbf > now` 拒绝；不强制 exp 存在，也不拒绝未来 iat，以保持当前 Nuxt 库语义。
 
-JWT 合法不代表数据库会话有效。native 模式的两条 DELETE 每次验 access token 后 touch Oracle，核对用户、session、JTI、过期和撤销条件，成功才独立提交撤销。`{id}` 保留原始百分号编码；字面 `others` 撤销其他未撤销会话，包括到期会话。当前会话撤销成功才清两类 Cookie；数据库、提交或连接关闭错误返回安全错误，不授权后续撤销。登录、退出、会话列表及其他认证端点仍待实现。签名 key、Oracle/Redis 配置 Debug 脱敏，错误不携带 token、SQL 或底层连接细节。
+JWT 合法不代表数据库会话有效。native 模式的会话撤销 DELETE 每次验 access token 后 touch Oracle，核对用户、session、JTI、过期和撤销条件，成功才独立提交撤销。`{id}` 保留原始百分号编码；字面 `others` 撤销其他未撤销会话，包括到期会话。当前会话撤销成功才清两类 Cookie；数据库、提交或连接关闭错误返回安全错误，不授权后续撤销。登录、会话列表及其他认证端点仍待实现。签名 key、Oracle/Redis 配置 Debug 脱敏，错误不携带 token、SQL 或底层连接细节。
+
+公开退出接口优先使用 refresh Cookie 或正文，只有没有有效字符串形式的 refresh 凭据才选择 access Cookie 或严格 Bearer 头；非空但无效 refresh 不回退 access。通过签名验证后，SQL 同时匹配用户、会话、未撤销状态及当前 refresh hash 或 access jti；不读取其他会话、不要求数据库过期时间仍有效。无效、陈旧或不存在的凭据仍返回 `logout success` 并清理两个 Cookie。存储失败返回安全 500，提交结果可能未知；与并发刷新竞争时，如果刷新先完成，旧 refresh 的退出可能成功响应但不会撤销新凭据。真实 Oracle、跨端互通及两前端仍需验收。
 
 刷新入口无需有效 access token，优先使用 refresh Cookie，否则读取 JSON 或 URL 编码正文。验签后以 session、user、旧 refresh hash、未撤销及未到期条件原子更新 Oracle，成功才返回新 token 和 Cookie；并发使用旧 token 只允许一次更新成功。`ACCESS_EXPIRES_IN`、`REFRESH_EXPIRES_IN` 默认为 900、2592000 秒，`NUXT_ACCESS_EXPIRES_IN` / `NUXT_REFRESH_EXPIRES_IN` 优先；原生模式要求正整数、refresh 严格大于 access 且不超过 2147483647 秒。仅 `COOKIE_SECURE=true` 设置 Secure。数据库提交或关闭失败、断连可能导致提交结果未知，不能自动重试旧 token。Nuxt 的异常 type、userId 和 TTL 校验更宽；两者未重新检查用户停用状态。Unix 秒精度签发与 Oracle TIMESTAMP 时区、真实 Oracle 和三后端互通仍需集中联测，详见 `contracts/requirements/auth-refresh.md`。
 
