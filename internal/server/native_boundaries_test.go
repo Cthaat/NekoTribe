@@ -1,0 +1,73 @@
+package server
+
+import (
+	"context"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+func TestNoNativeRouteCallsCountedNuxt(t *testing.T) {
+	var calls atomic.Int64
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1); w.WriteHeader(200) }))
+	defer upstream.Close()
+	t.Setenv("LEGACY_BACKEND_BASE_URL", upstream.URL)
+	codec, _ := fixture(t)
+	s := store()
+	ts := httptest.NewServer(NewHandler(codec, s, CorsPolicy{}))
+	defer ts.Close()
+	for _, path := range []string{"/api/v2/auth/login", "/api/v2/auth/sessions", "/storage/file", "/uploads/file", "/_ws"} {
+		r, _ := request(t, ts.Client(), ts.URL, "GET", path, "", "")
+		if r.StatusCode != 404 {
+			t.Fatal(path, r.StatusCode)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatal("unexpected Nuxt fallback", calls.Load())
+	}
+	if s.touches+s.revokes != 0 {
+		t.Fatal("unexpected DB effects")
+	}
+}
+func TestShutdownDrainsActiveRequest(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	listener, e := net.Listen("tcp", "127.0.0.1:0")
+	if e != nil {
+		t.Fatal(e)
+	}
+	started, release := make(chan struct{}), make(chan struct{})
+	srv := NewHTTPServer(listener.Addr().String(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { close(started); <-release; w.WriteHeader(204) }))
+	done := make(chan error, 1)
+	go func() { done <- Serve(ctx, srv, listener) }()
+	response := make(chan error, 1)
+	go func() {
+		r, e := http.Get("http://" + listener.Addr().String())
+		if e == nil {
+			r.Body.Close()
+		}
+		response <- e
+	}()
+	<-started
+	cancel()
+	select {
+	case <-done:
+		t.Fatal("server returned while request active")
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case e := <-done:
+		if e != nil {
+			t.Fatal(e)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("server did not finish drain")
+	}
+	if e := <-response; e != nil {
+		t.Fatal(e)
+	}
+}

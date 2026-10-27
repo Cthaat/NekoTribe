@@ -1,10 +1,10 @@
 # NekoTribe Go 后端（原生业务开发中）
 
-状态：已建立独立 Go 模块和原生 token codec，尚未实现 HTTP 业务服务、完整登录/会话/数据库接线。不能把库测试通过当作完整后端可用，也没有占位健康服务或启动命令。
+状态：已实现独立原生 HTTP 会话撤销切片、token codec、模型配置及提供方传输组件。`cmd/server` 仅注册两条 DELETE 会话撤销与进程存活检查；完整登录、刷新、会话列表和其余业务仍待实现。
 
 ## 当前构建与验证
 
-使用 Go 1.26 以上；本轮 Windows 实测 Go 1.27.3，SDK 从 Go 官方下载页取得并核对官方 SHA-256，未修改系统 PATH。固定依赖 `github.com/golang-jwt/jwt/v5 v5.3.1`，采用其验签与签发 API；算法白名单、JSON Number 和时钟行为依据[固定版本源码](https://github.com/golang-jwt/jwt/blob/v5.3.1/parser_option.go)。本模块不需要 C++、Oracle 客户端或运行数据库。
+使用 Go 1.26.9 以上；本轮 Windows 实测 Go 1.27.3，SDK 从 Go 官方下载页取得并核对官方 SHA-256，未修改系统 PATH。固定依赖 `github.com/golang-jwt/jwt/v5 v5.3.1`，采用其验签与签发 API；算法白名单、JSON Number 和时钟行为依据[固定版本源码](https://github.com/golang-jwt/jwt/blob/v5.3.1/parser_option.go)。Oracle 使用官方纯 Go `github.com/oracle/go-oracledb/v26 v26.4.0` 公共连接器与 database/sql，不需要 C++ 或 Oracle Instant Client；隔离测试不需要真实数据库。
 
 ```text
 go mod download
@@ -15,11 +15,19 @@ go build ./...
 
 `internal/auth/tokens.go` 以分开的 access/refresh 密钥验证指定类型，支持 HS256 签发、HS256/384/512 验签。时间使用注入的整秒时钟，原始 exp/nbf 数值保留小数精度，避免库 NumericDate 默认截断差异；缺少 exp 和未来 iat 按 Nuxt 现有库语义处理。安全整数 userId、sessionId/jti 和脱敏错误有明确检查，密钥不通过格式化输出。
 
-本地 `contracts/scenarios/auth-tokens.json` revision 2 为三后端相同的 25 个公开合成样例；测试只读取本工程副本。Windows 包测试与 vet 已通过，另已用 Nuxt JWT 库核对 Go 签发的 access/refresh 格式；这不是实际 HTTP、会话撤销或数据库业务验收。JWT 签名有效后仍须核对真实数据库会话、过期、撤销及 refresh hash 轮换。Hex/boolean/array 等 JavaScript Number 宽转换仍属共同认证需求的规则审查范围，不声称已完整复刻。
+本地 `contracts/scenarios/auth-tokens.json` revision 2 为三后端相同的 25 个公开合成样例；测试只读取本工程副本。另有 `auth-session-revocation.json` 的 29 个实际 HTTP/JWT 场景，Oracle 边界替换为隔离存储；生产 repository 的命名绑定、独立提交及错误另由 database/sql 测试 driver 验证。未连接真实 Oracle，不表示完整认证或真实库已验收。Hex/boolean/array 等 JavaScript Number 宽转换仍属共同认证需求的规则审查范围，不声称已完整复刻。
+
+## 独立会话服务
+
+把 `env.example` 的变量显式注入进程，然后运行 `go run ./cmd/server`；进程不加载本地或父目录 `.env`。HOST 默认 `127.0.0.1`，`GO_BACKEND_PORT` 优先 `PORT`，默认 `30006`。两类签名 key 和 Oracle host/service/user/password 必须非空；端口与池范围严格校验。监听前执行只读 session 列预检，不创建或迁移数据。启动需要显式配置的真实 Oracle，隔离测试只使用 loopback HTTP 与测试存储。
+
+`DELETE /api/v2/auth/sessions/{id}` 与 `/others` 每次先验 access token，再直接 touch Oracle 会话，成功后独立提交撤销。`id` 保留原始百分号编码，`others` 字面优先；当前会话撤销成功清两类 Cookie，随后请求被数据库拒绝。错误返回安全 v2 envelope；原生 CORS 先处理 OPTIONS，精确来源及 Flutter 头策略与共同规范一致。未实现路由、存储、WebSocket 均不代理 Nuxt。`GET /api/health` 仅表示进程存活。
+
+HTTP 设置头/读写/闲置超时，退出先停止 HTTP 再关闭数据库。`ORACLE_POOL_MAX` 限制 database/sql 打开连接数，`ORACLE_POOL_MIN` 设置最大闲置连接数，不承诺预热或最少常驻连接。touch 与 revoke 是两次提交，不能撤回已获准的并发请求；真实 Oracle 19c/Free、多实例与双前端验收仍待执行。
 
 ## 模型配置组件
 
-`internal/ai/model_config.go` 按 `contracts/requirements/ai-model-configuration.md` 校验提供方/模型/用途绑定，返回独立选择快照；`Replace` 用版本比较和互斥锁原子发布，失败保留旧配置。模型名称自由配置，凭据仅引用环境变量名；本组件不读取环境、不联网，也没有实现提供方 HTTP 适配器、模型能力探测、索引或完整 AI 接口。
+`internal/ai/model_config.go` 按 `contracts/requirements/ai-model-configuration.md` 校验提供方/模型/用途绑定，返回独立选择快照；`Replace` 用版本比较和互斥锁原子发布，失败保留旧配置。模型名称自由配置，凭据仅引用环境变量名。`internal/ai/transport.go` 已实现 OpenAI-compatible/Ollama JSON HTTP 传输、调用级密钥解析、超时和取消及安全错误，使用 loopback 提供方验证；尚未注册到应用 AI 路由，也未调用真实模型、探测能力或重建索引。
 
 `contracts/scenarios/ai-model-config.json` 的 52 个共享组件场景已通过，补充测试覆盖配置隔离和并发。`go test ./...`、`go vet ./...` 通过。产品权限和完整验收要求位于 `contracts/requirements/ai-product-scope.md`、`ai-model-switching.md`，相关产品场景仍为 not-run；不能把配置选择成功当作真实模型切换通过。
 
@@ -29,15 +37,12 @@ go build ./...
 
 ## 契约来源
 
-`contracts/v2.openapi.json` 是 `../nuxt/doc/v2.openapi.json` 的内容一致的 LF 规范化副本，尚不代表 Go 已实现其中任何接口。
+`contracts/v2.openapi.json` 是 `../nuxt/doc/v2.openapi.json` 的内容一致的 LF 规范化副本。当前只实现上述会话撤销切片，不能据契约副本声称其他接口已实现。
 
 - 来源仓库路径：`doc/v2.openapi.json`
-- 来源规范提交：`55e20c27303f14c5695e17d18c8f4b5307b8b754`
-- 跨工作区 LF 文件 SHA-256：`a9f5f96b026cfd97a77299b0f69cd1260e4a64daf0f20b7924052370b33ec1f7`
-- 本次契约快照 Git blob：`67cf285269fb84de9d0d6c4196b1f8d497dcd4eb`
 - OpenAPI：`3.0.1`；API 版本：`2.0.0`
 
-完整来源记录在 `contracts/manifest.json`，包括契约版本、审计修订、两个文件的 LF SHA-256、Git blob 和已提交来源。当前两个快照均与上述规范提交的 Git blob 完全一致，`differsFromCommittedSource=false`；该标记会在未来同步未提交来源时变为 true，不能把工作树修订冒称为旧提交的内容。`contracts/runtime-addresses.md` 同步记录地址、鉴权、实时连接、存储与数据隔离约定。更新时从 Nuxt 审核后的来源同步，不能在各语言工作区独立定义不兼容接口。
+当前契约版本、审计修订、LF SHA-256、Git blob 和来源提交以 `contracts/manifest.json` 为准。manifest 的 `differsFromCommittedSource` 明确区分工作树修订与已提交来源，不将未提交内容冒称为旧提交。`contracts/runtime-addresses.md` 同步记录地址、鉴权、实时连接、存储与数据隔离约定。更新时从 Nuxt 审核后的来源同步，不能在各语言工作区独立定义不兼容接口。
 
 在 Nuxt 项目执行 `node scripts/contracts.mjs check` 可离线验证本项目，无需任何兄弟工作区；只有显式执行 `node scripts/contracts.mjs check --workspace-root C:/Code/NekoTribe` 才检查四目录副本。审核来源后用 `node scripts/contracts.mjs sync --workspace-root C:/Code/NekoTribe` 同步；sync 需要本地 Git，check 仅依赖 Node 内置模块，不访问网络或启动服务。
 
