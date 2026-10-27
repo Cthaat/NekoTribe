@@ -958,6 +958,10 @@
         "sha256": "23178b2bc4fd21601a7c001b4e6239c93221e5a86e11cb8b4ab6498109d35722"
       },
       {
+        "path": "server/services/ai/inference-transport.ts",
+        "sha256": "0f1b5b2ba9ca7a22ac870707a9a2164d86b49e2291952ad0f6f00600b3868e42"
+      },
+      {
         "path": "server/services/ai/model-configuration.ts",
         "sha256": "8ed5369cd394c578c3f5e383434743b5344afcf14c8dce9a054eecfe0e5451ad"
       },
@@ -8473,7 +8477,8 @@
       "review": "reviewed",
       "definition": "specifications/requirements/ai-model-switching.md",
       "sourceFiles": [
-        "server/services/ai/model-configuration.ts"
+        "server/services/ai/model-configuration.ts",
+        "server/services/ai/inference-transport.ts"
       ],
       "operations": [],
       "scenarios": [
@@ -8484,6 +8489,10 @@
         {
           "id": "AI-MODEL-CONFIG",
           "file": "specifications/scenarios/ai-model-config.json"
+        },
+        {
+          "id": "AI-INFERENCE-TRANSPORT",
+          "file": "specifications/scenarios/ai-inference-transport.json"
         }
       ],
       "implementations": {
@@ -8493,10 +8502,11 @@
           "tasks": [
             "nuxt: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
             "nuxt: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle.",
-            "Configuration/select/CAS component implemented and tested; complete actual transport, provider capability verification, request/stream integration and MODEL-S001..008 before acceptance."
+            "Configuration/select/CAS and native non-streaming Ollama/OpenAI-compatible HTTP components implemented and unit-tested; complete real capability checks, business/stream integration, tool-result rounds and MODEL-S001..008 including embedding index lifecycle before acceptance."
           ],
           "sourceFiles": [
-            "server/services/ai/model-configuration.ts"
+            "server/services/ai/model-configuration.ts",
+            "server/services/ai/inference-transport.ts"
           ],
           "evidence": []
         },
@@ -8506,10 +8516,11 @@
           "tasks": [
             "rust: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
             "rust: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle.",
-            "Configuration/select/CAS component implemented and tested; complete actual transport, provider capability verification, request/stream integration and MODEL-S001..008 before acceptance."
+            "Configuration/select/CAS and native non-streaming Ollama/OpenAI-compatible HTTP components implemented and unit-tested; complete real capability checks, business/stream integration, tool-result rounds and MODEL-S001..008 including embedding index lifecycle before acceptance."
           ],
           "sourceFiles": [
-            "src/ai/model_config.rs"
+            "src/ai/model_config.rs",
+            "src/ai/transport.rs"
           ],
           "evidence": []
         },
@@ -8519,10 +8530,11 @@
           "tasks": [
             "go: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
             "go: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle.",
-            "Configuration/select/CAS component implemented and tested; complete actual transport, provider capability verification, request/stream integration and MODEL-S001..008 before acceptance."
+            "Configuration/select/CAS and native non-streaming Ollama/OpenAI-compatible HTTP components implemented and unit-tested; complete real capability checks, business/stream integration, tool-result rounds and MODEL-S001..008 including embedding index lifecycle before acceptance."
           ],
           "sourceFiles": [
-            "internal/ai/model_config.go"
+            "internal/ai/model_config.go",
+            "internal/ai/transport.go"
           ],
           "evidence": []
         }
@@ -9623,7 +9635,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-model-switching.md",
-        "sha256": "89c3f6a8762eff2ac11e6da58ad51eba2f9697dbe5ac229d07e8f42e5cbb15d5"
+        "sha256": "07cb1b7887a220a1715f5546bb4fffb75ebe047dab08238ff102b376a2df13be"
       },
       "copies": {
         "rust": "contracts/requirements/ai-model-switching.md",
@@ -9678,6 +9690,26 @@
       "copies": {
         "rust": "contracts/scenarios/ai-moderation-aid.json",
         "go": "contracts/scenarios/ai-moderation-aid.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-inference-transport.md",
+        "sha256": "a0b34fc07125fee90f70194dc84bf583ae5488996c773684ff680be818a77af8"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-inference-transport.md",
+        "go": "contracts/requirements/ai-inference-transport.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-inference-transport.json",
+        "sha256": "901660788c884b230bfe39aae83fd6768910347ecc0a834bb91224757d8b66e1"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-inference-transport.json",
+        "go": "contracts/scenarios/ai-inference-transport.json"
       }
     }
   ]
