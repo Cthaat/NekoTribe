@@ -19,11 +19,15 @@ func TestNoNativeRouteCallsCountedNuxt(t *testing.T) {
 	s := store()
 	ts := httptest.NewServer(NewHandler(codec, s, CorsPolicy{}))
 	defer ts.Close()
-	for _, path := range []string{"/api/v2/auth/login", "/api/v2/auth/sessions", "/storage/file", "/uploads/file", "/_ws"} {
+	for _, path := range []string{"/api/v2/auth/login", "/storage/file", "/uploads/file", "/_ws"} {
 		r, _ := request(t, ts.Client(), ts.URL, "GET", path, "", "")
 		if r.StatusCode != 404 {
 			t.Fatal(path, r.StatusCode)
 		}
+	}
+	list, _ := request(t, ts.Client(), ts.URL, "GET", "/api/v2/auth/sessions", "", "")
+	if list.StatusCode != 401 {
+		t.Fatal("native session list must require authentication", list.StatusCode)
 	}
 	if calls.Load() != 0 {
 		t.Fatal("unexpected Nuxt fallback", calls.Load())

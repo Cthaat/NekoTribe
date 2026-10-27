@@ -66,6 +66,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			}
 			return
 		}
+		if r.URL.EscapedPath() == "/api/v2/auth/sessions" && r.Method == http.MethodGet {
+			listSessions(w, r, codec, repository)
+			return
+		}
 		const prefix = "/api/v2/auth/sessions/"
 		path := r.URL.EscapedPath()
 		if !strings.HasPrefix(path, prefix) || strings.TrimPrefix(path, prefix) == "" || strings.Contains(strings.TrimPrefix(path, prefix), "/") {
