@@ -2,6 +2,7 @@
 pub mod login;
 pub mod otp;
 pub mod password_reset;
+mod password_reset_transaction;
 pub mod readiness;
 pub mod registration;
 pub mod session_list;

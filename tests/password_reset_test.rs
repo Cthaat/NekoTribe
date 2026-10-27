@@ -17,7 +17,7 @@ struct Store {
     fault: String,
     expired: bool,
     missing: bool,
-    empty_readback: bool,
+    lost_race: bool,
     otp_hash: String,
     password_hash: Mutex<Option<String>>,
     marks: AtomicUsize,
@@ -44,40 +44,39 @@ impl SessionRepository for Store {
                 return Err(SessionStoreError);
             }
             Ok((!self.expired
+                && self.marks.load(Ordering::SeqCst) == 0
                 && email == "fake@example.test"
                 && kind == "password_reset"
                 && id == "otp_fixture")
                 .then(|| self.otp_hash.clone()))
         })
     }
-    fn otp_mark<'a>(&'a self, _: &'a str) -> StoreFuture<'a, ()> {
+    fn reset_password_atomic<'a>(
+        &'a self,
+        email: &'a str,
+        id: &'a str,
+        otp_hash: &'a str,
+        hash: &'a str,
+    ) -> StoreFuture<'a, u64> {
         Box::pin(async move {
-            if self.fault == "mark" {
+            let mut password = self.password_hash.lock().unwrap();
+            if ["mark", "write", "revoke"].contains(&self.fault.as_str()) {
                 return Err(SessionStoreError);
             }
-            self.marks.fetch_add(1, Ordering::SeqCst);
-            Ok(())
-        })
-    }
-    fn otp_verified_at<'a>(&'a self, _: &'a str) -> StoreFuture<'a, Option<String>> {
-        Box::pin(async move {
-            if self.fault == "readback" {
-                return Err(SessionStoreError);
-            }
-            Ok((!self.empty_readback).then(|| "2026-01-02T03:04:05.000Z".into()))
-        })
-    }
-    fn reset_password<'a>(&'a self, email: &'a str, hash: &'a str) -> StoreFuture<'a, u64> {
-        Box::pin(async move {
-            self.writes.fetch_add(1, Ordering::SeqCst);
-            if self.fault == "write" {
-                return Err(SessionStoreError);
+            if self.lost_race
+                || self.marks.load(Ordering::SeqCst) > 0
+                || id != "otp_fixture"
+                || otp_hash != self.otp_hash
+            {
+                return Ok(1);
             }
             if self.missing || email != "fake@example.test" {
-                return Ok(0);
+                return Ok(2);
             }
-            *self.password_hash.lock().unwrap() = Some(hash.into());
-            Ok(1)
+            *password = Some(hash.into());
+            self.marks.fetch_add(1, Ordering::SeqCst);
+            self.writes.fetch_add(1, Ordering::SeqCst);
+            Ok(0)
         })
     }
 }
@@ -96,7 +95,7 @@ async fn shared_password_reset() {
             fault: case["fault"].as_str().unwrap_or("").into(),
             expired: case["expired"].as_bool().unwrap_or(false),
             missing: case["missing_user"].as_bool().unwrap_or(false),
-            empty_readback: case["empty_readback"].as_bool().unwrap_or(false),
+            lost_race: case["lost_race"].as_bool().unwrap_or(false),
             otp_hash: otp_hash.clone(),
             password_hash: Mutex::new(None),
             marks: AtomicUsize::new(0),
@@ -167,4 +166,36 @@ async fn shared_password_reset() {
             );
         }
     }
+}
+
+#[tokio::test]
+async fn concurrent_reset_accepts_only_one_request() {
+    let store = Arc::new(Store {
+        fault: String::new(),
+        expired: false,
+        missing: false,
+        lost_race: false,
+        otp_hash: bcrypt::hash("123456", 4).unwrap(),
+        password_hash: Mutex::new(None),
+        marks: AtomicUsize::new(0),
+        writes: AtomicUsize::new(0),
+    });
+    let codec = TokenCodec::new(b"synthetic-access-key", b"synthetic-refresh-key").unwrap();
+    let app = build_native_router(
+        codec,
+        store.clone(),
+        CorsPolicy::default(),
+        Arc::new(|| 1_700_000_000),
+    );
+    let request = || {
+        Request::builder().method("POST").uri("/api/v2/auth/password-reset")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"email":"fake@example.test","verification_id":"otp_fixture","code":"123456","new_password":"synthetic-new-password"}"#)).unwrap()
+    };
+    let (a, b) = tokio::join!(app.clone().oneshot(request()), app.oneshot(request()));
+    let mut statuses = [a.unwrap().status().as_u16(), b.unwrap().status().as_u16()];
+    statuses.sort_unstable();
+    assert_eq!(statuses, [200, 400]);
+    assert_eq!(store.marks.load(Ordering::SeqCst), 1);
+    assert_eq!(store.writes.load(Ordering::SeqCst), 1);
 }

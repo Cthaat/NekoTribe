@@ -15,8 +15,21 @@ pub const LOGOUT_ACCESS_SQL: &str = "UPDATE n_auth_sessions SET revoked_at = CUR
 pub const LOGOUT_REFRESH_SQL: &str = "UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE session_id = :session_id AND user_id = :user_id AND revoked_at IS NULL AND refresh_token_hash = :refresh_token_hash";
 pub const PREFLIGHT_SQL:&str="SELECT user_id, session_id, access_jti, access_token_expires_at, refresh_token_hash, refresh_token_expires_at, last_refresh_at, revoked_at, last_accessed_at FROM n_auth_sessions WHERE 1 = 0";
 pub const ROTATE_SQL: &str = "UPDATE n_auth_sessions SET access_jti = :access_jti, refresh_token_hash = :refresh_token_hash, access_token_expires_at = CAST(TO_TIMESTAMP_TZ(:access_expires_at, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP), refresh_token_expires_at = CAST(TO_TIMESTAMP_TZ(:refresh_expires_at, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP), last_refresh_at = CURRENT_TIMESTAMP, last_accessed_at = CURRENT_TIMESTAMP WHERE session_id = :session_id AND user_id = :user_id AND refresh_token_hash = :old_refresh_hash AND revoked_at IS NULL AND refresh_token_expires_at > CURRENT_TIMESTAMP";
+pub const RESET_CLAIM_SQL: &str = "UPDATE n_auth_otp_events SET verified_at = CURRENT_TIMESTAMP, expires_at = CURRENT_TIMESTAMP, verification_code_hash = '!consumed!' WHERE account = :account AND otp_type = 'password_reset' AND verification_id = :verification_id AND verification_code_hash = :code_hash AND expires_at > CURRENT_TIMESTAMP";
+pub const RESET_PASSWORD_SQL: &str =
+    "UPDATE n_users SET password_hash = :password_hash WHERE email = :email";
+pub const RESET_REVOKE_SQL: &str = "UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id IN (SELECT user_id FROM n_users WHERE email = :email) AND revoked_at IS NULL";
 
 pub trait SessionExecutor: Send + Sync {
+    fn reset_password_atomic<'a>(
+        &'a self,
+        _email: &'a str,
+        _id: &'a str,
+        _otp_hash: &'a str,
+        _new_hash: &'a str,
+    ) -> StoreFuture<'a, u64> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn execute(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, u64>;
     fn preflight(&self, sql: &'static str) -> StoreFuture<'_, ()>;
     fn query(&self, _sql: &'static str, _binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
@@ -35,18 +48,15 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
-    fn reset_password<'a>(&'a self, email: &'a str, hash: &'a str) -> StoreFuture<'a, u64> {
-        Box::pin(async move {
-            self.executor
-                .execute(
-                    "UPDATE n_users SET password_hash = :password_hash WHERE email = :email",
-                    BindMap::from([
-                        ("password_hash".into(), DbValue::String(hash.into())),
-                        ("email".into(), DbValue::String(email.into())),
-                    ]),
-                )
-                .await
-        })
+    fn reset_password_atomic<'a>(
+        &'a self,
+        email: &'a str,
+        id: &'a str,
+        otp_hash: &'a str,
+        new_hash: &'a str,
+    ) -> StoreFuture<'a, u64> {
+        self.executor
+            .reset_password_atomic(email, id, otp_hash, new_hash)
     }
     fn registration_otp<'a>(&'a self, email: &'a str, id: &'a str) -> StoreFuture<'a, bool> {
         Box::pin(async move {
@@ -552,6 +562,29 @@ fn session_binds(user: u64, id: &str) -> BindMap {
     ])
 }
 impl SessionExecutor for OraclePool {
+    fn reset_password_atomic<'a>(
+        &'a self,
+        email: &'a str,
+        id: &'a str,
+        otp_hash: &'a str,
+        new_hash: &'a str,
+    ) -> StoreFuture<'a, u64> {
+        let (email, id, otp_hash, new_hash) = (
+            email.to_owned(),
+            id.to_owned(),
+            otp_hash.to_owned(),
+            new_hash.to_owned(),
+        );
+        Box::pin(async move {
+            self.run_blocking(move |connection| {
+                crate::auth::password_reset_transaction::execute(
+                    connection, &email, &id, &otp_hash, &new_hash,
+                )
+            })
+            .await
+            .map_err(|_| SessionStoreError)
+        })
+    }
     fn readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
         Box::pin(async move {
             self.run_blocking(crate::auth::readiness::collect_snapshot)

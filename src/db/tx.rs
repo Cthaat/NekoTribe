@@ -17,4 +17,14 @@ impl<'a> OracleTx<'a> {
             rows_affected: statement.row_count()?,
         })
     }
+
+    pub fn commit(&self) -> Result<(), DbError> {
+        self.connection.commit()?;
+        Ok(())
+    }
+
+    pub fn rollback(&self) -> Result<(), DbError> {
+        self.connection.rollback()?;
+        Ok(())
+    }
 }

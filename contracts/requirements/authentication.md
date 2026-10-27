@@ -133,10 +133,10 @@
 
 ### AUTH-013 密码重置
 
-已观察：email/verification_id/code/new_password必填，直接调用password_reset用途OTP校验，不要求先独立verification；bcrypt成本10更新email对应用户，0行404，否则返回null。没有确认密码、密码强度、消费OTP、吊销会话、清Cookie/受信设备或发送重置通知。OTP verified_at在查无用户或后续失败前可能已提交。来源：`auth.ts:1800-1838`。
+版本 2 已调整为：email/verification_id/code/new_password 必填，直接校验 password_reset OTP；在同一事务条件消费验证码、更新密码及撤销当时已有会话。完整行为和待解决的登录并发及 WebSocket 限制见 `auth-password-reset.md`；真实 Oracle 尚未验收。
 
-- AUTH-S027：正确OTP重置后旧密码登录失败、新密码成功；错码401/过期400，OTP正确但用户不存在404；已有session和受信设备保持现状，不能写成已自动吊销。
-- AUTH-S028：同一有效OTP可再次重置（现状）；将一次消费和会话撤销要求作为AUTH-901/905统一决策后再升级验收规则。
+- AUTH-S027：正确 OTP 重置后旧密码登录失败、新密码成功；错码 401/过期 400，用户不存在 404；已存在的未撤销会话在事务中撤销，受信设备与在途挑战需另行处理。
+- AUTH-S028：同一 OTP 只允许一个事务成功；失败回滚，提交状态未知时不能向客户端承诺未修改。隔离用例不能替代真实 Oracle 并发验收。
 
 ### AUTH-014 会话查询与定向吊销
 
@@ -168,11 +168,11 @@
 
 | ID | 现存缺口与决策 | 关联场景/来源 |
 | --- | --- | --- |
-| AUTH-901 | OTP已升级安全随机源，sms改为明确不可用；服务内限流、尝试次数、消费机制和实际短信能力仍缺失。需统一实现及迁移策略，不可假设已经Redis限流。 | S006-009/S028；auth-otp-creation.md |
+| AUTH-901 | OTP已升级安全随机源，sms改为明确不可用；密码重置引入事务内消费，注册及其他用途的消费策略、服务内限流、尝试次数和实际短信能力仍缺失。不可假设已经Redis限流。 | S006-009/S028；auth-otp-creation.md |
 | AUTH-902 | 受信凭据只有客户端fingerprint，无服务器签发设备秘密；挑战完成没有绑定请求设备/IP；决定共享信任凭据与挑战绑定规则。 | S021-022；auth:843-961,1599-1662 |
 | AUTH-903 | 多语句autoCommit导致setup/confirm/disable及恢复码→challenge→信任→session流程部分完成；单行消费防重放不等于全流程原子。决定事务边界、外部邮件/WS/Redis投递时机、失败恢复。 | S007/S020/S035；v2:263-273 |
 | AUTH-904 | service token verifier仅要求type为access或refresh，refresh流程不强制refresh；userId规范化比middleware宽松，refresh及受保护请求未重新检查账号可用；JWT验算法未固定allowlist且无iss/aud。决定统一校验、停用生效及密钥兼容策略。 | S004/S014/S024；auth:405-493,1664-1697；middleware:78-100,237-250 |
-| AUTH-905 | 重置密码不吊销session或受信设备，不消费OTP；注册/新密码缺少后端强度/格式规则，必填密码trim。决定安全基线及兼容迁移；不可未经决策重写成现状。 | S010/S027-028；auth:1396-1505,1800-1838 |
+| AUTH-905 | 重置事务撤销当时已有session并消费OTP，但并发旧密码登录、在途双因素挑战、受信设备和已建立的WebSocket尚未处理；注册/新密码缺少后端强度/格式规则，必填密码trim。 | S010/S027-028；auth-password-reset.md |
 | AUTH-906 | session列表含过期记录、外层查询无ORDER BY且同时间戳无稳定排序，分页可为小数，日期解释跨主机需核对；这些列表语义仍待统一。0.2已选择列表绕过响应缓存，并纠正仅看challenge路由neutral的旧观察；实际SQL层也失效API tag。 | S031/S033；auth:1840-1905；api-cache与oracle-query-cache实际包装 |
 | AUTH-907 | TTL配置缺正值/大小关系预检，DB却要求refresh>access；2FA key派生有固定fallback，改secret后旧密文可无法解密；基本schema双副本及注册并发唯一错误映射未统一。决定配置拒绝条件、密钥轮换/版本、迁移权威和并发错误契约。 | S011/S014/S034；auth:290-337,363-371；DDL:304-306 |
 

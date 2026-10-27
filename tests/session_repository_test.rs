@@ -22,26 +22,51 @@ struct RegistrationExecutor {
 }
 
 #[tokio::test]
-async fn password_reset_repository_binds_email_and_hash() {
+async fn password_reset_repository_passes_arguments_to_atomic_executor() {
     let repo = OracleSessions {
         executor: RegistrationExecutor::default(),
     };
     assert_eq!(
-        repo.reset_password("fake';--", "synthetic-hash")
+        repo.reset_password_atomic("fake';--", "otp_fixture", "otp-hash", "synthetic-hash")
             .await
             .unwrap(),
-        1
+        0
     );
     let calls = repo.executor.calls.lock().unwrap();
     assert_eq!(calls.len(), 1);
-    assert!(!calls[0].0.contains("fake';--"));
+    assert_eq!(calls[0].0, "RESET_ATOMIC");
     assert_eq!(calls[0].1["email"], DbValue::String("fake';--".into()));
+    assert_eq!(
+        calls[0].1["verification_id"],
+        DbValue::String("otp_fixture".into())
+    );
+    assert_eq!(calls[0].1["code_hash"], DbValue::String("otp-hash".into()));
     assert_eq!(
         calls[0].1["password_hash"],
         DbValue::String("synthetic-hash".into())
     );
 }
 impl SessionExecutor for RegistrationExecutor {
+    fn reset_password_atomic<'a>(
+        &'a self,
+        email: &'a str,
+        id: &'a str,
+        otp_hash: &'a str,
+        new_hash: &'a str,
+    ) -> StoreFuture<'a, u64> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((
+                "RESET_ATOMIC",
+                BindMap::from([
+                    ("email".into(), DbValue::String(email.into())),
+                    ("verification_id".into(), DbValue::String(id.into())),
+                    ("code_hash".into(), DbValue::String(otp_hash.into())),
+                    ("password_hash".into(), DbValue::String(new_hash.into())),
+                ]),
+            ));
+            Ok(0)
+        })
+    }
     fn execute(&self, q: &'static str, b: BindMap) -> StoreFuture<'_, u64> {
         Box::pin(async move {
             self.calls.lock().unwrap().push((q, b));

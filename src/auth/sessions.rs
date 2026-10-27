@@ -25,7 +25,13 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
-    fn reset_password<'a>(&'a self, _email: &'a str, _hash: &'a str) -> StoreFuture<'a, u64> {
+    fn reset_password_atomic<'a>(
+        &'a self,
+        _email: &'a str,
+        _id: &'a str,
+        _otp_hash: &'a str,
+        _new_hash: &'a str,
+    ) -> StoreFuture<'a, u64> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn registration_otp<'a>(&'a self, _email: &'a str, _id: &'a str) -> StoreFuture<'a, bool> {
