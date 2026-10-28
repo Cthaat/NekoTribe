@@ -1039,7 +1039,7 @@
       },
       {
         "path": "server/utils/api-cache.ts",
-        "sha256": "f8ca5c06f12cbdc547f955675c26021b2e9cd18111137d0e640b54b38d365a49"
+        "sha256": "dda730afa53d86f5ed3ebaee50be2deabbe7dad4db728a4194d978ec73e77e78"
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
@@ -1064,6 +1064,10 @@
       {
         "path": "server/utils/auth/verifyCode.ts",
         "sha256": "3375e259e095433b8dba4c36b16a71948cf19a6f9545c4e1d91fd7c454cc53e9"
+      },
+      {
+        "path": "server/utils/cache-mode.ts",
+        "sha256": "c9c90471bca2acf74a93f419c01dbf645562e45d25d50e8433745f6d826a3263"
       },
       {
         "path": "server/utils/client-ip.ts",
@@ -1091,7 +1095,7 @@
       },
       {
         "path": "server/utils/oracle-query-cache.ts",
-        "sha256": "c6c6c56fcbc0ab67c63c2bdf0241a7d00e7fa267a47f27a7aa9b6e3f07eee72f"
+        "sha256": "df2ca0d226ea64ce2fe62929d49bc5f012ae28b6aa1a50c80ec3c522c87d22e5"
       },
       {
         "path": "server/utils/oracle.ts",
@@ -1982,7 +1986,7 @@
     {
       "id": "API-patch_users_me",
       "title": "PATCH /api/v2/users/me: 更新当前用户资料",
-      "revision": 2,
+      "revision": 3,
       "review": "reviewed",
       "definition": "specifications/requirements/user-self-profile-update.md",
       "sourceFiles": [
@@ -2001,7 +2005,7 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "nuxt: implement current-user profile partial update and security semantics in user-self-profile-update.md.",
             "nuxt: validate actual Oracle dates, constraints, transaction and cross-instance cache behavior with both clients before acceptance."
@@ -2014,7 +2018,7 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "rust: implement current-user profile partial update and security semantics in user-self-profile-update.md.",
             "rust: validate actual Oracle dates, constraints, transaction and cross-instance cache behavior with both clients before acceptance."
@@ -2028,7 +2032,7 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "go: implement current-user profile partial update and security semantics in user-self-profile-update.md.",
             "go: validate actual Oracle dates, constraints, transaction and cross-instance cache behavior with both clients before acceptance."
@@ -2041,7 +2045,9 @@
         }
       },
       "sharedDependencies": [
-        "specifications/requirements/user-self-profile.md"
+        "specifications/requirements/user-self-profile.md",
+        "specifications/requirements/cache-shared-backends.md",
+        "specifications/scenarios/cache-shared-backends.json"
       ]
     },
     {
@@ -9019,6 +9025,61 @@
           "evidence": []
         }
       }
+    },
+    {
+      "id": "CACHE-SHARED-BACKENDS",
+      "title": "Shared database cache safety and invalidation",
+      "revision": 1,
+      "review": "reviewed",
+      "definition": "specifications/requirements/cache-shared-backends.md",
+      "sourceFiles": [
+        "server/utils/cache-mode.ts",
+        "server/utils/api-cache.ts",
+        "server/utils/oracle-query-cache.ts"
+      ],
+      "operations": [],
+      "scenarios": [
+        {
+          "id": "CACHE-SHARED-BACKENDS",
+          "file": "specifications/scenarios/cache-shared-backends.json"
+        }
+      ],
+      "implementations": {
+        "nuxt": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "nuxt: implement and validate reliable shared-database cache invalidation for every affected business mutation.",
+            "nuxt: verify commit races, Redis failures, multi-instance recovery and real cross-backend deployments before acceptance."
+          ],
+          "sourceFiles": [
+            "server/utils/cache-mode.ts",
+            "server/utils/api-cache.ts",
+            "server/utils/oracle-query-cache.ts"
+          ],
+          "evidence": []
+        },
+        "rust": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "rust: implement and validate reliable shared-database cache invalidation for every affected business mutation.",
+            "rust: verify commit races, Redis failures, multi-instance recovery and real cross-backend deployments before acceptance."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "go": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "go: implement and validate reliable shared-database cache invalidation for every affected business mutation.",
+            "go: verify commit races, Redis failures, multi-instance recovery and real cross-backend deployments before acceptance."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        }
+      }
     }
   ],
   "sourceAudits": [
@@ -10372,6 +10433,26 @@
       "copies": {
         "rust": "contracts/scenarios/user-self-profile-update.json",
         "go": "contracts/scenarios/user-self-profile-update.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/cache-shared-backends.md",
+        "sha256": "fe2b81eb9b5f94563385b9e51ebe41fe869888cf21c7617d67983997ec9a0006"
+      },
+      "copies": {
+        "rust": "contracts/requirements/cache-shared-backends.md",
+        "go": "contracts/requirements/cache-shared-backends.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/cache-shared-backends.json",
+        "sha256": "2a1421d65993c8204ee89d2e67d4c8090de8344ef407f3ad159cebc340ba8246"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/cache-shared-backends.json",
+        "go": "contracts/scenarios/cache-shared-backends.json"
       }
     }
   ]

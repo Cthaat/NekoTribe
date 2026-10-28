@@ -4,6 +4,7 @@ import type { H3Event } from 'h3';
 import type oracledb from 'oracledb';
 import { getRequestURL } from 'h3';
 import { invalidateApiResponseCacheTags } from './api-cache';
+import { cacheProcessEpoch, singleBackendCacheEnabled } from './cache-mode';
 import {
   getRequestLogContext,
   logInfo,
@@ -426,6 +427,7 @@ async function buildQueryCacheContext(
   const policy = ttlPolicyForTags(tags);
   const identity = JSON.stringify({
     schema: QUERY_CACHE_SCHEMA_VERSION,
+    process_epoch: cacheProcessEpoch,
     sql: normalizeSql(sql),
     binds: normalizeForCache(binds),
     options: normalizeForCache(options),
@@ -667,7 +669,7 @@ export function attachOracleQueryCacheWithSource(
     const binds = args.length >= 2 ? args[1] : undefined;
     const options = executeOptionsFromArgs(args);
 
-    if (redis && isCacheableSelectSql(sql)) {
+    if (singleBackendCacheEnabled && redis && isCacheableSelectSql(sql)) {
       try {
         const context = await buildQueryCacheContext(
           currentSource,

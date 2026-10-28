@@ -36,6 +36,14 @@ git -C NekoTribe/nuxt worktree add --track -b codex/go ../go origin/codex/go
 
 全栈 Compose 为 Oracle 19c 的现有 x86-64 部署设计，需要可获取且被允许运行的 Oracle 镜像、足够内存和持久磁盘。新库初始化可能耗时较长；不能用应用 `/api/health` 返回正常代替数据库业务验收。Linux 容器构建与独立 Linux 服务器验收分别记录。
 
+## 多后端共享数据与缓存
+
+默认 `NEKO_CACHE_MODE=shared`：Nuxt 绕过 API 响应缓存和 Oracle 查询结果缓存，避免 Rust、Go 或其他服务修改共享数据库后继续读取旧缓存。Redis 连接、会话和实时消息等其他用途不因此停用。该保护会增加数据库负载，直到三后端可靠的统一失效机制完成。
+
+只有确认共享数据库的所有写入都经过 Nuxt 的缓存失效路径时，才可将 `NEKO_CACHE_MODE=single-backend` 用于单后端运行；启动 Rust/Go 原生写入或其他外部写入前，必须将所有 Nuxt 实例改回 `shared` 并重启。配置在进程启动时读取，旧实例不随配置变化自动切换。每次进程启动使用新的缓存标识，不能复用以前进程的响应/查询缓存；会增加 Redis 中临时缓存条目，它们按原有 TTL 过期，不删除运行数据。跨后端缓存失效和 Redis 不可用时的可靠性仍待实现与真实部署验收。
+
+单后端缓存当前采用尽力失效：Redis 在写入时故障、提交与失效之间崩溃等情形可能保留旧条目；即使所有写入经过 Nuxt 也不构成强一致保证。有严格一致性要求时保持 shared，后续需建立可恢复的失效机制并实测。
+
 ## 本地与混合
 
 使用 Node 22.12 以上的 Node 22、Yarn 1.22 和本项目锁文件。复制 `.env.example` 为 `.env`，填写签名密钥、数据库、Redis 及需要的 SMTP。Windows 用 `Copy-Item .env.example .env`，Linux 用 `cp .env.example .env`；已有配置不要覆盖。

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
 import type { H3Event } from 'h3';
 import { getRequestURL } from 'h3';
+import { cacheProcessEpoch, singleBackendCacheEnabled } from './cache-mode';
 import {
   getRequestLogContext,
   logInfo,
@@ -400,6 +401,7 @@ async function buildCacheContext(
   // Shared session and self-profile data may be changed by other backends
   // without invalidating this Nuxt response cache.
   if (['/api/v2/auth/sessions', '/api/v2/users/me'].includes(url.pathname.replace(/\/+$/, ''))) return null;
+  if (!singleBackendCacheEnabled) return null;
 
   const auth = authOf(event);
   const tags = tagsForPath(url.pathname, auth);
@@ -407,6 +409,7 @@ async function buildCacheContext(
   const scope = scopeForRequest(url.pathname, auth);
   const identity = JSON.stringify({
     schema: CACHE_SCHEMA_VERSION,
+    process_epoch: cacheProcessEpoch,
     namespace,
     method,
     path: url.pathname,
@@ -531,6 +534,7 @@ export async function writeApiResponseCache<T>(
   context: ApiResponseCacheContext,
   payload: T
 ): Promise<void> {
+  if (!singleBackendCacheEnabled) return;
   const redis = redisOf(event);
   if (!redis) return;
 
