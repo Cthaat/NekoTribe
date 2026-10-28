@@ -21,7 +21,7 @@ const stubs = {
   '~/server/storage': 'export const normalizeAvatarPublicUrl = value => value; export const normalizeNullableStoragePublicUrl = value => value; export const normalizeStoragePublicUrl = value => value;',
   './notifications': 'export const v2CreateNotification = async (connection, notification) => { connection.interactions.notifications.push(notification); };',
   '~/server/utils/redis': 'export const REDIS_CHANNELS = {USER_MESSAGE:"ws:user:"}; export const publishMessage = async () => {};',
-  '~/server/utils/wsSession': 'export const WS_SERVER_ID = "isolated-test"; export const sendWsToUser = () => {};',
+  '~/server/utils/wsSession': 'export const WS_SERVER_ID = "isolated-test"; export const sendWsToUser = () => {}; export const sendWsNotificationToUser = async () => {};',
   './api-cache': 'export const readApiResponseCache = async () => ({status:"disabled"}); export const writeApiResponseCache = async () => {}; export const invalidateApiResponseCache = async () => {}; export const shouldInvalidateApiResponseCache = () => false;',
   './logging': 'export const getRequestLogContext = () => null; export const logError = () => {}; export const logInfo = () => {}; export const serializeLogError = () => ({});',
   oracledb: 'export default {OUT_FORMAT_OBJECT: 4002};'

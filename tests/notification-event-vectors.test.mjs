@@ -14,7 +14,7 @@ const stubs={
   '#imports':'export const useRuntimeConfig = () => ({});',
   '~/server/storage':'export const normalizeAvatarPublicUrl = value => value; export const normalizeNullableStoragePublicUrl = value => value; export const normalizeStoragePublicUrl = value => value;',
   '~/server/utils/redis':'export const REDIS_CHANNELS={USER_MESSAGE:"ws:user:"}; export const publishMessage=async(channel,message)=>globalThis.__nekoNotificationEvents.push({channel,message});',
-  '~/server/utils/wsSession':'export const WS_SERVER_ID="test-instance"; export const sendWsToUser=(user,message)=>globalThis.__nekoNotificationEvents.push({user,message});',
+  '~/server/utils/wsSession':'export const WS_SERVER_ID="test-instance"; export const sendWsNotificationToUser=async(user,message)=>globalThis.__nekoNotificationEvents.push({user,message});',
   './api-cache':'export const readApiResponseCache=async()=>({status:"disabled"}); export const writeApiResponseCache=async()=>{}; export const invalidateApiResponseCache=async()=>{}; export const shouldInvalidateApiResponseCache=()=>false;',
   './logging':'export const getRequestLogContext=()=>null; export const logError=()=>{}; export const logInfo=()=>{}; export const serializeLogError=()=>({});',
   oracledb:'export default {OUT_FORMAT_OBJECT:4002};'

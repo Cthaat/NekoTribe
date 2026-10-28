@@ -18,6 +18,7 @@ import {
   WS_SERVER_ID,
   sendWsToAll,
   sendWsToRoom,
+  sendWsNotificationToUser,
   sendWsToUser,
   sessionManager
 } from '~/server/utils/wsSession';
@@ -141,10 +142,8 @@ async function authenticatePeer(
     return null;
   }
 
-  const connection = await getCachedWsOracleConnection({
-    authUserId: payload.userId,
-    path: '/_ws/authenticate'
-  });
+  // Session checks must never use the Oracle query cache: revocation is immediate.
+  const connection = await getOracleConnection();
   try {
     const session = await v2One(
       connection,
@@ -297,9 +296,15 @@ async function ensureUserRedisSubscription(
   const subscribed = await subscribeToChannel(
     userRedisChannel(userId),
     (message: WSMessage) => {
+      if (!message || typeof message.type !== 'string') return;
       const data = isRecord(message.data) ? message.data : {};
       if (data.server_id === WS_SERVER_ID) return;
-      sendWsToUser(userId, message);
+      if (message.type.startsWith('notification_') || message.type === 'notifications_read_status_updated') {
+        if (!isRecord(message.data) || typeof message.timestamp !== 'number') return;
+        void sendWsNotificationToUser(userId, message);
+      } else {
+        sendWsToUser(userId, message);
+      }
     }
   );
   if (subscribed) {
@@ -433,7 +438,12 @@ export default defineWebSocketHandler({
     const wasOnline = sessionManager.isUserOnline(auth.userId);
     extendedPeer.sessionId = sessionId;
     await initializeRedisSubscriptions();
-    sessionManager.addSession(sessionId, peer, auth);
+    const initialAuth = auth;
+    sessionManager.addSession(sessionId, peer, initialAuth, async () => {
+      const current = await authenticatePeer(peer);
+      return !!current && current.userId === initialAuth.userId &&
+        current.sessionId === initialAuth.sessionId && current.jti === initialAuth.jti;
+    });
     await ensureUserRedisSubscription(auth.userId);
     clearPresenceOfflineTimer(auth.userId);
     if (!wasOnline) {

@@ -943,7 +943,7 @@
       },
       {
         "path": "server/routes/_ws.ts",
-        "sha256": "a5cc0e57a5066ad5b2048a28bc9f5078abd4d71830a9d2a42672bbff12d035fb"
+        "sha256": "8ca37646bf173eaa8b343d34229d555d5e2032c2e466c0fa4884ea4a2671b94b"
       },
       {
         "path": "server/routes/storage/[...segments].get.ts",
@@ -987,7 +987,7 @@
       },
       {
         "path": "server/services/v2/notifications.ts",
-        "sha256": "74b474d918face17a685d01381f8d8b8c146197683138b2be1377c9b032faf5c"
+        "sha256": "d50d1522382b0d82570b012f08472c1fbbaeaee6196eee7e30f461d48ebcb5a1"
       },
       {
         "path": "server/services/v2/posts.ts",
@@ -1143,7 +1143,7 @@
       },
       {
         "path": "server/utils/wsSession.ts",
-        "sha256": "ff51ab190b46e36e0422b0e785e44957bb7506da886579bce206141a9dd34be1"
+        "sha256": "3b0853bf3a814f03368e74b00dfc3b7dcfd9bb84443a7d9d1f6c5870be31aca1"
       }
     ]
   },
@@ -8869,7 +8869,8 @@
       "sourceFiles": [
         "server/routes/_ws.ts",
         "server/utils/wsSession.ts",
-        "server/utils/redis.ts"
+        "server/utils/redis.ts",
+        "server/services/v2/notifications.ts"
       ],
       "operations": [],
       "scenarios": [
@@ -8883,12 +8884,13 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Validate authenticated notification delivery and revocation behavior in isolated real deployment; align origin and session revalidation rules."
+            "Validate authenticated notification delivery and revocation behavior in isolated real deployment; align origin, periodic session revalidation and subscription failure rules."
           ],
           "sourceFiles": [
             "server/routes/_ws.ts",
             "server/utils/wsSession.ts",
-            "server/utils/redis.ts"
+            "server/utils/redis.ts",
+            "server/services/v2/notifications.ts"
           ],
           "evidence": []
         },

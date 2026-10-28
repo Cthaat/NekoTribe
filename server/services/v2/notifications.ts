@@ -7,7 +7,7 @@ import {
 } from '~/server/utils/redis';
 import {
   WS_SERVER_ID,
-  sendWsToUser
+  sendWsNotificationToUser
 } from '~/server/utils/wsSession';
 import {
   v2Auth,
@@ -171,7 +171,7 @@ export async function v2PublishNotificationEvent(
     timestamp: Date.now()
   };
 
-  sendWsToUser(userId, message);
+  await sendWsNotificationToUser(userId, message);
   await publishMessage(notificationRedisChannel(userId), message);
 }
 

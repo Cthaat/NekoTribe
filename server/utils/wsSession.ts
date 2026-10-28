@@ -40,6 +40,10 @@ export interface WSSession {
   auth: WSSessionAuthPayload; // 已认证的 v2 用户信息
   joinedRooms: Set<string>; // 用户已加入的房间集合（使用 Set 避免重复）
   lastActivity: number; // 最后活动时间戳，用于清理不活跃的连接
+  authorize: () => Promise<boolean>;
+  notificationTail: Promise<void>;
+  pendingNotifications: number;
+  closing: boolean;
 }
 
 // =====================================
@@ -67,14 +71,19 @@ class WSSessionManager {
   addSession(
     sessionId: string,
     peer: Peer,
-    auth: WSSessionAuthPayload
+    auth: WSSessionAuthPayload,
+    authorize: () => Promise<boolean>
   ): void {
     // 创建新的会话对象
     const session: WSSession = {
       peer, // 保存 WebSocket 连接对象
       auth,
       joinedRooms: new Set(), // 初始化空的房间集合
-      lastActivity: Date.now() // 记录当前时间为最后活动时间
+      lastActivity: Date.now(), // 记录当前时间为最后活动时间
+      authorize,
+      notificationTail: Promise.resolve(),
+      pendingNotifications: 0,
+      closing: false
     };
 
     // 将会话添加到会话管理器中
@@ -294,6 +303,59 @@ export function sendWsToUser(
   });
 }
 
+function closeNotificationSession(session: WSSession): void {
+  if (session.closing) return;
+  session.closing = true;
+  try { session.peer.close(); } catch { /* The peer may already be closed. */ }
+}
+
+async function authorizeNotification(session: WSSession): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      session.authorize(),
+      new Promise<boolean>(resolve => {
+        timer = setTimeout(() => resolve(false), 1_500);
+      })
+    ]);
+  } catch {
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** Deliver notifications only after a fresh check of this specific connection. */
+export async function sendWsNotificationToUser(
+  userId: number,
+  message: unknown
+): Promise<void> {
+  const targets = sessionManager.getUserSessions(userId);
+  await Promise.all(targets.map(session => {
+    if (session.closing) return Promise.resolve();
+    if (session.pendingNotifications >= 16) {
+      closeNotificationSession(session);
+      return Promise.resolve();
+    }
+    session.pendingNotifications++;
+    const delivery = session.notificationTail.then(async () => {
+      const stillConnected = () => !session.closing &&
+        sessionManager.getUserSessions(userId).includes(session);
+      if (!stillConnected()) return;
+      const authorized = await authorizeNotification(session);
+      if (!authorized) {
+        closeNotificationSession(session);
+        return;
+      }
+      if (!stillConnected()) return;
+      try { session.peer.send(JSON.stringify(message)); }
+      catch { closeNotificationSession(session); }
+    }).finally(() => { session.pendingNotifications--; });
+    session.notificationTail = delivery;
+    return delivery;
+  }));
+}
+
 export function sendWsToAll(message: unknown): void {
   sessionManager.getAllSessions().forEach(session => {
     try {
@@ -315,4 +377,4 @@ setInterval(
     sessionManager.cleanupInactiveSessions();
   },
   5 * 60 * 1000
-); // 5分钟 = 5 * 60 * 1000 毫秒
+).unref(); // 5分钟 = 5 * 60 * 1000 毫秒
