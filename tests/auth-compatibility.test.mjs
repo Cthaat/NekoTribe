@@ -20,7 +20,7 @@ const require = createRequire(import.meta.url);
 const runtime = { accessSecret: 'isolated-test-access-secret', refreshSecret: 'isolated-test-refresh-secret', accessExpiresIn: 900, refreshExpiresIn: 3600 };
 const stubs = {
   '#imports': `export const useRuntimeConfig = () => (${JSON.stringify(runtime)});`,
-  '~/server/models/v2': 'export const v2RequireSelfUser = async (_, id) => { globalThis.__selfProfileCalls?.push(id); if (globalThis.__loginProfileError) throw globalThis.__loginProfileError; return globalThis.__registrationProfile ?? {user_id: id, username: "test"}; }; export const v2MapPublicUser = () => ({}); export const v2RequirePublicUser = async () => ({});',
+  '~/server/models/v2': 'export const v2RequireSelfUser = async (_, id) => { globalThis.__selfProfileCalls?.push(id); if (globalThis.__loginProfileError) throw globalThis.__loginProfileError; return globalThis.__registrationProfile ?? {user_id: id, username: "test"}; }; export const v2MapPublicUser = () => ({}); export const v2RequirePublicUser = async (_, viewer, id) => { globalThis.__publicCalls?.push([viewer,id]); if (globalThis.__publicError) throw globalThis.__publicError; return globalThis.__publicProfile; };',
   '~/server/storage': 'export const deleteStorageReference=async()=>{}; export const ensureStorageTempDir=async()=>{}; export const STORAGE_AVATAR_MAX_SIZE=1; export const storeAvatarFile=async()=>({});',
   './presence': 'export const v2PublishUserPresence=async()=>{};',
   './notifications': 'export const v2CreateNotification = async () => { if (globalThis.__loginAlertError) throw globalThis.__loginAlertError; };',
@@ -43,6 +43,7 @@ const compiled = await build({
     export {default as resetPassword} from './server/api/v2/auth/password-reset.post';
     export {default as getMe} from './server/api/v2/users/me.get';
     export {default as patchMe} from './server/api/v2/users/me.patch';
+    export {default as publicProfile} from './server/api/v2/users/[id].get';
     export {v2ListSessions} from './server/services/v2/auth';
   `, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm',
@@ -278,6 +279,7 @@ async function fixture(options) {
   router.post('/api/v2/auth/password-reset', routes.resetPassword);
   router.get('/api/v2/users/me', routes.getMe);
   router.patch('/api/v2/users/me', routes.patchMe);
+  router.get('/api/v2/users/:id', routes.publicProfile);
   router.get('/api/v2/private', defineEventHandler(() => ({ok: true})));
   app.use(router);
   const server = createServer(toNodeListener(app));
@@ -312,6 +314,22 @@ test('shared self-profile scenarios enforce session identity and safe errors', a
     }
     assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors),/private-profile-fixture/);assert.doesNotMatch(errors.join('\n'),/private-profile-fixture/);
   } finally {console.error=oldError;delete globalThis.__authCompatErrors;delete globalThis.__selfProfileCalls;delete globalThis.__loginProfileError;delete globalThis.__registrationProfile;await f.close();}
+});
+
+test('shared public profiles enforce identity, public fields and bounded IDs', async () => {
+  const vectors=JSON.parse(readFileSync(path.join(root,'specifications/scenarios/user-public-profile.json'),'utf8'));
+  const f=await fixture();const oldError=console.error;const errors=[];console.error=(...args)=>errors.push(args.map(String).join(' '));globalThis.__authCompatErrors=[];
+  const payload={userId:42,userName:'selfuser',sessionId:'fixture-session-42',jti:'fixture-access-jti-42',type:'access'};
+  const token=jwt.sign(payload,runtime.accessSecret,{expiresIn:900});const expired=jwt.sign(payload,runtime.accessSecret,{expiresIn:-1});
+  try {for(const vector of vectors.cases){
+    f.db.sessions.set('fixture-session-42',{user_id:42,session_id:'fixture-session-42',access_jti:'fixture-access-jti-42',access_token_expires_at:new Date(Date.now()+900000),revoked:!!vector.revoked});f.db.profileTouchFail=!!vector.touch_fail;globalThis.__publicCalls=[];
+    const profile=structuredClone(vectors.profile);if(vector.hidden){profile.online_status='hidden';profile.last_seen_at=null}if(vector.offline)profile.online_status='offline';globalThis.__publicProfile=profile;
+    globalThis.__publicError=vector.missing?createError({statusCode:404,message:'用户不存在',data:{code:40401,message:'用户不存在',data:null,meta:null}}):vector.fault?new Error('private-public-profile-error'):null;
+    const headers={};if(vector.auth==='valid')headers.authorization=`Bearer ${token}`;if(vector.auth==='cookie')headers.cookie=`access_token=${token}`;if(vector.auth==='bad-cookie'){headers.authorization=`Bearer ${token}`;headers.cookie='access_token=bad';}if(vector.auth==='expired')headers.authorization=`Bearer ${expired}`;
+    const response=await f.request(`/api/v2/users/${vector.target}?viewer_id=99`,'GET',undefined,headers);const text=await response.text();assert.equal(response.status,vector.status,vector.id);assert.equal(globalThis.__publicCalls.length,vector.profiles,vector.id);assert.doesNotMatch(text,/private-public-profile-error/,vector.id);
+    if(vector.status===200){assert.deepEqual(globalThis.__publicCalls,[[42,7]],vector.id);assert.equal(response.headers.get('cache-control'),'private, no-store',vector.id);assert.deepEqual(JSON.parse(text).data,profile,vector.id);}
+  }assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors),/private-public-profile-error/);assert.doesNotMatch(errors.join('\n'),/private-public-profile-error/);
+  }finally{console.error=oldError;delete globalThis.__authCompatErrors;delete globalThis.__publicCalls;delete globalThis.__publicProfile;delete globalThis.__publicError;await f.close()}
 });
 
 test('shared self-profile updates preserve identity, fields and safe errors', async () => {

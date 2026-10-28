@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "73898e97cd979eb93af3947ef130c963a674995097715c77546da4fea5fc73a2"
+      "sha256": "53fedf0b161eeb52745208c276c128ce563454a13c12a3edbd78ea8190a4c3dc"
     },
     "sources": [
       {
@@ -747,7 +747,7 @@
       },
       {
         "path": "server/api/v2/users/[id].get.ts",
-        "sha256": "16ffa0bc1f4dcb287a0635c7a3ad0d97c4629956885f582554c7f370247635ae"
+        "sha256": "83e78c4049c4d9edf5a9a617a4856790c9e36a07c95ed74b4168bbde874945da"
       },
       {
         "path": "server/api/v2/users/[id]/analytics.get.ts",
@@ -1039,7 +1039,7 @@
       },
       {
         "path": "server/utils/api-cache.ts",
-        "sha256": "dda730afa53d86f5ed3ebaee50be2deabbe7dad4db728a4194d978ec73e77e78"
+        "sha256": "ec903f7815a083e6011ee9e39fb6cedac543278a739388f346a10bb8b507a38d"
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
@@ -2503,47 +2503,72 @@
     {
       "id": "API-get_users_id",
       "title": "GET /api/v2/users/{id}: 获取用户公开资料",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/user-public-profile.md",
       "sourceFiles": [
-        "server/api/v2/users/[id].get.ts"
+        "server/api/v2/users/[id].get.ts",
+        "server/services/v2/users.ts",
+        "server/models/v2.ts",
+        "server/utils/api-cache.ts"
       ],
       "operations": [
         "GET /api/v2/users/{id}"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "USER-PUBLIC-PROFILE",
+          "file": "specifications/scenarios/user-public-profile.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/users/{id}; create shared acceptance scenarios."
+            "nuxt: implement authenticated public profile and hidden-presence mapping according to user-public-profile.md.",
+            "nuxt: validate real Oracle presence, time zones, relation policy, shared cache and both frontends before acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/users/[id].get.ts"
+            "server/api/v2/users/[id].get.ts",
+            "server/services/v2/users.ts",
+            "server/models/v2.ts",
+            "server/utils/api-cache.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/users/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: implement authenticated public profile and hidden-presence mapping according to user-public-profile.md.",
+            "rust: validate real Oracle presence, time zones, relation policy, shared cache and both frontends before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/users/public_profile.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/users/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: implement authenticated public profile and hidden-presence mapping according to user-public-profile.md.",
+            "go: validate real Oracle presence, time zones, relation policy, shared cache and both frontends before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/public_profile.go",
+            "internal/server/server.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/storage-public-urls.md",
+        "specifications/requirements/cache-shared-backends.md"
+      ]
     },
     {
       "id": "API-get_users_id_analytics",
@@ -10453,6 +10478,26 @@
       "copies": {
         "rust": "contracts/scenarios/cache-shared-backends.json",
         "go": "contracts/scenarios/cache-shared-backends.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/user-public-profile.md",
+        "sha256": "9a22d2ad60411f1e902c60d3ced20a591aa6eaad11c584ef99a1d3857a6eb411"
+      },
+      "copies": {
+        "rust": "contracts/requirements/user-public-profile.md",
+        "go": "contracts/requirements/user-public-profile.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/user-public-profile.json",
+        "sha256": "cf2dfc119ce603bf36a93a7ec9fb15241379435b76d0935d9be58abc035a9d20"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/user-public-profile.json",
+        "go": "contracts/scenarios/user-public-profile.json"
       }
     }
   ]

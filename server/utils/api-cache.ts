@@ -401,6 +401,9 @@ async function buildCacheContext(
   // Shared session and self-profile data may be changed by other backends
   // without invalidating this Nuxt response cache.
   if (['/api/v2/auth/sessions', '/api/v2/users/me'].includes(url.pathname.replace(/\/+$/, ''))) return null;
+  const segments = pathSegments(url.pathname);
+  // Public profiles contain viewer-dependent relationship and presence data.
+  if (segments.length === 2 && segments[0] === 'users' && isNumericSegment(segments[1])) return null;
   if (!singleBackendCacheEnabled) return null;
 
   const auth = authOf(event);

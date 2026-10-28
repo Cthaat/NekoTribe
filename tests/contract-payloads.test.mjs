@@ -136,3 +136,12 @@ test('self profile patch contract matches successful response, cookie auth and p
   assert.equal(result({code:200,message:'success',data:fixture.profile,meta:null}),true);
   assert.deepEqual(spec.paths['/api/v2/users/me'].patch.security,[{bearerAuth:[]},{accessTokenCookie:[]}]);
 });
+
+test('public profile contract documents bounded IDs, presence privacy and cookie authentication', () => {
+  const op=spec.paths['/api/v2/users/{id}'].get;
+  assert.equal(op.parameters[0].schema.minimum,1);assert.equal(op.parameters[0].schema.maximum,9007199254740991);
+  assert.deepEqual(op.security,[{bearerAuth:[]},{accessTokenCookie:[]}]);
+  const pointer='/api/v2/users/{id}'.replaceAll('/','~1');const check=ajv.compile({$ref:`${base}#/paths/${pointer}/get/responses/200/content/application~1json/schema`});
+  const fixture=JSON.parse(readFileSync(new URL('../specifications/scenarios/user-public-profile.json',import.meta.url)));const profile=structuredClone(fixture.profile);profile.online_status='hidden';profile.last_seen_at=null;
+  assert.equal(check({code:200,message:'success',data:profile,meta:null}),true,JSON.stringify(check.errors));assert.equal(check({code:200,message:'success',data:{...profile,email:'secret'},meta:null}),false);
+});

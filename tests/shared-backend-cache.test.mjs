@@ -48,3 +48,10 @@ test('unrecognized mode stays safe and mode is fixed at process initialization',
   const redis=fakeRedis(),{event,close}=eventFor(redis);try {assert.equal((await m.readApiResponseCache(event,'v2')).status,'bypass');assert.equal(redis.reads,0)}finally{close()}
  }finally{if(original===undefined)delete process.env.NEKO_CACHE_MODE;else process.env.NEKO_CACHE_MODE=original}
 });
+
+test('public profiles bypass internal response cache even in single-backend mode',async()=>{
+ const original=process.env.NEKO_CACHE_MODE;try {
+  const m=await moduleFor('single-backend','public-privacy');const redis=fakeRedis(),{event,close}=eventFor(redis);
+  try {event.node.req.url='/api/v2/users/7';const value=await m.readApiResponseCache(event,'v2');assert.equal(value.status,'bypass');assert.equal(redis.reads,0)}finally{close()}
+ }finally{if(original===undefined)delete process.env.NEKO_CACHE_MODE;else process.env.NEKO_CACHE_MODE=original}
+});

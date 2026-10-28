@@ -17,7 +17,7 @@ const stubs={
   './logging':'export const getRequestLogContext=()=>null; export const logError=()=>{}; export const logInfo=()=>{}; export const serializeLogError=()=>({});',
   oracledb:'export default {OUT_FORMAT_OBJECT:4002};'
 };
-const compiled=await build({stdin:{contents:"export {v2GetSelfUser} from './server/models/v2';",resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'self-profile-fixtures',setup(builder){
+const compiled=await build({stdin:{contents:"export {v2GetSelfUser,v2GetPublicUser} from './server/models/v2';",resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'self-profile-fixtures',setup(builder){
   builder.onResolve({filter:/.*/},args=>{
     if(Object.hasOwn(stubs,args.path))return {path:args.path,namespace:'self-profile-stub'};
     if(args.path.startsWith('~/'))return {path:path.join(root,`${args.path.slice(2)}.ts`)};
@@ -26,7 +26,7 @@ const compiled=await build({stdin:{contents:"export {v2GetSelfUser} from './serv
   });
   builder.onLoad({filter:/.*/,namespace:'self-profile-stub'},args=>({contents:stubs[args.path],loader:'js'}));
 }}]});
-const {v2GetSelfUser}=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+const {v2GetSelfUser,v2GetPublicUser}=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 
 test('self profile mapper reads only the authenticated user and retains nulls and public fields',async()=>{
   let call;
@@ -38,4 +38,14 @@ test('self profile mapper reads only the authenticated user and retains nulls an
   assert.match(call.sql,/fn_get_user_relationship\(:viewer_id, u.user_id\)/);
   assert.deepEqual(call.binds,{viewer_id:42,user_id:42});
   assert.equal(call.options.outFormat,4002);
+});
+
+
+test('public profile query binds viewer and target, hides online activity and private fields',async()=>{
+  const fixture=JSON.parse(readFileSync(new URL('../specifications/scenarios/user-public-profile.json',import.meta.url)));
+  let call;const row={USER_ID:7,USERNAME:'publicuser',DISPLAY_NAME:'Public User',AVATAR_URL:null,BIO:'hello',LOCATION:null,WEBSITE:null,IS_VERIFIED:0,FOLLOWERS_COUNT:2,FOLLOWING_COUNT:3,POSTS_COUNT:4,LIKES_COUNT:5,RELATION:'following',ONLINE_STATUS:'hidden',LAST_SEEN_AT:new Date('2026-01-02T03:04:05.000Z'),EMAIL:'private@example.test',PHONE:'secret'};
+  const db={async execute(sql,binds,options){call={sql:sql.replace(/\s+/g,' ').trim(),binds,options};return {rows:[row]};}};
+  const expected=structuredClone(fixture.profile);expected.online_status='hidden';expected.last_seen_at=null;
+  assert.deepEqual(await v2GetPublicUser(db,42,7),expected);assert.deepEqual(call.binds,{viewer_id:42,user_id:7});
+  assert.match(call.sql,/FROM v_user_profile_public u/);assert.match(call.sql,/u.is_active = 1/);assert.match(call.sql,/show_online_status/);assert.match(call.sql,/NUMTODSINTERVAL\(90, 'SECOND'\)/);assert.doesNotMatch(call.sql,/\bemail\b/i);
 });
