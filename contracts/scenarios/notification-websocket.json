@@ -1,0 +1,13 @@
+{
+  "id":"NOTIFICATION-WEBSOCKET",
+  "revision":1,
+  "cases":[
+    {"id":"WS-NOTIFY-01","name":"Cookie、Bearer、查询 token 优先级和有效会话","status":"not-run"},
+    {"id":"WS-NOTIFY-02","name":"无效、过期、撤销 token 以及非法来源被拒绝","status":"not-run"},
+    {"id":"WS-NOTIFY-03","name":"初始消息及 ping/pong 格式","status":"not-run"},
+    {"id":"WS-NOTIFY-04","name":"仅将当前用户频道通知投递给当前连接","status":"not-run"},
+    {"id":"WS-NOTIFY-05","name":"撤销或过期后的通知不投递并关闭连接","status":"not-run"},
+    {"id":"WS-NOTIFY-06","name":"订阅失败、慢客户端、取消和断连释放资源","status":"not-run"},
+    {"id":"WS-NOTIFY-07","name":"真实 Redis、Oracle、跨机器、两客户端联调","status":"not-run"}
+  ]
+}
