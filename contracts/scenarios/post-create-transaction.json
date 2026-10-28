@@ -1,0 +1,11 @@
+{
+  "id": "POST-CREATE-TRANSACTION",
+  "revision": 1,
+  "cases": [
+    {"id":"TX-01","assertion":"post, deduplicated owned usable media, tags and mentions commit in one transaction"},
+    {"id":"TX-02","assertion":"missing, unavailable or unowned selected media and relation failure roll back the post"},
+    {"id":"TX-03","assertion":"non-repost empty content requires a successfully attached media; empty repost remains valid"},
+    {"id":"TX-04","assertion":"commit failure has uncertain outcome and notification failure occurs after a successful commit"},
+    {"id":"TX-05","assertion":"real isolated Oracle transactions, triggers, concurrency and client behavior are verified"}
+  ]
+}

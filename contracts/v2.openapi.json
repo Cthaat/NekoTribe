@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-28-post-reference"
+    "x-contract-revision": "2026-10-28-post-transaction"
   },
   "tags": [
     {
@@ -8457,7 +8457,7 @@
       "post": {
         "summary": "创建帖子",
         "deprecated": false,
-        "description": "创建帖子；回复、引用或转发的目标必须存在、未删除并对当前用户可见，最多指定一种引用。",
+        "description": "创建帖子；回复、引用或转发的目标必须存在、未删除并对当前用户可见，最多指定一种引用。帖子和关联数据在一个事务中提交，选中的媒体必须可用且属于当前用户；通知在提交后处理。",
         "operationId": "post_posts",
         "tags": [
           "Posts"
