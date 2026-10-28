@@ -202,6 +202,14 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, Option<crate::notifications::NotificationReadResult>> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn set_notification_deleted<'a>(
+        &'a self,
+        _user: u64,
+        _id: u64,
+        _restore: bool,
+    ) -> StoreFuture<'a, Option<Option<String>>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn batch_set_notification_read<'a>(
         &'a self,
         _user: u64,
@@ -488,6 +496,14 @@ pub fn build_native_router_with_realtime_and_publisher(
         )
         .route("/api/v2/posts", get(crate::posts::list::list_posts))
         .route("/api/v2/notifications", get(crate::notifications::list))
+        .route(
+            "/api/v2/notifications/{id}",
+            axum::routing::delete(crate::notifications::delete_notification),
+        )
+        .route(
+            "/api/v2/notifications/{id}/restore-status",
+            axum::routing::put(crate::notifications::restore_notification),
+        )
         .route(
             "/api/v2/notifications/read-status",
             axum::routing::put(crate::notifications::set_batch_read),

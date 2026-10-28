@@ -39,41 +39,149 @@ fn read_flag(value: Option<&Value>) -> bool {
     }
 }
 
-pub(crate) async fn set_batch_read(State(state): State<NativeState>, request: Request<Body>) -> Response {
+pub(crate) async fn delete_notification(
+    State(state): State<NativeState>,
+    Path(raw): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    set_deleted(state, raw, headers, false).await
+}
+pub(crate) async fn restore_notification(
+    State(state): State<NativeState>,
+    Path(raw): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    set_deleted(state, raw, headers, true).await
+}
+async fn set_deleted(
+    state: NativeState,
+    raw: String,
+    headers: HeaderMap,
+    restore: bool,
+) -> Response {
+    let mut response = set_deleted_inner(state, raw, headers, restore)
+        .await
+        .into_response();
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("private, no-store"),
+    );
+    response
+}
+async fn set_deleted_inner(
+    state: NativeState,
+    raw: String,
+    headers: HeaderMap,
+    restore: bool,
+) -> Result<Response, ApiError> {
+    let (user, id) = crate::posts::bookmark::interaction_identity(&state, &raw, &headers).await?;
+    let date = state
+        .repository
+        .set_notification_deleted(user, id, restore)
+        .await
+        .map_err(|_| ApiError::server_error("服务器内部错误"))?
+        .ok_or_else(|| ApiError::not_found("通知不存在"))?;
+    let data = json!({"notification_id":id,"deleted_at":date});
+    let kind = if restore {
+        "notification_restored"
+    } else {
+        "notification_deleted"
+    };
+    let delivered = match &state.notification_publisher {
+        Some(p) => p
+            .publish(user, kind, data.as_object().expect("object"))
+            .await
+            .is_ok(),
+        None => false,
+    };
+    if !delivered {
+        eprintln!("notification delivery unavailable");
+    }
+    if restore {
+        Ok(Json(crate::httpx::response::V2Response::ok(data)).into_response())
+    } else {
+        Ok(Json(crate::httpx::response::V2NullResponse::null(
+            "notification deleted",
+        ))
+        .into_response())
+    }
+}
+
+pub(crate) async fn set_batch_read(
+    State(state): State<NativeState>,
+    request: Request<Body>,
+) -> Response {
     let mut response = set_batch_read_inner(state, request).await.into_response();
-    response.headers_mut().insert(axum::http::header::CACHE_CONTROL, axum::http::HeaderValue::from_static("private, no-store"));
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("private, no-store"),
+    );
     response
 }
 
-async fn set_batch_read_inner(state: NativeState, request: Request<Body>) -> Result<Response, ApiError> {
+async fn set_batch_read_inner(
+    state: NativeState,
+    request: Request<Body>,
+) -> Result<Response, ApiError> {
     let (parts, body) = request.into_parts();
     let token = access_token(&parts.headers);
-    if token.is_empty() { return Err(ApiError::unauthorized("请先登录")); }
-    let claims = state.codec.verify(&token, TokenKind::Access, (state.clock)())
+    if token.is_empty() {
+        return Err(ApiError::unauthorized("请先登录"));
+    }
+    let claims = state
+        .codec
+        .verify(&token, TokenKind::Access, (state.clock)())
         .map_err(|_| ApiError::unauthorized("Token无效或已过期"))?;
-    if state.repository.touch(&claims).await.unwrap_or(0) != 1 { return Err(ApiError::unauthorized("Token无效或已过期")); }
-    let bytes = to_bytes(body, 1024 * 1024).await.map_err(|_| ApiError::bad_request("请求体必须是 JSON 对象"))?;
+    if state.repository.touch(&claims).await.unwrap_or(0) != 1 {
+        return Err(ApiError::unauthorized("Token无效或已过期"));
+    }
+    let bytes = to_bytes(body, 1024 * 1024)
+        .await
+        .map_err(|_| ApiError::bad_request("请求体必须是 JSON 对象"))?;
     let body = crate::auth::login::request_body(&parts.headers, &bytes)?;
     let mut ids = Vec::new();
     if let Some(value) = body.get("notification_ids") {
-        let values = value.as_array().filter(|v| v.len() <= 1000).ok_or_else(|| ApiError::bad_request("notification_ids 参数错误"))?;
+        let values = value
+            .as_array()
+            .filter(|v| v.len() <= 1000)
+            .ok_or_else(|| ApiError::bad_request("notification_ids 参数错误"))?;
         for value in values {
-            let n = value.as_f64().filter(|n| *n >= 1.0 && *n <= 9007199254740991.0 && n.fract() == 0.0)
+            let n = value
+                .as_f64()
+                .filter(|n| *n >= 1.0 && *n <= 9007199254740991.0 && n.fract() == 0.0)
                 .ok_or_else(|| ApiError::bad_request("notification_ids 参数错误"))?;
             ids.push(n as u64);
         }
     }
     let read = read_flag(body.get("is_read"));
-    let updated = state.repository.batch_set_notification_read(claims.user_id, &ids, read).await
+    let updated = state
+        .repository
+        .batch_set_notification_read(claims.user_id, &ids, read)
+        .await
         .map_err(|_| ApiError::server_error("服务器内部错误"))?;
-    let data = if ids.is_empty() { json!({"all":true,"is_read":u8::from(read),"updated_count":updated}) }
-        else { json!({"notification_ids":ids,"is_read":u8::from(read),"updated_count":updated}) };
+    let data = if ids.is_empty() {
+        json!({"all":true,"is_read":u8::from(read),"updated_count":updated})
+    } else {
+        json!({"notification_ids":ids,"is_read":u8::from(read),"updated_count":updated})
+    };
     let published = match &state.notification_publisher {
-        Some(p) => p.publish(claims.user_id, "notifications_read_status_updated", data.as_object().expect("object")).await.is_ok(),
+        Some(p) => p
+            .publish(
+                claims.user_id,
+                "notifications_read_status_updated",
+                data.as_object().expect("object"),
+            )
+            .await
+            .is_ok(),
         None => false,
     };
-    if !published { eprintln!("notification delivery unavailable"); }
-    Ok(Json(crate::httpx::response::V2Response::ok(json!({"updated_count":updated}))).into_response())
+    if !published {
+        eprintln!("notification delivery unavailable");
+    }
+    Ok(Json(crate::httpx::response::V2Response::ok(
+        json!({"updated_count":updated}),
+    ))
+    .into_response())
 }
 
 #[cfg(test)]

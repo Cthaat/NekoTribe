@@ -27,11 +27,45 @@ struct Store {
     calls: Mutex<Vec<(u64, u64, bool)>>,
 }
 impl SessionRepository for Store {
-    fn batch_set_notification_read<'a>(&'a self, user: u64, ids: &'a [u64], read: bool) -> StoreFuture<'a, u64> {
+    fn set_notification_deleted<'a>(
+        &'a self,
+        user: u64,
+        id: u64,
+        restore: bool,
+    ) -> StoreFuture<'a, Option<Option<String>>> {
         Box::pin(async move {
-            if ids.is_empty() { self.calls.lock().unwrap().push((user, 0, read)); }
-            else { for id in ids { self.calls.lock().unwrap().push((user, *id, read)); } }
-            if self.fail { Err(SessionStoreError) } else { Ok(if ids.is_empty() { 4 } else { ids.len() as u64 }) }
+            self.calls.lock().unwrap().push((user, id, restore));
+            if self.fail {
+                return Err(SessionStoreError);
+            }
+            Ok(self.found.then(|| {
+                if restore {
+                    None
+                } else {
+                    Some("2026-01-02T03:04:05.000Z".into())
+                }
+            }))
+        })
+    }
+    fn batch_set_notification_read<'a>(
+        &'a self,
+        user: u64,
+        ids: &'a [u64],
+        read: bool,
+    ) -> StoreFuture<'a, u64> {
+        Box::pin(async move {
+            if ids.is_empty() {
+                self.calls.lock().unwrap().push((user, 0, read));
+            } else {
+                for id in ids {
+                    self.calls.lock().unwrap().push((user, *id, read));
+                }
+            }
+            if self.fail {
+                Err(SessionStoreError)
+            } else {
+                Ok(if ids.is_empty() { 4 } else { ids.len() as u64 })
+            }
         })
     }
     fn touch<'a>(&'a self, c: &'a TokenClaims) -> StoreFuture<'a, u64> {
@@ -113,7 +147,11 @@ fn credentials() -> (TokenCodec, String) {
 async fn batch_read_rejects_invalid_selection_and_scopes_updates() {
     for (body, status, expected) in [
         (r#"{"is_read":true}"#, 200, vec![(42, 0, true)]),
-        (r#"{"notification_ids":[7,7,8],"is_read":true}"#, 200, vec![(42, 7, true), (42, 7, true), (42, 8, true)]),
+        (
+            r#"{"notification_ids":[7,7,8],"is_read":true}"#,
+            200,
+            vec![(42, 7, true), (42, 7, true), (42, 8, true)],
+        ),
         (r#"{"notification_ids":"bad"}"#, 400, vec![]),
         (r#"{"notification_ids":null}"#, 400, vec![]),
         (r#"{"notification_ids":[1,null]}"#, 400, vec![]),
@@ -121,23 +159,167 @@ async fn batch_read_rejects_invalid_selection_and_scopes_updates() {
         (r#"{"notification_ids":[9007199254740992]}"#, 400, vec![]),
     ] {
         let (codec, token) = credentials();
-        let store = Arc::new(Store { found: true, fail: false, calls: Mutex::new(vec![]) });
+        let store = Arc::new(Store {
+            found: true,
+            fail: false,
+            calls: Mutex::new(vec![]),
+        });
         let publisher = Arc::new(Publisher::default());
         let app = build_native_router_with_realtime_and_publisher(
-            codec, store.clone(), CorsPolicy::default(), Arc::new(|| 1_700_000_000),
-            RefreshPolicy::default(), StorageUrlPolicy::default(), Arc::new(SmtpConfig::default()),
-            None, Some(publisher.clone()),
+            codec,
+            store.clone(),
+            CorsPolicy::default(),
+            Arc::new(|| 1_700_000_000),
+            RefreshPolicy::default(),
+            StorageUrlPolicy::default(),
+            Arc::new(SmtpConfig::default()),
+            None,
+            Some(publisher.clone()),
         );
-        let request = Request::builder().method("PUT").uri("/api/v2/notifications/read-status")
-            .header("content-type", "application/json").header("authorization", format!("Bearer {token}"))
-            .body(Body::from(body)).unwrap();
+        let request = Request::builder()
+            .method("PUT")
+            .uri("/api/v2/notifications/read-status")
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::from(body))
+            .unwrap();
         let response = app.oneshot(request).await.unwrap();
         assert_eq!(response.status().as_u16(), status, "{body}");
         assert_eq!(*store.calls.lock().unwrap(), expected, "{body}");
         let events = publisher.events.lock().unwrap();
         assert_eq!(events.len(), usize::from(status == 200));
         if let Some((user, kind, _)) = events.first() {
-            assert_eq!((*user, kind.as_str()), (42, "notifications_read_status_updated"));
+            assert_eq!(
+                (*user, kind.as_str()),
+                (42, "notifications_read_status_updated")
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn notification_delete_and_restore_are_scoped_and_emit_events() {
+    for (method, path, authenticated, found, fail, status, restore) in [
+        (
+            "DELETE",
+            "/api/v2/notifications/12",
+            false,
+            true,
+            false,
+            401,
+            false,
+        ),
+        (
+            "DELETE",
+            "/api/v2/notifications/01",
+            true,
+            true,
+            false,
+            400,
+            false,
+        ),
+        (
+            "DELETE",
+            "/api/v2/notifications/12?user_id=99",
+            true,
+            true,
+            false,
+            200,
+            false,
+        ),
+        (
+            "DELETE",
+            "/api/v2/notifications/12",
+            true,
+            false,
+            false,
+            404,
+            false,
+        ),
+        (
+            "PUT",
+            "/api/v2/notifications/12/restore-status",
+            true,
+            true,
+            false,
+            200,
+            true,
+        ),
+        (
+            "PUT",
+            "/api/v2/notifications/12/restore-status",
+            true,
+            false,
+            false,
+            404,
+            true,
+        ),
+        (
+            "DELETE",
+            "/api/v2/notifications/12",
+            true,
+            true,
+            true,
+            500,
+            false,
+        ),
+    ] {
+        let (codec, token) = credentials();
+        let store = Arc::new(Store {
+            found,
+            fail,
+            calls: Mutex::new(vec![]),
+        });
+        let publisher = Arc::new(Publisher::default());
+        let app = build_native_router_with_realtime_and_publisher(
+            codec,
+            store.clone(),
+            CorsPolicy::default(),
+            Arc::new(|| 1_700_000_000),
+            RefreshPolicy::default(),
+            StorageUrlPolicy::default(),
+            Arc::new(SmtpConfig::default()),
+            None,
+            Some(publisher.clone()),
+        );
+        let mut req = Request::builder().method(method).uri(path);
+        if authenticated {
+            req = req.header("authorization", format!("Bearer {token}"));
+        }
+        let response = app.oneshot(req.body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status().as_u16(), status, "{method} {path}");
+        assert_eq!(
+            response.headers().get("cache-control").unwrap(),
+            "private, no-store"
+        );
+        let body: Value =
+            serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        if status == 200 {
+            if restore {
+                assert_eq!(
+                    body["data"],
+                    json!({"notification_id":12,"deleted_at":null})
+                );
+            } else {
+                assert_eq!(body["data"], Value::Null);
+                assert_eq!(body["message"], "notification deleted");
+            }
+            assert_eq!(*store.calls.lock().unwrap(), vec![(42, 12, restore)]);
+        }
+        let events = publisher.events.lock().unwrap();
+        assert_eq!(events.len(), usize::from(status == 200));
+        if let Some((user, kind, data)) = events.first() {
+            assert_eq!(*user, 42);
+            assert_eq!(
+                kind,
+                if restore {
+                    "notification_restored"
+                } else {
+                    "notification_deleted"
+                }
+            );
+            assert_eq!(data["notification_id"], 12);
         }
     }
 }
@@ -358,6 +540,12 @@ impl SessionExecutor for RepoExecutor {
             if self.missing {
                 return Ok(vec![]);
             };
+            if sql.starts_with("SELECT deleted_at ") {
+                return Ok(vec![DbRow::from([(
+                    "DELETED_AT".into(),
+                    DbValue::String("2026-01-02T03:04:05Z".into()),
+                )])]);
+            }
             Ok(vec![DbRow::from([
                 ("NOTIFICATION_ID".into(), DbValue::I64(12)),
                 ("IS_READ".into(), DbValue::I64(1)),
@@ -367,6 +555,45 @@ impl SessionExecutor for RepoExecutor {
                 ),
             ])])
         })
+    }
+}
+#[tokio::test]
+async fn delete_repository_scopes_update_and_timestamp_lookup() {
+    for (restore, affected, missing, fail, found) in [
+        (false, 1, false, false, true),
+        (false, 0, false, false, false),
+        (false, 1, true, false, true),
+        (false, 1, false, true, false),
+        (true, 1, false, false, true),
+        (true, 0, false, false, false),
+    ] {
+        let repo = OracleSessions {
+            executor: RepoExecutor {
+                affected,
+                missing,
+                fail_read: fail,
+                calls: Mutex::new(vec![]),
+            },
+        };
+        let result = repo.set_notification_deleted(42, 12, restore).await;
+        assert_eq!(result.is_err(), fail);
+        if let Ok(value) = result {
+            assert_eq!(value.is_some(), found);
+            if !restore && found && !missing {
+                assert_eq!(value.flatten().as_deref(), Some("2026-01-02T03:04:05.000Z"));
+            }
+        }
+        let calls = repo.executor.calls.lock().unwrap();
+        assert_eq!(calls.len(), if affected == 1 && !restore { 2 } else { 1 });
+        for (sql, binds) in calls.iter() {
+            assert!(
+                sql.contains("user_id=:user_id")
+                    && sql.contains("notification_id=:notification_id")
+            );
+            assert_eq!(binds["user_id"], DbValue::I64(42));
+            assert_eq!(binds["notification_id"], DbValue::I64(12));
+        }
+        assert_eq!(calls[0].0.contains("deleted_at IS NULL"), !restore);
     }
 }
 #[tokio::test]
@@ -410,8 +637,18 @@ async fn read_repository_scopes_write_and_read_and_preserves_commit_boundary() {
 #[tokio::test]
 async fn batch_repository_uses_user_scope_and_expected_deleted_filter() {
     for (ids, all) in [(vec![], true), (vec![7, 7, 8], false)] {
-        let repo = OracleSessions { executor: RepoExecutor { affected: 1, missing: false, fail_read: false, calls: Mutex::new(vec![]) } };
-        let count = repo.batch_set_notification_read(42, &ids, true).await.unwrap();
+        let repo = OracleSessions {
+            executor: RepoExecutor {
+                affected: 1,
+                missing: false,
+                fail_read: false,
+                calls: Mutex::new(vec![]),
+            },
+        };
+        let count = repo
+            .batch_set_notification_read(42, &ids, true)
+            .await
+            .unwrap();
         assert_eq!(count, if all { 1 } else { 3 });
         let calls = repo.executor.calls.lock().unwrap();
         assert_eq!(calls.len(), count as usize);
@@ -420,25 +657,42 @@ async fn batch_repository_uses_user_scope_and_expected_deleted_filter() {
             assert_eq!(sql.contains("deleted_at IS NULL"), all);
             assert_eq!(binds["user_id"], DbValue::I64(42));
             assert_eq!(binds["is_read"], DbValue::I64(1));
-            if !all { assert_eq!(binds["notification_id"], DbValue::I64(ids[index] as i64)); }
+            if !all {
+                assert_eq!(binds["notification_id"], DbValue::I64(ids[index] as i64));
+            }
         }
     }
 }
 
-struct FailingBatchExecutor { calls: Mutex<usize> }
+struct FailingBatchExecutor {
+    calls: Mutex<usize>,
+}
 impl SessionExecutor for FailingBatchExecutor {
-    fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> { Box::pin(async { Ok(()) }) }
+    fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> {
+        Box::pin(async { Ok(()) })
+    }
     fn execute(&self, _: &'static str, _: BindMap) -> StoreFuture<'_, u64> {
         Box::pin(async move {
             let mut calls = self.calls.lock().unwrap();
             *calls += 1;
-            if *calls == 2 { Err(SessionStoreError) } else { Ok(1) }
+            if *calls == 2 {
+                Err(SessionStoreError)
+            } else {
+                Ok(1)
+            }
         })
     }
 }
 #[tokio::test]
 async fn batch_repository_stops_after_a_partial_failure() {
-    let repo = OracleSessions { executor: FailingBatchExecutor { calls: Mutex::new(0) } };
-    assert!(repo.batch_set_notification_read(42, &[7, 8, 9], true).await.is_err());
+    let repo = OracleSessions {
+        executor: FailingBatchExecutor {
+            calls: Mutex::new(0),
+        },
+    };
+    assert!(repo
+        .batch_set_notification_read(42, &[7, 8, 9], true)
+        .await
+        .is_err());
     assert_eq!(*repo.executor.calls.lock().unwrap(), 2);
 }

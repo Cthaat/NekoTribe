@@ -249,6 +249,39 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn set_notification_deleted<'a>(
+        &'a self,
+        user: u64,
+        id: u64,
+        restore: bool,
+    ) -> StoreFuture<'a, Option<Option<String>>> {
+        Box::pin(async move {
+            let user = i64::try_from(user).map_err(|_| SessionStoreError)?;
+            let id = i64::try_from(id).map_err(|_| SessionStoreError)?;
+            let binds = BindMap::from([
+                ("user_id".into(), DbValue::I64(user)),
+                ("notification_id".into(), DbValue::I64(id)),
+            ]);
+            let sql = if restore {
+                "UPDATE n_notifications SET deleted_at=NULL WHERE notification_id=:notification_id AND user_id=:user_id"
+            } else {
+                "UPDATE n_notifications SET deleted_at=CURRENT_TIMESTAMP WHERE notification_id=:notification_id AND user_id=:user_id AND deleted_at IS NULL"
+            };
+            if self.executor.execute(sql, binds.clone()).await? == 0 {
+                return Ok(None);
+            }
+            if restore {
+                return Ok(Some(None));
+            }
+            let rows = self.executor.query(
+                "SELECT deleted_at FROM n_notifications WHERE notification_id=:notification_id AND user_id=:user_id",
+                binds,
+            ).await?;
+            Ok(Some(rows.first().and_then(|row| {
+                nullable_text(row, "DELETED_AT").map(|s| profile_date(&s))
+            })))
+        })
+    }
     fn batch_set_notification_read<'a>(
         &'a self,
         user: u64,
