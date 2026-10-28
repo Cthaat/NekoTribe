@@ -140,6 +140,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			deletePost(w, r, codec, repository, id)
 			return
 		}
+		if id, ok := postSegment(r.URL.EscapedPath()); ok && (r.Method == http.MethodPatch || r.Method == http.MethodPut) {
+			updatePost(w, r, codec, repository, refresh, id)
+			return
+		}
 		if r.Method == http.MethodPost || r.Method == http.MethodDelete {
 			if r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v2/posts" {
 				createPost(w, r, codec, repository, refresh, "")

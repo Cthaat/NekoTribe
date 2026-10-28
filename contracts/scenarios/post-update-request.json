@@ -1,0 +1,687 @@
+{
+  "id": "POST-UPDATE-REQUEST",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "noop",
+      "body": {},
+      "expected": {
+        "status": 200,
+        "input": {}
+      }
+    },
+    {
+      "id": "ignored-identities",
+      "body": {
+        "author_id": 7,
+        "post_type": "repost",
+        "reply_to_post_id": 88
+      },
+      "expected": {
+        "status": 200,
+        "input": {}
+      }
+    },
+    {
+      "id": "content-0",
+      "body": {
+        "content": " hi "
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "content": " hi "
+        }
+      }
+    },
+    {
+      "id": "content-1",
+      "body": {
+        "content": ""
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "content": ""
+        }
+      }
+    },
+    {
+      "id": "content-2",
+      "body": {
+        "content": null
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "content": ""
+        }
+      }
+    },
+    {
+      "id": "content-3",
+      "body": {
+        "content": 42
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "content": "42"
+        }
+      }
+    },
+    {
+      "id": "content-4",
+      "body": {
+        "content": false
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "content": "false"
+        }
+      }
+    },
+    {
+      "id": "content-5",
+      "body": {
+        "content": []
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "content": ""
+        }
+      }
+    },
+    {
+      "id": "content-6",
+      "body": {
+        "content": {}
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "content": ""
+        }
+      }
+    },
+    {
+      "id": "location-0",
+      "body": {
+        "location": " here "
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "location": " here "
+        }
+      }
+    },
+    {
+      "id": "location-1",
+      "body": {
+        "location": ""
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "location": null
+        }
+      }
+    },
+    {
+      "id": "location-2",
+      "body": {
+        "location": null
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "location": null
+        }
+      }
+    },
+    {
+      "id": "location-3",
+      "body": {
+        "location": 3
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "location": "3"
+        }
+      }
+    },
+    {
+      "id": "location-4",
+      "body": {
+        "location": true
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "location": "true"
+        }
+      }
+    },
+    {
+      "id": "location-5",
+      "body": {
+        "location": []
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "location": null
+        }
+      }
+    },
+    {
+      "id": "location-6",
+      "body": {
+        "location": {}
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "location": null
+        }
+      }
+    },
+    {
+      "id": "visibility-public",
+      "body": {
+        "visibility": "public"
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "visibility": "public"
+        }
+      }
+    },
+    {
+      "id": "visibility-followers",
+      "body": {
+        "visibility": "followers"
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "visibility": "followers"
+        }
+      }
+    },
+    {
+      "id": "visibility-mentioned",
+      "body": {
+        "visibility": "mentioned"
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "visibility": "mentioned"
+        }
+      }
+    },
+    {
+      "id": "visibility-private",
+      "body": {
+        "visibility": "private"
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "visibility": "private"
+        }
+      }
+    },
+    {
+      "id": "bad-visibility-0",
+      "body": {
+        "visibility": ""
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "bad-visibility-1",
+      "body": {
+        "visibility": null
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "bad-visibility-2",
+      "body": {
+        "visibility": "PUBLIC"
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "bad-visibility-3",
+      "body": {
+        "visibility": " public "
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "bad-visibility-4",
+      "body": {
+        "visibility": false
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "bad-visibility-5",
+      "body": {
+        "visibility": {}
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "bad-visibility-6",
+      "body": {
+        "visibility": []
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "language-0",
+      "body": {
+        "language": null
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "language": "zh"
+        }
+      }
+    },
+    {
+      "id": "language-1",
+      "body": {
+        "language": ""
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "language": "zh"
+        }
+      }
+    },
+    {
+      "id": "language-2",
+      "body": {
+        "language": " EN-us "
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "language": "en-us"
+        }
+      }
+    },
+    {
+      "id": "language-3",
+      "body": {
+        "language": "zh-Hans"
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "language": "zh-hans"
+        }
+      }
+    },
+    {
+      "id": "language-4",
+      "body": {
+        "language": "pt-1234567"
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "language": "pt-1234567"
+        }
+      }
+    },
+    {
+      "id": "language-5",
+      "body": {
+        "language": 42
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "language 参数错误"
+      }
+    },
+    {
+      "id": "language-6",
+      "body": {
+        "language": false
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "language 参数错误"
+      }
+    },
+    {
+      "id": "language-object",
+      "body": {
+        "language": {}
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "language": "zh"
+        }
+      }
+    },
+    {
+      "id": "language-array",
+      "body": {
+        "language": []
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "language": "zh"
+        }
+      }
+    },
+    {
+      "id": "bad-language",
+      "body": {
+        "language": "english"
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "language 参数错误"
+      }
+    },
+    {
+      "id": "media_ids-null",
+      "body": {
+        "media_ids": null
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "media_ids": []
+        }
+      }
+    },
+    {
+      "id": "media_ids-empty",
+      "body": {
+        "media_ids": []
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "media_ids": []
+        }
+      }
+    },
+    {
+      "id": "media_ids-alias-clear",
+      "body": {
+        "media_ids": null,
+        "mediaIds": [
+          3
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "media_ids": []
+        }
+      }
+    },
+    {
+      "id": "media_ids-camel",
+      "body": {
+        "mediaIds": [
+          3
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "media_ids": [
+            3
+          ]
+        }
+      }
+    },
+    {
+      "id": "tag_names-null",
+      "body": {
+        "tag_names": null
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "tag_names": []
+        }
+      }
+    },
+    {
+      "id": "tag_names-empty",
+      "body": {
+        "tag_names": []
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "tag_names": []
+        }
+      }
+    },
+    {
+      "id": "tag_names-alias-clear",
+      "body": {
+        "tag_names": null,
+        "tagNames": [
+          3
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "tag_names": []
+        }
+      }
+    },
+    {
+      "id": "tag_names-camel",
+      "body": {
+        "tagNames": [
+          3
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "tag_names": [
+            "3"
+          ]
+        }
+      }
+    },
+    {
+      "id": "mention_user_ids-null",
+      "body": {
+        "mention_user_ids": null
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "mention_user_ids": []
+        }
+      }
+    },
+    {
+      "id": "mention_user_ids-empty",
+      "body": {
+        "mention_user_ids": []
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "mention_user_ids": []
+        }
+      }
+    },
+    {
+      "id": "mention_user_ids-alias-clear",
+      "body": {
+        "mention_user_ids": null,
+        "mentionUserIds": [
+          3
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "mention_user_ids": []
+        }
+      }
+    },
+    {
+      "id": "mention_user_ids-camel",
+      "body": {
+        "mentionUserIds": [
+          3
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "mention_user_ids": [
+            3
+          ]
+        }
+      }
+    },
+    {
+      "id": "numbers",
+      "body": {
+        "media_ids": [
+          true,
+          null,
+          "",
+          " ",
+          1.5,
+          "0x10",
+          "-3",
+          "oops",
+          1,
+          1
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "media_ids": [
+            0,
+            1.5,
+            16,
+            -3,
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "id": "tags",
+      "body": {
+        "tag_names": [
+          " #Tag ",
+          "",
+          null,
+          3,
+          true,
+          {},
+          [],
+          "#Tag"
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "tag_names": [
+            "#Tag",
+            "3",
+            "true",
+            "#Tag"
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation-order",
+      "body": {
+        "visibility": null,
+        "language": "english"
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "all-scalars",
+      "body": {
+        "content": "text",
+        "visibility": "private",
+        "language": " EN ",
+        "location": null
+      },
+      "expected": {
+        "status": 200,
+        "input": {
+          "content": "text",
+          "visibility": "private",
+          "language": "en",
+          "location": null
+        }
+      }
+    }
+  ]
+}

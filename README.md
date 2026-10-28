@@ -1,5 +1,7 @@
 # NekoTribe Go 后端（原生业务开发中）
 
+原生 PATCH/PUT 帖子部分更新已接入，省略保留、明确空关系清空；行锁及全部关系写入在同一连接事务中完成，失败回滚。53 条共同请求向量及隔离事务/HTTP 检查通过，真实 Oracle、并发及双客户端仍待验收。规则见 `contracts/requirements/post-update.md`。
+
 原生 `DELETE /api/v2/posts/{id}` 已按公共规则接入作者专属软删除、并发条件更新和安全错误；17 条共同输入在隔离路由中通过。不会物理删除帖子或媒体。真实 Oracle、触发器、缓存及客户端仍待验收，见 `contracts/requirements/post-delete.md`。
 
 原生 `POST /api/v2/posts` 与 `POST /api/v2/posts/{id}/retweets` 已接入请求解析、引用可见性、帖子/关系事务、提交后通知及完整帖子响应；发帖不增加浏览量。80 条请求向量与 Nuxt 对照通过，另有事务、通知错误和 Redis 降级隔离测试。小数关系 ID 保留原值绑定，避免截断后关联到其他实体。真实 Oracle/Redis、跨后端和客户端仍待验收；非法 JSON 响应与请求体大小限制等已知框架差异见 `contracts/requirements/post-create-request.md`。
