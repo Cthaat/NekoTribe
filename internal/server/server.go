@@ -86,6 +86,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			listSessions(w, r, codec, repository)
 			return
 		}
+		if r.URL.EscapedPath() == "/api/v2/users/me" && r.Method == http.MethodPatch {
+			updateSelfProfile(w, r, codec, repository, refresh)
+			return
+		}
 		if r.URL.EscapedPath() == "/api/v2/users/me" && r.Method == http.MethodGet {
 			getSelfProfile(w, r, codec, repository, refresh)
 			return

@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "id": "USER-SELF-PROFILE-UPDATE",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "PROFILE-PATCH-01",
+      "auth": "valid",
+      "body": {
+        "display_name": "  Alice  ",
+        "bio": "hello"
+      },
+      "fields": {
+        "display_name": "  Alice  ",
+        "bio": "hello"
+      },
+      "updates": 1,
+      "profiles": 1,
+      "status": 200
+    },
+    {
+      "id": "PROFILE-PATCH-02",
+      "auth": "cookie",
+      "body": {
+        "location": "",
+        "website": null,
+        "phone": 42
+      },
+      "fields": {
+        "location": "",
+        "website": "",
+        "phone": "42"
+      },
+      "updates": 1,
+      "profiles": 1,
+      "status": 200
+    },
+    {
+      "id": "PROFILE-PATCH-03",
+      "auth": "valid",
+      "body": {
+        "birth_date": "2000-02-29"
+      },
+      "fields": {
+        "birth_date": "2000-02-29"
+      },
+      "updates": 1,
+      "profiles": 1,
+      "status": 200
+    },
+    {
+      "id": "PROFILE-PATCH-04",
+      "auth": "valid",
+      "body": {
+        "birth_date": null
+      },
+      "fields": {
+        "birth_date": ""
+      },
+      "updates": 1,
+      "profiles": 1,
+      "status": 200
+    },
+    {
+      "id": "PROFILE-PATCH-05",
+      "auth": "valid",
+      "body": {
+        "bio": false,
+        "location": [],
+        "website": {}
+      },
+      "fields": {
+        "bio": "false",
+        "location": "",
+        "website": ""
+      },
+      "updates": 1,
+      "profiles": 1,
+      "status": 200
+    },
+    {
+      "id": "PROFILE-PATCH-06",
+      "auth": "valid",
+      "body": {
+        "user_id": 99,
+        "email": "other@example.test",
+        "username": "other"
+      },
+      "fields": {},
+      "updates": 0,
+      "profiles": 1,
+      "status": 200
+    },
+    {
+      "id": "PROFILE-PATCH-07",
+      "auth": "valid",
+      "body": {},
+      "fields": {},
+      "updates": 0,
+      "profiles": 1,
+      "status": 200
+    },
+    {
+      "id": "PROFILE-PATCH-08",
+      "auth": "none",
+      "body": {
+        "bio": "forbidden"
+      },
+      "fields": {},
+      "updates": 0,
+      "profiles": 0,
+      "status": 401
+    },
+    {
+      "id": "PROFILE-PATCH-09",
+      "auth": "bad-cookie",
+      "body": {
+        "bio": "forbidden"
+      },
+      "fields": {},
+      "updates": 0,
+      "profiles": 0,
+      "status": 401
+    },
+    {
+      "id": "PROFILE-PATCH-10",
+      "auth": "expired",
+      "body": {
+        "bio": "forbidden"
+      },
+      "fields": {},
+      "updates": 0,
+      "profiles": 0,
+      "status": 401
+    },
+    {
+      "id": "PROFILE-PATCH-11",
+      "auth": "valid",
+      "revoked": true,
+      "body": {
+        "bio": "forbidden"
+      },
+      "fields": {},
+      "updates": 0,
+      "profiles": 0,
+      "status": 401
+    },
+    {
+      "id": "PROFILE-PATCH-12",
+      "auth": "valid",
+      "touch_fail": true,
+      "body": {
+        "bio": "forbidden"
+      },
+      "fields": {},
+      "updates": 0,
+      "profiles": 0,
+      "status": 401
+    },
+    {
+      "id": "PROFILE-PATCH-13",
+      "auth": "valid",
+      "body": [],
+      "fields": {},
+      "updates": 0,
+      "profiles": 0,
+      "status": 400
+    },
+    {
+      "id": "PROFILE-PATCH-14",
+      "auth": "valid",
+      "body": {
+        "bio": "x"
+      },
+      "fields": {
+        "bio": "x"
+      },
+      "update_fail": true,
+      "updates": 1,
+      "profiles": 0,
+      "status": 500
+    },
+    {
+      "id": "PROFILE-PATCH-15",
+      "auth": "valid",
+      "body": {
+        "bio": "x"
+      },
+      "fields": {
+        "bio": "x"
+      },
+      "profile_fail": true,
+      "updates": 1,
+      "profiles": 1,
+      "status": 500
+    },
+    {
+      "id": "PROFILE-PATCH-16",
+      "auth": "valid",
+      "body": {
+        "bio": "x"
+      },
+      "fields": {
+        "bio": "x"
+      },
+      "missing": true,
+      "updates": 1,
+      "profiles": 1,
+      "status": 404
+    },
+    {
+      "id": "PROFILE-PATCH-17",
+      "auth": "valid",
+      "body": {
+        "display_name": "name",
+        "bio": "bio",
+        "location": "location",
+        "website": "https://example.test",
+        "phone": "123",
+        "birth_date": "2001-01-02"
+      },
+      "fields": {
+        "display_name": "name",
+        "bio": "bio",
+        "location": "location",
+        "website": "https://example.test",
+        "phone": "123",
+        "birth_date": "2001-01-02"
+      },
+      "updates": 1,
+      "profiles": 1,
+      "status": 200
+    },
+    {
+      "id": "PROFILE-PATCH-18",
+      "auth": "valid",
+      "body": {
+        "bio": 1.25,
+        "birth_date": false
+      },
+      "fields": {
+        "bio": "1.25",
+        "birth_date": "false"
+      },
+      "updates": 1,
+      "profiles": 1,
+      "status": 200
+    }
+  ]
+}

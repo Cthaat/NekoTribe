@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-27-native-self-profile"
+    "x-contract-revision": "2026-10-28-self-profile-update"
   },
   "tags": [
     {
@@ -2013,7 +2013,7 @@
       "patch": {
         "summary": "更新当前用户资料",
         "deprecated": false,
-        "description": "更新当前用户资料",
+        "description": "按当前认证用户更新请求中出现的资料字段；未提供字段保持原值，未知字段忽略。字符串原样保存，数字和布尔转换为字符串，其他值为空字符串；日期转换及字段约束由数据库检查。更新提交后读取失败不保证回滚。",
         "operationId": "patch_users_me",
         "tags": [
           "Users"
@@ -2026,31 +2026,25 @@
                 "type": "object",
                 "properties": {
                   "display_name": {
-                    "type": "string",
-                    "example": "Demo"
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
                   },
                   "bio": {
-                    "type": "string",
-                    "example": "hello"
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
                   },
                   "location": {
-                    "type": "string",
-                    "example": "Shanghai"
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
                   },
                   "website": {
-                    "type": "string",
-                    "example": "https://example.com"
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
                   },
                   "birth_date": {
-                    "type": "string",
-                    "example": "2000-01-01"
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
                   },
                   "phone": {
-                    "type": "string",
-                    "example": "13800138000"
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
                   }
                 },
-                "additionalProperties": false
+                "additionalProperties": true
               },
               "example": {
                 "display_name": "Demo",
@@ -2059,6 +2053,32 @@
                 "website": "https://example.com",
                 "birth_date": "2000-01-01",
                 "phone": "13800138000"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "display_name": {
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
+                  },
+                  "bio": {
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
+                  },
+                  "location": {
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
+                  },
+                  "website": {
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
+                  },
+                  "birth_date": {
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
+                  },
+                  "phone": {
+                    "description": "存在时更新；字符串原样、数字和布尔转字符串，其他类型视为空字符串。"
+                  }
+                },
+                "additionalProperties": true
               }
             }
           },
@@ -2074,11 +2094,17 @@
                   "properties": {
                     "code": {
                       "type": "integer",
-                      "example": 200
+                      "example": 200,
+                      "enum": [
+                        200
+                      ]
                     },
                     "message": {
                       "type": "string",
-                      "example": "success"
+                      "example": "success",
+                      "enum": [
+                        "success"
+                      ]
                     },
                     "data": {
                       "type": "object",
@@ -2155,7 +2181,14 @@
                               "example": "following"
                             }
                           },
-                          "additionalProperties": false
+                          "additionalProperties": false,
+                          "required": [
+                            "is_self",
+                            "is_following",
+                            "is_blocked",
+                            "is_blocking",
+                            "relation"
+                          ]
                         },
                         "email": {
                           "type": "string",
@@ -2167,11 +2200,13 @@
                         },
                         "birth_date": {
                           "type": "string",
-                          "example": "2000-01-01"
+                          "example": "2000-01-01",
+                          "nullable": true
                         },
                         "email_verified_at": {
                           "type": "string",
-                          "example": "2026-04-26T01:00:00Z"
+                          "example": "2026-04-26T01:00:00Z",
+                          "nullable": true
                         },
                         "is_active": {
                           "type": "integer",
@@ -2188,18 +2223,60 @@
                         "updated_at": {
                           "type": "string",
                           "example": "2026-04-26T01:00:00Z"
+                        },
+                        "online_status": {
+                          "type": "string",
+                          "enum": [
+                            "online"
+                          ]
+                        },
+                        "last_seen_at": {
+                          "type": "string",
+                          "nullable": true
                         }
                       },
-                      "additionalProperties": false
+                      "additionalProperties": false,
+                      "required": [
+                        "user_id",
+                        "username",
+                        "display_name",
+                        "avatar_url",
+                        "bio",
+                        "location",
+                        "website",
+                        "is_verified",
+                        "followers_count",
+                        "following_count",
+                        "posts_count",
+                        "likes_count",
+                        "relationship",
+                        "online_status",
+                        "last_seen_at",
+                        "email",
+                        "phone",
+                        "birth_date",
+                        "email_verified_at",
+                        "is_active",
+                        "status",
+                        "created_at",
+                        "updated_at"
+                      ]
                     },
                     "meta": {
                       "type": "object",
-                      "additionalProperties": true,
-                      "properties": {},
-                      "nullable": true
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ]
                 },
                 "example": {
                   "code": 200,
@@ -2237,32 +2314,84 @@
                 }
               }
             },
-            "headers": {}
+            "headers": {
+              "Cache-Control": {
+                "description": "Private user data must not be stored.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "private, no-store"
+                  ]
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest",
             "description": "请求参数错误"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized",
-            "description": "未认证或 token 无效"
+            "description": "未登录或会话失效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "403": {
             "$ref": "#/components/responses/Forbidden",
             "description": "权限不足"
           },
           "404": {
-            "$ref": "#/components/responses/NotFound",
-            "description": "资源不存在"
+            "description": "用户不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "500": {
-            "$ref": "#/components/responses/InternalError",
-            "description": "服务器内部错误"
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
           }
         ]
       },
