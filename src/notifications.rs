@@ -7,8 +7,9 @@ use crate::{
     httpx::errors::ApiError,
 };
 use axum::{
-    extract::{OriginalUri, State},
-    http::HeaderMap,
+    body::{to_bytes, Body},
+    extract::{OriginalUri, Path, State},
+    http::{HeaderMap, Request},
     response::{IntoResponse, Response},
     Json,
 };
@@ -20,6 +21,93 @@ pub struct NotificationQuery {
     pub kind: String,
     pub unread_only: bool,
     pub show_deleted: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct NotificationReadResult {
+    pub notification_id: u64,
+    pub is_read: u8,
+    pub read_at: Option<String>,
+}
+
+fn read_flag(value: Option<&Value>) -> bool {
+    match value {
+        Some(Value::Bool(v)) => *v,
+        Some(Value::Number(v)) => v.as_f64() == Some(1.0),
+        Some(Value::String(v)) => matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"),
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod single_read_vectors {
+    use super::*;
+    #[test]
+    fn shared_boolean_cases() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../contracts/scenarios/notification-single-read.json"
+        ))
+        .unwrap();
+        let cases = fixture["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 11);
+        for case in cases {
+            assert_eq!(
+                read_flag(case.get("value")),
+                case["expected"].as_bool().unwrap(),
+                "{}",
+                case["id"]
+            );
+        }
+    }
+}
+
+pub(crate) async fn set_read(
+    State(state): State<NativeState>,
+    Path(raw): Path<String>,
+    request: Request<Body>,
+) -> Response {
+    let mut response = set_read_inner(state, raw, request).await.into_response();
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("private, no-store"),
+    );
+    response
+}
+async fn set_read_inner(
+    state: NativeState,
+    raw: String,
+    request: Request<Body>,
+) -> Result<Response, ApiError> {
+    let (parts, body) = request.into_parts();
+    let (user, id) =
+        crate::posts::bookmark::interaction_identity(&state, &raw, &parts.headers).await?;
+    let bytes = to_bytes(body, 1024 * 1024)
+        .await
+        .map_err(|_| ApiError::bad_request("请求体必须是 JSON 对象"))?;
+    let body = crate::auth::login::request_body(&parts.headers, &bytes)?;
+    let read = read_flag(body.get("is_read"));
+    let result = state
+        .repository
+        .set_notification_read(user, id, read)
+        .await
+        .map_err(|_| ApiError::server_error("服务器内部错误"))?
+        .ok_or_else(|| ApiError::not_found("通知不存在"))?;
+    let data = serde_json::to_value(&result)
+        .map_err(|_| ApiError::server_error("服务器内部错误"))?
+        .as_object()
+        .cloned()
+        .ok_or_else(|| ApiError::server_error("服务器内部错误"))?;
+    let published = match &state.notification_publisher {
+        Some(p) => p
+            .publish(user, "notification_read_status_updated", &data)
+            .await
+            .is_ok(),
+        None => false,
+    };
+    if !published {
+        eprintln!("notification delivery unavailable");
+    }
+    Ok(Json(crate::httpx::response::V2Response::ok(result)).into_response())
 }
 pub fn parse_notification_query(raw: &str) -> NotificationQuery {
     let url = reqwest::Url::parse(&format!("http://localhost/?{raw}")).expect("fixed URL");

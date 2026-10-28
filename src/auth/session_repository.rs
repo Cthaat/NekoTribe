@@ -249,6 +249,36 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn set_notification_read<'a>(
+        &'a self,
+        user: u64,
+        id: u64,
+        read: bool,
+    ) -> StoreFuture<'a, Option<crate::notifications::NotificationReadResult>> {
+        Box::pin(async move {
+            let user = i64::try_from(user).map_err(|_| SessionStoreError)?;
+            let id_i64 = i64::try_from(id).map_err(|_| SessionStoreError)?;
+            let binds = BindMap::from([
+                ("user_id".into(), DbValue::I64(user)),
+                ("notification_id".into(), DbValue::I64(id_i64)),
+                ("is_read".into(), DbValue::I64(i64::from(read))),
+            ]);
+            let changed=self.executor.execute("UPDATE n_notifications SET is_read=:is_read,read_at=CASE WHEN :is_read=1 THEN CURRENT_TIMESTAMP ELSE NULL END WHERE notification_id=:notification_id AND user_id=:user_id",binds).await?;
+            if changed == 0 {
+                return Ok(None);
+            }
+            let rows=self.executor.query("SELECT notification_id,is_read,read_at FROM n_notifications WHERE notification_id=:notification_id AND user_id=:user_id",BindMap::from([("user_id".into(),DbValue::I64(user)),("notification_id".into(),DbValue::I64(id_i64))])).await?;
+            let Some(row) = rows.first() else {
+                return Ok(None);
+            };
+            let result = crate::notifications::NotificationReadResult {
+                notification_id: row_id(row, "NOTIFICATION_ID")?,
+                is_read: u8::try_from(row_number(row, "IS_READ")).map_err(|_| SessionStoreError)?,
+                read_at: nullable_text(row, "READ_AT").map(|s| profile_date(&s)),
+            };
+            Ok(Some(result))
+        })
+    }
     fn read_notification<'a>(
         &'a self,
         user: u64,

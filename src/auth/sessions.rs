@@ -194,6 +194,14 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, Option<serde_json::Value>> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn set_notification_read<'a>(
+        &'a self,
+        _user: u64,
+        _id: u64,
+        _read: bool,
+    ) -> StoreFuture<'a, Option<crate::notifications::NotificationReadResult>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn list_visible_posts<'a>(
         &'a self,
         _viewer: Option<u64>,
@@ -472,6 +480,10 @@ pub fn build_native_router_with_realtime_and_publisher(
         )
         .route("/api/v2/posts", get(crate::posts::list::list_posts))
         .route("/api/v2/notifications", get(crate::notifications::list))
+        .route(
+            "/api/v2/notifications/{id}/read-status",
+            axum::routing::put(crate::notifications::set_read),
+        )
         .route("/_ws", get(crate::notification_websocket::upgrade))
         .route("/api/v2/tags", get(crate::tags::list_tags))
         .route("/api/v2/tags/trending", get(crate::tags::list_tags))
