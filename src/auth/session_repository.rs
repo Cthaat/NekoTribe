@@ -207,6 +207,42 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn list_notifications<'a>(
+        &'a self,
+        user: u64,
+        query: &'a crate::notifications::NotificationQuery,
+    ) -> StoreFuture<'a, (Vec<serde_json::Value>, u64)> {
+        Box::pin(async move {
+            static SQL: std::sync::OnceLock<Vec<(String, String)>> = std::sync::OnceLock::new();
+            let filtered = !query.kind.is_empty() && query.kind != "all";
+            let index = usize::from(query.show_deleted) * 4
+                + usize::from(query.unread_only) * 2
+                + usize::from(filtered);
+            let variants=SQL.get_or_init(|| (0..8).map(|i| {
+                let mut filter=if i&4!=0 {"user_id=:user_id AND deleted_at IS NOT NULL".to_owned()} else {"user_id=:user_id AND deleted_at IS NULL".to_owned()};
+                if i&2!=0 {filter.push_str(" AND is_read=0");}
+                if i&1!=0 {filter.push_str(" AND type=:type");}
+                (format!("SELECT COUNT(*) AS total FROM n_notifications WHERE {filter}"),format!("SELECT notification_id,actor_id,type,title,message,resource_type,resource_id,priority,is_read,read_at,deleted_at,metadata_json,created_at FROM (SELECT notification_id,actor_id,type,title,message,resource_type,resource_id,priority,is_read,read_at,deleted_at,DBMS_LOB.SUBSTR(metadata_json,4000,1) AS metadata_json,created_at,ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn FROM n_notifications WHERE {filter}) WHERE rn BETWEEN :start_row AND :end_row"))
+            }).collect());
+            let (count_sql, page_sql) = &variants[index];
+            let mut binds = user_bind(user);
+            if filtered {
+                binds.insert("type".into(), DbValue::String(query.kind.clone()));
+            }
+            let rows = self.executor.query(count_sql, binds.clone()).await?;
+            let total = u64::try_from(row_number(rows.first().ok_or(SessionStoreError)?, "TOTAL"))
+                .map_err(|_| SessionStoreError)?;
+            binds.insert("start_row".into(), DbValue::F64(query.page.start));
+            binds.insert("end_row".into(), DbValue::F64(query.page.end));
+            let rows = self.executor.query(page_sql, binds).await?;
+            let items=rows.iter().map(|r| {
+                let actor=if r.get("ACTOR_ID").is_none_or(|v|matches!(v,DbValue::Null)){serde_json::Value::Null}else{serde_json::json!(row_number(r,"ACTOR_ID"))};
+                let metadata=nullable_text(r,"METADATA_JSON").map(|s|serde_json::from_str(&s).unwrap_or(serde_json::Value::String(s))).unwrap_or(serde_json::Value::Null);
+                serde_json::json!({"notification_id":row_number(r,"NOTIFICATION_ID"),"actor_id":actor,"type":row_text(r,"TYPE"),"title":row_text(r,"TITLE"),"message":row_text(r,"MESSAGE"),"resource_type":nullable_text(r,"RESOURCE_TYPE"),"resource_id":nullable_number(r,"RESOURCE_ID"),"priority":row_text(r,"PRIORITY"),"is_read":row_number(r,"IS_READ"),"read_at":nullable_text(r,"READ_AT").map(|s|profile_date(&s)),"deleted_at":nullable_text(r,"DELETED_AT").map(|s|profile_date(&s)),"metadata":metadata,"created_at":nullable_text(r,"CREATED_AT").map(|s|profile_date(&s)).unwrap_or_default()})
+            }).collect();
+            Ok((items, total))
+        })
+    }
     fn remove_post_like<'a>(&'a self, viewer: u64, id: u64) -> StoreFuture<'a, Option<f64>> {
         Box::pin(async move {
             const VISIBLE: &str = "SELECT p.post_id FROM n_posts p WHERE p.post_id=:post_id AND p.is_deleted=0 AND fn_can_view_post(:user_id,p.post_id)=1";

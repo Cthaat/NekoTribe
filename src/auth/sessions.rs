@@ -83,6 +83,13 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, (Vec<crate::auth::session_list::SessionItem>, u64)> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn list_notifications<'a>(
+        &'a self,
+        _user: u64,
+        _query: &'a crate::notifications::NotificationQuery,
+    ) -> StoreFuture<'a, (Vec<serde_json::Value>, u64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn revoke_current<'a>(
         &'a self,
         _user_id: u64,
@@ -395,6 +402,7 @@ pub fn build_native_router_with_mail(
             delete(crate::posts::bookmark::remove_like),
         )
         .route("/api/v2/posts", get(crate::posts::list::list_posts))
+        .route("/api/v2/notifications", get(crate::notifications::list))
         .route("/api/v2/tags", get(crate::tags::list_tags))
         .route("/api/v2/tags/trending", get(crate::tags::list_tags))
         .route(

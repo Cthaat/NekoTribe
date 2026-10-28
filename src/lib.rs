@@ -6,6 +6,7 @@ pub mod config;
 pub mod db;
 pub mod httpx;
 pub mod middleware;
+pub mod notifications;
 pub mod proxy;
 pub mod tags;
 pub mod users;
