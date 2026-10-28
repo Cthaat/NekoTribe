@@ -774,7 +774,9 @@ impl SessionExecutor for PostExecutor {
     fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
         Box::pin(async move {
             self.calls.lock().unwrap().push((sql, binds));
-            if sql.contains("FROM v_post_feed_item") {
+            if sql.starts_with("SELECT COUNT(*)") {
+                Ok(vec![DbRow::from([("TOTAL".into(), DbValue::I64(3))])])
+            } else if sql.contains("FROM v_post_feed_item") {
                 Ok(vec![DbRow::from([
                     ("POST_ID".into(), DbValue::I64(1)),
                     ("AUTHOR_ID".into(), DbValue::I64(7)),
@@ -842,4 +844,34 @@ async fn post_repository_binds_anonymous_viewer_and_maps_nullable_database_value
     assert_eq!(calls[3].1["viewer_id"], DbValue::Null);
     assert_eq!(calls[4].1["post_id"], DbValue::I64(1));
     assert!(calls[4].0.starts_with("UPDATE n_post_stats"));
+}
+
+#[tokio::test]
+async fn post_list_repository_binds_filters_and_pages_without_interpolation() {
+    let repo = OracleSessions {
+        executor: PostExecutor::default(),
+    };
+    let query = nekotribe_backend::posts::list::parse_post_list_query(
+        "timeline=following&q=%20%23%23Cat_%25%20&sort=popular&page=2&page_size=1",
+    );
+    let (posts, total) = repo.list_visible_posts(Some(42), &query).await.unwrap();
+    assert_eq!(total, 3);
+    assert_eq!(posts.len(), 1);
+    assert_eq!(posts[0]["post_id"], 1);
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    for (sql, binds) in calls.iter() {
+        assert!(sql.contains("fn_can_view_post(:viewer_id,v.post_id)=1"));
+        assert!(sql.contains("f.status='active'"));
+        assert!(sql.contains("t.name_lower LIKE :tag_q"));
+        assert!(!sql.contains("cat_%"));
+        assert_eq!(binds["viewer_id"], DbValue::I64(42));
+        assert_eq!(binds["q"], DbValue::String("%##cat_%%".into()));
+        assert_eq!(binds["tag_q"], DbValue::String("%cat_%%".into()));
+    }
+    assert!(calls[1]
+        .0
+        .contains("ROW_NUMBER() OVER (ORDER BY v.engagement_score DESC,v.created_at DESC)"));
+    assert_eq!(calls[1].1["start_row"], DbValue::F64(2.0));
+    assert_eq!(calls[1].1["end_row"], DbValue::F64(2.0));
 }

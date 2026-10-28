@@ -155,6 +155,13 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, Option<serde_json::Value>> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn list_visible_posts<'a>(
+        &'a self,
+        _viewer: Option<u64>,
+        _query: &'a crate::posts::list::PostListQuery,
+    ) -> StoreFuture<'a, (Vec<serde_json::Value>, u64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn read_post_author<'a>(
         &'a self,
         _viewer: Option<u64>,
@@ -355,6 +362,7 @@ pub fn build_native_router_with_mail(
             get(|| async { ApiError::route_not_found() }),
         )
         .route("/api/v2/posts/{id}", get(crate::posts::detail::get_post))
+        .route("/api/v2/posts", get(crate::posts::list::list_posts))
         .route(
             "/api/v2/users/{id}",
             get(crate::users::public_profile::get_public),

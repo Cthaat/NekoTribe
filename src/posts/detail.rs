@@ -63,12 +63,36 @@ pub(crate) async fn get_post(
         .ok()
         .filter(|x| *x > 0 && *x <= 9_007_199_254_740_991)
         .ok_or_else(|| ApiError::bad_request("id 参数错误"))?;
-    let mut post = state
+    let post = state
         .repository
         .read_visible_post(viewer, id)
         .await
         .map_err(|_| failure())?
         .ok_or_else(|| ApiError::not_found("帖子不存在"))?;
+    let post = hydrate_post(&state, viewer, post).await?;
+    state
+        .repository
+        .increment_post_views(id)
+        .await
+        .map_err(|_| failure())?;
+    let mut response = Json(V2Response::ok(post)).into_response();
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
+}
+
+// Shared with list reads; the caller controls whether to increment views.
+pub(crate) async fn hydrate_post(
+    state: &NativeState,
+    viewer: Option<u64>,
+    mut post: Value,
+) -> Result<Value, ApiError> {
+    let id = post
+        .get("post_id")
+        .and_then(Value::as_u64)
+        .ok_or_else(failure)?;
     let author_id = post
         .get("author")
         .and_then(|v| v.get("user_id"))
@@ -136,15 +160,5 @@ pub(crate) async fn get_post(
         serde_json::to_value(tags).map_err(|_| failure())?,
     );
     object.insert("mentions".into(), mentions.into());
-    state
-        .repository
-        .increment_post_views(id)
-        .await
-        .map_err(|_| failure())?;
-    let mut response = Json(V2Response::ok(post)).into_response();
-    response.headers_mut().insert(
-        axum::http::header::CACHE_CONTROL,
-        axum::http::HeaderValue::from_static("private, no-store"),
-    );
-    Ok(response)
+    Ok(post)
 }

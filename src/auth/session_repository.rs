@@ -36,6 +36,40 @@ pub const POST_MEDIA_SQL: &str = "SELECT ma.media_id,ma.media_type,ma.file_name,
 pub const POST_TAGS_SQL: &str = "SELECT t.name FROM n_post_tags pt JOIN n_tags t ON t.tag_id=pt.tag_id WHERE pt.post_id=:post_id ORDER BY t.name";
 pub const POST_MENTIONS_SQL: &str = "SELECT u.user_id,u.username,u.avatar_url,u.display_name,u.bio,u.location,u.website,u.is_verified,u.followers_count,u.following_count,u.posts_count,u.likes_count,fn_get_user_relationship(:viewer_id,u.user_id) AS relation FROM n_post_mentions pm JOIN v_user_profile_public u ON u.user_id=pm.mentioned_user_id WHERE pm.post_id=:post_id ORDER BY u.username";
 pub const POST_VIEWS_SQL: &str = "UPDATE n_post_stats SET views_count=views_count+1,updated_at=CURRENT_TIMESTAMP WHERE post_id=:post_id";
+
+fn post_list_sql(query: &crate::posts::list::PostListQuery) -> (&'static str, &'static str) {
+    static QUERIES: std::sync::OnceLock<Vec<(String, String)>> = std::sync::OnceLock::new();
+    let sql = QUERIES.get_or_init(|| {
+        let columns = POST_DETAIL_SQL.split(" FROM v_post_feed_item v WHERE ").next().expect("fixed SQL");
+        let mut variants = Vec::new();
+        for timeline in 0..3 {
+            for search in 0..2 {
+                for sort in 0..3 {
+                    let mut filter = " WHERE fn_can_view_post(:viewer_id,v.post_id)=1".to_owned();
+                    if timeline == 1 { filter.push_str(" AND EXISTS (SELECT 1 FROM n_user_follows f WHERE f.follower_id=:viewer_id AND f.following_id=v.author_id AND f.status='active')"); }
+                    if timeline == 2 { filter.push_str(" AND EXISTS (SELECT 1 FROM n_post_mentions pm WHERE pm.post_id=v.post_id AND pm.mentioned_user_id=:viewer_id)"); }
+                    if search == 1 { filter.push_str(" AND (LOWER(DBMS_LOB.SUBSTR(v.content,4000,1)) LIKE :q OR LOWER(NVL(v.location,'')) LIKE :q OR EXISTS (SELECT 1 FROM n_post_tags pt JOIN n_tags t ON t.tag_id=pt.tag_id WHERE pt.post_id=v.post_id AND t.name_lower LIKE :tag_q))"); }
+                    let order = match sort { 1 => "v.created_at ASC", 2 => "v.engagement_score DESC,v.created_at DESC", _ => "v.created_at DESC" };
+                    variants.push((format!("SELECT COUNT(*) AS total FROM v_post_feed_item v{filter}"), format!("SELECT * FROM ({columns},ROW_NUMBER() OVER (ORDER BY {order}) AS rn FROM v_post_feed_item v{filter}) WHERE rn BETWEEN :start_row AND :end_row")));
+                }
+            }
+        }
+        variants
+    });
+    let timeline = match query.timeline.as_str() {
+        "following" => 1,
+        "mentions" => 2,
+        _ => 0,
+    };
+    let search = usize::from(!query.search.is_empty());
+    let sort = match query.sort.as_str() {
+        "oldest" => 1,
+        "popular" => 2,
+        _ => 0,
+    };
+    let (count, page) = &sql[timeline * 6 + search * 3 + sort];
+    (count, page)
+}
 pub trait SessionExecutor: Send + Sync {
     fn reset_password_atomic<'a>(
         &'a self,
@@ -67,6 +101,41 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn list_visible_posts<'a>(
+        &'a self,
+        viewer: Option<u64>,
+        query: &'a crate::posts::list::PostListQuery,
+    ) -> StoreFuture<'a, (Vec<serde_json::Value>, u64)> {
+        Box::pin(async move {
+            let (count_sql, rows_sql) = post_list_sql(query);
+            let mut binds = BindMap::from([(
+                "viewer_id".into(),
+                viewer
+                    .map(|v| DbValue::I64(v as i64))
+                    .unwrap_or(DbValue::Null),
+            )]);
+            if !query.search.is_empty() {
+                binds.insert("q".into(), DbValue::String(format!("%{}%", query.search)));
+                binds.insert(
+                    "tag_q".into(),
+                    DbValue::String(format!("%{}%", query.tag_search)),
+                );
+            }
+            let counts = self.executor.query(count_sql, binds.clone()).await?;
+            let total = counts
+                .first()
+                .map(|row| row_number(row, "TOTAL"))
+                .ok_or(SessionStoreError)?;
+            let total = u64::try_from(total).map_err(|_| SessionStoreError)?;
+            binds.insert("start_row".into(), DbValue::F64(query.page.start));
+            binds.insert("end_row".into(), DbValue::F64(query.page.end));
+            let rows = self.executor.query(rows_sql, binds).await?;
+            Ok((
+                rows.iter().map(|row| post_json(row, viewer)).collect(),
+                total,
+            ))
+        })
+    }
     fn reset_password_atomic<'a>(
         &'a self,
         email: &'a str,

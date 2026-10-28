@@ -9,4 +9,4 @@ pub mod middleware;
 pub mod proxy;
 pub mod users;
 
-pub(crate) mod posts;
+pub mod posts;
