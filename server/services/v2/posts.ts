@@ -1617,7 +1617,14 @@ export async function v2LikeComment(
   liked: boolean
 ): Promise<V2Response<V2LikeCommentData>> {
   const auth = v2Auth(event);
+  const visibleComment = async () => v2One(connection, `
+    SELECT c.comment_id FROM n_comments c JOIN n_posts p ON p.post_id = c.post_id
+    WHERE c.comment_id = :comment_id AND c.is_deleted = 0 AND p.is_deleted = 0
+      AND fn_can_view_post(:viewer_id, c.post_id) = 1
+  `, {comment_id: commentId, viewer_id: auth.userId});
+  if (!(await visibleComment())) v2NotFound('评论不存在');
   let inserted = 0;
+  let changed = 0;
   if (liked) {
     inserted = await v2Execute(
       connection,
@@ -1625,7 +1632,10 @@ export async function v2LikeComment(
       INSERT INTO n_comment_likes (comment_id, user_id)
       SELECT :comment_id, :user_id
       FROM dual
-      WHERE NOT EXISTS (
+      WHERE EXISTS (SELECT 1 FROM n_comments c JOIN n_posts p ON p.post_id = c.post_id
+        WHERE c.comment_id = :comment_id AND c.is_deleted = 0 AND p.is_deleted = 0
+          AND fn_can_view_post(:user_id, c.post_id) = 1)
+      AND NOT EXISTS (
         SELECT 1
         FROM n_comment_likes
         WHERE comment_id = :comment_id
@@ -1634,26 +1644,34 @@ export async function v2LikeComment(
       `,
       { comment_id: commentId, user_id: auth.userId }
     );
+    changed = inserted;
   } else {
-    await v2Execute(
+    changed = await v2Execute(
       connection,
       `
       DELETE FROM n_comment_likes
       WHERE comment_id = :comment_id
         AND user_id = :user_id
+        AND EXISTS (SELECT 1 FROM n_comments c JOIN n_posts p ON p.post_id = c.post_id
+          WHERE c.comment_id = :comment_id AND c.is_deleted = 0 AND p.is_deleted = 0
+            AND fn_can_view_post(:user_id, c.post_id) = 1)
       `,
       { comment_id: commentId, user_id: auth.userId }
     );
   }
+  if (changed === 0 && !(await visibleComment())) v2NotFound('评论不存在');
   const row = await v2One(
     connection,
     `
-    SELECT likes_count
-    FROM n_comment_stats
-    WHERE comment_id = :comment_id
+    SELECT c.comment_id, NVL(s.likes_count, 0) AS likes_count
+    FROM n_comments c JOIN n_posts p ON p.post_id = c.post_id
+    LEFT JOIN n_comment_stats s ON s.comment_id = c.comment_id
+    WHERE c.comment_id = :comment_id AND c.is_deleted = 0 AND p.is_deleted = 0
+      AND fn_can_view_post(:viewer_id, c.post_id) = 1
     `,
-    { comment_id: commentId }
+    { comment_id: commentId, viewer_id: auth.userId }
   );
+  if (!row) v2NotFound('评论不存在');
   if (liked && inserted > 0) {
     await v2NotifyCommentLiked(
       connection,

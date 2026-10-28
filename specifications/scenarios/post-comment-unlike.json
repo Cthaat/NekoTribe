@@ -1,0 +1,30 @@
+{
+  "id": "POST-COMMENT-UNLIKE",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "LIKE-01",
+      "assertion": "valid session and canonical safe ID are required"
+    },
+    {
+      "id": "LIKE-02",
+      "assertion": "missing, deleted and invisible comments cannot be liked, unliked or counted"
+    },
+    {
+      "id": "LIKE-03",
+      "assertion": "like and unlike are idempotent while write-time visibility is enforced"
+    },
+    {
+      "id": "LIKE-04",
+      "assertion": "first like alone notifies the author with proper metadata and preferences"
+    },
+    {
+      "id": "LIKE-05",
+      "assertion": "committed like and later notification failure have explicit partial-success behavior"
+    },
+    {
+      "id": "LIKE-06",
+      "assertion": "isolated Oracle, Redis, concurrency and both clients are validated"
+    }
+  ]
+}

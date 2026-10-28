@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-28-comment-delete"
+    "x-contract-revision": "2026-10-28-comment-like"
   },
   "tags": [
     {
@@ -12944,7 +12944,7 @@
       "post": {
         "summary": "点赞评论",
         "deprecated": false,
-        "description": "点赞评论",
+        "description": "仅可点赞未删除且所属帖子当前可见的评论；重复点赞不会重复通知。评论不存在、已删除或不可见时返回 404。",
         "operationId": "post_comments_id_likes",
         "tags": [
           "Comments"
@@ -12957,7 +12957,9 @@
             "required": true,
             "example": 400101,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
             }
           }
         ],
@@ -13048,7 +13050,7 @@
       "delete": {
         "summary": "取消点赞评论",
         "deprecated": false,
-        "description": "取消点赞评论",
+        "description": "仅可取消未删除且所属帖子当前可见的评论的点赞；重复取消仍成功。评论不存在、已删除或不可见时返回 404。",
         "operationId": "delete_comments_id_likes",
         "tags": [
           "Comments"
@@ -13059,9 +13061,11 @@
             "in": "path",
             "description": "评论 ID",
             "required": true,
-            "example": 0,
+            "example": 400101,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
             }
           }
         ],

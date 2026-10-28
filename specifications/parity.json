@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "78754a5400c3a095eba206b44c9935ed7f9d09a6e0d4a908479b4cd9d7727950"
+      "sha256": "03f90524698017308db4063c3ebfaccc1dc583303527b9e01402ec7cb4cdc49d"
     },
     "sources": [
       {
@@ -415,11 +415,11 @@
       },
       {
         "path": "server/api/v2/comments/[id]/likes.delete.ts",
-        "sha256": "67af53d9d139f69849548c8aa76b0bbbd9aaabb00dc8eb602a4088ed6b3fcb79"
+        "sha256": "cc10ffe1bbd6240f057ca403dd6ea51d90451115534bc16e427ce916d554bd9a"
       },
       {
         "path": "server/api/v2/comments/[id]/likes.post.ts",
-        "sha256": "1d219360816201793fc85c9a112ef5be62f053c978d26c9fcfcf5ed9ca3af099"
+        "sha256": "af2f3c340490ec2fee24df830264e28b0de11f34c9c051c8e049db87e4fdc959"
       },
       {
         "path": "server/api/v2/groups/[id].delete.ts",
@@ -991,7 +991,7 @@
       },
       {
         "path": "server/services/v2/posts.ts",
-        "sha256": "b2042a2fd89647076dac78af8287716ec2a9fd2eb85f06cebf5b9c6eefd7b1a5"
+        "sha256": "ee2f7d413fc00fe5d47812b9e4490be233a309a1c8919f1b70f47f0b3e3b30bb"
       },
       {
         "path": "server/services/v2/presence.ts",
@@ -3933,91 +3933,147 @@
       "id": "API-post_comments_id_likes",
       "title": "POST /api/v2/comments/{id}/likes: 点赞评论",
       "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "review": "reviewed",
+      "definition": "specifications/requirements/post-comment-like.md",
       "sourceFiles": [
-        "server/api/v2/comments/[id]/likes.post.ts"
+        "server/api/v2/comments/[id]/likes.post.ts",
+        "server/services/v2/posts.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "POST /api/v2/comments/{id}/likes"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-COMMENT-LIKE",
+          "file": "specifications/scenarios/post-comment-like.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/comments/{id}/likes; create shared acceptance scenarios."
+            "Validate visible comment likes, notifications, Oracle statistics and concurrency with real isolated dependencies and both clients."
           ],
           "sourceFiles": [
-            "server/api/v2/comments/[id]/likes.post.ts"
+            "server/api/v2/comments/[id]/likes.post.ts",
+            "server/services/v2/posts.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement POST /api/v2/comments/{id}/likes natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate visible comment likes, notifications, Oracle statistics and concurrency with real isolated dependencies and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/posts/comment_like.rs",
+            "src/posts/like.rs",
+            "src/posts/mod.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs",
+            "src/notifications.rs",
+            "src/notification_events.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement POST /api/v2/comments/{id}/likes natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate visible comment likes, notifications, Oracle statistics and concurrency with real isolated dependencies and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/comment_like.go",
+            "internal/server/post_like.go",
+            "internal/server/server.go",
+            "internal/server/notification_store.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/post-comment-like.md",
+        "specifications/scenarios/post-comment-like.json"
+      ]
     },
     {
       "id": "API-delete_comments_id_likes",
       "title": "DELETE /api/v2/comments/{id}/likes: 取消点赞评论",
       "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "review": "reviewed",
+      "definition": "specifications/requirements/post-comment-like.md",
       "sourceFiles": [
-        "server/api/v2/comments/[id]/likes.delete.ts"
+        "server/api/v2/comments/[id]/likes.delete.ts",
+        "server/services/v2/posts.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "DELETE /api/v2/comments/{id}/likes"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-COMMENT-UNLIKE",
+          "file": "specifications/scenarios/post-comment-unlike.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for DELETE /api/v2/comments/{id}/likes; create shared acceptance scenarios."
+            "Validate visible comment likes, notifications, Oracle statistics and concurrency with real isolated dependencies and both clients."
           ],
           "sourceFiles": [
-            "server/api/v2/comments/[id]/likes.delete.ts"
+            "server/api/v2/comments/[id]/likes.delete.ts",
+            "server/services/v2/posts.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement DELETE /api/v2/comments/{id}/likes natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate visible comment likes, notifications, Oracle statistics and concurrency with real isolated dependencies and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/posts/comment_like.rs",
+            "src/posts/like.rs",
+            "src/posts/mod.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs",
+            "src/notifications.rs",
+            "src/notification_events.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement DELETE /api/v2/comments/{id}/likes natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate visible comment likes, notifications, Oracle statistics and concurrency with real isolated dependencies and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/comment_like.go",
+            "internal/server/post_like.go",
+            "internal/server/server.go",
+            "internal/server/notification_store.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/post-comment-like.md",
+        "specifications/scenarios/post-comment-unlike.json"
+      ]
     },
     {
       "id": "API-post_media",
@@ -10805,6 +10861,36 @@
       "copies": {
         "rust": "contracts/scenarios/post-comment-delete.json",
         "go": "contracts/scenarios/post-comment-delete.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-comment-like.md",
+        "sha256": "e6b88bbf15e443c18a8e1befbd7b00e59bb100efc057eabcd8afed487e2dbd85"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-comment-like.md",
+        "go": "contracts/requirements/post-comment-like.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-comment-like.json",
+        "sha256": "7c1ed6c916a64dc1821a9fc937c77438b639e869dc641ec54ef7c36a39e0177c"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-comment-like.json",
+        "go": "contracts/scenarios/post-comment-like.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-comment-unlike.json",
+        "sha256": "c1954cc5441f58caf0ec6a0351380a8370e5d5d6102cabee86558b17cf3635a1"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-comment-unlike.json",
+        "go": "contracts/scenarios/post-comment-unlike.json"
       }
     }
   ]
