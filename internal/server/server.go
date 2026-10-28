@@ -108,6 +108,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 		}
 		if r.Method == http.MethodPut {
 			parts := strings.Split(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
+			if len(parts) == 5 && parts[0] == "api" && parts[1] == "v2" && parts[2] == "notifications" && parts[3] != "" && parts[4] == "restore-status" {
+				setNotificationDeleted(w, r, codec, repository, refresh, parts[3], true)
+				return
+			}
 			if len(parts) == 5 && parts[0] == "api" && parts[1] == "v2" && parts[2] == "notifications" && parts[3] != "" && parts[4] == "read-status" {
 				setNotificationRead(w, r, codec, repository, refresh, parts[3])
 				return
@@ -127,6 +131,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 		}
 		if r.Method == http.MethodPost || r.Method == http.MethodDelete {
 			parts := strings.Split(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
+			if r.Method == http.MethodDelete && len(parts) == 4 && parts[0] == "api" && parts[1] == "v2" && parts[2] == "notifications" && parts[3] != "" {
+				setNotificationDeleted(w, r, codec, repository, refresh, parts[3], false)
+				return
+			}
 			if len(parts) == 5 && parts[0] == "api" && parts[1] == "v2" && parts[2] == "posts" && parts[3] != "" && parts[4] == "bookmarks" {
 				setPostBookmark(w, r, codec, repository, parts[3])
 				return

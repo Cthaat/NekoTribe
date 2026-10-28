@@ -1,0 +1,11 @@
+{
+  "id": "NOTIFICATION-DELETE",
+  "revision": 1,
+  "cases": [
+    {"id":"DELETE-01","assertion":"authenticated user deletes an active owned notification and receives a timestamped user event"},
+    {"id":"DELETE-02","assertion":"missing, foreign, or already deleted notification returns 404 without an event"},
+    {"id":"DELETE-03","assertion":"invalid ID, invalid session, and database errors are rejected without exposing details"},
+    {"id":"DELETE-04","assertion":"read after commit failure and event delivery failure do not imply rollback"},
+    {"id":"DELETE-05","assertion":"isolated real Oracle, Redis, both clients, concurrency and cross-backend behavior are verified"}
+  ]
+}

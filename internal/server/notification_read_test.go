@@ -59,6 +59,9 @@ func (c *readRepoConn) QueryContext(_ context.Context, q string, args []driver.N
 	if c.owner.missing {
 		return emptyRows{&c.owner.driverState}, nil
 	}
+	if strings.HasPrefix(q, "SELECT deleted_at ") {
+		return &alertRows{values: []driver.Value{time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}}, nil
+	}
 	return &alertRows{values: []driver.Value{int64(12), int64(1), time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}}, nil
 }
 func TestNotificationReadRepositoryScopesUpdateAndRead(t *testing.T) {

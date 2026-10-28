@@ -14704,7 +14704,7 @@
       "delete": {
         "summary": "删除通知",
         "deprecated": false,
-        "description": "删除通知",
+        "description": "删除当前用户未删除的通知；不存在或已删除时返回 404。",
         "operationId": "delete_notifications_id",
         "tags": [
           "Notifications"
@@ -14713,11 +14713,13 @@
           {
             "name": "id",
             "in": "path",
-            "description": "通知 ID",
+            "description": "规范正整数通知 ID（禁止前导零）",
             "required": true,
-            "example": 0,
+            "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
             }
           }
         ],
@@ -14785,6 +14787,9 @@
         },
         "security": [
           {
+            "accessTokenCookie": []
+          },
+          {
             "bearerAuth": []
           }
         ]
@@ -14794,7 +14799,7 @@
       "put": {
         "summary": "恢复通知",
         "deprecated": false,
-        "description": "恢复通知",
+        "description": "恢复当前用户的通知；重复恢复存在的通知仍成功。",
         "operationId": "put_notifications_id_restore_status",
         "tags": [
           "Notifications"
@@ -14803,11 +14808,13 @@
           {
             "name": "id",
             "in": "path",
-            "description": "通知 ID",
+            "description": "规范正整数通知 ID（禁止前导零）",
             "required": true,
-            "example": 0,
+            "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
             }
           }
         ],
@@ -14835,9 +14842,7 @@
                           "example": 800001
                         },
                         "deleted_at": {
-                          "type": "object",
-                          "additionalProperties": true,
-                          "properties": {},
+                          "type": "string",
                           "nullable": true
                         }
                       },
@@ -14887,6 +14892,9 @@
           }
         },
         "security": [
+          {
+            "accessTokenCookie": []
+          },
           {
             "bearerAuth": []
           }
