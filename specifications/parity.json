@@ -8859,6 +8859,67 @@
           "evidence": []
         }
       }
+    },
+    {
+      "id": "NOTIFICATION-WEBSOCKET",
+      "title": "通知 WebSocket 基础",
+      "revision": 1,
+      "review": "reviewed",
+      "definition": "specifications/requirements/notification-websocket.md",
+      "sourceFiles": [
+        "server/routes/_ws.ts",
+        "server/utils/wsSession.ts",
+        "server/utils/redis.ts"
+      ],
+      "operations": [],
+      "scenarios": [
+        {
+          "id": "NOTIFICATION-WEBSOCKET",
+          "file": "specifications/scenarios/notification-websocket.json"
+        }
+      ],
+      "implementations": {
+        "nuxt": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "Validate authenticated notification delivery and revocation behavior in isolated real deployment; align origin and session revalidation rules."
+          ],
+          "sourceFiles": [
+            "server/routes/_ws.ts",
+            "server/utils/wsSession.ts",
+            "server/utils/redis.ts"
+          ],
+          "evidence": []
+        },
+        "rust": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "Implement authenticated native notification socket, Redis subscription, origin checks and per-event session revalidation."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "go": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "Validate Redis credentials, ACL, TLS, session revocation, shutdown, slow consumers and cross-client isolation on real isolated services.",
+            "Extend beyond notification socket to group chat, direct messages and presence in the full WebSocket feature."
+          ],
+          "sourceFiles": [
+            "internal/server/notification_ws.go",
+            "internal/server/notification_source.go",
+            "internal/server/notification_events.go",
+            "internal/server/server.go",
+            "internal/server/refresh.go",
+            "cmd/server/main.go",
+            "go.mod"
+          ],
+          "evidence": []
+        }
+      }
     }
   ],
   "sourceAudits": [
@@ -10422,6 +10483,26 @@
       "copies": {
         "rust": "contracts/scenarios/notification-event-vectors.json",
         "go": "contracts/scenarios/notification-event-vectors.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/notification-websocket.md",
+        "sha256": "6944bb3486e21d905e95888416efe102aa8458ea0de635f46f8b38bb5de1a0be"
+      },
+      "copies": {
+        "rust": "contracts/requirements/notification-websocket.md",
+        "go": "contracts/requirements/notification-websocket.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/notification-websocket.json",
+        "sha256": "cc830f2cb3b7327ebd3ed06baa134b767711b8f3b50c82f375e3b5bbae6388fb"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/notification-websocket.json",
+        "go": "contracts/scenarios/notification-websocket.json"
       }
     }
   ]
