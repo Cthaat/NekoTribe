@@ -138,6 +138,13 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, ()> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn update_self_profile<'a>(
+        &'a self,
+        _user: u64,
+        _fields: &'a std::collections::BTreeMap<String, String>,
+    ) -> StoreFuture<'a, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn login_profile<'a>(&'a self, _user: u64) -> StoreFuture<'a, Option<serde_json::Value>> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -303,7 +310,10 @@ pub fn build_native_router_with_mail(
             post(crate::auth::login::complete_challenge),
         )
         .route("/api/v2/auth/tokens/current", patch(refresh).delete(logout))
-        .route("/api/v2/users/me", get(crate::users::self_profile::get_me))
+        .route(
+            "/api/v2/users/me",
+            get(crate::users::self_profile::get_me).patch(crate::users::self_profile::patch_me),
+        )
         .fallback(|| async { ApiError::route_not_found() })
         .layer(middleware::from_fn_with_state(cors, cors_middleware))
         .with_state(NativeState {

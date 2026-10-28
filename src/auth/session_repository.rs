@@ -20,6 +20,16 @@ pub const RESET_PASSWORD_SQL: &str =
     "UPDATE n_users SET password_hash = :password_hash WHERE email = :email";
 pub const RESET_REVOKE_SQL: &str = "UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id IN (SELECT user_id FROM n_users WHERE email = :email) AND revoked_at IS NULL";
 
+fn profile_update_sql(mask: usize) -> &'static str {
+    static QUERIES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    &QUERIES.get_or_init(|| (0..64).map(|bits| {
+        let clauses = crate::users::self_profile::PROFILE_KEYS.iter().enumerate().filter_map(|(i, key)| {
+            if bits & (1 << i) == 0 { return None; }
+            Some(if *key == "birth_date" { "birth_date = CASE WHEN :birth_date IS NULL THEN NULL ELSE TO_DATE(:birth_date, 'YYYY-MM-DD') END".to_owned() } else { format!("{key} = :{key}") })
+        }).collect::<Vec<_>>().join(", ");
+        format!("UPDATE n_users SET {clauses} WHERE user_id = :user_id")
+    }).collect())[mask]
+}
 pub trait SessionExecutor: Send + Sync {
     fn reset_password_atomic<'a>(
         &'a self,
@@ -408,6 +418,36 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
             b.insert("priority".into(), DbValue::String("high".into()));
             b.insert("metadata_json".into(), DbValue::String(metadata));
             self.executor.execute("INSERT INTO n_notifications (notification_id,user_id,actor_id,type,title,message,resource_type,resource_id,priority,metadata_json) VALUES (:notification_id,:user_id,:actor_id,:type,:title,:message,:resource_type,:resource_id,:priority,:metadata_json)",b).await?;
+            Ok(())
+        })
+    }
+    fn update_self_profile<'a>(
+        &'a self,
+        user: u64,
+        fields: &'a std::collections::BTreeMap<String, String>,
+    ) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            let mut mask = 0usize;
+            let mut binds = user_bind(user);
+            for (index, key) in crate::users::self_profile::PROFILE_KEYS.iter().enumerate() {
+                if let Some(value) = fields.get(*key) {
+                    mask |= 1 << index;
+                    binds.insert(
+                        (*key).into(),
+                        if value.is_empty() {
+                            DbValue::Null
+                        } else {
+                            DbValue::String(value.clone())
+                        },
+                    );
+                }
+            }
+            if mask == 0 {
+                return Ok(());
+            }
+            self.executor
+                .execute(profile_update_sql(mask), binds)
+                .await?;
             Ok(())
         })
     }

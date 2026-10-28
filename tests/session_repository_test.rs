@@ -672,3 +672,28 @@ async fn rotation_uses_one_atomic_conditional_update_with_bound_values() {
         DbValue::String("2026-10-27T12:00:00.000+00:00".into())
     );
 }
+
+#[tokio::test]
+async fn profile_update_repository_binds_only_allowed_fields() {
+    use std::collections::BTreeMap;
+    let repo = OracleSessions {
+        executor: RegistrationExecutor::default(),
+    };
+    let fields = BTreeMap::from([
+        ("bio".to_owned(), "value';--".to_owned()),
+        ("birth_date".to_owned(), String::new()),
+        ("user_id".to_owned(), "99".to_owned()),
+    ]);
+    repo.update_self_profile(42, &fields).await.unwrap();
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    let (sql, binds) = &calls[0];
+    assert!(sql.contains("WHERE user_id = :user_id"));
+    assert!(sql.contains("TO_DATE(:birth_date"));
+    assert!(!sql.contains("value';--"));
+    assert!(!sql.contains("display_name"));
+    assert_eq!(binds.len(), 3);
+    assert_eq!(binds["user_id"], DbValue::I64(42));
+    assert_eq!(binds["bio"], DbValue::String("value';--".into()));
+    assert_eq!(binds["birth_date"], DbValue::Null);
+}
