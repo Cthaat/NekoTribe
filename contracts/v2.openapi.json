@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-28-post-transaction"
+    "x-contract-revision": "2026-10-28-post-delete"
   },
   "tags": [
     {
@@ -10350,7 +10350,7 @@
       "delete": {
         "summary": "删除帖子",
         "deprecated": false,
-        "description": "删除帖子",
+        "description": "仅作者可软删除未删除帖子；重复删除或并发状态变化返回 404，其他用户返回 422。正文与查询参数不参与授权。",
         "operationId": "delete_posts_id",
         "tags": [
           "Posts"
@@ -10361,9 +10361,11 @@
             "in": "path",
             "description": "帖子 ID",
             "required": true,
-            "example": 0,
+            "example": 20,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
             }
           }
         ],
@@ -10423,6 +10425,10 @@
           "404": {
             "$ref": "#/components/responses/NotFound",
             "description": "资源不存在"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable",
+            "description": "只能删除自己的帖子"
           },
           "500": {
             "$ref": "#/components/responses/InternalError",
@@ -12445,7 +12451,9 @@
                     "nullable": true
                   }
                 },
-                "required": ["content"],
+                "required": [
+                  "content"
+                ],
                 "additionalProperties": true
               },
               "example": {
@@ -14498,7 +14506,12 @@
             "application/x-www-form-urlencoded": {
               "schema": {
                 "type": "object",
-                "properties": { "is_read": { "type": "string", "example": "true" } },
+                "properties": {
+                  "is_read": {
+                    "type": "string",
+                    "example": "true"
+                  }
+                },
                 "additionalProperties": true
               }
             }
