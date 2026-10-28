@@ -14099,18 +14099,7 @@
             "required": false,
             "example": "all",
             "schema": {
-              "type": "string",
-              "enum": [
-                "all",
-                "like",
-                "repost",
-                "comment",
-                "reply",
-                "follow",
-                "mention",
-                "group_invite",
-                "system"
-              ]
+              "type": "string"
             }
           },
           {
@@ -14120,7 +14109,7 @@
             "required": false,
             "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "number"
             }
           },
           {
@@ -14130,7 +14119,7 @@
             "required": false,
             "example": 20,
             "schema": {
-              "type": "integer"
+              "type": "number"
             }
           },
           {
@@ -14186,7 +14175,8 @@
                             "type": "string"
                           },
                           "resource_type": {
-                            "type": "string"
+                            "type": "string",
+                            "nullable": true
                           },
                           "resource_id": {
                             "type": "number",
@@ -14271,6 +14261,18 @@
                                   "is_blocking",
                                   "relation"
                                 ]
+                              },
+                              "online_status": {
+                                "type": "string",
+                                "enum": [
+                                  "online",
+                                  "offline",
+                                  "hidden"
+                                ]
+                              },
+                              "last_seen_at": {
+                                "type": "string",
+                                "nullable": true
                               }
                             },
                             "required": [
@@ -14287,7 +14289,8 @@
                               "posts_count",
                               "likes_count",
                               "relationship"
-                            ]
+                            ],
+                            "nullable": true
                           },
                           "metadata": {
                             "anyOf": [
@@ -14327,10 +14330,10 @@
                       "type": "object",
                       "properties": {
                         "page": {
-                          "type": "integer"
+                          "type": "number"
                         },
                         "page_size": {
-                          "type": "integer"
+                          "type": "number"
                         },
                         "total": {
                           "type": "integer"
@@ -14429,6 +14432,9 @@
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
           }
         ]
       }
