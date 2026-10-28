@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-28-post-delete"
+    "x-contract-revision": "2026-10-28-post-update"
   },
   "tags": [
     {
@@ -10444,7 +10444,7 @@
       "put": {
         "summary": "Partially update an owned post (legacy PUT alias)",
         "operationId": "t11_put_api_v2_posts_id",
-        "description": "Compatibility alias for PATCH /api/v2/posts/{id}; retained so existing clients continue working. Despite PUT, this endpoint keeps the existing partial-update semantics and is not a full-resource replacement. New clients should use PATCH. Omitted scalar fields and relation arrays are preserved. Explicit relation arrays replace those relations; an empty array clears them. An empty JSON object is a no-op for an otherwise valid existing post. Existing content/media validation and author-only permissions are unchanged; this change introduces a canonical HTTP method without changing the update service.\nNo query parameters are read. Authenticated author only; deleted/missing post => 40401, another author => 42201. Empty final non-repost content without media, invalid visibility/language, invalid body/path, unusable attachments => 40001. Relationship arrays replace existing values when present; unknown keys and unsupported creation-only reference fields are ignored. Success data is complete serialized post, not a diff. Returning the updated post can also yield 40401 if it is no longer visible, or author lookup fails. Authentication accepts bearer token or access_token cookie according to auth middleware; all successful responses have meta=null (no pagination). Framework/Oracle/Redis failures can produce 5xx; source audit is not runtime acceptance. Feature schema changes are performed only by the explicit migration tool; request readiness checks are read-only.",
+        "description": "仅作者部分更新未删除帖子；省略字段保持不变，明确传入空关系清空。正文及关系在同一行锁事务中提交；PUT 是 PATCH 的兼容别名。最终映射发生在提交后。",
         "parameters": [
           {
             "name": "id",
@@ -10452,10 +10452,12 @@
             "required": true,
             "schema": {
               "type": "number",
-              "minimum": 0,
-              "exclusiveMinimum": true
+              "minimum": 1,
+              "exclusiveMinimum": true,
+              "maximum": 9007199254740991
             },
-            "description": "Converted with Number and required >0 by v2RouterNumber; integer-only validation is not implemented. Numeric strings including positive fractions/scientific notation are accepted if representable."
+            "description": "Converted with Number and required >0 by v2RouterNumber; integer-only validation is not implemented. Numeric strings including positive fractions/scientific notation are accepted if representable.",
+            "example": 20
           }
         ],
         "security": [
@@ -10569,7 +10571,7 @@
       "patch": {
         "summary": "Partially update an owned post",
         "operationId": "patchPostPartial",
-        "description": "Canonical PATCH entry for partial updates. Omitted scalar fields and relation arrays are preserved. Explicit relation arrays replace those relations; an empty array clears them. An empty JSON object is a no-op for an otherwise valid existing post. Existing content/media validation and author-only permissions are unchanged; this change introduces a canonical HTTP method without changing the update service.\nNo query parameters are read. Authenticated author only; deleted/missing post => 40401, another author => 42201. Empty final non-repost content without media, invalid visibility/language, invalid body/path, unusable attachments => 40001. Relationship arrays replace existing values when present; unknown keys and unsupported creation-only reference fields are ignored. Success data is complete serialized post, not a diff. Returning the updated post can also yield 40401 if it is no longer visible, or author lookup fails. Authentication accepts bearer token or access_token cookie according to auth middleware; all successful responses have meta=null (no pagination). Framework/Oracle/Redis failures can produce 5xx; source audit is not runtime acceptance. Feature schema changes are performed only by the explicit migration tool; request readiness checks are read-only.",
+        "description": "仅作者部分更新未删除帖子；省略字段保持不变，明确传入空关系清空。正文及关系在同一行锁事务中提交；PUT 是 PATCH 的兼容别名。最终映射发生在提交后。",
         "parameters": [
           {
             "name": "id",
@@ -10577,10 +10579,12 @@
             "required": true,
             "schema": {
               "type": "number",
-              "minimum": 0,
-              "exclusiveMinimum": true
+              "minimum": 1,
+              "exclusiveMinimum": true,
+              "maximum": 9007199254740991
             },
-            "description": "Converted with Number and required >0 by v2RouterNumber; integer-only validation is not implemented. Numeric strings including positive fractions/scientific notation are accepted if representable."
+            "description": "Converted with Number and required >0 by v2RouterNumber; integer-only validation is not implemented. Numeric strings including positive fractions/scientific notation are accepted if representable.",
+            "example": 20
           }
         ],
         "security": [
