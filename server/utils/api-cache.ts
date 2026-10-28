@@ -404,6 +404,8 @@ async function buildCacheContext(
   const segments = pathSegments(url.pathname);
   // Public profiles contain viewer-dependent relationship and presence data.
   if (segments.length === 2 && segments[0] === 'users' && isNumericSegment(segments[1])) return null;
+  // Detail reads update view counts; serving cached results would skip the write.
+  if (segments.length === 2 && segments[0] === 'posts' && isNumericSegment(segments[1])) return null;
   if (!singleBackendCacheEnabled) return null;
 
   const auth = authOf(event);

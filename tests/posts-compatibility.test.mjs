@@ -145,6 +145,14 @@ test('anonymous detail excludes private/followers/mentioned/deleted/group posts 
   } finally {await f.close();}
 });
 
+test('post detail uses bounded decimal IDs and is never cached', async () => {
+  const f=await fixture();try {
+    for(const id of ['01','1e0','0x1','1.5','9007199254740992']) assert.equal((await f.request(`/api/v2/posts/${id}`,{authorization:`Bearer ${access()}`})).status,400,id);
+    assert.equal((await f.request('/api/v2/posts/01')).status,401);
+    const response=await f.request('/api/v2/posts/1');assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'private, no-store');
+  } finally {await f.close();}
+});
+
 test('missing media schema returns sanitized 503 without request-time DDL or view increments', async () => {
   const f = await fixture({missingMediaSchema: true});
   try {

@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "53fedf0b161eeb52745208c276c128ce563454a13c12a3edbd78ea8190a4c3dc"
+      "sha256": "77d6123c04432fcee9af7413753e12b4868966a6861edafdedc0007091ee603c"
     },
     "sources": [
       {
@@ -655,7 +655,7 @@
       },
       {
         "path": "server/api/v2/posts/[id].get.ts",
-        "sha256": "c3fc274d091822e3ca0a2e6059d065e3f7f5cadf6d963e8e3080c460d22bc26a"
+        "sha256": "6f92149e3c522d34418894318637294846b511b5a4f6050c65545c3ad88f7fe7"
       },
       {
         "path": "server/api/v2/posts/[id].patch.ts",
@@ -1039,11 +1039,11 @@
       },
       {
         "path": "server/utils/api-cache.ts",
-        "sha256": "ec903f7815a083e6011ee9e39fb6cedac543278a739388f346a10bb8b507a38d"
+        "sha256": "39d0d982a06cca6118a6e65d374f28ad81ef8ac35a6f1378bd0b44a3b24308a9"
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "369b7dd956ddd67148adb9c564bf1e6b32d60718d52bef8634a872d921a6afa3"
+        "sha256": "6dcd2a245550dfe26107db2a8bd5dccfc30b13232d098bb84f602e6bf407fd8e"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -3383,14 +3383,16 @@
     {
       "id": "API-get_posts_id",
       "title": "GET /api/v2/posts/{id}: 获取帖子详情",
-      "revision": 2,
+      "revision": 3,
       "review": "reviewed",
       "definition": "specifications/requirements/post-detail.md",
       "sourceFiles": [
         "server/api/v2/posts/[id].get.ts",
         "server/services/v2/posts.ts",
         "server/models/v2.ts",
-        "server/database/readiness.ts"
+        "server/database/readiness.ts",
+        "server/utils/api-cache.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "GET /api/v2/posts/{id}"
@@ -3403,48 +3405,60 @@
         {
           "id": "MEDIA-READINESS",
           "file": "specifications/scenarios/media-readiness.json"
+        },
+        {
+          "id": "POST-DETAIL-VECTORS",
+          "file": "specifications/scenarios/post-detail-vectors.json"
         }
       ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
-            "nuxt: implement post visibility, author, media, tags, mentions and view increment as specified in post-detail.md; native route remains outstanding for Rust and Go.",
-            "nuxt: validate post-detail scenarios and real Oracle authorization, concurrency, files and both clients before acceptance."
+            "nuxt: align post detail with the shared visibility, data, errors and view-count requirements.",
+            "nuxt: complete shared scenarios and isolated real Oracle, concurrency, storage and client acceptance before marking accepted."
           ],
           "sourceFiles": [
             "server/api/v2/posts/[id].get.ts",
             "server/services/v2/posts.ts",
             "server/models/v2.ts",
-            "server/database/readiness.ts"
+            "server/database/readiness.ts",
+            "server/utils/api-cache.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
-            "rust: implement post visibility, author, media, tags, mentions and view increment as specified in post-detail.md; native route remains outstanding for Rust and Go.",
-            "rust: validate post-detail scenarios and real Oracle authorization, concurrency, files and both clients before acceptance."
+            "rust: align post detail with the shared visibility, data, errors and view-count requirements.",
+            "rust: complete shared scenarios and isolated real Oracle, concurrency, storage and client acceptance before marking accepted."
           ],
           "sourceFiles": [
             "src/auth/readiness.rs",
             "src/auth/session_repository.rs",
-            "src/auth/sessions.rs"
+            "src/auth/sessions.rs",
+            "src/posts/detail.rs",
+            "src/posts/mod.rs"
           ],
           "evidence": []
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
-            "go: implement post visibility, author, media, tags, mentions and view increment as specified in post-detail.md; native route remains outstanding for Rust and Go.",
-            "go: validate post-detail scenarios and real Oracle authorization, concurrency, files and both clients before acceptance."
+            "go: align post detail with the shared visibility, data, errors and view-count requirements.",
+            "go: complete shared scenarios and isolated real Oracle, concurrency, storage and client acceptance before marking accepted."
           ],
           "sourceFiles": [
             "internal/server/schema_readiness.go",
-            "contracts/schema_catalog.go"
+            "contracts/schema_catalog.go",
+            "internal/server/post_detail.go",
+            "internal/server/post_repository.go",
+            "internal/server/public_profile.go",
+            "internal/server/server.go"
           ],
           "evidence": []
         }
@@ -10543,7 +10557,7 @@
     {
       "source": {
         "path": "specifications/requirements/post-detail.md",
-        "sha256": "ae093f3a1ac6f731cc66d19b8881c8f71ec3c04eb2155f07cd2a1d112e0831d4"
+        "sha256": "7d4a63c34add48037911b0d20af4cf455e34c04c193e1e1d890c16e664444d2c"
       },
       "copies": {
         "rust": "contracts/requirements/post-detail.md",
@@ -10568,6 +10582,16 @@
       "copies": {
         "rust": "contracts/scenarios/post-detail.json",
         "go": "contracts/scenarios/post-detail.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-detail-vectors.json",
+        "sha256": "ea21c338de1c00d69efb17b870ddd60f14359e406863b493c57ac68afd987b46"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-detail-vectors.json",
+        "go": "contracts/scenarios/post-detail-vectors.json"
       }
     }
   ]

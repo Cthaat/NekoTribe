@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-28-public-profile"
+    "x-contract-revision": "2026-10-28-post-detail"
   },
   "tags": [
     {
@@ -9553,7 +9553,7 @@
       "get": {
         "summary": "获取帖子详情",
         "deprecated": false,
-        "description": "获取帖子详情",
+        "description": "公开帖子允许匿名查看；提供 Cookie 或 Bearer 凭据时必须通过认证。仅接受无前导零的十进制安全正整数 ID。",
         "operationId": "get_posts_id",
         "tags": [
           "Posts"
@@ -9564,9 +9564,11 @@
             "in": "path",
             "description": "帖子 ID",
             "required": true,
-            "example": 0,
+            "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
             }
           }
         ],
@@ -9594,60 +9596,78 @@
                           "type": "object",
                           "properties": {
                             "user_id": {
-                              "type": "integer"
+                              "type": "integer",
+                              "example": 1001
                             },
                             "username": {
-                              "type": "string"
+                              "type": "string",
+                              "example": "demo"
                             },
                             "display_name": {
-                              "type": "string"
+                              "type": "string",
+                              "example": "Demo"
                             },
                             "avatar_url": {
-                              "type": "string"
+                              "type": "string",
+                              "example": "/upload/avatars/1001.png"
                             },
                             "bio": {
-                              "type": "string"
+                              "type": "string",
+                              "example": "hello"
                             },
                             "location": {
-                              "type": "string"
+                              "type": "string",
+                              "example": "Shanghai"
                             },
                             "website": {
-                              "type": "string"
+                              "type": "string",
+                              "example": "https://example.com"
                             },
                             "is_verified": {
-                              "type": "integer"
+                              "type": "integer",
+                              "example": 1
                             },
                             "followers_count": {
-                              "type": "integer"
+                              "type": "integer",
+                              "example": 10
                             },
                             "following_count": {
-                              "type": "integer"
+                              "type": "integer",
+                              "example": 20
                             },
                             "posts_count": {
-                              "type": "integer"
+                              "type": "integer",
+                              "example": 30
                             },
                             "likes_count": {
-                              "type": "integer"
+                              "type": "integer",
+                              "example": 40
                             },
                             "relationship": {
                               "type": "object",
                               "properties": {
                                 "is_self": {
-                                  "type": "boolean"
+                                  "type": "boolean",
+                                  "example": false
                                 },
                                 "is_following": {
-                                  "type": "boolean"
+                                  "type": "boolean",
+                                  "example": true
                                 },
                                 "is_blocked": {
-                                  "type": "boolean"
+                                  "type": "boolean",
+                                  "example": false
                                 },
                                 "is_blocking": {
-                                  "type": "boolean"
+                                  "type": "boolean",
+                                  "example": false
                                 },
                                 "relation": {
-                                  "type": "string"
+                                  "type": "string",
+                                  "example": "following"
                                 }
                               },
+                              "additionalProperties": false,
                               "required": [
                                 "is_self",
                                 "is_following",
@@ -9655,8 +9675,21 @@
                                 "is_blocking",
                                 "relation"
                               ]
+                            },
+                            "online_status": {
+                              "type": "string",
+                              "enum": [
+                                "online",
+                                "offline",
+                                "hidden"
+                              ]
+                            },
+                            "last_seen_at": {
+                              "type": "string",
+                              "nullable": true
                             }
                           },
+                          "additionalProperties": false,
                           "required": [
                             "user_id",
                             "username",
@@ -9670,7 +9703,9 @@
                             "following_count",
                             "posts_count",
                             "likes_count",
-                            "relationship"
+                            "relationship",
+                            "online_status",
+                            "last_seen_at"
                           ]
                         },
                         "content": {
@@ -9724,10 +9759,12 @@
                                 "type": "string"
                               },
                               "width": {
-                                "type": "integer"
+                                "type": "integer",
+                                "nullable": true
                               },
                               "height": {
-                                "type": "integer"
+                                "type": "integer",
+                                "nullable": true
                               },
                               "duration": {
                                 "type": "number",
@@ -9738,15 +9775,36 @@
                                 "nullable": true
                               },
                               "alt_text": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "status": {
                                 "type": "string"
                               },
                               "created_at": {
                                 "type": "string"
+                              },
+                              "description": {
+                                "type": "string",
+                                "nullable": true
                               }
-                            }
+                            },
+                            "required": [
+                              "media_id",
+                              "media_type",
+                              "file_name",
+                              "public_url",
+                              "file_size",
+                              "mime_type",
+                              "width",
+                              "height",
+                              "duration",
+                              "thumbnail_url",
+                              "alt_text",
+                              "description",
+                              "status",
+                              "created_at"
+                            ]
                           }
                         },
                         "tags": {
@@ -9758,7 +9816,120 @@
                         "mentions": {
                           "type": "array",
                           "items": {
-                            "type": "string"
+                            "type": "object",
+                            "properties": {
+                              "user_id": {
+                                "type": "integer",
+                                "example": 1001
+                              },
+                              "username": {
+                                "type": "string",
+                                "example": "demo"
+                              },
+                              "display_name": {
+                                "type": "string",
+                                "example": "Demo"
+                              },
+                              "avatar_url": {
+                                "type": "string",
+                                "example": "/upload/avatars/1001.png"
+                              },
+                              "bio": {
+                                "type": "string",
+                                "example": "hello"
+                              },
+                              "location": {
+                                "type": "string",
+                                "example": "Shanghai"
+                              },
+                              "website": {
+                                "type": "string",
+                                "example": "https://example.com"
+                              },
+                              "is_verified": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "followers_count": {
+                                "type": "integer",
+                                "example": 10
+                              },
+                              "following_count": {
+                                "type": "integer",
+                                "example": 20
+                              },
+                              "posts_count": {
+                                "type": "integer",
+                                "example": 30
+                              },
+                              "likes_count": {
+                                "type": "integer",
+                                "example": 40
+                              },
+                              "relationship": {
+                                "type": "object",
+                                "properties": {
+                                  "is_self": {
+                                    "type": "boolean",
+                                    "example": false
+                                  },
+                                  "is_following": {
+                                    "type": "boolean",
+                                    "example": true
+                                  },
+                                  "is_blocked": {
+                                    "type": "boolean",
+                                    "example": false
+                                  },
+                                  "is_blocking": {
+                                    "type": "boolean",
+                                    "example": false
+                                  },
+                                  "relation": {
+                                    "type": "string",
+                                    "example": "following"
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "required": [
+                                  "is_self",
+                                  "is_following",
+                                  "is_blocked",
+                                  "is_blocking",
+                                  "relation"
+                                ]
+                              },
+                              "online_status": {
+                                "type": "string",
+                                "enum": [
+                                  "online",
+                                  "offline",
+                                  "hidden"
+                                ]
+                              },
+                              "last_seen_at": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "additionalProperties": false,
+                            "required": [
+                              "user_id",
+                              "username",
+                              "display_name",
+                              "avatar_url",
+                              "bio",
+                              "location",
+                              "website",
+                              "is_verified",
+                              "followers_count",
+                              "following_count",
+                              "posts_count",
+                              "likes_count",
+                              "relationship",
+                              "online_status",
+                              "last_seen_at"
+                            ]
                           }
                         },
                         "stats": {
@@ -9780,7 +9951,7 @@
                               "type": "integer"
                             },
                             "engagement_score": {
-                              "type": "integer"
+                              "type": "number"
                             }
                           },
                           "required": [
@@ -9857,30 +10028,32 @@
                   "code": 200,
                   "message": "success",
                   "data": {
-                    "post_id": 100001,
+                    "post_id": 1,
                     "author": {
-                      "user_id": 1001,
-                      "username": "v2_dev",
-                      "display_name": "V2 后端开发",
-                      "avatar_url": "/default-avatar.png",
-                      "bio": "关注 Oracle、API 设计、可维护性",
-                      "location": "杭州",
-                      "website": "https://example.com/dev",
-                      "is_verified": 1,
+                      "user_id": 7,
+                      "username": "publicuser",
+                      "display_name": "Public User",
+                      "avatar_url": "/storage/default-avatar.png",
+                      "bio": "hello",
+                      "location": "",
+                      "website": "",
+                      "is_verified": 0,
                       "followers_count": 2,
-                      "following_count": 1,
-                      "posts_count": 1,
-                      "likes_count": 1,
+                      "following_count": 3,
+                      "posts_count": 4,
+                      "likes_count": 5,
                       "relationship": {
                         "is_self": false,
-                        "is_following": false,
+                        "is_following": true,
                         "is_blocked": false,
                         "is_blocking": false,
-                        "relation": "none"
-                      }
+                        "relation": "following"
+                      },
+                      "online_status": "online",
+                      "last_seen_at": "2026-01-02T03:04:05.000Z"
                     },
-                    "content": "今天把 Oracle V2 基线库重构完成了，posts / comments / tags / notifications 都已经能直接开始开发。",
-                    "post_type": "post",
+                    "content": "synthetic post",
+                    "post_type": "original",
                     "visibility": "public",
                     "language": "zh",
                     "location": "",
@@ -9889,48 +10062,80 @@
                     "quoted_post_id": null,
                     "media": [
                       {
-                        "media_id": 600001,
+                        "media_id": 17,
                         "media_type": "image",
-                        "file_name": "oracle-erd.png",
-                        "public_url": "/upload/media/oracle-erd.png",
-                        "file_size": 512000,
+                        "file_name": "photo.png",
+                        "public_url": "/storage/post/photo.png",
+                        "file_size": 1234,
                         "mime_type": "image/png",
-                        "width": 1280,
-                        "height": 720,
+                        "width": 800,
+                        "height": 600,
                         "duration": null,
-                        "thumbnail_url": null,
-                        "alt_text": "Oracle ER 图",
+                        "thumbnail_url": "/storage/post/thumb.png",
+                        "alt_text": "a photo",
+                        "description": "description",
                         "status": "ready",
-                        "created_at": "2026-04-26T00:50:35.529Z"
+                        "created_at": "2026-01-02T03:04:05.000Z"
                       }
                     ],
                     "tags": [
-                      "api",
-                      "backend",
-                      "oracle"
+                      "cat",
+                      "rust"
                     ],
-                    "mentions": [],
+                    "mentions": [
+                      {
+                        "user_id": 8,
+                        "username": "mentioned",
+                        "display_name": "Mentioned User",
+                        "avatar_url": "/storage/default-avatar.png",
+                        "bio": "hello",
+                        "location": "",
+                        "website": "",
+                        "is_verified": 0,
+                        "followers_count": 2,
+                        "following_count": 3,
+                        "posts_count": 4,
+                        "likes_count": 5,
+                        "relationship": {
+                          "is_self": false,
+                          "is_following": false,
+                          "is_blocked": false,
+                          "is_blocking": false,
+                          "relation": "none"
+                        },
+                        "online_status": "offline",
+                        "last_seen_at": null
+                      }
+                    ],
                     "stats": {
-                      "likes_count": 1,
-                      "comments_count": 1,
-                      "replies_count": 0,
+                      "likes_count": 2,
+                      "comments_count": 3,
+                      "replies_count": 1,
                       "retweets_count": 0,
-                      "views_count": 0,
-                      "engagement_score": 3
+                      "views_count": 10,
+                      "engagement_score": 12.5
                     },
                     "viewer_state": {
                       "is_liked": false,
                       "is_bookmarked": false,
                       "can_delete": false
                     },
-                    "created_at": "2026-04-26T00:53:37.572Z",
-                    "updated_at": "2026-04-26T00:53:37.572Z"
+                    "created_at": "2026-01-02T03:04:05.000Z",
+                    "updated_at": "2026-01-02T03:04:05.000Z"
                   },
                   "meta": null
                 }
               }
             },
-            "headers": {}
+            "headers": {
+              "Cache-Control": {
+                "description": "帖子详情不缓存，确保每次成功访问计入浏览量",
+                "schema": {
+                  "type": "string",
+                  "example": "private, no-store"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest",
@@ -9951,11 +10156,61 @@
           "500": {
             "$ref": "#/components/responses/InternalError",
             "description": "服务器内部错误"
+          },
+          "503": {
+            "description": "服务所需的数据结构不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer",
+                          "enum": [
+                            50301
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "meta": {
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "data",
+                        "meta"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
+          {},
           {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
           }
         ]
       },

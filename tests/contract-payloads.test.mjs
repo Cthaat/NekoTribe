@@ -11,6 +11,28 @@ const ajv = new Ajv({ nullable: true, unknownFormats: 'ignore', strictKeywords: 
 const base = 'https://neko.invalid/payload-contract';
 ajv.addSchema(spec, base);
 const validate = (name, value) => ajv.compile({ $ref: `${base}#/components/schemas/${name}` })(value);
+
+test('post detail contract describes anonymous access and actual rich response', () => {
+  const operation = spec.paths['/api/v2/posts/{id}'].get;
+  assert.ok(operation.security.some(item => Object.keys(item).length === 0));
+  assert.ok(operation.security.some(item => Object.hasOwn(item, 'accessTokenCookie')));
+  const pointer = '/api/v2/posts/{id}'.replaceAll('/', '~1');
+  const check = ajv.compile({$ref: `${base}#/paths/${pointer}/get/responses/200/content/application~1json/schema`});
+  const fixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/post-detail-vectors.json', import.meta.url)));
+  const value = {code: 200, message: 'success', data: fixture.post, meta: null};
+  assert.equal(check(value), true, JSON.stringify(check.errors));
+  value.data.media[0].width = null;
+  value.data.media[0].height = null;
+  value.data.media[0].alt_text = null;
+  value.data.media[0].description = null;
+  assert.equal(check(value), true, JSON.stringify(check.errors));
+  value.data.mentions = ['not a public user'];
+  assert.equal(check(value), false);
+  const error = ajv.compile({$ref: `${base}#/paths/${pointer}/get/responses/503/content/application~1json/schema`});
+  const businessError = {code: 50301, message: '服务暂不可用，请稍后重试。', data: null, meta: null};
+  assert.equal(error(businessError), true, JSON.stringify(error.errors));
+  assert.equal(error({error: true, url: '/api/v2/posts/1', statusCode: 503, statusMessage: 'Service temporarily unavailable', message: 'Service temporarily unavailable', data: businessError}), true, JSON.stringify(error.errors));
+});
 // Local refs in operation fragments need the document's canonical base.
 function requestValidator(method, path) {
   const pointer = path.replaceAll('~', '~0').replaceAll('/', '~1');
