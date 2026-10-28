@@ -125,3 +125,14 @@ test('SentimentFlow contracts preserve the pinned upstream body and explicitly i
     }
   }
 });
+
+test('self profile patch contract matches successful response, cookie auth and permissive updates', () => {
+  const update=requestValidator('patch','/api/v2/users/me');
+  for(const value of [{},{bio:'hello'},{birth_date:null},{phone:42},{bio:false,unknown:'ignored'},{location:[],website:{}}]) assert.equal(update(value),true);
+  assert.equal(update([]),false);
+  const pointer='/api/v2/users/me'.replaceAll('/','~1');
+  const result=ajv.compile({$ref:`${base}#/paths/${pointer}/patch/responses/200/content/application~1json/schema`});
+  const fixture=JSON.parse(readFileSync(new URL('../specifications/scenarios/user-self-profile.json',import.meta.url)));
+  assert.equal(result({code:200,message:'success',data:fixture.profile,meta:null}),true);
+  assert.deepEqual(spec.paths['/api/v2/users/me'].patch.security,[{bearerAuth:[]},{accessTokenCookie:[]}]);
+});

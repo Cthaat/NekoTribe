@@ -42,6 +42,7 @@ const compiled = await build({
     export {default as register} from './server/api/v2/auth/registration.post';
     export {default as resetPassword} from './server/api/v2/auth/password-reset.post';
     export {default as getMe} from './server/api/v2/users/me.get';
+    export {default as patchMe} from './server/api/v2/users/me.patch';
     export {v2ListSessions} from './server/services/v2/auth';
   `, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm',
@@ -195,6 +196,7 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
       if (sql.startsWith('SELECT COUNT')) return rows([{TOTAL: newDevice ? 0 : 1}]);
       if (sql.includes('AS login_alerts')) return rows([{EMAIL: 'fixture@example.test', LOGIN_ALERTS: 1, EMAIL_NOTIFICATION_ENABLED: 1}]);
       if (sql.startsWith('INSERT INTO n_auth_sessions')) { sessions.set(binds.session_id, {...binds, revoked: false}); return {rowsAffected: 1}; }
+      if (db.profilePatchMode && sql.startsWith('UPDATE n_users SET ')) { db.profileWrites.push({sql, binds, options}); if (db.profileUpdateFail) throw new Error('private-update-fixture'); return {rowsAffected: 1}; }
       if (sql.startsWith('UPDATE n_users')) return {rowsAffected: 1};
       if (sql.startsWith('INSERT INTO n_auth_two_factor_challenges')) {challenges.set(binds.challenge_id, {...binds}); return {rowsAffected: 1};}
       if (sql.includes('FROM n_auth_two_factor_challenges c')) {
@@ -275,6 +277,7 @@ async function fixture(options) {
   router.post('/api/v2/auth/registration', routes.register);
   router.post('/api/v2/auth/password-reset', routes.resetPassword);
   router.get('/api/v2/users/me', routes.getMe);
+  router.patch('/api/v2/users/me', routes.patchMe);
   router.get('/api/v2/private', defineEventHandler(() => ({ok: true})));
   app.use(router);
   const server = createServer(toNodeListener(app));
@@ -308,6 +311,26 @@ test('shared self-profile scenarios enforce session identity and safe errors', a
       if(vector.status===200){assert.equal(response.headers.get('cache-control'),'private, no-store',vector.id);assert.deepEqual(JSON.parse(text),{code:200,message:'success',data:vectors.profile,meta:null},vector.id);assert.deepEqual(globalThis.__selfProfileCalls,[42],vector.id);}
     }
     assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors),/private-profile-fixture/);assert.doesNotMatch(errors.join('\n'),/private-profile-fixture/);
+  } finally {console.error=oldError;delete globalThis.__authCompatErrors;delete globalThis.__selfProfileCalls;delete globalThis.__loginProfileError;delete globalThis.__registrationProfile;await f.close();}
+});
+
+test('shared self-profile updates preserve identity, fields and safe errors', async () => {
+  const vectors=JSON.parse(readFileSync(path.join(root,'specifications/scenarios/user-self-profile-update.json'),'utf8'));
+  const profiles=JSON.parse(readFileSync(path.join(root,'specifications/scenarios/user-self-profile.json'),'utf8'));
+  const f=await fixture();const oldError=console.error;const errors=[];console.error=(...args)=>errors.push(args.map(String).join(' '));
+  globalThis.__authCompatErrors=[];globalThis.__registrationProfile=profiles.profile;f.db.profilePatchMode=true;
+  const payload={userId:42,userName:'selfuser',sessionId:'fixture-session-42',jti:'fixture-access-jti-42',type:'access'};
+  const token=jwt.sign(payload,runtime.accessSecret,{expiresIn:900});const expired=jwt.sign(payload,runtime.accessSecret,{expiresIn:-1});
+  try { for(const vector of vectors.cases) {
+    f.db.sessions.set('fixture-session-42',{user_id:42,session_id:'fixture-session-42',access_jti:'fixture-access-jti-42',access_token_expires_at:new Date(Date.now()+900000),revoked:!!vector.revoked});
+    f.db.profileTouchFail=!!vector.touch_fail; f.db.profileUpdateFail=!!vector.update_fail; f.db.profileWrites=[];globalThis.__selfProfileCalls=[];
+    globalThis.__loginProfileError=vector.missing ? createError({statusCode:404,message:'用户不存在',data:{code:40401,message:'用户不存在',data:null,meta:null}}) : vector.profile_fail ? new Error('private-profile-fixture') : null;
+    const headers={};if(vector.auth==='valid')headers.authorization=`Bearer ${token}`;if(vector.auth==='cookie')headers.cookie=`access_token=${token}`;if(vector.auth==='bad-cookie'){headers.authorization=`Bearer ${token}`;headers.cookie='access_token=bad';}if(vector.auth==='expired')headers.authorization=`Bearer ${expired}`;
+    const response=await f.request('/api/v2/users/me?user_id=99','PATCH',vector.body,headers);const text=await response.text();
+    assert.equal(response.status,vector.status,vector.id);assert.equal(f.db.profileWrites.length,vector.updates,vector.id);assert.equal(globalThis.__selfProfileCalls.length,vector.profiles,vector.id);assert.doesNotMatch(text,/private-(update|profile)-fixture/,vector.id);
+    if(vector.updates){const w=f.db.profileWrites[0]; const expected={user_id:42,...vector.fields};if(expected.birth_date==='')expected.birth_date=null;assert.deepEqual(w.binds,expected,vector.id);assert.equal(w.options.autoCommit,true,vector.id);}
+    if(vector.status===200){assert.equal(response.headers.get('cache-control'),'private, no-store',vector.id);assert.equal(response.headers.getSetCookie().length,0,vector.id);}
+  } assert.doesNotMatch(JSON.stringify(globalThis.__authCompatErrors),/private-(update|profile)-fixture/);assert.doesNotMatch(errors.join('\n'),/private-(update|profile)-fixture/);
   } finally {console.error=oldError;delete globalThis.__authCompatErrors;delete globalThis.__selfProfileCalls;delete globalThis.__loginProfileError;delete globalThis.__registrationProfile;await f.close();}
 });
 

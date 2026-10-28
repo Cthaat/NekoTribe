@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "b1a7d76a4c08ca3a519f348a62ea9a2e6666313cec55c867acdff7edde76d47f"
+      "sha256": "73898e97cd979eb93af3947ef130c963a674995097715c77546da4fea5fc73a2"
     },
     "sources": [
       {
@@ -795,7 +795,7 @@
       },
       {
         "path": "server/api/v2/users/me.patch.ts",
-        "sha256": "944a1774875e1bd44d48f58b61d7a58bf729c7bf8547a8b0c9a56542858450f8"
+        "sha256": "b2d4e4aa3f274b157e49bfb2db5ac6bbaa6b38527ed4f8ffddc532184e026423"
       },
       {
         "path": "server/api/v2/users/me/account-statements/[id].patch.ts",
@@ -1982,47 +1982,67 @@
     {
       "id": "API-patch_users_me",
       "title": "PATCH /api/v2/users/me: 更新当前用户资料",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/user-self-profile-update.md",
       "sourceFiles": [
-        "server/api/v2/users/me.patch.ts"
+        "server/api/v2/users/me.patch.ts",
+        "server/services/v2/users.ts"
       ],
       "operations": [
         "PATCH /api/v2/users/me"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "USER-SELF-PROFILE-UPDATE",
+          "file": "specifications/scenarios/user-self-profile-update.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for PATCH /api/v2/users/me; create shared acceptance scenarios."
+            "nuxt: implement current-user profile partial update and security semantics in user-self-profile-update.md.",
+            "nuxt: validate actual Oracle dates, constraints, transaction and cross-instance cache behavior with both clients before acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/users/me.patch.ts"
+            "server/api/v2/users/me.patch.ts",
+            "server/services/v2/users.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement PATCH /api/v2/users/me natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: implement current-user profile partial update and security semantics in user-self-profile-update.md.",
+            "rust: validate actual Oracle dates, constraints, transaction and cross-instance cache behavior with both clients before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/users/self_profile.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement PATCH /api/v2/users/me natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: implement current-user profile partial update and security semantics in user-self-profile-update.md.",
+            "go: validate actual Oracle dates, constraints, transaction and cross-instance cache behavior with both clients before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/self_profile_update.go",
+            "internal/server/server.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/user-self-profile.md"
+      ]
     },
     {
       "id": "API-t11_delete_api_v2_users_me",
@@ -10332,6 +10352,26 @@
       "copies": {
         "rust": "contracts/scenarios/ai-tool-history.json",
         "go": "contracts/scenarios/ai-tool-history.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/user-self-profile-update.md",
+        "sha256": "e5cedce2693d9caf677306e6c7a027718124c79bb4bbea9f6a19c591da489544"
+      },
+      "copies": {
+        "rust": "contracts/requirements/user-self-profile-update.md",
+        "go": "contracts/requirements/user-self-profile-update.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/user-self-profile-update.json",
+        "sha256": "edca59a9ff1702e68442548c9496f23bdc1f4e4320dc33501b632dc1f0c87014"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/user-self-profile-update.json",
+        "go": "contracts/scenarios/user-self-profile-update.json"
       }
     }
   ]
