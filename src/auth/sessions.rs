@@ -145,6 +145,13 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, ()> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn public_profile<'a>(
+        &'a self,
+        _viewer: u64,
+        _target: u64,
+    ) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn login_profile<'a>(&'a self, _user: u64) -> StoreFuture<'a, Option<serde_json::Value>> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -310,6 +317,10 @@ pub fn build_native_router_with_mail(
             post(crate::auth::login::complete_challenge),
         )
         .route("/api/v2/auth/tokens/current", patch(refresh).delete(logout))
+        .route(
+            "/api/v2/users/{id}",
+            get(crate::users::public_profile::get_public),
+        )
         .route(
             "/api/v2/users/me",
             get(crate::users::self_profile::get_me).patch(crate::users::self_profile::patch_me),

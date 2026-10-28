@@ -697,3 +697,27 @@ async fn profile_update_repository_binds_only_allowed_fields() {
     assert_eq!(binds["bio"], DbValue::String("value';--".into()));
     assert_eq!(binds["birth_date"], DbValue::Null);
 }
+
+#[tokio::test]
+async fn public_profile_repository_binds_viewer_and_target() {
+    let repo = OracleSessions {
+        executor: RegistrationExecutor::default(),
+    };
+    let _ = repo.public_profile(42, 7).await.unwrap();
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    let (sql, binds) = &calls[0];
+    for part in [
+        "v_user_profile_public",
+        "u.is_active=1",
+        "show_online_status",
+        "NUMTODSINTERVAL(90,'SECOND')",
+        "revoked_at IS NULL",
+    ] {
+        assert!(sql.contains(part), "{part}")
+    }
+    assert!(!sql.to_lowercase().contains("email"));
+    assert_eq!(binds.len(), 2);
+    assert_eq!(binds["viewer_id"], DbValue::I64(42));
+    assert_eq!(binds["user_id"], DbValue::I64(7));
+}

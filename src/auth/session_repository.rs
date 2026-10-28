@@ -30,6 +30,7 @@ fn profile_update_sql(mask: usize) -> &'static str {
         format!("UPDATE n_users SET {clauses} WHERE user_id = :user_id")
     }).collect())[mask]
 }
+pub const PUBLIC_PROFILE_SQL: &str = "SELECT u.user_id,u.username,u.avatar_url,u.display_name,u.bio,u.location,u.website,u.is_verified,u.followers_count,u.following_count,u.posts_count,u.likes_count,CASE WHEN NVL(us.show_online_status,1)=0 THEN 'hidden' WHEN EXISTS (SELECT 1 FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL AND s.last_accessed_at >= CURRENT_TIMESTAMP - NUMTODSINTERVAL(90,'SECOND')) THEN 'online' ELSE 'offline' END AS online_status,CASE WHEN NVL(us.show_online_status,1)=0 THEN NULL ELSE (SELECT MAX(s.last_accessed_at) FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL) END AS last_seen_at,fn_get_user_relationship(:viewer_id,u.user_id) AS relation FROM v_user_profile_public u LEFT JOIN n_user_settings us ON us.user_id=u.user_id WHERE u.user_id=:user_id AND u.is_active=1";
 pub trait SessionExecutor: Send + Sync {
     fn reset_password_atomic<'a>(
         &'a self,
@@ -451,6 +452,20 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
             Ok(())
         })
     }
+    fn public_profile<'a>(
+        &'a self,
+        viewer: u64,
+        target: u64,
+    ) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async move {
+            let binds = BindMap::from([
+                ("viewer_id".into(), DbValue::I64(viewer as i64)),
+                ("user_id".into(), DbValue::I64(target as i64)),
+            ]);
+            let rows = self.executor.query(PUBLIC_PROFILE_SQL, binds).await?;
+            Ok(rows.first().map(public_profile_json))
+        })
+    }
     fn login_profile<'a>(&'a self, user: u64) -> StoreFuture<'a, Option<serde_json::Value>> {
         Box::pin(async move {
             let mut b = user_bind(user);
@@ -707,6 +722,33 @@ fn profile_json(r: &DbRow) -> serde_json::Value {
     serde_json::json!({"user_id":row_number(r,"USER_ID"),"username":row_text(r,"USERNAME"),"display_name":row_text(r,"DISPLAY_NAME"),"avatar_url":if avatar.is_empty() || avatar=="/default-avatar.png" || avatar=="default-avatar.png" {"/storage/default-avatar.png"} else {avatar},"bio":row_text(r,"BIO"),"location":row_text(r,"LOCATION"),"website":row_text(r,"WEBSITE"),"is_verified":row_number(r,"IS_VERIFIED"),"followers_count":row_number(r,"FOLLOWERS_COUNT"),"following_count":row_number(r,"FOLLOWING_COUNT"),"posts_count":row_number(r,"POSTS_COUNT"),"likes_count":row_number(r,"LIKES_COUNT"),"relationship":{"is_self":relation=="self","is_following":relation=="following" || relation=="mutual_follow","is_blocked":relation=="blocked_by","is_blocking":relation=="blocking","relation":if relation.is_empty(){"none"}else{&relation}},"online_status":"online","last_seen_at":optional("LAST_SEEN_AT").map(|s|profile_date(&s)),"email":row_text(r,"EMAIL"),"phone":row_text(r,"PHONE"),"birth_date":optional("BIRTH_DATE"),"email_verified_at":optional("EMAIL_VERIFIED_AT").map(|s|profile_date(&s)),"is_active":row_number(r,"IS_ACTIVE"),"status":row_text(r,"STATUS"),"created_at":optional("CREATED_AT").map(|s|profile_date(&s)).unwrap_or_default(),"updated_at":optional("UPDATED_AT").map(|s|profile_date(&s)).unwrap_or_default()})
 }
 
+fn public_profile_json(row: &DbRow) -> serde_json::Value {
+    let mut value = profile_json(row);
+    let object = value.as_object_mut().expect("profile is an object");
+    for key in [
+        "email",
+        "phone",
+        "birth_date",
+        "email_verified_at",
+        "is_active",
+        "status",
+        "created_at",
+        "updated_at",
+    ] {
+        object.remove(key);
+    }
+    let status = row_text(row, "ONLINE_STATUS");
+    let status = if status == "online" || status == "hidden" {
+        status.as_str()
+    } else {
+        "offline"
+    };
+    object.insert("online_status".into(), status.into());
+    if status == "hidden" {
+        object.insert("last_seen_at".into(), serde_json::Value::Null);
+    }
+    value
+}
 fn profile_date(text: &str) -> String {
     use chrono::{SecondsFormat, TimeZone};
     if let Ok(date) = chrono::DateTime::parse_from_rfc3339(text) {
@@ -782,5 +824,38 @@ mod profile_tests {
             profile_date("2017-08-09 11:22:33.500 -08:00"),
             "2017-08-09T19:22:33.500Z"
         );
+    }
+    #[test]
+    fn public_profile_never_exposes_private_fields_or_hidden_activity() {
+        let row = DbRow::from([
+            ("USER_ID".into(), DbValue::I64(7)),
+            (
+                "EMAIL".into(),
+                DbValue::String("private@example.test".into()),
+            ),
+            ("PHONE".into(), DbValue::String("secret".into())),
+            ("ONLINE_STATUS".into(), DbValue::String("hidden".into())),
+            (
+                "LAST_SEEN_AT".into(),
+                DbValue::String("2026-01-02T03:04:05Z".into()),
+            ),
+            ("RELATION".into(), DbValue::String("following".into())),
+        ]);
+        let value = public_profile_json(&row);
+        assert_eq!(value["online_status"], "hidden");
+        assert!(value["last_seen_at"].is_null());
+        assert_eq!(value["relationship"]["is_following"], true);
+        for key in [
+            "email",
+            "phone",
+            "birth_date",
+            "email_verified_at",
+            "status",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ] {
+            assert!(value.get(key).is_none());
+        }
     }
 }
