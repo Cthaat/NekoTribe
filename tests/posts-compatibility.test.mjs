@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { build } from 'esbuild';
@@ -101,7 +102,7 @@ function database({revoked = false, expiredSession = false, failSession = false,
 }
 
 async function fixture(options) {
-  const db = database(options);
+  const db = options?.db ?? database(options);
   const app = createApp();
   app.use(defineEventHandler(event => {event.context.getOracleConnection = async () => db;}));
   app.use(routes.auth);
@@ -135,6 +136,29 @@ test('anonymous public list uses null viewer, correct visibility/count/paginatio
   } finally {await f.close();}
 });
 
+test('post list binds search and pagination consistently for count and selected rows', async () => {
+  const f = await fixture();
+  try {
+    const response = await f.request('/api/v2/posts?q=%20%23%23Cat_%25%20&sort=popular&page=2&page_size=3');
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.meta, {page: 2, page_size: 3, total: 2, has_next: false});
+    const queries = f.db.calls.filter(call => call.sql.includes('FROM v_post_feed_item v'));
+    assert.equal(queries.length, 2);
+    for (const call of queries) {
+      assert.equal(call.binds.viewer_id, null);
+      assert.equal(call.binds.q, '%##cat_%%');
+      assert.equal(call.binds.tag_q, '%cat_%%');
+      assert.match(call.sql, /fn_can_view_post\(:viewer_id, v\.post_id\) = 1/);
+      assert.match(call.sql, /t\.name_lower LIKE :tag_q/);
+    }
+    const rows = queries.find(call => !call.sql.startsWith('SELECT COUNT'));
+    assert.equal(rows.binds.start_row, 4);
+    assert.equal(rows.binds.end_row, 6);
+    assert.match(rows.sql, /ORDER BY v\.engagement_score DESC, v\.created_at DESC/);
+  } finally {await f.close();}
+});
+
 test('anonymous detail excludes private/followers/mentioned/deleted/group posts without incrementing their views', async () => {
   const f = await fixture();
   try {
@@ -151,6 +175,102 @@ test('post detail uses bounded decimal IDs and is never cached', async () => {
     assert.equal((await f.request('/api/v2/posts/01')).status,401);
     const response=await f.request('/api/v2/posts/1');assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'private, no-store');
   } finally {await f.close();}
+});
+
+// Exercise the real middleware, route, service and mappers against the same
+// language-neutral vectors as the Rust and Go handlers. This adapter simulates
+// Oracle rows and failures; it does not implement the database visibility policy.
+test('Nuxt post detail matches shared route and failure vectors', async () => {
+  const vectors = JSON.parse(readFileSync(new URL('../specifications/scenarios/post-detail-vectors.json', import.meta.url)));
+  assert.equal(vectors.cases.length, 22);
+  const {post} = vectors;
+  const timestamp = new Date(post.created_at);
+  function userRow(user) {
+    return {
+      USER_ID: user.user_id, USERNAME: user.username, DISPLAY_NAME: user.display_name,
+      AVATAR_URL: user.avatar_url, BIO: user.bio, LOCATION: user.location, WEBSITE: user.website,
+      IS_VERIFIED: user.is_verified, FOLLOWERS_COUNT: user.followers_count,
+      FOLLOWING_COUNT: user.following_count, POSTS_COUNT: user.posts_count, LIKES_COUNT: user.likes_count,
+      RELATION: user.relationship.relation, ONLINE_STATUS: user.online_status,
+      LAST_SEEN_AT: user.last_seen_at ? new Date(user.last_seen_at) : null
+    };
+  }
+  for (const scenario of vectors.cases) {
+    const schema = schemaFixture({baseline: true});
+    if (scenario.fault === 'media-ready') {
+      const table = schema.state.tables.get('N_MEDIA_ASSETS');
+      table.columns = table.columns.filter(column => column.COLUMN_NAME !== 'DESCRIPTION');
+    }
+    const events = [];
+    const stage = name => {
+      events.push(name);
+      if (scenario.fault === name) throw new Error('private-database-error');
+    };
+    const db = {
+      close: async () => {},
+      async execute(raw, binds = {}) {
+        const sql = raw.replace(/\s+/g, ' ').trim();
+        if (sql.startsWith('UPDATE n_auth_sessions')) {
+          if (scenario.touch_fail) throw new Error('private-database-error');
+          return {rowsAffected: !scenario.revoked && binds.userId === 42 ? 1 : 0};
+        }
+        if (sql.startsWith('SELECT USER AS')) {
+          // A bad media schema should be reported by the real readiness code.
+          events.push('media-ready');
+        }
+        const metadata = schema.query(sql, binds);
+        if (metadata !== undefined) return {rows: metadata};
+        if (sql.includes('FROM v_post_feed_item v')) {
+          stage('post');
+          assert.equal(binds.viewer_id, scenario.auth === 'none' ? null : 42, scenario.id);
+          assert.equal(binds.post_id, 1, scenario.id);
+          assert.match(sql, /fn_can_view_post\(:viewer_id, v\.post_id\) = 1/);
+          if (scenario.missing) return {rows: []};
+          return {rows: [{POST_ID: 1, AUTHOR_ID: 7, CONTENT: post.content, POST_TYPE: post.post_type,
+            VISIBILITY: post.visibility, LANGUAGE: post.language, LOCATION: post.location,
+            REPLY_TO_POST_ID: null, REPOST_OF_POST_ID: null, QUOTED_POST_ID: null,
+            LIKES_COUNT: post.stats.likes_count, COMMENTS_COUNT: post.stats.comments_count,
+            REPLIES_COUNT: post.stats.replies_count, RETWEETS_COUNT: post.stats.retweets_count,
+            VIEWS_COUNT: post.stats.views_count, ENGAGEMENT_SCORE: post.stats.engagement_score,
+            IS_LIKED: 0, IS_BOOKMARKED: 0, CREATED_AT: timestamp, UPDATED_AT: timestamp}]};
+        }
+        if (sql.includes('FROM v_user_profile_public u')) {
+          stage('author');
+          assert.equal(binds.user_id, 7, scenario.id);
+          return {rows: scenario.fault === 'author-missing' ? [] : [userRow(post.author)]};
+        }
+        if (sql.includes('FROM n_post_media')) {
+          stage('media');
+          const media = post.media[0];
+          return {rows: [{MEDIA_ID: media.media_id, MEDIA_TYPE: media.media_type, FILE_NAME: media.file_name,
+            PUBLIC_URL: media.public_url, FILE_SIZE: media.file_size, MIME_TYPE: media.mime_type,
+            WIDTH: media.width, HEIGHT: media.height, DURATION: media.duration, THUMBNAIL_URL: media.thumbnail_url,
+            ALT_TEXT: media.alt_text, DESCRIPTION: media.description, STATUS: media.status, CREATED_AT: timestamp}]};
+        }
+        if (sql.includes('FROM n_post_tags')) {stage('tags'); return {rows: post.tags.map(NAME => ({NAME}))};}
+        if (sql.includes('FROM n_post_mentions')) {stage('mentions'); return {rows: [userRow(post.mentions[0])]};}
+        if (sql.startsWith('UPDATE n_post_stats')) {stage('views'); return {rowsAffected: 1};}
+        throw new Error(`Unexpected isolated SQL in ${scenario.id}`);
+      }
+    };
+    const f = await fixture({db});
+    try {
+      const token = access({userId: 42});
+      const headers = scenario.auth === 'valid' ? {authorization: `Bearer ${token}`} :
+        scenario.auth === 'cookie' ? {cookie: `access_token=${token}`} :
+        scenario.auth === 'bad-cookie' ? {cookie: 'access_token=bad', authorization: `Bearer ${token}`} :
+        scenario.auth === 'expired' ? {authorization: `Bearer ${access({userId: 42}, {expiresIn: -60})}`} : {};
+      const response = await f.request(`/api/v2/posts/${scenario.target}?viewer_id=99`, headers);
+      const body = await response.json();
+      assert.equal(response.status, scenario.status, `${scenario.id}: ${JSON.stringify(body)}`);
+      assert.deepEqual(events, scenario.events, scenario.id);
+      assert.ok(!JSON.stringify(body).includes('private-database-error'), scenario.id);
+      if (scenario.status === 200) {
+        assert.deepEqual(body.data, post, scenario.id);
+        assert.equal(response.headers.get('cache-control'), 'private, no-store', scenario.id);
+      }
+    } finally {await f.close();}
+  }
 });
 
 test('missing media schema returns sanitized 503 without request-time DDL or view increments', async () => {

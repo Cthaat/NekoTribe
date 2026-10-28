@@ -3248,47 +3248,67 @@
     {
       "id": "API-get_posts",
       "title": "GET /api/v2/posts: 获取帖子列表或搜索帖子",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/post-list.md",
       "sourceFiles": [
-        "server/api/v2/posts/index.get.ts"
+        "server/api/v2/posts/index.get.ts",
+        "server/services/v2/posts.ts",
+        "server/models/v2.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts"
       ],
       "operations": [
         "GET /api/v2/posts"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-LIST",
+          "file": "specifications/scenarios/post-list.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/posts; create shared acceptance scenarios."
+            "nuxt: implement and verify the shared post list requirements and scenarios.",
+            "nuxt: validate isolated Oracle visibility, search, pagination and cross-backend client behavior before acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/posts/index.get.ts"
+            "server/api/v2/posts/index.get.ts",
+            "server/services/v2/posts.ts",
+            "server/models/v2.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts"
           ],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/posts natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: implement and verify the shared post list requirements and scenarios.",
+            "rust: validate isolated Oracle visibility, search, pagination and cross-backend client behavior before acceptance."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/posts natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: implement and verify the shared post list requirements and scenarios.",
+            "go: validate isolated Oracle visibility, search, pagination and cross-backend client behavior before acceptance."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/post-detail.md",
+        "specifications/requirements/cache-shared-backends.md"
+      ]
     },
     {
       "id": "API-post_posts",
@@ -10557,7 +10577,7 @@
     {
       "source": {
         "path": "specifications/requirements/post-detail.md",
-        "sha256": "7d4a63c34add48037911b0d20af4cf455e34c04c193e1e1d890c16e664444d2c"
+        "sha256": "70fb118ded269f18742a68c71d9f3695e9f39bb5df45ed7ddba46cce31d88e5e"
       },
       "copies": {
         "rust": "contracts/requirements/post-detail.md",
@@ -10592,6 +10612,26 @@
       "copies": {
         "rust": "contracts/scenarios/post-detail-vectors.json",
         "go": "contracts/scenarios/post-detail-vectors.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-list.md",
+        "sha256": "d9832c5f0291df4acae340db29a88fbdb80b775692b0a33afb71883bdc0f7306"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-list.md",
+        "go": "contracts/requirements/post-list.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-list.json",
+        "sha256": "0c929894333bdfc77a0f4930355c682c4ff22130fe217b8eea25134070ee1d0a"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-list.json",
+        "go": "contracts/scenarios/post-list.json"
       }
     }
   ]
