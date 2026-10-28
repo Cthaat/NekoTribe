@@ -643,164 +643,157 @@ export async function v2UpdatePost(
 ): Promise<V2Response<V2Post>> {
   const auth = v2Auth(event);
   const payload = await v2ReadUpdatePostPayload(event);
-  const row = await v2One(
-    connection,
-    `
-    SELECT
-      author_id,
-      is_deleted,
-      post_type,
-      DBMS_LOB.SUBSTR(content, 4000, 1) AS content
-    FROM n_posts
-    WHERE post_id = :post_id
-    `,
-    { post_id: postId }
-  );
-  if (!row || v2Boolean(row.IS_DELETED))
-    v2NotFound('帖子不存在');
-  if (v2Number(row.AUTHOR_ID) !== auth.userId) {
-    v2Unprocessable('只能修改自己的帖子');
-  }
-
-  const currentContent = v2String(row.CONTENT);
-  const nextContent =
-    payload.content !== undefined
-      ? payload.content
-      : currentContent;
-  const nextMediaCount =
-    payload.media_ids !== undefined
-      ? [...new Set(payload.media_ids)].slice(0, 4).length
-      : await v2Count(
-          connection,
-          `
-          SELECT COUNT(*) AS total
-          FROM n_post_media
-          WHERE post_id = :post_id
-          `,
-          { post_id: postId }
-        );
-  if (
-    v2String(row.POST_TYPE) !== 'repost' &&
-    !nextContent.trim() &&
-    nextMediaCount === 0
-  ) {
-    v2BadRequest('content 不能为空');
-  }
-
-  const updateFields: string[] = [];
-  const binds: Record<string, string | number | null> = {
-    post_id: postId
-  };
-  if (payload.content !== undefined) {
-    updateFields.push('content = :content');
-    binds.content = payload.content || null;
-  }
-  if (payload.visibility !== undefined) {
-    updateFields.push('visibility = :visibility');
-    binds.visibility = payload.visibility;
-  }
-  if (payload.language !== undefined) {
-    updateFields.push('language = :language');
-    binds.language = payload.language;
-  }
-  if (payload.location !== undefined) {
-    updateFields.push('location = :location');
-    binds.location = payload.location || null;
-  }
-
-  const hasRelationChanges =
-    payload.media_ids !== undefined ||
-    payload.tag_names !== undefined ||
-    payload.mention_user_ids !== undefined;
-
-  if (updateFields.length > 0 || hasRelationChanges) {
-    await v2Execute(
+  try {
+    const row = await v2One(
       connection,
       `
-      UPDATE n_posts
-      SET ${[
-        ...updateFields,
-        'updated_at = CURRENT_TIMESTAMP'
-      ].join(',\n          ')}
+      SELECT
+        author_id,
+        is_deleted,
+        post_type,
+        DBMS_LOB.SUBSTR(content, 4000, 1) AS content
+      FROM n_posts
       WHERE post_id = :post_id
+      FOR UPDATE
       `,
-      binds
+      { post_id: postId }
     );
-  }
+    if (!row || v2Boolean(row.IS_DELETED))
+      v2NotFound('帖子不存在');
+    if (v2Number(row.AUTHOR_ID) !== auth.userId) {
+      v2Unprocessable('只能修改自己的帖子');
+    }
 
-  if (payload.media_ids !== undefined) {
-    const mediaIds = [...new Set(payload.media_ids)].slice(0, 4);
-    const usableMediaCount =
-      mediaIds.length === 0
-        ? 0
+    const currentContent = v2String(row.CONTENT);
+    const nextContent =
+      payload.content !== undefined
+        ? payload.content
+        : currentContent;
+    const nextMediaCount =
+      payload.media_ids !== undefined
+        ? [...new Set(payload.media_ids)].slice(0, 4).length
         : await v2Count(
             connection,
             `
             SELECT COUNT(*) AS total
-            FROM n_media_assets
-            WHERE owner_user_id = :user_id
-              AND status IN ('uploaded', 'processing', 'ready')
-              AND media_id IN (${mediaIds
-                .map((_, index) => `:media_id_${index}`)
-                .join(', ')})
+            FROM n_post_media
+            WHERE post_id = :post_id
             `,
-            mediaIds.reduce<Record<string, number>>(
-              (mediaBinds, mediaId, index) => {
-                mediaBinds[`media_id_${index}`] = mediaId;
-                return mediaBinds;
-              },
-              { user_id: auth.userId }
-            )
+            { post_id: postId }
           );
-    if (usableMediaCount !== mediaIds.length) {
-      v2BadRequest('附件不存在或无权使用');
+    if (
+      v2String(row.POST_TYPE) !== 'repost' &&
+      !nextContent.trim() &&
+      nextMediaCount === 0
+    ) {
+      v2BadRequest('content 不能为空');
     }
-    await v2Execute(
-      connection,
-      `
-      DELETE FROM n_post_media
-      WHERE post_id = :post_id
-      `,
-      { post_id: postId }
-    );
-    await v2AttachPostMedia(
-      connection,
-      postId,
-      auth.userId,
-      mediaIds
-    );
-  }
 
-  if (payload.tag_names !== undefined) {
-    await v2Execute(
-      connection,
-      `
-      DELETE FROM n_post_tags
-      WHERE post_id = :post_id
-      `,
-      { post_id: postId }
-    );
-    await v2AttachPostTags(
-      connection,
-      postId,
-      payload.tag_names
-    );
-  }
+    const updateFields: string[] = [];
+    const binds: Record<string, string | number | null> = {
+      post_id: postId
+    };
+    if (payload.content !== undefined) {
+      updateFields.push('content = :content');
+      binds.content = payload.content || null;
+    }
+    if (payload.visibility !== undefined) {
+      updateFields.push('visibility = :visibility');
+      binds.visibility = payload.visibility;
+    }
+    if (payload.language !== undefined) {
+      updateFields.push('language = :language');
+      binds.language = payload.language;
+    }
+    if (payload.location !== undefined) {
+      updateFields.push('location = :location');
+      binds.location = payload.location || null;
+    }
 
-  if (payload.mention_user_ids !== undefined) {
-    await v2Execute(
-      connection,
-      `
-      DELETE FROM n_post_mentions
-      WHERE post_id = :post_id
-      `,
-      { post_id: postId }
-    );
-    await v2AttachPostMentions(
-      connection,
-      postId,
-      payload.mention_user_ids
-    );
+    const hasRelationChanges =
+      payload.media_ids !== undefined ||
+      payload.tag_names !== undefined ||
+      payload.mention_user_ids !== undefined;
+
+    if (updateFields.length > 0 || hasRelationChanges) {
+      const changed = await v2Execute(
+        connection,
+        `
+        UPDATE n_posts
+        SET ${[
+          ...updateFields,
+          'updated_at = CURRENT_TIMESTAMP'
+        ].join(',\n          ')}
+        WHERE post_id = :post_id AND author_id = :user_id AND is_deleted = 0
+        `,
+        {...binds, user_id: auth.userId},
+        false
+      );
+      if (changed === 0) v2NotFound('帖子不存在');
+    }
+
+    if (payload.media_ids !== undefined) {
+      const mediaIds = [...new Set(payload.media_ids)].slice(0, 4);
+      await v2Execute(
+        connection,
+        `
+        DELETE FROM n_post_media
+        WHERE post_id = :post_id
+        `,
+        { post_id: postId },
+        false
+      );
+      await v2AttachPostMedia(
+        connection,
+        postId,
+        auth.userId,
+        mediaIds,
+        false,
+        true,
+        '附件不存在或无权使用'
+      );
+    }
+
+    if (payload.tag_names !== undefined) {
+      await v2Execute(
+        connection,
+        `
+        DELETE FROM n_post_tags
+        WHERE post_id = :post_id
+        `,
+        { post_id: postId },
+        false
+      );
+      await v2AttachPostTags(
+        connection,
+        postId,
+        payload.tag_names,
+        false
+      );
+    }
+
+    if (payload.mention_user_ids !== undefined) {
+      await v2Execute(
+        connection,
+        `
+        DELETE FROM n_post_mentions
+        WHERE post_id = :post_id
+        `,
+        { post_id: postId },
+        false
+      );
+      await v2AttachPostMentions(
+        connection,
+        postId,
+        payload.mention_user_ids,
+        false
+      );
+    }
+    await connection.commit();
+  } catch (error) {
+    try { await connection.rollback(); }
+    catch { throw new Error('Post update rollback failed'); }
+    throw error;
   }
 
   return v2Ok(
@@ -819,7 +812,8 @@ async function v2AttachPostMedia(
   userId: number,
   mediaIds: number[],
   autoCommit = true,
-  requireUsable = false
+  requireUsable = false,
+  unusableMessage = '媒体不存在或不可用'
 ): Promise<number> {
   let sortOrder = 1;
   let attached = 0;
@@ -842,7 +836,7 @@ async function v2AttachPostMedia(
       },
       autoCommit
     );
-    if (requireUsable && changed !== 1) v2BadRequest('媒体不存在或不可用');
+    if (requireUsable && changed !== 1) v2BadRequest(unusableMessage);
     attached += changed;
     sortOrder += 1;
   }

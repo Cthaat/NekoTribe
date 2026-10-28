@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "ce24f02c0089b4e2d63f44445a0c3e98d43337bb170d8d5a11a7d95003d14226"
+      "sha256": "62c76306d64360a1762a9e233d2f8c3946eb65aa8d5745d256ea528fb06135fd"
     },
     "sources": [
       {
@@ -659,7 +659,7 @@
       },
       {
         "path": "server/api/v2/posts/[id].patch.ts",
-        "sha256": "c8a1761a5ac1cc55bf1c8989c40f406ca42e14e27ec5179c70b7ee4444e431dc"
+        "sha256": "fa466602355ddfba4a30b0de5efdbfd25f78b1ffb5f203946772be097d20752c"
       },
       {
         "path": "server/api/v2/posts/[id].put.ts",
@@ -991,7 +991,7 @@
       },
       {
         "path": "server/services/v2/posts.ts",
-        "sha256": "937d8e848828841db4085667eb6685cfb2309593b8a4a0f381ae8d8a41caa2ef"
+        "sha256": "a0861ea50836e5069644bc1442014de45b59873b61f720190e62d30b99e360b4"
       },
       {
         "path": "server/services/v2/presence.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "7fe17369fc6259fb9c8cd9fbaa4ef561ad8ac5f385e3948f67f56b4a59968c25"
+        "sha256": "819d5f22e931914de1e0e1d2bf59f996868e341fd3d663480eba106ccb0f2083"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -3468,94 +3468,82 @@
       ]
     },
     {
-      "id": "API-t11_put_api_v2_posts_id",
-      "title": "PUT /api/v2/posts/{id}: Partially update an owned post (legacy PUT alias)",
-      "revision": 1,
+      "id": "POST-UPDATE",
+      "title": "帖子部分更新：PATCH 与兼容 PUT",
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/post-update.md",
       "sourceFiles": [
-        "server/api/v2/posts/[id].put.ts"
+        "server/api/v2/posts/[id].patch.ts",
+        "server/api/v2/posts/[id].put.ts",
+        "server/services/v2/posts.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
+        "PATCH /api/v2/posts/{id}",
         "PUT /api/v2/posts/{id}"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-UPDATE-REQUEST",
+          "file": "specifications/scenarios/post-update-request.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for PUT /api/v2/posts/{id}; create shared acceptance scenarios."
+            "Validate canonical PATCH/PUT partial updates, row locking, omission/clear semantics, all-write rollback, uncertain commits and response mapping with real Oracle, cross-backend concurrency, shared caches and both clients."
           ],
           "sourceFiles": [
-            "server/api/v2/posts/[id].put.ts"
+            "server/api/v2/posts/[id].patch.ts",
+            "server/api/v2/posts/[id].put.ts",
+            "server/services/v2/posts.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement PUT /api/v2/posts/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement PUT /api/v2/posts/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
-      "id": "API-patchPostPartial",
-      "title": "PATCH /api/v2/posts/{id}: Partially update an owned post",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
-      "sourceFiles": [
-        "server/api/v2/posts/[id].patch.ts"
-      ],
-      "operations": [
-        "PATCH /api/v2/posts/{id}"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for PATCH /api/v2/posts/{id}; create shared acceptance scenarios."
+            "Validate canonical PATCH/PUT partial updates, row locking, omission/clear semantics, all-write rollback, uncertain commits and response mapping with real Oracle, cross-backend concurrency, shared caches and both clients."
           ],
           "sourceFiles": [
-            "server/api/v2/posts/[id].patch.ts"
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs",
+            "src/posts/update.rs",
+            "src/posts/update_request.rs",
+            "src/posts/update_transaction.rs",
+            "src/posts/create_transaction.rs"
           ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement PATCH /api/v2/posts/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement PATCH /api/v2/posts/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate canonical PATCH/PUT partial updates, row locking, omission/clear semantics, all-write rollback, uncertain commits and response mapping with real Oracle, cross-backend concurrency, shared caches and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/server.go",
+            "internal/server/post_update.go",
+            "internal/server/post_update_transaction.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/post-update.md",
+        "specifications/scenarios/post-update-request.json"
+      ],
+      "supersedes": [
+        "API-patchPostPartial",
+        "API-t11_put_api_v2_posts_id"
+      ]
     },
     {
       "id": "API-post_posts_id_retweets",
@@ -11062,7 +11050,7 @@
     {
       "source": {
         "path": "specifications/requirements/post-delete.md",
-        "sha256": "12f40e44eae867d303ea7e8fb990497426623ada1041dc76411aaf7555839a6a"
+        "sha256": "4057d945a7eff14ea3b2e46566aca183fe9c99dea99337f1a2bba71202ec87d0"
       },
       "copies": {
         "rust": "contracts/requirements/post-delete.md",
@@ -11079,6 +11067,28 @@
         "rust": "contracts/scenarios/post-delete.json",
         "go": "contracts/scenarios/post-delete.json",
         "flutter": "contracts/scenarios/post-delete.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-update.md",
+        "sha256": "99bc892f93f949fe65cd53e5038a67e22001525b60fe6ec218057ec14e3f5dc5"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-update.md",
+        "go": "contracts/requirements/post-update.md",
+        "flutter": "contracts/requirements/post-update.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-update-request.json",
+        "sha256": "ed8c6105d76d4c8c2aa6cde7523d5fa44a21f75cb05599840da85cbcfa34b6c8"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-update-request.json",
+        "go": "contracts/scenarios/post-update-request.json",
+        "flutter": "contracts/scenarios/post-update-request.json"
       }
     }
   ]

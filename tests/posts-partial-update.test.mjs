@@ -47,15 +47,19 @@ const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.
 function database(overrides = {}) {
   const state = { post_id: 7, author_id: 1, content: 'original content', visibility: 'followers', language: 'zh', location: 'original location', media_ids: [11], tag_names: ['original-tag'], mention_user_ids: [2], ...overrides };
   const writes = [];
+  const before = structuredClone(state);
   return {
-    state, writes,
+    state, writes, commits: 0,
     close: async () => {},
+    async commit() { this.commits++; },
+    async rollback() { Object.assign(state, structuredClone(before)); },
     snapshot: () => structuredClone(state),
-    async execute(raw, binds = {}) {
+    async execute(raw, binds = {}, options = {}) {
       const sql = raw.replace(/\s+/g, ' ').trim();
       if (sql.startsWith('SELECT') && sql.includes('FROM n_posts')) return { rows: [{ AUTHOR_ID: state.author_id, IS_DELETED: 0, POST_TYPE: 'original', CONTENT: state.content }] };
       if (sql.startsWith('SELECT COUNT') && sql.includes('FROM n_post_media')) return { rows: [{ TOTAL: state.media_ids.length }] };
       if (sql.startsWith('UPDATE n_posts')) {
+        assert.equal(options.autoCommit, false);
         writes.push({ sql, binds });
         for (const field of ['content', 'visibility', 'language', 'location']) {
           if (sql.includes(`${field} = :${field}`)) state[field] = binds[field];
@@ -98,7 +102,8 @@ for (const method of ['PATCH', 'PUT']) {
     assert.equal(response.message, 'post updated');
     assert.deepEqual(response.data, { ...before, content: 'edited content' });
     assert.equal(db.writes.length, 1);
-    assert.deepEqual(db.writes[0].binds, { post_id: 7, content: 'edited content' });
+    assert.deepEqual(db.writes[0].binds, { post_id: 7, content: 'edited content', user_id: 1 });
+    assert.equal(db.commits, 1);
   });
 
   test(`${method} empty JSON object is a read-only no-op for an existing valid post`, async () => {
