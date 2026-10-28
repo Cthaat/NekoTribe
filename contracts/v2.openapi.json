@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-28-scoped-post-lists"
+    "x-contract-revision": "2026-10-28-tag-lists"
   },
   "tags": [
     {
@@ -13410,7 +13410,7 @@
       "get": {
         "summary": "搜索话题",
         "deprecated": false,
-        "description": "搜索话题",
+        "description": "登录后搜索标签，q 按 SQL LIKE 规则匹配；limit 不参与分页。",
         "operationId": "get_tags",
         "tags": [
           "Tags"
@@ -13419,21 +13419,30 @@
           {
             "name": "q",
             "in": "query",
-            "description": "话题关键词",
             "required": false,
-            "example": "nuxt",
+            "description": "名称关键词，支持 SQL LIKE 通配符",
             "schema": {
               "type": "string"
             }
           },
           {
-            "name": "limit",
+            "name": "page",
             "in": "query",
-            "description": "返回数量",
+            "description": "页码；兼容小数，具体行为参见共同需求",
             "required": false,
-            "example": 10,
+            "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "number"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量；兼容小数，具体行为参见共同需求",
+            "required": false,
+            "example": 20,
+            "schema": {
+              "type": "number"
             }
           }
         ],
@@ -13466,7 +13475,7 @@
                             "type": "integer"
                           },
                           "trending_score": {
-                            "type": "integer"
+                            "type": "number"
                           },
                           "is_trending": {
                             "type": "integer"
@@ -13474,17 +13483,25 @@
                           "updated_at": {
                             "type": "string"
                           }
-                        }
+                        },
+                        "required": [
+                          "tag_id",
+                          "name",
+                          "usage_count",
+                          "trending_score",
+                          "is_trending",
+                          "updated_at"
+                        ]
                       }
                     },
                     "meta": {
                       "type": "object",
                       "properties": {
                         "page": {
-                          "type": "integer"
+                          "type": "number"
                         },
                         "page_size": {
-                          "type": "integer"
+                          "type": "number"
                         },
                         "total": {
                           "type": "integer"
@@ -13517,12 +13534,12 @@
                   "message": "success",
                   "data": [
                     {
-                      "tag_id": 700000,
-                      "name": "v2",
-                      "usage_count": 1,
-                      "trending_score": 3,
-                      "is_trending": 0,
-                      "updated_at": "2026-04-26T00:54:42.900Z"
+                      "tag_id": 17,
+                      "name": "Cat",
+                      "usage_count": 42,
+                      "trending_score": 12.5,
+                      "is_trending": 1,
+                      "updated_at": "2026-01-02T03:04:05.000Z"
                     }
                   ],
                   "meta": {
@@ -13560,6 +13577,9 @@
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
           }
         ]
       }
@@ -13568,20 +13588,30 @@
       "get": {
         "summary": "获取热门话题",
         "deprecated": false,
-        "description": "获取热门话题",
+        "description": "登录后读取热门标签；q 和 limit 不参与过滤或分页。",
         "operationId": "get_tags_trending",
         "tags": [
           "Tags"
         ],
         "parameters": [
           {
-            "name": "limit",
+            "name": "page",
             "in": "query",
-            "description": "返回数量",
+            "description": "页码；兼容小数，具体行为参见共同需求",
             "required": false,
-            "example": 10,
+            "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "number"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量；兼容小数，具体行为参见共同需求",
+            "required": false,
+            "example": 20,
+            "schema": {
+              "type": "number"
             }
           }
         ],
@@ -13591,69 +13621,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "integer"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "meta": {
-                      "type": "object",
-                      "properties": {
-                        "page": {
-                          "type": "integer"
-                        },
-                        "page_size": {
-                          "type": "integer"
-                        },
-                        "total": {
-                          "type": "integer"
-                        },
-                        "has_next": {
-                          "type": "boolean"
-                        },
-                        "updated_at": {
-                          "type": "string",
-                          "example": "2026-04-26T01:00:00Z"
-                        }
-                      },
-                      "required": [
-                        "page",
-                        "page_size",
-                        "total",
-                        "has_next"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "data",
-                    "meta"
-                  ]
-                },
-                "example": {
-                  "code": 200,
-                  "message": "success",
-                  "data": [],
-                  "meta": {
-                    "page": 1,
-                    "page_size": 20,
-                    "total": 0,
-                    "has_next": false
-                  }
+                  "$ref": "#/paths/~1api~1v2~1tags/get/responses/200/content/application~1json/schema"
                 }
               }
-            },
-            "headers": {}
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest",
@@ -13679,6 +13650,9 @@
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
           }
         ]
       }

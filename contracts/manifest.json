@@ -2,23 +2,23 @@
   "schemaVersion": 2,
   "authority": "Nuxt doc/v2.openapi.json",
   "contractVersion": "2.0.0",
-  "revision": "2026-10-28-scoped-post-lists",
+  "revision": "2026-10-28-tag-lists",
   "normalization": "UTF-8 without BOM; LF. SHA-256 and Git blob identify exact snapshot bytes.",
   "source": {
     "project": "nuxt",
     "branch": "master",
-    "commit": "ebfeb555f7df43ebcabb2b3a77a0fb270b1a8064"
+    "commit": "7f072745a22df5dd90942ff579dafe62b4fed7ee"
   },
   "files": [
     {
       "path": "v2.openapi.json",
       "sourcePath": "doc/v2.openapi.json",
-      "sha256": "9d538d8ae276cb92b848f07b3c295b9f21ec4a58d9f0c6a6506e8e38665ad6c9",
-      "gitBlob": "d1bf849c8a7bd8d08c1810c6dc49071ffc3119c7",
+      "sha256": "0e3b82afb37465162a2c75b0b8e4b43dec8b71bc2520874f0a2ade317c562155",
+      "gitBlob": "4f17f99cd44f7f0bc2505da0f32b7019021a1eaa",
       "committedSource": {
-        "commit": "ebfeb555f7df43ebcabb2b3a77a0fb270b1a8064",
-        "gitBlob": "d1bf849c8a7bd8d08c1810c6dc49071ffc3119c7",
-        "sha256": "9d538d8ae276cb92b848f07b3c295b9f21ec4a58d9f0c6a6506e8e38665ad6c9"
+        "commit": "7f072745a22df5dd90942ff579dafe62b4fed7ee",
+        "gitBlob": "4f17f99cd44f7f0bc2505da0f32b7019021a1eaa",
+        "sha256": "0e3b82afb37465162a2c75b0b8e4b43dec8b71bc2520874f0a2ade317c562155"
       },
       "differsFromCommittedSource": false
     },
@@ -28,7 +28,7 @@
       "sha256": "700bb79c8efe738d3ba51eee92cde91772406587c3338ca1477462a0f2d5cdb7",
       "gitBlob": "748b5407fc7744827c7f70041808e55c14de52db",
       "committedSource": {
-        "commit": "ebfeb555f7df43ebcabb2b3a77a0fb270b1a8064",
+        "commit": "7f072745a22df5dd90942ff579dafe62b4fed7ee",
         "gitBlob": "748b5407fc7744827c7f70041808e55c14de52db",
         "sha256": "700bb79c8efe738d3ba51eee92cde91772406587c3338ca1477462a0f2d5cdb7"
       },
