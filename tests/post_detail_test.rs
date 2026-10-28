@@ -321,3 +321,76 @@ fn post_list_search_lowercases_unicode_like_the_nuxt_baseline() {
     let query = nekotribe_backend::posts::list::parse_post_list_query("q=%C4%B0%20%CE%9F%CE%A3");
     assert_eq!(query.search, "i\u{307} ος");
 }
+
+#[tokio::test]
+async fn post_list_modes_require_auth_and_trending_forces_sort() {
+    let data: Value = serde_json::from_str(include_str!(
+        "../contracts/scenarios/post-detail-vectors.json"
+    ))
+    .unwrap();
+    let tokens: Value =
+        serde_json::from_str(include_str!("../contracts/scenarios/auth-tokens.json")).unwrap();
+    let valid = tokens["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["id"] == "access-hs256")
+        .unwrap()["token"]
+        .as_str()
+        .unwrap();
+    for (path, mode, anonymous_status) in [
+        ("/api/v2/posts/trending?sort=oldest", "trending", 200),
+        ("/api/v2/users/me/posts?viewer_id=99", "me", 401),
+        ("/api/v2/users/me/bookmarks?viewer_id=99", "bookmarks", 401),
+        (
+            "/api/v2/users/me/likes?sort=oldest&viewer_id=99",
+            "likes",
+            401,
+        ),
+    ] {
+        for authenticated in [false, true] {
+            let store = Arc::new(Store {
+                post: data["post"].clone(),
+                events: Mutex::new(vec![]),
+                viewer: Mutex::new(None),
+                list_query: Mutex::new(None),
+                fault: "".into(),
+                missing: true,
+                revoked: false,
+                touch_fail: false,
+            });
+            let codec = TokenCodec::new(
+                tokens["keys"]["access"].as_str().unwrap().as_bytes(),
+                tokens["keys"]["refresh"].as_str().unwrap().as_bytes(),
+            )
+            .unwrap();
+            let app = build_native_router(
+                codec,
+                store.clone(),
+                CorsPolicy::default(),
+                Arc::new(|| 1_700_000_000),
+            );
+            let mut req = Request::builder().uri(path);
+            if authenticated {
+                req = req.header("authorization", format!("Bearer {valid}"));
+            }
+            let response = app.oneshot(req.body(Body::empty()).unwrap()).await.unwrap();
+            assert_eq!(
+                response.status().as_u16(),
+                if authenticated { 200 } else { anonymous_status },
+                "{path}"
+            );
+            if authenticated || anonymous_status == 200 {
+                let guard = store.list_query.lock().unwrap();
+                let query = guard.as_ref().unwrap();
+                assert_eq!(query.mode, mode);
+                if mode == "trending" {
+                    assert_eq!(query.sort, "popular");
+                }
+                if mode != "trending" {
+                    assert_eq!(*store.viewer.lock().unwrap(), Some(42));
+                }
+            }
+        }
+    }
+}

@@ -875,3 +875,54 @@ async fn post_list_repository_binds_filters_and_pages_without_interpolation() {
     assert_eq!(calls[1].1["start_row"], DbValue::F64(2.0));
     assert_eq!(calls[1].1["end_row"], DbValue::F64(2.0));
 }
+
+#[tokio::test]
+async fn post_list_modes_scope_sql_and_like_time_sort() {
+    for (mode, sort, filter, order) in [
+        (
+            "me",
+            "newest",
+            "v.author_id=:viewer_id",
+            "v.created_at DESC",
+        ),
+        (
+            "bookmarks",
+            "newest",
+            "FROM n_post_bookmarks b",
+            "v.created_at DESC",
+        ),
+        (
+            "likes",
+            "oldest",
+            "FROM n_post_likes l",
+            "l.user_id=:viewer_id) ASC",
+        ),
+        (
+            "likes",
+            "newest",
+            "FROM n_post_likes l",
+            "l.user_id=:viewer_id) DESC",
+        ),
+        (
+            "likes",
+            "popular",
+            "FROM n_post_likes l",
+            "v.engagement_score DESC,v.created_at DESC",
+        ),
+    ] {
+        let repo = OracleSessions {
+            executor: PostExecutor::default(),
+        };
+        let mut query =
+            nekotribe_backend::posts::list::parse_post_list_query("timeline=mentions&q=cat");
+        query.mode = mode.into();
+        query.sort = sort.into();
+        repo.list_visible_posts(Some(42), &query).await.unwrap();
+        let calls = repo.executor.calls.lock().unwrap();
+        assert!(calls[0].0.contains(filter));
+        assert!(calls[0].0.contains("pm.mentioned_user_id=:viewer_id"));
+        assert!(calls[0].0.contains("t.name_lower LIKE :tag_q"));
+        assert!(calls[1].0.contains(order));
+        assert_eq!(calls[0].1["viewer_id"], DbValue::I64(42));
+    }
+}

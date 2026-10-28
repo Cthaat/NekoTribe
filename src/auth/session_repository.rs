@@ -42,17 +42,25 @@ fn post_list_sql(query: &crate::posts::list::PostListQuery) -> (&'static str, &'
     let sql = QUERIES.get_or_init(|| {
         let columns = POST_DETAIL_SQL.split(" FROM v_post_feed_item v WHERE ").next().expect("fixed SQL");
         let mut variants = Vec::new();
-        for timeline in 0..3 {
+        for mode in 0..4 {
+          for timeline in 0..3 {
             for search in 0..2 {
                 for sort in 0..3 {
                     let mut filter = " WHERE fn_can_view_post(:viewer_id,v.post_id)=1".to_owned();
+                    if mode == 1 { filter.push_str(" AND v.author_id=:viewer_id"); }
+                    if mode == 2 { filter.push_str(" AND EXISTS (SELECT 1 FROM n_post_bookmarks b WHERE b.post_id=v.post_id AND b.user_id=:viewer_id)"); }
+                    if mode == 3 { filter.push_str(" AND EXISTS (SELECT 1 FROM n_post_likes l WHERE l.post_id=v.post_id AND l.user_id=:viewer_id)"); }
                     if timeline == 1 { filter.push_str(" AND EXISTS (SELECT 1 FROM n_user_follows f WHERE f.follower_id=:viewer_id AND f.following_id=v.author_id AND f.status='active')"); }
                     if timeline == 2 { filter.push_str(" AND EXISTS (SELECT 1 FROM n_post_mentions pm WHERE pm.post_id=v.post_id AND pm.mentioned_user_id=:viewer_id)"); }
                     if search == 1 { filter.push_str(" AND (LOWER(DBMS_LOB.SUBSTR(v.content,4000,1)) LIKE :q OR LOWER(NVL(v.location,'')) LIKE :q OR EXISTS (SELECT 1 FROM n_post_tags pt JOIN n_tags t ON t.tag_id=pt.tag_id WHERE pt.post_id=v.post_id AND t.name_lower LIKE :tag_q))"); }
-                    let order = match sort { 1 => "v.created_at ASC", 2 => "v.engagement_score DESC,v.created_at DESC", _ => "v.created_at DESC" };
+                    let order = if mode == 3 && sort != 2 {
+                        if sort == 1 { "(SELECT MAX(l.created_at) FROM n_post_likes l WHERE l.post_id=v.post_id AND l.user_id=:viewer_id) ASC" }
+                        else { "(SELECT MAX(l.created_at) FROM n_post_likes l WHERE l.post_id=v.post_id AND l.user_id=:viewer_id) DESC" }
+                    } else { match sort { 1 => "v.created_at ASC", 2 => "v.engagement_score DESC,v.created_at DESC", _ => "v.created_at DESC" } };
                     variants.push((format!("SELECT COUNT(*) AS total FROM v_post_feed_item v{filter}"), format!("SELECT * FROM ({columns},ROW_NUMBER() OVER (ORDER BY {order}) AS rn FROM v_post_feed_item v{filter}) WHERE rn BETWEEN :start_row AND :end_row")));
                 }
             }
+          }
         }
         variants
     });
@@ -67,7 +75,13 @@ fn post_list_sql(query: &crate::posts::list::PostListQuery) -> (&'static str, &'
         "popular" => 2,
         _ => 0,
     };
-    let (count, page) = &sql[timeline * 6 + search * 3 + sort];
+    let mode = match query.mode.as_str() {
+        "me" => 1,
+        "bookmarks" => 2,
+        "likes" => 3,
+        _ => 0,
+    };
+    let (count, page) = &sql[mode * 18 + timeline * 6 + search * 3 + sort];
     (count, page)
 }
 pub trait SessionExecutor: Send + Sync {

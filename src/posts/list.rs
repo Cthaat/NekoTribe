@@ -18,6 +18,7 @@ use serde_json::json;
 #[derive(Clone, Debug, PartialEq)]
 pub struct PostListQuery {
     pub page: SessionPage,
+    pub mode: String,
     pub timeline: String,
     pub sort: String,
     pub search: String,
@@ -43,6 +44,7 @@ pub fn parse_post_list_query(raw: &str) -> PostListQuery {
     let tag_search = if tag.is_empty() { search.clone() } else { tag };
     PostListQuery {
         page: session_pagination(raw),
+        mode: "all".into(),
         timeline: single("timeline", "home"),
         sort: single("sort", "newest"),
         search,
@@ -55,6 +57,16 @@ pub(crate) async fn list_posts(
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let token = access_token(&headers);
+    let mode = match uri.path() {
+        "/api/v2/posts/trending" => "trending",
+        "/api/v2/users/me/posts" => "me",
+        "/api/v2/users/me/bookmarks" => "bookmarks",
+        "/api/v2/users/me/likes" => "likes",
+        _ => "all",
+    };
+    if token.is_empty() && matches!(mode, "me" | "bookmarks" | "likes") {
+        return Err(ApiError::unauthorized("请先登录"));
+    }
     let viewer = if token.is_empty() {
         None
     } else {
@@ -67,7 +79,11 @@ pub(crate) async fn list_posts(
         }
         Some(claims.user_id)
     };
-    let query = parse_post_list_query(uri.query().unwrap_or_default());
+    let mut query = parse_post_list_query(uri.query().unwrap_or_default());
+    query.mode = mode.to_owned();
+    if mode == "trending" {
+        query.sort = "popular".to_owned();
+    }
     if viewer.is_none() && (query.timeline == "following" || query.timeline == "mentions") {
         return Err(ApiError::unauthorized("未认证或 token 无效"));
     }

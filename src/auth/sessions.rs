@@ -359,10 +359,22 @@ pub fn build_native_router_with_mail(
         .route("/api/v2/auth/tokens/current", patch(refresh).delete(logout))
         .route(
             "/api/v2/posts/trending",
-            get(|| async { ApiError::route_not_found() }),
+            get(crate::posts::list::list_posts),
         )
         .route("/api/v2/posts/{id}", get(crate::posts::detail::get_post))
         .route("/api/v2/posts", get(crate::posts::list::list_posts))
+        .route(
+            "/api/v2/users/me/posts",
+            get(crate::posts::list::list_posts),
+        )
+        .route(
+            "/api/v2/users/me/bookmarks",
+            get(crate::posts::list::list_posts),
+        )
+        .route(
+            "/api/v2/users/me/likes",
+            get(crate::posts::list::list_posts),
+        )
         .route(
             "/api/v2/users/{id}",
             get(crate::users::public_profile::get_public),
