@@ -478,6 +478,29 @@ void main() {
   });
 
   group('NotificationsApi v2 contract', () {
+    test('batch read sends explicit read state and empty selection is a no-op', () async {
+      final recorder = _ApiRecorder();
+      final api = NotificationsApi(_client(recorder));
+
+      await api.markRead([3, 7]);
+      recorder.expectLast(
+        method: 'PUT',
+        path: '/api/v2/notifications/read-status',
+        body: {'notification_ids': [3, 7], 'is_read': true},
+      );
+      await api.markRead([]);
+      recorder.expectLast(
+        method: 'PUT',
+        path: '/api/v2/notifications/read-status',
+        body: {'notification_ids': [3, 7], 'is_read': true},
+      );
+      await api.markAllRead();
+      recorder.expectLast(
+        method: 'PUT',
+        path: '/api/v2/notifications/read-status',
+        body: {'is_read': true},
+      );
+    });
     for (final total in [7, 0]) {
       test('unread count uses filtered list total ($total)', () async {
         final recorder = _ApiRecorder(unreadNotificationTotal: total);

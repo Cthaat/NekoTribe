@@ -31,10 +31,11 @@ class NotificationsApi {
   }
 
   Future<void> markRead(List<int> ids) async {
+    if (ids.isEmpty) return;
     await _client.request<void>(
       ApiPaths.notificationsReadStatus,
       method: 'PUT',
-      data: {'notification_ids': ids},
+      data: {'notification_ids': ids, 'is_read': true},
       decode: (_) {},
     );
   }
@@ -55,7 +56,7 @@ class NotificationsApi {
     await _client.request<void>(
       ApiPaths.notificationsReadStatus,
       method: 'PUT',
-      data: {'mark_all': true},
+      data: {'is_read': true},
       decode: (_) {},
     );
   }
