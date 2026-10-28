@@ -23,12 +23,13 @@ type readNotificationFixture struct {
 
 type readRepoState struct {
 	driverState
-	affected           int64
-	missing, queryFail bool
-	written            string
-	bindings           []driver.NamedValue
-	query              string
-	queryBindings      []driver.NamedValue
+	affected              int64
+	missing, queryFail    bool
+	written               string
+	bindings              []driver.NamedValue
+	query                 string
+	queryBindings         []driver.NamedValue
+	execCalls, failExecAt int
 }
 type readRepoConnector struct{ state *readRepoState }
 type readRepoConn struct {
@@ -41,6 +42,10 @@ func (c readRepoConnector) Connect(context.Context) (driver.Conn, error) {
 }
 func (c readRepoConnector) Driver() driver.Driver { return testDriver{} }
 func (c *readRepoConn) ExecContext(_ context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
+	c.owner.execCalls++
+	if c.owner.failExecAt > 0 && c.owner.execCalls == c.owner.failExecAt {
+		return nil, errors.New("private write error")
+	}
 	c.owner.written = q
 	c.owner.bindings = args
 	return driver.RowsAffected(c.owner.affected), nil
