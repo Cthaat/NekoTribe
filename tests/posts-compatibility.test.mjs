@@ -33,6 +33,7 @@ const compiled = await build({
     export {default as trending} from './server/api/v2/posts/trending.get';
     export {default as get} from './server/api/v2/posts/[id].get';
     export {default as create} from './server/api/v2/posts/index.post';
+    export {default as createRetweet} from './server/api/v2/posts/[id]/retweets.post';
     export {default as remove} from './server/api/v2/posts/[id].delete';
     export {default as update} from './server/api/v2/posts/[id].put';
     export {default as me} from './server/api/v2/users/me/posts.get';
@@ -79,7 +80,7 @@ function database({revoked = false, expiredSession = false, failSession = false,
     table.columns = table.columns.filter(column => column.COLUMN_NAME !== 'DESCRIPTION');
   }
   const calls = [];
-  const interactions = {likes: new Set(), bookmarks: new Set(), notifications: [], comments: [], visibilityChecks: 0};
+  const interactions = {likes: new Set(), bookmarks: new Set(), notifications: [], comments: [], createdPosts: [], visibilityChecks: 0};
   interactions.commentLikes = new Set();
   const deleteComments = new Map([[20,{user:1,post:1,deleted:false}],[21,{user:2,post:1,deleted:false}],[22,{user:1,post:2,deleted:false}],[23,{user:1,post:1,deleted:true}]]);
   const posts = [
@@ -103,6 +104,13 @@ function database({revoked = false, expiredSession = false, failSession = false,
         return {rowsAffected: live ? 1 : 0};
       }
       if (sql.startsWith('SELECT seq_comment_id.NEXTVAL')) return {rows:[{ID:100}]};
+      if (sql.startsWith('SELECT seq_post_id.NEXTVAL')) return {rows:[{ID:100}]};
+      if (sql.startsWith('INSERT INTO n_posts')) {
+        if (binds.source_post_id && (loseVisibility || ![1,5].includes(binds.source_post_id))) return {rowsAffected:0};
+        interactions.createdPosts.push({...binds});
+        posts.push({POST_ID:binds.post_id,AUTHOR_ID:binds.author_id,VISIBILITY:binds.visibility});
+        return {rowsAffected:1};
+      }
       if (sql.startsWith('SELECT c.comment_id') && sql.includes('FROM n_comments c') && sql.includes('JOIN n_posts p')) {
         const c=deleteComments.get(binds.comment_id);
         const visible=c && !c.deleted && c.post===1 && binds.viewer_id===1 && !(deleteRace && interactions.visibilityChecks++ > 0);
@@ -214,6 +222,7 @@ async function fixture(options) {
   router.get('/api/v2/posts/trending', routes.trending);
   router.get('/api/v2/posts/:id', routes.get);
   router.post('/api/v2/posts', routes.create);
+  router.post('/api/v2/posts/:id/retweets', routes.createRetweet);
   router.put('/api/v2/posts/:id', routes.update);
   router.delete('/api/v2/posts/:id', routes.remove);
   router.get('/api/v2/users/me/posts', routes.me);
@@ -244,6 +253,50 @@ async function fixture(options) {
   const base = await listenForFetch(server);
   return {db, close: () => new Promise(resolve => server.close(resolve)), request: (url, headers = {}, method = 'GET', body) => fetch(base + url, {method, headers, ...(body === undefined ? {} : {body:JSON.stringify(body)})})};
 }
+
+test('post replies quotes and reposts require visible source at insertion', async () => {
+  const headers={authorization:`Bearer ${access()}`,'content-type':'application/json'};
+  const f=await fixture();
+  try {
+    for(const field of ['reply_to_post_id','quoted_post_id','repost_of_post_id']) {
+      for(const id of [2,6,999]) {
+        const response=await f.request('/api/v2/posts',headers,'POST',{content:'content',[field]:id});
+        assert.equal(response.status,404,`${field} ${id}`);
+      }
+    }
+    assert.equal((await f.request('/api/v2/posts/2/retweets',headers,'POST',{})).status,404);
+    assert.equal((await f.request('/api/v2/posts/01/retweets',headers,'POST',{})).status,400);
+    for (const invalid of ['01',1.5,9007199254740992,{},-1,0]) {
+      assert.equal((await f.request('/api/v2/posts',headers,'POST',{content:'invalid reference',reply_to_post_id:invalid})).status,400,JSON.stringify(invalid));
+    }
+    assert.equal((await f.request('/api/v2/posts',headers,'POST',{content:'multiple references',reply_to_post_id:1,quoted_post_id:1})).status,400);
+    assert.equal(f.db.interactions.createdPosts.length,0);
+    const response=await f.request('/api/v2/posts',headers,'POST',{content:'a reply',reply_to_post_id:1});
+    assert.equal(response.status,200,await response.clone().text());
+    const write=f.db.calls.find(x=>x.sql.startsWith('INSERT INTO n_posts'));
+    assert.match(write.sql,/fn_can_view_post\(:author_id,\s*p\.post_id\)/);
+    assert.equal(write.binds.source_post_id,1);
+    assert.equal(write.binds.author_id,1);
+    assert.equal(f.db.interactions.notifications[0].metadata.event,'post_reply');
+  } finally {await f.close();}
+  const ordinary=await fixture();
+  try {
+    const response=await ordinary.request('/api/v2/posts',headers,'POST',{content:'standalone'});
+    assert.equal(response.status,200,await response.clone().text());
+    const write=ordinary.db.calls.find(x=>x.sql.startsWith('INSERT INTO n_posts'));
+    assert.equal(Object.hasOwn(write.binds,'source_post_id'),false);
+    assert.doesNotMatch(write.sql,/fn_can_view_post/);
+  } finally {await ordinary.close();}
+  const retweet=await fixture();
+  try {
+    const response=await retweet.request('/api/v2/posts/1/retweets',headers,'POST',{});
+    assert.equal(response.status,200,await response.clone().text());
+    assert.equal(retweet.db.interactions.notifications[0].metadata.event,'post_repost');
+  } finally {await retweet.close();}
+  const race=await fixture({loseVisibility:true});
+  try {const response=await race.request('/api/v2/posts',headers,'POST',{content:'race',quoted_post_id:1});assert.equal(response.status,404);assert.equal(race.db.interactions.createdPosts.length,0);}
+  finally {await race.close();}
+});
 
 test('comment likes require visibility at each step and notify only for new likes', async () => {
   const headers={authorization:`Bearer ${access()}`};

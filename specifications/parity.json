@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "03f90524698017308db4063c3ebfaccc1dc583303527b9e01402ec7cb4cdc49d"
+      "sha256": "23f18bbfca05d67bea42e08b84bc2aa3d7909e61642b6bf8e83fbd9b0580d004"
     },
     "sources": [
       {
@@ -707,7 +707,7 @@
       },
       {
         "path": "server/api/v2/posts/[id]/retweets.post.ts",
-        "sha256": "c827035ef3c3fff294edd7445bef2fbc6e3d0cb6574ca4fc0dd1719817cb312b"
+        "sha256": "6c71bb7dcc391c0dc70b415d43e253526a0f4b9c4b81ce22d5dd8357305717ac"
       },
       {
         "path": "server/api/v2/posts/index.get.ts",
@@ -715,7 +715,7 @@
       },
       {
         "path": "server/api/v2/posts/index.post.ts",
-        "sha256": "8f16ab1fa8ec9e7d392b2cdf7c0a74e95f8d94c44e6d34a35a66f0c06d616486"
+        "sha256": "f8651e37ee90e3f9bc95279cf45ce90cf5c48648abcfa934153da6d14b8fd80a"
       },
       {
         "path": "server/api/v2/posts/trending.get.ts",
@@ -991,7 +991,7 @@
       },
       {
         "path": "server/services/v2/posts.ts",
-        "sha256": "ee2f7d413fc00fe5d47812b9e4490be233a309a1c8919f1b70f47f0b3e3b30bb"
+        "sha256": "fbdf8261af60bb0db9ec66d6358c54da85e882a27ed38afb80011d2f81157f11"
       },
       {
         "path": "server/services/v2/presence.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "87de5a25b6c34038a89107ec5962c62c8d2f5bcc499b3432c496c8e07d9217bb"
+        "sha256": "3d5cf96c045f4c5eb3add16eed8889faa2920aa108ae90b80c605917783ff4cb"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -3233,23 +3233,34 @@
       "title": "POST /api/v2/posts: 创建帖子",
       "revision": 1,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/post-create-reference.md",
       "sourceFiles": [
-        "server/api/v2/posts/index.post.ts"
+        "server/api/v2/posts/index.post.ts",
+        "server/services/v2/posts.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "POST /api/v2/posts"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-CREATE-REFERENCE",
+          "file": "specifications/scenarios/post-create-reference.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/posts; create shared acceptance scenarios."
+            "Complete full post creation requirements, media and transactional behavior; verify reference visibility against isolated Oracle and both clients."
           ],
           "sourceFiles": [
-            "server/api/v2/posts/index.post.ts"
+            "server/api/v2/posts/index.post.ts",
+            "server/services/v2/posts.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
@@ -3257,7 +3268,7 @@
           "state": "proxy",
           "targetRevision": 1,
           "tasks": [
-            "Implement POST /api/v2/posts natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Implement complete native post creation and reference authorization without Nuxt fallback; validate isolated Oracle, notifications and clients."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -3266,12 +3277,16 @@
           "state": "not-started",
           "targetRevision": 1,
           "tasks": [
-            "Implement POST /api/v2/posts natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Implement complete native post creation and reference authorization without Nuxt fallback; validate isolated Oracle, notifications and clients."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/post-create-reference.md",
+        "specifications/scenarios/post-create-reference.json"
+      ]
     },
     {
       "id": "API-get_posts_id",
@@ -3502,23 +3517,34 @@
       "title": "POST /api/v2/posts/{id}/retweets: 创建转发",
       "revision": 1,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/post-create-reference.md",
       "sourceFiles": [
-        "server/api/v2/posts/[id]/retweets.post.ts"
+        "server/api/v2/posts/[id]/retweets.post.ts",
+        "server/services/v2/posts.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "POST /api/v2/posts/{id}/retweets"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-RETWEET-REFERENCE",
+          "file": "specifications/scenarios/post-retweet-reference.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/posts/{id}/retweets; create shared acceptance scenarios."
+            "Complete full post creation requirements, media and transactional behavior; verify reference visibility against isolated Oracle and both clients."
           ],
           "sourceFiles": [
-            "server/api/v2/posts/[id]/retweets.post.ts"
+            "server/api/v2/posts/[id]/retweets.post.ts",
+            "server/services/v2/posts.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
@@ -3526,7 +3552,7 @@
           "state": "proxy",
           "targetRevision": 1,
           "tasks": [
-            "Implement POST /api/v2/posts/{id}/retweets natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Implement complete native post creation and reference authorization without Nuxt fallback; validate isolated Oracle, notifications and clients."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -3535,12 +3561,16 @@
           "state": "not-started",
           "targetRevision": 1,
           "tasks": [
-            "Implement POST /api/v2/posts/{id}/retweets natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Implement complete native post creation and reference authorization without Nuxt fallback; validate isolated Oracle, notifications and clients."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/post-create-reference.md",
+        "specifications/scenarios/post-retweet-reference.json"
+      ]
     },
     {
       "id": "API-get_posts_id_likes",
@@ -10891,6 +10921,36 @@
       "copies": {
         "rust": "contracts/scenarios/post-comment-unlike.json",
         "go": "contracts/scenarios/post-comment-unlike.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-create-reference.md",
+        "sha256": "9d73de031fe5fb7c71836ada9cf7f76c941d2aaab144375ecd030ead7c207706"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-create-reference.md",
+        "go": "contracts/requirements/post-create-reference.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-create-reference.json",
+        "sha256": "bc7800098ac1441f12e6f4f44633df73931ae2e74b3921f4c7fbf4784dd69ac2"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-create-reference.json",
+        "go": "contracts/scenarios/post-create-reference.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-retweet-reference.json",
+        "sha256": "7d198b28503a212561e70f3d0f44734e3de2e8b3ef9e1e1058b623224845d3d6"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-retweet-reference.json",
+        "go": "contracts/scenarios/post-retweet-reference.json"
       }
     }
   ]

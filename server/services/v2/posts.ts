@@ -311,7 +311,12 @@ function v2RequiredOptionalNumber(
 ): number | null | undefined {
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
-  return v2RequiredNumber(value);
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return value;
+  if (typeof value === 'string' && /^[1-9][0-9]*$/.test(value)) {
+    const id = Number(value);
+    if (Number.isSafeInteger(id)) return id;
+  }
+  v2BadRequest('id 参数错误');
 }
 
 async function v2ReadUpdatePostPayload(
@@ -537,9 +542,10 @@ async function v2CreatePostFromPayload(
   ) {
     v2BadRequest('content 不能为空');
   }
-
+  const sourcePostId = payload.reply_to_post_id ?? payload.repost_of_post_id ?? payload.quoted_post_id ?? null;
+  if (sourcePostId !== null) await v2RequireInteractionVisibility(connection, auth.userId, sourcePostId);
   const postId = await v2NextId(connection, 'seq_post_id');
-  await v2Execute(
+  const inserted = await v2Execute(
     connection,
     `
     INSERT INTO n_posts (
@@ -553,7 +559,7 @@ async function v2CreatePostFromPayload(
       visibility,
       language,
       location
-    ) VALUES (
+    ) SELECT
       :post_id,
       :author_id,
       :content,
@@ -564,7 +570,11 @@ async function v2CreatePostFromPayload(
       :visibility,
       'zh',
       :location
-    )
+    FROM dual
+    ${sourcePostId === null ? '' : `WHERE EXISTS (
+      SELECT 1 FROM n_posts p WHERE p.post_id = :source_post_id AND p.is_deleted = 0
+        AND fn_can_view_post(:author_id, p.post_id) = 1
+    )`}
     `,
     {
       post_id: postId,
@@ -575,9 +585,11 @@ async function v2CreatePostFromPayload(
       repost_of_post_id: payload.repost_of_post_id ?? null,
       quoted_post_id: payload.quoted_post_id ?? null,
       visibility: payload.visibility || 'public',
-      location: payload.location || null
+      location: payload.location || null,
+      ...(sourcePostId === null ? {} : {source_post_id: sourcePostId})
     }
   );
+  if (inserted === 0) v2NotFound('帖子不存在');
 
   await v2AttachPostMedia(
     connection,

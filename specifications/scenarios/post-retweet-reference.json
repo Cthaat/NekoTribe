@@ -1,0 +1,11 @@
+{
+  "id": "POST-RETWEET-REFERENCE",
+  "revision": 1,
+  "cases": [
+    {"id":"RETWEET-01","assertion":"authenticated retweet requires a canonical safe source path ID"},
+    {"id":"RETWEET-02","assertion":"unavailable or invisible source returns 404 before post insertion"},
+    {"id":"RETWEET-03","assertion":"insert rechecks source visibility and deletion with the authenticated user"},
+    {"id":"RETWEET-04","assertion":"visible source creates a repost and retains its notification behavior"},
+    {"id":"RETWEET-05","assertion":"real isolated Oracle, concurrency, both clients and cross-backend behavior are validated"}
+  ]
+}
