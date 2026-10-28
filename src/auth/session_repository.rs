@@ -257,6 +257,22 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn delete_post_comment<'a>(
+        &'a self, user: u64, id: u64,
+    ) -> StoreFuture<'a, crate::posts::comment_delete::CommentDelete> {
+        Box::pin(async move {
+            use crate::posts::comment_delete::CommentDelete;
+            let user=i64::try_from(user).map_err(|_|SessionStoreError)?;
+            let id=i64::try_from(id).map_err(|_|SessionStoreError)?;
+            const READ:&str="SELECT c.user_id FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id WHERE c.comment_id=:comment_id AND c.is_deleted=0 AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,c.post_id)=1";
+            let rows=self.executor.query(READ,BindMap::from([("comment_id".into(),DbValue::I64(id)),("viewer_id".into(),DbValue::I64(user))])).await?;
+            let Some(row)=rows.first() else {return Ok(CommentDelete::Missing)};
+            if row_number(row,"USER_ID")!=user{return Ok(CommentDelete::NotOwner)}
+            const UPDATE:&str="UPDATE n_comments c SET is_deleted=1 WHERE c.comment_id=:comment_id AND c.user_id=:user_id AND c.is_deleted=0 AND fn_can_view_post(:user_id,c.post_id)=1 AND EXISTS (SELECT 1 FROM n_posts p WHERE p.post_id=c.post_id AND p.is_deleted=0)";
+            let changed=self.executor.execute(UPDATE,BindMap::from([("comment_id".into(),DbValue::I64(id)),("user_id".into(),DbValue::I64(user))])).await?;
+            Ok(if changed==0 {CommentDelete::Missing}else{CommentDelete::Deleted})
+        })
+    }
     fn comment_notice_context<'a>(
         &'a self, actor: u64, post: u64, comment: u64,
     ) -> StoreFuture<'a, crate::posts::comment_create::CommentNoticeContext> {

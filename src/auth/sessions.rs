@@ -202,6 +202,11 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, Option<(Vec<serde_json::Value>, u64)>> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn delete_post_comment<'a>(
+        &'a self, _user: u64, _id: u64,
+    ) -> StoreFuture<'a, crate::posts::comment_delete::CommentDelete> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn create_post_comment<'a>(
         &'a self,
         _user: u64,
@@ -519,6 +524,7 @@ pub fn build_native_router_with_realtime_and_publisher(
         )
         .route("/api/v2/posts/{id}", get(crate::posts::detail::get_post))
         .route("/api/v2/posts/{id}/comments", get(crate::posts::comments::list_comments).post(crate::posts::comment_create::create))
+        .route("/api/v2/comments/{id}", axum::routing::delete(crate::posts::comment_delete::remove))
         .route(
             "/api/v2/posts/{id}/bookmarks",
             post(crate::posts::bookmark::save).delete(crate::posts::bookmark::remove),
