@@ -92,6 +92,25 @@ void main() {
   });
 
   group('PostsApi v2 contract', () {
+    test('post comments decode shared envelope and nullable thread IDs', () async {
+      final recorder = _ApiRecorder();
+      final api = PostsApi(_client(recorder));
+
+      final page = await api.getComments(1, page: 2, size: 3);
+      recorder.expectLast(
+        method: 'GET',
+        path: '/api/v2/posts/1/comments',
+        query: {'page': 2, 'page_size': 3},
+      );
+      final comment = page.items.single;
+      expect(comment.commentId, 9);
+      expect(comment.parentCommentId, isNull);
+      expect(comment.rootCommentId, 3);
+      expect(comment.likesCount, 2);
+      expect(comment.isLiked, isTrue);
+      expect(comment.canDelete, isFalse);
+      expect(page.total, 4);
+    });
     test('feed uses timeline and page_size query keys', () async {
       final recorder = _ApiRecorder();
       final api = PostsApi(_client(recorder));
@@ -919,6 +938,9 @@ class _ApiRecorder implements HttpClientAdapter {
 
   dynamic _dataFor(RequestOptions options) {
     final path = options.path;
+    if (path == '/api/v2/posts/1/comments') {
+      return <Object>[_postCommentJson];
+    }
     if (path == '/api/v2/posts' && options.method == 'POST') {
       return _postJson;
     }
@@ -1158,6 +1180,9 @@ class _ApiRecorder implements HttpClientAdapter {
   }
 
   Map<String, Object>? _metaFor(RequestOptions options) {
+    if (options.path == '/api/v2/posts/1/comments') {
+      return {'page': 2, 'page_size': 3, 'total': 4, 'has_next': false};
+    }
     if (options.path == '/api/v2/notifications' &&
         options.queryParameters['unread_only'] == 'true') {
       return {
@@ -1301,6 +1326,19 @@ const _groupCommentJson = {
   'can_delete_by_me': true,
   'created_at': '2026-05-24T00:00:00.000Z',
   'updated_at': '2026-05-24T00:00:00.000Z',
+};
+
+const _postCommentJson = {
+  'comment_id': 9,
+  'post_id': 1,
+  'author': _publicUserJson,
+  'parent_comment_id': null,
+  'root_comment_id': 3,
+  'content': 'text',
+  'stats': {'likes_count': 2, 'replies_count': 1},
+  'viewer_state': {'is_liked': true, 'can_delete': false},
+  'created_at': '2026-01-02T03:04:05.000Z',
+  'updated_at': '',
 };
 
 Map<String, Object> _moderationSettingJson(Map<String, dynamic> item) {
