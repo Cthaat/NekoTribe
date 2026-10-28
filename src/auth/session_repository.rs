@@ -143,10 +143,22 @@ fn map_notification_row(row: &DbRow) -> serde_json::Value {
     } else {
         serde_json::json!(row_number(row, "ACTOR_ID"))
     };
+    let mut raw_metadata = None;
     let metadata = nullable_text(row, "METADATA_JSON")
-        .map(|s| serde_json::from_str(&s).unwrap_or(serde_json::Value::String(s)))
+        .map(|s| match serde_json::from_str(&s) {
+            Ok(value) => value,
+            Err(_) if serde_json::value::RawValue::from_string(s.clone()).is_ok() => {
+                raw_metadata = Some(s);
+                serde_json::Value::Null
+            }
+            Err(_) => serde_json::Value::String(s),
+        })
         .unwrap_or(serde_json::Value::Null);
-    serde_json::json!({"notification_id":row_number(row,"NOTIFICATION_ID"),"actor_id":actor,"type":row_text(row,"TYPE"),"title":row_text(row,"TITLE"),"message":row_text(row,"MESSAGE"),"resource_type":nullable_text(row,"RESOURCE_TYPE"),"resource_id":nullable_number(row,"RESOURCE_ID"),"priority":row_text(row,"PRIORITY"),"is_read":row_number(row,"IS_READ"),"read_at":nullable_text(row,"READ_AT").map(|s|profile_date(&s)),"deleted_at":nullable_text(row,"DELETED_AT").map(|s|profile_date(&s)),"metadata":metadata,"created_at":nullable_text(row,"CREATED_AT").map(|s|profile_date(&s)).unwrap_or_default()})
+    let mut result = serde_json::json!({"notification_id":row_number(row,"NOTIFICATION_ID"),"actor_id":actor,"type":row_text(row,"TYPE"),"title":row_text(row,"TITLE"),"message":row_text(row,"MESSAGE"),"resource_type":nullable_text(row,"RESOURCE_TYPE"),"resource_id":nullable_number(row,"RESOURCE_ID"),"priority":row_text(row,"PRIORITY"),"is_read":row_number(row,"IS_READ"),"read_at":nullable_text(row,"READ_AT").map(|s|profile_date(&s)),"deleted_at":nullable_text(row,"DELETED_AT").map(|s|profile_date(&s)),"metadata":metadata,"created_at":nullable_text(row,"CREATED_AT").map(|s|profile_date(&s)).unwrap_or_default()});
+    if let Some(raw) = raw_metadata {
+        result[crate::notification_events::RAW_METADATA_KEY] = serde_json::Value::String(raw);
+    }
+    result
 }
 impl<E: SessionExecutor> OracleSessions<E> {
     pub async fn preflight(&self) -> Result<(), SessionStoreError> {
@@ -237,6 +249,123 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn read_notification<'a>(
+        &'a self,
+        user: u64,
+        id: u64,
+    ) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async move { self.notification_by_id(user, id).await })
+    }
+    fn add_post_like<'a>(
+        &'a self,
+        viewer: u64,
+        id: u64,
+    ) -> StoreFuture<'a, Option<crate::posts::like::PostLikeOutcome>> {
+        Box::pin(async move {
+            const VISIBLE:&str="SELECT p.post_id FROM n_posts p WHERE p.post_id=:post_id AND p.is_deleted=0 AND fn_can_view_post(:user_id,p.post_id)=1";
+            const INSERT:&str="INSERT INTO n_post_likes (post_id,user_id) SELECT :post_id,:user_id FROM dual WHERE fn_can_view_post(:user_id,:post_id)=1 AND NOT EXISTS (SELECT 1 FROM n_post_likes WHERE post_id=:post_id AND user_id=:user_id)";
+            const COUNT: &str = "SELECT likes_count FROM n_post_stats WHERE post_id=:post_id";
+            let binds = BindMap::from([
+                (
+                    "post_id".into(),
+                    DbValue::I64(i64::try_from(id).map_err(|_| SessionStoreError)?),
+                ),
+                (
+                    "user_id".into(),
+                    DbValue::I64(i64::try_from(viewer).map_err(|_| SessionStoreError)?),
+                ),
+            ]);
+            if self
+                .executor
+                .query(VISIBLE, binds.clone())
+                .await?
+                .is_empty()
+            {
+                return Ok(None);
+            }
+            let changed = self.executor.execute(INSERT, binds.clone()).await?;
+            if changed == 0 && self.executor.query(VISIBLE, binds).await?.is_empty() {
+                return Ok(None);
+            }
+            let rows = self
+                .executor
+                .query(
+                    COUNT,
+                    BindMap::from([("post_id".into(), DbValue::I64(id as i64))]),
+                )
+                .await?;
+            Ok(Some(crate::posts::like::PostLikeOutcome {
+                count: rows
+                    .first()
+                    .map(|r| row_float(r, "LIKES_COUNT"))
+                    .unwrap_or(0.0),
+                inserted: changed > 0,
+            }))
+        })
+    }
+    fn prepare_post_like_notification<'a>(
+        &'a self,
+        viewer: u64,
+        id: u64,
+    ) -> StoreFuture<'a, Option<crate::posts::like::StoredLikeNotification>> {
+        Box::pin(async move {
+            let post = i64::try_from(id).map_err(|_| SessionStoreError)?;
+            let actor = i64::try_from(viewer).map_err(|_| SessionStoreError)?;
+            let post_bind = BindMap::from([("post_id".into(), DbValue::I64(post))]);
+            let rows = self
+                .executor
+                .query(
+                    "SELECT author_id FROM n_posts WHERE post_id=:post_id AND is_deleted=0",
+                    post_bind.clone(),
+                )
+                .await?;
+            let Some(author) = rows
+                .first()
+                .and_then(|r| r.get("AUTHOR_ID"))
+                .and_then(DbValue::as_i64)
+                .filter(|v| *v > 0)
+            else {
+                return Ok(None);
+            };
+            if author == actor {
+                return Ok(None);
+            }
+            let rows=self.executor.query("SELECT COALESCE(display_name,username) AS name FROM n_users WHERE user_id=:user_id",BindMap::from([("user_id".into(),DbValue::I64(actor))])).await?;
+            let name = rows
+                .first()
+                .and_then(|r| nullable_text(r, "NAME"))
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| "有人".into());
+            let rows=self.executor.query("SELECT DBMS_LOB.SUBSTR(content,4000,1) AS content FROM n_posts WHERE post_id=:post_id AND is_deleted=0",post_bind).await?;
+            let excerpt = crate::posts::like::excerpt_json(
+                rows.first()
+                    .and_then(|r| nullable_text(r, "CONTENT"))
+                    .as_deref(),
+            );
+            let metadata = format!(
+                "{{\"target_post_id\":{id},\"post_excerpt\":{excerpt},\"event\":\"post_like\"}}"
+            );
+            let title = format!("{name} 赞了你的推文");
+            let stored = self
+                .store_notification(NotificationInput {
+                    user_id: author as u64,
+                    actor_id: Some(viewer),
+                    kind: "like",
+                    title: &title,
+                    message: "你的推文收到了一次点赞。",
+                    resource_type: Some("post"),
+                    resource_id: Some(id),
+                    priority: "normal",
+                    metadata_json: Some(&metadata),
+                })
+                .await?;
+            Ok(stored.map(|n| crate::posts::like::StoredLikeNotification {
+                recipient: author as u64,
+                id: n.id,
+                push_enabled: n.push_enabled,
+            }))
+        })
+    }
     fn list_notifications<'a>(
         &'a self,
         user: u64,

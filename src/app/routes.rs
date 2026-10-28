@@ -78,7 +78,11 @@ fn native_router(
         crate::notification_source::RedisNotificationSource::new(&config.redis)
             .map_err(|_| SessionStoreError)?,
     );
-    Ok(sessions::build_native_router_with_realtime(
+    let publisher = Arc::new(
+        crate::notification_events::RedisNotificationPublisher::new(&config.redis)
+            .map_err(|_| SessionStoreError)?,
+    );
+    Ok(sessions::build_native_router_with_realtime_and_publisher(
         codec,
         repository,
         options.cors.clone(),
@@ -87,6 +91,7 @@ fn native_router(
         options.storage_urls.clone(),
         Arc::new(options.smtp.clone()),
         Some(source),
+        Some(publisher),
     )
     .layer(axum_middleware::from_fn_with_state(
         config,

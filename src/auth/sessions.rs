@@ -173,6 +173,27 @@ pub trait SessionRepository: Send + Sync {
     fn remove_post_like<'a>(&'a self, _viewer: u64, _id: u64) -> StoreFuture<'a, Option<f64>> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn add_post_like<'a>(
+        &'a self,
+        _viewer: u64,
+        _id: u64,
+    ) -> StoreFuture<'a, Option<crate::posts::like::PostLikeOutcome>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn prepare_post_like_notification<'a>(
+        &'a self,
+        _viewer: u64,
+        _id: u64,
+    ) -> StoreFuture<'a, Option<crate::posts::like::StoredLikeNotification>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn read_notification<'a>(
+        &'a self,
+        _user: u64,
+        _id: u64,
+    ) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn list_visible_posts<'a>(
         &'a self,
         _viewer: Option<u64>,
@@ -304,6 +325,8 @@ pub(crate) struct NativeState {
     pub(crate) otp_mailer: Arc<dyn crate::auth::otp::OtpMailer>,
     pub(crate) cors: CorsPolicy,
     pub(crate) notification_source: Option<Arc<dyn crate::notification_source::NotificationSource>>,
+    pub(crate) notification_publisher:
+        Option<Arc<dyn crate::notification_events::NotificationPublisher>>,
 }
 pub fn build_native_router(
     codec: TokenCodec,
@@ -377,6 +400,29 @@ pub fn build_native_router_with_realtime(
     otp_mailer: Arc<dyn crate::auth::otp::OtpMailer>,
     notification_source: Option<Arc<dyn crate::notification_source::NotificationSource>>,
 ) -> Router {
+    build_native_router_with_realtime_and_publisher(
+        codec,
+        repository,
+        cors,
+        clock,
+        refresh_policy,
+        storage_urls,
+        otp_mailer,
+        notification_source,
+        None,
+    )
+}
+pub fn build_native_router_with_realtime_and_publisher(
+    codec: TokenCodec,
+    repository: Arc<dyn SessionRepository>,
+    cors: CorsPolicy,
+    clock: Arc<dyn Fn() -> u64 + Send + Sync>,
+    refresh_policy: RefreshPolicy,
+    storage_urls: crate::auth::storage_urls::StorageUrlPolicy,
+    otp_mailer: Arc<dyn crate::auth::otp::OtpMailer>,
+    notification_source: Option<Arc<dyn crate::notification_source::NotificationSource>>,
+    notification_publisher: Option<Arc<dyn crate::notification_events::NotificationPublisher>>,
+) -> Router {
     Router::new()
         .route(
             "/api/health",
@@ -422,7 +468,7 @@ pub fn build_native_router_with_realtime(
         )
         .route(
             "/api/v2/posts/{id}/likes",
-            delete(crate::posts::bookmark::remove_like),
+            post(crate::posts::like::add).delete(crate::posts::bookmark::remove_like),
         )
         .route("/api/v2/posts", get(crate::posts::list::list_posts))
         .route("/api/v2/notifications", get(crate::notifications::list))
@@ -483,6 +529,7 @@ pub fn build_native_router_with_realtime(
             otp_mailer,
             cors,
             notification_source,
+            notification_publisher,
         })
 }
 

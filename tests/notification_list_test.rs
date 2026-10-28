@@ -17,6 +17,7 @@ use tower::ServiceExt;
 #[derive(Default)]
 struct Store {
     query: Mutex<Option<(u64, NotificationQuery)>>,
+    raw_metadata: Mutex<Option<String>>,
 }
 impl SessionRepository for Store {
     fn touch<'a>(&'a self, c: &'a TokenClaims) -> StoreFuture<'a, u64> {
@@ -35,12 +36,12 @@ impl SessionRepository for Store {
     ) -> StoreFuture<'a, (Vec<Value>, u64)> {
         Box::pin(async move {
             *self.query.lock().unwrap() = Some((user, query.clone()));
-            Ok((
-                vec![
-                    json!({"notification_id":12,"actor_id":7,"type":"like","metadata":{"event":"post_like"}}),
-                ],
-                3,
-            ))
+            let mut item = json!({"notification_id":12,"actor_id":7,"type":"like","metadata":{"event":"post_like"}});
+            if let Some(raw) = self.raw_metadata.lock().unwrap().clone() {
+                item["metadata"] = Value::Null;
+                item["__nekotribe_metadata_raw"] = Value::String(raw);
+            }
+            Ok((vec![item], 3))
         })
     }
     fn public_profile<'a>(&'a self, viewer: u64, target: u64) -> StoreFuture<'a, Option<Value>> {
@@ -51,6 +52,51 @@ impl SessionRepository for Store {
             Ok(Some(json!({"user_id":7,"avatar_url":""})))
         })
     }
+}
+
+#[tokio::test]
+async fn notification_list_preserves_raw_utf16_metadata_without_internal_marker() {
+    let tokens: Value =
+        serde_json::from_str(include_str!("../contracts/scenarios/auth-tokens.json")).unwrap();
+    let token = tokens["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["id"] == "access-hs256")
+        .unwrap()["token"]
+        .as_str()
+        .unwrap();
+    let codec = TokenCodec::new(
+        tokens["keys"]["access"].as_str().unwrap().as_bytes(),
+        tokens["keys"]["refresh"].as_str().unwrap().as_bytes(),
+    )
+    .unwrap();
+    let store = Arc::new(Store::default());
+    *store.raw_metadata.lock().unwrap() = Some(r#"{"post_excerpt":"prefix\ud83d..."}"#.into());
+    let app = build_native_router(
+        codec,
+        store,
+        CorsPolicy::default(),
+        Arc::new(|| 1_700_000_000),
+    );
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v2/notifications")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status().as_u16(), 200);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let body = std::str::from_utf8(&bytes).unwrap();
+    assert!(
+        body.contains(r#""metadata":{"post_excerpt":"prefix\ud83d..."}"#),
+        "{body}"
+    );
+    assert!(!body.contains("__nekotribe_metadata_raw"));
 }
 #[tokio::test]
 async fn notification_route_auth_scoping_filters_and_actor() {
@@ -164,6 +210,31 @@ async fn notification_by_id_scopes_recipient_and_reuses_list_mapping() {
         assert_eq!(calls[0].1["user_id"], DbValue::I64(42));
         assert_eq!(calls[0].1["notification_id"], DbValue::I64(12));
     }
+}
+
+#[tokio::test]
+async fn repository_unpaired_metadata_can_be_serialized_as_notification_event() {
+    let repo = OracleSessions {
+        executor: Executor {
+            calls: Mutex::new(vec![]),
+            metadata: r#"{"post_excerpt":"prefix\ud83d..."}"#.into(),
+        },
+    };
+    let item = repo.notification_by_id(42, 12).await.unwrap().unwrap();
+    let data = serde_json::Map::from_iter([("notification".into(), item)]);
+    let (_, body) = nekotribe_backend::notification_events::encode_notification_event(
+        42,
+        "notification_created",
+        &data,
+        "server",
+        1,
+    )
+    .unwrap();
+    assert!(
+        body.contains(r#""metadata":{"post_excerpt":"prefix\ud83d..."}"#),
+        "{body}"
+    );
+    assert!(!body.contains("__nekotribe_metadata_raw"));
 }
 #[tokio::test]
 async fn repository_scopes_filters_binds_and_metadata() {

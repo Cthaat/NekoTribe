@@ -121,5 +121,17 @@ async fn list_inner(
     for item in &mut items {
         hydrate_notification(&state, claims.user_id, item).await?;
     }
-    Ok(Json(json!({"code":200,"message":"success","data":items,"meta":{"page":query.page.page,"page_size":query.page.page_size,"total":total,"has_next":query.page.end<total as f64}})).into_response())
+    #[derive(serde::Serialize)]
+    struct Envelope {
+        code: u16,
+        message: &'static str,
+        data: Vec<Box<serde_json::value::RawValue>>,
+        meta: Value,
+    }
+    let data = items
+        .iter()
+        .map(crate::notification_events::notification_json_raw)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| ApiError::server_error("服务器内部错误"))?;
+    Ok(Json(Envelope{code:200,message:"success",data,meta:json!({"page":query.page.page,"page_size":query.page.page_size,"total":total,"has_next":query.page.end<total as f64})}).into_response())
 }

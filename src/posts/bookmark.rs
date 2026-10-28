@@ -76,7 +76,7 @@ pub(crate) async fn remove_like(
     Ok(response)
 }
 
-async fn interaction_identity(
+pub(crate) async fn interaction_identity(
     state: &NativeState,
     raw: &str,
     headers: &HeaderMap,

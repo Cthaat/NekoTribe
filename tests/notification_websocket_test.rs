@@ -165,6 +165,15 @@ async fn notifications_are_user_scoped_and_revoked_sessions_cannot_receive() {
         .await;
     source.publish(42, event.clone()).await;
     assert_eq!(receive(&mut a).await, event);
+    let raw = r#"{"type":"notification_created","data":{"notification":{"metadata":{"post_excerpt":"prefix\ud83d..."}}},"timestamp":151}"#;
+    let sender = source.subscribers.lock().unwrap().get(&42).unwrap().clone();
+    sender.send(raw.as_bytes().to_vec()).await.unwrap();
+    let raw_message = tokio::time::timeout(Duration::from_secs(3), a.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(raw_message.to_text().unwrap(), raw);
     assert!(tokio::time::timeout(Duration::from_millis(100), b.next())
         .await
         .is_err());

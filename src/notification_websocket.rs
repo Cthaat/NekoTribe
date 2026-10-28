@@ -17,6 +17,15 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
+#[derive(serde::Deserialize)]
+struct NotificationEnvelope<'a> {
+    #[serde(rename = "type")]
+    kind: String,
+    #[serde(borrow)]
+    data: &'a serde_json::value::RawValue,
+    timestamp: serde_json::Number,
+}
+
 fn access_token(uri: &Uri, headers: &HeaderMap) -> String {
     let query = reqwest::Url::parse(&format!(
         "http://localhost/?{}",
@@ -187,11 +196,10 @@ async fn handle(
             event = events.recv() => {
                 let Some(body) = event else { break };
                 if body.len() > 262144 { continue; }
-                let Ok(value) = serde_json::from_slice::<Value>(&body) else { continue };
-                let kind = value.get("type").and_then(Value::as_str).unwrap_or_default();
-                if !matches!(kind, "notification_created" | "notification_read_status_updated" | "notifications_read_status_updated" | "notification_deleted" | "notification_restored")
-                    || !value.get("data").is_some_and(Value::is_object)
-                    || !value.get("timestamp").is_some_and(Value::is_number) { continue; }
+                let Ok(value) = serde_json::from_slice::<NotificationEnvelope<'_>>(&body) else { continue };
+                if !matches!(value.kind.as_str(), "notification_created" | "notification_read_status_updated" | "notifications_read_status_updated" | "notification_deleted" | "notification_restored")
+                    || !value.data.get().trim_start().starts_with('{') { continue; }
+                let _ = value.timestamp;
                 if !alive(&state, &token, user, &session).await { break; }
                 let Ok(text) = String::from_utf8(body) else { continue };
                 if !tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Text(text.into())))
