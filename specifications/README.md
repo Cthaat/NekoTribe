@@ -1,6 +1,6 @@
 # 三后端共同需求与进度
 
-这里是正在建立的语言无关需求基线。完整目标见 [开发计划](../docs/plans/2026-10-26-native-backend-parity.md)。Nuxt 是首次提炼业务的源码基准，Rust/Go 最终原生实现同一需求；本目录不把现有代理或占位算作完整后端。
+这里是正在建立的语言无关需求基线。当前目标、已做内容与剩余工作先看 [需求与进度总览](../docs/audits/2026-10-28-project-requirements-status.md)，完整目标见 [开发计划](../docs/plans/2026-10-26-native-backend-parity.md)。Nuxt 是首次提炼业务的源码基准，Rust/Go 最终原生实现同一需求；本目录不把现有代理或占位算作完整后端。
 
 ## 当前范围
 
@@ -14,17 +14,20 @@
 - `requirements/auth-password-reset.md`：三端密码重置的事务规则及 17 条隔离场景；旧密码并发登录、双因素挑战和已建立的实时连接仍需处理。
 - `requirements/post-detail.md`：帖子详情权限、附件及浏览量共同目标；三端均通过 22 条共同隔离样例，真实数据库及客户端联调待验收。
 - `requirements/post-list.md`：公共、热门、个人、收藏、点赞及指定用户、标签、回复、转发列表的共同需求；Rust/Go 已接入相应原生路由并完成局部隔离测试，完整共同场景和真实数据库联测仍待完成。
+- `requirements/post-create-reference.md`、`post-create-transaction.md` 与 `post-create-request.md`：发帖、回复、引用和转发的请求与事务要求；Go 已接入原生请求、事务、提交后通知及完整响应，80 条请求向量在 Nuxt/Go 隔离测试通过。Rust 对应原生写入仍待实现，真实依赖及三端创建流程尚未通过共同验收。
+- `requirements/post-comments-list.md`、`post-comment-create.md`、`post-comment-delete.md`、`post-comment-like.md`：Rust/Go 已接入评论列表、创建、删除及点赞/取消点赞的原生路径；真实数据库、通知副作用及跨后端联调仍待验收。
 - `requirements/tag-list.md`：标签搜索与热门标签的鉴权、分页及返回结构；三端共同隔离样例和原生仓储测试不代替真实数据库验收。
 - `requirements/tag-analytics.md`：标签统计按当前查看者可见的未删除帖子计算；真实数据库的权限函数、聚合和并发仍需验收。
-- `requirements/post-interactions.md`：三端共同点赞与收藏要求。Nuxt 已加入写入可见性检查，Rust/Go 已实现原生收藏及取消点赞；首次点赞及完整通知仍待实现，真实数据库和跨端验收未完成。
+- `requirements/post-interactions.md`：三端共同点赞与收藏要求。Nuxt 已加入写入可见性检查；Rust/Go 已接入原生点赞/取消点赞、收藏/取消收藏，以及首次点赞通知存储和 Redis 发布。隔离验证不代替真实数据库、并发、推送失败和跨端验收。
 - `requirements/notification-list.md`：三端通知列表鉴权、过滤、分页、作者和元数据共同规则；真实 Oracle、跨用户和客户端联调尚未验收。
-- `requirements/notification-events.md`：通知事件频道和消息格式；三端共享编码样例，Rust/Go 发布组件尚未接入通知操作，真实 Redis 尚未验证。
-- `requirements/notification-websocket.md`：通知连接认证、来源、心跳和用户专属订阅规则；Go 已接入开发中实现，Rust 尚待实现，群聊与私信仍属完整 WebSocket 的后续范围。
+- `requirements/notification-single-read.md`、`notification-batch-read.md`、`notification-delete-restore.md`：Rust/Go 已接入通知单条/批量已读、删除与恢复的原生路径；真实数据库与客户端仍待验收。
+- `requirements/notification-events.md`：通知事件频道和消息格式；三端共享编码样例，Rust/Go 发布组件已接入通知读写及帖子/评论互动等路径，真实 Redis 与跨实例投递仍待验证。
+- `requirements/notification-websocket.md`：通知连接认证、来源、心跳和用户专属订阅规则；Rust/Go 均已接入开发中实现，目前只覆盖通知与心跳，群聊、私信和在线状态仍属完整 WebSocket 的后续范围。
 - `requirements/cache-shared-backends.md`：共享后端默认绕过两层 Nuxt 缓存；跨三后端可靠失效协议及真实环境验收仍待实现。
 - `requirements/user-self-profile-update.md`：三端当前用户资料部分更新和 18 条隔离场景；真实 Oracle 日期、约束、事务和跨实例缓存待验收。
 - `requirements/user-public-profile.md`：三端公开资料和 21 条隔离场景，真实 Oracle 在线状态、时区及双端联调待验收。
 - `requirements/user-self-profile.md`：三端当前用户资料与 10 条隔离鉴权场景；真实共享数据和两客户端联调待验收。
-- 检查器校验任务、版本、源码覆盖和证据链接，以及67份公共需求/样例在Rust/Go的固定副本。自动复制工具、真实业务场景runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
+- 2026-10-28 审计时，检查器核对 88 份公共需求/样例在 Rust/Go 的固定副本，并登记 46 份场景文件；这些数量是文档和场景登记量，不是业务通过数。自动复制工具、真实业务场景 runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
 
 ## 两种检查
 

@@ -3231,7 +3231,7 @@
     {
       "id": "API-post_posts",
       "title": "POST /api/v2/posts: 创建帖子",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
       "definition": "specifications/requirements/post-create-reference.md",
       "sourceFiles": [
@@ -3247,12 +3247,16 @@
         {
           "id": "POST-CREATE-REFERENCE",
           "file": "specifications/scenarios/post-create-reference.json"
+        },
+        {
+          "id": "POST-CREATE-REQUEST-VECTORS",
+          "file": "specifications/scenarios/post-create-request-vectors.json"
         }
       ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Validate atomic post and relation writes, media ownership, notification boundaries and reference visibility against isolated Oracle and both clients."
           ],
@@ -3266,7 +3270,7 @@
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Implement complete native post creation, media transaction and reference authorization without Nuxt fallback; validate real dependencies and clients."
           ],
@@ -3275,13 +3279,17 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Connect request parsing, authentication, complete post mapping and post-commit notifications to the native transactional writer; validate real Oracle and both clients."
+            "Validate the native request, atomic transaction, post-commit notification and complete response flow against isolated Oracle, real Redis and both clients; reconcile malformed JSON and transport-limit differences with Nuxt."
           ],
           "sourceFiles": [
+            "internal/server/server.go",
+            "internal/server/post_create.go",
             "internal/server/post_create_transaction.go",
-            "internal/server/post_bookmark.go"
+            "internal/server/post_create_notification.go",
+            "internal/server/post_bookmark.go",
+            "internal/server/post_detail.go"
           ],
           "evidence": []
         }
@@ -3290,7 +3298,9 @@
         "specifications/requirements/post-create-reference.md",
         "specifications/scenarios/post-create-reference.json",
         "specifications/requirements/post-create-transaction.md",
-        "specifications/scenarios/post-create-transaction.json"
+        "specifications/scenarios/post-create-transaction.json",
+        "specifications/requirements/post-create-request.md",
+        "specifications/scenarios/post-create-request-vectors.json"
       ]
     },
     {
@@ -3520,7 +3530,7 @@
     {
       "id": "API-post_posts_id_retweets",
       "title": "POST /api/v2/posts/{id}/retweets: 创建转发",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
       "definition": "specifications/requirements/post-create-reference.md",
       "sourceFiles": [
@@ -3541,7 +3551,7 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Validate atomic post and relation writes, media ownership, notification boundaries and reference visibility against isolated Oracle and both clients."
           ],
@@ -3555,7 +3565,7 @@
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Implement complete native post creation, media transaction and reference authorization without Nuxt fallback; validate real dependencies and clients."
           ],
@@ -3564,13 +3574,17 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Connect request parsing, authentication, complete post mapping and post-commit notifications to the native transactional writer; validate real Oracle and both clients."
+            "Validate the native request, atomic transaction, post-commit notification and complete response flow against isolated Oracle, real Redis and both clients; reconcile malformed JSON and transport-limit differences with Nuxt."
           ],
           "sourceFiles": [
+            "internal/server/server.go",
+            "internal/server/post_create.go",
             "internal/server/post_create_transaction.go",
-            "internal/server/post_bookmark.go"
+            "internal/server/post_create_notification.go",
+            "internal/server/post_bookmark.go",
+            "internal/server/post_detail.go"
           ],
           "evidence": []
         }
@@ -3579,7 +3593,9 @@
         "specifications/requirements/post-create-reference.md",
         "specifications/scenarios/post-retweet-reference.json",
         "specifications/requirements/post-create-transaction.md",
-        "specifications/scenarios/post-create-transaction.json"
+        "specifications/scenarios/post-create-transaction.json",
+        "specifications/requirements/post-create-request.md",
+        "specifications/scenarios/post-create-request-vectors.json"
       ]
     },
     {
@@ -10981,6 +10997,28 @@
       "copies": {
         "rust": "contracts/scenarios/post-create-transaction.json",
         "go": "contracts/scenarios/post-create-transaction.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-create-request.md",
+        "sha256": "c60808e0734959ac9b18818f362077e1f6a75c4da2bf4b0a5fdeb4f5c13516df"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-create-request.md",
+        "go": "contracts/requirements/post-create-request.md",
+        "flutter": "contracts/requirements/post-create-request.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-create-request-vectors.json",
+        "sha256": "cc061e92db8eefdf9750aa198f8248fc38a1f3e6a0d9233b4a6570fe72f46244"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-create-request-vectors.json",
+        "go": "contracts/scenarios/post-create-request-vectors.json",
+        "flutter": "contracts/scenarios/post-create-request-vectors.json"
       }
     }
   ]
