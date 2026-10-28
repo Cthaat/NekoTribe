@@ -249,6 +249,60 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn list_post_comments<'a>(
+        &'a self,
+        user: u64,
+        id: u64,
+        query: &'a crate::posts::comments::CommentListQuery,
+    ) -> StoreFuture<'a, Option<(Vec<serde_json::Value>, u64)>> {
+        Box::pin(async move {
+            let user = i64::try_from(user).map_err(|_| SessionStoreError)?;
+            let id = i64::try_from(id).map_err(|_| SessionStoreError)?;
+            let binds = BindMap::from([
+                ("viewer_id".into(), DbValue::I64(user)),
+                ("post_id".into(), DbValue::I64(id)),
+            ]);
+            const VISIBLE: &str = "SELECT p.post_id FROM n_posts p WHERE p.post_id=:post_id AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1";
+            const COUNT: &str = "SELECT COUNT(*) AS total FROM v_post_comment_list_item c WHERE c.post_id=:post_id AND fn_can_view_post(:viewer_id,c.post_id)=1";
+            macro_rules! comment_sql { ($order:literal) => { concat!(
+                "SELECT comment_id,post_id,user_id,parent_comment_id,root_comment_id,content,created_at,updated_at,likes_count,replies_count,is_liked FROM (",
+                "SELECT c.comment_id,c.post_id,c.user_id,c.parent_comment_id,c.root_comment_id,DBMS_LOB.SUBSTR(c.content,4000,1) AS content,c.created_at,c.updated_at,c.likes_count,c.replies_count,",
+                "CASE WHEN EXISTS (SELECT 1 FROM n_comment_likes cl WHERE cl.comment_id=c.comment_id AND cl.user_id=:viewer_id) THEN 1 ELSE 0 END AS is_liked,",
+                "ROW_NUMBER() OVER (ORDER BY ", $order, ") AS rn FROM v_post_comment_list_item c WHERE c.post_id=:post_id AND fn_can_view_post(:viewer_id,c.post_id)=1) WHERE rn BETWEEN :start_row AND :end_row"
+            ) }; }
+            let list = match query.sort.as_str() {
+                "oldest" => comment_sql!("c.created_at ASC"),
+                "popular" => comment_sql!("c.likes_count DESC, c.created_at DESC"),
+                _ => comment_sql!("c.created_at DESC"),
+            };
+            if self.executor.query(VISIBLE, binds.clone()).await?.is_empty() {
+                return Ok(None);
+            }
+            let count = self.executor.query(COUNT, binds.clone()).await?;
+            let total = u64::try_from(row_number(count.first().ok_or(SessionStoreError)?, "TOTAL"))
+                .map_err(|_| SessionStoreError)?;
+            let mut page_binds = binds;
+            page_binds.insert("start_row".into(), DbValue::F64(query.page.start));
+            page_binds.insert("end_row".into(), DbValue::F64(query.page.end));
+            let rows = self.executor.query(list, page_binds).await?;
+            let mut comments = Vec::with_capacity(rows.len());
+            for row in &rows {
+                let date = |key| {
+                    nullable_text(row, key)
+                        .map(|s| profile_date(&s))
+                        .unwrap_or_default()
+                };
+                comments.push(serde_json::json!({
+                    "comment_id":row_id(row,"COMMENT_ID")?, "post_id":row_id(row,"POST_ID")?, "author_id":row_id(row,"USER_ID")?,
+                    "parent_comment_id":row.get("PARENT_COMMENT_ID").and_then(DbValue::as_i64),
+                    "root_comment_id":row.get("ROOT_COMMENT_ID").and_then(DbValue::as_i64),
+                    "content":row_text(row,"CONTENT"), "stats":{"likes_count":row_number(row,"LIKES_COUNT"),"replies_count":row_number(row,"REPLIES_COUNT")},
+                    "is_liked":row_number(row,"IS_LIKED")==1, "created_at":date("CREATED_AT"), "updated_at":date("UPDATED_AT")
+                }));
+            }
+            Ok(Some((comments,total)))
+        })
+    }
     fn set_notification_deleted<'a>(
         &'a self,
         user: u64,

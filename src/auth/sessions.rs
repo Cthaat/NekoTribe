@@ -194,6 +194,14 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, Option<serde_json::Value>> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn list_post_comments<'a>(
+        &'a self,
+        _user: u64,
+        _id: u64,
+        _query: &'a crate::posts::comments::CommentListQuery,
+    ) -> StoreFuture<'a, Option<(Vec<serde_json::Value>, u64)>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn set_notification_read<'a>(
         &'a self,
         _user: u64,
@@ -486,6 +494,7 @@ pub fn build_native_router_with_realtime_and_publisher(
             get(crate::posts::list::list_posts),
         )
         .route("/api/v2/posts/{id}", get(crate::posts::detail::get_post))
+        .route("/api/v2/posts/{id}/comments", get(crate::posts::comments::list_comments))
         .route(
             "/api/v2/posts/{id}/bookmarks",
             post(crate::posts::bookmark::save).delete(crate::posts::bookmark::remove),
