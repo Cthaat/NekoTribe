@@ -65,3 +65,21 @@ func TestPostListRepositoryUsesMatchingFiltersAndBinds(t *testing.T) {
 		t.Fatal("incorrect page", calls[1])
 	}
 }
+
+func TestPostListModeSQLIsScopedAndSorted(t *testing.T) {
+	viewer := int64(42)
+	for _, tc := range []struct{ mode, sort, filter, order string }{
+		{"me", "newest", "v.author_id=:viewer_id", "v.created_at DESC"},
+		{"bookmarks", "newest", "FROM n_post_bookmarks b", "v.created_at DESC"},
+		{"likes", "oldest", "FROM n_post_likes l", "l.user_id=:viewer_id) ASC"},
+		{"likes", "newest", "FROM n_post_likes l", "l.user_id=:viewer_id) DESC"},
+		{"likes", "popular", "FROM n_post_likes l", "v.engagement_score DESC,v.created_at DESC"},
+	} {
+		query := parsePostListQuery("timeline=mentions&q=cat")
+		query.Mode, query.Sort = tc.mode, tc.sort
+		count, rows, args, _ := postListSQL(&viewer, query)
+		if !strings.Contains(count, tc.filter) || !strings.Contains(rows, tc.order) || !strings.Contains(count, "pm.mentioned_user_id=:viewer_id") || !strings.Contains(count, "t.name_lower LIKE :tag_q") || args[0].(sql.NamedArg).Value != viewer {
+			t.Fatalf("mode %s: %s %s %#v", tc.mode, count, rows, args)
+		}
+	}
+}

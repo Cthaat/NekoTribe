@@ -16,6 +16,11 @@
     {"id": "LIST-12", "name": "非空结果映射作者媒体标签提及，不增加浏览量", "status": "not-run"},
     {"id": "LIST-13", "name": "媒体结构缺失安全失败，空列表不检查媒体结构", "status": "not-run"},
     {"id": "LIST-14", "name": "数据库错误脱敏以及私密、删除和屏蔽数据不可见", "status": "not-run"},
-    {"id": "LIST-15", "name": "跨后端新增修改后共享模式不返回过期缓存", "status": "not-run"}
+    {"id": "LIST-15", "name": "跨后端新增修改后共享模式不返回过期缓存", "status": "not-run"},
+    {"id": "LIST-16", "name": "热门列表允许匿名并强制 popular 排序", "status": "not-run"},
+    {"id": "LIST-17", "name": "个人、收藏、点赞列表必须有有效会话", "status": "not-run"},
+    {"id": "LIST-18", "name": "个人、收藏、点赞过滤仅依据当前会话身份", "status": "not-run"},
+    {"id": "LIST-19", "name": "点赞列表按点赞时间或互动分排序", "status": "not-run"},
+    {"id": "LIST-20", "name": "热门及个人列表叠加 timeline、搜索与权限过滤", "status": "not-run"}
   ]
 }

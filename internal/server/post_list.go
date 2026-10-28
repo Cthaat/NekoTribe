@@ -14,8 +14,8 @@ import (
 )
 
 type PostListQuery struct {
-	Page                              SessionPage
-	Timeline, Sort, Search, TagSearch string
+	Page                                    SessionPage
+	Mode, Timeline, Sort, Search, TagSearch string
 }
 type postListStore interface {
 	ListVisiblePosts(context.Context, *int64, PostListQuery) ([]PostDetail, int64, error)
@@ -36,9 +36,13 @@ func parsePostListQuery(raw string) PostListQuery {
 	}
 	return PostListQuery{Page: sessionPagination(values), Timeline: listQueryString(values, "timeline", "home"), Sort: listQueryString(values, "sort", "newest"), Search: search, TagSearch: tag}
 }
-func listPosts(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, config RefreshConfig) {
+func listPosts(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, config RefreshConfig, mode string) {
 	token := accessToken(r)
 	var viewer *int64
+	if token == "" && (mode == "me" || mode == "bookmarks" || mode == "likes") {
+		respond(w, 401, 40101, "请先登录", nil)
+		return
+	}
 	if token != "" {
 		claims, err := codec.Verify(token, auth.Access)
 		if err != nil {
@@ -52,6 +56,10 @@ func listPosts(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager,
 		viewer = &claims.UserID
 	}
 	query := parsePostListQuery(r.URL.RawQuery)
+	query.Mode = mode
+	if mode == "trending" {
+		query.Sort = "popular"
+	}
 	if viewer == nil && (query.Timeline == "following" || query.Timeline == "mentions") {
 		respond(w, 401, 40101, "未认证或 token 无效", nil)
 		return
@@ -95,6 +103,14 @@ func listPosts(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager,
 func postListSQL(viewer *int64, query PostListQuery) (string, string, []any, []any) {
 	where := " WHERE fn_can_view_post(:viewer_id,v.post_id)=1"
 	args := []any{sql.Named("viewer_id", nullableViewer(viewer))}
+	switch query.Mode {
+	case "me":
+		where += " AND v.author_id=:viewer_id"
+	case "bookmarks":
+		where += " AND EXISTS (SELECT 1 FROM n_post_bookmarks b WHERE b.post_id=v.post_id AND b.user_id=:viewer_id)"
+	case "likes":
+		where += " AND EXISTS (SELECT 1 FROM n_post_likes l WHERE l.post_id=v.post_id AND l.user_id=:viewer_id)"
+	}
 	switch query.Timeline {
 	case "following":
 		where += " AND EXISTS (SELECT 1 FROM n_user_follows f WHERE f.follower_id=:viewer_id AND f.following_id=v.author_id AND f.status='active')"
@@ -110,6 +126,13 @@ func postListSQL(viewer *int64, query PostListQuery) (string, string, []any, []a
 		order = "v.created_at ASC"
 	} else if query.Sort == "popular" {
 		order = "v.engagement_score DESC,v.created_at DESC"
+	}
+	if query.Mode == "likes" && query.Sort != "popular" {
+		direction := "DESC"
+		if query.Sort == "oldest" {
+			direction = "ASC"
+		}
+		order = "(SELECT MAX(l.created_at) FROM n_post_likes l WHERE l.post_id=v.post_id AND l.user_id=:viewer_id) " + direction
 	}
 	const separator = " FROM v_post_feed_item v WHERE "
 	columns, _, found := strings.Cut(postDetailSQL, separator)

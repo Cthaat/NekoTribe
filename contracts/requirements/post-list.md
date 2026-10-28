@@ -1,6 +1,6 @@
 # 帖子列表与搜索共同要求
 
-本切片目标是 `GET /api/v2/posts`；Nuxt `server/services/v2/posts.ts` 的 `v2ListPosts` 为现有业务来源，Rust/Go 已接入原生列表并通过局部隔离测试，尚未完成全部共同场景和真实环境验收。热门、个人、用户、标签、回复和转发列表复用部分同一服务，但各自路由和授权尚需独立审查，不能因本切片而宣布其完成。
+本切片覆盖 `GET /api/v2/posts`、`/api/v2/posts/trending`、`/api/v2/users/me/posts`、`/api/v2/users/me/bookmarks` 和 `/api/v2/users/me/likes`；Nuxt `server/services/v2/posts.ts` 的 `v2ListPosts` 为现有业务来源。用户、标签、回复和转发列表也复用部分同一服务，但各自路由和授权尚需独立审查，不能因本切片而宣布其完成。
 
 ## 身份和过滤
 
@@ -8,6 +8,8 @@
 - 所有列表和总数都绑定同一 viewer，应用 `fn_can_view_post(:viewer_id,v.post_id)=1`；匿名 viewer 为数据库 NULL。`following` 额外限定 `n_user_follows` 中 viewer 关注作者且状态为 `active`，`mentions` 额外限定 viewer 被当前帖子提及。不可用客户端输入拼接 SQL。
 - `q` 经 trim 和小写后，按 `%q%` 查询内容前 4000 字符、位置或标签；标签查询另外去除开头的所有 `#` 后 trim，为空则回用原 q。保持现有 Oracle LIKE 语义：`%` 和 `_` 是通配符，不做隐式转义。空 q 不加搜索过滤。搜索由参数绑定，不能把文本拼接进 SQL。
 - `sort=oldest` 按创建时间升序，`popular` 按互动分降序、创建时间降序，其他值按创建时间降序；现有规则不保证相同排序键的稳定次序。不要虚构 tie-breaker 改变兼容行为。
+- `trending` 允许匿名并强制 popular 排序，忽略客户端 sort；仍应用 timeline 和搜索过滤。`me`、`bookmarks`、`likes` 路由必须登录，分别限定作者是当前用户、当前用户已收藏、当前用户已点赞；不可根据查询参数选择他人。它们仍叠加 timeline、搜索及数据库可见性过滤。
+- 点赞列表的默认/未知 sort 按当前用户点赞时间降序，`oldest` 按点赞时间升序，`popular` 仍按互动分排序；其他模式按帖子时间或互动分排序。查询按现有 `MAX(n_post_likes.created_at)` 取该用户的点赞时间。
 
 ## 分页和输出
 

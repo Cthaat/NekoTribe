@@ -110,3 +110,44 @@ func TestPostListSearchUsesFullUnicodeLowercase(t *testing.T) {
 		t.Fatalf("unexpected Unicode lowercase: %q", query.Search)
 	}
 }
+
+func TestPostListModesAuthorizationAndSort(t *testing.T) {
+	codec, tokens := fixture(t)
+	for _, tc := range []struct {
+		path, mode string
+		anonymous  int
+	}{
+		{"/api/v2/posts/trending?sort=oldest", "trending", 200},
+		{"/api/v2/users/me/posts?viewer_id=99", "me", 401},
+		{"/api/v2/users/me/bookmarks?viewer_id=99", "bookmarks", 401},
+		{"/api/v2/users/me/likes?sort=oldest&viewer_id=99", "likes", 401},
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			for _, authenticated := range []bool{false, true} {
+				s := &postListFixture{postFixture: &postFixture{memorySessions: store()}, empty: true}
+				req := httptest.NewRequest("GET", tc.path, nil)
+				if authenticated {
+					req.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
+				}
+				res := httptest.NewRecorder()
+				NewHandler(codec, s, CorsPolicy{}).ServeHTTP(res, req)
+				want := tc.anonymous
+				if authenticated {
+					want = 200
+				}
+				if res.Code != want {
+					t.Fatalf("authenticated=%t status=%d body=%s", authenticated, res.Code, res.Body.String())
+				}
+				if want == 200 && s.query.Mode != tc.mode {
+					t.Fatalf("wrong mode: %#v", s.query)
+				}
+				if tc.mode == "trending" && want == 200 && s.query.Sort != "popular" {
+					t.Fatal("trending sort was not forced")
+				}
+				if tc.mode != "trending" && authenticated && (s.viewer == nil || *s.viewer != 42) {
+					t.Fatal("wrong viewer")
+				}
+			}
+		})
+	}
+}

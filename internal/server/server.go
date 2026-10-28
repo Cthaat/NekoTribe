@@ -102,9 +102,12 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			getPostDetail(w, r, codec, repository, refresh, id)
 			return
 		}
-		if r.URL.EscapedPath() == "/api/v2/posts" && r.Method == http.MethodGet {
-			listPosts(w, r, codec, repository, refresh)
-			return
+		if r.Method == http.MethodGet {
+			mode, found := map[string]string{"/api/v2/posts": "all", "/api/v2/posts/trending": "trending", "/api/v2/users/me/posts": "me", "/api/v2/users/me/bookmarks": "bookmarks", "/api/v2/users/me/likes": "likes"}[r.URL.EscapedPath()]
+			if found {
+				listPosts(w, r, codec, repository, refresh, mode)
+				return
+			}
 		}
 		const prefix = "/api/v2/auth/sessions/"
 		path := r.URL.EscapedPath()
