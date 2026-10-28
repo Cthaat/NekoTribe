@@ -257,6 +257,41 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn set_comment_like<'a>(&'a self,viewer:u64,id:u64,liked:bool)->StoreFuture<'a,Option<crate::posts::like::PostLikeOutcome>> {
+        Box::pin(async move {
+            let id=i64::try_from(id).map_err(|_|SessionStoreError)?;
+            let viewer=i64::try_from(viewer).map_err(|_|SessionStoreError)?;
+            let read=BindMap::from([("comment_id".into(),DbValue::I64(id)),("viewer_id".into(),DbValue::I64(viewer))]);
+            const VISIBLE:&str="SELECT c.comment_id FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id WHERE c.comment_id=:comment_id AND c.is_deleted=0 AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,c.post_id)=1";
+            const COUNT:&str="SELECT NVL(s.likes_count,0) AS likes_count FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id LEFT JOIN n_comment_stats s ON s.comment_id=c.comment_id WHERE c.comment_id=:comment_id AND c.is_deleted=0 AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,c.post_id)=1";
+            const INSERT:&str="INSERT INTO n_comment_likes (comment_id,user_id) SELECT :comment_id,:user_id FROM dual WHERE EXISTS (SELECT 1 FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id WHERE c.comment_id=:comment_id AND c.is_deleted=0 AND p.is_deleted=0 AND fn_can_view_post(:user_id,c.post_id)=1) AND NOT EXISTS (SELECT 1 FROM n_comment_likes WHERE comment_id=:comment_id AND user_id=:user_id)";
+            const DELETE:&str="DELETE FROM n_comment_likes WHERE comment_id=:comment_id AND user_id=:user_id AND EXISTS (SELECT 1 FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id WHERE c.comment_id=:comment_id AND c.is_deleted=0 AND p.is_deleted=0 AND fn_can_view_post(:user_id,c.post_id)=1)";
+            if self.executor.query(VISIBLE,read.clone()).await?.is_empty(){return Ok(None)}
+            let changed=self.executor.execute(if liked{INSERT}else{DELETE},BindMap::from([("comment_id".into(),DbValue::I64(id)),("user_id".into(),DbValue::I64(viewer))])).await?;
+            if changed==0&&self.executor.query(VISIBLE,read.clone()).await?.is_empty(){return Ok(None)}
+            let rows=self.executor.query(COUNT,read).await?;let Some(row)=rows.first() else{return Ok(None)};
+            Ok(Some(crate::posts::like::PostLikeOutcome{count:row_float(row,"LIKES_COUNT"),inserted:liked&&changed>0}))
+        })
+    }
+    fn prepare_comment_like_notification<'a>(&'a self,viewer:u64,id:u64)->StoreFuture<'a,Option<crate::posts::like::StoredLikeNotification>> {
+        Box::pin(async move {
+            let comment=i64::try_from(id).map_err(|_|SessionStoreError)?;
+            let actor=i64::try_from(viewer).map_err(|_|SessionStoreError)?;
+            let rows=self.executor.query("SELECT user_id,post_id,DBMS_LOB.SUBSTR(content,4000,1) AS content FROM n_comments WHERE comment_id=:comment_id AND is_deleted=0",BindMap::from([("comment_id".into(),DbValue::I64(comment))])).await?;
+            let Some(row)=rows.first() else{return Ok(None)};
+            let author=row_number(row,"USER_ID");let post=row_number(row,"POST_ID");
+            if author<=0||post<=0||author==actor{return Ok(None)}
+            let comment_excerpt=crate::posts::like::excerpt_json(nullable_text(row,"CONTENT").as_deref());
+            let names=self.executor.query("SELECT COALESCE(display_name,username) AS name FROM n_users WHERE user_id=:user_id",BindMap::from([("user_id".into(),DbValue::I64(actor))])).await?;
+            let name=names.first().and_then(|r|nullable_text(r,"NAME")).unwrap_or_else(||"有人".into());
+            let posts=self.executor.query("SELECT DBMS_LOB.SUBSTR(content,4000,1) AS content FROM n_posts WHERE post_id=:post_id AND is_deleted=0",BindMap::from([("post_id".into(),DbValue::I64(post))])).await?;
+            let post_excerpt=crate::posts::like::excerpt_json(posts.first().and_then(|r|nullable_text(r,"CONTENT")).as_deref());
+            let metadata=format!("{{\"post_id\":{post},\"target_post_id\":{post},\"comment_id\":{id},\"comment_excerpt\":{comment_excerpt},\"post_excerpt\":{post_excerpt},\"event\":\"comment_like\"}}");
+            let title=format!("{name} 赞了你的评论");
+            let stored=self.store_notification(NotificationInput{user_id:author as u64,actor_id:Some(viewer),kind:"like",title:&title,message:"你的评论收到了一次点赞。",resource_type:Some("comment"),resource_id:Some(id),priority:"normal",metadata_json:Some(&metadata)}).await?;
+            Ok(stored.map(|n|crate::posts::like::StoredLikeNotification{recipient:author as u64,id:n.id,push_enabled:n.push_enabled}))
+        })
+    }
     fn delete_post_comment<'a>(
         &'a self, user: u64, id: u64,
     ) -> StoreFuture<'a, crate::posts::comment_delete::CommentDelete> {

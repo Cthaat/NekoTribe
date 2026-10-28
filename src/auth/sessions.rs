@@ -187,6 +187,12 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, Option<crate::posts::like::StoredLikeNotification>> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn set_comment_like<'a>(&'a self,_viewer:u64,_id:u64,_liked:bool) -> StoreFuture<'a,Option<crate::posts::like::PostLikeOutcome>> {
+        Box::pin(async {Err(SessionStoreError)})
+    }
+    fn prepare_comment_like_notification<'a>(&'a self,_viewer:u64,_id:u64) -> StoreFuture<'a,Option<crate::posts::like::StoredLikeNotification>> {
+        Box::pin(async {Err(SessionStoreError)})
+    }
     fn read_notification<'a>(
         &'a self,
         _user: u64,
@@ -525,6 +531,7 @@ pub fn build_native_router_with_realtime_and_publisher(
         .route("/api/v2/posts/{id}", get(crate::posts::detail::get_post))
         .route("/api/v2/posts/{id}/comments", get(crate::posts::comments::list_comments).post(crate::posts::comment_create::create))
         .route("/api/v2/comments/{id}", axum::routing::delete(crate::posts::comment_delete::remove))
+        .route("/api/v2/comments/{id}/likes", post(crate::posts::comment_like::add).delete(crate::posts::comment_like::remove))
         .route(
             "/api/v2/posts/{id}/bookmarks",
             post(crate::posts::bookmark::save).delete(crate::posts::bookmark::remove),

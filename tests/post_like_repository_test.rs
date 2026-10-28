@@ -37,6 +37,17 @@ impl SessionExecutor for Executor {
                     .then(|| DbRow::from([("POST_ID".into(), DbValue::I64(1))]))
             } else if sql.contains("n_post_stats") {
                 Some(DbRow::from([("LIKES_COUNT".into(), DbValue::I64(3))]))
+            } else if sql.starts_with("SELECT user_id,post_id,DBMS_LOB.SUBSTR") {
+                self.author.map(|v| {
+                    DbRow::from([
+                        ("USER_ID".into(), DbValue::I64(v)),
+                        ("POST_ID".into(), DbValue::I64(1)),
+                        (
+                            "CONTENT".into(),
+                            DbValue::String("  comment\n text ".into()),
+                        ),
+                    ])
+                })
             } else if sql.starts_with("SELECT author_id") {
                 self.author
                     .map(|v| DbRow::from([("AUTHOR_ID".into(), DbValue::I64(v))]))
@@ -78,6 +89,42 @@ impl SessionExecutor for Executor {
                 1
             })
         })
+    }
+}
+
+#[tokio::test]
+async fn comment_like_notification_maps_content_and_preferences() {
+    for (author, enabled, push, expected) in [
+        (Some(9), true, true, Some(true)),
+        (Some(9), true, false, Some(false)),
+        (Some(9), false, true, None),
+        (Some(42), true, true, None),
+        (None, true, true, None),
+    ] {
+        let r = repo(vec![], 0, author, enabled, push);
+        let result = r.prepare_comment_like_notification(42, 20).await.unwrap();
+        assert_eq!(result.as_ref().map(|v| v.push_enabled), expected);
+        if let Some(v) = result {
+            assert_eq!((v.recipient, v.id), (9, 44));
+            let calls = r.executor.calls.lock().unwrap();
+            let (_, binds) = calls
+                .iter()
+                .find(|(sql, _)| sql.starts_with("INSERT INTO n_notifications"))
+                .unwrap();
+            assert_eq!(binds["user_id"], DbValue::I64(9));
+            assert_eq!(binds["resource_type"], DbValue::String("comment".into()));
+            assert_eq!(binds["resource_id"], DbValue::I64(20));
+            let DbValue::String(metadata) = &binds["metadata_json"] else {
+                panic!("missing metadata")
+            };
+            let v: serde_json::Value = serde_json::from_str(metadata).unwrap();
+            assert_eq!(v["post_id"], 1);
+            assert_eq!(v["target_post_id"], 1);
+            assert_eq!(v["comment_id"], 20);
+            assert_eq!(v["comment_excerpt"], "comment text");
+            assert_eq!(v["post_excerpt"], "hello world");
+            assert_eq!(v["event"], "comment_like");
+        }
     }
 }
 fn repo(
