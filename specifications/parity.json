@@ -8838,7 +8838,7 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Wire publisher to native notification operations and implement authenticated WebSocket reception; validate against isolated real Redis."
+            "Wire publisher to native notification operations and validate notification reception against isolated real Redis."
           ],
           "sourceFiles": [
             "src/notification_events.rs",
@@ -8850,10 +8850,12 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Wire publisher and configuration to native notification operations and implement authenticated WebSocket reception; validate against isolated real Redis."
+            "Wire the configured publisher to native notification operations and validate notification reception against isolated real Redis."
           ],
           "sourceFiles": [
             "internal/server/notification_events.go",
+            "internal/server/notification_source.go",
+            "cmd/server/main.go",
             "go.mod"
           ],
           "evidence": []
