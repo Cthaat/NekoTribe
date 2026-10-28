@@ -162,6 +162,12 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, (Vec<serde_json::Value>, u64)> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn list_tags<'a>(
+        &'a self,
+        _query: &'a crate::tags::TagListQuery,
+    ) -> StoreFuture<'a, (Vec<serde_json::Value>, u64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn read_post_author<'a>(
         &'a self,
         _viewer: Option<u64>,
@@ -363,6 +369,8 @@ pub fn build_native_router_with_mail(
         )
         .route("/api/v2/posts/{id}", get(crate::posts::detail::get_post))
         .route("/api/v2/posts", get(crate::posts::list::list_posts))
+        .route("/api/v2/tags", get(crate::tags::list_tags))
+        .route("/api/v2/tags/trending", get(crate::tags::list_tags))
         .route(
             "/api/v2/users/me/posts",
             get(crate::posts::list::list_posts),

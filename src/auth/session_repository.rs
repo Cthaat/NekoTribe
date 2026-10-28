@@ -123,6 +123,62 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn list_tags<'a>(
+        &'a self,
+        query: &'a crate::tags::TagListQuery,
+    ) -> StoreFuture<'a, (Vec<serde_json::Value>, u64)> {
+        Box::pin(async move {
+            const NORMAL_COUNT: &str =
+                "SELECT COUNT(*) AS total FROM n_tags WHERE (:q IS NULL OR name_lower LIKE :q)";
+            const TRENDING_COUNT: &str = "SELECT COUNT(*) AS total FROM n_tags WHERE is_trending=1";
+            const NORMAL_LIST:&str="SELECT * FROM (SELECT tag_id,name,usage_count,trending_score,is_trending,updated_at,ROW_NUMBER() OVER (ORDER BY trending_score DESC,usage_count DESC,updated_at DESC) AS rn FROM n_tags WHERE (:q IS NULL OR name_lower LIKE :q)) WHERE rn BETWEEN :start_row AND :end_row";
+            const TRENDING_LIST:&str="SELECT * FROM (SELECT tag_id,name,usage_count,trending_score,is_trending,updated_at,ROW_NUMBER() OVER (ORDER BY trending_score DESC,usage_count DESC,updated_at DESC) AS rn FROM n_tags WHERE is_trending=1) WHERE rn BETWEEN :start_row AND :end_row";
+            let mut binds = BindMap::new();
+            if !query.trending {
+                binds.insert(
+                    "q".into(),
+                    query
+                        .q
+                        .clone()
+                        .map(DbValue::String)
+                        .unwrap_or(DbValue::Null),
+                );
+            }
+            let count = self
+                .executor
+                .query(
+                    if query.trending {
+                        TRENDING_COUNT
+                    } else {
+                        NORMAL_COUNT
+                    },
+                    binds.clone(),
+                )
+                .await?;
+            let total = u64::try_from(
+                count
+                    .first()
+                    .map(|row| row_number(row, "TOTAL"))
+                    .ok_or(SessionStoreError)?,
+            )
+            .map_err(|_| SessionStoreError)?;
+            binds.insert("start_row".into(), DbValue::F64(query.page.start));
+            binds.insert("end_row".into(), DbValue::F64(query.page.end));
+            let rows = self
+                .executor
+                .query(
+                    if query.trending {
+                        TRENDING_LIST
+                    } else {
+                        NORMAL_LIST
+                    },
+                    binds,
+                )
+                .await?;
+            let items=rows.iter().map(|row|serde_json::json!({"tag_id":row_number(row,"TAG_ID"),"name":row_text(row,"NAME"),"usage_count":row_float(row,"USAGE_COUNT"),"trending_score":row_float(row,"TRENDING_SCORE"),"is_trending":row_number(row,"IS_TRENDING"),"updated_at":nullable_text(row,"UPDATED_AT").map(|s|profile_date(&s)).unwrap_or_default()})).collect();
+            Ok((items, total))
+        })
+    }
     fn list_visible_posts<'a>(
         &'a self,
         viewer: Option<u64>,

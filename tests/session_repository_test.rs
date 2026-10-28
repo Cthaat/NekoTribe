@@ -776,6 +776,18 @@ impl SessionExecutor for PostExecutor {
             self.calls.lock().unwrap().push((sql, binds));
             if sql.starts_with("SELECT COUNT(*)") {
                 Ok(vec![DbRow::from([("TOTAL".into(), DbValue::I64(3))])])
+            } else if sql.contains("FROM n_tags") {
+                Ok(vec![DbRow::from([
+                    ("TAG_ID".into(), DbValue::I64(17)),
+                    ("NAME".into(), DbValue::String("Cat".into())),
+                    ("USAGE_COUNT".into(), DbValue::I64(42)),
+                    ("TRENDING_SCORE".into(), DbValue::String("12.5".into())),
+                    ("IS_TRENDING".into(), DbValue::I64(1)),
+                    (
+                        "UPDATED_AT".into(),
+                        DbValue::String("2026-01-02T03:04:05.000Z".into()),
+                    ),
+                ])])
             } else if sql.contains("FROM v_post_feed_item") {
                 Ok(vec![DbRow::from([
                     ("POST_ID".into(), DbValue::I64(1)),
@@ -967,4 +979,53 @@ async fn scoped_post_list_binds_targets() {
             }
         );
     }
+}
+
+#[tokio::test]
+async fn tag_repository_binds_filters_and_maps_results() {
+    for trending in [false, true] {
+        let repo = OracleSessions {
+            executor: PostExecutor::default(),
+        };
+        let query = nekotribe_backend::tags::TagListQuery {
+            page: nekotribe_backend::auth::session_list::session_pagination("page=2&page_size=1"),
+            q: if trending {
+                None
+            } else {
+                Some("%cat_%".into())
+            },
+            trending,
+        };
+        let (items, total) = repo.list_tags(&query).await.unwrap();
+        assert_eq!(total, 3);
+        assert_eq!(items[0]["tag_id"], 17);
+        assert_eq!(items[0]["trending_score"].as_f64(), Some(12.5));
+        let calls = repo.executor.calls.lock().unwrap();
+        assert_eq!(calls.len(), 2);
+        assert!(calls[1]
+            .0
+            .contains("trending_score DESC,usage_count DESC,updated_at DESC"));
+        if trending {
+            assert!(calls[0].0.contains("is_trending=1"));
+            assert!(!calls[0].1.contains_key("q"));
+        } else {
+            assert!(!calls[0].0.contains("cat_%"));
+            assert_eq!(calls[0].1["q"], DbValue::String("%cat_%".into()));
+        }
+    }
+}
+
+#[tokio::test]
+async fn tag_repository_binds_null_for_empty_search() {
+    let repo = OracleSessions {
+        executor: PostExecutor::default(),
+    };
+    let query = nekotribe_backend::tags::TagListQuery {
+        page: nekotribe_backend::auth::session_list::session_pagination(""),
+        q: None,
+        trending: false,
+    };
+    repo.list_tags(&query).await.unwrap();
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls[0].1["q"], DbValue::Null);
 }
