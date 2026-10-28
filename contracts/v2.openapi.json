@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-28-tag-analytics"
+    "x-contract-revision": "2026-10-28-comment-delete"
   },
   "tags": [
     {
@@ -12850,7 +12850,7 @@
       "delete": {
         "summary": "删除评论",
         "deprecated": false,
-        "description": "删除评论",
+        "description": "仅作者可删除仍可见的评论；不存在、已删除或所属帖子不可见时返回 404，其他作者的可见评论返回 422。",
         "operationId": "delete_comments_id",
         "tags": [
           "Comments"
@@ -12922,7 +12922,11 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound",
-            "description": "资源不存在"
+            "description": "评论不存在、已删除或不可见"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable",
+            "description": "只能删除自己的评论"
           },
           "500": {
             "$ref": "#/components/responses/InternalError",
