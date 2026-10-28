@@ -774,7 +774,19 @@ impl SessionExecutor for PostExecutor {
     fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
         Box::pin(async move {
             self.calls.lock().unwrap().push((sql, binds));
-            if sql.starts_with("SELECT COUNT(*)") {
+            if sql.contains("FROM n_tags t LEFT JOIN n_post_tags") {
+                Ok(vec![DbRow::from([
+                    ("NAME".into(), DbValue::String("C# cats".into())),
+                    ("TOTAL_POSTS".into(), DbValue::I64(2)),
+                    ("TOTAL_AUTHORS".into(), DbValue::I64(1)),
+                    ("TOTAL_VIEWS".into(), DbValue::I64(30)),
+                    ("TOTAL_LIKES".into(), DbValue::I64(4)),
+                    (
+                        "AVG_ENGAGEMENT_SCORE".into(),
+                        DbValue::String("2.75".into()),
+                    ),
+                ])])
+            } else if sql.starts_with("SELECT COUNT(*)") {
                 Ok(vec![DbRow::from([("TOTAL".into(), DbValue::I64(3))])])
             } else if sql.contains("FROM n_tags") {
                 Ok(vec![DbRow::from([
@@ -1028,4 +1040,31 @@ async fn tag_repository_binds_null_for_empty_search() {
     repo.list_tags(&query).await.unwrap();
     let calls = repo.executor.calls.lock().unwrap();
     assert_eq!(calls[0].1["q"], DbValue::Null);
+}
+
+#[tokio::test]
+async fn tag_analytics_repository_filters_and_binds_viewer() {
+    let repo = OracleSessions {
+        executor: PostExecutor::default(),
+    };
+    let row = repo
+        .read_tag_analytics(42, "C# cats")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row["total_posts"].as_f64(), Some(2.0));
+    assert_eq!(row["engagement_score"].as_f64(), Some(2.75));
+    let calls = repo.executor.calls.lock().unwrap();
+    let (sql, binds) = &calls[0];
+    for part in [
+        "p.is_deleted=0",
+        "fn_can_view_post(:viewer_id,p.post_id)=1",
+        "COUNT(DISTINCT p.post_id)",
+        "LOWER(:name)",
+    ] {
+        assert!(sql.contains(part));
+    }
+    assert!(!sql.contains("C# cats"));
+    assert_eq!(binds["viewer_id"], DbValue::I64(42));
+    assert_eq!(binds["name"], DbValue::String("C# cats".into()));
 }

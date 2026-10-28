@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-28-tag-lists"
+    "x-contract-revision": "2026-10-28-tag-analytics"
   },
   "tags": [
     {
@@ -13821,7 +13821,7 @@
       "get": {
         "summary": "获取话题分析数据",
         "deprecated": false,
-        "description": "获取话题分析数据",
+        "description": "按当前登录用户可见的未删除帖子计算统计。",
         "operationId": "get_tags_name_analytics",
         "tags": [
           "Tags"
@@ -13830,11 +13830,12 @@
           {
             "name": "name",
             "in": "path",
-            "description": "话题名称",
+            "description": "URL 编码的标签名，解码后按大小写不敏感匹配",
             "required": true,
-            "example": "",
+            "example": "cats",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -13871,19 +13872,7 @@
                           "type": "integer"
                         },
                         "engagement_score": {
-                          "type": "integer"
-                        },
-                        "tweets_today": {
-                          "type": "integer",
-                          "example": 2
-                        },
-                        "weekly_growth_rate": {
-                          "type": "number",
-                          "example": 10.5
-                        },
-                        "avg_engagement_score": {
-                          "type": "number",
-                          "example": 8.5
+                          "type": "number"
                         }
                       },
                       "required": [
@@ -13893,7 +13882,8 @@
                         "total_views",
                         "total_likes",
                         "engagement_score"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     "meta": {
                       "type": "object",
@@ -13914,18 +13904,26 @@
                   "code": 200,
                   "message": "success",
                   "data": {
-                    "name": "v2",
-                    "total_posts": 1,
+                    "name": "C# cats",
+                    "total_posts": 2,
                     "total_authors": 1,
-                    "total_views": 0,
-                    "total_likes": 1,
-                    "engagement_score": 3
+                    "total_views": 30,
+                    "total_likes": 4,
+                    "engagement_score": 2.75
                   },
                   "meta": null
                 }
               }
             },
-            "headers": {}
+            "headers": {
+              "Cache-Control": {
+                "description": "按查看者计算的统计不缓存",
+                "schema": {
+                  "type": "string",
+                  "example": "private, no-store"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest",
@@ -13951,6 +13949,9 @@
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
           }
         ]
       }

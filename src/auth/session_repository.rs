@@ -123,6 +123,21 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn read_tag_analytics<'a>(
+        &'a self,
+        viewer: u64,
+        name: &'a str,
+    ) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async move {
+            const SQL:&str="SELECT t.name,COUNT(DISTINCT p.post_id) AS total_posts,COUNT(DISTINCT p.author_id) AS total_authors,NVL(SUM(ps.views_count),0) AS total_views,NVL(SUM(ps.likes_count),0) AS total_likes,NVL(ROUND(AVG(ps.engagement_score),2),0) AS avg_engagement_score FROM n_tags t LEFT JOIN n_post_tags pt ON pt.tag_id=t.tag_id LEFT JOIN n_posts p ON p.post_id=pt.post_id AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1 LEFT JOIN n_post_stats ps ON ps.post_id=p.post_id WHERE t.name_lower=LOWER(:name) GROUP BY t.tag_id,t.name";
+            let binds = BindMap::from([
+                ("viewer_id".into(), DbValue::I64(viewer as i64)),
+                ("name".into(), DbValue::String(name.to_owned())),
+            ]);
+            let rows = self.executor.query(SQL, binds).await?;
+            Ok(rows.first().map(|r|serde_json::json!({"name":row_text(r,"NAME"),"total_posts":row_float(r,"TOTAL_POSTS"),"total_authors":row_float(r,"TOTAL_AUTHORS"),"total_views":row_float(r,"TOTAL_VIEWS"),"total_likes":row_float(r,"TOTAL_LIKES"),"engagement_score":row_float(r,"AVG_ENGAGEMENT_SCORE")})))
+        })
+    }
     fn list_tags<'a>(
         &'a self,
         query: &'a crate::tags::TagListQuery,
