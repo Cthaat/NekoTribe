@@ -7,6 +7,7 @@ pub(crate) mod create;
 pub mod create_notification;
 pub mod create_request;
 pub mod create_transaction;
+pub mod delete;
 pub(crate) mod detail;
 pub mod like;
 pub mod list;

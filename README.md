@@ -1,5 +1,7 @@
 # NekoTribe Rust 后端（兼容模式与原生业务开发）
 
+原生 `DELETE /api/v2/posts/{id}` 已按公共规则接入作者专属软删除、并发条件更新和安全错误；17 条共同输入在隔离路由中通过。不会物理删除帖子或媒体。真实 Oracle、触发器、缓存及客户端仍待验收，见 `contracts/requirements/post-delete.md`。
+
 原生 `POST /api/v2/posts` 和 `POST /api/v2/posts/{id}/retweets` 已接入请求解析、引用权限、单连接事务、媒体/标签/提及写入、提交后通知及完整帖子映射。最终读取不增加浏览量，原生路径不回退 Nuxt。80 条共同请求向量及事务、通知、响应错误边界已通过隔离测试；真实 Oracle、Redis、并发及双客户端仍待验收。通知或最终读取失败可能发生在帖子已提交之后，不得自动重试创建；非法 JSON 和 1 MiB 正文限制与 Nuxt 的差异见 `contracts/requirements/post-create-request.md`。
 
 模型传输现支持工具提议与工具结果的多轮历史编码，24 个共同合成场景及本机回环测试覆盖两种适配器；这不执行工具，也不代表 Agent、真实模型或业务验收完成。详见 `contracts/requirements/ai-tool-history.md`。

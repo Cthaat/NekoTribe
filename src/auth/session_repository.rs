@@ -264,6 +264,9 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn delete_post<'a>(&'a self, user:u64, id:u64) -> StoreFuture<'a,crate::posts::delete::PostDelete> {
+        Box::pin(crate::posts::delete::remove_from_store(&self.executor,user,id))
+    }
     fn create_post_atomic<'a>(
         &'a self,
         actor: u64,

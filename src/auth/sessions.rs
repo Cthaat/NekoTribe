@@ -25,6 +25,9 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    fn delete_post<'a>(&'a self, _user: u64, _id: u64) -> StoreFuture<'a, crate::posts::delete::PostDelete> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn create_post_atomic<'a>(
         &'a self, _actor: u64, _input: &'a crate::posts::create_request::PostCreateInput,
     ) -> StoreFuture<'a, crate::posts::create_transaction::PostCreation> {
@@ -550,7 +553,7 @@ pub fn build_native_router_with_realtime_and_publisher(
             "/api/v2/posts/trending",
             get(crate::posts::list::list_posts),
         )
-        .route("/api/v2/posts/{id}", get(crate::posts::detail::get_post))
+        .route("/api/v2/posts/{id}", get(crate::posts::detail::get_post).delete(crate::posts::delete::remove))
         .route("/api/v2/posts/{id}/comments", get(crate::posts::comments::list_comments).post(crate::posts::comment_create::create))
         .route("/api/v2/comments/{id}", axum::routing::delete(crate::posts::comment_delete::remove))
         .route("/api/v2/comments/{id}/likes", post(crate::posts::comment_like::add).delete(crate::posts::comment_like::remove))
