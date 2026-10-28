@@ -3274,12 +3274,15 @@
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement complete native post creation, media transaction and reference authorization without Nuxt fallback; validate real dependencies and clients."
+            "Connect request parsing, authentication, complete post mapping and post-commit notifications to the native transactional writer; validate real Oracle and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/post_create_transaction.go",
+            "internal/server/post_bookmark.go"
+          ],
           "evidence": []
         }
       },
@@ -3560,12 +3563,15 @@
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement complete native post creation, media transaction and reference authorization without Nuxt fallback; validate real dependencies and clients."
+            "Connect request parsing, authentication, complete post mapping and post-commit notifications to the native transactional writer; validate real Oracle and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/post_create_transaction.go",
+            "internal/server/post_bookmark.go"
+          ],
           "evidence": []
         }
       },
