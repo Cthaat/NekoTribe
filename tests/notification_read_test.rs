@@ -27,6 +27,13 @@ struct Store {
     calls: Mutex<Vec<(u64, u64, bool)>>,
 }
 impl SessionRepository for Store {
+    fn batch_set_notification_read<'a>(&'a self, user: u64, ids: &'a [u64], read: bool) -> StoreFuture<'a, u64> {
+        Box::pin(async move {
+            if ids.is_empty() { self.calls.lock().unwrap().push((user, 0, read)); }
+            else { for id in ids { self.calls.lock().unwrap().push((user, *id, read)); } }
+            if self.fail { Err(SessionStoreError) } else { Ok(if ids.is_empty() { 4 } else { ids.len() as u64 }) }
+        })
+    }
     fn touch<'a>(&'a self, c: &'a TokenClaims) -> StoreFuture<'a, u64> {
         Box::pin(async move { Ok(u64::from(c.user_id == 42)) })
     }
@@ -100,6 +107,39 @@ fn credentials() -> (TokenCodec, String) {
         .unwrap(),
         token,
     )
+}
+
+#[tokio::test]
+async fn batch_read_rejects_invalid_selection_and_scopes_updates() {
+    for (body, status, expected) in [
+        (r#"{"is_read":true}"#, 200, vec![(42, 0, true)]),
+        (r#"{"notification_ids":[7,7,8],"is_read":true}"#, 200, vec![(42, 7, true), (42, 7, true), (42, 8, true)]),
+        (r#"{"notification_ids":"bad"}"#, 400, vec![]),
+        (r#"{"notification_ids":null}"#, 400, vec![]),
+        (r#"{"notification_ids":[1,null]}"#, 400, vec![]),
+        (r#"{"notification_ids":[1.5]}"#, 400, vec![]),
+        (r#"{"notification_ids":[9007199254740992]}"#, 400, vec![]),
+    ] {
+        let (codec, token) = credentials();
+        let store = Arc::new(Store { found: true, fail: false, calls: Mutex::new(vec![]) });
+        let publisher = Arc::new(Publisher::default());
+        let app = build_native_router_with_realtime_and_publisher(
+            codec, store.clone(), CorsPolicy::default(), Arc::new(|| 1_700_000_000),
+            RefreshPolicy::default(), StorageUrlPolicy::default(), Arc::new(SmtpConfig::default()),
+            None, Some(publisher.clone()),
+        );
+        let request = Request::builder().method("PUT").uri("/api/v2/notifications/read-status")
+            .header("content-type", "application/json").header("authorization", format!("Bearer {token}"))
+            .body(Body::from(body)).unwrap();
+        let response = app.oneshot(request).await.unwrap();
+        assert_eq!(response.status().as_u16(), status, "{body}");
+        assert_eq!(*store.calls.lock().unwrap(), expected, "{body}");
+        let events = publisher.events.lock().unwrap();
+        assert_eq!(events.len(), usize::from(status == 200));
+        if let Some((user, kind, _)) = events.first() {
+            assert_eq!((*user, kind.as_str()), (42, "notifications_read_status_updated"));
+        }
+    }
 }
 
 #[tokio::test]
@@ -365,4 +405,40 @@ async fn read_repository_scopes_write_and_read_and_preserves_commit_boundary() {
         }
         assert_eq!(calls[0].1["is_read"], DbValue::I64(1));
     }
+}
+
+#[tokio::test]
+async fn batch_repository_uses_user_scope_and_expected_deleted_filter() {
+    for (ids, all) in [(vec![], true), (vec![7, 7, 8], false)] {
+        let repo = OracleSessions { executor: RepoExecutor { affected: 1, missing: false, fail_read: false, calls: Mutex::new(vec![]) } };
+        let count = repo.batch_set_notification_read(42, &ids, true).await.unwrap();
+        assert_eq!(count, if all { 1 } else { 3 });
+        let calls = repo.executor.calls.lock().unwrap();
+        assert_eq!(calls.len(), count as usize);
+        for (index, (sql, binds)) in calls.iter().enumerate() {
+            assert!(sql.contains("user_id=:user_id"));
+            assert_eq!(sql.contains("deleted_at IS NULL"), all);
+            assert_eq!(binds["user_id"], DbValue::I64(42));
+            assert_eq!(binds["is_read"], DbValue::I64(1));
+            if !all { assert_eq!(binds["notification_id"], DbValue::I64(ids[index] as i64)); }
+        }
+    }
+}
+
+struct FailingBatchExecutor { calls: Mutex<usize> }
+impl SessionExecutor for FailingBatchExecutor {
+    fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> { Box::pin(async { Ok(()) }) }
+    fn execute(&self, _: &'static str, _: BindMap) -> StoreFuture<'_, u64> {
+        Box::pin(async move {
+            let mut calls = self.calls.lock().unwrap();
+            *calls += 1;
+            if *calls == 2 { Err(SessionStoreError) } else { Ok(1) }
+        })
+    }
+}
+#[tokio::test]
+async fn batch_repository_stops_after_a_partial_failure() {
+    let repo = OracleSessions { executor: FailingBatchExecutor { calls: Mutex::new(0) } };
+    assert!(repo.batch_set_notification_read(42, &[7, 8, 9], true).await.is_err());
+    assert_eq!(*repo.executor.calls.lock().unwrap(), 2);
 }

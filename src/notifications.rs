@@ -39,6 +39,43 @@ fn read_flag(value: Option<&Value>) -> bool {
     }
 }
 
+pub(crate) async fn set_batch_read(State(state): State<NativeState>, request: Request<Body>) -> Response {
+    let mut response = set_batch_read_inner(state, request).await.into_response();
+    response.headers_mut().insert(axum::http::header::CACHE_CONTROL, axum::http::HeaderValue::from_static("private, no-store"));
+    response
+}
+
+async fn set_batch_read_inner(state: NativeState, request: Request<Body>) -> Result<Response, ApiError> {
+    let (parts, body) = request.into_parts();
+    let token = access_token(&parts.headers);
+    if token.is_empty() { return Err(ApiError::unauthorized("请先登录")); }
+    let claims = state.codec.verify(&token, TokenKind::Access, (state.clock)())
+        .map_err(|_| ApiError::unauthorized("Token无效或已过期"))?;
+    if state.repository.touch(&claims).await.unwrap_or(0) != 1 { return Err(ApiError::unauthorized("Token无效或已过期")); }
+    let bytes = to_bytes(body, 1024 * 1024).await.map_err(|_| ApiError::bad_request("请求体必须是 JSON 对象"))?;
+    let body = crate::auth::login::request_body(&parts.headers, &bytes)?;
+    let mut ids = Vec::new();
+    if let Some(value) = body.get("notification_ids") {
+        let values = value.as_array().filter(|v| v.len() <= 1000).ok_or_else(|| ApiError::bad_request("notification_ids 参数错误"))?;
+        for value in values {
+            let n = value.as_f64().filter(|n| *n >= 1.0 && *n <= 9007199254740991.0 && n.fract() == 0.0)
+                .ok_or_else(|| ApiError::bad_request("notification_ids 参数错误"))?;
+            ids.push(n as u64);
+        }
+    }
+    let read = read_flag(body.get("is_read"));
+    let updated = state.repository.batch_set_notification_read(claims.user_id, &ids, read).await
+        .map_err(|_| ApiError::server_error("服务器内部错误"))?;
+    let data = if ids.is_empty() { json!({"all":true,"is_read":u8::from(read),"updated_count":updated}) }
+        else { json!({"notification_ids":ids,"is_read":u8::from(read),"updated_count":updated}) };
+    let published = match &state.notification_publisher {
+        Some(p) => p.publish(claims.user_id, "notifications_read_status_updated", data.as_object().expect("object")).await.is_ok(),
+        None => false,
+    };
+    if !published { eprintln!("notification delivery unavailable"); }
+    Ok(Json(crate::httpx::response::V2Response::ok(json!({"updated_count":updated}))).into_response())
+}
+
 #[cfg(test)]
 mod single_read_vectors {
     use super::*;

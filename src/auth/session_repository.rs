@@ -249,6 +249,33 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn batch_set_notification_read<'a>(
+        &'a self,
+        user: u64,
+        ids: &'a [u64],
+        read: bool,
+    ) -> StoreFuture<'a, u64> {
+        Box::pin(async move {
+            let user = i64::try_from(user).map_err(|_| SessionStoreError)?;
+            let flag = i64::from(read);
+            if ids.is_empty() {
+                return self.executor.execute(
+                    "UPDATE n_notifications SET is_read=:is_read,read_at=CASE WHEN :is_read=1 THEN CURRENT_TIMESTAMP ELSE NULL END WHERE user_id=:user_id AND deleted_at IS NULL",
+                    BindMap::from([("user_id".into(), DbValue::I64(user)), ("is_read".into(), DbValue::I64(flag))]),
+                ).await;
+            }
+            let mut total = 0_u64;
+            for &id in ids {
+                let id = i64::try_from(id).map_err(|_| SessionStoreError)?;
+                let count = self.executor.execute(
+                    "UPDATE n_notifications SET is_read=:is_read,read_at=CASE WHEN :is_read=1 THEN CURRENT_TIMESTAMP ELSE NULL END WHERE user_id=:user_id AND notification_id=:notification_id",
+                    BindMap::from([("user_id".into(), DbValue::I64(user)), ("is_read".into(), DbValue::I64(flag)), ("notification_id".into(), DbValue::I64(id))]),
+                ).await?;
+                total = total.checked_add(count).ok_or(SessionStoreError)?;
+            }
+            Ok(total)
+        })
+    }
     fn set_notification_read<'a>(
         &'a self,
         user: u64,
