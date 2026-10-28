@@ -1,0 +1,11 @@
+{
+  "id": "POST-CREATE-REFERENCE",
+  "revision": 1,
+  "cases": [
+    {"id":"REF-01","assertion":"authenticated creation accepts at most one canonical safe reference"},
+    {"id":"REF-02","assertion":"unavailable or invisible source returns 404 before post insertion"},
+    {"id":"REF-03","assertion":"insert rechecks source visibility and deletion with the authenticated user"},
+    {"id":"REF-04","assertion":"visible source creates the appropriate reply, quote or repost and retains its notification behavior"},
+    {"id":"REF-05","assertion":"real isolated Oracle, concurrency, both clients and cross-backend behavior are validated"}
+  ]
+}
