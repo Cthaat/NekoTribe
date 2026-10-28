@@ -406,6 +406,8 @@ async function buildCacheContext(
   if (segments.length === 2 && segments[0] === 'users' && isNumericSegment(segments[1])) return null;
   // Detail reads update view counts; serving cached results would skip the write.
   if (segments.length === 2 && segments[0] === 'posts' && isNumericSegment(segments[1])) return null;
+  // Tag aggregates depend on the authenticated viewer and may change through other backends.
+  if (segments.length === 3 && segments[0] === 'tags' && segments[2] === 'analytics') return null;
   if (!singleBackendCacheEnabled) return null;
 
   const auth = authOf(event);

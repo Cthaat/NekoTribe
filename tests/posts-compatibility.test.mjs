@@ -40,6 +40,7 @@ const compiled = await build({
     export {default as tagPosts} from './server/api/v2/tags/[name]/posts.get';
     export {default as tags} from './server/api/v2/tags/index.get';
     export {default as trendingTags} from './server/api/v2/tags/trending.get';
+    export {default as tagAnalytics} from './server/api/v2/tags/[name]/analytics.get';
     export {default as replies} from './server/api/v2/posts/[id]/replies.get';
     export {default as retweets} from './server/api/v2/posts/[id]/retweets.get';
     export {v2ListPosts} from './server/services/v2/posts';
@@ -59,7 +60,7 @@ const compiled = await build({
 const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text + '\n//# sourceURL=isolated-posts-bundle.mjs').toString('base64')}`);
 const access = (payload = {}, options = {}) => jwt.sign({userId: 1, userName: 'viewer', sessionId: 'session', jti: 'current', type: 'access', ...payload}, secret, {expiresIn: 600, ...options});
 
-function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false} = {}) {
+function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false, tagAnalytics = {}, allowSecondViewer = false} = {}) {
   const schema = schemaFixture({ baseline: true });
   if (missingMediaSchema) {
     const table = schema.state.tables.get('N_MEDIA_ASSETS');
@@ -83,8 +84,14 @@ function database({revoked = false, expiredSession = false, failSession = false,
       if (metadata !== undefined) return {rows: metadata};
       if (sql.startsWith('UPDATE n_auth_sessions')) {
         if (failSession) throw new Error('isolated database failure');
-        const live = binds.userId === 1 && binds.sessionId === 'session' && binds.accessJti === 'current' && !revoked && (!expiredSession || !sql.includes('access_token_expires_at > CURRENT_TIMESTAMP'));
+        const live = (binds.userId === 1 || (allowSecondViewer && binds.userId === 2)) && binds.sessionId === 'session' && binds.accessJti === 'current' && !revoked && (!expiredSession || !sql.includes('access_token_expires_at > CURRENT_TIMESTAMP'));
         return {rowsAffected: live ? 1 : 0};
+      }
+      if (sql.includes('FROM n_tags t') || sql.includes('FROM v_tag_analytics')) {
+        if (tagAnalytics.failure) throw new Error('private-tag-analytics-error');
+        if (tagAnalytics.missing) return {rows: []};
+        const empty = tagAnalytics.zero || (allowSecondViewer && binds.viewer_id === 2);
+        return {rows: [{NAME: 'C# cats', TOTAL_POSTS: empty ? 0 : 2, TOTAL_AUTHORS: empty ? 0 : 1, TOTAL_VIEWS: empty ? 0 : 30, TOTAL_LIKES: empty ? 0 : 4, AVG_ENGAGEMENT_SCORE: empty ? 0 : 2.75}]};
       }
       if (sql.includes('FROM n_tags') && !sql.includes('n_post_tags')) {
         if (failTags) throw new Error('private-tag-database-error');
@@ -133,6 +140,7 @@ async function fixture(options) {
   router.get('/api/v2/tags/:name/posts', routes.tagPosts);
   router.get('/api/v2/tags', routes.tags);
   router.get('/api/v2/tags/trending', routes.trendingTags);
+  router.get('/api/v2/tags/:name/analytics', routes.tagAnalytics);
   router.get('/api/v2/posts/:id/replies', routes.replies);
   router.get('/api/v2/posts/:id/retweets', routes.retweets);
   router.get('/api/v2/groups/:id/posts', defineEventHandler(() => {throw new Error('Anonymous group route was reached');}));
@@ -255,6 +263,42 @@ test('Nuxt tag list follows common route vectors', async () => {
       }
     } finally {console.error = previousError; await f.close();}
   }
+});
+
+test('Nuxt tag analytics follows viewer-scoped common vectors', async () => {
+  const vectors = JSON.parse(readFileSync(new URL('../specifications/scenarios/tag-analytics.json', import.meta.url)));
+  for (const tc of vectors.cases) {
+    const f = await fixture({revoked: tc.auth === 'revoked', tagAnalytics: tc});
+    const errors = []; const previousError = console.error; if (tc.failure) console.error = (...args) => errors.push(args.map(String).join(' '));
+    try {
+      const headers = tc.auth === 'none' ? {} : tc.auth === 'bad' ? {authorization: 'Bearer bad'} : tc.auth === 'bad-cookie' ? {cookie: 'access_token=bad', authorization: `Bearer ${access()}`} : tc.auth === 'cookie' ? {cookie: `access_token=${access()}`} : {authorization: `Bearer ${access()}`};
+      const response = await f.request(tc.path, headers); const body = await response.json();
+      assert.equal(response.status, tc.status, `${tc.id}: ${JSON.stringify(body)}`);
+      assert.ok(!JSON.stringify(body).includes('private-tag-analytics-error'), tc.id); assert.ok(!errors.join('\n').includes('private-tag-analytics-error'), tc.id);
+      const calls = f.db.calls.filter(call => call.sql.includes('FROM n_tags t') || call.sql.includes('FROM v_tag_analytics'));
+      if (tc.name) {
+        assert.equal(calls.length, 1, tc.id); assert.equal(calls[0].binds.name, tc.name, tc.id); assert.equal(calls[0].binds.viewer_id, 1, tc.id);
+        assert.match(calls[0].sql, /fn_can_view_post\(:viewer_id, p\.post_id\) = 1/, tc.id);
+        assert.match(calls[0].sql, /COUNT\(DISTINCT p\.post_id\)/, tc.id);
+      } else assert.equal(calls.length, 0, tc.id);
+      if (tc.status === 200) {
+        const expected = tc.zero ? {name: 'C# cats', total_posts: 0, total_authors: 0, total_views: 0, total_likes: 0, engagement_score: 0} : vectors.result;
+        assert.deepEqual(body.data, expected, tc.id); assert.equal(response.headers.get('cache-control'), 'private, no-store', tc.id);
+      }
+    } finally {console.error = previousError; await f.close();}
+  }
+});
+
+test('tag analytics binds each viewer and does not reuse another viewer result', async () => {
+  const f = await fixture({allowSecondViewer: true});
+  try {
+    for (const [id, expected] of [[1, 2], [2, 0], [1, 2]]) {
+      const response = await f.request('/api/v2/tags/C%23%20cats/analytics', {authorization: `Bearer ${access({userId: id})}`});
+      assert.equal(response.status, 200); assert.equal((await response.json()).data.total_posts, expected);
+      assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    }
+    assert.deepEqual(f.db.calls.filter(call => call.sql.includes('FROM n_tags t')).map(call => call.binds.viewer_id), [1, 2, 1]);
+  } finally {await f.close();}
 });
 
 test('anonymous detail excludes private/followers/mentioned/deleted/group posts without incrementing their views', async () => {

@@ -86,6 +86,15 @@ test('tag list contracts describe authenticated tag objects and fractional score
     assert.equal(check(value), true, `${path}: ${JSON.stringify(check.errors)}`);
   }
 });
+
+test('tag analytics contract describes viewer-scoped fractional aggregate', () => {
+  const op = spec.paths['/api/v2/tags/{name}/analytics'].get;
+  assert.ok(op.security.some(item => Object.hasOwn(item, 'accessTokenCookie')));
+  const fixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/tag-analytics.json', import.meta.url)));
+  const pointer = '/api/v2/tags/{name}/analytics'.replaceAll('/', '~1');
+  const check = ajv.compile({$ref: `${base}#/paths/${pointer}/get/responses/200/content/application~1json/schema`});
+  assert.equal(check({code:200, message:'success', data:fixture.result, meta:null}), true, JSON.stringify(check.errors));
+});
 // Local refs in operation fragments need the document's canonical base.
 function requestValidator(method, path) {
   const pointer = path.replaceAll('~', '~0').replaceAll('/', '~1');

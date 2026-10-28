@@ -1727,15 +1727,25 @@ export async function v2TagAnalytics(
   connection: oracledb.Connection,
   tagName: string
 ): Promise<V2Response<V2TagAnalytics>> {
-  v2Auth(event);
+  const auth = v2Auth(event);
   const row = await v2One(
     connection,
     `
-    SELECT *
-    FROM v_tag_analytics
-    WHERE name_lower = LOWER(:name)
+    SELECT t.name,
+      COUNT(DISTINCT p.post_id) AS total_posts,
+      COUNT(DISTINCT p.author_id) AS total_authors,
+      NVL(SUM(ps.views_count), 0) AS total_views,
+      NVL(SUM(ps.likes_count), 0) AS total_likes,
+      NVL(ROUND(AVG(ps.engagement_score), 2), 0) AS avg_engagement_score
+    FROM n_tags t
+    LEFT JOIN n_post_tags pt ON pt.tag_id = t.tag_id
+    LEFT JOIN n_posts p ON p.post_id = pt.post_id
+      AND p.is_deleted = 0 AND fn_can_view_post(:viewer_id, p.post_id) = 1
+    LEFT JOIN n_post_stats ps ON ps.post_id = p.post_id
+    WHERE t.name_lower = LOWER(:name)
+    GROUP BY t.tag_id, t.name
     `,
-    { name: tagName }
+    { name: tagName, viewer_id: auth.userId }
   );
   if (!row) v2NotFound('话题不存在');
   return v2Ok({

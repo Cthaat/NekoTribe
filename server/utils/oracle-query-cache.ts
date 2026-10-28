@@ -136,6 +136,8 @@ function isCacheableSelectSql(sql: string): boolean {
 
   if (/\bnextval\b/i.test(normalized)) return false;
   if (/\bfor\s+update\b/i.test(normalized)) return false;
+  // Visibility can change independently of the rows directly referenced here.
+  if (/\bfn_can_view_post\s*\(/i.test(normalized)) return false;
   if (isSensitiveSql(normalized)) return false;
 
   return true;

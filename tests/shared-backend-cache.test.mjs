@@ -55,3 +55,14 @@ test('public profiles bypass internal response cache even in single-backend mode
   try {event.node.req.url='/api/v2/users/7';const value=await m.readApiResponseCache(event,'v2');assert.equal(value.status,'bypass');assert.equal(redis.reads,0)}finally{close()}
  }finally{if(original===undefined)delete process.env.NEKO_CACHE_MODE;else process.env.NEKO_CACHE_MODE=original}
 });
+
+test('viewer-scoped tag analytics bypasses both cache layers in single-backend mode',async()=>{
+ const original=process.env.NEKO_CACHE_MODE;try {
+  const m=await moduleFor('single-backend','tag-privacy');const redis=fakeRedis(),{event,close}=eventFor(redis);
+  try {event.node.req.url='/api/v2/tags/cat/analytics';const result=await m.readApiResponseCache(event,'v2');assert.equal(result.status,'bypass');
+   let calls=0;const conn=m.attachOracleQueryCacheWithSource({redis,authUserId:42},{async execute(){calls++;return {rows:[{TOTAL_POSTS:calls}]}}});
+   const sql='SELECT COUNT(DISTINCT p.post_id) FROM n_posts p WHERE fn_can_view_post(:viewer_id, p.post_id) = 1';
+   assert.equal((await conn.execute(sql,{viewer_id:42})).rows[0].TOTAL_POSTS,1);assert.equal((await conn.execute(sql,{viewer_id:42})).rows[0].TOTAL_POSTS,2);assert.equal(calls,2);
+  }finally{close()}
+ }finally{if(original===undefined)delete process.env.NEKO_CACHE_MODE;else process.env.NEKO_CACHE_MODE=original}
+});

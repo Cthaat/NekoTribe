@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "0e3b82afb37465162a2c75b0b8e4b43dec8b71bc2520874f0a2ade317c562155"
+      "sha256": "95b6d49e7bb76baa6689bc5cbd0237e13b93c3f728977f3361fcdca08a6641c4"
     },
     "sources": [
       {
@@ -731,7 +731,7 @@
       },
       {
         "path": "server/api/v2/tags/[name]/analytics.get.ts",
-        "sha256": "c635c421bf03898d83548c2a7c2bab5ed7670a5a64a076fdb37a41fb95c46db5"
+        "sha256": "5ffef17bcee2ba680bb63fdf650e16dbbaf657a5e69c6c80ab41e764cb592740"
       },
       {
         "path": "server/api/v2/tags/[name]/posts.get.ts",
@@ -991,7 +991,7 @@
       },
       {
         "path": "server/services/v2/posts.ts",
-        "sha256": "abe7011b6af87c44c6031198c1e0d564beef97e71b25a41cd43416861bad1cce"
+        "sha256": "2af04df8f83fefe5b605b7124fb3dbabd56f8cbab911a910af7e74bbe1cc179b"
       },
       {
         "path": "server/services/v2/presence.ts",
@@ -1039,11 +1039,11 @@
       },
       {
         "path": "server/utils/api-cache.ts",
-        "sha256": "39d0d982a06cca6118a6e65d374f28ad81ef8ac35a6f1378bd0b44a3b24308a9"
+        "sha256": "cd84640718fad2eaf4ff1e9ac621830e416f4b50ae86207e2362ac3ba28eaf00"
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "33960f007c1d32423b13b378662830cf8c5e6008e0478ae62bbea28fc7e15c3c"
+        "sha256": "670f741adc1561429dd45fe3d2776db24aec623b90c9ae7cfbd19399a4bf1f68"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -1095,7 +1095,7 @@
       },
       {
         "path": "server/utils/oracle-query-cache.ts",
-        "sha256": "df2ca0d226ea64ce2fe62929d49bc5f012ae28b6aa1a50c80ec3c522c87d22e5"
+        "sha256": "7726af28ac257e1e01bc5a3ae9dd038bdc66dd29435688ff4ef49da6bd05c069"
       },
       {
         "path": "server/utils/oracle.ts",
@@ -4206,47 +4206,77 @@
     {
       "id": "API-get_tags_name_analytics",
       "title": "GET /api/v2/tags/{name}/analytics: 获取话题分析数据",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/tag-analytics.md",
       "sourceFiles": [
-        "server/api/v2/tags/[name]/analytics.get.ts"
+        "server/api/v2/tags/[name]/analytics.get.ts",
+        "server/services/v2/posts.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/utils/auth-entry-errors.ts",
+        "server/utils/api-cache.ts",
+        "server/utils/oracle-query-cache.ts"
       ],
       "operations": [
         "GET /api/v2/tags/{name}/analytics"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "TAG-ANALYTICS",
+          "file": "specifications/scenarios/tag-analytics.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/tags/{name}/analytics; create shared acceptance scenarios."
+            "nuxt: verify viewer-scoped analytics using shared scenarios and SQL binding tests.",
+            "nuxt: validate privacy, aggregates and concurrency on isolated Oracle before acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/tags/[name]/analytics.get.ts"
+            "server/api/v2/tags/[name]/analytics.get.ts",
+            "server/services/v2/posts.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts",
+            "server/utils/auth-entry-errors.ts",
+            "server/utils/api-cache.ts",
+            "server/utils/oracle-query-cache.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/tags/{name}/analytics natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: verify viewer-scoped analytics using shared scenarios and SQL binding tests.",
+            "rust: validate privacy, aggregates and concurrency on isolated Oracle before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/tags.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/tags/{name}/analytics natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: verify viewer-scoped analytics using shared scenarios and SQL binding tests.",
+            "go: validate privacy, aggregates and concurrency on isolated Oracle before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/tag_analytics.go",
+            "internal/server/server.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/cache-shared-backends.md"
+      ]
     },
     {
       "id": "API-post_recommendations_feedback",
@@ -10206,7 +10236,7 @@
     {
       "source": {
         "path": "specifications/requirements/cache-shared-backends.md",
-        "sha256": "fe2b81eb9b5f94563385b9e51ebe41fe869888cf21c7617d67983997ec9a0006"
+        "sha256": "7fd7b1005d32344a72227025e3c2c6e4f6fe43756faf02478cb751fca6bf1cfb"
       },
       "copies": {
         "rust": "contracts/requirements/cache-shared-backends.md",
@@ -10331,6 +10361,26 @@
       "copies": {
         "rust": "contracts/scenarios/tag-list.json",
         "go": "contracts/scenarios/tag-list.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/tag-analytics.md",
+        "sha256": "658d9377b2f4991daf889a188eb5d84630b64cf72573687d247205c5045baac4"
+      },
+      "copies": {
+        "rust": "contracts/requirements/tag-analytics.md",
+        "go": "contracts/requirements/tag-analytics.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/tag-analytics.json",
+        "sha256": "4b56919b524075cbf21ca6fb1075e16631de218043d35d6a0bc20f90137ca1b8"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/tag-analytics.json",
+        "go": "contracts/scenarios/tag-analytics.json"
       }
     }
   ]
