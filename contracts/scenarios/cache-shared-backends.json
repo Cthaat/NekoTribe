@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "CACHE-SHARED-BACKENDS",
+  "revision": 1,
+  "cases": [
+    { "id": "CACHE-SHARED-01", "requirement": "默认和未知配置均绕过 Nuxt 响应缓存与查询缓存，外部提交后重新读取" },
+    { "id": "CACHE-SHARED-02", "requirement": "只在所有写入均由 Nuxt 管理时允许显式单后端缓存，重启不重用旧进程条目" },
+    { "id": "CACHE-SHARED-03", "requirement": "三后端写入和多实例读取使用统一可靠失效协议，覆盖数据库提交失败及 Redis 中断恢复" },
+    { "id": "CACHE-SHARED-04", "requirement": "Windows、Linux、多机器和真实 Oracle/Redis 环境验证时序，隔离测试数据" }
+  ]
+}
