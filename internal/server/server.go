@@ -105,8 +105,26 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 		if r.Method == http.MethodGet {
 			mode, found := map[string]string{"/api/v2/posts": "all", "/api/v2/posts/trending": "trending", "/api/v2/users/me/posts": "me", "/api/v2/users/me/bookmarks": "bookmarks", "/api/v2/users/me/likes": "likes"}[r.URL.EscapedPath()]
 			if found {
-				listPosts(w, r, codec, repository, refresh, mode)
+				listPosts(w, r, codec, repository, refresh, mode, "")
 				return
+			}
+			parts := strings.Split(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
+			if len(parts) == 5 && parts[0] == "api" && parts[1] == "v2" && parts[3] != "" {
+				mode := ""
+				switch {
+				case parts[2] == "users" && parts[4] == "posts":
+					mode = "user"
+				case parts[2] == "tags" && parts[4] == "posts":
+					mode = "tag"
+				case parts[2] == "posts" && parts[4] == "replies":
+					mode = "replies"
+				case parts[2] == "posts" && parts[4] == "retweets":
+					mode = "retweets"
+				}
+				if mode != "" {
+					listPosts(w, r, codec, repository, refresh, mode, parts[3])
+					return
+				}
 			}
 		}
 		const prefix = "/api/v2/auth/sessions/"

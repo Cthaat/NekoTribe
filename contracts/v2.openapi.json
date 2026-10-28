@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-28-personal-post-lists"
+    "x-contract-revision": "2026-10-28-scoped-post-lists"
   },
   "tags": [
     {
@@ -4366,7 +4366,7 @@
       "get": {
         "summary": "获取指定用户帖子",
         "deprecated": false,
-        "description": "获取指定用户帖子",
+        "description": "需要登录；按目标过滤当前查看者可见的帖子，目标不存在时返回空列表。",
         "operationId": "get_users_id_posts",
         "tags": [
           "Users"
@@ -4377,44 +4377,61 @@
             "in": "path",
             "description": "用户 ID",
             "required": true,
-            "example": 0,
+            "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "timeline",
+            "in": "query",
+            "description": "home、following、mentions；后两者需登录，未知值按普通列表处理",
+            "required": false,
+            "example": "home",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "搜索关键词；传入时执行搜索",
+            "required": false,
+            "example": "V",
+            "schema": {
+              "type": "string"
             }
           },
           {
             "name": "page",
             "in": "query",
-            "description": "页码",
+            "description": "页码；兼容小数，具体行为参见共同需求",
             "required": false,
             "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "number"
             }
           },
           {
             "name": "page_size",
             "in": "query",
-            "description": "每页数量",
+            "description": "每页数量；兼容小数，具体行为参见共同需求",
             "required": false,
             "example": 20,
             "schema": {
-              "type": "integer"
+              "type": "number"
             }
           },
           {
             "name": "sort",
             "in": "query",
-            "description": "排序",
+            "description": "newest、oldest、popular；未知值按 newest 处理",
             "required": false,
-            "example": "newest",
+            "example": "popular",
             "schema": {
-              "type": "string",
-              "enum": [
-                "newest",
-                "oldest",
-                "popular"
-              ]
+              "type": "string"
             }
           }
         ],
@@ -4424,389 +4441,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "integer",
-                      "example": 200
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "success"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "post_id": {
-                            "type": "integer",
-                            "example": 100001
-                          },
-                          "author": {
-                            "type": "object",
-                            "properties": {
-                              "user_id": {
-                                "type": "integer",
-                                "example": 1001
-                              },
-                              "username": {
-                                "type": "string",
-                                "example": "demo"
-                              },
-                              "display_name": {
-                                "type": "string",
-                                "example": "Demo"
-                              },
-                              "avatar_url": {
-                                "type": "string",
-                                "example": "/upload/avatars/1001.png"
-                              },
-                              "bio": {
-                                "type": "string",
-                                "example": "hello"
-                              },
-                              "location": {
-                                "type": "string",
-                                "example": "Shanghai"
-                              },
-                              "website": {
-                                "type": "string",
-                                "example": "https://example.com"
-                              },
-                              "is_verified": {
-                                "type": "integer",
-                                "example": 1
-                              },
-                              "followers_count": {
-                                "type": "integer",
-                                "example": 10
-                              },
-                              "following_count": {
-                                "type": "integer",
-                                "example": 20
-                              },
-                              "posts_count": {
-                                "type": "integer",
-                                "example": 30
-                              },
-                              "likes_count": {
-                                "type": "integer",
-                                "example": 40
-                              },
-                              "relationship": {
-                                "type": "object",
-                                "properties": {
-                                  "is_self": {
-                                    "type": "boolean",
-                                    "example": false
-                                  },
-                                  "is_following": {
-                                    "type": "boolean",
-                                    "example": true
-                                  },
-                                  "is_blocked": {
-                                    "type": "boolean",
-                                    "example": false
-                                  },
-                                  "is_blocking": {
-                                    "type": "boolean",
-                                    "example": false
-                                  },
-                                  "relation": {
-                                    "type": "string",
-                                    "example": "following"
-                                  }
-                                },
-                                "additionalProperties": false
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          "content": {
-                            "type": "string",
-                            "example": "hello world #nuxt"
-                          },
-                          "post_type": {
-                            "type": "string",
-                            "example": "post"
-                          },
-                          "visibility": {
-                            "type": "string",
-                            "example": "public"
-                          },
-                          "language": {
-                            "type": "string",
-                            "example": "zh"
-                          },
-                          "location": {
-                            "type": "string",
-                            "example": "Shanghai"
-                          },
-                          "reply_to_post_id": {
-                            "type": "object",
-                            "additionalProperties": true,
-                            "properties": {},
-                            "nullable": true
-                          },
-                          "repost_of_post_id": {
-                            "type": "object",
-                            "additionalProperties": true,
-                            "properties": {},
-                            "nullable": true
-                          },
-                          "quoted_post_id": {
-                            "type": "object",
-                            "additionalProperties": true,
-                            "properties": {},
-                            "nullable": true
-                          },
-                          "media": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "media_id": {
-                                  "type": "integer",
-                                  "example": 600001
-                                },
-                                "media_type": {
-                                  "type": "string",
-                                  "example": "image"
-                                },
-                                "file_name": {
-                                  "type": "string",
-                                  "example": "cat.png"
-                                },
-                                "public_url": {
-                                  "type": "string",
-                                  "example": "/upload/media/600001.png"
-                                },
-                                "file_size": {
-                                  "type": "integer",
-                                  "example": 102400
-                                },
-                                "mime_type": {
-                                  "type": "string",
-                                  "example": "image/png"
-                                },
-                                "width": {
-                                  "type": "integer",
-                                  "example": 1024
-                                },
-                                "height": {
-                                  "type": "integer",
-                                  "example": 768
-                                },
-                                "duration": {
-                                  "type": "object",
-                                  "additionalProperties": true,
-                                  "properties": {},
-                                  "nullable": true
-                                },
-                                "thumbnail_url": {
-                                  "type": "string",
-                                  "example": "/upload/media/600001-thumb.png"
-                                },
-                                "alt_text": {
-                                  "type": "string",
-                                  "example": "cat"
-                                },
-                                "status": {
-                                  "type": "string",
-                                  "example": "ready"
-                                },
-                                "created_at": {
-                                  "type": "string",
-                                  "example": "2026-04-26T01:00:00Z"
-                                }
-                              },
-                              "additionalProperties": false
-                            }
-                          },
-                          "tags": {
-                            "type": "array",
-                            "items": {
-                              "type": "string",
-                              "example": "nuxt"
-                            }
-                          },
-                          "mentions": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {},
-                              "additionalProperties": false
-                            }
-                          },
-                          "stats": {
-                            "type": "object",
-                            "properties": {
-                              "likes_count": {
-                                "type": "integer",
-                                "example": 12
-                              },
-                              "comments_count": {
-                                "type": "integer",
-                                "example": 3
-                              },
-                              "replies_count": {
-                                "type": "integer",
-                                "example": 2
-                              },
-                              "retweets_count": {
-                                "type": "integer",
-                                "example": 1
-                              },
-                              "views_count": {
-                                "type": "integer",
-                                "example": 100
-                              },
-                              "engagement_score": {
-                                "type": "number",
-                                "example": 8.5
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          "viewer_state": {
-                            "type": "object",
-                            "properties": {
-                              "is_liked": {
-                                "type": "boolean",
-                                "example": false
-                              },
-                              "is_bookmarked": {
-                                "type": "boolean",
-                                "example": false
-                              },
-                              "can_delete": {
-                                "type": "boolean",
-                                "example": false
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          "created_at": {
-                            "type": "string",
-                            "example": "2026-04-26T01:00:00Z"
-                          },
-                          "updated_at": {
-                            "type": "string",
-                            "example": "2026-04-26T01:00:00Z"
-                          }
-                        },
-                        "additionalProperties": false
-                      }
-                    },
-                    "meta": {
-                      "type": "object",
-                      "properties": {
-                        "page": {
-                          "type": "integer",
-                          "example": 1
-                        },
-                        "page_size": {
-                          "type": "integer",
-                          "example": 20
-                        },
-                        "total": {
-                          "type": "integer",
-                          "example": 30
-                        },
-                        "has_next": {
-                          "type": "boolean",
-                          "example": true
-                        }
-                      },
-                      "additionalProperties": false
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                "example": {
-                  "code": 200,
-                  "message": "success",
-                  "data": [
-                    {
-                      "post_id": 100001,
-                      "author": {
-                        "user_id": 1001,
-                        "username": "demo",
-                        "display_name": "Demo",
-                        "avatar_url": "/upload/avatars/1001.png",
-                        "bio": "hello",
-                        "location": "Shanghai",
-                        "website": "https://example.com",
-                        "is_verified": 1,
-                        "followers_count": 10,
-                        "following_count": 20,
-                        "posts_count": 30,
-                        "likes_count": 40,
-                        "relationship": {
-                          "is_self": false,
-                          "is_following": true,
-                          "is_blocked": false,
-                          "is_blocking": false,
-                          "relation": "following"
-                        }
-                      },
-                      "content": "hello world #nuxt",
-                      "post_type": "post",
-                      "visibility": "public",
-                      "language": "zh",
-                      "location": "Shanghai",
-                      "reply_to_post_id": null,
-                      "repost_of_post_id": null,
-                      "quoted_post_id": null,
-                      "media": [
-                        {
-                          "media_id": 600001,
-                          "media_type": "image",
-                          "file_name": "cat.png",
-                          "public_url": "/upload/media/600001.png",
-                          "file_size": 102400,
-                          "mime_type": "image/png",
-                          "width": 1024,
-                          "height": 768,
-                          "duration": null,
-                          "thumbnail_url": "/upload/media/600001-thumb.png",
-                          "alt_text": "cat",
-                          "status": "ready",
-                          "created_at": "2026-04-26T01:00:00Z"
-                        }
-                      ],
-                      "tags": [
-                        "nuxt"
-                      ],
-                      "mentions": [],
-                      "stats": {
-                        "likes_count": 12,
-                        "comments_count": 3,
-                        "replies_count": 2,
-                        "retweets_count": 1,
-                        "views_count": 100,
-                        "engagement_score": 8.5
-                      },
-                      "viewer_state": {
-                        "is_liked": false,
-                        "is_bookmarked": false,
-                        "can_delete": false
-                      },
-                      "created_at": "2026-04-26T01:00:00Z",
-                      "updated_at": "2026-04-26T01:00:00Z"
-                    }
-                  ],
-                  "meta": {
-                    "page": 1,
-                    "page_size": 20,
-                    "total": 30,
-                    "has_next": true
-                  }
+                  "$ref": "#/paths/~1api~1v2~1posts/get/responses/200/content/application~1json/schema"
                 }
               }
-            },
-            "headers": {}
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest",
@@ -4827,11 +4465,60 @@
           "500": {
             "$ref": "#/components/responses/InternalError",
             "description": "服务器内部错误"
+          },
+          "503": {
+            "description": "服务所需的数据结构不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer",
+                          "enum": [
+                            50301
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "meta": {
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "data",
+                        "meta"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
           }
         ]
       }
@@ -11002,7 +10689,7 @@
       "get": {
         "summary": "获取帖子回复流",
         "deprecated": false,
-        "description": "获取帖子回复流",
+        "description": "需要登录；按目标过滤当前查看者可见的帖子，目标不存在时返回空列表。",
         "operationId": "get_posts_id_replies",
         "tags": [
           "Posts"
@@ -11013,29 +10700,61 @@
             "in": "path",
             "description": "帖子 ID",
             "required": true,
-            "example": 0,
+            "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "timeline",
+            "in": "query",
+            "description": "home、following、mentions；后两者需登录，未知值按普通列表处理",
+            "required": false,
+            "example": "home",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "搜索关键词；传入时执行搜索",
+            "required": false,
+            "example": "V",
+            "schema": {
+              "type": "string"
             }
           },
           {
             "name": "page",
             "in": "query",
-            "description": "页码",
+            "description": "页码；兼容小数，具体行为参见共同需求",
             "required": false,
             "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "number"
             }
           },
           {
             "name": "page_size",
             "in": "query",
-            "description": "每页数量",
+            "description": "每页数量；兼容小数，具体行为参见共同需求",
             "required": false,
             "example": 20,
             "schema": {
-              "type": "integer"
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "newest、oldest、popular；未知值按 newest 处理",
+            "required": false,
+            "example": "popular",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -11045,389 +10764,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "integer",
-                      "example": 200
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "success"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "post_id": {
-                            "type": "integer",
-                            "example": 100001
-                          },
-                          "author": {
-                            "type": "object",
-                            "properties": {
-                              "user_id": {
-                                "type": "integer",
-                                "example": 1001
-                              },
-                              "username": {
-                                "type": "string",
-                                "example": "demo"
-                              },
-                              "display_name": {
-                                "type": "string",
-                                "example": "Demo"
-                              },
-                              "avatar_url": {
-                                "type": "string",
-                                "example": "/upload/avatars/1001.png"
-                              },
-                              "bio": {
-                                "type": "string",
-                                "example": "hello"
-                              },
-                              "location": {
-                                "type": "string",
-                                "example": "Shanghai"
-                              },
-                              "website": {
-                                "type": "string",
-                                "example": "https://example.com"
-                              },
-                              "is_verified": {
-                                "type": "integer",
-                                "example": 1
-                              },
-                              "followers_count": {
-                                "type": "integer",
-                                "example": 10
-                              },
-                              "following_count": {
-                                "type": "integer",
-                                "example": 20
-                              },
-                              "posts_count": {
-                                "type": "integer",
-                                "example": 30
-                              },
-                              "likes_count": {
-                                "type": "integer",
-                                "example": 40
-                              },
-                              "relationship": {
-                                "type": "object",
-                                "properties": {
-                                  "is_self": {
-                                    "type": "boolean",
-                                    "example": false
-                                  },
-                                  "is_following": {
-                                    "type": "boolean",
-                                    "example": true
-                                  },
-                                  "is_blocked": {
-                                    "type": "boolean",
-                                    "example": false
-                                  },
-                                  "is_blocking": {
-                                    "type": "boolean",
-                                    "example": false
-                                  },
-                                  "relation": {
-                                    "type": "string",
-                                    "example": "following"
-                                  }
-                                },
-                                "additionalProperties": false
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          "content": {
-                            "type": "string",
-                            "example": "hello world #nuxt"
-                          },
-                          "post_type": {
-                            "type": "string",
-                            "example": "post"
-                          },
-                          "visibility": {
-                            "type": "string",
-                            "example": "public"
-                          },
-                          "language": {
-                            "type": "string",
-                            "example": "zh"
-                          },
-                          "location": {
-                            "type": "string",
-                            "example": "Shanghai"
-                          },
-                          "reply_to_post_id": {
-                            "type": "object",
-                            "additionalProperties": true,
-                            "properties": {},
-                            "nullable": true
-                          },
-                          "repost_of_post_id": {
-                            "type": "object",
-                            "additionalProperties": true,
-                            "properties": {},
-                            "nullable": true
-                          },
-                          "quoted_post_id": {
-                            "type": "object",
-                            "additionalProperties": true,
-                            "properties": {},
-                            "nullable": true
-                          },
-                          "media": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "media_id": {
-                                  "type": "integer",
-                                  "example": 600001
-                                },
-                                "media_type": {
-                                  "type": "string",
-                                  "example": "image"
-                                },
-                                "file_name": {
-                                  "type": "string",
-                                  "example": "cat.png"
-                                },
-                                "public_url": {
-                                  "type": "string",
-                                  "example": "/upload/media/600001.png"
-                                },
-                                "file_size": {
-                                  "type": "integer",
-                                  "example": 102400
-                                },
-                                "mime_type": {
-                                  "type": "string",
-                                  "example": "image/png"
-                                },
-                                "width": {
-                                  "type": "integer",
-                                  "example": 1024
-                                },
-                                "height": {
-                                  "type": "integer",
-                                  "example": 768
-                                },
-                                "duration": {
-                                  "type": "object",
-                                  "additionalProperties": true,
-                                  "properties": {},
-                                  "nullable": true
-                                },
-                                "thumbnail_url": {
-                                  "type": "string",
-                                  "example": "/upload/media/600001-thumb.png"
-                                },
-                                "alt_text": {
-                                  "type": "string",
-                                  "example": "cat"
-                                },
-                                "status": {
-                                  "type": "string",
-                                  "example": "ready"
-                                },
-                                "created_at": {
-                                  "type": "string",
-                                  "example": "2026-04-26T01:00:00Z"
-                                }
-                              },
-                              "additionalProperties": false
-                            }
-                          },
-                          "tags": {
-                            "type": "array",
-                            "items": {
-                              "type": "string",
-                              "example": "nuxt"
-                            }
-                          },
-                          "mentions": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {},
-                              "additionalProperties": false
-                            }
-                          },
-                          "stats": {
-                            "type": "object",
-                            "properties": {
-                              "likes_count": {
-                                "type": "integer",
-                                "example": 12
-                              },
-                              "comments_count": {
-                                "type": "integer",
-                                "example": 3
-                              },
-                              "replies_count": {
-                                "type": "integer",
-                                "example": 2
-                              },
-                              "retweets_count": {
-                                "type": "integer",
-                                "example": 1
-                              },
-                              "views_count": {
-                                "type": "integer",
-                                "example": 100
-                              },
-                              "engagement_score": {
-                                "type": "number",
-                                "example": 8.5
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          "viewer_state": {
-                            "type": "object",
-                            "properties": {
-                              "is_liked": {
-                                "type": "boolean",
-                                "example": false
-                              },
-                              "is_bookmarked": {
-                                "type": "boolean",
-                                "example": false
-                              },
-                              "can_delete": {
-                                "type": "boolean",
-                                "example": false
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          "created_at": {
-                            "type": "string",
-                            "example": "2026-04-26T01:00:00Z"
-                          },
-                          "updated_at": {
-                            "type": "string",
-                            "example": "2026-04-26T01:00:00Z"
-                          }
-                        },
-                        "additionalProperties": false
-                      }
-                    },
-                    "meta": {
-                      "type": "object",
-                      "properties": {
-                        "page": {
-                          "type": "integer",
-                          "example": 1
-                        },
-                        "page_size": {
-                          "type": "integer",
-                          "example": 20
-                        },
-                        "total": {
-                          "type": "integer",
-                          "example": 2
-                        },
-                        "has_next": {
-                          "type": "boolean",
-                          "example": true
-                        }
-                      },
-                      "additionalProperties": false
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                "example": {
-                  "code": 200,
-                  "message": "success",
-                  "data": [
-                    {
-                      "post_id": 100001,
-                      "author": {
-                        "user_id": 1001,
-                        "username": "demo",
-                        "display_name": "Demo",
-                        "avatar_url": "/upload/avatars/1001.png",
-                        "bio": "hello",
-                        "location": "Shanghai",
-                        "website": "https://example.com",
-                        "is_verified": 1,
-                        "followers_count": 10,
-                        "following_count": 20,
-                        "posts_count": 30,
-                        "likes_count": 40,
-                        "relationship": {
-                          "is_self": false,
-                          "is_following": true,
-                          "is_blocked": false,
-                          "is_blocking": false,
-                          "relation": "following"
-                        }
-                      },
-                      "content": "hello world #nuxt",
-                      "post_type": "post",
-                      "visibility": "public",
-                      "language": "zh",
-                      "location": "Shanghai",
-                      "reply_to_post_id": null,
-                      "repost_of_post_id": null,
-                      "quoted_post_id": null,
-                      "media": [
-                        {
-                          "media_id": 600001,
-                          "media_type": "image",
-                          "file_name": "cat.png",
-                          "public_url": "/upload/media/600001.png",
-                          "file_size": 102400,
-                          "mime_type": "image/png",
-                          "width": 1024,
-                          "height": 768,
-                          "duration": null,
-                          "thumbnail_url": "/upload/media/600001-thumb.png",
-                          "alt_text": "cat",
-                          "status": "ready",
-                          "created_at": "2026-04-26T01:00:00Z"
-                        }
-                      ],
-                      "tags": [
-                        "nuxt"
-                      ],
-                      "mentions": [],
-                      "stats": {
-                        "likes_count": 12,
-                        "comments_count": 3,
-                        "replies_count": 2,
-                        "retweets_count": 1,
-                        "views_count": 100,
-                        "engagement_score": 8.5
-                      },
-                      "viewer_state": {
-                        "is_liked": false,
-                        "is_bookmarked": false,
-                        "can_delete": false
-                      },
-                      "created_at": "2026-04-26T01:00:00Z",
-                      "updated_at": "2026-04-26T01:00:00Z"
-                    }
-                  ],
-                  "meta": {
-                    "page": 1,
-                    "page_size": 20,
-                    "total": 2,
-                    "has_next": true
-                  }
+                  "$ref": "#/paths/~1api~1v2~1posts/get/responses/200/content/application~1json/schema"
                 }
               }
-            },
-            "headers": {}
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest",
@@ -11448,11 +10788,60 @@
           "500": {
             "$ref": "#/components/responses/InternalError",
             "description": "服务器内部错误"
+          },
+          "503": {
+            "description": "服务所需的数据结构不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer",
+                          "enum": [
+                            50301
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "meta": {
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "data",
+                        "meta"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
           }
         ]
       }
@@ -11461,7 +10850,7 @@
       "get": {
         "summary": "获取帖子转发列表",
         "deprecated": false,
-        "description": "获取帖子转发列表",
+        "description": "需要登录；按目标过滤当前查看者可见的帖子，目标不存在时返回空列表。",
         "operationId": "get_posts_id_retweets",
         "tags": [
           "Posts"
@@ -11472,29 +10861,61 @@
             "in": "path",
             "description": "帖子 ID",
             "required": true,
-            "example": 0,
+            "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "timeline",
+            "in": "query",
+            "description": "home、following、mentions；后两者需登录，未知值按普通列表处理",
+            "required": false,
+            "example": "home",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "搜索关键词；传入时执行搜索",
+            "required": false,
+            "example": "V",
+            "schema": {
+              "type": "string"
             }
           },
           {
             "name": "page",
             "in": "query",
-            "description": "页码",
+            "description": "页码；兼容小数，具体行为参见共同需求",
             "required": false,
             "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "number"
             }
           },
           {
             "name": "page_size",
             "in": "query",
-            "description": "每页数量",
+            "description": "每页数量；兼容小数，具体行为参见共同需求",
             "required": false,
             "example": 20,
             "schema": {
-              "type": "integer"
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "newest、oldest、popular；未知值按 newest 处理",
+            "required": false,
+            "example": "popular",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -11504,304 +10925,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "integer"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "post_id": {
-                            "type": "integer"
-                          },
-                          "author": {
-                            "type": "object",
-                            "properties": {
-                              "user_id": {
-                                "type": "integer"
-                              },
-                              "username": {
-                                "type": "string"
-                              },
-                              "display_name": {
-                                "type": "string"
-                              },
-                              "avatar_url": {
-                                "type": "string"
-                              },
-                              "bio": {
-                                "type": "string"
-                              },
-                              "location": {
-                                "type": "string"
-                              },
-                              "website": {
-                                "type": "string"
-                              },
-                              "is_verified": {
-                                "type": "integer"
-                              },
-                              "followers_count": {
-                                "type": "integer"
-                              },
-                              "following_count": {
-                                "type": "integer"
-                              },
-                              "posts_count": {
-                                "type": "integer"
-                              },
-                              "likes_count": {
-                                "type": "integer"
-                              },
-                              "relationship": {
-                                "type": "object",
-                                "properties": {
-                                  "is_self": {
-                                    "type": "boolean"
-                                  },
-                                  "is_following": {
-                                    "type": "boolean"
-                                  },
-                                  "is_blocked": {
-                                    "type": "boolean"
-                                  },
-                                  "is_blocking": {
-                                    "type": "boolean"
-                                  },
-                                  "relation": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "is_self",
-                                  "is_following",
-                                  "is_blocked",
-                                  "is_blocking",
-                                  "relation"
-                                ]
-                              }
-                            },
-                            "required": [
-                              "user_id",
-                              "username",
-                              "display_name",
-                              "avatar_url",
-                              "bio",
-                              "location",
-                              "website",
-                              "is_verified",
-                              "followers_count",
-                              "following_count",
-                              "posts_count",
-                              "likes_count",
-                              "relationship"
-                            ]
-                          },
-                          "content": {
-                            "type": "string"
-                          },
-                          "post_type": {
-                            "type": "string"
-                          },
-                          "visibility": {
-                            "type": "string"
-                          },
-                          "language": {
-                            "type": "string"
-                          },
-                          "location": {
-                            "type": "string"
-                          },
-                          "reply_to_post_id": {
-                            "type": "number",
-                            "nullable": true
-                          },
-                          "repost_of_post_id": {
-                            "type": "integer"
-                          },
-                          "quoted_post_id": {
-                            "type": "number",
-                            "nullable": true
-                          },
-                          "media": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "tags": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "mentions": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "stats": {
-                            "type": "object",
-                            "properties": {
-                              "likes_count": {
-                                "type": "integer"
-                              },
-                              "comments_count": {
-                                "type": "integer"
-                              },
-                              "replies_count": {
-                                "type": "integer"
-                              },
-                              "retweets_count": {
-                                "type": "integer"
-                              },
-                              "views_count": {
-                                "type": "integer"
-                              },
-                              "engagement_score": {
-                                "type": "integer"
-                              }
-                            },
-                            "required": [
-                              "likes_count",
-                              "comments_count",
-                              "replies_count",
-                              "retweets_count",
-                              "views_count",
-                              "engagement_score"
-                            ]
-                          },
-                          "viewer_state": {
-                            "type": "object",
-                            "properties": {
-                              "is_liked": {
-                                "type": "boolean"
-                              },
-                              "is_bookmarked": {
-                                "type": "boolean"
-                              },
-                              "can_delete": {
-                                "type": "boolean"
-                              }
-                            },
-                            "required": [
-                              "is_liked",
-                              "is_bookmarked",
-                              "can_delete"
-                            ]
-                          },
-                          "created_at": {
-                            "type": "string"
-                          },
-                          "updated_at": {
-                            "type": "string"
-                          }
-                        }
-                      }
-                    },
-                    "meta": {
-                      "type": "object",
-                      "properties": {
-                        "page": {
-                          "type": "integer"
-                        },
-                        "page_size": {
-                          "type": "integer"
-                        },
-                        "total": {
-                          "type": "integer"
-                        },
-                        "has_next": {
-                          "type": "boolean"
-                        }
-                      },
-                      "required": [
-                        "page",
-                        "page_size",
-                        "total",
-                        "has_next"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "data",
-                    "meta"
-                  ]
-                },
-                "example": {
-                  "code": 200,
-                  "message": "success",
-                  "data": [
-                    {
-                      "post_id": 100102,
-                      "author": {
-                        "user_id": 1020,
-                        "username": "demo",
-                        "display_name": "Demo",
-                        "avatar_url": "/uploads/avatars/1020/2026/04/f6c8b1ab-de08-45e7-9dd2-a8f3abb9d94b.jpg",
-                        "bio": "hello123",
-                        "location": "Shanghai",
-                        "website": "https://example.com",
-                        "is_verified": 0,
-                        "followers_count": 0,
-                        "following_count": 0,
-                        "posts_count": 2,
-                        "likes_count": 0,
-                        "relationship": {
-                          "is_self": true,
-                          "is_following": false,
-                          "is_blocked": false,
-                          "is_blocking": false,
-                          "relation": "self"
-                        }
-                      },
-                      "content": "666",
-                      "post_type": "repost",
-                      "visibility": "public",
-                      "language": "zh",
-                      "location": "",
-                      "reply_to_post_id": null,
-                      "repost_of_post_id": 100001,
-                      "quoted_post_id": null,
-                      "media": [],
-                      "tags": [],
-                      "mentions": [],
-                      "stats": {
-                        "likes_count": 0,
-                        "comments_count": 0,
-                        "replies_count": 0,
-                        "retweets_count": 0,
-                        "views_count": 0,
-                        "engagement_score": 0
-                      },
-                      "viewer_state": {
-                        "is_liked": false,
-                        "is_bookmarked": false,
-                        "can_delete": true
-                      },
-                      "created_at": "2026-04-27T08:34:14.549Z",
-                      "updated_at": "2026-04-27T08:34:14.550Z"
-                    }
-                  ],
-                  "meta": {
-                    "page": 1,
-                    "page_size": 20,
-                    "total": 1,
-                    "has_next": false
-                  }
+                  "$ref": "#/paths/~1api~1v2~1posts/get/responses/200/content/application~1json/schema"
                 }
               }
-            },
-            "headers": {}
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest",
@@ -11822,11 +10949,60 @@
           "500": {
             "$ref": "#/components/responses/InternalError",
             "description": "服务器内部错误"
+          },
+          "503": {
+            "description": "服务所需的数据结构不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer",
+                          "enum": [
+                            50301
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "meta": {
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "data",
+                        "meta"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
           }
         ]
       },
@@ -14511,7 +13687,7 @@
       "get": {
         "summary": "获取话题下帖子",
         "deprecated": false,
-        "description": "获取话题下帖子",
+        "description": "需要登录；按目标过滤当前查看者可见的帖子，目标不存在时返回空列表。",
         "operationId": "get_tags_name_posts",
         "tags": [
           "Tags"
@@ -14520,9 +13696,30 @@
           {
             "name": "name",
             "in": "path",
-            "description": "话题名称",
+            "description": "URL 编码的标签名称，解码后比较，不区分大小写",
             "required": true,
-            "example": "",
+            "example": "cats",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "timeline",
+            "in": "query",
+            "description": "home、following、mentions；后两者需登录，未知值按普通列表处理",
+            "required": false,
+            "example": "home",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "搜索关键词；传入时执行搜索",
+            "required": false,
+            "example": "V",
             "schema": {
               "type": "string"
             }
@@ -14530,36 +13727,31 @@
           {
             "name": "page",
             "in": "query",
-            "description": "页码",
+            "description": "页码；兼容小数，具体行为参见共同需求",
             "required": false,
             "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "number"
             }
           },
           {
             "name": "page_size",
             "in": "query",
-            "description": "每页数量",
+            "description": "每页数量；兼容小数，具体行为参见共同需求",
             "required": false,
             "example": 20,
             "schema": {
-              "type": "integer"
+              "type": "number"
             }
           },
           {
             "name": "sort",
             "in": "query",
-            "description": "排序",
+            "description": "newest、oldest、popular；未知值按 newest 处理",
             "required": false,
             "example": "popular",
             "schema": {
-              "type": "string",
-              "enum": [
-                "popular",
-                "newest",
-                "oldest"
-              ]
+              "type": "string"
             }
           }
         ],
@@ -14569,454 +13761,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "integer"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "post_id": {
-                            "type": "integer"
-                          },
-                          "author": {
-                            "type": "object",
-                            "properties": {
-                              "user_id": {
-                                "type": "integer"
-                              },
-                              "username": {
-                                "type": "string"
-                              },
-                              "display_name": {
-                                "type": "string"
-                              },
-                              "avatar_url": {
-                                "type": "string"
-                              },
-                              "bio": {
-                                "type": "string"
-                              },
-                              "location": {
-                                "type": "string"
-                              },
-                              "website": {
-                                "type": "string"
-                              },
-                              "is_verified": {
-                                "type": "integer"
-                              },
-                              "followers_count": {
-                                "type": "integer"
-                              },
-                              "following_count": {
-                                "type": "integer"
-                              },
-                              "posts_count": {
-                                "type": "integer"
-                              },
-                              "likes_count": {
-                                "type": "integer"
-                              },
-                              "relationship": {
-                                "type": "object",
-                                "properties": {
-                                  "is_self": {
-                                    "type": "boolean"
-                                  },
-                                  "is_following": {
-                                    "type": "boolean"
-                                  },
-                                  "is_blocked": {
-                                    "type": "boolean"
-                                  },
-                                  "is_blocking": {
-                                    "type": "boolean"
-                                  },
-                                  "relation": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "is_self",
-                                  "is_following",
-                                  "is_blocked",
-                                  "is_blocking",
-                                  "relation"
-                                ]
-                              }
-                            },
-                            "required": [
-                              "user_id",
-                              "username",
-                              "display_name",
-                              "avatar_url",
-                              "bio",
-                              "location",
-                              "website",
-                              "is_verified",
-                              "followers_count",
-                              "following_count",
-                              "posts_count",
-                              "likes_count",
-                              "relationship"
-                            ]
-                          },
-                          "content": {
-                            "type": "string"
-                          },
-                          "post_type": {
-                            "type": "string"
-                          },
-                          "visibility": {
-                            "type": "string"
-                          },
-                          "language": {
-                            "type": "string"
-                          },
-                          "location": {
-                            "type": "string"
-                          },
-                          "reply_to_post_id": {
-                            "type": "number",
-                            "nullable": true
-                          },
-                          "repost_of_post_id": {
-                            "type": "number",
-                            "nullable": true
-                          },
-                          "quoted_post_id": {
-                            "type": "number",
-                            "nullable": true
-                          },
-                          "media": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "media_id": {
-                                  "type": "integer"
-                                },
-                                "media_type": {
-                                  "type": "string"
-                                },
-                                "file_name": {
-                                  "type": "string"
-                                },
-                                "public_url": {
-                                  "type": "string"
-                                },
-                                "file_size": {
-                                  "type": "integer"
-                                },
-                                "mime_type": {
-                                  "type": "string"
-                                },
-                                "width": {
-                                  "type": "integer"
-                                },
-                                "height": {
-                                  "type": "integer"
-                                },
-                                "duration": {
-                                  "type": "number",
-                                  "nullable": true
-                                },
-                                "thumbnail_url": {
-                                  "type": "string",
-                                  "nullable": true
-                                },
-                                "alt_text": {
-                                  "type": "string"
-                                },
-                                "status": {
-                                  "type": "string"
-                                },
-                                "created_at": {
-                                  "type": "string"
-                                }
-                              }
-                            }
-                          },
-                          "tags": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "mentions": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "user_id": {
-                                  "type": "integer"
-                                },
-                                "username": {
-                                  "type": "string"
-                                },
-                                "display_name": {
-                                  "type": "string"
-                                },
-                                "avatar_url": {
-                                  "type": "string"
-                                },
-                                "bio": {
-                                  "type": "string"
-                                },
-                                "location": {
-                                  "type": "string"
-                                },
-                                "website": {
-                                  "type": "string"
-                                },
-                                "is_verified": {
-                                  "type": "integer"
-                                },
-                                "followers_count": {
-                                  "type": "integer"
-                                },
-                                "following_count": {
-                                  "type": "integer"
-                                },
-                                "posts_count": {
-                                  "type": "integer"
-                                },
-                                "likes_count": {
-                                  "type": "integer"
-                                },
-                                "relationship": {
-                                  "type": "object",
-                                  "properties": {
-                                    "is_self": {
-                                      "type": "boolean"
-                                    },
-                                    "is_following": {
-                                      "type": "boolean"
-                                    },
-                                    "is_blocked": {
-                                      "type": "boolean"
-                                    },
-                                    "is_blocking": {
-                                      "type": "boolean"
-                                    },
-                                    "relation": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "required": [
-                                    "is_self",
-                                    "is_following",
-                                    "is_blocked",
-                                    "is_blocking",
-                                    "relation"
-                                  ]
-                                }
-                              }
-                            }
-                          },
-                          "stats": {
-                            "type": "object",
-                            "properties": {
-                              "likes_count": {
-                                "type": "integer"
-                              },
-                              "comments_count": {
-                                "type": "integer"
-                              },
-                              "replies_count": {
-                                "type": "integer"
-                              },
-                              "retweets_count": {
-                                "type": "integer"
-                              },
-                              "views_count": {
-                                "type": "integer"
-                              },
-                              "engagement_score": {
-                                "type": "integer"
-                              }
-                            },
-                            "required": [
-                              "likes_count",
-                              "comments_count",
-                              "replies_count",
-                              "retweets_count",
-                              "views_count",
-                              "engagement_score"
-                            ]
-                          },
-                          "viewer_state": {
-                            "type": "object",
-                            "properties": {
-                              "is_liked": {
-                                "type": "boolean"
-                              },
-                              "is_bookmarked": {
-                                "type": "boolean"
-                              },
-                              "can_delete": {
-                                "type": "boolean"
-                              }
-                            },
-                            "required": [
-                              "is_liked",
-                              "is_bookmarked",
-                              "can_delete"
-                            ]
-                          },
-                          "created_at": {
-                            "type": "string"
-                          },
-                          "updated_at": {
-                            "type": "string"
-                          }
-                        }
-                      }
-                    },
-                    "meta": {
-                      "type": "object",
-                      "properties": {
-                        "page": {
-                          "type": "integer"
-                        },
-                        "page_size": {
-                          "type": "integer"
-                        },
-                        "total": {
-                          "type": "integer"
-                        },
-                        "has_next": {
-                          "type": "boolean"
-                        }
-                      },
-                      "required": [
-                        "page",
-                        "page_size",
-                        "total",
-                        "has_next"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "data",
-                    "meta"
-                  ]
-                },
-                "example": {
-                  "code": 200,
-                  "message": "success",
-                  "data": [
-                    {
-                      "post_id": 100000,
-                      "author": {
-                        "user_id": 1000,
-                        "username": "v2_admin",
-                        "display_name": "V2 管理员",
-                        "avatar_url": "/upload/media/v2-banner.jpg",
-                        "bio": "负责 V2 开发环境管理和联调",
-                        "location": "上海",
-                        "website": "https://example.com/admin",
-                        "is_verified": 1,
-                        "followers_count": 2,
-                        "following_count": 0,
-                        "posts_count": 1,
-                        "likes_count": 1,
-                        "relationship": {
-                          "is_self": false,
-                          "is_following": false,
-                          "is_blocked": false,
-                          "is_blocking": false,
-                          "relation": "none"
-                        }
-                      },
-                      "content": "欢迎来到 NekoTribe V2 开发环境，这条帖子用于验证 posts 详情、时间线、通知和统计。",
-                      "post_type": "post",
-                      "visibility": "public",
-                      "language": "zh",
-                      "location": "",
-                      "reply_to_post_id": null,
-                      "repost_of_post_id": null,
-                      "quoted_post_id": null,
-                      "media": [
-                        {
-                          "media_id": 600000,
-                          "media_type": "image",
-                          "file_name": "v2-banner.jpg",
-                          "public_url": "/upload/media/v2-banner.jpg",
-                          "file_size": 256000,
-                          "mime_type": "image/jpeg",
-                          "width": 1200,
-                          "height": 630,
-                          "duration": null,
-                          "thumbnail_url": null,
-                          "alt_text": "V2 欢迎横幅",
-                          "status": "ready",
-                          "created_at": "2026-04-26T00:50:35.493Z"
-                        }
-                      ],
-                      "tags": [
-                        "api",
-                        "v2"
-                      ],
-                      "mentions": [
-                        {
-                          "user_id": 1004,
-                          "username": "v2_pm",
-                          "display_name": "V2 产品经理",
-                          "avatar_url": "/default-avatar.png",
-                          "bio": "用于验证推荐、通知和统计接口",
-                          "location": "北京",
-                          "website": "",
-                          "is_verified": 1,
-                          "followers_count": 0,
-                          "following_count": 1,
-                          "posts_count": 0,
-                          "likes_count": 0,
-                          "relationship": {
-                            "is_self": false,
-                            "is_following": false,
-                            "is_blocked": false,
-                            "is_blocking": false,
-                            "relation": "none"
-                          }
-                        }
-                      ],
-                      "stats": {
-                        "likes_count": 1,
-                        "comments_count": 1,
-                        "replies_count": 0,
-                        "retweets_count": 0,
-                        "views_count": 0,
-                        "engagement_score": 3
-                      },
-                      "viewer_state": {
-                        "is_liked": false,
-                        "is_bookmarked": false,
-                        "can_delete": false
-                      },
-                      "created_at": "2026-04-26T00:53:37.509Z",
-                      "updated_at": "2026-04-26T00:53:37.509Z"
-                    }
-                  ],
-                  "meta": {
-                    "page": 1,
-                    "page_size": 20,
-                    "total": 1,
-                    "has_next": false
-                  }
+                  "$ref": "#/paths/~1api~1v2~1posts/get/responses/200/content/application~1json/schema"
                 }
               }
-            },
-            "headers": {}
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest",
@@ -15037,11 +13785,60 @@
           "500": {
             "$ref": "#/components/responses/InternalError",
             "description": "服务器内部错误"
+          },
+          "503": {
+            "description": "服务所需的数据结构不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer",
+                          "enum": [
+                            50301
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "meta": {
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "data",
+                        "meta"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
           }
         ]
       }

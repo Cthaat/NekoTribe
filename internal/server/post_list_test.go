@@ -151,3 +151,46 @@ func TestPostListModesAuthorizationAndSort(t *testing.T) {
 		})
 	}
 }
+
+func TestScopedPostListsValidateAndBindTarget(t *testing.T) {
+	codec, tokens := fixture(t)
+	for _, tc := range []struct {
+		path, mode, tag string
+		target          int64
+	}{
+		{"/api/v2/users/7/posts", "user", "", 7},
+		{"/api/v2/tags/C%23%20cats/posts", "tag", "C# cats", 0},
+		{"/api/v2/posts/9/replies", "replies", "", 9},
+		{"/api/v2/posts/%31/replies", "replies", "", 1},
+		{"/api/v2/posts/9/retweets", "retweets", "", 9},
+	} {
+		for _, authenticated := range []bool{false, true} {
+			s := &postListFixture{postFixture: &postFixture{memorySessions: store()}, empty: true}
+			req := httptest.NewRequest("GET", tc.path, nil)
+			if authenticated {
+				req.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
+			}
+			res := httptest.NewRecorder()
+			NewHandler(codec, s, CorsPolicy{}).ServeHTTP(res, req)
+			want := 401
+			if authenticated {
+				want = 200
+			}
+			if res.Code != want {
+				t.Fatalf("%s authenticated=%t status=%d body=%s", tc.path, authenticated, res.Code, res.Body.String())
+			}
+			if authenticated && (s.query.Mode != tc.mode || s.query.TargetID != tc.target || s.query.TagName != tc.tag || s.viewer == nil || *s.viewer != 42) {
+				t.Fatalf("%s query=%#v", tc.path, s.query)
+			}
+		}
+	}
+	for _, path := range []string{"/api/v2/users/01/posts", "/api/v2/posts/1.5/replies", "/api/v2/posts/0x1/retweets", "/api/v2/users/9007199254740992/posts"} {
+		req := httptest.NewRequest("GET", path, nil)
+		req.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
+		res := httptest.NewRecorder()
+		NewHandler(codec, store(), CorsPolicy{}).ServeHTTP(res, req)
+		if res.Code != 400 {
+			t.Fatalf("%s status=%d", path, res.Code)
+		}
+	}
+}

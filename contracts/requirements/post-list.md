@@ -1,6 +1,6 @@
 # 帖子列表与搜索共同要求
 
-本切片覆盖 `GET /api/v2/posts`、`/api/v2/posts/trending`、`/api/v2/users/me/posts`、`/api/v2/users/me/bookmarks` 和 `/api/v2/users/me/likes`；Nuxt `server/services/v2/posts.ts` 的 `v2ListPosts` 为现有业务来源。用户、标签、回复和转发列表也复用部分同一服务，但各自路由和授权尚需独立审查，不能因本切片而宣布其完成。
+本切片覆盖公共、热门、个人、收藏、点赞以及指定用户、标签、回复、转发的帖子列表；Nuxt `server/services/v2/posts.ts` 的 `v2ListPosts` 为现有业务来源。各入口仍需分别验证权限、查询和客户端接入。
 
 ## 身份和过滤
 
@@ -10,6 +10,8 @@
 - `sort=oldest` 按创建时间升序，`popular` 按互动分降序、创建时间降序，其他值按创建时间降序；现有规则不保证相同排序键的稳定次序。不要虚构 tie-breaker 改变兼容行为。
 - `trending` 允许匿名并强制 popular 排序，忽略客户端 sort；仍应用 timeline 和搜索过滤。`me`、`bookmarks`、`likes` 路由必须登录，分别限定作者是当前用户、当前用户已收藏、当前用户已点赞；不可根据查询参数选择他人。它们仍叠加 timeline、搜索及数据库可见性过滤。
 - 点赞列表的默认/未知 sort 按当前用户点赞时间降序，`oldest` 按点赞时间升序，`popular` 仍按互动分排序；其他模式按帖子时间或互动分排序。查询按现有 `MAX(n_post_likes.created_at)` 取该用户的点赞时间。
+- `users/{id}/posts`、`tags/{name}/posts`、`posts/{id}/replies`、`posts/{id}/retweets` 均需有效会话；分别按作者 ID、标签不区分大小写的精确名称、回复目标 ID、转发目标 ID 过滤。目标不存在时返回空列表，不自行暴露目标存在性。其余 timeline、搜索、排序及可见性条件照常叠加。标签是 URL 解码后的非空字符串，通过 SQL 绑定并在数据库中比较大小写；Nuxt 原来使用未解码的路径片段，本次修复中文及特殊字符名称的查询。
+- 三条数字目标路由统一对 URL 解码后的值使用无前导零的十进制安全正整数（1..9007199254740991）。Nuxt 旧 `Number()` 解析允许科学记数法、小数和前导零；本次有意收紧以匹配帖子/用户详情，非法参数在认证后返回 400，未登录时先返回 401。
 
 ## 分页和输出
 

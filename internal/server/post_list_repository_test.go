@@ -83,3 +83,39 @@ func TestPostListModeSQLIsScopedAndSorted(t *testing.T) {
 		}
 	}
 }
+
+func TestScopedPostListSQLBindsTargets(t *testing.T) {
+	viewer := int64(42)
+	for _, tc := range []struct {
+		mode, filter string
+		name         string
+		id           int64
+	}{
+		{"user", "v.author_id=:author_id", "author_id", 7},
+		{"tag", "t.name_lower=LOWER(:tag_name)", "tag_name", 0},
+		{"replies", "v.reply_to_post_id=:target_post_id", "target_post_id", 9},
+		{"retweets", "v.repost_of_post_id=:target_post_id", "target_post_id", 9},
+	} {
+		q := parsePostListQuery("timeline=following&q=cat")
+		q.Mode = tc.mode
+		q.TargetID = tc.id
+		q.TagName = "C# cats"
+		count, page, args, _ := postListSQL(&viewer, q)
+		if !strings.Contains(count, tc.filter) || !strings.Contains(page, tc.filter) || strings.Contains(page, "C# cats") {
+			t.Fatal(tc.mode, count, page)
+		}
+		var found bool
+		for _, arg := range args {
+			named := arg.(sql.NamedArg)
+			if named.Name == tc.name {
+				found = true
+				if tc.mode == "tag" && named.Value != "C# cats" || tc.mode != "tag" && named.Value != tc.id {
+					t.Fatal(named)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("missing target bind", tc.mode, args)
+		}
+	}
+}

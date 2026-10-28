@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Cthaat/NekoTribe/backend-go/internal/auth"
 	"golang.org/x/text/cases"
@@ -16,6 +18,8 @@ import (
 type PostListQuery struct {
 	Page                                    SessionPage
 	Mode, Timeline, Sort, Search, TagSearch string
+	TargetID                                int64
+	TagName                                 string
 }
 type postListStore interface {
 	ListVisiblePosts(context.Context, *int64, PostListQuery) ([]PostDetail, int64, error)
@@ -36,10 +40,10 @@ func parsePostListQuery(raw string) PostListQuery {
 	}
 	return PostListQuery{Page: sessionPagination(values), Timeline: listQueryString(values, "timeline", "home"), Sort: listQueryString(values, "sort", "newest"), Search: search, TagSearch: tag}
 }
-func listPosts(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, config RefreshConfig, mode string) {
+func listPosts(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, config RefreshConfig, mode, rawTarget string) {
 	token := accessToken(r)
 	var viewer *int64
-	if token == "" && (mode == "me" || mode == "bookmarks" || mode == "likes") {
+	if token == "" && mode != "all" && mode != "trending" {
 		respond(w, 401, 40101, "请先登录", nil)
 		return
 	}
@@ -57,6 +61,23 @@ func listPosts(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager,
 	}
 	query := parsePostListQuery(r.URL.RawQuery)
 	query.Mode = mode
+	if rawTarget != "" {
+		target, err := url.PathUnescape(rawTarget)
+		if err != nil || !utf8.ValidString(target) || target == "" {
+			respond(w, 400, 40001, "id 参数错误", nil)
+			return
+		}
+		if mode == "tag" {
+			query.TagName = target
+		} else {
+			id, err := strconv.ParseInt(target, 10, 64)
+			if err != nil || !publicID.MatchString(target) || id > 9007199254740991 {
+				respond(w, 400, 40001, "id 参数错误", nil)
+				return
+			}
+			query.TargetID = id
+		}
+	}
 	if mode == "trending" {
 		query.Sort = "popular"
 	}
@@ -110,6 +131,18 @@ func postListSQL(viewer *int64, query PostListQuery) (string, string, []any, []a
 		where += " AND EXISTS (SELECT 1 FROM n_post_bookmarks b WHERE b.post_id=v.post_id AND b.user_id=:viewer_id)"
 	case "likes":
 		where += " AND EXISTS (SELECT 1 FROM n_post_likes l WHERE l.post_id=v.post_id AND l.user_id=:viewer_id)"
+	case "user":
+		where += " AND v.author_id=:author_id"
+		args = append(args, sql.Named("author_id", query.TargetID))
+	case "tag":
+		where += " AND EXISTS (SELECT 1 FROM n_post_tags pt JOIN n_tags t ON t.tag_id=pt.tag_id WHERE pt.post_id=v.post_id AND t.name_lower=LOWER(:tag_name))"
+		args = append(args, sql.Named("tag_name", query.TagName))
+	case "replies":
+		where += " AND v.reply_to_post_id=:target_post_id"
+		args = append(args, sql.Named("target_post_id", query.TargetID))
+	case "retweets":
+		where += " AND v.repost_of_post_id=:target_post_id"
+		args = append(args, sql.Named("target_post_id", query.TargetID))
 	}
 	switch query.Timeline {
 	case "following":
