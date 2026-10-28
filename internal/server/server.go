@@ -102,6 +102,13 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			listNotifications(w, r, codec, repository, refresh)
 			return
 		}
+		if r.Method == http.MethodPut {
+			parts := strings.Split(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
+			if len(parts) == 5 && parts[0] == "api" && parts[1] == "v2" && parts[2] == "notifications" && parts[3] != "" && parts[4] == "read-status" {
+				setNotificationRead(w, r, codec, repository, refresh, parts[3])
+				return
+			}
+		}
 		if r.Method == http.MethodGet && (r.URL.EscapedPath() == "/api/v2/tags" || r.URL.EscapedPath() == "/api/v2/tags/trending") {
 			listTags(w, r, codec, repository, r.URL.EscapedPath() == "/api/v2/tags/trending")
 			return
