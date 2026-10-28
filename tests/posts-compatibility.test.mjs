@@ -19,7 +19,7 @@ const secret = 'isolated-posts-access-secret';
 const stubs = {
   '#imports': `export const useRuntimeConfig = () => ({accessSecret: ${JSON.stringify(secret)}});`,
   '~/server/storage': 'export const normalizeAvatarPublicUrl = value => value; export const normalizeNullableStoragePublicUrl = value => value; export const normalizeStoragePublicUrl = value => value;',
-  './notifications': 'export const v2CreateNotification = async () => {};',
+  './notifications': 'export const v2CreateNotification = async (connection, notification) => { connection.interactions.notifications.push(notification); };',
   './api-cache': 'export const readApiResponseCache = async () => ({status:"disabled"}); export const writeApiResponseCache = async () => {}; export const invalidateApiResponseCache = async () => {}; export const shouldInvalidateApiResponseCache = () => false;',
   './logging': 'export const getRequestLogContext = () => null; export const logError = () => {}; export const logInfo = () => {}; export const serializeLogError = () => ({});',
   oracledb: 'export default {OUT_FORMAT_OBJECT: 4002};'
@@ -43,6 +43,10 @@ const compiled = await build({
     export {default as tagAnalytics} from './server/api/v2/tags/[name]/analytics.get';
     export {default as replies} from './server/api/v2/posts/[id]/replies.get';
     export {default as retweets} from './server/api/v2/posts/[id]/retweets.get';
+    export {default as like} from './server/api/v2/posts/[id]/likes.post';
+    export {default as unlike} from './server/api/v2/posts/[id]/likes.delete';
+    export {default as bookmark} from './server/api/v2/posts/[id]/bookmarks.post';
+    export {default as unbookmark} from './server/api/v2/posts/[id]/bookmarks.delete';
     export {v2ListPosts} from './server/services/v2/posts';
     export {defineV2Handler} from './server/utils/v2';
   `, resolveDir: root, loader: 'ts'},
@@ -60,13 +64,14 @@ const compiled = await build({
 const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text + '\n//# sourceURL=isolated-posts-bundle.mjs').toString('base64')}`);
 const access = (payload = {}, options = {}) => jwt.sign({userId: 1, userName: 'viewer', sessionId: 'session', jti: 'current', type: 'access', ...payload}, secret, {expiresIn: 600, ...options});
 
-function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false, tagAnalytics = {}, allowSecondViewer = false} = {}) {
+function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false, tagAnalytics = {}, allowSecondViewer = false, loseVisibility = false} = {}) {
   const schema = schemaFixture({ baseline: true });
   if (missingMediaSchema) {
     const table = schema.state.tables.get('N_MEDIA_ASSETS');
     table.columns = table.columns.filter(column => column.COLUMN_NAME !== 'DESCRIPTION');
   }
   const calls = [];
+  const interactions = {likes: new Set(), bookmarks: new Set(), notifications: [], visibilityChecks: 0};
   const posts = [
     {POST_ID: 1, AUTHOR_ID: 2, VISIBILITY: 'public'},
     {POST_ID: 2, AUTHOR_ID: 2, VISIBILITY: 'private'},
@@ -77,7 +82,7 @@ function database({revoked = false, expiredSession = false, failSession = false,
     {POST_ID: 7, AUTHOR_ID: 3, VISIBILITY: 'public'}
   ];
   return {
-    calls, close: async () => {},
+    calls, interactions, close: async () => {},
     async execute(raw, binds = {}) {
       const sql = raw.replace(/\s+/g, ' ').trim(); calls.push({sql, binds});
       const metadata = schema.query(sql, binds);
@@ -87,6 +92,23 @@ function database({revoked = false, expiredSession = false, failSession = false,
         const live = (binds.userId === 1 || (allowSecondViewer && binds.userId === 2)) && binds.sessionId === 'session' && binds.accessJti === 'current' && !revoked && (!expiredSession || !sql.includes('access_token_expires_at > CURRENT_TIMESTAMP'));
         return {rowsAffected: live ? 1 : 0};
       }
+      if (sql.includes('FROM n_posts p') && sql.includes('fn_can_view_post')) {
+        interactions.visibilityChecks++;
+        const exists = [1, 5].includes(binds.post_id) && binds.viewer_id === 1 && !(loseVisibility && interactions.visibilityChecks > 1);
+        return {rows: exists ? [{POST_ID: binds.post_id}] : []};
+      }
+      if (/^(INSERT INTO|DELETE FROM) n_post_(likes|bookmarks)/.test(sql)) {
+        const kind = sql.includes('n_post_likes') ? interactions.likes : interactions.bookmarks;
+        const key = `${binds.post_id}:${binds.user_id}`;
+        const visible = [1, 5].includes(binds.post_id) && binds.user_id === 1 && !loseVisibility;
+        if (!visible) return {rowsAffected: 0};
+        if (sql.startsWith('INSERT')) {const inserted = !kind.has(key); kind.add(key); return {rowsAffected: inserted ? 1 : 0};}
+        return {rowsAffected: kind.delete(key) ? 1 : 0};
+      }
+      if (sql.startsWith('SELECT likes_count FROM n_post_stats')) return {rows: [{LIKES_COUNT: interactions.likes.has(`${binds.post_id}:1`) ? 1 : 0}]};
+      if (sql.startsWith('SELECT author_id FROM n_posts')) return {rows: [{AUTHOR_ID: 2}]};
+      if (sql.includes('FROM n_users') && sql.includes('COALESCE(display_name')) return {rows: [{NAME: 'viewer'}]};
+      if (sql.includes('DBMS_LOB.SUBSTR(content') && sql.includes('FROM n_posts')) return {rows: [{CONTENT: 'post'}]};
       if (sql.includes('FROM n_tags t') || sql.includes('FROM v_tag_analytics')) {
         if (tagAnalytics.failure) throw new Error('private-tag-analytics-error');
         if (tagAnalytics.missing) return {rows: []};
@@ -143,6 +165,10 @@ async function fixture(options) {
   router.get('/api/v2/tags/:name/analytics', routes.tagAnalytics);
   router.get('/api/v2/posts/:id/replies', routes.replies);
   router.get('/api/v2/posts/:id/retweets', routes.retweets);
+  router.post('/api/v2/posts/:id/likes', routes.like);
+  router.delete('/api/v2/posts/:id/likes', routes.unlike);
+  router.post('/api/v2/posts/:id/bookmarks', routes.bookmark);
+  router.delete('/api/v2/posts/:id/bookmarks', routes.unbookmark);
   router.get('/api/v2/groups/:id/posts', defineEventHandler(() => {throw new Error('Anonymous group route was reached');}));
   // Exercise the service guards independently of route-level auth for these modes.
   for (const mode of ['me', 'bookmarks', 'likes']) router.get(`/isolated/${mode}`, routes.defineV2Handler((event, connection) => routes.v2ListPosts(event, connection, {mode})));
@@ -299,6 +325,32 @@ test('tag analytics binds each viewer and does not reuse another viewer result',
     }
     assert.deepEqual(f.db.calls.filter(call => call.sql.includes('FROM n_tags t')).map(call => call.binds.viewer_id), [1, 2, 1]);
   } finally {await f.close();}
+});
+
+test('post likes and bookmarks require visibility and preserve idempotent state', async () => {
+  const f = await fixture(); const headers = {authorization: `Bearer ${access()}`};
+  try {
+    for (const action of ['likes', 'bookmarks']) for (const method of ['POST', 'DELETE']) {
+      assert.equal((await f.request(`/api/v2/posts/1/${action}`, {}, method)).status, 401);
+      assert.equal((await f.request(`/api/v2/posts/2/${action}`, headers, method)).status, 404);
+      assert.equal((await f.request(`/api/v2/posts/99/${action}`, headers, method)).status, 404);
+      assert.equal((await f.request(`/api/v2/posts/01/${action}`, headers, method)).status, 400);
+    }
+    assert.equal(f.db.calls.filter(call => /^(INSERT INTO|DELETE FROM) n_post_(likes|bookmarks)/.test(call.sql)).length, 0);
+    for (const [action, field] of [['likes', 'is_liked'], ['bookmarks', 'is_bookmarked']]) for (const [method, value] of [['POST', true], ['POST', true], ['DELETE', false], ['DELETE', false]]) {
+      const response = await f.request(`/api/v2/posts/1/${action}?user_id=99`, headers, method); const body = await response.json();
+      assert.equal(response.status, 200, `${method} ${action}: ${JSON.stringify(body)}`); assert.equal(body.data[field], value);
+    }
+    const writes = f.db.calls.filter(call => /^(INSERT INTO|DELETE FROM) n_post_(likes|bookmarks)/.test(call.sql));
+    assert.equal(writes.length, 8); assert.ok(writes.every(call => call.binds.user_id === 1 && /fn_can_view_post\(:user_id, :post_id\) = 1/.test(call.sql)));
+    assert.equal(f.db.interactions.notifications.length, 1);
+    assert.equal(f.db.interactions.notifications[0].userId, 2);
+    assert.equal(f.db.interactions.notifications[0].actorId, 1);
+    assert.equal(f.db.interactions.notifications[0].type, 'like');
+    assert.equal(f.db.interactions.notifications[0].resourceId, 1);
+  } finally {await f.close();}
+  const f2 = await fixture({loseVisibility: true});
+  try {const response = await f2.request('/api/v2/posts/1/likes', headers, 'POST'); assert.equal(response.status, 404); assert.equal(f2.db.interactions.likes.size, 0);} finally {await f2.close();}
 });
 
 test('anonymous detail excludes private/followers/mentioned/deleted/group posts without incrementing their views', async () => {

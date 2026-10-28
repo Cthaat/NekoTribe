@@ -1,6 +1,8 @@
 import { v2BookmarkPost } from '~/server/services/v2/posts';
-import { defineV2Handler, v2RouterNumber } from '~/server/utils/v2';
+import { defineV2Handler } from '~/server/utils/v2';
+import { v2SafeRouterId } from '~/server/utils/router-id';
+import { safeAuthEntry } from '~/server/utils/auth-entry-errors';
 
-export default defineV2Handler((event, connection) =>
-  v2BookmarkPost(event, connection, v2RouterNumber(event, 'id'), false)
-);
+export default defineV2Handler(safeAuthEntry((event, connection) =>
+  v2BookmarkPost(event, connection, v2SafeRouterId(event, 'id'), false)
+));

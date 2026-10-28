@@ -671,11 +671,11 @@
       },
       {
         "path": "server/api/v2/posts/[id]/bookmarks.delete.ts",
-        "sha256": "bf896d0def03df93c7ca435b49e2bee45b02aa91b5d4d2f70f48062088dc46c0"
+        "sha256": "fcb1171caf66958ff9ff04f87a7c11b381ca12bd7968beef62df4e30a03cbd87"
       },
       {
         "path": "server/api/v2/posts/[id]/bookmarks.post.ts",
-        "sha256": "c2d7e44f0274c1ba7f29c75597620e7bb4998522e35800d415002511527db551"
+        "sha256": "f2499b6b0515a5237d014d6993b73beed8bde35a58a23033dc3bb5aeda89f64b"
       },
       {
         "path": "server/api/v2/posts/[id]/comments.get.ts",
@@ -687,7 +687,7 @@
       },
       {
         "path": "server/api/v2/posts/[id]/likes.delete.ts",
-        "sha256": "aa2d580a7a70c0f041fc968eed727e0deebbe6ec287bd8a0714bec8d4268d2c1"
+        "sha256": "d193cd186a6ad16067ff607cf70f48566502cad60f362f325b8913edc0739cb3"
       },
       {
         "path": "server/api/v2/posts/[id]/likes.get.ts",
@@ -695,7 +695,7 @@
       },
       {
         "path": "server/api/v2/posts/[id]/likes.post.ts",
-        "sha256": "94cfb1f1dcee4665a74d8db8477f1204e96436acdb5ce2b1b3850da111db7922"
+        "sha256": "5e28762c0c017bbb2a13bdf3699b5bfc5f9591a0e4bf3067ec06a76bc6a3561c"
       },
       {
         "path": "server/api/v2/posts/[id]/replies.get.ts",
@@ -991,7 +991,7 @@
       },
       {
         "path": "server/services/v2/posts.ts",
-        "sha256": "2af04df8f83fefe5b605b7124fb3dbabd56f8cbab911a910af7e74bbe1cc179b"
+        "sha256": "520154d1941a840d02d792ed7e84970abfd638869ed0f3f8330c06fc97a9bd8b"
       },
       {
         "path": "server/services/v2/presence.ts",
@@ -1494,7 +1494,8 @@
             "internal/server/refresh.go",
             "contracts/schema_catalog.go",
             "internal/server/schema_readiness.go",
-            "internal/server/storage_urls.go"
+            "internal/server/storage_urls.go",
+            "internal/server/notification_store.go"
           ],
           "evidence": []
         }
@@ -3588,183 +3589,84 @@
     },
     {
       "id": "API-post_posts_id_likes",
-      "title": "POST /api/v2/posts/{id}/likes: 点赞帖子",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "title": "帖子点赞与收藏",
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/post-interactions.md",
       "sourceFiles": [
-        "server/api/v2/posts/[id]/likes.post.ts"
+        "server/api/v2/posts/[id]/likes.post.ts",
+        "server/api/v2/posts/[id]/likes.delete.ts",
+        "server/api/v2/posts/[id]/bookmarks.post.ts",
+        "server/api/v2/posts/[id]/bookmarks.delete.ts",
+        "server/services/v2/posts.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
-        "POST /api/v2/posts/{id}/likes"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
-          "state": "in-progress",
-          "targetRevision": 1,
-          "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/posts/{id}/likes; create shared acceptance scenarios."
-          ],
-          "sourceFiles": [
-            "server/api/v2/posts/[id]/likes.post.ts"
-          ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement POST /api/v2/posts/{id}/likes natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement POST /api/v2/posts/{id}/likes natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
-      "id": "API-delete_posts_id_likes",
-      "title": "DELETE /api/v2/posts/{id}/likes: 取消点赞帖子",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
-      "sourceFiles": [
-        "server/api/v2/posts/[id]/likes.delete.ts"
-      ],
-      "operations": [
-        "DELETE /api/v2/posts/{id}/likes"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
-          "state": "in-progress",
-          "targetRevision": 1,
-          "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for DELETE /api/v2/posts/{id}/likes; create shared acceptance scenarios."
-          ],
-          "sourceFiles": [
-            "server/api/v2/posts/[id]/likes.delete.ts"
-          ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement DELETE /api/v2/posts/{id}/likes natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement DELETE /api/v2/posts/{id}/likes natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
-      "id": "API-post_posts_id_bookmarks",
-      "title": "POST /api/v2/posts/{id}/bookmarks: 收藏帖子",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
-      "sourceFiles": [
-        "server/api/v2/posts/[id]/bookmarks.post.ts"
-      ],
-      "operations": [
-        "POST /api/v2/posts/{id}/bookmarks"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
-          "state": "in-progress",
-          "targetRevision": 1,
-          "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/posts/{id}/bookmarks; create shared acceptance scenarios."
-          ],
-          "sourceFiles": [
-            "server/api/v2/posts/[id]/bookmarks.post.ts"
-          ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement POST /api/v2/posts/{id}/bookmarks natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement POST /api/v2/posts/{id}/bookmarks natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
-      "id": "API-delete_posts_id_bookmarks",
-      "title": "DELETE /api/v2/posts/{id}/bookmarks: 取消收藏帖子",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
-      "sourceFiles": [
-        "server/api/v2/posts/[id]/bookmarks.delete.ts"
-      ],
-      "operations": [
+        "POST /api/v2/posts/{id}/likes",
+        "DELETE /api/v2/posts/{id}/likes",
+        "POST /api/v2/posts/{id}/bookmarks",
         "DELETE /api/v2/posts/{id}/bookmarks"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-INTERACTIONS",
+          "file": "specifications/scenarios/post-interactions.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for DELETE /api/v2/posts/{id}/bookmarks; create shared acceptance scenarios."
+            "Validate visibility, idempotence, triggers and notification delivery against isolated Oracle and shared scenarios."
           ],
           "sourceFiles": [
-            "server/api/v2/posts/[id]/bookmarks.delete.ts"
+            "server/api/v2/posts/[id]/likes.post.ts",
+            "server/api/v2/posts/[id]/likes.delete.ts",
+            "server/api/v2/posts/[id]/bookmarks.post.ts",
+            "server/api/v2/posts/[id]/bookmarks.delete.ts",
+            "server/services/v2/posts.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement DELETE /api/v2/posts/{id}/bookmarks natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Complete native creation of likes with notification storage and realtime delivery.",
+            "Validate native bookmarks and unlike, database triggers, races and all shared scenarios with isolated dependencies."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/posts/bookmark.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement DELETE /api/v2/posts/{id}/bookmarks natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Complete native creation of likes with notification storage and realtime delivery.",
+            "Validate native bookmarks and unlike, database triggers, races and all shared scenarios with isolated dependencies."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/post_bookmark.go",
+            "internal/server/server.go",
+            "internal/server/post_unlike.go",
+            "internal/server/notification_store.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "supersedes": [
+        "API-delete_posts_id_likes",
+        "API-post_posts_id_bookmarks",
+        "API-delete_posts_id_bookmarks"
+      ]
     },
     {
       "id": "API-get_posts_id_comments",
@@ -10381,6 +10283,26 @@
       "copies": {
         "rust": "contracts/scenarios/tag-analytics.json",
         "go": "contracts/scenarios/tag-analytics.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-interactions.md",
+        "sha256": "ad74f9a1c4169c88a75b14c24ebc3241aa0f82f826e42fd73f00a6c74b4cb379"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-interactions.md",
+        "go": "contracts/requirements/post-interactions.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-interactions.json",
+        "sha256": "606ddd88ce7eff12ff67c279986da009d8e18caa1ebd71e70f621434a38d9b24"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-interactions.json",
+        "go": "contracts/scenarios/post-interactions.json"
       }
     }
   ]

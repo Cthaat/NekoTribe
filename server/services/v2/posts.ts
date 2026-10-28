@@ -1271,6 +1271,15 @@ export async function v2PostLikesUsers(
   );
 }
 
+async function v2RequireInteractionVisibility(connection: oracledb.Connection, viewerId: number, postId: number): Promise<void> {
+  const row = await v2One(connection, `
+    SELECT p.post_id FROM n_posts p
+    WHERE p.post_id = :post_id AND p.is_deleted = 0
+      AND fn_can_view_post(:viewer_id, p.post_id) = 1
+  `, {post_id: postId, viewer_id: viewerId});
+  if (!row) v2NotFound('帖子不存在');
+}
+
 export async function v2LikePost(
   event: H3Event,
   connection: oracledb.Connection,
@@ -1278,6 +1287,7 @@ export async function v2LikePost(
   liked: boolean
 ): Promise<V2Response<V2LikePostData>> {
   const auth = v2Auth(event);
+  await v2RequireInteractionVisibility(connection, auth.userId, postId);
   let inserted = 0;
   if (liked) {
     inserted = await v2Execute(
@@ -1286,7 +1296,8 @@ export async function v2LikePost(
       INSERT INTO n_post_likes (post_id, user_id)
       SELECT :post_id, :user_id
       FROM dual
-      WHERE NOT EXISTS (
+      WHERE fn_can_view_post(:user_id, :post_id) = 1
+      AND NOT EXISTS (
         SELECT 1
         FROM n_post_likes
         WHERE post_id = :post_id
@@ -1296,16 +1307,18 @@ export async function v2LikePost(
       { post_id: postId, user_id: auth.userId }
     );
   } else {
-    await v2Execute(
+    inserted = await v2Execute(
       connection,
       `
       DELETE FROM n_post_likes
       WHERE post_id = :post_id
         AND user_id = :user_id
+        AND fn_can_view_post(:user_id, :post_id) = 1
       `,
       { post_id: postId, user_id: auth.userId }
     );
   }
+  if (inserted === 0) await v2RequireInteractionVisibility(connection, auth.userId, postId);
   const row = await v2One(
     connection,
     `
@@ -1332,14 +1345,17 @@ export async function v2BookmarkPost(
   bookmarked: boolean
 ): Promise<V2Response<V2BookmarkPostData>> {
   const auth = v2Auth(event);
+  await v2RequireInteractionVisibility(connection, auth.userId, postId);
+  let changed = 0;
   if (bookmarked) {
-    await v2Execute(
+    changed = await v2Execute(
       connection,
       `
       INSERT INTO n_post_bookmarks (post_id, user_id)
       SELECT :post_id, :user_id
       FROM dual
-      WHERE NOT EXISTS (
+      WHERE fn_can_view_post(:user_id, :post_id) = 1
+      AND NOT EXISTS (
         SELECT 1
         FROM n_post_bookmarks
         WHERE post_id = :post_id
@@ -1349,16 +1365,18 @@ export async function v2BookmarkPost(
       { post_id: postId, user_id: auth.userId }
     );
   } else {
-    await v2Execute(
+    changed = await v2Execute(
       connection,
       `
       DELETE FROM n_post_bookmarks
       WHERE post_id = :post_id
         AND user_id = :user_id
+        AND fn_can_view_post(:user_id, :post_id) = 1
       `,
       { post_id: postId, user_id: auth.userId }
     );
   }
+  if (changed === 0) await v2RequireInteractionVisibility(connection, auth.userId, postId);
   return v2Ok({
     post_id: postId,
     is_bookmarked: bookmarked
