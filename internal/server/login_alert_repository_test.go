@@ -12,6 +12,7 @@ import (
 type alertState struct {
 	driverState
 	known, alerts, email, push, enabled int64
+	inactive                            bool
 }
 type alertConnector struct{ state *alertState }
 type alertConn struct {
@@ -36,6 +37,9 @@ func (c *alertConn) QueryContext(_ context.Context, q string, args []driver.Name
 	case strings.Contains(q, "NVL(us.login_alerts"):
 		return &alertRows{values: []driver.Value{c.state.alerts, c.state.email}}, nil
 	case strings.Contains(q, "NVL(us.push_notification_enabled"):
+		if c.state.inactive {
+			return emptyRows{&c.state.driverState}, nil
+		}
 		return &alertRows{values: []driver.Value{c.state.push, c.state.enabled}}, nil
 	case strings.Contains(q, "seq_notification_id.NEXTVAL"):
 		return &alertRows{values: []driver.Value{int64(44)}}, nil
