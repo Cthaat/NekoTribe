@@ -59,6 +59,20 @@ test('trending and personal list contracts match the common post payload', () =>
     assert.equal(check(value), true, `${path}: ${JSON.stringify(check.errors)}`);
   }
 });
+
+test('scoped list contracts use authenticated access and a consistent post payload', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/post-detail-vectors.json', import.meta.url)));
+  const value = {code: 200, message: 'success', data: [fixture.post], meta: {page: 1, page_size: 20, total: 1, has_next: false}};
+  for (const path of ['/api/v2/users/{id}/posts', '/api/v2/tags/{name}/posts', '/api/v2/posts/{id}/replies', '/api/v2/posts/{id}/retweets']) {
+    const op = spec.paths[path].get;
+    assert.ok(op.security.some(item => Object.hasOwn(item, 'accessTokenCookie')), path);
+    assert.ok(!op.security.some(item => Object.keys(item).length === 0), path);
+    const pointer = path.replaceAll('/', '~1');
+    const check = ajv.compile({$ref: `${base}#/paths/${pointer}/get/responses/200/content/application~1json/schema`});
+    assert.equal(check(value), true, `${path}: ${JSON.stringify(check.errors)}`);
+    if (path.includes('{id}')) assert.equal(op.parameters.find(param => param.name === 'id').schema.maximum, 9007199254740991, path);
+  }
+});
 // Local refs in operation fragments need the document's canonical base.
 function requestValidator(method, path) {
   const pointer = path.replaceAll('~', '~0').replaceAll('/', '~1');

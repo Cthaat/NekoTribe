@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "e3cde2ad1940acf58428590f37593bec199acbc818422f7b99536caa84dcc9ec"
+      "sha256": "9d538d8ae276cb92b848f07b3c295b9f21ec4a58d9f0c6a6506e8e38665ad6c9"
     },
     "sources": [
       {
@@ -699,11 +699,11 @@
       },
       {
         "path": "server/api/v2/posts/[id]/replies.get.ts",
-        "sha256": "fbedacb9d659a46e14c1e872ef9941e82977d2cc74cbc531be1360cf9fcbfed8"
+        "sha256": "1e509c69ed00cffd8302e58f96be14e92a0dc71b666ebc3e83e0a623512fcedf"
       },
       {
         "path": "server/api/v2/posts/[id]/retweets.get.ts",
-        "sha256": "c0b527fbe9435286a621d351e1736e6954ad5b9a616c8b1dc6277eb623a6c2b9"
+        "sha256": "3f8387145cf7f0bf379a1c399481fa586f18ea73f027346658a4a432a31c67e5"
       },
       {
         "path": "server/api/v2/posts/[id]/retweets.post.ts",
@@ -735,7 +735,7 @@
       },
       {
         "path": "server/api/v2/tags/[name]/posts.get.ts",
-        "sha256": "30c0154ef4f24e96ad4a805c180ea06969e5d4ef9753f92cc9d104d1bb316f2f"
+        "sha256": "7dc4e1b740159c5ecf701ff19d0bb3df771c2e7fb36ddbb1218b76640288bfca"
       },
       {
         "path": "server/api/v2/tags/index.get.ts",
@@ -779,7 +779,7 @@
       },
       {
         "path": "server/api/v2/users/[id]/posts.get.ts",
-        "sha256": "0a38e4cd9e1410a397ccbf94e90204bf6bee7e0a605bf357a17f3d74094bc3d5"
+        "sha256": "bed7622b1b0484d2290bdd2411b3cdade8b42641dfb177d21c696ad31c0ad121"
       },
       {
         "path": "server/api/v2/users/index.get.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "5c1f613bacc208f5b6a9837a6d16b9289bf50daa30876aa9685bcc46e1cf08e5"
+        "sha256": "33960f007c1d32423b13b378662830cf8c5e6008e0478ae62bbea28fc7e15c3c"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -1108,6 +1108,10 @@
       {
         "path": "server/utils/redis.ts",
         "sha256": "cac7a3b72d24ad6776b1e3dc8ade67c55c83a5101687154252f06ba0765d8318"
+      },
+      {
+        "path": "server/utils/router-id.ts",
+        "sha256": "3521eb71472cece9d32ca70d8e4e9af7ddda99a4d6b28e04cce08b9557bde7cb"
       },
       {
         "path": "server/utils/sentiment-flow.ts",
@@ -2616,51 +2620,6 @@
       }
     },
     {
-      "id": "API-get_users_id_posts",
-      "title": "GET /api/v2/users/{id}/posts: 获取指定用户帖子",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
-      "sourceFiles": [
-        "server/api/v2/users/[id]/posts.get.ts"
-      ],
-      "operations": [
-        "GET /api/v2/users/{id}/posts"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
-          "state": "in-progress",
-          "targetRevision": 1,
-          "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/users/{id}/posts; create shared acceptance scenarios."
-          ],
-          "sourceFiles": [
-            "server/api/v2/users/[id]/posts.get.ts"
-          ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement GET /api/v2/users/{id}/posts natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement GET /api/v2/users/{id}/posts natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
       "id": "API-post_users_id_followers",
       "title": "POST /api/v2/users/{id}/followers: 关注用户",
       "revision": 1,
@@ -3157,8 +3116,8 @@
     },
     {
       "id": "API-get_posts",
-      "title": "公共、热门及个人帖子列表",
-      "revision": 4,
+      "title": "公共、热门、个人及指定目标帖子列表",
+      "revision": 5,
       "review": "reviewed",
       "definition": "specifications/requirements/post-list.md",
       "sourceFiles": [
@@ -3171,14 +3130,23 @@
         "server/api/v2/posts/trending.get.ts",
         "server/api/v2/users/me/posts.get.ts",
         "server/api/v2/users/me/bookmarks.get.ts",
-        "server/api/v2/users/me/likes.get.ts"
+        "server/api/v2/users/me/likes.get.ts",
+        "server/api/v2/users/[id]/posts.get.ts",
+        "server/api/v2/tags/[name]/posts.get.ts",
+        "server/api/v2/posts/[id]/replies.get.ts",
+        "server/api/v2/posts/[id]/retweets.get.ts",
+        "server/utils/router-id.ts"
       ],
       "operations": [
         "GET /api/v2/posts",
         "GET /api/v2/posts/trending",
         "GET /api/v2/users/me/posts",
         "GET /api/v2/users/me/bookmarks",
-        "GET /api/v2/users/me/likes"
+        "GET /api/v2/users/me/likes",
+        "GET /api/v2/users/{id}/posts",
+        "GET /api/v2/tags/{name}/posts",
+        "GET /api/v2/posts/{id}/replies",
+        "GET /api/v2/posts/{id}/retweets"
       ],
       "scenarios": [
         {
@@ -3189,7 +3157,7 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 4,
+          "targetRevision": 5,
           "tasks": [
             "nuxt: verify list mode against all common scenarios.",
             "nuxt: validate isolated Oracle, cross-backend and clients before acceptance."
@@ -3204,13 +3172,18 @@
             "server/api/v2/posts/trending.get.ts",
             "server/api/v2/users/me/posts.get.ts",
             "server/api/v2/users/me/bookmarks.get.ts",
-            "server/api/v2/users/me/likes.get.ts"
+            "server/api/v2/users/me/likes.get.ts",
+            "server/api/v2/users/[id]/posts.get.ts",
+            "server/api/v2/tags/[name]/posts.get.ts",
+            "server/api/v2/posts/[id]/replies.get.ts",
+            "server/api/v2/posts/[id]/retweets.get.ts",
+            "server/utils/router-id.ts"
           ],
           "evidence": []
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 4,
+          "targetRevision": 5,
           "tasks": [
             "rust: verify list mode against all common scenarios.",
             "rust: validate isolated Oracle, cross-backend and clients before acceptance."
@@ -3225,7 +3198,7 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 4,
+          "targetRevision": 5,
           "tasks": [
             "go: verify list mode against all common scenarios.",
             "go: validate isolated Oracle, cross-backend and clients before acceptance."
@@ -3247,7 +3220,11 @@
         "API-get_posts_trending",
         "API-get_users_me_posts",
         "API-get_users_me_bookmarks",
-        "API-t11_get_api_v2_users_me_likes"
+        "API-t11_get_api_v2_users_me_likes",
+        "API-get_users_id_posts",
+        "API-get_tags_name_posts",
+        "API-get_posts_id_replies",
+        "API-get_posts_id_retweets"
       ]
     },
     {
@@ -3513,96 +3490,6 @@
           "targetRevision": 1,
           "tasks": [
             "Implement PATCH /api/v2/posts/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
-      "id": "API-get_posts_id_replies",
-      "title": "GET /api/v2/posts/{id}/replies: 获取帖子回复流",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
-      "sourceFiles": [
-        "server/api/v2/posts/[id]/replies.get.ts"
-      ],
-      "operations": [
-        "GET /api/v2/posts/{id}/replies"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
-          "state": "in-progress",
-          "targetRevision": 1,
-          "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/posts/{id}/replies; create shared acceptance scenarios."
-          ],
-          "sourceFiles": [
-            "server/api/v2/posts/[id]/replies.get.ts"
-          ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement GET /api/v2/posts/{id}/replies natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement GET /api/v2/posts/{id}/replies natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
-      "id": "API-get_posts_id_retweets",
-      "title": "GET /api/v2/posts/{id}/retweets: 获取帖子转发列表",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
-      "sourceFiles": [
-        "server/api/v2/posts/[id]/retweets.get.ts"
-      ],
-      "operations": [
-        "GET /api/v2/posts/{id}/retweets"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
-          "state": "in-progress",
-          "targetRevision": 1,
-          "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/posts/{id}/retweets; create shared acceptance scenarios."
-          ],
-          "sourceFiles": [
-            "server/api/v2/posts/[id]/retweets.get.ts"
-          ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement GET /api/v2/posts/{id}/retweets natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement GET /api/v2/posts/{id}/retweets natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -4323,51 +4210,6 @@
           "targetRevision": 1,
           "tasks": [
             "Implement GET /api/v2/tags/trending natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
-      "id": "API-get_tags_name_posts",
-      "title": "GET /api/v2/tags/{name}/posts: 获取话题下帖子",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
-      "sourceFiles": [
-        "server/api/v2/tags/[name]/posts.get.ts"
-      ],
-      "operations": [
-        "GET /api/v2/tags/{name}/posts"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
-          "state": "in-progress",
-          "targetRevision": 1,
-          "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/tags/{name}/posts; create shared acceptance scenarios."
-          ],
-          "sourceFiles": [
-            "server/api/v2/tags/[name]/posts.get.ts"
-          ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement GET /api/v2/tags/{name}/posts natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement GET /api/v2/tags/{name}/posts natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -10467,7 +10309,7 @@
     {
       "source": {
         "path": "specifications/requirements/post-list.md",
-        "sha256": "bb0d67b92dc2640fec57e87e4e2f50dd54e49ba9b45f6fce8033c4394751a784"
+        "sha256": "36974740e0dab635edb97bb391df8f9fe804e93547626d14ca2d7a1706effddf"
       },
       "copies": {
         "rust": "contracts/requirements/post-list.md",
@@ -10477,7 +10319,7 @@
     {
       "source": {
         "path": "specifications/scenarios/post-list.json",
-        "sha256": "201cc30200f82b8b6c4f4d58867a8af4b8dd4e2ce174ae1c8ee3fe1a66b5886f"
+        "sha256": "1204d75075dfc91bfc21b681dcde927f39175c1dfd7b80132b27046644c71e52"
       },
       "copies": {
         "rust": "contracts/scenarios/post-list.json",

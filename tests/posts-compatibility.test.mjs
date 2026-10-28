@@ -36,6 +36,10 @@ const compiled = await build({
     export {default as me} from './server/api/v2/users/me/posts.get';
     export {default as bookmarks} from './server/api/v2/users/me/bookmarks.get';
     export {default as likes} from './server/api/v2/users/me/likes.get';
+    export {default as userPosts} from './server/api/v2/users/[id]/posts.get';
+    export {default as tagPosts} from './server/api/v2/tags/[name]/posts.get';
+    export {default as replies} from './server/api/v2/posts/[id]/replies.get';
+    export {default as retweets} from './server/api/v2/posts/[id]/retweets.get';
     export {v2ListPosts} from './server/services/v2/posts';
     export {defineV2Handler} from './server/utils/v2';
   `, resolveDir: root, loader: 'ts'},
@@ -118,6 +122,10 @@ async function fixture(options) {
   router.get('/api/v2/users/me/posts', routes.me);
   router.get('/api/v2/users/me/bookmarks', routes.bookmarks);
   router.get('/api/v2/users/me/likes', routes.likes);
+  router.get('/api/v2/users/:id/posts', routes.userPosts);
+  router.get('/api/v2/tags/:name/posts', routes.tagPosts);
+  router.get('/api/v2/posts/:id/replies', routes.replies);
+  router.get('/api/v2/posts/:id/retweets', routes.retweets);
   router.get('/api/v2/groups/:id/posts', defineEventHandler(() => {throw new Error('Anonymous group route was reached');}));
   // Exercise the service guards independently of route-level auth for these modes.
   for (const mode of ['me', 'bookmarks', 'likes']) router.get(`/isolated/${mode}`, routes.defineV2Handler((event, connection) => routes.v2ListPosts(event, connection, {mode})));
@@ -199,6 +207,21 @@ test('trending forces popular order and personal modes do not log database failu
     }
     assert.ok(!errors.join('\n').includes('private-database-error'));
   } finally {console.error = previousError; await broken.close();}
+});
+
+test('scoped lists require auth, use strict IDs and bind decoded targets', async () => {
+  const f = await fixture();
+  const headers = {authorization: `Bearer ${access()}`};
+  try {
+    for (const url of ['/api/v2/users/2/posts', '/api/v2/tags/C%23%20cats/posts', '/api/v2/posts/1/replies', '/api/v2/posts/1/retweets']) assert.equal((await f.request(url)).status, 401, url);
+    for (const route of ['/api/v2/users/01/posts', '/api/v2/posts/1.5/replies', '/api/v2/posts/0x1/retweets', '/api/v2/users/9007199254740992/posts']) assert.equal((await f.request(route, headers)).status, 400, route);
+    for (const [url, bind, value] of [['/api/v2/users/2/posts', 'author_id', 2], ['/api/v2/tags/C%23%20cats/posts', 'tag_name', 'C# cats'], ['/api/v2/posts/%31/replies', 'target_post_id', 1], ['/api/v2/posts/1/retweets', 'target_post_id', 1]]) {
+      const response = await f.request(url, headers); assert.equal(response.status, 200, url);
+      const count = f.db.calls.filter(call => call.sql.startsWith('SELECT COUNT') && call.binds[bind] === value).at(-1);
+      assert.ok(count, url); assert.equal(count.binds.viewer_id, 1, url);
+      assert.ok(!count.sql.includes('C# cats'), url);
+    }
+  } finally {await f.close();}
 });
 
 test('anonymous detail excludes private/followers/mentioned/deleted/group posts without incrementing their views', async () => {
