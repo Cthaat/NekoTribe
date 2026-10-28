@@ -48,6 +48,7 @@ const compiled = await build({
     export {default as retweets} from './server/api/v2/posts/[id]/retweets.get';
     export {default as comments} from './server/api/v2/posts/[id]/comments.get';
     export {default as createComment} from './server/api/v2/posts/[id]/comments.post';
+    export {default as deleteComment} from './server/api/v2/comments/[id].delete';
     export {default as like} from './server/api/v2/posts/[id]/likes.post';
     export {default as unlike} from './server/api/v2/posts/[id]/likes.delete';
     export {default as bookmark} from './server/api/v2/posts/[id]/bookmarks.post';
@@ -69,7 +70,7 @@ const compiled = await build({
 const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text + '\n//# sourceURL=isolated-posts-bundle.mjs').toString('base64')}`);
 const access = (payload = {}, options = {}) => jwt.sign({userId: 1, userName: 'viewer', sessionId: 'session', jti: 'current', type: 'access', ...payload}, secret, {expiresIn: 600, ...options});
 
-function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false, tagAnalytics = {}, allowSecondViewer = false, loseVisibility = false, loseParentOnInsert = false, failCommentRead = false, failNotifications = false} = {}) {
+function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false, tagAnalytics = {}, allowSecondViewer = false, loseVisibility = false, loseParentOnInsert = false, failCommentRead = false, failNotifications = false, deleteRace = false} = {}) {
   const schema = schemaFixture({ baseline: true });
   if (missingMediaSchema) {
     const table = schema.state.tables.get('N_MEDIA_ASSETS');
@@ -77,6 +78,7 @@ function database({revoked = false, expiredSession = false, failSession = false,
   }
   const calls = [];
   const interactions = {likes: new Set(), bookmarks: new Set(), notifications: [], comments: [], visibilityChecks: 0};
+  const deleteComments = new Map([[20,{user:1,post:1,deleted:false}],[21,{user:2,post:1,deleted:false}],[22,{user:1,post:2,deleted:false}],[23,{user:1,post:1,deleted:true}]]);
   const posts = [
     {POST_ID: 1, AUTHOR_ID: 2, VISIBILITY: 'public'},
     {POST_ID: 2, AUTHOR_ID: 2, VISIBILITY: 'private'},
@@ -98,6 +100,18 @@ function database({revoked = false, expiredSession = false, failSession = false,
         return {rowsAffected: live ? 1 : 0};
       }
       if (sql.startsWith('SELECT seq_comment_id.NEXTVAL')) return {rows:[{ID:100}]};
+      if (sql.startsWith('SELECT c.user_id') && sql.includes('FROM n_comments c')) {
+        const c=deleteComments.get(binds.comment_id);
+        const visible=c && !c.deleted && c.post===1 && binds.viewer_id===1;
+        return {rows:visible?[{USER_ID:c.user}]:[]};
+      }
+      if (sql.startsWith('UPDATE n_comments')) {
+        const c=deleteComments.get(binds.comment_id);
+        const guarded=sql.includes('fn_can_view_post') && sql.includes('user_id = :user_id') && sql.includes('is_deleted = 0');
+        if (!guarded || !c || c.deleted || c.user!==binds.user_id || c.post!==1 || deleteRace) return {rowsAffected:0};
+        c.deleted=true;
+        return {rowsAffected:1};
+      }
       if (sql.startsWith('INSERT INTO n_comments')) {
         const guarded = sql.includes('fn_can_view_post');
         const allowed = [1,5].includes(binds.post_id) && binds.user_id === 1 && !loseVisibility;
@@ -198,6 +212,7 @@ async function fixture(options) {
   router.get('/api/v2/posts/:id/retweets', routes.retweets);
   router.get('/api/v2/posts/:id/comments', routes.comments);
   router.post('/api/v2/posts/:id/comments', routes.createComment);
+  router.delete('/api/v2/comments/:id', routes.deleteComment);
   router.post('/api/v2/posts/:id/likes', routes.like);
   router.delete('/api/v2/posts/:id/likes', routes.unlike);
   router.post('/api/v2/posts/:id/bookmarks', routes.bookmark);
@@ -210,6 +225,28 @@ async function fixture(options) {
   const base = await listenForFetch(server);
   return {db, close: () => new Promise(resolve => server.close(resolve)), request: (url, headers = {}, method = 'GET', body) => fetch(base + url, {method, headers, ...(body === undefined ? {} : {body:JSON.stringify(body)})})};
 }
+
+test('comment deletion requires visible owner at check and write', async () => {
+  const headers={authorization:`Bearer ${access()}`};
+  const f=await fixture();
+  try {
+    assert.equal((await f.request('/api/v2/comments/20',{},'DELETE')).status,401);
+    assert.equal((await f.request('/api/v2/comments/020',headers,'DELETE')).status,400);
+    for (const id of [22,23,24]) assert.equal((await f.request(`/api/v2/comments/${id}`,headers,'DELETE')).status,404);
+    assert.equal((await f.request('/api/v2/comments/21',headers,'DELETE')).status,422);
+    const response=await f.request('/api/v2/comments/20',headers,'DELETE');
+    assert.equal(response.status,200);
+    assert.equal(response.headers.get('cache-control'),'private, no-store');
+    assert.deepEqual(await response.json(),{code:200,message:'comment deleted',data:null,meta:null});
+    const update=f.db.calls.find(call=>call.sql.startsWith('UPDATE n_comments'));
+    assert.match(update.sql,/fn_can_view_post\(:user_id,\s*(?:c\.)?post_id\)/);
+    assert.equal(update.binds.comment_id,20);assert.equal(update.binds.user_id,1);
+    assert.equal((await f.request('/api/v2/comments/20',headers,'DELETE')).status,404);
+  } finally {await f.close();}
+  const race=await fixture({deleteRace:true});
+  try {assert.equal((await race.request('/api/v2/comments/20',headers,'DELETE')).status,404);}
+  finally {await race.close();}
+});
 
 test('creating comments requires visibility at write and valid parent on the same post', async () => {
   const headers={authorization:`Bearer ${access()}`,'content-type':'application/json'};

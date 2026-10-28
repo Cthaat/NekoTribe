@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "ef10a6287584735589cd6f1a9712f24ea4abf831d3ae9a04abb5146bb3f7b66b"
+      "sha256": "78754a5400c3a095eba206b44c9935ed7f9d09a6e0d4a908479b4cd9d7727950"
     },
     "sources": [
       {
@@ -411,7 +411,7 @@
       },
       {
         "path": "server/api/v2/comments/[id].delete.ts",
-        "sha256": "f08a78a943ac581740e5ffb689cd1e39f4f49a94c634b20fc61d5da82f0021e6"
+        "sha256": "eddf7f92a53047042d6af3c4d0e564349b4cba867c0a456c4e22fc67b188b0ee"
       },
       {
         "path": "server/api/v2/comments/[id]/likes.delete.ts",
@@ -991,7 +991,7 @@
       },
       {
         "path": "server/services/v2/posts.ts",
-        "sha256": "0c0403c8b8e70bab9743542ebe5ca8634d6f787fd6f80693eb9a39ec8ef63a13"
+        "sha256": "b2042a2fd89647076dac78af8287716ec2a9fd2eb85f06cebf5b9c6eefd7b1a5"
       },
       {
         "path": "server/services/v2/presence.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "12061ef5570378608ea10bb8a672d98e28cc79de64f3b81c0788714cb7b170e6"
+        "sha256": "87de5a25b6c34038a89107ec5962c62c8d2f5bcc499b3432c496c8e07d9217bb"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -3864,46 +3864,70 @@
       "id": "API-delete_comments_id",
       "title": "DELETE /api/v2/comments/{id}: 删除评论",
       "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "review": "reviewed",
+      "definition": "specifications/requirements/post-comment-delete.md",
       "sourceFiles": [
-        "server/api/v2/comments/[id].delete.ts"
+        "server/api/v2/comments/[id].delete.ts",
+        "server/services/v2/posts.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "DELETE /api/v2/comments/{id}"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-COMMENT-DELETE",
+          "file": "specifications/scenarios/post-comment-delete.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for DELETE /api/v2/comments/{id}; create shared acceptance scenarios."
+            "Validate comment deletion, permissions, Oracle triggers and concurrent changes against isolated real dependencies and both clients."
           ],
           "sourceFiles": [
-            "server/api/v2/comments/[id].delete.ts"
+            "server/api/v2/comments/[id].delete.ts",
+            "server/services/v2/posts.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement DELETE /api/v2/comments/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate comment deletion, permissions, Oracle triggers and concurrent changes against isolated real dependencies and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/posts/comment_delete.rs",
+            "src/posts/mod.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement DELETE /api/v2/comments/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate comment deletion, permissions, Oracle triggers and concurrent changes against isolated real dependencies and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/comment_delete.go",
+            "internal/server/server.go",
+            "internal/server/post_bookmark.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/post-comment-delete.md",
+        "specifications/scenarios/post-comment-delete.json"
+      ]
     },
     {
       "id": "API-post_comments_id_likes",
@@ -10761,6 +10785,26 @@
       "copies": {
         "rust": "contracts/scenarios/post-comment-create.json",
         "go": "contracts/scenarios/post-comment-create.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-comment-delete.md",
+        "sha256": "a1c519ae36dd4a9f1cf1ae7ec78e110535a8d6e0c7b58a7ef7bc0b2ba9e23fa2"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-comment-delete.md",
+        "go": "contracts/requirements/post-comment-delete.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-comment-delete.json",
+        "sha256": "91dbd19eed6ee7f297df1136783d64e11fb619bb510e5178a2e2a8391e6d09e9"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-comment-delete.json",
+        "go": "contracts/scenarios/post-comment-delete.json"
       }
     }
   ]

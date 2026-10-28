@@ -1583,26 +1583,30 @@ export async function v2DeleteComment(
   const row = await v2One(
     connection,
     `
-    SELECT user_id, is_deleted
-    FROM n_comments
-    WHERE comment_id = :comment_id
+    SELECT c.user_id
+    FROM n_comments c
+    JOIN n_posts p ON p.post_id = c.post_id
+    WHERE c.comment_id = :comment_id AND c.is_deleted = 0
+      AND p.is_deleted = 0 AND fn_can_view_post(:viewer_id, c.post_id) = 1
     `,
-    { comment_id: commentId }
+    { comment_id: commentId, viewer_id: auth.userId }
   );
-  if (!row || v2Boolean(row.IS_DELETED))
-    v2NotFound('评论不存在');
+  if (!row) v2NotFound('评论不存在');
   if (v2Number(row.USER_ID) !== auth.userId) {
     v2Unprocessable('只能删除自己的评论');
   }
-  await v2Execute(
+  const changed = await v2Execute(
     connection,
     `
-    UPDATE n_comments
+    UPDATE n_comments c
     SET is_deleted = 1
-    WHERE comment_id = :comment_id
+    WHERE c.comment_id = :comment_id AND c.user_id = :user_id AND c.is_deleted = 0
+      AND fn_can_view_post(:user_id, c.post_id) = 1
+      AND EXISTS (SELECT 1 FROM n_posts p WHERE p.post_id = c.post_id AND p.is_deleted = 0)
     `,
-    { comment_id: commentId }
+    { comment_id: commentId, user_id: auth.userId }
   );
+  if (changed === 0) v2NotFound('评论不存在');
   return v2Null('comment deleted');
 }
 
