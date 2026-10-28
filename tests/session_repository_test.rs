@@ -762,3 +762,84 @@ async fn media_repository_rechecks_snapshot_without_caching() {
         2
     );
 }
+
+#[derive(Default)]
+struct PostExecutor {
+    calls: Mutex<Vec<(&'static str, BindMap)>>,
+}
+impl SessionExecutor for PostExecutor {
+    fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((sql, binds));
+            if sql.contains("FROM v_post_feed_item") {
+                Ok(vec![DbRow::from([
+                    ("POST_ID".into(), DbValue::I64(1)),
+                    ("AUTHOR_ID".into(), DbValue::I64(7)),
+                    ("CONTENT".into(), DbValue::String("synthetic".into())),
+                    ("REPLY_TO_POST_ID".into(), DbValue::Null),
+                    ("QUOTED_POST_ID".into(), DbValue::String("99".into())),
+                    ("VIEWS_COUNT".into(), DbValue::String("10".into())),
+                    ("ENGAGEMENT_SCORE".into(), DbValue::String("12.5".into())),
+                    ("IS_LIKED".into(), DbValue::I64(1)),
+                ])])
+            } else if sql.contains("FROM n_post_media") {
+                Ok(vec![DbRow::from([
+                    ("MEDIA_ID".into(), DbValue::I64(17)),
+                    ("WIDTH".into(), DbValue::Null),
+                    ("HEIGHT".into(), DbValue::String("600".into())),
+                    ("DURATION".into(), DbValue::Null),
+                    ("DESCRIPTION".into(), DbValue::String("description".into())),
+                ])])
+            } else if sql.contains("FROM n_post_tags") {
+                Ok(vec![DbRow::from([(
+                    "NAME".into(),
+                    DbValue::String("cat".into()),
+                )])])
+            } else {
+                Ok(Vec::new())
+            }
+        })
+    }
+    fn execute(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, u64> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((sql, binds));
+            Ok(1)
+        })
+    }
+}
+
+#[tokio::test]
+async fn post_repository_binds_anonymous_viewer_and_maps_nullable_database_values() {
+    let repo = OracleSessions {
+        executor: PostExecutor::default(),
+    };
+    let post = repo.read_visible_post(None, 1).await.unwrap().unwrap();
+    assert_eq!(post["author"]["user_id"], 7);
+    assert!(post["reply_to_post_id"].is_null());
+    assert_eq!(post["quoted_post_id"].as_f64(), Some(99.0));
+    assert_eq!(post["stats"]["views_count"].as_f64(), Some(10.0));
+    assert_eq!(post["stats"]["engagement_score"].as_f64(), Some(12.5));
+    assert_eq!(post["viewer_state"]["is_liked"], true);
+    assert_eq!(post["viewer_state"]["can_delete"], false);
+    let media = repo.read_post_media(1).await.unwrap();
+    assert!(media[0]["width"].is_null());
+    assert_eq!(media[0]["height"].as_f64(), Some(600.0));
+    assert!(media[0]["duration"].is_null());
+    assert_eq!(media[0]["description"], "description");
+    assert_eq!(repo.read_post_tags(1).await.unwrap(), vec!["cat"]);
+    assert!(repo.read_post_mentions(None, 1).await.unwrap().is_empty());
+    repo.increment_post_views(1).await.unwrap();
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 5);
+    assert!(calls[0]
+        .0
+        .contains("fn_can_view_post(:viewer_id,v.post_id)"));
+    assert_eq!(calls[0].1["viewer_id"], DbValue::Null);
+    assert_eq!(calls[0].1["post_id"], DbValue::I64(1));
+    assert_eq!(calls[3].1["viewer_id"], DbValue::Null);
+    assert_eq!(calls[4].1["post_id"], DbValue::I64(1));
+    assert!(calls[4].0.starts_with("UPDATE n_post_stats"));
+}

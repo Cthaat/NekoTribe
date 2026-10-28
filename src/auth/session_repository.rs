@@ -31,6 +31,11 @@ fn profile_update_sql(mask: usize) -> &'static str {
     }).collect())[mask]
 }
 pub const PUBLIC_PROFILE_SQL: &str = "SELECT u.user_id,u.username,u.avatar_url,u.display_name,u.bio,u.location,u.website,u.is_verified,u.followers_count,u.following_count,u.posts_count,u.likes_count,CASE WHEN NVL(us.show_online_status,1)=0 THEN 'hidden' WHEN EXISTS (SELECT 1 FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL AND s.last_accessed_at >= CURRENT_TIMESTAMP - NUMTODSINTERVAL(90,'SECOND')) THEN 'online' ELSE 'offline' END AS online_status,CASE WHEN NVL(us.show_online_status,1)=0 THEN NULL ELSE (SELECT MAX(s.last_accessed_at) FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL) END AS last_seen_at,fn_get_user_relationship(:viewer_id,u.user_id) AS relation FROM v_user_profile_public u LEFT JOIN n_user_settings us ON us.user_id=u.user_id WHERE u.user_id=:user_id AND u.is_active=1";
+pub const POST_DETAIL_SQL: &str = "SELECT v.post_id,v.author_id,DBMS_LOB.SUBSTR(v.content,4000,1) AS content,v.post_type,v.visibility,v.language,v.location,v.reply_to_post_id,v.repost_of_post_id,v.quoted_post_id,v.likes_count,v.comments_count,v.replies_count,v.retweets_count,v.views_count,v.engagement_score,CASE WHEN EXISTS (SELECT 1 FROM n_post_likes pl WHERE pl.post_id=v.post_id AND pl.user_id=:viewer_id) THEN 1 ELSE 0 END AS is_liked,CASE WHEN EXISTS (SELECT 1 FROM n_post_bookmarks pb WHERE pb.post_id=v.post_id AND pb.user_id=:viewer_id) THEN 1 ELSE 0 END AS is_bookmarked,v.created_at,v.updated_at FROM v_post_feed_item v WHERE fn_can_view_post(:viewer_id,v.post_id)=1 AND v.post_id=:post_id";
+pub const POST_MEDIA_SQL: &str = "SELECT ma.media_id,ma.media_type,ma.file_name,ma.public_url,ma.file_size,ma.mime_type,ma.width,ma.height,ma.duration,ma.thumbnail_url,ma.alt_text,ma.description,ma.status,ma.created_at FROM n_post_media pm JOIN n_media_assets ma ON ma.media_id=pm.media_id WHERE pm.post_id=:post_id ORDER BY pm.sort_order";
+pub const POST_TAGS_SQL: &str = "SELECT t.name FROM n_post_tags pt JOIN n_tags t ON t.tag_id=pt.tag_id WHERE pt.post_id=:post_id ORDER BY t.name";
+pub const POST_MENTIONS_SQL: &str = "SELECT u.user_id,u.username,u.avatar_url,u.display_name,u.bio,u.location,u.website,u.is_verified,u.followers_count,u.following_count,u.posts_count,u.likes_count,fn_get_user_relationship(:viewer_id,u.user_id) AS relation FROM n_post_mentions pm JOIN v_user_profile_public u ON u.user_id=pm.mentioned_user_id WHERE pm.post_id=:post_id ORDER BY u.username";
+pub const POST_VIEWS_SQL: &str = "UPDATE n_post_stats SET views_count=views_count+1,updated_at=CURRENT_TIMESTAMP WHERE post_id=:post_id";
 pub trait SessionExecutor: Send + Sync {
     fn reset_password_atomic<'a>(
         &'a self,
@@ -461,6 +466,81 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
             Ok(())
         })
     }
+    fn read_visible_post<'a>(
+        &'a self,
+        viewer: Option<u64>,
+        id: u64,
+    ) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async move {
+            let rows = self
+                .executor
+                .query(POST_DETAIL_SQL, post_binds(viewer, id))
+                .await?;
+            Ok(rows.first().map(|row| post_json(row, viewer)))
+        })
+    }
+    fn read_post_author<'a>(
+        &'a self,
+        viewer: Option<u64>,
+        id: u64,
+    ) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async move {
+            let mut binds = user_bind(id);
+            binds.insert(
+                "viewer_id".into(),
+                viewer
+                    .map(|v| DbValue::I64(v as i64))
+                    .unwrap_or(DbValue::Null),
+            );
+            let rows = self.executor.query(PUBLIC_PROFILE_SQL, binds).await?;
+            Ok(rows.first().map(public_profile_json))
+        })
+    }
+    fn read_post_media<'a>(&'a self, id: u64) -> StoreFuture<'a, Vec<serde_json::Value>> {
+        Box::pin(async move {
+            Ok(self
+                .executor
+                .query(POST_MEDIA_SQL, post_id_bind(id))
+                .await?
+                .iter()
+                .map(media_json)
+                .collect())
+        })
+    }
+    fn read_post_tags<'a>(&'a self, id: u64) -> StoreFuture<'a, Vec<String>> {
+        Box::pin(async move {
+            Ok(self
+                .executor
+                .query(POST_TAGS_SQL, post_id_bind(id))
+                .await?
+                .iter()
+                .map(|row| row_text(row, "NAME"))
+                .collect())
+        })
+    }
+    fn read_post_mentions<'a>(
+        &'a self,
+        viewer: Option<u64>,
+        id: u64,
+    ) -> StoreFuture<'a, Vec<serde_json::Value>> {
+        Box::pin(async move {
+            Ok(self
+                .executor
+                .query(POST_MENTIONS_SQL, post_binds(viewer, id))
+                .await?
+                .iter()
+                .map(public_profile_json)
+                .collect())
+        })
+    }
+    fn increment_post_views<'a>(&'a self, id: u64) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            self.executor
+                .execute(POST_VIEWS_SQL, post_id_bind(id))
+                .await?;
+            Ok(())
+        })
+    }
     fn public_profile<'a>(
         &'a self,
         viewer: u64,
@@ -738,6 +818,56 @@ fn profile_json(r: &DbRow) -> serde_json::Value {
     serde_json::json!({"user_id":row_number(r,"USER_ID"),"username":row_text(r,"USERNAME"),"display_name":row_text(r,"DISPLAY_NAME"),"avatar_url":if avatar.is_empty() || avatar=="/default-avatar.png" || avatar=="default-avatar.png" {"/storage/default-avatar.png"} else {avatar},"bio":row_text(r,"BIO"),"location":row_text(r,"LOCATION"),"website":row_text(r,"WEBSITE"),"is_verified":row_number(r,"IS_VERIFIED"),"followers_count":row_number(r,"FOLLOWERS_COUNT"),"following_count":row_number(r,"FOLLOWING_COUNT"),"posts_count":row_number(r,"POSTS_COUNT"),"likes_count":row_number(r,"LIKES_COUNT"),"relationship":{"is_self":relation=="self","is_following":relation=="following" || relation=="mutual_follow","is_blocked":relation=="blocked_by","is_blocking":relation=="blocking","relation":if relation.is_empty(){"none"}else{&relation}},"online_status":"online","last_seen_at":optional("LAST_SEEN_AT").map(|s|profile_date(&s)),"email":row_text(r,"EMAIL"),"phone":row_text(r,"PHONE"),"birth_date":optional("BIRTH_DATE"),"email_verified_at":optional("EMAIL_VERIFIED_AT").map(|s|profile_date(&s)),"is_active":row_number(r,"IS_ACTIVE"),"status":row_text(r,"STATUS"),"created_at":optional("CREATED_AT").map(|s|profile_date(&s)).unwrap_or_default(),"updated_at":optional("UPDATED_AT").map(|s|profile_date(&s)).unwrap_or_default()})
 }
 
+fn post_id_bind(id: u64) -> BindMap {
+    BindMap::from([("post_id".into(), DbValue::I64(id as i64))])
+}
+fn post_binds(viewer: Option<u64>, id: u64) -> BindMap {
+    let mut binds = post_id_bind(id);
+    binds.insert(
+        "viewer_id".into(),
+        viewer
+            .map(|v| DbValue::I64(v as i64))
+            .unwrap_or(DbValue::Null),
+    );
+    binds
+}
+fn row_float(row: &DbRow, key: &str) -> f64 {
+    match row.get(key) {
+        Some(DbValue::F64(v)) => *v,
+        Some(DbValue::I64(v)) => *v as f64,
+        Some(v) => v
+            .as_str()
+            .and_then(|v| v.parse::<f64>().ok())
+            .filter(|v| v.is_finite())
+            .unwrap_or(0.0),
+        None => 0.0,
+    }
+}
+fn nullable_number(row: &DbRow, key: &str) -> serde_json::Value {
+    if row.get(key).is_none_or(|v| matches!(v, DbValue::Null)) {
+        serde_json::Value::Null
+    } else {
+        serde_json::json!(row_float(row, key))
+    }
+}
+fn nullable_text(row: &DbRow, key: &str) -> Option<String> {
+    row.get(key)
+        .and_then(DbValue::as_str)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+}
+fn post_json(row: &DbRow, viewer: Option<u64>) -> serde_json::Value {
+    let author = row_number(row, "AUTHOR_ID");
+    let date = |key| {
+        nullable_text(row, key)
+            .map(|x| profile_date(&x))
+            .unwrap_or_default()
+    };
+    serde_json::json!({"post_id":row_number(row,"POST_ID"),"author":{"user_id":author},"content":row_text(row,"CONTENT"),"post_type":row_text(row,"POST_TYPE"),"visibility":row_text(row,"VISIBILITY"),"language":row_text(row,"LANGUAGE"),"location":row_text(row,"LOCATION"),"reply_to_post_id":nullable_number(row,"REPLY_TO_POST_ID"),"repost_of_post_id":nullable_number(row,"REPOST_OF_POST_ID"),"quoted_post_id":nullable_number(row,"QUOTED_POST_ID"),"media":[],"tags":[],"mentions":[],"stats":{"likes_count":row_float(row,"LIKES_COUNT"),"comments_count":row_float(row,"COMMENTS_COUNT"),"replies_count":row_float(row,"REPLIES_COUNT"),"retweets_count":row_float(row,"RETWEETS_COUNT"),"views_count":row_float(row,"VIEWS_COUNT"),"engagement_score":row_float(row,"ENGAGEMENT_SCORE")},"viewer_state":{"is_liked":row_number(row,"IS_LIKED")==1,"is_bookmarked":row_number(row,"IS_BOOKMARKED")==1,"can_delete":viewer.is_some_and(|v|v as i64==author)},"created_at":date("CREATED_AT"),"updated_at":date("UPDATED_AT")})
+}
+fn media_json(row: &DbRow) -> serde_json::Value {
+    serde_json::json!({"media_id":row_number(row,"MEDIA_ID"),"media_type":row_text(row,"MEDIA_TYPE"),"file_name":row_text(row,"FILE_NAME"),"public_url":row_text(row,"PUBLIC_URL"),"file_size":row_number(row,"FILE_SIZE"),"mime_type":row_text(row,"MIME_TYPE"),"width":nullable_number(row,"WIDTH"),"height":nullable_number(row,"HEIGHT"),"duration":nullable_number(row,"DURATION"),"thumbnail_url":nullable_text(row,"THUMBNAIL_URL"),"alt_text":nullable_text(row,"ALT_TEXT"),"description":nullable_text(row,"DESCRIPTION"),"status":row_text(row,"STATUS"),"created_at":nullable_text(row,"CREATED_AT").map(|x|profile_date(&x)).unwrap_or_default()})
+}
 fn public_profile_json(row: &DbRow) -> serde_json::Value {
     let mut value = profile_json(row);
     let object = value.as_object_mut().expect("profile is an object");

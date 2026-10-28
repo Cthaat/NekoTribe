@@ -148,6 +148,36 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, ()> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn read_visible_post<'a>(
+        &'a self,
+        _viewer: Option<u64>,
+        _id: u64,
+    ) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn read_post_author<'a>(
+        &'a self,
+        _viewer: Option<u64>,
+        _id: u64,
+    ) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn read_post_media<'a>(&'a self, _id: u64) -> StoreFuture<'a, Vec<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn read_post_tags<'a>(&'a self, _id: u64) -> StoreFuture<'a, Vec<String>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn read_post_mentions<'a>(
+        &'a self,
+        _viewer: Option<u64>,
+        _id: u64,
+    ) -> StoreFuture<'a, Vec<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn increment_post_views<'a>(&'a self, _id: u64) -> StoreFuture<'a, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn public_profile<'a>(
         &'a self,
         _viewer: u64,
@@ -320,6 +350,11 @@ pub fn build_native_router_with_mail(
             post(crate::auth::login::complete_challenge),
         )
         .route("/api/v2/auth/tokens/current", patch(refresh).delete(logout))
+        .route(
+            "/api/v2/posts/trending",
+            get(|| async { ApiError::route_not_found() }),
+        )
+        .route("/api/v2/posts/{id}", get(crate::posts::detail::get_post))
         .route(
             "/api/v2/users/{id}",
             get(crate::users::public_profile::get_public),

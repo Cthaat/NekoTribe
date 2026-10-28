@@ -8,3 +8,5 @@ pub mod httpx;
 pub mod middleware;
 pub mod proxy;
 pub mod users;
+
+pub(crate) mod posts;
