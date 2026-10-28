@@ -155,6 +155,17 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, Option<serde_json::Value>> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn set_post_bookmark<'a>(
+        &'a self,
+        _viewer: u64,
+        _id: u64,
+        _saved: bool,
+    ) -> StoreFuture<'a, bool> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn remove_post_like<'a>(&'a self, _viewer: u64, _id: u64) -> StoreFuture<'a, Option<f64>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn list_visible_posts<'a>(
         &'a self,
         _viewer: Option<u64>,
@@ -375,6 +386,14 @@ pub fn build_native_router_with_mail(
             get(crate::posts::list::list_posts),
         )
         .route("/api/v2/posts/{id}", get(crate::posts::detail::get_post))
+        .route(
+            "/api/v2/posts/{id}/bookmarks",
+            post(crate::posts::bookmark::save).delete(crate::posts::bookmark::remove),
+        )
+        .route(
+            "/api/v2/posts/{id}/likes",
+            delete(crate::posts::bookmark::remove_like),
+        )
         .route("/api/v2/posts", get(crate::posts::list::list_posts))
         .route("/api/v2/tags", get(crate::tags::list_tags))
         .route("/api/v2/tags/trending", get(crate::tags::list_tags))

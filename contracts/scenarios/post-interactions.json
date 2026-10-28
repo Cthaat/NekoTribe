@@ -1,0 +1,18 @@
+{
+  "id": "POST-INTERACTIONS",
+  "revision": 1,
+  "cases": [
+    {"id":"INTERACT-01","name":"可见帖子首次点赞，返回计数并通知作者","status":"not-run"},
+    {"id":"INTERACT-02","name":"重复点赞成功且不重复通知","status":"not-run"},
+    {"id":"INTERACT-03","name":"取消点赞与重复取消按目标状态返回","status":"not-run"},
+    {"id":"INTERACT-04","name":"收藏与重复收藏幂等，不发送点赞通知","status":"not-run"},
+    {"id":"INTERACT-05","name":"取消收藏与重复取消按目标状态返回","status":"not-run"},
+    {"id":"INTERACT-06","name":"未登录、失效和撤销会话不能写入","status":"not-run"},
+    {"id":"INTERACT-07","name":"缺失、删除及无权帖子返回 404 且无写入","status":"not-run"},
+    {"id":"INTERACT-08","name":"无效 ID 认证后 400，禁止客户端伪造身份","status":"not-run"},
+    {"id":"INTERACT-09","name":"预检后权限变化导致写入拒绝，不返回成功","status":"not-run"},
+    {"id":"INTERACT-10","name":"写入后计数或通知失败的提交边界和安全错误","status":"not-run"},
+    {"id":"INTERACT-11","name":"并发重复插入、触发器计数与唯一约束","status":"not-run"},
+    {"id":"INTERACT-12","name":"三后端写入、事件、缓存与两客户端交叉验证","status":"not-run"}
+  ]
+}

@@ -117,12 +117,158 @@ pub trait SessionExecutor: Send + Sync {
 pub struct OracleSessions<E> {
     pub executor: E,
 }
+pub struct NotificationInput<'a> {
+    pub user_id: u64,
+    pub actor_id: Option<u64>,
+    pub kind: &'a str,
+    pub title: &'a str,
+    pub message: &'a str,
+    pub resource_type: Option<&'a str>,
+    pub resource_id: Option<u64>,
+    pub priority: &'a str,
+    pub metadata_json: Option<&'a str>,
+}
+#[derive(Debug, PartialEq, Eq)]
+pub struct StoredNotification {
+    pub id: u64,
+    pub push_enabled: bool,
+}
 impl<E: SessionExecutor> OracleSessions<E> {
     pub async fn preflight(&self) -> Result<(), SessionStoreError> {
         self.executor.preflight(PREFLIGHT_SQL).await
     }
+    pub async fn store_notification(
+        &self,
+        n: NotificationInput<'_>,
+    ) -> Result<Option<StoredNotification>, SessionStoreError> {
+        if n.user_id == 0 || n.actor_id == Some(n.user_id) {
+            return Ok(None);
+        }
+        let user = i64::try_from(n.user_id).map_err(|_| SessionStoreError)?;
+        let actor = n
+            .actor_id
+            .map(i64::try_from)
+            .transpose()
+            .map_err(|_| SessionStoreError)?;
+        let resource = n
+            .resource_id
+            .map(i64::try_from)
+            .transpose()
+            .map_err(|_| SessionStoreError)?;
+        let mut binds = BindMap::from([("user_id".into(), DbValue::I64(user))]);
+        binds.insert("notification_type".into(), DbValue::String(n.kind.into()));
+        let rows = self.executor.query("SELECT NVL(us.push_notification_enabled,1) AS push_notification_enabled,NVL(np.is_enabled,1) AS type_enabled FROM n_users u LEFT JOIN n_user_settings us ON us.user_id=u.user_id LEFT JOIN n_notification_preferences np ON np.user_id=u.user_id AND np.notification_type=:notification_type WHERE u.user_id=:user_id AND u.is_active=1",binds).await?;
+        let Some(row) = rows.first() else {
+            return Ok(None);
+        };
+        if row_number(row, "TYPE_ENABLED") == 0 {
+            return Ok(None);
+        }
+        let push_enabled = row_number(row, "PUSH_NOTIFICATION_ENABLED") != 0;
+        let rows = self
+            .executor
+            .query(
+                "SELECT seq_notification_id.NEXTVAL AS id FROM dual",
+                BindMap::new(),
+            )
+            .await?;
+        let id = row_id(rows.first().ok_or(SessionStoreError)?, "ID")?;
+        let id_bind = i64::try_from(id).map_err(|_| SessionStoreError)?;
+        let binds = BindMap::from([
+            ("notification_id".into(), DbValue::I64(id_bind)),
+            ("user_id".into(), DbValue::I64(user)),
+            (
+                "actor_id".into(),
+                actor.map(DbValue::I64).unwrap_or(DbValue::Null),
+            ),
+            ("type".into(), DbValue::String(n.kind.into())),
+            ("title".into(), DbValue::String(n.title.into())),
+            ("message".into(), DbValue::String(n.message.into())),
+            (
+                "resource_type".into(),
+                n.resource_type
+                    .map(|v| DbValue::String(v.into()))
+                    .unwrap_or(DbValue::Null),
+            ),
+            (
+                "resource_id".into(),
+                resource.map(DbValue::I64).unwrap_or(DbValue::Null),
+            ),
+            ("priority".into(), DbValue::String(n.priority.into())),
+            (
+                "metadata_json".into(),
+                n.metadata_json
+                    .map(|v| DbValue::String(v.into()))
+                    .unwrap_or(DbValue::Null),
+            ),
+        ]);
+        self.executor.execute("INSERT INTO n_notifications (notification_id,user_id,actor_id,type,title,message,resource_type,resource_id,priority,metadata_json) VALUES (:notification_id,:user_id,:actor_id,:type,:title,:message,:resource_type,:resource_id,:priority,:metadata_json)",binds).await?;
+        Ok(Some(StoredNotification { id, push_enabled }))
+    }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn remove_post_like<'a>(&'a self, viewer: u64, id: u64) -> StoreFuture<'a, Option<f64>> {
+        Box::pin(async move {
+            const VISIBLE: &str = "SELECT p.post_id FROM n_posts p WHERE p.post_id=:post_id AND p.is_deleted=0 AND fn_can_view_post(:user_id,p.post_id)=1";
+            const DELETE: &str = "DELETE FROM n_post_likes WHERE post_id=:post_id AND user_id=:user_id AND fn_can_view_post(:user_id,:post_id)=1";
+            const COUNT: &str = "SELECT likes_count FROM n_post_stats WHERE post_id=:post_id";
+            let binds = BindMap::from([
+                ("post_id".into(), DbValue::I64(id as i64)),
+                ("user_id".into(), DbValue::I64(viewer as i64)),
+            ]);
+            if self
+                .executor
+                .query(VISIBLE, binds.clone())
+                .await?
+                .is_empty()
+            {
+                return Ok(None);
+            }
+            let changed = self.executor.execute(DELETE, binds.clone()).await?;
+            if changed == 0 && self.executor.query(VISIBLE, binds).await?.is_empty() {
+                return Ok(None);
+            }
+            let rows = self
+                .executor
+                .query(
+                    COUNT,
+                    BindMap::from([("post_id".into(), DbValue::I64(id as i64))]),
+                )
+                .await?;
+            Ok(Some(
+                rows.first()
+                    .map(|r| row_float(r, "LIKES_COUNT"))
+                    .unwrap_or(0.0),
+            ))
+        })
+    }
+    fn set_post_bookmark<'a>(&'a self, viewer: u64, id: u64, saved: bool) -> StoreFuture<'a, bool> {
+        Box::pin(async move {
+            const VISIBLE: &str = "SELECT p.post_id FROM n_posts p WHERE p.post_id=:post_id AND p.is_deleted=0 AND fn_can_view_post(:user_id,p.post_id)=1";
+            const INSERT: &str = "INSERT INTO n_post_bookmarks (post_id,user_id) SELECT :post_id,:user_id FROM dual WHERE fn_can_view_post(:user_id,:post_id)=1 AND NOT EXISTS (SELECT 1 FROM n_post_bookmarks WHERE post_id=:post_id AND user_id=:user_id)";
+            const DELETE: &str = "DELETE FROM n_post_bookmarks WHERE post_id=:post_id AND user_id=:user_id AND fn_can_view_post(:user_id,:post_id)=1";
+            let binds = BindMap::from([
+                ("post_id".into(), DbValue::I64(id as i64)),
+                ("user_id".into(), DbValue::I64(viewer as i64)),
+            ]);
+            if self
+                .executor
+                .query(VISIBLE, binds.clone())
+                .await?
+                .is_empty()
+            {
+                return Ok(false);
+            }
+            let changed = self
+                .executor
+                .execute(if saved { INSERT } else { DELETE }, binds.clone())
+                .await?;
+            if changed == 0 {
+                return Ok(!self.executor.query(VISIBLE, binds).await?.is_empty());
+            }
+            Ok(true)
+        })
+    }
     fn read_tag_analytics<'a>(
         &'a self,
         viewer: u64,
@@ -570,52 +716,28 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
             {
                 return Ok(());
             }
-            let mut b = user_bind(session.user_id);
-            b.insert(
-                "notification_type".into(),
-                DbValue::String("login_alert".into()),
-            );
-            let rows=self.executor.query("SELECT NVL(us.push_notification_enabled,1) AS push_notification_enabled,NVL(np.is_enabled,1) AS type_enabled FROM n_users u LEFT JOIN n_user_settings us ON us.user_id=u.user_id LEFT JOIN n_notification_preferences np ON np.user_id=u.user_id AND np.notification_type=:notification_type WHERE u.user_id=:user_id AND u.is_active=1",b).await?;
-            if rows
-                .first()
-                .is_none_or(|r| row_number(r, "TYPE_ENABLED") == 0)
-            {
-                return Ok(());
-            }
-            let ids = self
-                .executor
-                .query(
-                    "SELECT seq_notification_id.NEXTVAL AS id FROM dual",
-                    BindMap::new(),
-                )
-                .await?;
-            let id = row_id(ids.first().ok_or(SessionStoreError)?, "ID")?;
             let device = &session.device;
             let metadata=serde_json::json!({"session_id":session.id,"device_info":device.info,"device_fingerprint":device.fingerprint,"ip_address":device.ip,"user_agent":device.user_agent}).to_string();
-            let mut b = user_bind(session.user_id);
-            b.insert("notification_id".into(), DbValue::I64(id as i64));
-            b.insert("actor_id".into(), DbValue::Null);
-            b.insert("type".into(), DbValue::String("login_alert".into()));
-            b.insert("title".into(), DbValue::String("新设备登录提醒".into()));
-            b.insert(
-                "message".into(),
-                DbValue::String(format!(
-                    "你的账号刚刚通过新设备登录：{}",
-                    if device.info.is_empty() {
-                        "unknown"
-                    } else {
-                        &device.info
-                    }
-                )),
+            let message = format!(
+                "你的账号刚刚通过新设备登录：{}",
+                if device.info.is_empty() {
+                    "unknown"
+                } else {
+                    &device.info
+                }
             );
-            b.insert(
-                "resource_type".into(),
-                DbValue::String("auth_session".into()),
-            );
-            b.insert("resource_id".into(), DbValue::Null);
-            b.insert("priority".into(), DbValue::String("high".into()));
-            b.insert("metadata_json".into(), DbValue::String(metadata));
-            self.executor.execute("INSERT INTO n_notifications (notification_id,user_id,actor_id,type,title,message,resource_type,resource_id,priority,metadata_json) VALUES (:notification_id,:user_id,:actor_id,:type,:title,:message,:resource_type,:resource_id,:priority,:metadata_json)",b).await?;
+            self.store_notification(NotificationInput {
+                user_id: session.user_id,
+                actor_id: None,
+                kind: "login_alert",
+                title: "新设备登录提醒",
+                message: &message,
+                resource_type: Some("auth_session"),
+                resource_id: None,
+                priority: "high",
+                metadata_json: Some(&metadata),
+            })
+            .await?;
             Ok(())
         })
     }
