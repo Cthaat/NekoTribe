@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/Cthaat/NekoTribe/backend-go/internal/auth"
@@ -32,6 +33,69 @@ type NotificationQuery struct {
 }
 type notificationListStore interface {
 	ListNotifications(context.Context, int64, NotificationQuery) ([]NotificationItem, int64, error)
+}
+
+type notificationScanner interface{ Scan(...any) error }
+
+func scanNotification(row notificationScanner) (NotificationItem, error) {
+	var item NotificationItem
+	var actor, resourceID, isRead sql.NullInt64
+	var kind, title, message, resourceType, priority, metadata sql.NullString
+	var readAt, deletedAt, createdAt sql.NullTime
+	if err := row.Scan(&item.ID, &actor, &kind, &title, &message, &resourceType, &resourceID, &priority, &isRead, &readAt, &deletedAt, &metadata, &createdAt); err != nil {
+		return NotificationItem{}, err
+	}
+	item.ActorID = nullableInt(actor)
+	item.Type, item.Title, item.Message = kind.String, title.String, message.String
+	item.ResourceType, item.ResourceID = nullableString(resourceType), nullableInt(resourceID)
+	item.Priority, item.IsRead = priority.String, isRead.Int64
+	item.ReadAt, item.DeletedAt = profileDate(readAt), profileDate(deletedAt)
+	if date := profileDate(createdAt); date != nil {
+		item.CreatedAt = *date
+	}
+	if metadata.Valid && metadata.String != "" {
+		if json.Unmarshal([]byte(metadata.String), &item.Metadata) != nil {
+			item.Metadata = metadata.String
+		}
+	}
+	return item, nil
+}
+
+// NotificationByID is scoped to the recipient and reuses the list mapping.
+func (s OracleSessions) NotificationByID(ctx context.Context, user, id int64) (NotificationItem, bool, error) {
+	const query = `SELECT notification_id,actor_id,type,title,message,resource_type,resource_id,priority,is_read,read_at,deleted_at,DBMS_LOB.SUBSTR(metadata_json,4000,1) AS metadata_json,created_at FROM n_notifications WHERE user_id=:user_id AND notification_id=:notification_id`
+	item, err := scanNotification(s.DB.QueryRowContext(ctx, query, sql.Named("user_id", user), sql.Named("notification_id", id)))
+	if errors.Is(err, sql.ErrNoRows) {
+		return NotificationItem{}, false, nil
+	}
+	if err != nil {
+		return NotificationItem{}, false, errSessionStore
+	}
+	return item, true, nil
+}
+
+func hydrateNotification(ctx context.Context, repository SessionRepository, viewer int64, item *NotificationItem, storage StorageURLPolicy) error {
+	item.Actor = nil
+	if item.ActorID == nil || *item.ActorID == 0 {
+		return nil
+	}
+	profiles, ok := repository.(publicProfileStore)
+	if !ok {
+		return errSessionStore
+	}
+	actor, found, err := profiles.PublicProfile(ctx, viewer, *item.ActorID)
+	if err != nil {
+		return errSessionStore
+	}
+	if !found {
+		return nil
+	}
+	actor.AvatarURL, err = normalizeAvatarURL(storage, actor.AvatarURL)
+	if err != nil {
+		return errSessionStore
+	}
+	item.Actor = &actor
+	return nil
 }
 
 func parseNotificationQuery(raw string) NotificationQuery {
@@ -70,31 +134,10 @@ func (s OracleSessions) ListNotifications(ctx context.Context, user int64, q Not
 	}
 	items := make([]NotificationItem, 0)
 	for rows.Next() {
-		var item NotificationItem
-		var actor, resourceID, isRead sql.NullInt64
-		var kind, title, message, resourceType, priority, metadata sql.NullString
-		var readAt, deletedAt, createdAt sql.NullTime
-		if rows.Scan(&item.ID, &actor, &kind, &title, &message, &resourceType, &resourceID, &priority, &isRead, &readAt, &deletedAt, &metadata, &createdAt) != nil {
+		item, err := scanNotification(rows)
+		if err != nil {
 			rows.Close()
 			return nil, 0, errSessionStore
-		}
-		item.ActorID = nullableInt(actor)
-		item.Type = kind.String
-		item.Title = title.String
-		item.Message = message.String
-		item.ResourceType = nullableString(resourceType)
-		item.ResourceID = nullableInt(resourceID)
-		item.Priority = priority.String
-		item.IsRead = isRead.Int64
-		item.ReadAt = profileDate(readAt)
-		item.DeletedAt = profileDate(deletedAt)
-		if date := profileDate(createdAt); date != nil {
-			item.CreatedAt = *date
-		}
-		if metadata.Valid && metadata.String != "" {
-			if json.Unmarshal([]byte(metadata.String), &item.Metadata) != nil {
-				item.Metadata = metadata.String
-			}
 		}
 		items = append(items, item)
 	}
@@ -138,26 +181,10 @@ func listNotifications(w http.ResponseWriter, r *http.Request, codec *auth.Token
 	if items == nil {
 		items = []NotificationItem{}
 	}
-	profiles, ok := repository.(publicProfileStore)
 	for i := range items {
-		if items[i].ActorID != nil && *items[i].ActorID != 0 {
-			if !ok {
-				respond(w, 500, 50001, "服务器内部错误", nil)
-				return
-			}
-			actor, found, e := profiles.PublicProfile(r.Context(), claims.UserID, *items[i].ActorID)
-			if e != nil {
-				respond(w, 500, 50001, "服务器内部错误", nil)
-				return
-			}
-			if found {
-				actor.AvatarURL, e = normalizeAvatarURL(config.Storage, actor.AvatarURL)
-				if e != nil {
-					respond(w, 500, 50001, "服务器内部错误", nil)
-					return
-				}
-				items[i].Actor = &actor
-			}
+		if hydrateNotification(r.Context(), repository, claims.UserID, &items[i], config.Storage) != nil {
+			respond(w, 500, 50001, "服务器内部错误", nil)
+			return
 		}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

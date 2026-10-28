@@ -18,6 +18,10 @@ type redisEventClient interface {
 	Close() error
 }
 
+type NotificationEventPublisher interface {
+	Publish(context.Context, int64, string, map[string]interface{}) error
+}
+
 // UserEventPublisher owns its Redis client and must be closed at shutdown.
 // Construction is lazy and does not contact Redis.
 type UserEventPublisher struct {
@@ -41,6 +45,20 @@ func NewUserEventPublisher(rawURL string) (*UserEventPublisher, error) {
 	options.DialTimeout = 1500 * time.Millisecond
 	options.ReadTimeout = 1500 * time.Millisecond
 	options.WriteTimeout = 1500 * time.Millisecond
+	return newUserEventPublisher(options)
+}
+
+// NewConfiguredUserEventPublisher uses exactly the same deployment settings as
+// the notification subscriber; construction does not connect to Redis.
+func NewConfiguredUserEventPublisher(lookup func(string) (string, bool)) (*UserEventPublisher, error) {
+	options, err := redisSourceOptions(lookup)
+	if err != nil {
+		return nil, errNotificationEvent
+	}
+	return newUserEventPublisher(options)
+}
+
+func newUserEventPublisher(options *redis.Options) (*UserEventPublisher, error) {
 	id, err := randomUUID()
 	if err != nil {
 		return nil, errNotificationEvent

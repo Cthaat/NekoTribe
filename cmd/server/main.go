@@ -31,6 +31,12 @@ func run() (err error) {
 	}
 	defer redisEvents.Close()
 	config.Refresh.NotificationEvents = redisEvents
+	redisPublisher, e := server.NewConfiguredUserEventPublisher(os.LookupEnv)
+	if e != nil {
+		return e
+	}
+	defer redisPublisher.Close()
+	config.Refresh.NotificationPublisher = redisPublisher
 	codec, e := auth.NewTokenManager([]byte(config.AccessKey), []byte(config.RefreshKey), time.Now)
 	if e != nil {
 		return errors.New("invalid authentication configuration")

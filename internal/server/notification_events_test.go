@@ -17,6 +17,29 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+func TestConfiguredPublisherUsesSameRedisSettingsAsSubscriber(t *testing.T) {
+	values := map[string]string{"REDIS_URL": "rediss://:url-secret@redis.example:6380/2", "REDIS_HOST": "redis.internal", "REDIS_PORT": "6381", "REDIS_DB": "4", "REDIS_PASSWORD": "override-secret"}
+	lookup := func(key string) (string, bool) { v, ok := values[key]; return v, ok }
+	publisher, err := NewConfiguredUserEventPublisher(lookup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer publisher.Close()
+	client, ok := publisher.client.(*redis.Client)
+	if !ok {
+		t.Fatal("expected Redis client")
+	}
+	opts := client.Options()
+	if opts.Addr != "redis.internal:6381" || opts.DB != 4 || opts.Password != "override-secret" || opts.TLSConfig == nil {
+		t.Fatal("configuration mismatch")
+	}
+	values["REDIS_PORT"] = "bad-private-value"
+	_, err = NewConfiguredUserEventPublisher(lookup)
+	if err == nil || strings.Contains(err.Error(), "private") {
+		t.Fatal("invalid config must fail safely")
+	}
+}
+
 type eventFake struct {
 	channel  string
 	payload  []byte

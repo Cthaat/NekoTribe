@@ -33,6 +33,7 @@ type RefreshConfig struct {
 	TrustProxy                    bool
 	Storage                       StorageURLPolicy
 	NotificationEvents            NotificationEventSource
+	NotificationPublisher         NotificationEventPublisher
 	otpMailer                     otpMailSender
 	clock                         func() time.Time
 }

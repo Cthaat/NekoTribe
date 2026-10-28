@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ type notificationFixture struct {
 	query        NotificationQuery
 	fail         bool
 	actorMissing bool
+	actorError   bool
 }
 
 func (s *notificationFixture) ListNotifications(_ context.Context, viewer int64, q NotificationQuery) ([]NotificationItem, int64, error) {
@@ -30,10 +32,26 @@ func (s *notificationFixture) ListNotifications(_ context.Context, viewer int64,
 	return []NotificationItem{{ID: 12, Type: "like", ActorID: &id, Metadata: map[string]any{"event": "post_like"}}}, 3, nil
 }
 func (s *notificationFixture) PublicProfile(_ context.Context, viewer, target int64) (PublicUser, bool, error) {
+	if s.actorError {
+		return PublicUser{}, false, errors.New("private actor failure")
+	}
 	if viewer != 42 || target != 7 {
 		return PublicUser{}, false, errors.New("wrong viewer")
 	}
 	return PublicUser{UserID: 7, Username: "actor"}, !s.actorMissing, nil
+}
+
+func TestNotificationHydrationUsesRecipientViewAndFailsSafely(t *testing.T) {
+	s := &notificationFixture{memorySessions: store()}
+	id := int64(7)
+	item := NotificationItem{ID: 12, ActorID: &id}
+	if err := hydrateNotification(context.Background(), s, 42, &item, StorageURLPolicy{}); err != nil || item.Actor == nil || item.Actor.UserID != 7 {
+		t.Fatal(item, err)
+	}
+	s.actorError = true
+	if err := hydrateNotification(context.Background(), s, 42, &item, StorageURLPolicy{}); err == nil || strings.Contains(err.Error(), "private actor failure") {
+		t.Fatal(err)
+	}
 }
 func TestNotificationListRouteScopesUserAndFilters(t *testing.T) {
 	codec, tokens := fixture(t)
@@ -144,5 +162,63 @@ func TestNotificationRepositoryFiltersBindsAndMetadata(t *testing.T) {
 	q := parseNotificationQuery("type=like&type=other&unread_only=true&unread_only=false")
 	if q.Type != "all" || q.UnreadOnly {
 		t.Fatal(q)
+	}
+}
+
+func TestNotificationByIDScopesRecipientAndUsesSameMappingAsList(t *testing.T) {
+	var calls []listQueryCall
+	db := sql.OpenDB(notificationConnector{&calls, &driverState{}, `{"event":"post_like"}`})
+	defer db.Close()
+	item, found, err := (OracleSessions{db}).NotificationByID(context.Background(), 42, 12)
+	if err != nil || !found || item.ID != 12 || item.ActorID == nil || *item.ActorID != 7 {
+		t.Fatalf("item=%+v found=%v err=%v", item, found, err)
+	}
+	metadata, ok := item.Metadata.(map[string]any)
+	if !ok || metadata["event"] != "post_like" || item.ResourceType == nil || *item.ResourceType != "post" {
+		t.Fatal(item)
+	}
+	if len(calls) != 1 || !strings.Contains(calls[0].sql, "user_id=:user_id") || !strings.Contains(calls[0].sql, "notification_id=:notification_id") {
+		t.Fatal(calls)
+	}
+	bound := map[string]any{}
+	for _, arg := range calls[0].args {
+		bound[arg.Name] = arg.Value
+	}
+	if bound["user_id"] != int64(42) || bound["notification_id"] != int64(12) {
+		t.Fatal(bound)
+	}
+	items, _, err := (OracleSessions{db}).ListNotifications(context.Background(), 42, parseNotificationQuery(""))
+	if err != nil || len(items) != 1 || !reflect.DeepEqual(item, items[0]) {
+		t.Fatalf("lookup and list mappings diverged: lookup=%+v list=%+v err=%v", item, items, err)
+	}
+}
+
+type notificationLookupConnector struct {
+	state *driverState
+	fail  bool
+}
+type notificationLookupConn struct {
+	*testConn
+	fail bool
+}
+
+func (c notificationLookupConnector) Connect(context.Context) (driver.Conn, error) {
+	return &notificationLookupConn{&testConn{c.state}, c.fail}, nil
+}
+func (c notificationLookupConnector) Driver() driver.Driver { return testDriver{} }
+func (c *notificationLookupConn) QueryContext(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
+	if c.fail {
+		return nil, errors.New("private lookup error")
+	}
+	return emptyRows{c.state}, nil
+}
+func TestNotificationByIDMissingAndDatabaseErrors(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		db := sql.OpenDB(notificationLookupConnector{&driverState{}, fail})
+		item, found, err := (OracleSessions{db}).NotificationByID(context.Background(), 42, 12)
+		db.Close()
+		if found || item.ID != 0 || (!fail && err != nil) || (fail && err != errSessionStore) {
+			t.Fatalf("fail=%v item=%+v found=%v err=%v", fail, item, found, err)
+		}
 	}
 }
