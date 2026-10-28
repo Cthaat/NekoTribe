@@ -6,10 +6,12 @@ import {
   v2TouchAuthSession
 } from '~/server/services/v2/presence';
 import { getOracleConnection } from '~/server/utils/oracle';
+import { resolveCorsOrigin } from '~/server/utils/cors';
 import { attachOracleQueryCacheWithSource } from '~/server/utils/oracle-query-cache';
 import type { WSMessage } from '~/server/utils/redis';
 import {
   getRedisClient,
+  getRedisSubscriber,
   REDIS_CHANNELS,
   subscribeToChannel
 } from '~/server/utils/redis';
@@ -27,6 +29,7 @@ import { v2Execute, v2One } from '~/server/utils/v2';
 
 type ExtendedPeer = Peer & {
   sessionId?: string;
+  connectionClosed?: boolean;
 };
 
 interface WsPeerRequest {
@@ -221,6 +224,7 @@ function sendPeer(
 
 const subscribedChatChannels = new Set<number>();
 const subscribedUsers = new Set<number>();
+const pendingUserSubscriptions = new Map<number, Promise<boolean>>();
 const subscribedGlobalChannels = new Set<string>();
 const presenceOfflineTimers = new Map<number, ReturnType<typeof setTimeout>>();
 const PRESENCE_OFFLINE_GRACE_MS = 95_000;
@@ -291,25 +295,42 @@ async function ensureChatRedisSubscription(
 
 async function ensureUserRedisSubscription(
   userId: number
-): Promise<void> {
-  if (subscribedUsers.has(userId)) return;
+): Promise<boolean> {
+  if (subscribedUsers.has(userId)) {
+    return getRedisSubscriber()?.status === 'ready';
+  }
+  const pending = pendingUserSubscriptions.get(userId);
+  if (pending) return await pending;
 
-  const subscribed = await subscribeToChannel(
-    userRedisChannel(userId),
-    (message: WSMessage) => {
-      if (!message || typeof message.type !== 'string') return;
-      const data = isRecord(message.data) ? message.data : {};
-      if (data.server_id === WS_SERVER_ID) return;
-      if (message.type.startsWith('notification_') || message.type === 'notifications_read_status_updated') {
-        if (!isRecord(message.data) || typeof message.timestamp !== 'number') return;
-        void sendWsNotificationToUser(userId, message);
-      } else {
-        sendWsToUser(userId, message);
-      }
+  const subscription = (async () => {
+    try {
+      const subscribed = await subscribeToChannel(
+        userRedisChannel(userId),
+        (message: WSMessage) => {
+          if (!message || typeof message.type !== 'string') return;
+          const data = isRecord(message.data) ? message.data : {};
+          if (data.server_id === WS_SERVER_ID) return;
+          if (message.type.startsWith('notification_') || message.type === 'notifications_read_status_updated') {
+            if (!isRecord(message.data) || typeof message.timestamp !== 'number') return;
+            void sendWsNotificationToUser(userId, message);
+          } else {
+            sendWsToUser(userId, message);
+          }
+        }
+      );
+      if (subscribed) subscribedUsers.add(userId);
+      return subscribed;
+    } catch {
+      return false;
     }
-  );
-  if (subscribed) {
-    subscribedUsers.add(userId);
+  })();
+  pendingUserSubscriptions.set(userId, subscription);
+  try {
+    return await subscription;
+  } finally {
+    if (pendingUserSubscriptions.get(userId) === subscription) {
+      pendingUserSubscriptions.delete(userId);
+    }
   }
 }
 
@@ -405,6 +426,17 @@ function schedulePresenceOfflinePublish(userId: number): void {
 }
 
 export default defineWebSocketHandler({
+  upgrade(request) {
+    const origin = request.headers.get('origin');
+    if (origin === null) return;
+    if (resolveCorsOrigin(origin)) return;
+    const host = request.headers.get('host');
+    try {
+      const parsed = new URL(origin);
+      if (host && parsed.protocol === 'http:' && parsed.origin === origin && origin === `http://${host}`) return;
+    } catch { /* Reject malformed or opaque origins. */ }
+    return new Response('Forbidden', { status: 403 });
+  },
   async open(peer) {
     const extendedPeer = peer as ExtendedPeer;
     let auth: WSSessionAuthPayload | null = null;
@@ -413,6 +445,7 @@ export default defineWebSocketHandler({
     } catch (error) {
       console.error('[ws] authenticate error', error);
     }
+    if (extendedPeer.connectionClosed) return;
     if (!auth) {
       sendPeer(peer, 'error', { message: 'WebSocket 未认证' });
       peer.close();
@@ -420,16 +453,23 @@ export default defineWebSocketHandler({
     }
 
     const sessionId = generateSessionId();
+    await initializeRedisSubscriptions();
+    if (extendedPeer.connectionClosed) return;
+    const subscribed = await ensureUserRedisSubscription(auth.userId);
+    if (extendedPeer.connectionClosed) return;
+    if (!subscribed) {
+      sendPeer(peer, 'error', { message: '通知服务暂不可用' });
+      peer.close();
+      return;
+    }
     const wasOnline = sessionManager.isUserOnline(auth.userId);
     extendedPeer.sessionId = sessionId;
-    await initializeRedisSubscriptions();
     const initialAuth = auth;
     sessionManager.addSession(sessionId, peer, initialAuth, async () => {
       const current = await authenticatePeer(peer);
       return !!current && current.userId === initialAuth.userId &&
         current.sessionId === initialAuth.sessionId && current.jti === initialAuth.jti;
     });
-    await ensureUserRedisSubscription(auth.userId);
     clearPresenceOfflineTimer(auth.userId);
     if (!wasOnline) {
       const connection = await getCachedWsOracleConnection({
@@ -482,6 +522,7 @@ export default defineWebSocketHandler({
   },
 
   async close(peer) {
+    (peer as ExtendedPeer).connectionClosed = true;
     const sessionId = (peer as ExtendedPeer).sessionId;
     if (sessionId) {
       const removedSession = sessionManager.removeSession(sessionId);

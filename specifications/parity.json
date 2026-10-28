@@ -943,7 +943,7 @@
       },
       {
         "path": "server/routes/_ws.ts",
-        "sha256": "d481fa661a93fed012cf9a00b04b44a783198746ae7344233676668f19349d8c"
+        "sha256": "eecec4ee816b2c07b58413d13d1c5e26d320bf2dcb161c28776802c9e7485881"
       },
       {
         "path": "server/routes/storage/[...segments].get.ts",
@@ -8884,7 +8884,7 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Validate notification delivery, heartbeat and periodic session revocation in isolated real deployment; align origin and subscription failure rules."
+            "Validate notification delivery, origin, heartbeat, Redis failure and session revocation with real isolated services; implement subscription cleanup and reconnect behavior."
           ],
           "sourceFiles": [
             "server/routes/_ws.ts",
