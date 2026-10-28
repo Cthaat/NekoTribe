@@ -1,0 +1,13 @@
+{
+  "id": "POST-COMMENTS-LIST",
+  "revision": 1,
+  "cases": [
+    {"id":"COMMENTS-01","assertion":"missing or invalid session is rejected"},
+    {"id":"COMMENTS-02","assertion":"private, blocked, deleted or missing post returns 404 with no comments"},
+    {"id":"COMMENTS-03","assertion":"count and page queries each independently constrain visibility and current viewer"},
+    {"id":"COMMENTS-04","assertion":"newest, oldest, popular and pagination match Nuxt"},
+    {"id":"COMMENTS-05","assertion":"public author, nested IDs, likes, deletion permission and dates match shared shape"},
+    {"id":"COMMENTS-06","assertion":"internal database and profile failures are sanitized"},
+    {"id":"COMMENTS-07","assertion":"real isolated Oracle and both clients verify cross-backend behavior and permission changes"}
+  ]
+}

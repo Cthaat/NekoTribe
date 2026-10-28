@@ -121,6 +121,13 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			listTags(w, r, codec, repository, r.URL.EscapedPath() == "/api/v2/tags/trending")
 			return
 		}
+		if r.Method == http.MethodGet {
+			parts := strings.Split(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
+			if len(parts) == 5 && parts[0] == "api" && parts[1] == "v2" && parts[2] == "posts" && parts[3] != "" && parts[4] == "comments" {
+				listPostComments(w, r, codec, repository, refresh, parts[3])
+				return
+			}
+		}
 		if id, ok := publicProfileSegment(r.URL.EscapedPath()); ok && id != "me" && r.Method == http.MethodGet {
 			getPublicProfile(w, r, codec, repository, refresh, id)
 			return
