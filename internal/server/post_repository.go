@@ -36,7 +36,19 @@ func nullableString(v sql.NullString) *string {
 	}
 	return &v.String
 }
-func (s OracleSessions) ReadVisiblePost(ctx context.Context, viewer *int64, id int64) (PostDetail, bool, error) {
+
+type scannerWithExtra struct {
+	row   interface{ Scan(...any) error }
+	extra []any
+}
+
+func (s scannerWithExtra) Scan(values ...any) error {
+	return s.row.Scan(append(values, s.extra...)...)
+}
+func scanPostWithExtra(row interface{ Scan(...any) error }, viewer *int64, extra ...any) (PostDetail, bool, error) {
+	return scanPost(scannerWithExtra{row: row, extra: extra}, viewer)
+}
+func scanPost(row interface{ Scan(...any) error }, viewer *int64) (PostDetail, bool, error) {
 	var p PostDetail
 	var author int64
 	var content, kind, visibility, language, location sql.NullString
@@ -44,7 +56,7 @@ func (s OracleSessions) ReadVisiblePost(ctx context.Context, viewer *int64, id i
 	var likes, comments, replies, retweets, views, score sql.NullFloat64
 	var liked, bookmark sql.NullInt64
 	var created, updated sql.NullTime
-	err := s.DB.QueryRowContext(ctx, postDetailSQL, sql.Named("viewer_id", nullableViewer(viewer)), sql.Named("post_id", id)).Scan(&p.PostID, &author, &content, &kind, &visibility, &language, &location, &reply, &repost, &quoted, &likes, &comments, &replies, &retweets, &views, &score, &liked, &bookmark, &created, &updated)
+	err := row.Scan(&p.PostID, &author, &content, &kind, &visibility, &language, &location, &reply, &repost, &quoted, &likes, &comments, &replies, &retweets, &views, &score, &liked, &bookmark, &created, &updated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return PostDetail{}, false, nil
 	}
@@ -69,6 +81,10 @@ func (s OracleSessions) ReadVisiblePost(ctx context.Context, viewer *int64, id i
 		p.UpdatedAt = *d
 	}
 	return p, true, nil
+}
+func (s OracleSessions) ReadVisiblePost(ctx context.Context, viewer *int64, id int64) (PostDetail, bool, error) {
+	row := s.DB.QueryRowContext(ctx, postDetailSQL, sql.Named("viewer_id", nullableViewer(viewer)), sql.Named("post_id", id))
+	return scanPost(row, viewer)
 }
 func (s OracleSessions) ReadPostAuthor(ctx context.Context, viewer *int64, id int64) (PublicUser, bool, error) {
 	return s.publicProfile(ctx, nullableViewer(viewer), id)

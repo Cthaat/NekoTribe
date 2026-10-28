@@ -121,67 +121,72 @@ func getPostDetail(w http.ResponseWriter, r *http.Request, codec *auth.TokenMana
 		respond(w, 404, 40401, "帖子不存在", nil)
 		return
 	}
-	author, found, err := store.ReadPostAuthor(r.Context(), viewer, post.Author.UserID)
-	if err != nil {
-		respond(w, 500, 50001, "服务器内部错误", nil)
+	post, failure := hydratePost(r.Context(), store, viewer, post, config.Storage)
+	if failure != nil {
+		respond(w, failure.status, failure.status*100+1, failure.message, nil)
 		return
-	}
-	if !found {
-		respond(w, 404, 40401, "用户不存在", nil)
-		return
-	}
-	author.AvatarURL, err = normalizeAvatarURL(config.Storage, author.AvatarURL)
-	if err != nil {
-		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
-	}
-	post.Author = author
-	if err = store.CheckMediaSchema(r.Context()); err != nil {
-		respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
-		return
-	}
-	post.Media, err = store.ReadPostMedia(r.Context(), id)
-	if err != nil {
-		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
-	}
-	for i := range post.Media {
-		post.Media[i].PublicURL, err = normalizeAvatarURL(config.Storage, post.Media[i].PublicURL)
-		if err != nil {
-			respond(w, 500, 50001, "服务器内部错误", nil)
-			return
-		}
-		if post.Media[i].ThumbnailURL != nil && *post.Media[i].ThumbnailURL != "" {
-			v, e := normalizeAvatarURL(config.Storage, *post.Media[i].ThumbnailURL)
-			if e != nil {
-				respond(w, 500, 50001, "服务器内部错误", nil)
-				return
-			}
-			post.Media[i].ThumbnailURL = &v
-		} else {
-			post.Media[i].ThumbnailURL = nil
-		}
-	}
-	post.Tags, err = store.ReadPostTags(r.Context(), id)
-	if err != nil {
-		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
-	}
-	post.Mentions, err = store.ReadPostMentions(r.Context(), viewer, id)
-	if err != nil {
-		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
-	}
-	for i := range post.Mentions {
-		post.Mentions[i].AvatarURL, err = normalizeAvatarURL(config.Storage, post.Mentions[i].AvatarURL)
-		if err != nil {
-			respond(w, 500, 50001, "服务器内部错误", nil)
-			return
-		}
 	}
 	if err = store.IncrementPostViews(r.Context(), id); err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return
 	}
 	respond(w, 200, 200, "success", post)
+}
+
+// Shared mapper for list and detail; only detail increments the view counter.
+type postFailure struct {
+	status  int
+	message string
+}
+
+func hydratePost(ctx context.Context, store postDetailStore, viewer *int64, post PostDetail, storage StorageURLPolicy) (PostDetail, *postFailure) {
+	author, found, err := store.ReadPostAuthor(ctx, viewer, post.Author.UserID)
+	if err != nil {
+		return post, &postFailure{500, "服务器内部错误"}
+	}
+	if !found {
+		return post, &postFailure{404, "用户不存在"}
+	}
+	author.AvatarURL, err = normalizeAvatarURL(storage, author.AvatarURL)
+	if err != nil {
+		return post, &postFailure{500, "服务器内部错误"}
+	}
+	post.Author = author
+	if err = store.CheckMediaSchema(ctx); err != nil {
+		return post, &postFailure{503, "服务暂不可用，请稍后重试。"}
+	}
+	post.Media, err = store.ReadPostMedia(ctx, post.PostID)
+	if err != nil {
+		return post, &postFailure{500, "服务器内部错误"}
+	}
+	for i := range post.Media {
+		post.Media[i].PublicURL, err = normalizeAvatarURL(storage, post.Media[i].PublicURL)
+		if err != nil {
+			return post, &postFailure{500, "服务器内部错误"}
+		}
+		if post.Media[i].ThumbnailURL != nil && *post.Media[i].ThumbnailURL != "" {
+			v, e := normalizeAvatarURL(storage, *post.Media[i].ThumbnailURL)
+			if e != nil {
+				return post, &postFailure{500, "服务器内部错误"}
+			}
+			post.Media[i].ThumbnailURL = &v
+		} else {
+			post.Media[i].ThumbnailURL = nil
+		}
+	}
+	post.Tags, err = store.ReadPostTags(ctx, post.PostID)
+	if err != nil {
+		return post, &postFailure{500, "服务器内部错误"}
+	}
+	post.Mentions, err = store.ReadPostMentions(ctx, viewer, post.PostID)
+	if err != nil {
+		return post, &postFailure{500, "服务器内部错误"}
+	}
+	for i := range post.Mentions {
+		post.Mentions[i].AvatarURL, err = normalizeAvatarURL(storage, post.Mentions[i].AvatarURL)
+		if err != nil {
+			return post, &postFailure{500, "服务器内部错误"}
+		}
+	}
+	return post, nil
 }
