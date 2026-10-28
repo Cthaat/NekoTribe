@@ -165,6 +165,14 @@ impl<E: SessionExecutor> OracleSessions<E> {
         self.executor.preflight(PREFLIGHT_SQL).await
     }
 
+    async fn comment_notification_excerpt(&self, id: i64) -> Result<String, SessionStoreError> {
+        let rows=self.executor.query(
+            "SELECT user_id,post_id,DBMS_LOB.SUBSTR(content,4000,1) AS content FROM n_comments WHERE comment_id=:comment_id AND is_deleted=0",
+            BindMap::from([("comment_id".into(),DbValue::I64(id))]),
+        ).await?;
+        Ok(crate::posts::like::excerpt_json(rows.first().and_then(|row|nullable_text(row,"CONTENT")).as_deref()))
+    }
+
     /// Read only a notification owned by the requested recipient.
     pub async fn notification_by_id(
         &self,
@@ -249,6 +257,82 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn comment_notice_context<'a>(
+        &'a self, actor: u64, post: u64, comment: u64,
+    ) -> StoreFuture<'a, crate::posts::comment_create::CommentNoticeContext> {
+        Box::pin(async move {
+            use crate::posts::comment_create::CommentNoticeContext;
+            let actor=i64::try_from(actor).map_err(|_|SessionStoreError)?;
+            let post=i64::try_from(post).map_err(|_|SessionStoreError)?;
+            let comment=i64::try_from(comment).map_err(|_|SessionStoreError)?;
+            let names=self.executor.query("SELECT COALESCE(display_name,username) AS name FROM n_users WHERE user_id=:user_id",BindMap::from([("user_id".into(),DbValue::I64(actor))])).await?;
+            let actor_name=names.first().and_then(|r|nullable_text(r,"NAME")).unwrap_or_else(||"有人".into());
+            let post_bind=BindMap::from([("post_id".into(),DbValue::I64(post))]);
+            let authors=self.executor.query("SELECT author_id FROM n_posts WHERE post_id=:post_id AND is_deleted=0",post_bind.clone()).await?;
+            let post_author=authors.first().and_then(|r|u64::try_from(row_number(r,"AUTHOR_ID")).ok()).filter(|id|*id>0);
+            let comment_excerpt=self.comment_notification_excerpt(comment).await?;
+            let posts=self.executor.query("SELECT DBMS_LOB.SUBSTR(content,4000,1) AS content FROM n_posts WHERE post_id=:post_id AND is_deleted=0",post_bind).await?;
+            let post_excerpt=crate::posts::like::excerpt_json(posts.first().and_then(|r|nullable_text(r,"CONTENT")).as_deref());
+            Ok(CommentNoticeContext{actor_name,post_author,comment_excerpt,post_excerpt})
+        })
+    }
+    fn comment_parent_notice<'a>(
+        &'a self, parent: u64, post_author: Option<u64>,
+    ) -> StoreFuture<'a, crate::posts::comment_create::CommentParentNotice> {
+        Box::pin(async move {
+            use crate::posts::comment_create::CommentParentNotice;
+            let parent=i64::try_from(parent).map_err(|_|SessionStoreError)?;
+            let rows=self.executor.query("SELECT user_id FROM n_comments WHERE comment_id=:comment_id AND is_deleted=0",BindMap::from([("comment_id".into(),DbValue::I64(parent))])).await?;
+            let author=rows.first().and_then(|r|u64::try_from(row_number(r,"USER_ID")).ok()).filter(|id|*id>0);
+            let excerpt=if author.is_some()&&author!=post_author {self.comment_notification_excerpt(parent).await?} else {"null".into()};
+            Ok(CommentParentNotice{author,excerpt})
+        })
+    }
+    fn store_comment_notification<'a>(
+        &'a self, input: &'a crate::posts::comment_create::CommentNoticeInput,
+    ) -> StoreFuture<'a, Option<crate::posts::comment_create::StoredCommentNotification>> {
+        Box::pin(async move {
+            let result=self.store_notification(NotificationInput{user_id:input.recipient,actor_id:Some(input.actor),kind:"comment",title:&input.title,message:&input.message,resource_type:Some("comment"),resource_id:Some(input.comment_id),priority:"normal",metadata_json:Some(&input.metadata_json)}).await?;
+            Ok(result.map(|stored|crate::posts::comment_create::StoredCommentNotification{recipient:input.recipient,id:stored.id,push_enabled:stored.push_enabled}))
+        })
+    }
+    fn create_post_comment<'a>(
+        &'a self,
+        user: u64,
+        post: u64,
+        content: &'a str,
+        parent: Option<u64>,
+    ) -> StoreFuture<'a, crate::posts::comment_create::CommentCreation> {
+        Box::pin(async move {
+            use crate::posts::comment_create::CommentCreation;
+            let user = i64::try_from(user).map_err(|_| SessionStoreError)?;
+            let post = i64::try_from(post).map_err(|_| SessionStoreError)?;
+            let parent = parent.map(i64::try_from).transpose().map_err(|_| SessionStoreError)?;
+            let visible = BindMap::from([("viewer_id".into(),DbValue::I64(user)),("post_id".into(),DbValue::I64(post))]);
+            const CHECK: &str = "SELECT p.post_id FROM n_posts p WHERE p.post_id=:post_id AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1";
+            if self.executor.query(CHECK,visible.clone()).await?.is_empty() { return Ok(CommentCreation::PostUnavailable); }
+            let ids=self.executor.query("SELECT seq_comment_id.NEXTVAL AS id FROM dual",BindMap::new()).await?;
+            let id=i64::try_from(row_id(ids.first().ok_or(SessionStoreError)?,"ID")?).map_err(|_|SessionStoreError)?;
+            let mut root=id;
+            if let Some(parent)=parent {
+                let rows=self.executor.query("SELECT NVL(root_comment_id, comment_id) AS root_comment_id FROM n_comments WHERE comment_id=:comment_id AND post_id=:post_id AND is_deleted=0",BindMap::from([("comment_id".into(),DbValue::I64(parent)),("post_id".into(),DbValue::I64(post))])).await?;
+                let Some(row)=rows.first() else {return Ok(CommentCreation::ParentUnavailable)};
+                root=i64::try_from(row_id(row,"ROOT_COMMENT_ID")?).map_err(|_|SessionStoreError)?;
+            }
+            let binds=BindMap::from([
+                ("comment_id".into(),DbValue::I64(id)),("post_id".into(),DbValue::I64(post)),("user_id".into(),DbValue::I64(user)),
+                ("parent_comment_id".into(),parent.map(DbValue::I64).unwrap_or(DbValue::Null)),("root_comment_id".into(),DbValue::I64(root)),("content".into(),DbValue::String(content.into())),
+            ]);
+            const INSERT:&str="INSERT INTO n_comments (comment_id,post_id,user_id,parent_comment_id,root_comment_id,content) SELECT :comment_id,:post_id,:user_id,:parent_comment_id,:root_comment_id,:content FROM dual WHERE fn_can_view_post(:user_id,:post_id)=1 AND EXISTS (SELECT 1 FROM n_posts p WHERE p.post_id=:post_id AND p.is_deleted=0) AND (:parent_comment_id IS NULL OR EXISTS (SELECT 1 FROM n_comments parent WHERE parent.comment_id=:parent_comment_id AND parent.post_id=:post_id AND parent.is_deleted=0))";
+            if self.executor.execute(INSERT,binds).await?==0 {
+                if self.executor.query(CHECK,visible.clone()).await?.is_empty() {return Ok(CommentCreation::PostUnavailable)}
+                return Ok(if parent.is_some() {CommentCreation::ParentUnavailable}else{CommentCreation::PostUnavailable});
+            }
+            let mut read=visible;read.insert("comment_id".into(),DbValue::I64(id));
+            let rows=self.executor.query("SELECT c.comment_id,c.post_id,c.user_id,c.parent_comment_id,c.root_comment_id,DBMS_LOB.SUBSTR(c.content,4000,1) AS content,c.created_at,c.updated_at,c.likes_count,c.replies_count,0 AS is_liked FROM v_post_comment_list_item c WHERE c.comment_id=:comment_id AND c.post_id=:post_id AND c.user_id=:viewer_id AND fn_can_view_post(:viewer_id,c.post_id)=1",read).await?;
+            match rows.first() {Some(row)=>Ok(CommentCreation::Created(map_post_comment(row)?)),None=>Ok(CommentCreation::CommentUnavailable)}
+        })
+    }
     fn list_post_comments<'a>(
         &'a self,
         user: u64,
@@ -287,18 +371,7 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
             let rows = self.executor.query(list, page_binds).await?;
             let mut comments = Vec::with_capacity(rows.len());
             for row in &rows {
-                let date = |key| {
-                    nullable_text(row, key)
-                        .map(|s| profile_date(&s))
-                        .unwrap_or_default()
-                };
-                comments.push(serde_json::json!({
-                    "comment_id":row_id(row,"COMMENT_ID")?, "post_id":row_id(row,"POST_ID")?, "author_id":row_id(row,"USER_ID")?,
-                    "parent_comment_id":row.get("PARENT_COMMENT_ID").and_then(DbValue::as_i64),
-                    "root_comment_id":row.get("ROOT_COMMENT_ID").and_then(DbValue::as_i64),
-                    "content":row_text(row,"CONTENT"), "stats":{"likes_count":row_number(row,"LIKES_COUNT"),"replies_count":row_number(row,"REPLIES_COUNT")},
-                    "is_liked":row_number(row,"IS_LIKED")==1, "created_at":date("CREATED_AT"), "updated_at":date("UPDATED_AT")
-                }));
+                comments.push(map_post_comment(row)?);
             }
             Ok(Some((comments,total)))
         })
@@ -1425,6 +1498,16 @@ fn row_text(row: &DbRow, key: &str) -> String {
         .and_then(DbValue::as_str)
         .unwrap_or_default()
         .to_owned()
+}
+fn map_post_comment(row: &DbRow) -> Result<serde_json::Value, SessionStoreError> {
+    let date = |key| nullable_text(row,key).map(|s|profile_date(&s)).unwrap_or_default();
+    Ok(serde_json::json!({
+        "comment_id":row_id(row,"COMMENT_ID")?, "post_id":row_id(row,"POST_ID")?, "author_id":row_id(row,"USER_ID")?,
+        "parent_comment_id":row.get("PARENT_COMMENT_ID").and_then(DbValue::as_i64),
+        "root_comment_id":row.get("ROOT_COMMENT_ID").and_then(DbValue::as_i64),
+        "content":row_text(row,"CONTENT"), "stats":{"likes_count":row_number(row,"LIKES_COUNT"),"replies_count":row_number(row,"REPLIES_COUNT")},
+        "is_liked":row_number(row,"IS_LIKED")==1, "created_at":date("CREATED_AT"), "updated_at":date("UPDATED_AT")
+    }))
 }
 fn oracle_time(value: &str) -> String {
     value.trim_end_matches('Z').to_owned() + "+00:00"
