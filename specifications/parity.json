@@ -943,7 +943,7 @@
       },
       {
         "path": "server/routes/_ws.ts",
-        "sha256": "8ca37646bf173eaa8b343d34229d555d5e2032c2e466c0fa4884ea4a2671b94b"
+        "sha256": "d481fa661a93fed012cf9a00b04b44a783198746ae7344233676668f19349d8c"
       },
       {
         "path": "server/routes/storage/[...segments].get.ts",
@@ -1143,7 +1143,7 @@
       },
       {
         "path": "server/utils/wsSession.ts",
-        "sha256": "3b0853bf3a814f03368e74b00dfc3b7dcfd9bb84443a7d9d1f6c5870be31aca1"
+        "sha256": "93a24c34dfeafd6fe229bd8d8262fb4365048bce9d89568e75a3e17a341b1859"
       }
     ]
   },
@@ -8884,7 +8884,7 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Validate authenticated notification delivery and revocation behavior in isolated real deployment; align origin, periodic session revalidation and subscription failure rules."
+            "Validate notification delivery, heartbeat and periodic session revocation in isolated real deployment; align origin and subscription failure rules."
           ],
           "sourceFiles": [
             "server/routes/_ws.ts",

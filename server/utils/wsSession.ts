@@ -36,6 +36,7 @@ export interface WSSessionAuthPayload {
  * 该对象保存了连接的所有状态信息
  */
 export interface WSSession {
+  id: string;
   peer: Peer; // WebSocket 连接对象，用于发送消息
   auth: WSSessionAuthPayload; // 已认证的 v2 用户信息
   joinedRooms: Set<string>; // 用户已加入的房间集合（使用 Set 避免重复）
@@ -76,6 +77,7 @@ class WSSessionManager {
   ): void {
     // 创建新的会话对象
     const session: WSSession = {
+      id: sessionId,
       peer, // 保存 WebSocket 连接对象
       auth,
       joinedRooms: new Set(), // 初始化空的房间集合
@@ -251,6 +253,8 @@ class WSSessionManager {
 
     // 移除所有过期的会话
     for (const sessionId of expiredSessions) {
+      const session = this.sessions.get(sessionId);
+      if (session) closeWsSession(session);
       this.removeSession(sessionId);
     }
 
@@ -282,6 +286,7 @@ export function sendWsToRoom(
   const roomSessions = sessionManager.getRoomSessions(roomId);
 
   roomSessions.forEach(session => {
+    if (session.closing) return;
     try {
       session.peer.send(JSON.stringify(message));
     } catch (error) {
@@ -295,6 +300,7 @@ export function sendWsToUser(
   message: unknown
 ): void {
   sessionManager.getUserSessions(userId).forEach(session => {
+    if (session.closing) return;
     try {
       session.peer.send(JSON.stringify(message));
     } catch (error) {
@@ -303,7 +309,7 @@ export function sendWsToUser(
   });
 }
 
-function closeNotificationSession(session: WSSession): void {
+function closeWsSession(session: WSSession): void {
   if (session.closing) return;
   session.closing = true;
   try { session.peer.close(); } catch { /* The peer may already be closed. */ }
@@ -325,6 +331,31 @@ async function authorizeNotification(session: WSSession): Promise<boolean> {
   }
 }
 
+/** Re-check the access token and database session without a cached result. */
+export async function revalidateWsSession(sessionId: string): Promise<boolean> {
+  const session = sessionManager.getSession(sessionId);
+  if (!session || session.closing) return false;
+  const authorized = await authorizeNotification(session);
+  if (sessionManager.getSession(sessionId) !== session || session.closing) return false;
+  if (!authorized) closeWsSession(session);
+  return authorized;
+}
+
+/** Limit concurrent checks so a large number of connections cannot exhaust the database pool. */
+export async function revalidateWsSessions(): Promise<void> {
+  const sessions = sessionManager.getAllSessions();
+  let next = 0;
+  const workers = Array.from({ length: Math.min(sessions.length, 16) }, async () => {
+    while (next < sessions.length) {
+      const session = sessions[next++];
+      if (session && sessionManager.getSession(session.id) === session) {
+        await revalidateWsSession(session.id);
+      }
+    }
+  });
+  await Promise.all(workers);
+}
+
 /** Deliver notifications only after a fresh check of this specific connection. */
 export async function sendWsNotificationToUser(
   userId: number,
@@ -334,7 +365,7 @@ export async function sendWsNotificationToUser(
   await Promise.all(targets.map(session => {
     if (session.closing) return Promise.resolve();
     if (session.pendingNotifications >= 16) {
-      closeNotificationSession(session);
+      closeWsSession(session);
       return Promise.resolve();
     }
     session.pendingNotifications++;
@@ -344,12 +375,12 @@ export async function sendWsNotificationToUser(
       if (!stillConnected()) return;
       const authorized = await authorizeNotification(session);
       if (!authorized) {
-        closeNotificationSession(session);
+        closeWsSession(session);
         return;
       }
       if (!stillConnected()) return;
       try { session.peer.send(JSON.stringify(message)); }
-      catch { closeNotificationSession(session); }
+      catch { closeWsSession(session); }
     }).finally(() => { session.pendingNotifications--; });
     session.notificationTail = delivery;
     return delivery;
@@ -358,6 +389,7 @@ export async function sendWsNotificationToUser(
 
 export function sendWsToAll(message: unknown): void {
   sessionManager.getAllSessions().forEach(session => {
+    if (session.closing) return;
     try {
       session.peer.send(JSON.stringify(message));
     } catch (error) {
@@ -378,3 +410,10 @@ setInterval(
   },
   5 * 60 * 1000
 ).unref(); // 5分钟 = 5 * 60 * 1000 毫秒
+
+let revalidationRunning = false;
+setInterval(() => {
+  if (revalidationRunning) return;
+  revalidationRunning = true;
+  void revalidateWsSessions().finally(() => { revalidationRunning = false; });
+}, 30_000).unref();

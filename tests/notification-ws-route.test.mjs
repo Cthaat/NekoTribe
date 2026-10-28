@@ -50,3 +50,24 @@ test('Redis notification delivery revalidates the active session', async () => {
     delete globalThis.__wsRoute;
   }
 });
+
+test('heartbeat refuses to respond after the session is revoked', async () => {
+  globalThis.__wsRoute={subscriptions:new Map(),active:true,expired:false};
+  const peer={request:{url:'/_ws?token=valid',headers:{}},messages:[],closed:0,send(value){this.messages.push(JSON.parse(value));},close(){this.closed++;}};
+  const ping={text:()=>JSON.stringify({type:'ping'})};
+  try {
+    await subject.handler.open(peer);
+    await subject.handler.message(peer,ping);
+    assert.equal(peer.messages.at(-1).type,'pong');
+    globalThis.__wsRoute.active=false;
+    await subject.handler.message(peer,ping);
+    assert.equal(peer.closed,1);
+    assert.equal(peer.messages.filter(message=>message.type==='pong').length,1);
+    const count = peer.messages.length;
+    await subject.handler.message(peer,{text:()=>JSON.stringify({type:'chat_join_channel',data:{channelId:1}})});
+    assert.equal(peer.messages.length,count);
+  } finally {
+    if (peer.sessionId) subject.sessionManager.removeSession(peer.sessionId);
+    delete globalThis.__wsRoute;
+  }
+});

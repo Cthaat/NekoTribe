@@ -20,6 +20,7 @@ import {
   sendWsToRoom,
   sendWsNotificationToUser,
   sendWsToUser,
+  revalidateWsSession,
   sessionManager
 } from '~/server/utils/wsSession';
 import { v2Execute, v2One } from '~/server/utils/v2';
@@ -370,22 +371,6 @@ function handleLeaveChatChannel(
   sessionManager.leaveRoom(sessionId, chatRoomId(channelId));
 }
 
-async function touchWsSession(sessionId: string): Promise<void> {
-  const session = sessionManager.getSession(sessionId);
-  const authSessionId = session?.auth.sessionId;
-  if (!authSessionId) return;
-
-  const connection = await getCachedWsOracleConnection({
-    authUserId: session.auth.userId,
-    path: '/_ws/session/touch'
-  });
-  try {
-    await v2TouchAuthSession(connection, authSessionId);
-  } finally {
-    await connection.close();
-  }
-}
-
 function clearPresenceOfflineTimer(userId: number): void {
   const timer = presenceOfflineTimers.get(userId);
   if (!timer) return;
@@ -467,6 +452,8 @@ export default defineWebSocketHandler({
   async message(peer, message) {
     const sessionId = (peer as ExtendedPeer).sessionId;
     if (!sessionId) return;
+    const session = sessionManager.getSession(sessionId);
+    if (!session || session.peer !== peer || session.closing) return;
 
     sessionManager.updateActivity(sessionId);
     const parsed = parseClientMessage(message.text());
@@ -483,7 +470,7 @@ export default defineWebSocketHandler({
         handleLeaveChatChannel(sessionId, parsed.data);
         break;
       case 'ping':
-        await touchWsSession(sessionId);
+        if (!await revalidateWsSession(sessionId)) break;
         sendPeer(peer, 'pong', { timestamp: Date.now() });
         break;
       default:

@@ -81,3 +81,63 @@ test('a stalled session check eventually closes the connection', async () => {
     assert.deepEqual(stalled.messages, []);
   } finally { cleanup('stalled'); }
 });
+
+test('periodic checks close revoked sessions and stop later room, user and broadcast sends', async () => {
+  const valid = peer(), revoked = peer();
+  register('periodic-valid', 42, valid, async () => true);
+  register('periodic-revoked', 42, revoked, async () => false);
+  module.sessionManager.joinRoom('periodic-valid', 'room');
+  module.sessionManager.joinRoom('periodic-revoked', 'room');
+  try {
+    await module.revalidateWsSessions();
+    assert.equal(valid.closed, 0);
+    assert.equal(revoked.closed, 1);
+    module.sendWsToRoom('room', message);
+    module.sendWsToUser(42, message);
+    module.sendWsToAll(message);
+    assert.equal(valid.messages.length, 3);
+    assert.equal(revoked.messages.length, 0);
+  } finally { cleanup('periodic-valid', 'periodic-revoked'); }
+});
+
+test('a session removed while periodic verification runs is not closed again', async () => {
+  const removed = peer();
+  let finish;
+  register('periodic-removed', 42, removed, () => new Promise(resolve => { finish = resolve; }));
+  try {
+    const checking = module.revalidateWsSessions();
+    await new Promise(resolve => setImmediate(resolve));
+    module.sessionManager.removeSession('periodic-removed');
+    finish(false);
+    await checking;
+    assert.equal(removed.closed, 0);
+  } finally { cleanup('periodic-removed'); }
+});
+
+test('periodic verification limits database checks to sixteen at a time', async () => {
+  const ids = Array.from({length: 20}, (_, i) => `bounded-${i}`);
+  const resolvers = [];
+  ids.forEach(id => register(id, 42, peer(), () => new Promise(resolve => resolvers.push(resolve))));
+  try {
+    const checking = module.revalidateWsSessions();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(resolvers.length, 16);
+    resolvers.splice(0).forEach(resolve => resolve(true));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(resolvers.length, 4);
+    resolvers.splice(0).forEach(resolve => resolve(true));
+    await checking;
+  } finally { cleanup(...ids); }
+});
+
+test('idle cleanup closes the socket instead of leaving an unmanaged connection', () => {
+  const idle = peer();
+  register('idle', 42, idle, async () => true);
+  const session = module.sessionManager.getSession('idle');
+  session.lastActivity = Date.now() - 100;
+  try {
+    module.sessionManager.cleanupInactiveSessions(50);
+    assert.equal(idle.closed, 1);
+    assert.equal(module.sessionManager.getSession('idle'), undefined);
+  } finally { cleanup('idle'); }
+});
