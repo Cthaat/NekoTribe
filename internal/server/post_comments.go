@@ -42,6 +42,32 @@ type postCommentsStore interface {
 	ListPostComments(context.Context, int64, int64, CommentListQuery) ([]PostComment, int64, bool, error)
 }
 
+type commentScanner interface{ Scan(...any) error }
+
+func scanPostComment(row commentScanner) (PostComment, error) {
+	var item PostComment
+	var parent, root, liked sql.NullInt64
+	var content sql.NullString
+	var created, updated sql.NullTime
+	var likes, replies sql.NullFloat64
+	if err := row.Scan(&item.ID, &item.PostID, &item.AuthorID, &parent, &root, &content, &created, &updated, &likes, &replies, &liked); err != nil {
+		return PostComment{}, err
+	}
+	item.ParentID = nullableInt(parent)
+	item.RootID = nullableInt(root)
+	item.Content = content.String
+	item.LikesCount = likes.Float64
+	item.RepliesCount = replies.Float64
+	item.Liked = liked.Int64 == 1
+	if value := profileDate(created); value != nil {
+		item.CreatedAt = *value
+	}
+	if value := profileDate(updated); value != nil {
+		item.UpdatedAt = *value
+	}
+	return item, nil
+}
+
 func listPostComments(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, config RefreshConfig, raw string) {
 	user, id, ok := interactionIdentity(w, r, codec, repository, raw)
 	if !ok {
@@ -133,26 +159,10 @@ func (s OracleSessions) ListPostComments(ctx context.Context, user, id int64, qu
 	}
 	items := []PostComment{}
 	for rows.Next() {
-		var item PostComment
-		var parent, root, liked sql.NullInt64
-		var content sql.NullString
-		var created, updated sql.NullTime
-		var likes, replies sql.NullFloat64
-		if err = rows.Scan(&item.ID, &item.PostID, &item.AuthorID, &parent, &root, &content, &created, &updated, &likes, &replies, &liked); err != nil {
+		item, scanErr := scanPostComment(rows)
+		if scanErr != nil {
 			rows.Close()
 			return nil, 0, false, errSessionStore
-		}
-		item.ParentID = nullableInt(parent)
-		item.RootID = nullableInt(root)
-		item.Content = content.String
-		item.LikesCount = likes.Float64
-		item.RepliesCount = replies.Float64
-		item.Liked = liked.Int64 == 1
-		if value := profileDate(created); value != nil {
-			item.CreatedAt = *value
-		}
-		if value := profileDate(updated); value != nil {
-			item.UpdatedAt = *value
 		}
 		items = append(items, item)
 	}
