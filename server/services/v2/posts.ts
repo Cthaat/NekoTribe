@@ -543,11 +543,14 @@ async function v2CreatePostFromPayload(
     v2BadRequest('content 不能为空');
   }
   const sourcePostId = payload.reply_to_post_id ?? payload.repost_of_post_id ?? payload.quoted_post_id ?? null;
-  if (sourcePostId !== null) await v2RequireInteractionVisibility(connection, auth.userId, sourcePostId);
+  if (sourcePostId !== null) {
+    await v2RequireInteractionVisibility(connection, auth.userId, sourcePostId);
+  }
   const postId = await v2NextId(connection, 'seq_post_id');
-  const inserted = await v2Execute(
-    connection,
-    `
+  try {
+    const inserted = await v2Execute(
+      connection,
+      `
     INSERT INTO n_posts (
       post_id,
       author_id,
@@ -575,38 +578,44 @@ async function v2CreatePostFromPayload(
       SELECT 1 FROM n_posts p WHERE p.post_id = :source_post_id AND p.is_deleted = 0
         AND fn_can_view_post(:author_id, p.post_id) = 1
     )`}
-    `,
-    {
-      post_id: postId,
-      author_id: auth.userId,
-      content: payload.content || null,
-      post_type: postType,
-      reply_to_post_id: payload.reply_to_post_id ?? null,
-      repost_of_post_id: payload.repost_of_post_id ?? null,
-      quoted_post_id: payload.quoted_post_id ?? null,
-      visibility: payload.visibility || 'public',
-      location: payload.location || null,
-      ...(sourcePostId === null ? {} : {source_post_id: sourcePostId})
+      `,
+      {
+        post_id: postId,
+        author_id: auth.userId,
+        content: payload.content || null,
+        post_type: postType,
+        reply_to_post_id: payload.reply_to_post_id ?? null,
+        repost_of_post_id: payload.repost_of_post_id ?? null,
+        quoted_post_id: payload.quoted_post_id ?? null,
+        visibility: payload.visibility || 'public',
+        location: payload.location || null,
+        ...(sourcePostId === null ? {} : {source_post_id: sourcePostId})
+      },
+      false
+    );
+    if (inserted === 0) v2NotFound('帖子不存在');
+    const attachedMedia = await v2AttachPostMedia(
+      connection,
+      postId,
+      auth.userId,
+      payload.media_ids ?? [],
+      false,
+      true
+    );
+    if (postType !== 'repost' && !v2String(payload.content).trim() && attachedMedia === 0) {
+      v2BadRequest('content 不能为空');
     }
-  );
-  if (inserted === 0) v2NotFound('帖子不存在');
-
-  await v2AttachPostMedia(
-    connection,
-    postId,
-    auth.userId,
-    payload.media_ids ?? []
-  );
-  await v2AttachPostTags(
-    connection,
-    postId,
-    payload.tag_names ?? []
-  );
-  await v2AttachPostMentions(
-    connection,
-    postId,
-    payload.mention_user_ids ?? []
-  );
+    await v2AttachPostTags(connection, postId, payload.tag_names ?? [], false);
+    await v2AttachPostMentions(connection, postId, payload.mention_user_ids ?? [], false);
+    await connection.commit();
+  } catch (error) {
+    try {
+      await connection.rollback();
+    } catch {
+      throw new Error('Post transaction rollback failed');
+    }
+    throw error;
+  }
   await v2NotifyPostCreated(
     connection,
     auth.userId,
@@ -808,11 +817,14 @@ async function v2AttachPostMedia(
   connection: oracledb.Connection,
   postId: number,
   userId: number,
-  mediaIds: number[]
-): Promise<void> {
+  mediaIds: number[],
+  autoCommit = true,
+  requireUsable = false
+): Promise<number> {
   let sortOrder = 1;
-  for (const mediaId of mediaIds.slice(0, 4)) {
-    await v2Execute(
+  let attached = 0;
+  for (const mediaId of [...new Set(mediaIds)].slice(0, 4)) {
+    const changed = await v2Execute(
       connection,
       `
       INSERT INTO n_post_media (post_id, media_id, sort_order)
@@ -827,16 +839,21 @@ async function v2AttachPostMedia(
         media_id: mediaId,
         user_id: userId,
         sort_order: sortOrder
-      }
+      },
+      autoCommit
     );
+    if (requireUsable && changed !== 1) v2BadRequest('媒体不存在或不可用');
+    attached += changed;
     sortOrder += 1;
   }
+  return attached;
 }
 
 async function v2AttachPostTags(
   connection: oracledb.Connection,
   postId: number,
-  tagNames: string[]
+  tagNames: string[],
+  autoCommit = true
 ): Promise<void> {
   const uniqueTags = [
     ...new Set(
@@ -859,7 +876,8 @@ async function v2AttachPostTags(
         INSERT (tag_id, name, name_lower)
         VALUES (seq_tag_id.NEXTVAL, src.name, src.name_lower)
       `,
-      { name: tag }
+      { name: tag },
+      autoCommit
     );
     await v2Execute(
       connection,
@@ -875,7 +893,8 @@ async function v2AttachPostTags(
             AND tag_id = n_tags.tag_id
         )
       `,
-      { post_id: postId, name: tag }
+      { post_id: postId, name: tag },
+      autoCommit
     );
   }
 }
@@ -883,7 +902,8 @@ async function v2AttachPostTags(
 async function v2AttachPostMentions(
   connection: oracledb.Connection,
   postId: number,
-  userIds: number[]
+  userIds: number[],
+  autoCommit = true
 ): Promise<void> {
   for (const userId of [...new Set(userIds)].slice(0, 50)) {
     await v2Execute(
@@ -900,7 +920,8 @@ async function v2AttachPostMentions(
             AND mentioned_user_id = :user_id
         )
       `,
-      { post_id: postId, user_id: userId }
+      { post_id: postId, user_id: userId },
+      autoCommit
     );
   }
 }

@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "23f18bbfca05d67bea42e08b84bc2aa3d7909e61642b6bf8e83fbd9b0580d004"
+      "sha256": "9941cafd8558829e0453965730b6a75f02c8048b1df6abfcb9c961833c12c326"
     },
     "sources": [
       {
@@ -991,7 +991,7 @@
       },
       {
         "path": "server/services/v2/posts.ts",
-        "sha256": "fbdf8261af60bb0db9ec66d6358c54da85e882a27ed38afb80011d2f81157f11"
+        "sha256": "3d67a8b97afd10c69c20bbee3f926e9f29352fe912681525108fe17ed1ba1b80"
       },
       {
         "path": "server/services/v2/presence.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "3d5cf96c045f4c5eb3add16eed8889faa2920aa108ae90b80c605917783ff4cb"
+        "sha256": "f913f0a5c5f146e6ac80443680a7c1476f4e76bd795b4de316cd2794c80fe10d"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -3254,7 +3254,7 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Complete full post creation requirements, media and transactional behavior; verify reference visibility against isolated Oracle and both clients."
+            "Validate atomic post and relation writes, media ownership, notification boundaries and reference visibility against isolated Oracle and both clients."
           ],
           "sourceFiles": [
             "server/api/v2/posts/index.post.ts",
@@ -3268,7 +3268,7 @@
           "state": "proxy",
           "targetRevision": 1,
           "tasks": [
-            "Implement complete native post creation and reference authorization without Nuxt fallback; validate isolated Oracle, notifications and clients."
+            "Implement complete native post creation, media transaction and reference authorization without Nuxt fallback; validate real dependencies and clients."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -3277,7 +3277,7 @@
           "state": "not-started",
           "targetRevision": 1,
           "tasks": [
-            "Implement complete native post creation and reference authorization without Nuxt fallback; validate isolated Oracle, notifications and clients."
+            "Implement complete native post creation, media transaction and reference authorization without Nuxt fallback; validate real dependencies and clients."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -3285,7 +3285,9 @@
       },
       "sharedDependencies": [
         "specifications/requirements/post-create-reference.md",
-        "specifications/scenarios/post-create-reference.json"
+        "specifications/scenarios/post-create-reference.json",
+        "specifications/requirements/post-create-transaction.md",
+        "specifications/scenarios/post-create-transaction.json"
       ]
     },
     {
@@ -3538,7 +3540,7 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Complete full post creation requirements, media and transactional behavior; verify reference visibility against isolated Oracle and both clients."
+            "Validate atomic post and relation writes, media ownership, notification boundaries and reference visibility against isolated Oracle and both clients."
           ],
           "sourceFiles": [
             "server/api/v2/posts/[id]/retweets.post.ts",
@@ -3552,7 +3554,7 @@
           "state": "proxy",
           "targetRevision": 1,
           "tasks": [
-            "Implement complete native post creation and reference authorization without Nuxt fallback; validate isolated Oracle, notifications and clients."
+            "Implement complete native post creation, media transaction and reference authorization without Nuxt fallback; validate real dependencies and clients."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -3561,7 +3563,7 @@
           "state": "not-started",
           "targetRevision": 1,
           "tasks": [
-            "Implement complete native post creation and reference authorization without Nuxt fallback; validate isolated Oracle, notifications and clients."
+            "Implement complete native post creation, media transaction and reference authorization without Nuxt fallback; validate real dependencies and clients."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -3569,7 +3571,9 @@
       },
       "sharedDependencies": [
         "specifications/requirements/post-create-reference.md",
-        "specifications/scenarios/post-retweet-reference.json"
+        "specifications/scenarios/post-retweet-reference.json",
+        "specifications/requirements/post-create-transaction.md",
+        "specifications/scenarios/post-create-transaction.json"
       ]
     },
     {
@@ -10925,16 +10929,6 @@
     },
     {
       "source": {
-        "path": "specifications/requirements/post-create-reference.md",
-        "sha256": "9d73de031fe5fb7c71836ada9cf7f76c941d2aaab144375ecd030ead7c207706"
-      },
-      "copies": {
-        "rust": "contracts/requirements/post-create-reference.md",
-        "go": "contracts/requirements/post-create-reference.md"
-      }
-    },
-    {
-      "source": {
         "path": "specifications/scenarios/post-create-reference.json",
         "sha256": "bc7800098ac1441f12e6f4f44633df73931ae2e74b3921f4c7fbf4784dd69ac2"
       },
@@ -10951,6 +10945,36 @@
       "copies": {
         "rust": "contracts/scenarios/post-retweet-reference.json",
         "go": "contracts/scenarios/post-retweet-reference.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-create-reference.md",
+        "sha256": "2264ffd82e831ec9dda444a7190ff9b777ad565524f5bfd99633becd064be3c5"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-create-reference.md",
+        "go": "contracts/requirements/post-create-reference.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-create-transaction.md",
+        "sha256": "9ae79ab0530011f623a17df5a50f7a38626b5db0d73e6c7bc2b60e6a931e0cb9"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-create-transaction.md",
+        "go": "contracts/requirements/post-create-transaction.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-create-transaction.json",
+        "sha256": "b211b221f7b0dfc220188fea7d52bf866bcbfbdc79510d1d1cef51905b681228"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-create-transaction.json",
+        "go": "contracts/scenarios/post-create-transaction.json"
       }
     }
   ]

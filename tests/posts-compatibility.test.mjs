@@ -93,7 +93,7 @@ function database({revoked = false, expiredSession = false, failSession = false,
     {POST_ID: 7, AUTHOR_ID: 3, VISIBILITY: 'public'}
   ];
   return {
-    calls, interactions, close: async () => {},
+    calls, interactions, close: async () => {}, commit: async () => {}, rollback: async () => {},
     async execute(raw, binds = {}) {
       const sql = raw.replace(/\s+/g, ' ').trim(); calls.push({sql, binds});
       const metadata = schema.query(sql, binds);
