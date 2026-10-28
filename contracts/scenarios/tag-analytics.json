@@ -1,0 +1,16 @@
+{
+  "id": "TAG-ANALYTICS",
+  "revision": 1,
+  "result": {"name":"C# cats","total_posts":2,"total_authors":1,"total_views":30,"total_likes":4,"engagement_score":2.75},
+  "cases": [
+    {"id":"TA-01","path":"/api/v2/tags/C%23%20cats/analytics","auth":"valid","status":200,"name":"C# cats"},
+    {"id":"TA-02","path":"/api/v2/tags/C%23%20cats/analytics?viewer_id=99","auth":"cookie","status":200,"name":"C# cats"},
+    {"id":"TA-03","path":"/api/v2/tags/missing/analytics","auth":"valid","status":404,"name":"missing","missing":true},
+    {"id":"TA-04","path":"/api/v2/tags/cat/analytics","auth":"none","status":401},
+    {"id":"TA-05","path":"/api/v2/tags/cat/analytics","auth":"bad","status":401},
+    {"id":"TA-06","path":"/api/v2/tags/cat/analytics","auth":"revoked","status":401},
+    {"id":"TA-07","path":"/api/v2/tags/cat/analytics","auth":"bad-cookie","status":401},
+    {"id":"TA-08","path":"/api/v2/tags/cat/analytics","auth":"valid","status":500,"name":"cat","failure":true},
+    {"id":"TA-09","path":"/api/v2/tags/C%23%20cats/analytics","auth":"valid","status":200,"name":"C# cats","zero":true}
+  ]
+}

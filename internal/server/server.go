@@ -114,6 +114,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			}
 			parts := strings.Split(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
 			if len(parts) == 5 && parts[0] == "api" && parts[1] == "v2" && parts[3] != "" {
+				if parts[2] == "tags" && parts[4] == "analytics" {
+					tagAnalytics(w, r, codec, repository, parts[3])
+					return
+				}
 				mode := ""
 				switch {
 				case parts[2] == "users" && parts[4] == "posts":
