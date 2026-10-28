@@ -62,9 +62,7 @@ func buildNotificationEvent(user int64, kind string, data map[string]interface{}
 	if user <= 0 || user > 9007199254740991 || serverID == "" {
 		return "", nil, errNotificationEvent
 	}
-	switch kind {
-	case "notification_created", "notification_read_status_updated", "notifications_read_status_updated", "notification_deleted", "notification_restored":
-	default:
+	if !isNotificationEvent(kind) {
 		return "", nil, errNotificationEvent
 	}
 	copyData := make(map[string]interface{}, len(data)+1)
@@ -81,6 +79,15 @@ func buildNotificationEvent(user int64, kind string, data map[string]interface{}
 		return "", nil, errNotificationEvent
 	}
 	return fmt.Sprintf("ws:user:%d", user), payload, nil
+}
+
+func isNotificationEvent(kind string) bool {
+	switch kind {
+	case "notification_created", "notification_read_status_updated", "notifications_read_status_updated", "notification_deleted", "notification_restored":
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *UserEventPublisher) Publish(ctx context.Context, user int64, kind string, data map[string]interface{}) error {

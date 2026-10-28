@@ -19,11 +19,15 @@ func TestNoNativeRouteCallsCountedNuxt(t *testing.T) {
 	s := store()
 	ts := httptest.NewServer(NewHandler(codec, s, CorsPolicy{}))
 	defer ts.Close()
-	for _, path := range []string{"/api/v2/auth/login", "/storage/file", "/uploads/file", "/_ws"} {
+	for _, path := range []string{"/api/v2/auth/login", "/storage/file", "/uploads/file"} {
 		r, _ := request(t, ts.Client(), ts.URL, "GET", path, "", "")
 		if r.StatusCode != 404 {
 			t.Fatal(path, r.StatusCode)
 		}
+	}
+	ws, _ := request(t, ts.Client(), ts.URL, "GET", "/_ws", "", "")
+	if ws.StatusCode != 400 {
+		t.Fatal("malformed websocket upgrade must fail locally", ws.StatusCode)
 	}
 	list, _ := request(t, ts.Client(), ts.URL, "GET", "/api/v2/auth/sessions", "", "")
 	if list.StatusCode != 401 {

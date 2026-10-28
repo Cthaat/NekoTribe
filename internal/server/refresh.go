@@ -32,6 +32,7 @@ type RefreshConfig struct {
 	CookieSecure                  bool
 	TrustProxy                    bool
 	Storage                       StorageURLPolicy
+	NotificationEvents            NotificationEventSource
 	otpMailer                     otpMailSender
 	clock                         func() time.Time
 }

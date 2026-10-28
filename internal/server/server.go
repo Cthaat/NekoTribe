@@ -36,6 +36,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			respond(w, 200, 200, "ok", map[string]string{"status": "ok", "service": "nekotribe-go"})
 			return
 		}
+		if r.Method == http.MethodGet && r.URL.EscapedPath() == "/_ws" {
+			notificationWebSocket(w, r, codec, repository, cors, refresh.NotificationEvents)
+			return
+		}
 		if r.URL.EscapedPath() == "/api/v2/auth/tokens" && r.Method == http.MethodPost {
 			login(w, r, codec, repository, refresh)
 			return
