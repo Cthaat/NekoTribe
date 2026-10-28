@@ -14,10 +14,10 @@ const REFERENCE_SQL: &str = "SELECT p.post_id FROM n_posts p WHERE p.post_id=:po
 const NEXT_POST_SQL: &str = "SELECT seq_post_id.NEXTVAL AS id FROM dual";
 const INSERT_POST_SQL: &str = "INSERT INTO n_posts (post_id,author_id,content,post_type,reply_to_post_id,repost_of_post_id,quoted_post_id,visibility,language,location) SELECT :post_id,:author_id,:content,:post_type,:reply_to_post_id,:repost_of_post_id,:quoted_post_id,:visibility,'zh',:location FROM dual";
 const INSERT_REFERENCED_POST_SQL: &str = "INSERT INTO n_posts (post_id,author_id,content,post_type,reply_to_post_id,repost_of_post_id,quoted_post_id,visibility,language,location) SELECT :post_id,:author_id,:content,:post_type,:reply_to_post_id,:repost_of_post_id,:quoted_post_id,:visibility,'zh',:location FROM dual WHERE EXISTS (SELECT 1 FROM n_posts p WHERE p.post_id=:source_post_id AND p.is_deleted=0 AND fn_can_view_post(:author_id,p.post_id)=1)";
-const INSERT_MEDIA_SQL: &str = "INSERT INTO n_post_media (post_id,media_id,sort_order) SELECT :post_id,media_id,:sort_order FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id AND status IN ('uploaded','processing','ready')";
-const MERGE_TAG_SQL: &str = "MERGE INTO n_tags t USING (SELECT :name AS name, LOWER(:name) AS name_lower FROM dual) src ON (t.name_lower=src.name_lower) WHEN NOT MATCHED THEN INSERT (tag_id,name,name_lower) VALUES (seq_tag_id.NEXTVAL,src.name,src.name_lower)";
-const ATTACH_TAG_SQL: &str = "INSERT INTO n_post_tags (post_id,tag_id) SELECT :post_id,tag_id FROM n_tags WHERE name_lower=LOWER(:name) AND NOT EXISTS (SELECT 1 FROM n_post_tags WHERE post_id=:post_id AND tag_id=n_tags.tag_id)";
-const ATTACH_MENTION_SQL: &str = "INSERT INTO n_post_mentions (post_id,mentioned_user_id) SELECT :post_id,user_id FROM n_users WHERE user_id=:user_id AND NOT EXISTS (SELECT 1 FROM n_post_mentions WHERE post_id=:post_id AND mentioned_user_id=:user_id)";
+pub(super) const INSERT_MEDIA_SQL: &str = "INSERT INTO n_post_media (post_id,media_id,sort_order) SELECT :post_id,media_id,:sort_order FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id AND status IN ('uploaded','processing','ready')";
+pub(super) const MERGE_TAG_SQL: &str = "MERGE INTO n_tags t USING (SELECT :name AS name, LOWER(:name) AS name_lower FROM dual) src ON (t.name_lower=src.name_lower) WHEN NOT MATCHED THEN INSERT (tag_id,name,name_lower) VALUES (seq_tag_id.NEXTVAL,src.name,src.name_lower)";
+pub(super) const ATTACH_TAG_SQL: &str = "INSERT INTO n_post_tags (post_id,tag_id) SELECT :post_id,tag_id FROM n_tags WHERE name_lower=LOWER(:name) AND NOT EXISTS (SELECT 1 FROM n_post_tags WHERE post_id=:post_id AND tag_id=n_tags.tag_id)";
+pub(super) const ATTACH_MENTION_SQL: &str = "INSERT INTO n_post_mentions (post_id,mentioned_user_id) SELECT :post_id,user_id FROM n_users WHERE user_id=:user_id AND NOT EXISTS (SELECT 1 FROM n_post_mentions WHERE post_id=:post_id AND mentioned_user_id=:user_id)";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum PostCreation {
@@ -31,8 +31,8 @@ pub enum PostCreation {
 /// A single connection and transaction; individual writes must never auto-commit.
 #[doc(hidden)]
 pub trait PostCreateTransaction {
-    fn query(&self, sql: &'static str, binds: BindMap) -> Result<Vec<DbRow>, DbError>;
-    fn execute(&self, sql: &'static str, binds: BindMap) -> Result<u64, DbError>;
+    fn query(&self, sql: &str, binds: BindMap) -> Result<Vec<DbRow>, DbError>;
+    fn execute(&self, sql: &str, binds: BindMap) -> Result<u64, DbError>;
     fn commit(&self) -> Result<(), DbError>;
     fn rollback(&self) -> Result<(), DbError>;
 }
@@ -199,7 +199,7 @@ fn nullable_id(id: Option<u64>) -> DbValue {
         .unwrap_or(DbValue::Null)
 }
 
-fn nullable_string(value: &str) -> DbValue {
+pub(super) fn nullable_string(value: &str) -> DbValue {
     if value.is_empty() {
         DbValue::Null
     } else {
@@ -207,7 +207,7 @@ fn nullable_string(value: &str) -> DbValue {
     }
 }
 
-fn unique_ids(values: &[f64], limit: usize) -> Vec<f64> {
+pub(super) fn unique_ids(values: &[f64], limit: usize) -> Vec<f64> {
     let mut unique = Vec::with_capacity(limit);
     for value in values {
         if !unique.contains(value) {
@@ -220,7 +220,7 @@ fn unique_ids(values: &[f64], limit: usize) -> Vec<f64> {
     unique
 }
 
-fn unique_tags(values: &[String]) -> Vec<&str> {
+pub(super) fn unique_tags(values: &[String]) -> Vec<&str> {
     let mut unique = Vec::with_capacity(20);
     for value in values {
         let value = js_trim(value);
@@ -241,7 +241,7 @@ struct OraclePostTransaction<'a> {
 }
 
 impl PostCreateTransaction for OraclePostTransaction<'_> {
-    fn query(&self, sql: &'static str, binds: BindMap) -> Result<Vec<DbRow>, DbError> {
+    fn query(&self, sql: &str, binds: BindMap) -> Result<Vec<DbRow>, DbError> {
         let values = bind_values(binds);
         let refs = bind_refs(&values);
         self.connection
@@ -249,7 +249,7 @@ impl PostCreateTransaction for OraclePostTransaction<'_> {
             .map(|row| oracle_row_to_db_row(&row?))
             .collect()
     }
-    fn execute(&self, sql: &'static str, binds: BindMap) -> Result<u64, DbError> {
+    fn execute(&self, sql: &str, binds: BindMap) -> Result<u64, DbError> {
         Ok(self.tx.execute(sql, binds)?.rows_affected)
     }
     fn commit(&self) -> Result<(), DbError> {
@@ -265,12 +265,14 @@ pub fn execute(
     actor: u64,
     input: &PostCreateInput,
 ) -> Result<PostCreation, DbError> {
-    run(
-        &OraclePostTransaction {
-            connection,
-            tx: OracleTx::new(connection),
-        },
-        actor,
-        input,
-    )
+    run(&oracle_transaction(connection), actor, input)
+}
+
+pub(super) fn oracle_transaction(
+    connection: &oracle::Connection,
+) -> impl PostCreateTransaction + '_ {
+    OraclePostTransaction {
+        connection,
+        tx: OracleTx::new(connection),
+    }
 }

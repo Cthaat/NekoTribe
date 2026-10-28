@@ -93,6 +93,7 @@ fn post_list_sql(query: &crate::posts::list::PostListQuery) -> (&'static str, &'
     (count, page)
 }
 pub trait SessionExecutor: Send + Sync {
+    fn update_post_atomic<'a>(&'a self,_actor:u64,_id:u64,_input:&'a crate::posts::update_request::PostUpdateInput)->StoreFuture<'a,crate::posts::update_transaction::PostUpdate>{Box::pin(async{Err(SessionStoreError)})}
     fn create_post_atomic<'a>(
         &'a self,
         _actor: u64,
@@ -264,6 +265,7 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn update_post_atomic<'a>(&'a self,actor:u64,id:u64,input:&'a crate::posts::update_request::PostUpdateInput)->StoreFuture<'a,crate::posts::update_transaction::PostUpdate>{self.executor.update_post_atomic(actor,id,input)}
     fn delete_post<'a>(&'a self, user:u64, id:u64) -> StoreFuture<'a,crate::posts::delete::PostDelete> {
         Box::pin(crate::posts::delete::remove_from_store(&self.executor,user,id))
     }
@@ -1505,6 +1507,7 @@ fn session_binds(user: u64, id: &str) -> BindMap {
     ])
 }
 impl SessionExecutor for OraclePool {
+    fn update_post_atomic<'a>(&'a self,actor:u64,id:u64,input:&'a crate::posts::update_request::PostUpdateInput)->StoreFuture<'a,crate::posts::update_transaction::PostUpdate>{let input=input.clone();Box::pin(async move{self.run_blocking(move|connection|crate::posts::update_transaction::execute(connection,actor,id,&input)).await.map_err(|_|SessionStoreError)})}
     fn create_post_atomic<'a>(
         &'a self,
         actor: u64,

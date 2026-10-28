@@ -1,5 +1,7 @@
 # NekoTribe Rust 后端（兼容模式与原生业务开发）
 
+原生 PATCH/PUT 帖子部分更新已接入，省略保留、明确空关系清空；行锁及全部关系写入在同一连接事务中完成，失败回滚。53 条共同请求向量及隔离事务/HTTP 检查通过，真实 Oracle、并发及双客户端仍待验收。规则见 `contracts/requirements/post-update.md`。
+
 原生 `DELETE /api/v2/posts/{id}` 已按公共规则接入作者专属软删除、并发条件更新和安全错误；17 条共同输入在隔离路由中通过。不会物理删除帖子或媒体。真实 Oracle、触发器、缓存及客户端仍待验收，见 `contracts/requirements/post-delete.md`。
 
 原生 `POST /api/v2/posts` 和 `POST /api/v2/posts/{id}/retweets` 已接入请求解析、引用权限、单连接事务、媒体/标签/提及写入、提交后通知及完整帖子映射。最终读取不增加浏览量，原生路径不回退 Nuxt。80 条共同请求向量及事务、通知、响应错误边界已通过隔离测试；真实 Oracle、Redis、并发及双客户端仍待验收。通知或最终读取失败可能发生在帖子已提交之后，不得自动重试创建；非法 JSON 和 1 MiB 正文限制与 Nuxt 的差异见 `contracts/requirements/post-create-request.md`。

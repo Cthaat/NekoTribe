@@ -30,7 +30,7 @@ struct State {
 struct MemoryTransaction {
     persisted: RefCell<State>,
     pending: RefCell<State>,
-    calls: RefCell<Vec<(&'static str, BindMap)>>,
+    calls: RefCell<Vec<(String, BindMap)>>,
     events: RefCell<Vec<&'static str>>,
     source_exists: bool,
     source_deleted: bool,
@@ -76,8 +76,8 @@ fn decimal(binds: &BindMap, name: &str) -> f64 {
 }
 
 impl PostCreateTransaction for MemoryTransaction {
-    fn query(&self, sql: &'static str, binds: BindMap) -> Result<Vec<DbRow>, DbError> {
-        self.calls.borrow_mut().push((sql, binds));
+    fn query(&self, sql: &str, binds: BindMap) -> Result<Vec<DbRow>, DbError> {
+        self.calls.borrow_mut().push((sql.to_owned(), binds));
         if sql.contains("seq_post_id") {
             self.sequences.set(self.sequences.get() + 1);
             return Ok(vec![DbRow::from([("ID".into(), DbValue::I64(100))])]);
@@ -92,8 +92,10 @@ impl PostCreateTransaction for MemoryTransaction {
         )
     }
 
-    fn execute(&self, sql: &'static str, binds: BindMap) -> Result<u64, DbError> {
-        self.calls.borrow_mut().push((sql, binds.clone()));
+    fn execute(&self, sql: &str, binds: BindMap) -> Result<u64, DbError> {
+        self.calls
+            .borrow_mut()
+            .push((sql.to_owned(), binds.clone()));
         if self.fail_at.is_some_and(|step| sql.starts_with(step)) {
             return Err(DbError::SchemaNotReady);
         }

@@ -111,7 +111,7 @@ pub fn parse_create_body(
     Ok(input)
 }
 
-fn request_object(bytes: &[u8], content_type: &str) -> Result<RequestObject, ApiError> {
+pub(super) fn request_object(bytes: &[u8], content_type: &str) -> Result<RequestObject, ApiError> {
     let bad = || ApiError::bad_request("请求体必须是 JSON 对象");
     if bytes.len() > 1024 * 1024 {
         return Err(bad());
@@ -140,13 +140,17 @@ fn request_object(bytes: &[u8], content_type: &str) -> Result<RequestObject, Api
     serde_json::from_slice(bytes).map_err(|_| bad())
 }
 
-fn field<'a>(body: &'a RequestObject, primary: &str, fallback: &str) -> Option<&'a RawValue> {
+pub(super) fn field<'a>(
+    body: &'a RequestObject,
+    primary: &str,
+    fallback: &str,
+) -> Option<&'a RawValue> {
     body.get(primary)
         .or_else(|| body.get(fallback))
         .map(Box::as_ref)
 }
 
-fn scalar(value: Option<&RawValue>) -> Option<String> {
+pub(super) fn scalar(value: Option<&RawValue>) -> Option<String> {
     let raw = value?.get();
     match raw.as_bytes().first()? {
         b'"' => serde_json::from_str(raw).ok(),
@@ -167,13 +171,13 @@ fn scalar(value: Option<&RawValue>) -> Option<String> {
     }
 }
 
-fn array(value: Option<&RawValue>) -> Vec<Box<RawValue>> {
+pub(super) fn array(value: Option<&RawValue>) -> Vec<Box<RawValue>> {
     value
         .and_then(|value| serde_json::from_str(value.get()).ok())
         .unwrap_or_default()
 }
 
-fn number_array(value: Option<&RawValue>) -> Vec<f64> {
+pub(super) fn number_array(value: Option<&RawValue>) -> Vec<f64> {
     array(value)
         .iter()
         .filter_map(|value| {
