@@ -1,0 +1,18 @@
+{
+  "id": "TAG-LIST",
+  "revision": 1,
+  "items": [{"tag_id": 17, "name": "Cat", "usage_count": 42, "trending_score": 12.5, "is_trending": 1, "updated_at": "2026-01-02T03:04:05.000Z"}],
+  "cases": [
+    {"id":"TAG-01","path":"/api/v2/tags?q=%20Cat_%25%20&page=2&page_size=1","auth":"valid","status":200,"q":"%cat_%%","trending":false,"page":2,"size":1},
+    {"id":"TAG-02","path":"/api/v2/tags","auth":"valid","status":200,"q":null,"trending":false,"page":1,"size":20},
+    {"id":"TAG-03","path":"/api/v2/tags?q=a&q=b","auth":"valid","status":200,"q":null,"trending":false,"page":1,"size":20},
+    {"id":"TAG-04","path":"/api/v2/tags/trending?q=ignored&page=1.5&page_size=2.5","auth":"valid","status":200,"q":null,"trending":true,"page":1.5,"size":2.5},
+    {"id":"TAG-05","path":"/api/v2/tags","auth":"none","status":401},
+    {"id":"TAG-06","path":"/api/v2/tags/trending","auth":"bad","status":401},
+    {"id":"TAG-07","path":"/api/v2/tags","auth":"revoked","status":401},
+    {"id":"TAG-08","path":"/api/v2/tags","auth":"cookie","status":200,"q":null,"trending":false,"page":1,"size":20},
+    {"id":"TAG-09","path":"/api/v2/tags?q=Cat","auth":"valid","status":500,"failure":true},
+    {"id":"TAG-10","path":"/api/v2/tags/trending?limit=1","auth":"valid","status":200,"q":null,"trending":true,"page":1,"size":20},
+    {"id":"TAG-11","path":"/api/v2/tags","auth":"bad-cookie","status":401}
+  ]
+}

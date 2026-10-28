@@ -73,6 +73,19 @@ test('scoped list contracts use authenticated access and a consistent post paylo
     if (path.includes('{id}')) assert.equal(op.parameters.find(param => param.name === 'id').schema.maximum, 9007199254740991, path);
   }
 });
+
+test('tag list contracts describe authenticated tag objects and fractional score', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/tag-list.json', import.meta.url)));
+  const value = {code: 200, message: 'success', data: fixture.items, meta: {page: 1.5, page_size: 2.5, total: 3, has_next: false}};
+  for (const path of ['/api/v2/tags', '/api/v2/tags/trending']) {
+    const op = spec.paths[path].get;
+    assert.ok(op.security.some(item => Object.hasOwn(item, 'accessTokenCookie')), path);
+    assert.ok(!op.parameters.some(item => item.name === 'limit'), path);
+    const pointer = path.replaceAll('/', '~1');
+    const check = ajv.compile({$ref: `${base}#/paths/${pointer}/get/responses/200/content/application~1json/schema`});
+    assert.equal(check(value), true, `${path}: ${JSON.stringify(check.errors)}`);
+  }
+});
 // Local refs in operation fragments need the document's canonical base.
 function requestValidator(method, path) {
   const pointer = path.replaceAll('~', '~0').replaceAll('/', '~1');

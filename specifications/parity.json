@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "9d538d8ae276cb92b848f07b3c295b9f21ec4a58d9f0c6a6506e8e38665ad6c9"
+      "sha256": "0e3b82afb37465162a2c75b0b8e4b43dec8b71bc2520874f0a2ade317c562155"
     },
     "sources": [
       {
@@ -739,11 +739,11 @@
       },
       {
         "path": "server/api/v2/tags/index.get.ts",
-        "sha256": "973ea4c085b8007b665323eb7b9eeebfa4b3fa813da4edcb0ebff22191407927"
+        "sha256": "e756c88113916ca922915785f24af14c54dcd744a162009d8040618a688e6e58"
       },
       {
         "path": "server/api/v2/tags/trending.get.ts",
-        "sha256": "ebd61f87087337a48c51084dc0dd2e689280992a4d18459b532fb0a043cd8f6b"
+        "sha256": "19b1e1ab00fd172b168d5e35fe03c7de3b7f7336a310f1b8e58e91c2c8f4a88d"
       },
       {
         "path": "server/api/v2/users/[id].get.ts",
@@ -4128,93 +4128,80 @@
     },
     {
       "id": "API-get_tags",
-      "title": "GET /api/v2/tags: 搜索话题",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "title": "标签搜索及热门标签",
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/tag-list.md",
       "sourceFiles": [
-        "server/api/v2/tags/index.get.ts"
+        "server/api/v2/tags/index.get.ts",
+        "server/api/v2/tags/trending.get.ts",
+        "server/services/v2/posts.ts",
+        "server/utils/v2.ts",
+        "server/middleware/auth.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
-        "GET /api/v2/tags"
-      ],
-      "scenarios": [],
-      "implementations": {
-        "nuxt": {
-          "state": "in-progress",
-          "targetRevision": 1,
-          "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/tags; create shared acceptance scenarios."
-          ],
-          "sourceFiles": [
-            "server/api/v2/tags/index.get.ts"
-          ],
-          "evidence": []
-        },
-        "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement GET /api/v2/tags natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        },
-        "go": {
-          "state": "not-started",
-          "targetRevision": 1,
-          "tasks": [
-            "Implement GET /api/v2/tags natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
-          ],
-          "sourceFiles": [],
-          "evidence": []
-        }
-      }
-    },
-    {
-      "id": "API-get_tags_trending",
-      "title": "GET /api/v2/tags/trending: 获取热门话题",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
-      "sourceFiles": [
-        "server/api/v2/tags/trending.get.ts"
-      ],
-      "operations": [
+        "GET /api/v2/tags",
         "GET /api/v2/tags/trending"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "TAG-LIST",
+          "file": "specifications/scenarios/tag-list.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/tags/trending; create shared acceptance scenarios."
+            "nuxt: verify the shared tag list scenarios and native data mappings.",
+            "nuxt: validate real isolated Oracle, cross-backend updates and both clients before acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/tags/trending.get.ts"
+            "server/api/v2/tags/index.get.ts",
+            "server/api/v2/tags/trending.get.ts",
+            "server/services/v2/posts.ts",
+            "server/utils/v2.ts",
+            "server/middleware/auth.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/tags/trending natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: verify the shared tag list scenarios and native data mappings.",
+            "rust: validate real isolated Oracle, cross-backend updates and both clients before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/tags.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/tags/trending natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: verify the shared tag list scenarios and native data mappings.",
+            "go: validate real isolated Oracle, cross-backend updates and both clients before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/tag_list.go",
+            "internal/server/server.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "supersedes": [
+        "API-get_tags_trending"
+      ],
+      "sharedDependencies": [
+        "specifications/requirements/post-list.md"
+      ]
     },
     {
       "id": "API-get_tags_name_analytics",
@@ -10324,6 +10311,26 @@
       "copies": {
         "rust": "contracts/scenarios/post-list.json",
         "go": "contracts/scenarios/post-list.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/tag-list.md",
+        "sha256": "79cd8e9974aad53bd7d9e0a6ec9b5e4cdcee1aa34de36d73a101c89efb4c1bf7"
+      },
+      "copies": {
+        "rust": "contracts/requirements/tag-list.md",
+        "go": "contracts/requirements/tag-list.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/tag-list.json",
+        "sha256": "6905101256a9affdf99bf7380642469f647d7c021e53150ef28efa9e32a59496"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/tag-list.json",
+        "go": "contracts/scenarios/tag-list.json"
       }
     }
   ]
