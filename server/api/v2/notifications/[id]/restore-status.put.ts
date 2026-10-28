@@ -1,13 +1,10 @@
 import { v2RestoreNotification } from '~/server/services/v2/notifications';
-import {
-  defineV2Handler,
-  v2RouterNumber
-} from '~/server/utils/v2';
+import { defineV2Handler } from '~/server/utils/v2';
+import { v2SafeRouterId } from '~/server/utils/router-id';
+import { safeAuthEntry } from '~/server/utils/auth-entry-errors';
+import { setResponseHeader } from 'h3';
 
-export default defineV2Handler((event, connection) =>
-  v2RestoreNotification(
-    event,
-    connection,
-    v2RouterNumber(event, 'id')
-  )
-);
+export default defineV2Handler(safeAuthEntry(async (event, connection) => {
+  setResponseHeader(event, 'Cache-Control', 'private, no-store');
+  return await v2RestoreNotification(event, connection, v2SafeRouterId(event, 'id'));
+}));

@@ -1,0 +1,11 @@
+{
+  "id": "NOTIFICATION-RESTORE",
+  "revision": 1,
+  "cases": [
+    {"id":"RESTORE-01","assertion":"owned deleted or active notification is restored and sends a user event"},
+    {"id":"RESTORE-02","assertion":"missing or foreign notification returns 404 without an event"},
+    {"id":"RESTORE-03","assertion":"invalid ID, invalid session and database errors are rejected without exposing details"},
+    {"id":"RESTORE-04","assertion":"repeated restoration sends an event and Redis failure does not roll back the update"},
+    {"id":"RESTORE-05","assertion":"isolated real Oracle, Redis, both clients, concurrency and cross-backend behavior are verified"}
+  ]
+}

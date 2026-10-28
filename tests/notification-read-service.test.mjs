@@ -11,11 +11,11 @@ const stubs={
  '~/server/utils/wsSession':'export const WS_SERVER_ID="test-instance";export const sendWsNotificationToUser=async(user,message)=>globalThis.__read.events.push({user,message});',
  '~/server/utils/redis':'export const REDIS_CHANNELS={USER_MESSAGE:"ws:user:"};export const publishMessage=async(channel,message)=>globalThis.__read.events.push({channel,message});'
 };
-const bundle=await build({stdin:{contents:`export {v2SetNotificationReadStatus} from './server/services/v2/notifications';`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'read-service-stubs',setup(builder){
+const bundle=await build({stdin:{contents:`export {v2SetNotificationReadStatus, v2DeleteNotification, v2RestoreNotification} from './server/services/v2/notifications';`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'read-service-stubs',setup(builder){
  builder.onResolve({filter:/.*/},args=>{if(Object.hasOwn(stubs,args.path))return {path:args.path,namespace:'stub'};if(args.path.startsWith('~/'))return {path:path.join(root,`${args.path.slice(2)}.ts`)};if(args.path.startsWith('node:'))return {path:args.path,external:true};if(!args.path.startsWith('.')&&!path.isAbsolute(args.path))return {path:pathToFileURL(require.resolve(args.path)).href,external:true};});
  builder.onLoad({filter:/.*/,namespace:'stub'},args=>({contents:stubs[args.path],loader:'js'}));
 }}]});
-const {v2SetNotificationReadStatus}=await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+const {v2SetNotificationReadStatus,v2DeleteNotification,v2RestoreNotification}=await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 test('owned notification status update and event use the authenticated user',async()=>{
  globalThis.__read={changed:1,row:{NOTIFICATION_ID:12,IS_READ:1,READ_AT:'2026-01-02T03:04:05.000Z'},calls:[],events:[]};
  try {
@@ -30,5 +30,18 @@ test('owned notification status update and event use the authenticated user',asy
   globalThis.__read.changed=1;globalThis.__read.failRead=true;globalThis.__read.calls=[];
   await assert.rejects(v2SetNotificationReadStatus({auth:{userId:42},body:{is_read:true}}, {},12),/read/);
   assert.equal(globalThis.__read.calls.length,2);assert.equal(globalThis.__read.events.length,0);
+ } finally {delete globalThis.__read;}
+});
+
+test('delete timestamp lookup is scoped to the authenticated user',async()=>{
+ globalThis.__read={changed:1,row:{DELETED_AT:'2026-01-02T03:04:05.000Z'},calls:[],events:[]};
+ try {
+  await v2DeleteNotification({auth:{userId:42}}, {},12);
+  assert.equal(globalThis.__read.calls.length,2);
+  for(const call of globalThis.__read.calls){assert.match(call.sql,/user_id\s*=\s*:user_id/);assert.equal(call.binds.user_id,42);assert.equal(call.binds.notification_id,12);}
+  assert.equal(globalThis.__read.events[0].message.type,'notification_deleted');
+  globalThis.__read.calls=[];globalThis.__read.events=[];
+  await v2RestoreNotification({auth:{userId:42}}, {},12);
+  assert.equal(globalThis.__read.calls.length,1);assert.equal(globalThis.__read.events[0].message.type,'notification_restored');
  } finally {delete globalThis.__read;}
 });

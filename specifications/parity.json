@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "60fb9130a71a9eb040f2dde70a23b9c33ccdca11d11e7527908d2c7352559f11"
+      "sha256": "efce6e7935e34f57e0e01e820451dc07e224b3a0d79e43aafd3c97d597393844"
     },
     "sources": [
       {
@@ -631,7 +631,7 @@
       },
       {
         "path": "server/api/v2/notifications/[id].delete.ts",
-        "sha256": "8fbc899ec3f301a2ae4c13a4345596a39d18586085d8fe57268142ff04c56d42"
+        "sha256": "cd60391bdc7d01e8ab64d814564eb572e4e5dc931492ae5d992cd0c7f84be242"
       },
       {
         "path": "server/api/v2/notifications/[id]/read-status.put.ts",
@@ -639,7 +639,7 @@
       },
       {
         "path": "server/api/v2/notifications/[id]/restore-status.put.ts",
-        "sha256": "e94afb7adb195baaf089a6566a2d63daac5dca619a2ded5f182834894157b00a"
+        "sha256": "959051418a3db23cb9a9a7a47f399b1f18972d66a3bc5a62c31cfdae754e6a0c"
       },
       {
         "path": "server/api/v2/notifications/index.get.ts",
@@ -987,7 +987,7 @@
       },
       {
         "path": "server/services/v2/notifications.ts",
-        "sha256": "16d873acdd85722e7821c8a8114af3e90ebaaf47cabf68b44fdfc1a821923036"
+        "sha256": "745eb280c907532d06ab8ae603b306ee7b9a3f627c397e06c883c6441875821c"
       },
       {
         "path": "server/services/v2/posts.ts",
@@ -4429,43 +4429,63 @@
       "id": "API-delete_notifications_id",
       "title": "DELETE /api/v2/notifications/{id}: 删除通知",
       "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "review": "reviewed",
+      "definition": "specifications/requirements/notification-delete-restore.md",
       "sourceFiles": [
-        "server/api/v2/notifications/[id].delete.ts"
+        "server/api/v2/notifications/[id].delete.ts",
+        "server/services/v2/notifications.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "DELETE /api/v2/notifications/{id}"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "NOTIFICATION-DELETE",
+          "file": "specifications/scenarios/notification-delete-restore.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for DELETE /api/v2/notifications/{id}; create shared acceptance scenarios."
+            "Validate ownership, timestamps, repeated operations and events with isolated Oracle, Redis and both clients."
           ],
           "sourceFiles": [
-            "server/api/v2/notifications/[id].delete.ts"
+            "server/api/v2/notifications/[id].delete.ts",
+            "server/services/v2/notifications.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement DELETE /api/v2/notifications/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate ownership, timestamps, repeated operations and events with isolated Oracle, Redis and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/notifications.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs",
+            "src/notification_events.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement DELETE /api/v2/notifications/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate ownership, timestamps, repeated operations and events with isolated Oracle, Redis and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/notification_delete.go",
+            "internal/server/server.go",
+            "internal/server/notification_events.go"
+          ],
           "evidence": []
         }
       }
@@ -4474,43 +4494,63 @@
       "id": "API-put_notifications_id_restore_status",
       "title": "PUT /api/v2/notifications/{id}/restore-status: 恢复通知",
       "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "review": "reviewed",
+      "definition": "specifications/requirements/notification-delete-restore.md",
       "sourceFiles": [
-        "server/api/v2/notifications/[id]/restore-status.put.ts"
+        "server/api/v2/notifications/[id]/restore-status.put.ts",
+        "server/services/v2/notifications.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "PUT /api/v2/notifications/{id}/restore-status"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "NOTIFICATION-RESTORE",
+          "file": "specifications/scenarios/notification-restore.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for PUT /api/v2/notifications/{id}/restore-status; create shared acceptance scenarios."
+            "Validate ownership, timestamps, repeated operations and events with isolated Oracle, Redis and both clients."
           ],
           "sourceFiles": [
-            "server/api/v2/notifications/[id]/restore-status.put.ts"
+            "server/api/v2/notifications/[id]/restore-status.put.ts",
+            "server/services/v2/notifications.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement PUT /api/v2/notifications/{id}/restore-status natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate ownership, timestamps, repeated operations and events with isolated Oracle, Redis and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/notifications.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs",
+            "src/notification_events.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement PUT /api/v2/notifications/{id}/restore-status natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate ownership, timestamps, repeated operations and events with isolated Oracle, Redis and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/notification_delete.go",
+            "internal/server/server.go",
+            "internal/server/notification_events.go"
+          ],
           "evidence": []
         }
       }
@@ -10600,6 +10640,36 @@
       "copies": {
         "rust": "contracts/scenarios/notification-batch-read.json",
         "go": "contracts/scenarios/notification-batch-read.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/notification-delete-restore.md",
+        "sha256": "605a6527b0f97e9917f001d648c086c82f66f2ad3f6e4640eb0df11b0044ee46"
+      },
+      "copies": {
+        "rust": "contracts/requirements/notification-delete-restore.md",
+        "go": "contracts/requirements/notification-delete-restore.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/notification-delete-restore.json",
+        "sha256": "4f6a378adb442ab12758e36cb7ddca3fbc0c4b185f268a335d1e975a3f836cee"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/notification-delete-restore.json",
+        "go": "contracts/scenarios/notification-delete-restore.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/notification-restore.json",
+        "sha256": "f7a6b8c90959a3bc76d3b902ea22a7b9d41ed2e9bc5727b9e70684d08e45e7a5"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/notification-restore.json",
+        "go": "contracts/scenarios/notification-restore.json"
       }
     }
   ]
