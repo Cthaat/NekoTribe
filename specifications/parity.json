@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "95b6d49e7bb76baa6689bc5cbd0237e13b93c3f728977f3361fcdca08a6641c4"
+      "sha256": "d95c0b6de88d37b46aa5e666b25c6d2224ca8395b7f3be6f330c6dc17da8036f"
     },
     "sources": [
       {
@@ -643,7 +643,7 @@
       },
       {
         "path": "server/api/v2/notifications/index.get.ts",
-        "sha256": "b55778a158692a963f6d068764782b550546893955064d400253d9ce51dec474"
+        "sha256": "b82eba15aa224256ee88d954034ea487a0be4fd3db0b4149aad265bacd4a8aad"
       },
       {
         "path": "server/api/v2/notifications/read-status.put.ts",
@@ -4228,44 +4228,65 @@
     {
       "id": "API-get_notifications",
       "title": "GET /api/v2/notifications: 获取通知列表",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/notification-list.md",
       "sourceFiles": [
-        "server/api/v2/notifications/index.get.ts"
+        "server/api/v2/notifications/index.get.ts",
+        "server/services/v2/notifications.ts",
+        "server/models/v2.ts",
+        "server/utils/v2.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "GET /api/v2/notifications"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "NOTIFICATION-LIST",
+          "file": "specifications/scenarios/notification-list.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/notifications; create shared acceptance scenarios."
+            "Validate authorization, filters, metadata, actor and safe errors against shared scenarios and isolated Oracle."
           ],
           "sourceFiles": [
-            "server/api/v2/notifications/index.get.ts"
+            "server/api/v2/notifications/index.get.ts",
+            "server/services/v2/notifications.ts",
+            "server/models/v2.ts",
+            "server/utils/v2.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/notifications natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate native notification list against shared scenarios and isolated Oracle, both clients and cross-backend data."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/notifications.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/notifications natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate native notification list against shared scenarios and isolated Oracle, both clients and cross-backend data."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/notification_list.go",
+            "internal/server/server.go",
+            "internal/server/public_profile.go"
+          ],
           "evidence": []
         }
       }
@@ -10303,6 +10324,26 @@
       "copies": {
         "rust": "contracts/scenarios/post-interactions.json",
         "go": "contracts/scenarios/post-interactions.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/notification-list.md",
+        "sha256": "6418779a79b30a460600286a2f16c598f113e8c4e7f4510d756dc90e4980499e"
+      },
+      "copies": {
+        "rust": "contracts/requirements/notification-list.md",
+        "go": "contracts/requirements/notification-list.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/notification-list.json",
+        "sha256": "e83e73f4229d00cc34c8c4d1e208ae920cbe6b9c4fa16f00302dc31efb07b7af"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/notification-list.json",
+        "go": "contracts/scenarios/notification-list.json"
       }
     }
   ]

@@ -20,6 +20,8 @@ const stubs = {
   '#imports': `export const useRuntimeConfig = () => ({accessSecret: ${JSON.stringify(secret)}});`,
   '~/server/storage': 'export const normalizeAvatarPublicUrl = value => value; export const normalizeNullableStoragePublicUrl = value => value; export const normalizeStoragePublicUrl = value => value;',
   './notifications': 'export const v2CreateNotification = async (connection, notification) => { connection.interactions.notifications.push(notification); };',
+  '~/server/utils/redis': 'export const REDIS_CHANNELS = {USER_MESSAGE:"ws:user:"}; export const publishMessage = async () => {};',
+  '~/server/utils/wsSession': 'export const WS_SERVER_ID = "isolated-test"; export const sendWsToUser = () => {};',
   './api-cache': 'export const readApiResponseCache = async () => ({status:"disabled"}); export const writeApiResponseCache = async () => {}; export const invalidateApiResponseCache = async () => {}; export const shouldInvalidateApiResponseCache = () => false;',
   './logging': 'export const getRequestLogContext = () => null; export const logError = () => {}; export const logInfo = () => {}; export const serializeLogError = () => ({});',
   oracledb: 'export default {OUT_FORMAT_OBJECT: 4002};'
@@ -41,6 +43,7 @@ const compiled = await build({
     export {default as tags} from './server/api/v2/tags/index.get';
     export {default as trendingTags} from './server/api/v2/tags/trending.get';
     export {default as tagAnalytics} from './server/api/v2/tags/[name]/analytics.get';
+    export {default as notifications} from './server/api/v2/notifications/index.get';
     export {default as replies} from './server/api/v2/posts/[id]/replies.get';
     export {default as retweets} from './server/api/v2/posts/[id]/retweets.get';
     export {default as like} from './server/api/v2/posts/[id]/likes.post';
@@ -64,7 +67,7 @@ const compiled = await build({
 const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text + '\n//# sourceURL=isolated-posts-bundle.mjs').toString('base64')}`);
 const access = (payload = {}, options = {}) => jwt.sign({userId: 1, userName: 'viewer', sessionId: 'session', jti: 'current', type: 'access', ...payload}, secret, {expiresIn: 600, ...options});
 
-function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false, tagAnalytics = {}, allowSecondViewer = false, loseVisibility = false} = {}) {
+function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false, tagAnalytics = {}, allowSecondViewer = false, loseVisibility = false, failNotifications = false} = {}) {
   const schema = schemaFixture({ baseline: true });
   if (missingMediaSchema) {
     const table = schema.state.tables.get('N_MEDIA_ASSETS');
@@ -91,6 +94,11 @@ function database({revoked = false, expiredSession = false, failSession = false,
         if (failSession) throw new Error('isolated database failure');
         const live = (binds.userId === 1 || (allowSecondViewer && binds.userId === 2)) && binds.sessionId === 'session' && binds.accessJti === 'current' && !revoked && (!expiredSession || !sql.includes('access_token_expires_at > CURRENT_TIMESTAMP'));
         return {rowsAffected: live ? 1 : 0};
+      }
+      if (sql.includes('FROM n_notifications')) {
+        if (failNotifications) throw new Error('private-notification-database-error');
+        if (sql.startsWith('SELECT COUNT')) return {rows: [{TOTAL: 3}]};
+        return {rows: [{NOTIFICATION_ID: 12, ACTOR_ID: 7, TYPE: 'like', TITLE: 'title', MESSAGE: 'message', RESOURCE_TYPE: 'post', RESOURCE_ID: 9, PRIORITY: 'normal', IS_READ: 0, METADATA_JSON: '{"event":"post_like"}', CREATED_AT: new Date('2026-01-02T03:04:05.000Z')}]};
       }
       if (sql.includes('FROM n_posts p') && sql.includes('fn_can_view_post')) {
         interactions.visibilityChecks++;
@@ -163,6 +171,7 @@ async function fixture(options) {
   router.get('/api/v2/tags', routes.tags);
   router.get('/api/v2/tags/trending', routes.trendingTags);
   router.get('/api/v2/tags/:name/analytics', routes.tagAnalytics);
+  router.get('/api/v2/notifications', routes.notifications);
   router.get('/api/v2/posts/:id/replies', routes.replies);
   router.get('/api/v2/posts/:id/retweets', routes.retweets);
   router.post('/api/v2/posts/:id/likes', routes.like);
@@ -351,6 +360,19 @@ test('post likes and bookmarks require visibility and preserve idempotent state'
   } finally {await f.close();}
   const f2 = await fixture({loseVisibility: true});
   try {const response = await f2.request('/api/v2/posts/1/likes', headers, 'POST'); assert.equal(response.status, 404); assert.equal(f2.db.interactions.likes.size, 0);} finally {await f2.close();}
+});
+
+test('notification list uses authenticated viewer, filters and safe errors', async () => {
+  const f=await fixture(); const headers={authorization:`Bearer ${access()}`};
+  try {
+    assert.equal((await f.request('/api/v2/notifications')).status,401);
+    const response=await f.request('/api/v2/notifications?user_id=99&type=like&unread_only=true&show_deleted=true&page=2&page_size=1',headers);
+    const body=await response.json(); assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'private, no-store');assert.equal(body.meta.total,3);assert.equal(body.meta.has_next,true);assert.equal(body.data[0].actor.user_id,7);assert.equal(body.data[0].metadata.event,'post_like');
+    const queries=f.db.calls.filter(x=>x.sql.includes('FROM n_notifications'));
+    assert.equal(queries.length,2);assert.ok(queries.every(x=>x.binds.user_id===1 && x.binds.type==='like' && x.sql.includes('deleted_at IS NOT NULL') && x.sql.includes('is_read = 0')));
+  } finally {await f.close();}
+  const broken=await fixture({failNotifications:true});
+  try {const response=await broken.request('/api/v2/notifications',headers);const body=await response.text();assert.equal(response.status,500);assert.ok(!body.includes('private-notification-database-error'));} finally {await broken.close();}
 });
 
 test('anonymous detail excludes private/followers/mentioned/deleted/group posts without incrementing their views', async () => {
