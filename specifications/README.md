@@ -14,7 +14,7 @@
 - `requirements/auth-password-reset.md`：三端密码重置的事务规则及 17 条隔离场景；旧密码并发登录、双因素挑战和已建立的实时连接仍需处理。
 - `requirements/post-detail.md`：帖子详情权限、附件及浏览量共同目标；三端均通过 22 条共同隔离样例，真实数据库及客户端联调待验收。
 - `requirements/post-list.md`：公共、热门、个人、收藏、点赞及指定用户、标签、回复、转发列表的共同需求；Rust/Go 已接入相应原生路由并完成局部隔离测试，完整共同场景和真实数据库联测仍待完成。
-- `requirements/post-create-reference.md`、`post-create-transaction.md` 与 `post-create-request.md`：发帖、回复、引用和转发的请求与事务要求；Go 已接入原生请求、事务、提交后通知及完整响应，80 条请求向量在 Nuxt/Go 隔离测试通过。Rust 对应原生写入仍待实现，真实依赖及三端创建流程尚未通过共同验收。
+- `requirements/post-create-reference.md`、`post-create-transaction.md` 与 `post-create-request.md`：发帖、回复、引用和转发的请求与事务要求；Rust/Go 均已接入原生请求、事务、提交后通知及完整响应，80 条请求向量在三端隔离测试通过。真实依赖及三端创建流程尚未通过共同验收。
 - `requirements/post-comments-list.md`、`post-comment-create.md`、`post-comment-delete.md`、`post-comment-like.md`：Rust/Go 已接入评论列表、创建、删除及点赞/取消点赞的原生路径；真实数据库、通知副作用及跨后端联调仍待验收。
 - `requirements/tag-list.md`：标签搜索与热门标签的鉴权、分页及返回结构；三端共同隔离样例和原生仓储测试不代替真实数据库验收。
 - `requirements/tag-analytics.md`：标签统计按当前查看者可见的未删除帖子计算；真实数据库的权限函数、聚合和并发仍需验收。
@@ -27,7 +27,7 @@
 - `requirements/user-self-profile-update.md`：三端当前用户资料部分更新和 18 条隔离场景；真实 Oracle 日期、约束、事务和跨实例缓存待验收。
 - `requirements/user-public-profile.md`：三端公开资料和 21 条隔离场景，真实 Oracle 在线状态、时区及双端联调待验收。
 - `requirements/user-self-profile.md`：三端当前用户资料与 10 条隔离鉴权场景；真实共享数据和两客户端联调待验收。
-- 2026-10-28 审计时，检查器核对 88 份公共需求/样例在 Rust/Go 的固定副本，并登记 46 份场景文件；这些数量是文档和场景登记量，不是业务通过数。自动复制工具、真实业务场景 runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
+- 2026-10-28 审计时，检查器核对 90 份公共需求/样例在 Rust/Go 的固定副本，并登记 47 份场景文件；这些数量是文档和场景登记量，不是业务通过数。自动复制工具、真实业务场景 runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
 
 ## 两种检查
 

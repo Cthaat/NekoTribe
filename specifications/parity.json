@@ -3269,12 +3269,20 @@
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Implement complete native post creation, media transaction and reference authorization without Nuxt fallback; validate real dependencies and clients."
+            "Validate native request parsing, one-connection atomic writes, post-commit notifications and complete responses with isolated Oracle, real Redis and both clients; reconcile malformed JSON and transport-limit differences with Nuxt."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs",
+            "src/posts/create.rs",
+            "src/posts/create_request.rs",
+            "src/posts/create_transaction.rs",
+            "src/posts/create_notification.rs",
+            "src/posts/detail.rs"
+          ],
           "evidence": []
         },
         "go": {
@@ -3564,12 +3572,20 @@
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Implement complete native post creation, media transaction and reference authorization without Nuxt fallback; validate real dependencies and clients."
+            "Validate native request parsing, one-connection atomic writes, post-commit notifications and complete responses with isolated Oracle, real Redis and both clients; reconcile malformed JSON and transport-limit differences with Nuxt."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs",
+            "src/posts/create.rs",
+            "src/posts/create_request.rs",
+            "src/posts/create_transaction.rs",
+            "src/posts/create_notification.rs",
+            "src/posts/detail.rs"
+          ],
           "evidence": []
         },
         "go": {
@@ -11002,7 +11018,7 @@
     {
       "source": {
         "path": "specifications/requirements/post-create-request.md",
-        "sha256": "c60808e0734959ac9b18818f362077e1f6a75c4da2bf4b0a5fdeb4f5c13516df"
+        "sha256": "64a672d3117541de108af2302874a0b1aa5b7190e9efd0e2c6a16acbc777591f"
       },
       "copies": {
         "rust": "contracts/requirements/post-create-request.md",

@@ -33,7 +33,7 @@
 
 ## 已知框架边界
 
-当前 H3 对空 JSON body 返回 undefined，继而得到 `请求体必须是 JSON 对象`；空 URL 编码 body 解析为空对象，普通创建得到 `content 不能为空`，转发可以成功。精确 `application/json` 的非法 JSON 会保留 H3 原生 HTTP 400/`Invalid JSON body`，没有 v2 envelope；Go 的发帖请求读取器将此类错误合并为 `请求体必须是 JSON 对象`，并限制 1 MiB。带 charset 或其他 Content-Type 的 H3 解析还受其 strict 默认值影响。非法 URL 转义也可能由 HTTP 服务器在进入路由前拒绝；此类向量仅验证原始路由参数校验，不代表真实 HTTP 响应体相同。这些框架差异仅记录，不纳入本次请求向量或声称已经对齐。
+当前 H3 对空 JSON body 返回 undefined，继而得到 `请求体必须是 JSON 对象`；空 URL 编码 body 解析为空对象，普通创建得到 `content 不能为空`，转发可以成功。精确 `application/json` 的非法 JSON 会保留 H3 原生 HTTP 400/`Invalid JSON body`，没有 v2 envelope；Rust/Go 的发帖请求读取器将此类错误合并为 `请求体必须是 JSON 对象`，并限制 1 MiB。带 charset 或其他 Content-Type 的 H3 解析还受其 strict 默认值影响。非法 URL 转义也可能由 HTTP 服务器在进入路由前拒绝；此类向量仅验证原始路由参数校验，不代表真实 HTTP 响应体相同。这些框架差异仅记录，不纳入本次请求向量或声称已经对齐。
 
 ## 向量结构
 
