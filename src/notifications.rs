@@ -39,6 +39,49 @@ pub fn parse_notification_query(raw: &str) -> NotificationQuery {
         show_deleted: one("show_deleted", "false") == "true",
     }
 }
+
+pub(crate) async fn hydrate_notification(
+    state: &NativeState,
+    viewer: u64,
+    item: &mut Value,
+) -> Result<(), ApiError> {
+    let object = item
+        .as_object_mut()
+        .ok_or_else(|| ApiError::server_error("服务器内部错误"))?;
+    let actor_id = object
+        .remove("actor_id")
+        .and_then(|v| v.as_u64())
+        .filter(|v| *v > 0);
+    let actor = if let Some(id) = actor_id {
+        match state
+            .repository
+            .public_profile(viewer, id)
+            .await
+            .map_err(|_| ApiError::server_error("服务器内部错误"))?
+        {
+            Some(mut profile) => {
+                let avatar = profile
+                    .get("avatar_url")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let normalized = state
+                    .storage_urls
+                    .normalize_avatar(avatar)
+                    .map_err(|_| ApiError::server_error("服务器内部错误"))?;
+                profile
+                    .as_object_mut()
+                    .ok_or_else(|| ApiError::server_error("服务器内部错误"))?
+                    .insert("avatar_url".into(), normalized.into());
+                profile
+            }
+            None => Value::Null,
+        }
+    } else {
+        Value::Null
+    };
+    object.insert("actor".into(), actor);
+    Ok(())
+}
 pub(crate) async fn list(
     State(state): State<NativeState>,
     OriginalUri(uri): OriginalUri,
@@ -76,41 +119,7 @@ async fn list_inner(
         .await
         .map_err(|_| ApiError::server_error("服务器内部错误"))?;
     for item in &mut items {
-        let object = item
-            .as_object_mut()
-            .ok_or_else(|| ApiError::server_error("服务器内部错误"))?;
-        let actor = object
-            .remove("actor_id")
-            .and_then(|v| v.as_u64())
-            .filter(|v| *v > 0);
-        let actor = if let Some(id) = actor {
-            match state
-                .repository
-                .public_profile(claims.user_id, id)
-                .await
-                .map_err(|_| ApiError::server_error("服务器内部错误"))?
-            {
-                Some(mut profile) => {
-                    let avatar = profile
-                        .get("avatar_url")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default();
-                    let normalized = state
-                        .storage_urls
-                        .normalize_avatar(avatar)
-                        .map_err(|_| ApiError::server_error("服务器内部错误"))?;
-                    profile
-                        .as_object_mut()
-                        .ok_or_else(|| ApiError::server_error("服务器内部错误"))?
-                        .insert("avatar_url".into(), normalized.into());
-                    profile
-                }
-                None => Value::Null,
-            }
-        } else {
-            Value::Null
-        };
-        object.insert("actor".into(), actor);
+        hydrate_notification(&state, claims.user_id, item).await?;
     }
     Ok(Json(json!({"code":200,"message":"success","data":items,"meta":{"page":query.page.page,"page_size":query.page.page_size,"total":total,"has_next":query.page.end<total as f64}})).into_response())
 }

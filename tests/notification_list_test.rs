@@ -102,6 +102,12 @@ impl SessionExecutor for Executor {
             if sql.starts_with("SELECT COUNT") {
                 return Ok(vec![DbRow::from([("TOTAL".into(), DbValue::I64(3))])]);
             }
+            if self.metadata == "fixture-missing" {
+                return Ok(vec![]);
+            }
+            if self.metadata == "fixture-error" {
+                return Err(SessionStoreError);
+            }
             Ok(vec![DbRow::from([
                 ("NOTIFICATION_ID".into(), DbValue::I64(12)),
                 ("ACTOR_ID".into(), DbValue::I64(7)),
@@ -113,6 +119,50 @@ impl SessionExecutor for Executor {
                 ),
             ])])
         })
+    }
+}
+
+#[tokio::test]
+async fn notification_by_id_scopes_recipient_and_reuses_list_mapping() {
+    for metadata in [
+        r#"{"event":"post_like"}"#,
+        "invalid",
+        "",
+        "fixture-missing",
+        "fixture-error",
+    ] {
+        let repo = OracleSessions {
+            executor: Executor {
+                calls: Mutex::new(vec![]),
+                metadata: metadata.into(),
+            },
+        };
+        let result = repo.notification_by_id(42, 12).await;
+        if metadata == "fixture-error" {
+            assert!(result.is_err());
+            continue;
+        }
+        let item = result.unwrap();
+        if metadata == "fixture-missing" {
+            assert!(item.is_none());
+            continue;
+        }
+        let item = item.unwrap();
+        assert_eq!(item["notification_id"], 12);
+        assert_eq!(item["actor_id"], 7);
+        match metadata {
+            "invalid" => assert_eq!(item["metadata"], "invalid"),
+            "" => assert!(item["metadata"].is_null()),
+            _ => assert_eq!(item["metadata"]["event"], "post_like"),
+        }
+        let calls = repo.executor.calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert!(
+            calls[0].0.contains("user_id=:user_id")
+                && calls[0].0.contains("notification_id=:notification_id")
+        );
+        assert_eq!(calls[0].1["user_id"], DbValue::I64(42));
+        assert_eq!(calls[0].1["notification_id"], DbValue::I64(12));
     }
 }
 #[tokio::test]

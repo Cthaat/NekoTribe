@@ -2,6 +2,8 @@
 
 模型传输现支持工具提议与工具结果的多轮历史编码，24 个共同合成场景及本机回环测试覆盖两种适配器；这不执行工具，也不代表 Agent、真实模型或业务验收完成。详见 `contracts/requirements/ai-tool-history.md`。
 
+通知数据读取已支持按接收者和通知 ID 查询，并复用列表的字段、作者和头像映射；首次点赞通知、原生发布器与业务连接以及真实 Oracle/Redis 联调仍待完成。
+
 本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册登录/2FA 挑战、会话列表与撤销、验证码创建和校验、账号注册、令牌刷新与退出和进程健康检查，直接访问 Oracle，不注册其他业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
 
 原生 `/_ws` 提供通知订阅和心跳：连接时验证 access token、Oracle 会话与浏览器来源；投递前和定期检查会话，撤销或过期后断开。使用 `REDIS_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、`REDIS_PASSWORD` 配置共享 Redis，支持 `rediss://`；浏览器跨域来源和反向代理外部来源需显式加入 `CORS_ALLOWED_ORIGINS`。当前仅覆盖通知与心跳，群聊、私信、在线状态、真实 Redis/Oracle 联调仍未完成。

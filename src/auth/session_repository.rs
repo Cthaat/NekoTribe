@@ -133,9 +133,39 @@ pub struct StoredNotification {
     pub id: u64,
     pub push_enabled: bool,
 }
+
+fn map_notification_row(row: &DbRow) -> serde_json::Value {
+    let actor = if row
+        .get("ACTOR_ID")
+        .is_none_or(|v| matches!(v, DbValue::Null))
+    {
+        serde_json::Value::Null
+    } else {
+        serde_json::json!(row_number(row, "ACTOR_ID"))
+    };
+    let metadata = nullable_text(row, "METADATA_JSON")
+        .map(|s| serde_json::from_str(&s).unwrap_or(serde_json::Value::String(s)))
+        .unwrap_or(serde_json::Value::Null);
+    serde_json::json!({"notification_id":row_number(row,"NOTIFICATION_ID"),"actor_id":actor,"type":row_text(row,"TYPE"),"title":row_text(row,"TITLE"),"message":row_text(row,"MESSAGE"),"resource_type":nullable_text(row,"RESOURCE_TYPE"),"resource_id":nullable_number(row,"RESOURCE_ID"),"priority":row_text(row,"PRIORITY"),"is_read":row_number(row,"IS_READ"),"read_at":nullable_text(row,"READ_AT").map(|s|profile_date(&s)),"deleted_at":nullable_text(row,"DELETED_AT").map(|s|profile_date(&s)),"metadata":metadata,"created_at":nullable_text(row,"CREATED_AT").map(|s|profile_date(&s)).unwrap_or_default()})
+}
 impl<E: SessionExecutor> OracleSessions<E> {
     pub async fn preflight(&self) -> Result<(), SessionStoreError> {
         self.executor.preflight(PREFLIGHT_SQL).await
+    }
+
+    /// Read only a notification owned by the requested recipient.
+    pub async fn notification_by_id(
+        &self,
+        user: u64,
+        id: u64,
+    ) -> Result<Option<serde_json::Value>, SessionStoreError> {
+        let user = i64::try_from(user).map_err(|_| SessionStoreError)?;
+        let id = i64::try_from(id).map_err(|_| SessionStoreError)?;
+        let rows = self.executor.query(
+            "SELECT notification_id,actor_id,type,title,message,resource_type,resource_id,priority,is_read,read_at,deleted_at,DBMS_LOB.SUBSTR(metadata_json,4000,1) AS metadata_json,created_at FROM n_notifications WHERE user_id=:user_id AND notification_id=:notification_id",
+            BindMap::from([("user_id".into(), DbValue::I64(user)), ("notification_id".into(), DbValue::I64(id))]),
+        ).await?;
+        Ok(rows.first().map(map_notification_row))
     }
     pub async fn store_notification(
         &self,
@@ -235,11 +265,7 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
             binds.insert("start_row".into(), DbValue::F64(query.page.start));
             binds.insert("end_row".into(), DbValue::F64(query.page.end));
             let rows = self.executor.query(page_sql, binds).await?;
-            let items=rows.iter().map(|r| {
-                let actor=if r.get("ACTOR_ID").is_none_or(|v|matches!(v,DbValue::Null)){serde_json::Value::Null}else{serde_json::json!(row_number(r,"ACTOR_ID"))};
-                let metadata=nullable_text(r,"METADATA_JSON").map(|s|serde_json::from_str(&s).unwrap_or(serde_json::Value::String(s))).unwrap_or(serde_json::Value::Null);
-                serde_json::json!({"notification_id":row_number(r,"NOTIFICATION_ID"),"actor_id":actor,"type":row_text(r,"TYPE"),"title":row_text(r,"TITLE"),"message":row_text(r,"MESSAGE"),"resource_type":nullable_text(r,"RESOURCE_TYPE"),"resource_id":nullable_number(r,"RESOURCE_ID"),"priority":row_text(r,"PRIORITY"),"is_read":row_number(r,"IS_READ"),"read_at":nullable_text(r,"READ_AT").map(|s|profile_date(&s)),"deleted_at":nullable_text(r,"DELETED_AT").map(|s|profile_date(&s)),"metadata":metadata,"created_at":nullable_text(r,"CREATED_AT").map(|s|profile_date(&s)).unwrap_or_default()})
-            }).collect();
+            let items = rows.iter().map(map_notification_row).collect();
             Ok((items, total))
         })
     }
