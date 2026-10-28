@@ -8801,6 +8801,64 @@
           "evidence": []
         }
       }
+    },
+    {
+      "id": "NOTIFICATION-EVENT-PUBLISH",
+      "title": "通知实时事件发布",
+      "revision": 1,
+      "review": "reviewed",
+      "definition": "specifications/requirements/notification-events.md",
+      "sourceFiles": [
+        "server/services/v2/notifications.ts",
+        "server/utils/redis.ts",
+        "server/utils/wsSession.ts"
+      ],
+      "operations": [],
+      "scenarios": [
+        {
+          "id": "NOTIFICATION-EVENT-VECTORS",
+          "file": "specifications/scenarios/notification-event-vectors.json"
+        }
+      ],
+      "implementations": {
+        "nuxt": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "Verify existing local and Redis event delivery with authenticated clients and isolated real Redis."
+          ],
+          "sourceFiles": [
+            "server/services/v2/notifications.ts",
+            "server/utils/redis.ts",
+            "server/utils/wsSession.ts"
+          ],
+          "evidence": []
+        },
+        "rust": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "Wire publisher to native notification operations and implement authenticated WebSocket reception; validate against isolated real Redis."
+          ],
+          "sourceFiles": [
+            "src/notification_events.rs",
+            "src/cache/redis.rs"
+          ],
+          "evidence": []
+        },
+        "go": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "Wire publisher and configuration to native notification operations and implement authenticated WebSocket reception; validate against isolated real Redis."
+          ],
+          "sourceFiles": [
+            "internal/server/notification_events.go",
+            "go.mod"
+          ],
+          "evidence": []
+        }
+      }
     }
   ],
   "sourceAudits": [
@@ -10344,6 +10402,26 @@
       "copies": {
         "rust": "contracts/scenarios/notification-list.json",
         "go": "contracts/scenarios/notification-list.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/notification-events.md",
+        "sha256": "e41cfa7484b191eecfd089ed4bfc74b6ba67b36da36c1bf42865dc96829d4b23"
+      },
+      "copies": {
+        "rust": "contracts/requirements/notification-events.md",
+        "go": "contracts/requirements/notification-events.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/notification-event-vectors.json",
+        "sha256": "f4c06360a2f3d7072a01734977089943efbacaceef8e2ebf89ee47eeb473f08b"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/notification-event-vectors.json",
+        "go": "contracts/scenarios/notification-event-vectors.json"
       }
     }
   ]

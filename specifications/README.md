@@ -6,7 +6,7 @@
 
 - `requirements/authentication.md`：16 项兼容需求、35 个待执行完整业务场景、7 项需统一修订的缺口。另有三端相同的25个token样例和29个会话撤销HTTP/JWT隔离场景；后者需求见 `auth-session-revocation.md`，不能代替真实Oracle或完整认证验收。
 - `requirements/ai-product-scope.md`：三个已确认 AI 方向与角色权限；`ai-model-switching.md` 是完整切换要求；`ai-model-configuration.md` 和 `ai-inference-transport.md` 是已实现的配置/非流式传输组件。52 个配置样例和 55 个传输样例和 24 个工具历史样例已在三端隔离测试通过，后者使用合成 loopback 提供方；实际模型调用、产品权限接线及完整场景仍未验收。
-- `parity.json`：153个登记项覆盖162个规范操作及新增AI和公共存储地址工作；部分关联操作合为工作项，旧登记ID保存在 `supersedes`，不删除HTTP接口。284个server源码文件固定LF SHA-256，其他130个入口待分类/关联。13个旧情感分析操作标记退役；所有功能均未获得完整三后端业务验收。
+- `parity.json`：154个登记项覆盖162个规范操作及新增AI和公共存储地址工作；部分关联操作合为工作项，旧登记ID保存在 `supersedes`，不删除HTTP接口。284个server源码文件固定LF SHA-256，其他130个入口待分类/关联。13个旧情感分析操作标记退役；所有功能均未获得完整三后端业务验收。
 - `requirements/auth-session-list.md`：三端会话列表行为及 16 条分页样例；隔离测试不代替真实 Oracle、时区与跨实例验收。
 - `requirements/auth-otp-verification.md` 与 `auth-otp-creation.md`：验证码校验和邮件创建的共同规则与隔离场景；短信提供方、真实邮件及数据库联测仍需完成。
 - `requirements/auth-registration.md`：三端注册、验证码门槛与 29 条隔离场景；真实 Oracle 触发器、并发注册和跨后端登录尚待验收。
@@ -18,11 +18,12 @@
 - `requirements/tag-analytics.md`：标签统计按当前查看者可见的未删除帖子计算；真实数据库的权限函数、聚合和并发仍需验收。
 - `requirements/post-interactions.md`：三端共同点赞与收藏要求。Nuxt 已加入写入可见性检查，Rust/Go 已实现原生收藏及取消点赞；首次点赞及完整通知仍待实现，真实数据库和跨端验收未完成。
 - `requirements/notification-list.md`：三端通知列表鉴权、过滤、分页、作者和元数据共同规则；真实 Oracle、跨用户和客户端联调尚未验收。
+- `requirements/notification-events.md`：通知事件频道和消息格式；三端共享编码样例，Rust/Go 发布组件尚未接入通知操作或独立 WebSocket，真实 Redis 尚未验证。
 - `requirements/cache-shared-backends.md`：共享后端默认绕过两层 Nuxt 缓存；跨三后端可靠失效协议及真实环境验收仍待实现。
 - `requirements/user-self-profile-update.md`：三端当前用户资料部分更新和 18 条隔离场景；真实 Oracle 日期、约束、事务和跨实例缓存待验收。
 - `requirements/user-public-profile.md`：三端公开资料和 21 条隔离场景，真实 Oracle 在线状态、时区及双端联调待验收。
 - `requirements/user-self-profile.md`：三端当前用户资料与 10 条隔离鉴权场景；真实共享数据和两客户端联调待验收。
-- 检查器校验任务、版本、源码覆盖和证据链接，以及63份公共需求/样例在Rust/Go的固定副本。自动复制工具、真实业务场景runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
+- 检查器校验任务、版本、源码覆盖和证据链接，以及65份公共需求/样例在Rust/Go的固定副本。自动复制工具、真实业务场景runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
 
 ## 两种检查
 
