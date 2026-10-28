@@ -3780,21 +3780,37 @@
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement native comment creation and both notification paths from the shared requirements, without Nuxt fallback; validate real dependencies."
+            "Validate native comment creation, both notification paths and partial failures on isolated Oracle and Redis; verify both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/posts/comment_create.rs",
+            "src/posts/mod.rs",
+            "src/posts/like.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs",
+            "src/notifications.rs",
+            "src/notification_events.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement native comment creation and both notification paths from the shared requirements, without Nuxt fallback; validate real dependencies."
+            "Validate native comment creation, both notification paths and partial failures on isolated Oracle and Redis; verify both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/post_comment_create.go",
+            "internal/server/post_comment_create_repository.go",
+            "internal/server/post_comment_notification.go",
+            "internal/server/post_comments.go",
+            "internal/server/server.go",
+            "internal/server/notification_store.go",
+            "internal/server/post_like.go"
+          ],
           "evidence": []
         }
       }
