@@ -274,6 +274,17 @@ func transportVectors(t *testing.T) []transportVector {
 	if len(fixture.Cases) != 55 {
 		t.Fatalf("got %d vectors", len(fixture.Cases))
 	}
+	history, err := os.ReadFile("../../contracts/scenarios/ai-tool-history.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var historyFixture struct {
+		Cases []transportVector `json:"cases"`
+	}
+	if err := json.Unmarshal(history, &historyFixture); err != nil || len(historyFixture.Cases) != 24 {
+		t.Fatal("invalid tool history vectors", err)
+	}
+	fixture.Cases = append(fixture.Cases, historyFixture.Cases...)
 	return fixture.Cases
 }
 func assertTransportError(t *testing.T, err error, code string) {
@@ -338,6 +349,84 @@ func TestTransportCommonVectors(t *testing.T) {
 			}
 			if calls != expectedCalls {
 				t.Errorf("got %d calls, expected %d", calls, expectedCalls)
+			}
+		})
+	}
+}
+
+func TestToolProposalRoundTrip(t *testing.T) {
+	vectors := transportVectors(t)
+	for _, adapter := range []string{"ollama", "openai-compatible"} {
+		t.Run(adapter, func(t *testing.T) {
+			firstID, lastID := "TRANSPORT-O03", "TRANSPORT-O01"
+			if adapter == "openai-compatible" {
+				firstID, lastID = "TRANSPORT-C03", "TRANSPORT-C01"
+			}
+			var first, last transportVector
+			for _, v := range vectors {
+				if v.ID == firstID {
+					first = v
+				}
+				if v.ID == lastID {
+					last = v
+				}
+			}
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				count := calls.Add(1)
+				var body map[string]any
+				if json.NewDecoder(r.Body).Decode(&body) != nil {
+					t.Error("invalid request body")
+					return
+				}
+				if count == 2 {
+					messages := body["messages"].([]any)
+					assistant := messages[len(messages)-2].(map[string]any)
+					result := messages[len(messages)-1].(map[string]any)
+					call := assistant["tool_calls"].([]any)[0].(map[string]any)
+					fn := call["function"].(map[string]any)
+					if fn["name"] != "search_public" || result["content"] != "synthetic tool result" {
+						t.Error("incorrect tool history")
+					}
+					if adapter == "ollama" && result["tool_name"] != "search_public" {
+						t.Error("incorrect Ollama tool name")
+					}
+					if adapter == "openai-compatible" && result["tool_call_id"] != "call-1" {
+						t.Error("incorrect tool call ID")
+					}
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if count == 1 {
+					_, _ = w.Write(first.Response)
+				} else {
+					_, _ = w.Write(last.Response)
+				}
+			}))
+			defer server.Close()
+			s := first.Selection
+			s.BaseURL = server.URL
+			s.APIKeyEnv = nil
+			transport, err := NewTransport(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			proposal, err := transport.Infer(context.Background(), s, first.Request)
+			if err != nil || len(proposal.ToolCalls) != 1 {
+				t.Fatal("missing proposal", err)
+			}
+			var request map[string]any
+			if err = json.Unmarshal(first.Request, &request); err != nil {
+				t.Fatal(err)
+			}
+			messages := request["messages"].([]any)
+			request["messages"] = append(messages, map[string]any{"role": "assistant", "content": proposal.Text, "toolCalls": proposal.ToolCalls}, map[string]any{"role": "tool", "content": "synthetic tool result", "toolCallId": proposal.ToolCalls[0].ID})
+			encoded, err := json.Marshal(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			answer, err := transport.Infer(context.Background(), s, encoded)
+			if err != nil || answer.FinishReason != "stop" || answer.Text != "合成回复" || calls.Load() != 2 {
+				t.Fatal("round trip failed", err)
 			}
 		})
 	}

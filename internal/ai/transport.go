@@ -184,6 +184,92 @@ func exactTransportKeys(m map[string]any, required []string, optional ...string)
 	}
 	return true
 }
+func encodeHistoryMessages(selection Selection, messages []any) ([]any, bool, error) {
+	type pendingCall struct{ id, name string }
+	encoded := make([]any, 0, len(messages))
+	var pending []pendingCall
+	cursor := 0
+	hasHistory := false
+	for _, raw := range messages {
+		m, ok := transportObject(raw)
+		if !ok {
+			return nil, false, ErrInvalidRequest
+		}
+		role, roleOK := m["role"].(string)
+		content, contentOK := m["content"].(string)
+		if !roleOK || !contentOK {
+			return nil, false, ErrInvalidRequest
+		}
+		if role == "tool" {
+			if !exactTransportKeys(m, []string{"role", "content", "toolCallId"}) || cursor >= len(pending) || m["toolCallId"] != pending[cursor].id {
+				return nil, false, ErrInvalidRequest
+			}
+			call := pending[cursor]
+			if selection.Adapter == "ollama" {
+				encoded = append(encoded, map[string]any{"role": "tool", "tool_name": call.name, "content": content})
+			} else {
+				encoded = append(encoded, map[string]any{"role": "tool", "tool_call_id": call.id, "content": content})
+			}
+			cursor++
+			if cursor == len(pending) {
+				pending = nil
+				cursor = 0
+			}
+			continue
+		}
+		if len(pending) > 0 || !contains([]string{"system", "user", "assistant"}, role) {
+			return nil, false, ErrInvalidRequest
+		}
+		callsValue, hasCalls := m["toolCalls"]
+		if role != "assistant" || !hasCalls {
+			if !exactTransportKeys(m, []string{"role", "content"}) {
+				return nil, false, ErrInvalidRequest
+			}
+			encoded = append(encoded, m)
+			continue
+		}
+		if !exactTransportKeys(m, []string{"role", "content", "toolCalls"}) {
+			return nil, false, ErrInvalidRequest
+		}
+		calls, ok := callsValue.([]any)
+		if !ok || len(calls) == 0 || len(calls) > 32 {
+			return nil, false, ErrInvalidRequest
+		}
+		ids := map[string]bool{}
+		providerCalls := make([]any, 0, len(calls))
+		for index, rawCall := range calls {
+			call, ok := transportObject(rawCall)
+			if !ok || !exactTransportKeys(call, []string{"id", "name", "arguments"}) {
+				return nil, false, ErrInvalidRequest
+			}
+			id, idOK := call["id"].(string)
+			name, nameOK := call["name"].(string)
+			args, argsOK := transportObject(call["arguments"])
+			if !idOK || id == "" || utf8.RuneCountInString(id) > 128 || ids[id] || !nameOK || !toolName.MatchString(name) || !argsOK {
+				return nil, false, ErrInvalidRequest
+			}
+			ids[id] = true
+			pending = append(pending, pendingCall{id: id, name: name})
+			if selection.Adapter == "ollama" {
+				providerCalls = append(providerCalls, map[string]any{"type": "function", "function": map[string]any{"index": index, "name": name, "arguments": args}})
+			} else {
+				var buffer bytes.Buffer
+				encoder := json.NewEncoder(&buffer)
+				encoder.SetEscapeHTML(false)
+				if encoder.Encode(args) != nil {
+					return nil, false, ErrInvalidRequest
+				}
+				providerCalls = append(providerCalls, map[string]any{"id": id, "type": "function", "function": map[string]any{"name": name, "arguments": string(bytes.TrimSuffix(buffer.Bytes(), []byte{'\n'}))}})
+			}
+		}
+		hasHistory = true
+		encoded = append(encoded, map[string]any{"role": "assistant", "content": content, "tool_calls": providerCalls})
+	}
+	if len(pending) > 0 {
+		return nil, false, ErrInvalidRequest
+	}
+	return encoded, hasHistory, nil
+}
 func encodeTransport(selection Selection, data []byte) ([]byte, map[string]bool, bool, error) {
 	if len(data) > transportLimit {
 		return nil, nil, false, ErrInvalidRequest
@@ -200,18 +286,9 @@ func encodeTransport(selection Selection, data []byte) ([]byte, map[string]bool,
 	if !ok || len(messages) < 1 || len(messages) > 128 {
 		return nil, nil, false, ErrInvalidRequest
 	}
-	for _, v := range messages {
-		m, ok := transportObject(v)
-		if !ok || !exactTransportKeys(m, []string{"role", "content"}) {
-			return nil, nil, false, ErrInvalidRequest
-		}
-		role, ok := m["role"].(string)
-		if !ok || !contains([]string{"system", "user", "assistant"}, role) {
-			return nil, nil, false, ErrInvalidRequest
-		}
-		if _, ok = m["content"].(string); !ok {
-			return nil, nil, false, ErrInvalidRequest
-		}
+	encodedMessages, hasHistory, err := encodeHistoryMessages(selection, messages)
+	if err != nil {
+		return nil, nil, false, err
 	}
 	tools := []any{}
 	if v, present := request["tools"]; present {
@@ -248,10 +325,10 @@ func encodeTransport(selection Selection, data []byte) ([]byte, map[string]bool,
 			return nil, nil, false, ErrInvalidRequest
 		}
 	}
-	if (len(tools) > 0 && !contains(selection.Capabilities, "tools")) || (structured && !contains(selection.Capabilities, "structured-output")) {
+	if ((len(tools) > 0 || hasHistory) && !contains(selection.Capabilities, "tools")) || (structured && !contains(selection.Capabilities, "structured-output")) {
 		return nil, nil, false, ErrUnsupportedCapability
 	}
-	body := map[string]any{"model": selection.Model, "messages": messages, "stream": false}
+	body := map[string]any{"model": selection.Model, "messages": encodedMessages, "stream": false}
 	switch selection.Adapter {
 	case "openai-compatible":
 		body["n"] = 1
@@ -274,7 +351,7 @@ func encodeTransport(selection Selection, data []byte) ([]byte, map[string]bool,
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)
 	encoder.SetEscapeHTML(false)
-	err := encoder.Encode(body)
+	err = encoder.Encode(body)
 	encoded := bytes.TrimSuffix(buffer.Bytes(), []byte{'\n'})
 	if err != nil || len(encoded) > transportLimit {
 		return nil, nil, false, ErrInvalidRequest
