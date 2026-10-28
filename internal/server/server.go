@@ -94,6 +94,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			getSelfProfile(w, r, codec, repository, refresh)
 			return
 		}
+		if r.URL.EscapedPath() == "/api/v2/notifications" && r.Method == http.MethodGet {
+			listNotifications(w, r, codec, repository, refresh)
+			return
+		}
 		if r.Method == http.MethodGet && (r.URL.EscapedPath() == "/api/v2/tags" || r.URL.EscapedPath() == "/api/v2/tags/trending") {
 			listTags(w, r, codec, repository, r.URL.EscapedPath() == "/api/v2/tags/trending")
 			return
