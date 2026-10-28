@@ -47,6 +47,7 @@ const compiled = await build({
     export {default as replies} from './server/api/v2/posts/[id]/replies.get';
     export {default as retweets} from './server/api/v2/posts/[id]/retweets.get';
     export {default as comments} from './server/api/v2/posts/[id]/comments.get';
+    export {default as createComment} from './server/api/v2/posts/[id]/comments.post';
     export {default as like} from './server/api/v2/posts/[id]/likes.post';
     export {default as unlike} from './server/api/v2/posts/[id]/likes.delete';
     export {default as bookmark} from './server/api/v2/posts/[id]/bookmarks.post';
@@ -68,14 +69,14 @@ const compiled = await build({
 const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text + '\n//# sourceURL=isolated-posts-bundle.mjs').toString('base64')}`);
 const access = (payload = {}, options = {}) => jwt.sign({userId: 1, userName: 'viewer', sessionId: 'session', jti: 'current', type: 'access', ...payload}, secret, {expiresIn: 600, ...options});
 
-function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false, tagAnalytics = {}, allowSecondViewer = false, loseVisibility = false, failNotifications = false} = {}) {
+function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false, tagAnalytics = {}, allowSecondViewer = false, loseVisibility = false, loseParentOnInsert = false, failCommentRead = false, failNotifications = false} = {}) {
   const schema = schemaFixture({ baseline: true });
   if (missingMediaSchema) {
     const table = schema.state.tables.get('N_MEDIA_ASSETS');
     table.columns = table.columns.filter(column => column.COLUMN_NAME !== 'DESCRIPTION');
   }
   const calls = [];
-  const interactions = {likes: new Set(), bookmarks: new Set(), notifications: [], visibilityChecks: 0};
+  const interactions = {likes: new Set(), bookmarks: new Set(), notifications: [], comments: [], visibilityChecks: 0};
   const posts = [
     {POST_ID: 1, AUTHOR_ID: 2, VISIBILITY: 'public'},
     {POST_ID: 2, AUTHOR_ID: 2, VISIBILITY: 'private'},
@@ -96,6 +97,17 @@ function database({revoked = false, expiredSession = false, failSession = false,
         const live = (binds.userId === 1 || (allowSecondViewer && binds.userId === 2)) && binds.sessionId === 'session' && binds.accessJti === 'current' && !revoked && (!expiredSession || !sql.includes('access_token_expires_at > CURRENT_TIMESTAMP'));
         return {rowsAffected: live ? 1 : 0};
       }
+      if (sql.startsWith('SELECT seq_comment_id.NEXTVAL')) return {rows:[{ID:100}]};
+      if (sql.startsWith('INSERT INTO n_comments')) {
+        const guarded = sql.includes('fn_can_view_post');
+        const allowed = [1,5].includes(binds.post_id) && binds.user_id === 1 && !loseVisibility;
+        if (guarded && (!allowed || (loseParentOnInsert && binds.parent_comment_id))) return {rowsAffected:0};
+        interactions.comments.push({...binds});
+        return {rowsAffected:1};
+      }
+      if (sql.startsWith('SELECT NVL(root_comment_id, comment_id)')) return {rows: binds.comment_id === 40 && binds.post_id === 1 ? [{ROOT_COMMENT_ID:30}] : []};
+      if (sql.includes('FROM n_comments') && sql.includes('DBMS_LOB.SUBSTR')) return {rows:[{USER_ID:binds.comment_id===40?3:1,POST_ID:1,CONTENT:binds.comment_id===40?'parent':'comment'}]};
+      if (sql.startsWith('SELECT user_id FROM n_comments')) return {rows:binds.comment_id===40?[{USER_ID:3}]:[]};
       if (sql.includes('FROM n_notifications')) {
         if (failNotifications) throw new Error('private-notification-database-error');
         if (sql.startsWith('SELECT COUNT')) return {rows: [{TOTAL: 3}]};
@@ -108,6 +120,11 @@ function database({revoked = false, expiredSession = false, failSession = false,
       }
       if (sql.includes('FROM v_post_comment_list_item')) {
         if (sql.startsWith('SELECT COUNT')) return {rows: [{TOTAL: 0}]};
+        if (sql.includes('c.comment_id = :comment_id') && interactions.comments.length) {
+          if (failCommentRead) throw new Error('private comment read error');
+          const c=interactions.comments.at(-1);
+          return {rows:[{COMMENT_ID:c.comment_id,POST_ID:c.post_id,USER_ID:c.user_id,PARENT_COMMENT_ID:c.parent_comment_id,ROOT_COMMENT_ID:c.root_comment_id,CONTENT:c.content,LIKES_COUNT:0,REPLIES_COUNT:0,IS_LIKED:0,CREATED_AT:new Date('2026-01-02T03:04:05Z'),UPDATED_AT:new Date('2026-01-02T03:04:05Z')}]};
+        }
         return {rows: []};
       }
       if (/^(INSERT INTO|DELETE FROM) n_post_(likes|bookmarks)/.test(sql)) {
@@ -180,6 +197,7 @@ async function fixture(options) {
   router.get('/api/v2/posts/:id/replies', routes.replies);
   router.get('/api/v2/posts/:id/retweets', routes.retweets);
   router.get('/api/v2/posts/:id/comments', routes.comments);
+  router.post('/api/v2/posts/:id/comments', routes.createComment);
   router.post('/api/v2/posts/:id/likes', routes.like);
   router.delete('/api/v2/posts/:id/likes', routes.unlike);
   router.post('/api/v2/posts/:id/bookmarks', routes.bookmark);
@@ -190,8 +208,61 @@ async function fixture(options) {
   app.use(router);
   const server = createServer(toNodeListener(app));
   const base = await listenForFetch(server);
-  return {db, close: () => new Promise(resolve => server.close(resolve)), request: (url, headers = {}, method = 'GET') => fetch(base + url, {method, headers})};
+  return {db, close: () => new Promise(resolve => server.close(resolve)), request: (url, headers = {}, method = 'GET', body) => fetch(base + url, {method, headers, ...(body === undefined ? {} : {body:JSON.stringify(body)})})};
 }
+
+test('creating comments requires visibility at write and valid parent on the same post', async () => {
+  const headers={authorization:`Bearer ${access()}`,'content-type':'application/json'};
+  const f=await fixture();
+  try {
+    assert.equal((await f.request('/api/v2/posts/1/comments',{'content-type':'application/json'},'POST',{content:'anonymous'})).status,401);
+    assert.equal((await f.request('/api/v2/posts/01/comments',headers,'POST',{content:'invalid id'})).status,400);
+    assert.equal((await f.request('/api/v2/posts/2/comments',headers,'POST',{content:'secret'})).status,404);
+    assert.equal(f.db.interactions.comments.length,0);
+    for (const parent of ['01', 1.5, 9007199254740992, {}, -1]) {
+      assert.equal((await f.request('/api/v2/posts/1/comments',headers,'POST',{content:'reply',parent_comment_id:parent})).status,400,JSON.stringify(parent));
+    }
+    assert.equal((await f.request('/api/v2/posts/1/comments',headers,'POST',{content:'  '})).status,400);
+    assert.equal((await f.request('/api/v2/posts/1/comments',headers,'POST',{content:'reply',parent_comment_id:99})).status,404);
+    assert.equal(f.db.interactions.comments.length,0);
+    const response=await f.request('/api/v2/posts/1/comments',headers,'POST',{content:' reply ',parent_comment_id:40});
+    assert.equal(response.status,200);const body=await response.json();
+    assert.equal(body.data.content,'reply');assert.equal(body.data.root_comment_id,30);assert.equal(body.data.parent_comment_id,40);
+    const insert=f.db.calls.find(call=>call.sql.startsWith('INSERT INTO n_comments'));
+    assert.match(insert.sql,/fn_can_view_post\(:user_id,\s*:post_id\)/);
+    assert.match(insert.sql,/EXISTS\s*\(\s*SELECT 1 FROM n_comments parent[^]*parent\.comment_id\s*=\s*:parent_comment_id[^]*parent\.post_id\s*=\s*:post_id[^]*parent\.is_deleted\s*=\s*0/i);
+    assert.equal(insert.binds.user_id,1);assert.equal(insert.binds.post_id,1);
+    const read=f.db.calls.find(call=>call.sql.includes('FROM v_post_comment_list_item') && call.sql.includes('c.comment_id = :comment_id'));
+    assert.match(read.sql,/fn_can_view_post\(:viewer_id,\s*c\.post_id\)/);
+    assert.equal(read.binds.viewer_id,1);assert.equal(read.binds.post_id,1);
+    assert.equal(f.db.interactions.notifications.length,2);
+    assert.deepEqual(f.db.interactions.notifications.map(n=>[n.userId,n.metadata.event]),[[2,'comment_created'],[3,'comment_reply']]);
+  } finally {await f.close();}
+  const root=await fixture();
+  try {
+    const response=await root.request('/api/v2/posts/1/comments',headers,'POST',{content:'root'});
+    assert.equal(response.status,200);const body=await response.json();
+    assert.equal(body.data.comment_id,100);assert.equal(body.data.root_comment_id,100);assert.equal(body.data.parent_comment_id,null);
+    assert.deepEqual(root.db.interactions.notifications.map(n=>n.metadata.event),['comment_created']);
+  } finally {await root.close();}
+  const race=await fixture({loseVisibility:true});
+  try {
+    const response=await race.request('/api/v2/posts/1/comments',headers,'POST',{content:'race'});
+    assert.equal(response.status,404);assert.equal(race.db.interactions.comments.length,0);
+  } finally {await race.close();}
+  const parentRace=await fixture({loseParentOnInsert:true});
+  try {
+    const response=await parentRace.request('/api/v2/posts/1/comments',headers,'POST',{content:'race',parent_comment_id:40});
+    assert.equal(response.status,404);assert.equal(parentRace.db.interactions.comments.length,0);
+  } finally {await parentRace.close();}
+  const committed=await fixture({failCommentRead:true});
+  try {
+    const response=await committed.request('/api/v2/posts/1/comments',headers,'POST',{content:'committed'});
+    assert.equal(response.status,500);assert.equal(committed.db.interactions.comments.length,1);
+    assert.equal(committed.db.interactions.notifications.length,0);
+    assert.doesNotMatch(await response.text(),/private comment read error/);
+  } finally {await committed.close();}
+});
 
 test('comment list requires post visibility and protects count and rows independently', async () => {
   const f = await fixture();

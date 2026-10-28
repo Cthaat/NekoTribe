@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "c98749fc1e71216711be2a9d10fda574c30cb98ef8961d24c66045d65e75c25f"
+      "sha256": "ef10a6287584735589cd6f1a9712f24ea4abf831d3ae9a04abb5146bb3f7b66b"
     },
     "sources": [
       {
@@ -683,7 +683,7 @@
       },
       {
         "path": "server/api/v2/posts/[id]/comments.post.ts",
-        "sha256": "14bf4c1898c72d823145e1e566c2586190e1930b9619708b5c43e628487789e9"
+        "sha256": "4a88cd72c46179f37b1ebdac87256bf9564b53688dc95c7383d91657ab9b769e"
       },
       {
         "path": "server/api/v2/posts/[id]/likes.delete.ts",
@@ -991,7 +991,7 @@
       },
       {
         "path": "server/services/v2/posts.ts",
-        "sha256": "7cb2d3e596e2d8e0e6a553786b450933c770e2c70278dfb8b6b84362ed7bdd2c"
+        "sha256": "0c0403c8b8e70bab9743542ebe5ca8634d6f787fd6f80693eb9a39ec8ef63a13"
       },
       {
         "path": "server/services/v2/presence.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "3ff3f2a710c92136c1170deae1059451054840d8a73ee48c53341f984826b5e1"
+        "sha256": "12061ef5570378608ea10bb8a672d98e28cc79de64f3b81c0788714cb7b170e6"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -3743,24 +3743,39 @@
       "id": "API-post_posts_id_comments",
       "title": "POST /api/v2/posts/{id}/comments: 发表评论",
       "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "review": "reviewed",
+      "definition": "specifications/requirements/post-comment-create.md",
       "sourceFiles": [
-        "server/api/v2/posts/[id]/comments.post.ts"
+        "server/api/v2/posts/[id]/comments.post.ts",
+        "server/services/v2/posts.ts",
+        "server/models/v2.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts",
+        "server/services/v2/notifications.ts"
       ],
       "operations": [
         "POST /api/v2/posts/{id}/comments"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-COMMENT-CREATE",
+          "file": "specifications/scenarios/post-comment-create.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/posts/{id}/comments; create shared acceptance scenarios."
+            "Validate insert-time visibility and parent checks, notification side effects and failure boundaries on isolated Oracle and Redis."
           ],
           "sourceFiles": [
-            "server/api/v2/posts/[id]/comments.post.ts"
+            "server/api/v2/posts/[id]/comments.post.ts",
+            "server/services/v2/posts.ts",
+            "server/models/v2.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts",
+            "server/services/v2/notifications.ts"
           ],
           "evidence": []
         },
@@ -3768,7 +3783,7 @@
           "state": "proxy",
           "targetRevision": 1,
           "tasks": [
-            "Implement POST /api/v2/posts/{id}/comments natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Implement native comment creation and both notification paths from the shared requirements, without Nuxt fallback; validate real dependencies."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -3777,7 +3792,7 @@
           "state": "not-started",
           "targetRevision": 1,
           "tasks": [
-            "Implement POST /api/v2/posts/{id}/comments natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Implement native comment creation and both notification paths from the shared requirements, without Nuxt fallback; validate real dependencies."
           ],
           "sourceFiles": [],
           "evidence": []
@@ -10710,6 +10725,26 @@
       "copies": {
         "rust": "contracts/scenarios/post-comments-list.json",
         "go": "contracts/scenarios/post-comments-list.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-comment-create.md",
+        "sha256": "478e49e2211adf8a1197fe60c972245d63a627e2cbf045bcf73fca388642df89"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-comment-create.md",
+        "go": "contracts/requirements/post-comment-create.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-comment-create.json",
+        "sha256": "c27baa035c38207ca397d9cd25dd08c7108fef34d7d22039dd32aa8c70cc7466"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-comment-create.json",
+        "go": "contracts/scenarios/post-comment-create.json"
       }
     }
   ]

@@ -1454,12 +1454,21 @@ export async function v2CreateComment(
 ): Promise<V2Response<V2Comment>> {
   const auth = v2Auth(event);
   const body = await v2Body(event);
+  const parentValue = body.parent_comment_id;
+  let parentId: number | null = null;
+  if (parentValue !== undefined && parentValue !== null && parentValue !== '') {
+    if (typeof parentValue !== 'number' &&
+        !(typeof parentValue === 'string' && /^[1-9][0-9]*$/.test(parentValue))) {
+      v2BadRequest('parent_comment_id 参数错误');
+    }
+    parentId = Number(parentValue);
+    if (!Number.isSafeInteger(parentId) || parentId <= 0) v2BadRequest('parent_comment_id 参数错误');
+  }
   const payload: V2CreateCommentPayload = {
     content: v2RequiredString(body, 'content'),
-    parent_comment_id: v2RequiredOptionalNumber(
-      body.parent_comment_id
-    )
+    parent_comment_id: parentId
   };
+  await v2RequireInteractionVisibility(connection, auth.userId, postId);
   const commentId = await v2NextId(
     connection,
     'seq_comment_id'
@@ -1484,7 +1493,7 @@ export async function v2CreateComment(
     rootCommentId = v2Number(parent.ROOT_COMMENT_ID);
   }
 
-  await v2Execute(
+  const inserted = await v2Execute(
     connection,
     `
     INSERT INTO n_comments (
@@ -1494,14 +1503,24 @@ export async function v2CreateComment(
       parent_comment_id,
       root_comment_id,
       content
-    ) VALUES (
+    ) SELECT
       :comment_id,
       :post_id,
       :user_id,
       :parent_comment_id,
       :root_comment_id,
       :content
-    )
+    FROM dual
+    WHERE fn_can_view_post(:user_id, :post_id) = 1
+      AND EXISTS (
+        SELECT 1 FROM n_posts p
+        WHERE p.post_id = :post_id AND p.is_deleted = 0
+      )
+      AND (:parent_comment_id IS NULL OR EXISTS (
+        SELECT 1 FROM n_comments parent
+        WHERE parent.comment_id = :parent_comment_id
+          AND parent.post_id = :post_id AND parent.is_deleted = 0
+      ))
     `,
     {
       comment_id: commentId,
@@ -1512,6 +1531,11 @@ export async function v2CreateComment(
       content: payload.content
     }
   );
+  if (inserted === 0) {
+    await v2RequireInteractionVisibility(connection, auth.userId, postId);
+    if (parentId !== null) v2NotFound('父评论不存在');
+    v2NotFound('帖子不存在');
+  }
 
   const row = await v2One(
     connection,
@@ -1530,8 +1554,11 @@ export async function v2CreateComment(
       0 AS is_liked
     FROM v_post_comment_list_item c
     WHERE c.comment_id = :comment_id
+      AND c.post_id = :post_id
+      AND c.user_id = :viewer_id
+      AND fn_can_view_post(:viewer_id, c.post_id) = 1
     `,
-    { comment_id: commentId }
+    { comment_id: commentId, post_id: postId, viewer_id: auth.userId }
   );
   if (!row) v2NotFound('评论不存在');
   await v2NotifyCommentCreated(
