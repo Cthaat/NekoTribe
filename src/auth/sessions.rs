@@ -376,6 +376,22 @@ pub fn build_native_router_with_mail(
             get(crate::posts::list::list_posts),
         )
         .route(
+            "/api/v2/users/{id}/posts",
+            get(crate::posts::list::scoped_posts),
+        )
+        .route(
+            "/api/v2/tags/{name}/posts",
+            get(crate::posts::list::scoped_posts),
+        )
+        .route(
+            "/api/v2/posts/{id}/replies",
+            get(crate::posts::list::scoped_posts),
+        )
+        .route(
+            "/api/v2/posts/{id}/retweets",
+            get(crate::posts::list::scoped_posts),
+        )
+        .route(
             "/api/v2/users/{id}",
             get(crate::users::public_profile::get_public),
         )

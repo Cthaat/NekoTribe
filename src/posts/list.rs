@@ -8,7 +8,7 @@ use crate::{
     posts::detail::hydrate_post,
 };
 use axum::{
-    extract::{OriginalUri, State},
+    extract::{OriginalUri, Path, State},
     http::HeaderMap,
     response::{IntoResponse, Response},
     Json,
@@ -23,6 +23,8 @@ pub struct PostListQuery {
     pub sort: String,
     pub search: String,
     pub tag_search: String,
+    pub target_id: Option<u64>,
+    pub tag_name: Option<String>,
 }
 pub fn parse_post_list_query(raw: &str) -> PostListQuery {
     let url = reqwest::Url::parse(&format!("http://localhost/?{raw}")).expect("fixed URL");
@@ -49,6 +51,8 @@ pub fn parse_post_list_query(raw: &str) -> PostListQuery {
         sort: single("sort", "newest"),
         search,
         tag_search,
+        target_id: None,
+        tag_name: None,
     }
 }
 pub(crate) async fn list_posts(
@@ -56,15 +60,37 @@ pub(crate) async fn list_posts(
     OriginalUri(uri): OriginalUri,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
+    list_with_target(state, uri, headers, None).await
+}
+
+pub(crate) async fn scoped_posts(
+    State(state): State<NativeState>,
+    OriginalUri(uri): OriginalUri,
+    Path(target): Path<String>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    list_with_target(state, uri, headers, Some(target)).await
+}
+
+async fn list_with_target(
+    state: NativeState,
+    uri: axum::http::Uri,
+    headers: HeaderMap,
+    target: Option<String>,
+) -> Result<Response, ApiError> {
     let token = access_token(&headers);
     let mode = match uri.path() {
         "/api/v2/posts/trending" => "trending",
         "/api/v2/users/me/posts" => "me",
         "/api/v2/users/me/bookmarks" => "bookmarks",
         "/api/v2/users/me/likes" => "likes",
+        path if path.starts_with("/api/v2/users/") && path.ends_with("/posts") => "user",
+        path if path.starts_with("/api/v2/tags/") && path.ends_with("/posts") => "tag",
+        path if path.starts_with("/api/v2/posts/") && path.ends_with("/replies") => "replies",
+        path if path.starts_with("/api/v2/posts/") && path.ends_with("/retweets") => "retweets",
         _ => "all",
     };
-    if token.is_empty() && matches!(mode, "me" | "bookmarks" | "likes") {
+    if token.is_empty() && !matches!(mode, "all" | "trending") {
         return Err(ApiError::unauthorized("请先登录"));
     }
     let viewer = if token.is_empty() {
@@ -81,6 +107,24 @@ pub(crate) async fn list_posts(
     };
     let mut query = parse_post_list_query(uri.query().unwrap_or_default());
     query.mode = mode.to_owned();
+    if let Some(raw) = target {
+        if mode == "tag" {
+            if raw.is_empty() {
+                return Err(ApiError::bad_request("name 参数错误"));
+            }
+            query.tag_name = Some(raw);
+        } else {
+            if raw.is_empty() || raw.starts_with('0') || !raw.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(ApiError::bad_request("id 参数错误"));
+            }
+            let id = raw
+                .parse::<u64>()
+                .ok()
+                .filter(|id| *id > 0 && *id <= 9_007_199_254_740_991)
+                .ok_or_else(|| ApiError::bad_request("id 参数错误"))?;
+            query.target_id = Some(id);
+        }
+    }
     if mode == "trending" {
         query.sort = "popular".to_owned();
     }

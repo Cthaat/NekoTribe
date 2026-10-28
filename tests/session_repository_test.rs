@@ -926,3 +926,45 @@ async fn post_list_modes_scope_sql_and_like_time_sort() {
         assert_eq!(calls[0].1["viewer_id"], DbValue::I64(42));
     }
 }
+
+#[tokio::test]
+async fn scoped_post_list_binds_targets() {
+    for (mode, filter, key, id) in [
+        ("user", "v.author_id=:author_id", "author_id", 7),
+        ("tag", "t.name_lower=LOWER(:tag_name)", "tag_name", 0),
+        (
+            "replies",
+            "v.reply_to_post_id=:target_post_id",
+            "target_post_id",
+            9,
+        ),
+        (
+            "retweets",
+            "v.repost_of_post_id=:target_post_id",
+            "target_post_id",
+            9,
+        ),
+    ] {
+        let repo = OracleSessions {
+            executor: PostExecutor::default(),
+        };
+        let mut query =
+            nekotribe_backend::posts::list::parse_post_list_query("timeline=following&q=cat");
+        query.mode = mode.into();
+        query.target_id = Some(id);
+        query.tag_name = Some("C# cats".into());
+        repo.list_visible_posts(Some(42), &query).await.unwrap();
+        let calls = repo.executor.calls.lock().unwrap();
+        assert!(calls[0].0.contains(filter));
+        assert!(calls[1].0.contains(filter));
+        assert!(!calls[1].0.contains("C# cats"));
+        assert_eq!(
+            calls[0].1[key],
+            if mode == "tag" {
+                DbValue::String("C# cats".into())
+            } else {
+                DbValue::I64(id as i64)
+            }
+        );
+    }
+}

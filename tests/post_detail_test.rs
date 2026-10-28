@@ -394,3 +394,113 @@ async fn post_list_modes_require_auth_and_trending_forces_sort() {
         }
     }
 }
+
+#[tokio::test]
+async fn scoped_post_lists_require_auth_and_validate_decoded_targets() {
+    let data: Value = serde_json::from_str(include_str!(
+        "../contracts/scenarios/post-detail-vectors.json"
+    ))
+    .unwrap();
+    let tokens: Value =
+        serde_json::from_str(include_str!("../contracts/scenarios/auth-tokens.json")).unwrap();
+    let valid = tokens["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["id"] == "access-hs256")
+        .unwrap()["token"]
+        .as_str()
+        .unwrap();
+    for (path, mode, id, tag) in [
+        ("/api/v2/users/7/posts", "user", Some(7), None),
+        (
+            "/api/v2/tags/C%23%20cats/posts",
+            "tag",
+            None,
+            Some("C# cats"),
+        ),
+        ("/api/v2/posts/9/replies", "replies", Some(9), None),
+        ("/api/v2/posts/%31/replies", "replies", Some(1), None),
+        ("/api/v2/posts/9/retweets", "retweets", Some(9), None),
+    ] {
+        for authenticated in [false, true] {
+            let store = Arc::new(Store {
+                post: data["post"].clone(),
+                events: Mutex::new(vec![]),
+                viewer: Mutex::new(None),
+                list_query: Mutex::new(None),
+                fault: "".into(),
+                missing: true,
+                revoked: false,
+                touch_fail: false,
+            });
+            let codec = TokenCodec::new(
+                tokens["keys"]["access"].as_str().unwrap().as_bytes(),
+                tokens["keys"]["refresh"].as_str().unwrap().as_bytes(),
+            )
+            .unwrap();
+            let app = build_native_router(
+                codec,
+                store.clone(),
+                CorsPolicy::default(),
+                Arc::new(|| 1_700_000_000),
+            );
+            let mut req = Request::builder().uri(path);
+            if authenticated {
+                req = req.header("authorization", format!("Bearer {valid}"));
+            }
+            let response = app.oneshot(req.body(Body::empty()).unwrap()).await.unwrap();
+            assert_eq!(
+                response.status().as_u16(),
+                if authenticated { 200 } else { 401 },
+                "{path}"
+            );
+            if authenticated {
+                let guard = store.list_query.lock().unwrap();
+                let q = guard.as_ref().unwrap();
+                assert_eq!(q.mode, mode);
+                assert_eq!(q.target_id, id);
+                assert_eq!(q.tag_name.as_deref(), tag);
+                assert_eq!(*store.viewer.lock().unwrap(), Some(42));
+            }
+        }
+    }
+    for path in [
+        "/api/v2/users/01/posts",
+        "/api/v2/posts/1.5/replies",
+        "/api/v2/posts/0x1/retweets",
+        "/api/v2/users/9007199254740992/posts",
+    ] {
+        let store = Arc::new(Store {
+            post: data["post"].clone(),
+            events: Mutex::new(vec![]),
+            viewer: Mutex::new(None),
+            list_query: Mutex::new(None),
+            fault: "".into(),
+            missing: true,
+            revoked: false,
+            touch_fail: false,
+        });
+        let codec = TokenCodec::new(
+            tokens["keys"]["access"].as_str().unwrap().as_bytes(),
+            tokens["keys"]["refresh"].as_str().unwrap().as_bytes(),
+        )
+        .unwrap();
+        let app = build_native_router(
+            codec,
+            store,
+            CorsPolicy::default(),
+            Arc::new(|| 1_700_000_000),
+        );
+        let request = Request::builder()
+            .uri(path)
+            .header("authorization", format!("Bearer {valid}"))
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.oneshot(request).await.unwrap().status().as_u16(),
+            400,
+            "{path}"
+        );
+    }
+}

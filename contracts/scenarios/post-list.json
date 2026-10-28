@@ -21,6 +21,11 @@
     {"id": "LIST-17", "name": "个人、收藏、点赞列表必须有有效会话", "status": "not-run"},
     {"id": "LIST-18", "name": "个人、收藏、点赞过滤仅依据当前会话身份", "status": "not-run"},
     {"id": "LIST-19", "name": "点赞列表按点赞时间或互动分排序", "status": "not-run"},
-    {"id": "LIST-20", "name": "热门及个人列表叠加 timeline、搜索与权限过滤", "status": "not-run"}
+    {"id": "LIST-20", "name": "热门及个人列表叠加 timeline、搜索与权限过滤", "status": "not-run"},
+    {"id": "LIST-21", "name": "用户、标签、回复、转发列表需登录", "status": "not-run"},
+    {"id": "LIST-22", "name": "指定目标绑定并叠加可见性、搜索和时间线过滤", "status": "not-run"},
+    {"id": "LIST-23", "name": "数字目标仅接受安全正整数，认证先于参数校验", "status": "not-run"},
+    {"id": "LIST-24", "name": "标签名称按 URL 解码并绑定，特殊字符不拼入 SQL", "status": "not-run"},
+    {"id": "LIST-25", "name": "不存在的目标返回空列表且不泄露目标状态", "status": "not-run"}
   ]
 }
