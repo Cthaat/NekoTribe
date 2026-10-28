@@ -380,8 +380,9 @@ export async function v2SetNotificationReadStatus(
     SELECT notification_id, is_read, read_at
     FROM n_notifications
     WHERE notification_id = :notification_id
+      AND user_id = :user_id
     `,
-    { notification_id: notificationId }
+    { notification_id: notificationId, user_id: auth.userId }
   );
   if (!row) v2NotFound('通知不存在');
   const data = {

@@ -1,0 +1,17 @@
+{
+  "id": "NOTIFICATION-SINGLE-READ",
+  "revision": 1,
+  "cases": [
+    {"id":"bool-true","value":true,"expected":true},
+    {"id":"bool-false","value":false,"expected":false},
+    {"id":"number-one","value":1,"expected":true},
+    {"id":"number-other","value":2,"expected":false},
+    {"id":"string-one","value":"1","expected":true},
+    {"id":"string-true","value":"TrUe","expected":true},
+    {"id":"string-yes","value":"YES","expected":true},
+    {"id":"string-space","value":" true ","expected":false},
+    {"id":"null","value":null,"expected":false},
+    {"id":"array","value":[true],"expected":false},
+    {"id":"object","value":{"value":true},"expected":false}
+  ]
+}

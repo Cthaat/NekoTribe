@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "d95c0b6de88d37b46aa5e666b25c6d2224ca8395b7f3be6f330c6dc17da8036f"
+      "sha256": "26ee0485c484b3e96e8da147f383ab1ad98b763b14932751f32430805e05051c"
     },
     "sources": [
       {
@@ -635,7 +635,7 @@
       },
       {
         "path": "server/api/v2/notifications/[id]/read-status.put.ts",
-        "sha256": "4517da55d317b4ce39b681184e3814f41340e44f80ba60fc061685ebf6233fd9"
+        "sha256": "732f2e4d5ea584b8ccdae4b173bd7d94d55444a125135bf94c066cea5a4fb587"
       },
       {
         "path": "server/api/v2/notifications/[id]/restore-status.put.ts",
@@ -987,7 +987,7 @@
       },
       {
         "path": "server/services/v2/notifications.ts",
-        "sha256": "d50d1522382b0d82570b012f08472c1fbbaeaee6196eee7e30f461d48ebcb5a1"
+        "sha256": "be5b7ae7f2eb6aa56dd813a5c339402586de36a4a24daac8130823c506db517e"
       },
       {
         "path": "server/services/v2/posts.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "670f741adc1561429dd45fe3d2776db24aec623b90c9ae7cfbd19399a4bf1f68"
+        "sha256": "448a60ca3e214c9a7b412a74bd8f3c6ae4085d1753fd3a07537c2df7b5ba4ec7"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -4301,43 +4301,51 @@
       "id": "API-put_notifications_id_read_status",
       "title": "PUT /api/v2/notifications/{id}/read-status: 更新单条通知已读状态",
       "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "review": "reviewed",
+      "definition": "specifications/requirements/notification-single-read.md",
       "sourceFiles": [
-        "server/api/v2/notifications/[id]/read-status.put.ts"
+        "server/api/v2/notifications/[id]/read-status.put.ts",
+        "server/services/v2/notifications.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "PUT /api/v2/notifications/{id}/read-status"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {"id":"NOTIFICATION-SINGLE-READ","file":"specifications/scenarios/notification-single-read.json"}
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for PUT /api/v2/notifications/{id}/read-status; create shared acceptance scenarios."
+            "Validate owned notification updates and events against real isolated Oracle, Redis and both clients."
           ],
           "sourceFiles": [
-            "server/api/v2/notifications/[id]/read-status.put.ts"
+            "server/api/v2/notifications/[id]/read-status.put.ts",
+            "server/services/v2/notifications.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement PUT /api/v2/notifications/{id}/read-status natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate native owned updates, timestamps, events and error boundaries against isolated Oracle and Redis."
           ],
-          "sourceFiles": [],
+          "sourceFiles": ["src/notifications.rs","src/auth/session_repository.rs","src/auth/sessions.rs","src/notification_events.rs"],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement PUT /api/v2/notifications/{id}/read-status natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate native owned updates, timestamps, events and error boundaries against isolated Oracle and Redis."
           ],
-          "sourceFiles": [],
+          "sourceFiles": ["internal/server/notification_read.go","internal/server/server.go","internal/server/notification_events.go"],
           "evidence": []
         }
       }
@@ -10482,6 +10490,26 @@
       "copies": {
         "rust": "contracts/scenarios/notification-list.json",
         "go": "contracts/scenarios/notification-list.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/notification-single-read.md",
+        "sha256": "bb548498e7dc1c8999ce8992c2b7d83a02d3c86b92302aeea92c81eddc359dc9"
+      },
+      "copies": {
+        "rust": "contracts/requirements/notification-single-read.md",
+        "go": "contracts/requirements/notification-single-read.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/notification-single-read.json",
+        "sha256": "3394255ee19d44761c891aa309b03feae0f81f4c95cbe92c334ae6680aaa9cce"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/notification-single-read.json",
+        "go": "contracts/scenarios/notification-single-read.json"
       }
     },
     {
