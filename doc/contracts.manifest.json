@@ -7,7 +7,7 @@
   "source": {
     "project": "nuxt",
     "branch": "master",
-    "commit": "8e3c1defdd79d11d88716b55ee62fec9cc9cc467"
+    "commit": "725231bddc64d7c3b6a16f077ebcdb94e0ccbd1e"
   },
   "files": [
     {
@@ -16,11 +16,11 @@
       "sha256": "23f18bbfca05d67bea42e08b84bc2aa3d7909e61642b6bf8e83fbd9b0580d004",
       "gitBlob": "1ee03f2c26d917e6e4b7c05b095a5b238601a045",
       "committedSource": {
-        "commit": "8e3c1defdd79d11d88716b55ee62fec9cc9cc467",
-        "gitBlob": "cdbc3c6f35f65ecd8316ceb17473371caa930d0d",
-        "sha256": "03f90524698017308db4063c3ebfaccc1dc583303527b9e01402ec7cb4cdc49d"
+        "commit": "725231bddc64d7c3b6a16f077ebcdb94e0ccbd1e",
+        "gitBlob": "1ee03f2c26d917e6e4b7c05b095a5b238601a045",
+        "sha256": "23f18bbfca05d67bea42e08b84bc2aa3d7909e61642b6bf8e83fbd9b0580d004"
       },
-      "differsFromCommittedSource": true
+      "differsFromCommittedSource": false
     },
     {
       "path": "runtime-addresses.md",
@@ -28,7 +28,7 @@
       "sha256": "700bb79c8efe738d3ba51eee92cde91772406587c3338ca1477462a0f2d5cdb7",
       "gitBlob": "748b5407fc7744827c7f70041808e55c14de52db",
       "committedSource": {
-        "commit": "8e3c1defdd79d11d88716b55ee62fec9cc9cc467",
+        "commit": "725231bddc64d7c3b6a16f077ebcdb94e0ccbd1e",
         "gitBlob": "748b5407fc7744827c7f70041808e55c14de52db",
         "sha256": "700bb79c8efe738d3ba51eee92cde91772406587c3338ca1477462a0f2d5cdb7"
       },
