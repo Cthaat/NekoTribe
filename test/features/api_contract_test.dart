@@ -539,6 +539,12 @@ void main() {
         body: {'is_read': true},
       );
 
+      await api.deleteNotification(3);
+      recorder.expectLast(
+        method: 'DELETE',
+        path: '/api/v2/notifications/3',
+      );
+
       await api.restoreNotification(3);
       recorder.expectLast(
         method: 'PUT',
