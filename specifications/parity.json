@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "9941cafd8558829e0453965730b6a75f02c8048b1df6abfcb9c961833c12c326"
+      "sha256": "ce24f02c0089b4e2d63f44445a0c3e98d43337bb170d8d5a11a7d95003d14226"
     },
     "sources": [
       {
@@ -651,7 +651,7 @@
       },
       {
         "path": "server/api/v2/posts/[id].delete.ts",
-        "sha256": "a441075b40b7a5c810be2a07e7e452c746b45f31c3cf0529647f776da37caa35"
+        "sha256": "014a493f197c1c7a2a23afc94bcde4bff363e112eb36d657936de69e25e1ae4e"
       },
       {
         "path": "server/api/v2/posts/[id].get.ts",
@@ -991,7 +991,7 @@
       },
       {
         "path": "server/services/v2/posts.ts",
-        "sha256": "3d67a8b97afd10c69c20bbee3f926e9f29352fe912681525108fe17ed1ba1b80"
+        "sha256": "937d8e848828841db4085667eb6685cfb2309593b8a4a0f381ae8d8a41caa2ef"
       },
       {
         "path": "server/services/v2/presence.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "f913f0a5c5f146e6ac80443680a7c1476f4e76bd795b4de316cd2794c80fe10d"
+        "sha256": "7fe17369fc6259fb9c8cd9fbaa4ef561ad8ac5f385e3948f67f56b4a59968c25"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -3403,47 +3403,69 @@
     {
       "id": "API-delete_posts_id",
       "title": "DELETE /api/v2/posts/{id}: 删除帖子",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/post-delete.md",
       "sourceFiles": [
-        "server/api/v2/posts/[id].delete.ts"
+        "server/api/v2/posts/[id].delete.ts",
+        "server/services/v2/posts.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "DELETE /api/v2/posts/{id}"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-DELETE",
+          "file": "specifications/scenarios/post-delete.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for DELETE /api/v2/posts/{id}; create shared acceptance scenarios."
+            "Validate owner-only conditional soft deletion, missing/deleted/race behavior, real Oracle triggers, uncertain commits, shared caches and both clients against isolated resources."
           ],
           "sourceFiles": [
-            "server/api/v2/posts/[id].delete.ts"
+            "server/api/v2/posts/[id].delete.ts",
+            "server/services/v2/posts.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement DELETE /api/v2/posts/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate owner-only conditional soft deletion, missing/deleted/race behavior, real Oracle triggers, uncertain commits, shared caches and both clients against isolated resources."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs",
+            "src/posts/delete.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement DELETE /api/v2/posts/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate owner-only conditional soft deletion, missing/deleted/race behavior, real Oracle triggers, uncertain commits, shared caches and both clients against isolated resources."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/server.go",
+            "internal/server/post_delete.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/post-delete.md",
+        "specifications/scenarios/post-delete.json"
+      ]
     },
     {
       "id": "API-t11_put_api_v2_posts_id",
@@ -11035,6 +11057,28 @@
         "rust": "contracts/scenarios/post-create-request-vectors.json",
         "go": "contracts/scenarios/post-create-request-vectors.json",
         "flutter": "contracts/scenarios/post-create-request-vectors.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-delete.md",
+        "sha256": "12f40e44eae867d303ea7e8fb990497426623ada1041dc76411aaf7555839a6a"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-delete.md",
+        "go": "contracts/requirements/post-delete.md",
+        "flutter": "contracts/requirements/post-delete.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-delete.json",
+        "sha256": "5ebc0af18588df11ff6b69f286b3abf485b9efe2d3b57a4f10b581251d8720fe"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-delete.json",
+        "go": "contracts/scenarios/post-delete.json",
+        "flutter": "contracts/scenarios/post-delete.json"
       }
     }
   ]

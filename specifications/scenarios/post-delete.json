@@ -1,0 +1,176 @@
+{
+  "revision": 1,
+  "cases": [
+    {
+      "id": "missing",
+      "path_id": "20",
+      "state": "missing",
+      "expected": {
+        "status": 404,
+        "code": 40401,
+        "message": "帖子不存在"
+      }
+    },
+    {
+      "id": "deleted",
+      "path_id": "20",
+      "state": "deleted",
+      "expected": {
+        "status": 404,
+        "code": 40401,
+        "message": "帖子不存在"
+      }
+    },
+    {
+      "id": "other",
+      "path_id": "20",
+      "state": "other",
+      "expected": {
+        "status": 422,
+        "code": 42201,
+        "message": "只能删除自己的帖子"
+      }
+    },
+    {
+      "id": "race",
+      "path_id": "20",
+      "state": "race",
+      "expected": {
+        "status": 404,
+        "code": 40401,
+        "message": "帖子不存在"
+      }
+    },
+    {
+      "id": "query-error",
+      "path_id": "20",
+      "state": "query-error",
+      "expected": {
+        "status": 500,
+        "code": 50001,
+        "message": "服务器内部错误"
+      }
+    },
+    {
+      "id": "write-error",
+      "path_id": "20",
+      "state": "write-error",
+      "expected": {
+        "status": 500,
+        "code": 50001,
+        "message": "服务器内部错误"
+      }
+    },
+    {
+      "id": "close-error",
+      "path_id": "20",
+      "state": "close-error",
+      "expected": {
+        "status": 500,
+        "code": 50001,
+        "message": "服务器内部错误"
+      }
+    },
+    {
+      "id": "success",
+      "path_id": "20",
+      "state": "success",
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post deleted"
+      }
+    },
+    {
+      "id": "invalid-0",
+      "path_id": "0",
+      "state": "success",
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "invalid-01",
+      "path_id": "01",
+      "state": "success",
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "invalid--1",
+      "path_id": "-1",
+      "state": "success",
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "invalid-1.5",
+      "path_id": "1.5",
+      "state": "success",
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "invalid-1e2",
+      "path_id": "1e2",
+      "state": "success",
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "invalid-+20",
+      "path_id": "+20",
+      "state": "success",
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "invalid-9007199254740992",
+      "path_id": "9007199254740992",
+      "state": "success",
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "invalid-%2520",
+      "path_id": "%2520",
+      "state": "success",
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "encoded-id",
+      "path_id": "%32%30",
+      "state": "success",
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post deleted"
+      }
+    }
+  ],
+  "id": "POST-DELETE"
+}

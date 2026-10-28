@@ -1219,15 +1219,18 @@ export async function v2DeletePost(
   if (v2Number(row.AUTHOR_ID) !== auth.userId) {
     v2Unprocessable('只能删除自己的帖子');
   }
-  await v2Execute(
+  const changed = await v2Execute(
     connection,
     `
     UPDATE n_posts
     SET is_deleted = 1
     WHERE post_id = :post_id
+      AND author_id = :user_id
+      AND is_deleted = 0
     `,
-    { post_id: postId }
+    { post_id: postId, user_id: auth.userId }
   );
+  if (changed === 0) v2NotFound('帖子不存在');
   return v2Null('post deleted');
 }
 
