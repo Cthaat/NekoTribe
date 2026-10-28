@@ -3636,13 +3636,16 @@
           "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Complete native creation of likes with notification storage and realtime delivery.",
-            "Validate native bookmarks and unlike, database triggers, races and all shared scenarios with isolated dependencies."
+            "Validate native like notification storage and realtime delivery against isolated real Oracle and Redis.",
+            "Validate bookmarks, likes, database triggers, concurrent insert races and all shared scenarios with isolated dependencies."
           ],
           "sourceFiles": [
             "src/posts/bookmark.rs",
+            "src/posts/like.rs",
             "src/auth/sessions.rs",
-            "src/auth/session_repository.rs"
+            "src/auth/session_repository.rs",
+            "src/notifications.rs",
+            "src/notification_events.rs"
           ],
           "evidence": []
         },
@@ -8841,11 +8844,12 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Wire publisher to native notification operations and validate notification reception against isolated real Redis."
+            "Wire publisher to remaining native notification operations and validate notification reception against isolated real Redis."
           ],
           "sourceFiles": [
             "src/notification_events.rs",
-            "src/cache/redis.rs"
+            "src/cache/redis.rs",
+            "src/app/routes.rs"
           ],
           "evidence": []
         },
