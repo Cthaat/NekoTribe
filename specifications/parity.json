@@ -3383,47 +3383,77 @@
     {
       "id": "API-get_posts_id",
       "title": "GET /api/v2/posts/{id}: 获取帖子详情",
-      "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/post-detail.md",
       "sourceFiles": [
-        "server/api/v2/posts/[id].get.ts"
+        "server/api/v2/posts/[id].get.ts",
+        "server/services/v2/posts.ts",
+        "server/models/v2.ts",
+        "server/database/readiness.ts"
       ],
       "operations": [
         "GET /api/v2/posts/{id}"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-DETAIL",
+          "file": "specifications/scenarios/post-detail.json"
+        },
+        {
+          "id": "MEDIA-READINESS",
+          "file": "specifications/scenarios/media-readiness.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/posts/{id}; create shared acceptance scenarios."
+            "nuxt: implement post visibility, author, media, tags, mentions and view increment as specified in post-detail.md; native route remains outstanding for Rust and Go.",
+            "nuxt: validate post-detail scenarios and real Oracle authorization, concurrency, files and both clients before acceptance."
           ],
           "sourceFiles": [
-            "server/api/v2/posts/[id].get.ts"
+            "server/api/v2/posts/[id].get.ts",
+            "server/services/v2/posts.ts",
+            "server/models/v2.ts",
+            "server/database/readiness.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/posts/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "rust: implement post visibility, author, media, tags, mentions and view increment as specified in post-detail.md; native route remains outstanding for Rust and Go.",
+            "rust: validate post-detail scenarios and real Oracle authorization, concurrency, files and both clients before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/auth/readiness.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 1,
+          "state": "in-progress",
+          "targetRevision": 2,
           "tasks": [
-            "Implement GET /api/v2/posts/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "go: implement post visibility, author, media, tags, mentions and view increment as specified in post-detail.md; native route remains outstanding for Rust and Go.",
+            "go: validate post-detail scenarios and real Oracle authorization, concurrency, files and both clients before acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/schema_readiness.go",
+            "contracts/schema_catalog.go"
+          ],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/media-schema-catalog.json",
+        "specifications/requirements/storage-public-urls.md",
+        "specifications/requirements/cache-shared-backends.md"
+      ]
     },
     {
       "id": "API-delete_posts_id",
@@ -10498,6 +10528,46 @@
       "copies": {
         "rust": "contracts/scenarios/user-public-profile.json",
         "go": "contracts/scenarios/user-public-profile.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/media-schema-catalog.json",
+        "sha256": "9b2113d12fc9fd64473dcb835c1345523c19aef0d5506246025aef0934d4dbdd"
+      },
+      "copies": {
+        "rust": "contracts/requirements/media-schema-catalog.json",
+        "go": "contracts/requirements/media-schema-catalog.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-detail.md",
+        "sha256": "ae093f3a1ac6f731cc66d19b8881c8f71ec3c04eb2155f07cd2a1d112e0831d4"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-detail.md",
+        "go": "contracts/requirements/post-detail.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/media-readiness.json",
+        "sha256": "d08376bbf315b40b7560e2f2def62776e013544b15c4f838f66847361285875a"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/media-readiness.json",
+        "go": "contracts/scenarios/media-readiness.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-detail.json",
+        "sha256": "00782342f29fa6df1b507ed485a0d36f104d2108600342a328c4c4d09a2a04c5"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-detail.json",
+        "go": "contracts/scenarios/post-detail.json"
       }
     }
   ]
