@@ -721,3 +721,44 @@ async fn public_profile_repository_binds_viewer_and_target() {
     assert_eq!(binds["viewer_id"], DbValue::I64(42));
     assert_eq!(binds["user_id"], DbValue::I64(7));
 }
+
+#[derive(Default)]
+struct MediaReadinessExecutor {
+    calls: std::sync::atomic::AtomicUsize,
+}
+impl SessionExecutor for MediaReadinessExecutor {
+    fn execute(&self, _: &'static str, _: BindMap) -> StoreFuture<'_, u64> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn media_readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
+        Box::pin(async move {
+            let n = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let data: serde_json::Value =
+                serde_json::from_str(include_str!("../contracts/scenarios/media-readiness.json"))
+                    .unwrap();
+            let mut snapshot = data["baseline"].clone();
+            if n > 0 {
+                snapshot["tables"]["N_MEDIA_ASSETS"]["columns"][0]["CHAR_LENGTH"] =
+                    serde_json::json!(999)
+            }
+            Ok(snapshot)
+        })
+    }
+}
+#[tokio::test]
+async fn media_repository_rechecks_snapshot_without_caching() {
+    let repo = OracleSessions {
+        executor: MediaReadinessExecutor::default(),
+    };
+    assert!(repo.media_readiness().await.is_ok());
+    assert!(repo.media_readiness().await.is_err());
+    assert_eq!(
+        repo.executor
+            .calls
+            .load(std::sync::atomic::Ordering::SeqCst),
+        2
+    );
+}

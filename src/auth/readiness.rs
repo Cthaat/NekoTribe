@@ -15,12 +15,34 @@ use crate::{
 
 pub type SchemaSnapshot = Value;
 
-fn catalog() -> Result<Value, SessionStoreError> {
-    serde_json::from_str(include_str!(
-        "../../contracts/requirements/two-factor-schema-catalog.json"
-    ))
-    .map_err(|_| SessionStoreError)
+fn catalog(feature: &str) -> Result<Value, SessionStoreError> {
+    let (content, expected_id, count) = match feature {
+        "two-factor" => (
+            include_str!("../../contracts/requirements/two-factor-schema-catalog.json"),
+            "AUTH-2FA-SCHEMA-CATALOG",
+            9,
+        ),
+        "media" => (
+            include_str!("../../contracts/requirements/media-schema-catalog.json"),
+            "MEDIA-SCHEMA-CATALOG",
+            1,
+        ),
+        _ => return Err(SessionStoreError),
+    };
+    let value: Value = serde_json::from_str(content).map_err(|_| SessionStoreError)?;
+    if value["id"] != expected_id
+        || value["revision"] != 1
+        || value["feature"]["id"] != feature
+        || value["feature"]["steps"].as_array().map(Vec::len) != Some(count)
+        || value["migrationChecksums"]
+            .as_object()
+            .is_none_or(|v| v.is_empty())
+    {
+        return Err(SessionStoreError);
+    }
+    Ok(value)
 }
+
 fn text<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
     value.get(key)?.as_str()
 }
@@ -238,7 +260,13 @@ fn matches_table(expected: &Value, actual: &Value) -> bool {
 }
 
 pub fn validate_snapshot(snapshot: &SchemaSnapshot) -> Result<(), SessionStoreError> {
-    let spec = catalog()?;
+    validate_feature_snapshot(snapshot, "two-factor")
+}
+pub fn validate_feature_snapshot(
+    snapshot: &SchemaSnapshot,
+    feature_name: &str,
+) -> Result<(), SessionStoreError> {
+    let spec = catalog(feature_name)?;
     let owner = snapshot.get("owner").ok_or(SessionStoreError)?;
     let user = text(owner, "user")
         .filter(|s| !s.is_empty())
@@ -281,8 +309,9 @@ pub fn validate_snapshot(snapshot: &SchemaSnapshot) -> Result<(), SessionStoreEr
     for step in array(feature, "steps").ok_or(SessionStoreError)? {
         let name = text(step, "name").ok_or(SessionStoreError)?;
         match text(step, "kind") {
-            Some("table") => {
-                if !tables.get(name).is_some_and(|a| matches_table(step, a)) {
+            Some("table" | "column") => {
+                let table = text(step, "table").ok_or(SessionStoreError)?;
+                if !tables.get(table).is_some_and(|a| matches_table(step, a)) {
                     return Err(SessionStoreError);
                 }
             }
@@ -343,14 +372,49 @@ fn bind(key: &str, value: &str) -> BindMap {
 
 /// Collects only public Oracle dictionary metadata and ledger checksums; no DDL.
 pub(crate) fn collect_snapshot(connection: &::oracle::Connection) -> Result<Value, DbError> {
-    collect_with(|sql, binds| query(connection, sql, binds))
+    collect_feature_with("two-factor", |sql, binds| query(connection, sql, binds))
+}
+pub(crate) fn collect_media_snapshot(connection: &::oracle::Connection) -> Result<Value, DbError> {
+    collect_feature_with("media", |sql, binds| query(connection, sql, binds))
 }
 
 /// Collects an Oracle dictionary snapshot through an injected SELECT executor.
-pub fn collect_with<F>(mut read: F) -> Result<Value, DbError>
+pub fn collect_with<F>(read: F) -> Result<Value, DbError>
 where
     F: FnMut(&'static str, BindMap) -> Result<Vec<Value>, DbError>,
 {
+    collect_feature_with("two-factor", read)
+}
+pub fn collect_feature_with<F>(feature: &str, mut read: F) -> Result<Value, DbError>
+where
+    F: FnMut(&'static str, BindMap) -> Result<Vec<Value>, DbError>,
+{
+    let spec = catalog(feature).map_err(|_| DbError::SchemaNotReady)?;
+    let steps = spec["feature"]["steps"]
+        .as_array()
+        .ok_or(DbError::SchemaNotReady)?;
+    let mut table_names = BTreeSet::from(["N_SCHEMA_MIGRATIONS".to_owned()]);
+    let mut sequence_names = BTreeSet::new();
+    let mut index_names = BTreeSet::new();
+    for step in steps {
+        let name = text(step, "name").ok_or(DbError::SchemaNotReady)?;
+        match text(step, "kind") {
+            Some("table" | "column") => {
+                table_names.insert(
+                    text(step, "table")
+                        .ok_or(DbError::SchemaNotReady)?
+                        .to_owned(),
+                );
+            }
+            Some("sequence") => {
+                sequence_names.insert(name.to_owned());
+            }
+            Some("index") => {
+                index_names.insert(name.to_owned());
+            }
+            _ => return Err(DbError::SchemaNotReady),
+        }
+    }
     let identity = read("SELECT USER AS USER_NAME, SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AS SCHEMA_NAME FROM dual", BindMap::new())?;
     let owner = identity.first().cloned().unwrap_or(Value::Null);
     let user = text(&owner, "USER_NAME")
@@ -360,23 +424,17 @@ where
         return Err(DbError::SchemaNotReady);
     }
     let mut tables = Map::new();
-    for table in [
-        "N_SCHEMA_MIGRATIONS",
-        "N_USER_TWO_FACTOR_SECRETS",
-        "N_USER_TWO_FACTOR_RECOVERY_CODES",
-        "N_USER_TWO_FACTOR_TRUSTED_DEVICES",
-        "N_AUTH_TWO_FACTOR_CHALLENGES",
-    ] {
+    for table in table_names {
         let exists = read(
             "SELECT table_name AS NAME FROM user_tables WHERE table_name = :name",
-            bind("name", table),
+            bind("name", &table),
         )?;
         if exists.is_empty() {
             continue;
         }
-        let cols = read("SELECT column_name, data_type, data_precision, data_scale, char_length, nullable, data_default FROM user_tab_columns WHERE table_name = :table_name", bind("table_name", table))?;
-        let constraints = read("SELECT c.constraint_name, c.constraint_type, c.search_condition_vc, c.delete_rule, c.status, c.validated, r.table_name AS referenced_table, c.r_owner AS referenced_owner FROM user_constraints c LEFT JOIN user_constraints r ON r.constraint_name = c.r_constraint_name AND c.r_owner = USER WHERE c.table_name = :table_name", bind("table_name", table))?;
-        let constraint_cols = read("SELECT c.constraint_name, c.column_name, c.position, r.column_name AS referenced_column FROM user_cons_columns c LEFT JOIN user_constraints f ON f.constraint_name = c.constraint_name LEFT JOIN user_cons_columns r ON r.constraint_name = f.r_constraint_name AND r.position = c.position AND f.r_owner = USER WHERE c.table_name = :table_name ORDER BY c.constraint_name, c.position", bind("table_name", table))?;
+        let cols = read("SELECT column_name, data_type, data_precision, data_scale, char_length, nullable, data_default FROM user_tab_columns WHERE table_name = :table_name", bind("table_name", &table))?;
+        let constraints = read("SELECT c.constraint_name, c.constraint_type, c.search_condition_vc, c.delete_rule, c.status, c.validated, r.table_name AS referenced_table, c.r_owner AS referenced_owner FROM user_constraints c LEFT JOIN user_constraints r ON r.constraint_name = c.r_constraint_name AND c.r_owner = USER WHERE c.table_name = :table_name", bind("table_name", &table))?;
+        let constraint_cols = read("SELECT c.constraint_name, c.column_name, c.position, r.column_name AS referenced_column FROM user_cons_columns c LEFT JOIN user_constraints f ON f.constraint_name = c.constraint_name LEFT JOIN user_cons_columns r ON r.constraint_name = f.r_constraint_name AND r.position = c.position AND f.r_owner = USER WHERE c.table_name = :table_name ORDER BY c.constraint_name, c.position", bind("table_name", &table))?;
         let mut enriched = Vec::new();
         for mut item in constraints {
             let name = text(&item, "CONSTRAINT_NAME");
@@ -398,7 +456,7 @@ where
             }
             enriched.push(item);
         }
-        tables.insert(table.into(), json!({"columns":cols,"constraints":enriched}));
+        tables.insert(table, json!({"columns":cols,"constraints":enriched}));
     }
     let ledger_present = tables.contains_key("N_SCHEMA_MIGRATIONS");
     let records = if ledger_present {
@@ -410,19 +468,15 @@ where
         Vec::new()
     };
     let mut sequences = Map::new();
-    for name in ["SEQ_2FA_RECOVERY_CODE_ID", "SEQ_2FA_TRUSTED_DEVICE_ID"] {
-        if let Some(row) = read("SELECT sequence_name, increment_by, cycle_flag FROM user_sequences WHERE sequence_name = :name", bind("name", name))?.into_iter().next() { sequences.insert(name.into(), row); }
+    for name in sequence_names {
+        if let Some(row) = read("SELECT sequence_name, increment_by, cycle_flag FROM user_sequences WHERE sequence_name = :name", bind("name", &name))?.into_iter().next() { sequences.insert(name, row); }
     }
     let mut indexes = Map::new();
-    for name in [
-        "IDX_2FA_RECOVERY_USER",
-        "IDX_2FA_CHALLENGE_USER",
-        "IDX_2FA_TRUSTED_USER",
-    ] {
-        if let Some(mut row) = read("SELECT index_name, table_name, uniqueness, status FROM user_indexes WHERE index_name = :name", bind("name", name))?.into_iter().next() {
-            let cols = read("SELECT column_name, descend FROM user_ind_columns WHERE index_name = :name ORDER BY column_position", bind("name", name))?;
+    for name in index_names {
+        if let Some(mut row) = read("SELECT index_name, table_name, uniqueness, status FROM user_indexes WHERE index_name = :name", bind("name", &name))?.into_iter().next() {
+            let cols = read("SELECT column_name, descend FROM user_ind_columns WHERE index_name = :name ORDER BY column_position", bind("name", &name))?;
             if let Some(obj) = row.as_object_mut() { obj.insert("columns".into(), json!(cols)); }
-            indexes.insert(name.into(), row);
+            indexes.insert(name, row);
         }
     }
     Ok(

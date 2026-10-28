@@ -169,3 +169,82 @@ fn collector_rejects_mismatched_owner_before_other_queries() {
     assert!(result.is_err());
     assert_eq!(calls, 1);
 }
+
+#[test]
+fn shared_media_readiness_matches_nuxt_scenarios() {
+    let fixture: Value =
+        serde_json::from_str(include_str!("../contracts/scenarios/media-readiness.json")).unwrap();
+    assert_eq!(fixture["id"], "MEDIA-READINESS");
+    for case in fixture["cases"].as_array().unwrap() {
+        let mut snapshot = fixture["baseline"].clone();
+        for m in case["mutations"].as_array().unwrap() {
+            let path = m["path"].as_array().unwrap();
+            let mut target = &mut snapshot;
+            for part in &path[..path.len() - 1] {
+                target = if let Some(key) = part.as_str() {
+                    target.get_mut(key).unwrap()
+                } else {
+                    target.get_mut(part.as_u64().unwrap() as usize).unwrap()
+                }
+            }
+            let last = path.last().unwrap();
+            match (m["op"].as_str().unwrap(), last.as_str()) {
+                ("set", Some(key)) => {
+                    target
+                        .as_object_mut()
+                        .unwrap()
+                        .insert(key.to_owned(), m["value"].clone());
+                }
+                ("delete", Some(key)) => {
+                    target.as_object_mut().unwrap().remove(key);
+                }
+                ("set", None) => target[last.as_u64().unwrap() as usize] = m["value"].clone(),
+                ("delete", None) => {
+                    target
+                        .as_array_mut()
+                        .unwrap()
+                        .remove(last.as_u64().unwrap() as usize);
+                }
+                _ => panic!("bad fixture"),
+            }
+        }
+        assert_eq!(
+            nekotribe_backend::auth::readiness::validate_feature_snapshot(&snapshot, "media")
+                .is_ok(),
+            case["ready"].as_bool().unwrap(),
+            "{}",
+            case["id"]
+        )
+    }
+}
+
+#[test]
+fn media_collector_reads_only_relevant_schema_and_checks_snapshot() {
+    let fixture: Value =
+        serde_json::from_str(include_str!("../contracts/scenarios/media-readiness.json")).unwrap();
+    let baseline = &fixture["baseline"];
+    let mut calls = Vec::new();
+    let result=nekotribe_backend::auth::readiness::collect_feature_with("media",|sql,binds|{
+  assert!(sql.starts_with("SELECT "));let name=binds.get("name").or_else(||binds.get("table_name")).and_then(|v|v.as_str()).unwrap_or("");calls.push((sql,name.to_owned()));
+  if sql.contains("SYS_CONTEXT"){return Ok(vec![json!({"USER_NAME":baseline["owner"]["user"],"SCHEMA_NAME":baseline["owner"]["schema"]})])}
+  if sql.contains("FROM user_tables"){return Ok(if baseline["tables"].get(name).is_some(){vec![json!({"NAME":name})]}else{vec![]})}
+  if sql.contains("FROM user_tab_columns"){return Ok(baseline["tables"][name]["columns"].as_array().unwrap().clone())}
+  if sql.contains("FROM user_constraints c"){return Ok(baseline["tables"][name]["constraints"].as_array().unwrap().clone())}
+  if sql.contains("FROM user_cons_columns c"){let mut rows=Vec::new();for c in baseline["tables"][name]["constraints"].as_array().unwrap(){for (i,col) in c["columns"].as_array().unwrap().iter().enumerate(){rows.push(json!({"CONSTRAINT_NAME":c["CONSTRAINT_NAME"],"COLUMN_NAME":col,"POSITION":i+1,"REFERENCED_COLUMN":c["referencedColumns"].get(i)}))}}return Ok(rows)}
+  if sql.contains("FROM n_schema_migrations"){return Ok(baseline["records"].as_array().unwrap().clone())}
+  panic!("unexpected media readiness query")
+ }).unwrap();
+    assert!(
+        nekotribe_backend::auth::readiness::validate_feature_snapshot(&result, "media").is_ok()
+    );
+    assert!(calls.iter().any(|(_, name)| name == "N_MEDIA_ASSETS"));
+    assert!(!calls
+        .iter()
+        .any(|(_, name)| name.starts_with("N_USER_TWO_FACTOR")));
+    assert!(
+        nekotribe_backend::auth::readiness::collect_feature_with("unknown", |_, _| panic!(
+            "unknown feature must not query"
+        ))
+        .is_err()
+    );
+}

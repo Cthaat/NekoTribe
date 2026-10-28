@@ -46,6 +46,9 @@ pub trait SessionExecutor: Send + Sync {
     fn query(&self, _sql: &'static str, _binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn media_readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -240,6 +243,12 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
                     .collect(),
                 total,
             ))
+        })
+    }
+    fn media_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            let snapshot = self.executor.media_readiness_snapshot().await?;
+            crate::auth::readiness::validate_feature_snapshot(&snapshot, "media")
         })
     }
     fn two_factor_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
@@ -638,6 +647,13 @@ impl SessionExecutor for OraclePool {
             })
             .await
             .map_err(|_| SessionStoreError)
+        })
+    }
+    fn media_readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
+        Box::pin(async move {
+            self.run_blocking(crate::auth::readiness::collect_media_snapshot)
+                .await
+                .map_err(|_| SessionStoreError)
         })
     }
     fn readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {

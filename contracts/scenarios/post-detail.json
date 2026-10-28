@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "POST-DETAIL",
+  "revision": 1,
+  "scope": "planned end-to-end acceptance; not yet implemented or run in Rust/Go",
+  "cases": [
+    { "id": "POST-DETAIL-01", "assertion": "anonymous public post returns full data with null viewer and increments views after mapping" },
+    { "id": "POST-DETAIL-02", "assertion": "private, deleted, missing or unauthorized posts return 404 and do not increment views" },
+    { "id": "POST-DETAIL-03", "assertion": "owner, follower and mentioned-user access follows the shared Oracle authorization function" },
+    { "id": "POST-DETAIL-04", "assertion": "blocking and blocked-by relationships do not reveal post existence" },
+    { "id": "POST-DETAIL-05", "assertion": "invalid, expired or revoked supplied credentials return 401 rather than anonymous fallback" },
+    { "id": "POST-DETAIL-06", "assertion": "author, media, tags and mentions follow the shared order and mapping without private user fields" },
+    { "id": "POST-DETAIL-07", "assertion": "missing or incompatible media schema returns safe 503 without DDL or view increment" },
+    { "id": "POST-DETAIL-08", "assertion": "failure before view increment leaves view count unchanged; commit/close failure has explicit uncertain outcome" },
+    { "id": "POST-DETAIL-09", "assertion": "returned view count reflects the pre-increment value and concurrent increments are not lost" },
+    { "id": "POST-DETAIL-10", "assertion": "real isolated Oracle, Redis, shared storage, two frontends and blocked Nuxt upstream are verified" }
+  ]
+}

@@ -103,6 +103,9 @@ pub trait SessionRepository: Send + Sync {
     fn login_two_factor<'a>(&'a self, _user: u64) -> StoreFuture<'a, bool> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn media_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn two_factor_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
         Box::pin(async { Err(SessionStoreError) })
     }
