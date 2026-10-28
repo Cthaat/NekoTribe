@@ -46,6 +46,7 @@ const compiled = await build({
     export {default as notifications} from './server/api/v2/notifications/index.get';
     export {default as replies} from './server/api/v2/posts/[id]/replies.get';
     export {default as retweets} from './server/api/v2/posts/[id]/retweets.get';
+    export {default as comments} from './server/api/v2/posts/[id]/comments.get';
     export {default as like} from './server/api/v2/posts/[id]/likes.post';
     export {default as unlike} from './server/api/v2/posts/[id]/likes.delete';
     export {default as bookmark} from './server/api/v2/posts/[id]/bookmarks.post';
@@ -104,6 +105,10 @@ function database({revoked = false, expiredSession = false, failSession = false,
         interactions.visibilityChecks++;
         const exists = [1, 5].includes(binds.post_id) && binds.viewer_id === 1 && !(loseVisibility && interactions.visibilityChecks > 1);
         return {rows: exists ? [{POST_ID: binds.post_id}] : []};
+      }
+      if (sql.includes('FROM v_post_comment_list_item')) {
+        if (sql.startsWith('SELECT COUNT')) return {rows: [{TOTAL: 0}]};
+        return {rows: []};
       }
       if (/^(INSERT INTO|DELETE FROM) n_post_(likes|bookmarks)/.test(sql)) {
         const kind = sql.includes('n_post_likes') ? interactions.likes : interactions.bookmarks;
@@ -174,6 +179,7 @@ async function fixture(options) {
   router.get('/api/v2/notifications', routes.notifications);
   router.get('/api/v2/posts/:id/replies', routes.replies);
   router.get('/api/v2/posts/:id/retweets', routes.retweets);
+  router.get('/api/v2/posts/:id/comments', routes.comments);
   router.post('/api/v2/posts/:id/likes', routes.like);
   router.delete('/api/v2/posts/:id/likes', routes.unlike);
   router.post('/api/v2/posts/:id/bookmarks', routes.bookmark);
@@ -186,6 +192,30 @@ async function fixture(options) {
   const base = await listenForFetch(server);
   return {db, close: () => new Promise(resolve => server.close(resolve)), request: (url, headers = {}, method = 'GET') => fetch(base + url, {method, headers})};
 }
+
+test('comment list requires post visibility and protects count and rows independently', async () => {
+  const f = await fixture();
+  const headers = {authorization: `Bearer ${access()}`};
+  try {
+    assert.equal((await f.request('/api/v2/posts/1/comments')).status, 401);
+    const denied = await f.request('/api/v2/posts/2/comments', headers);
+    assert.equal(denied.status, 404);
+    assert.equal(f.db.calls.filter(call => call.sql.includes('v_post_comment_list_item')).length, 0);
+    const response = await f.request('/api/v2/posts/1/comments?sort=popular', headers);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    const body = await response.json();
+    assert.deepEqual(body.data, []);
+    const calls = f.db.calls.filter(call => call.sql.includes('v_post_comment_list_item'));
+    assert.equal(calls.length, 2);
+    for (const call of calls) {
+      assert.match(call.sql, /fn_can_view_post\(:viewer_id,\s*(?:c\.)?post_id\)\s*=\s*1/);
+      assert.equal(call.binds.viewer_id, 1);
+      assert.equal(call.binds.post_id, 1);
+    }
+    assert.equal((await f.request('/api/v2/posts/01/comments', headers)).status, 400);
+  } finally { await f.close(); }
+});
 
 test('anonymous public list uses null viewer, correct visibility/count/pagination and neutral viewer state', async () => {
   const f = await fixture();

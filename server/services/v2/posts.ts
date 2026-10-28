@@ -1389,6 +1389,7 @@ export async function v2ListComments(
   postId: number
 ): Promise<V2Response<V2Comment[]>> {
   const auth = v2Auth(event);
+  await v2RequireInteractionVisibility(connection, auth.userId, postId);
   const page = v2Page(event);
   const sort = v2QueryString(event, 'sort', 'newest');
   const order =
@@ -1397,7 +1398,7 @@ export async function v2ListComments(
       : sort === 'popular'
         ? 'ORDER BY c.likes_count DESC, c.created_at DESC'
         : 'ORDER BY c.created_at DESC';
-  const total = await v2CommentCount(connection, postId);
+  const total = await v2CommentCount(connection, postId, auth.userId);
   const rows = await v2Rows(
     connection,
     `
@@ -1423,6 +1424,7 @@ export async function v2ListComments(
         ROW_NUMBER() OVER (${order}) AS rn
       FROM v_post_comment_list_item c
       WHERE c.post_id = :post_id
+        AND fn_can_view_post(:viewer_id, c.post_id) = 1
     )
     WHERE rn BETWEEN :start_row AND :end_row
     `,

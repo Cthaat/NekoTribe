@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "efce6e7935e34f57e0e01e820451dc07e224b3a0d79e43aafd3c97d597393844"
+      "sha256": "c98749fc1e71216711be2a9d10fda574c30cb98ef8961d24c66045d65e75c25f"
     },
     "sources": [
       {
@@ -679,7 +679,7 @@
       },
       {
         "path": "server/api/v2/posts/[id]/comments.get.ts",
-        "sha256": "57ce476b769c5d5b508488adb32e71ac61b08fcf66c14004fe9742c81a9f8f56"
+        "sha256": "242a1ff78cc412191a3765d366729dc7b706f59e215aa9802bd677176cbb8e83"
       },
       {
         "path": "server/api/v2/posts/[id]/comments.post.ts",
@@ -919,7 +919,7 @@
       },
       {
         "path": "server/models/v2.ts",
-        "sha256": "114adb3620e377c2948a0dbc31142de9c3c330b3211bbfcecb96a48abb0ecfa3"
+        "sha256": "7d12b8a8e4f469165af3a9147d0cf6dd0f62b7f5c5bcbc6f3423ac3d15b665e5"
       },
       {
         "path": "server/plugins/01-redisClient.ts",
@@ -991,7 +991,7 @@
       },
       {
         "path": "server/services/v2/posts.ts",
-        "sha256": "520154d1941a840d02d792ed7e84970abfd638869ed0f3f8330c06fc97a9bd8b"
+        "sha256": "7cb2d3e596e2d8e0e6a553786b450933c770e2c70278dfb8b6b84362ed7bdd2c"
       },
       {
         "path": "server/services/v2/presence.ts",
@@ -3678,43 +3678,63 @@
       "id": "API-get_posts_id_comments",
       "title": "GET /api/v2/posts/{id}/comments: 获取帖子评论",
       "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "review": "reviewed",
+      "definition": "specifications/requirements/post-comments-list.md",
       "sourceFiles": [
-        "server/api/v2/posts/[id]/comments.get.ts"
+        "server/api/v2/posts/[id]/comments.get.ts",
+        "server/services/v2/posts.ts",
+        "server/models/v2.ts",
+        "server/utils/router-id.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "GET /api/v2/posts/{id}/comments"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "POST-COMMENTS-LIST",
+          "file": "specifications/scenarios/post-comments-list.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for GET /api/v2/posts/{id}/comments; create shared acceptance scenarios."
+            "Validate visibility, pagination, author mapping and client access with isolated Oracle and both frontends."
           ],
           "sourceFiles": [
-            "server/api/v2/posts/[id]/comments.get.ts"
+            "server/api/v2/posts/[id]/comments.get.ts",
+            "server/services/v2/posts.ts",
+            "server/models/v2.ts",
+            "server/utils/router-id.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement GET /api/v2/posts/{id}/comments natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate visibility, pagination, author mapping and client access with isolated Oracle and both frontends."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/posts/comments.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement GET /api/v2/posts/{id}/comments natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate visibility, pagination, author mapping and client access with isolated Oracle and both frontends."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/post_comments.go",
+            "internal/server/server.go"
+          ],
           "evidence": []
         }
       }
@@ -10670,6 +10690,26 @@
       "copies": {
         "rust": "contracts/scenarios/notification-restore.json",
         "go": "contracts/scenarios/notification-restore.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/post-comments-list.md",
+        "sha256": "39be9e67d249610aa631d9a77fcb846af0645bfbcf1831ca1aeb7999278c715a"
+      },
+      "copies": {
+        "rust": "contracts/requirements/post-comments-list.md",
+        "go": "contracts/requirements/post-comments-list.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/post-comments-list.json",
+        "sha256": "c04c3559219292896672f53e8b05c40a1839b522d2408b887a7bd5f53f1f02f1"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/post-comments-list.json",
+        "go": "contracts/scenarios/post-comments-list.json"
       }
     }
   ]

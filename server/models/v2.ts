@@ -529,16 +529,18 @@ export async function v2MapComment(
 
 export async function v2CommentCount(
   connection: oracledb.Connection,
-  postId: number
+  postId: number,
+  viewerId: number
 ): Promise<number> {
   return await v2Count(
     connection,
     `
     SELECT COUNT(*) AS total
-    FROM v_post_comment_list_item
-    WHERE post_id = :post_id
+    FROM v_post_comment_list_item c
+    WHERE c.post_id = :post_id
+      AND fn_can_view_post(:viewer_id, c.post_id) = 1
     `,
-    { post_id: postId }
+    { post_id: postId, viewer_id: viewerId }
   );
 }
 
