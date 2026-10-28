@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "26ee0485c484b3e96e8da147f383ab1ad98b763b14932751f32430805e05051c"
+      "sha256": "60fb9130a71a9eb040f2dde70a23b9c33ccdca11d11e7527908d2c7352559f11"
     },
     "sources": [
       {
@@ -647,7 +647,7 @@
       },
       {
         "path": "server/api/v2/notifications/read-status.put.ts",
-        "sha256": "e06955c02c2b96514ed54102318b7005742db6834f8e1826eadaedbe14d59dd8"
+        "sha256": "f70d3cb929dc3eabf07402a95e15a7c68790a69d8991f01135b4f7862018e76f"
       },
       {
         "path": "server/api/v2/posts/[id].delete.ts",
@@ -987,7 +987,7 @@
       },
       {
         "path": "server/services/v2/notifications.ts",
-        "sha256": "be5b7ae7f2eb6aa56dd813a5c339402586de36a4a24daac8130823c506db517e"
+        "sha256": "16d873acdd85722e7821c8a8114af3e90ebaaf47cabf68b44fdfc1a821923036"
       },
       {
         "path": "server/services/v2/posts.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "448a60ca3e214c9a7b412a74bd8f3c6ae4085d1753fd3a07537c2df7b5ba4ec7"
+        "sha256": "3ff3f2a710c92136c1170deae1059451054840d8a73ee48c53341f984826b5e1"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -4313,7 +4313,10 @@
         "PUT /api/v2/notifications/{id}/read-status"
       ],
       "scenarios": [
-        {"id":"NOTIFICATION-SINGLE-READ","file":"specifications/scenarios/notification-single-read.json"}
+        {
+          "id": "NOTIFICATION-SINGLE-READ",
+          "file": "specifications/scenarios/notification-single-read.json"
+        }
       ],
       "implementations": {
         "nuxt": {
@@ -4336,7 +4339,12 @@
           "tasks": [
             "Validate native owned updates, timestamps, events and error boundaries against isolated Oracle and Redis."
           ],
-          "sourceFiles": ["src/notifications.rs","src/auth/session_repository.rs","src/auth/sessions.rs","src/notification_events.rs"],
+          "sourceFiles": [
+            "src/notifications.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs",
+            "src/notification_events.rs"
+          ],
           "evidence": []
         },
         "go": {
@@ -4345,7 +4353,11 @@
           "tasks": [
             "Validate native owned updates, timestamps, events and error boundaries against isolated Oracle and Redis."
           ],
-          "sourceFiles": ["internal/server/notification_read.go","internal/server/server.go","internal/server/notification_events.go"],
+          "sourceFiles": [
+            "internal/server/notification_read.go",
+            "internal/server/server.go",
+            "internal/server/notification_events.go"
+          ],
           "evidence": []
         }
       }
@@ -4354,43 +4366,61 @@
       "id": "API-put_notifications_read_status",
       "title": "PUT /api/v2/notifications/read-status: 批量标记通知已读",
       "revision": 1,
-      "review": "unreviewed",
-      "definition": null,
+      "review": "reviewed",
+      "definition": "specifications/requirements/notification-batch-read.md",
       "sourceFiles": [
-        "server/api/v2/notifications/read-status.put.ts"
+        "server/api/v2/notifications/read-status.put.ts",
+        "server/services/v2/notifications.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "PUT /api/v2/notifications/read-status"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "NOTIFICATION-BATCH-READ",
+          "file": "specifications/scenarios/notification-batch-read.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for PUT /api/v2/notifications/read-status; create shared acceptance scenarios."
+            "Validate batch modes, partial failures and events against isolated Oracle, Redis and both clients."
           ],
           "sourceFiles": [
-            "server/api/v2/notifications/read-status.put.ts"
+            "server/api/v2/notifications/read-status.put.ts",
+            "server/services/v2/notifications.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement PUT /api/v2/notifications/read-status natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate batch modes, partial failures and events against isolated Oracle, Redis and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/notifications.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs",
+            "src/notification_events.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement PUT /api/v2/notifications/read-status natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Validate batch modes, partial failures and events against isolated Oracle, Redis and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/notification_batch.go",
+            "internal/server/server.go",
+            "internal/server/notification_events.go"
+          ],
           "evidence": []
         }
       }
@@ -10550,6 +10580,26 @@
       "copies": {
         "rust": "contracts/scenarios/notification-websocket.json",
         "go": "contracts/scenarios/notification-websocket.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/notification-batch-read.md",
+        "sha256": "c3080dbfa7aa1da749c937d59ce58c5178fe87e5e8fdd1c14cf9641c8f1f4615"
+      },
+      "copies": {
+        "rust": "contracts/requirements/notification-batch-read.md",
+        "go": "contracts/requirements/notification-batch-read.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/notification-batch-read.json",
+        "sha256": "f8003c97d65d7c48329ac9af690e65cfe2a2e40fec915262757c396b47d32166"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/notification-batch-read.json",
+        "go": "contracts/scenarios/notification-batch-read.json"
       }
     }
   ]

@@ -1,0 +1,13 @@
+{
+  "id": "NOTIFICATION-BATCH-READ",
+  "revision": 1,
+  "cases": [
+    {"id":"BATCH-01","assertion":"missing or empty ID list updates only the authenticated user's undeleted notifications"},
+    {"id":"BATCH-02","assertion":"selected positive safe integer IDs update only the authenticated user's matching notifications, including deleted"},
+    {"id":"BATCH-03","assertion":"malformed list and invalid IDs return 400 without writes or events"},
+    {"id":"BATCH-04","assertion":"repeated IDs retain ordering and count each successful update"},
+    {"id":"BATCH-05","assertion":"each selected update commits independently; a subsequent failure sends no event"},
+    {"id":"BATCH-06","assertion":"successful response and user-channel event include the appropriate mode and updated count"},
+    {"id":"BATCH-07","assertion":"real Oracle, Redis and both frontends verify isolated data, partial failures and cross-backend behavior"}
+  ]
+}

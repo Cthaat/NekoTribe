@@ -14580,9 +14580,9 @@
     },
     "/api/v2/notifications/read-status": {
       "put": {
-        "summary": "批量标记通知已读",
+        "summary": "批量更新通知已读状态",
         "deprecated": false,
-        "description": "批量标记通知已读",
+        "description": "省略 notification_ids 或传空数组时更新当前用户全部未删除通知；非空数组只更新指定通知。无效 ID 返回 400，is_read 省略时为未读。",
         "operationId": "put_notifications_read_status",
         "tags": [
           "Notifications"
@@ -14596,8 +14596,11 @@
                 "properties": {
                   "notification_ids": {
                     "type": "array",
+                    "maxItems": 1000,
                     "items": {
                       "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991,
                       "example": 800001
                     }
                   },
@@ -14606,7 +14609,7 @@
                     "example": true
                   }
                 },
-                "additionalProperties": false
+                "additionalProperties": true
               },
               "example": {
                 "notification_ids": [
@@ -14688,6 +14691,9 @@
           }
         },
         "security": [
+          {
+            "accessTokenCookie": []
+          },
           {
             "bearerAuth": []
           }

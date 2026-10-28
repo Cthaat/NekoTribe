@@ -11,6 +11,7 @@ import {
 } from '~/server/utils/wsSession';
 import {
   v2Auth,
+  v2BadRequest,
   v2Body,
   v2Boolean,
   v2Count,
@@ -21,7 +22,6 @@ import {
   v2NotFound,
   v2Null,
   v2Number,
-  v2NumberArray,
   v2Ok,
   v2One,
   v2Page,
@@ -405,8 +405,13 @@ export async function v2BatchSetNotificationReadStatus(
 ): Promise<V2Response<V2NotificationBatchReadData>> {
   const auth = v2Auth(event);
   const body = await v2Body(event);
+  const ids = body.notification_ids;
+  if (ids !== undefined && (
+    !Array.isArray(ids) || ids.length > 1000 ||
+    ids.some(id => typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0)
+  )) v2BadRequest('notification_ids 参数错误');
   const payload: V2NotificationBatchReadPayload = {
-    notification_ids: v2NumberArray(body.notification_ids),
+    notification_ids: ids as number[] | undefined,
     is_read: v2Boolean(body.is_read)
   };
   const isRead = payload.is_read ? 1 : 0;
