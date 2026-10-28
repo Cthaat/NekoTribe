@@ -67,7 +67,7 @@ func (c *createPostConn) ExecContext(_ context.Context, q string, args []driver.
 }
 func TestCreatePostAtomic(t *testing.T) {
 	ref := int64(1)
-	input := PostCreateInput{Content: "hello", Visibility: "public", ReplyToPostID: &ref, MediaIDs: []int64{11, 11, 12}, Tags: []string{"#cat", "cat"}, Mentions: []int64{7, 7}}
+	input := PostCreateInput{Content: "hello", Visibility: "public", ReplyToPostID: &ref, MediaIDs: []float64{11, 11, 12}, Tags: []string{"#cat", "cat"}, Mentions: []float64{7, 7}}
 	for _, tc := range []struct {
 		name               string
 		s                  createPostState
@@ -163,7 +163,7 @@ func TestCreatePostAtomicValidationAndRelationLimits(t *testing.T) {
 	if len(kinds) != 1 || kinds[0] != "repost" {
 		t.Fatal(kinds)
 	}
-	if got := uniquePostIDs([]int64{1, 1, 2, 3, 4, 5}, 4); len(got) != 4 || got[0] != 1 || got[3] != 4 {
+	if got := uniquePostIDs([]float64{1, 1, 2, 3, 4, 5}, 4); len(got) != 4 || got[0] != 1 || got[3] != 4 {
 		t.Fatal(got)
 	}
 	if got := uniquePostTags([]string{" \u00a0#cat ", "cat", "#CAT", "#", " # dog "}); len(got) != 3 || got[0] != "cat" || got[1] != "CAT" || got[2] != "dog" {
@@ -175,8 +175,32 @@ func TestCreatePostAtomicRollbackFailureIsNotReportedAsMediaError(t *testing.T) 
 	state := &createPostState{driverState: driverState{fail: "rollback"}, badMedia: true}
 	db := sql.OpenDB(createPostConnector{state})
 	defer db.Close()
-	id, err := (OracleSessions{db}).CreatePostAtomic(context.Background(), 42, PostCreateInput{Content: "text", MediaIDs: []int64{7}})
+	id, err := (OracleSessions{db}).CreatePostAtomic(context.Background(), 42, PostCreateInput{Content: "text", MediaIDs: []float64{7}})
 	if id != 0 || !errors.Is(err, errSessionStore) || state.rollbacks != 1 || state.commits != 0 {
 		t.Fatal(id, err, state.rollbacks, state.commits)
+	}
+}
+
+func TestCreatePostAtomicPreservesNumericRelationBindings(t *testing.T) {
+	state := &createPostState{}
+	db := sql.OpenDB(createPostConnector{state})
+	defer db.Close()
+	_, err := (OracleSessions{db}).CreatePostAtomic(context.Background(), 42, PostCreateInput{Content: "text", MediaIDs: []float64{7.5, 7.5, 0, -1, 8, 9}, Mentions: []float64{9.25, 9.25}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var media, mentions []float64
+	for _, call := range state.calls {
+		for _, arg := range call.args {
+			if strings.HasPrefix(call.sql, "INSERT INTO n_post_media") && arg.Name == "media_id" {
+				media = append(media, arg.Value.(float64))
+			}
+			if strings.HasPrefix(call.sql, "INSERT INTO n_post_mentions") && arg.Name == "user_id" {
+				mentions = append(mentions, arg.Value.(float64))
+			}
+		}
+	}
+	if len(media) != 4 || media[0] != 7.5 || media[1] != 0 || media[2] != -1 || media[3] != 8 || len(mentions) != 1 || mentions[0] != 9.25 {
+		t.Fatal(media, mentions)
 	}
 }

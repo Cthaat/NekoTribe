@@ -1,5 +1,7 @@
 # NekoTribe Go 后端（原生业务开发中）
 
+原生 `POST /api/v2/posts` 与 `POST /api/v2/posts/{id}/retweets` 已接入请求解析、引用可见性、帖子/关系事务、提交后通知及完整帖子响应；发帖不增加浏览量。80 条请求向量与 Nuxt 对照通过，另有事务、通知错误和 Redis 降级隔离测试。小数关系 ID 保留原值绑定，避免截断后关联到其他实体。真实 Oracle/Redis、跨后端和客户端仍待验收；非法 JSON 响应与请求体大小限制等已知框架差异见 `contracts/requirements/post-create-request.md`。
+
 模型传输现支持工具提议与工具结果的多轮历史编码，24 个共同合成场景及本机回环测试覆盖两种适配器；这不执行工具，也不代表 Agent、真实模型或业务验收完成。详见 `contracts/requirements/ai-tool-history.md`。
 
 原生 `POST /api/v2/posts/{id}/likes` 已接入点赞写入、可见性检查、首次点赞通知存储、完整通知及作者映射和 Redis 发布；重复点赞不重复通知。Redis 发布器与订阅端读取相同环境变量，通知关闭推送时仍按偏好存储。点赞、通知和推送不是单个事务，通知失败可能在点赞提交后返回错误，Redis 不可用时实时推送降级。当前只通过隔离驱动和发布替身测试，真实 Oracle 触发器、并发、Redis、客户端及跨后端联调仍待验收。

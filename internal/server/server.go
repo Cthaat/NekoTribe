@@ -137,7 +137,15 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			return
 		}
 		if r.Method == http.MethodPost || r.Method == http.MethodDelete {
+			if r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v2/posts" {
+				createPost(w, r, codec, repository, refresh, "")
+				return
+			}
 			parts := strings.Split(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
+			if r.Method == http.MethodPost && len(parts) == 5 && parts[0] == "api" && parts[1] == "v2" && parts[2] == "posts" && parts[3] != "" && parts[4] == "retweets" {
+				createPost(w, r, codec, repository, refresh, parts[3])
+				return
+			}
 			if len(parts) == 5 && parts[0] == "api" && parts[1] == "v2" && parts[2] == "comments" && parts[3] != "" && parts[4] == "likes" {
 				setCommentLike(w, r, codec, repository, refresh, parts[3])
 				return

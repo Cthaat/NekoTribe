@@ -18,9 +18,9 @@ var (
 type PostCreateInput struct {
 	Content, Visibility, Location               string
 	ReplyToPostID, RepostOfPostID, QuotedPostID *int64
-	MediaIDs                                    []int64
+	MediaIDs                                    []float64
 	Tags                                        []string
-	Mentions                                    []int64
+	Mentions                                    []float64
 }
 
 const insertPostAtomicSQL = `INSERT INTO n_posts (post_id,author_id,content,post_type,reply_to_post_id,repost_of_post_id,quoted_post_id,visibility,language,location) SELECT :post_id,:author_id,:content,:post_type,:reply_to_post_id,:repost_of_post_id,:quoted_post_id,:visibility,'zh',:location FROM dual`
@@ -157,9 +157,9 @@ func nullablePostString(value string) any {
 	}
 	return value
 }
-func uniquePostIDs(values []int64, limit int) []int64 {
-	out := make([]int64, 0, limit)
-	seen := make(map[int64]bool)
+func uniquePostIDs(values []float64, limit int) []float64 {
+	out := make([]float64, 0, limit)
+	seen := make(map[float64]bool)
 	for _, value := range values {
 		if !seen[value] {
 			seen[value] = true

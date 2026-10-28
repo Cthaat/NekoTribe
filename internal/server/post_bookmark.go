@@ -16,19 +16,8 @@ type postBookmarkStore interface {
 }
 
 func interactionIdentity(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, raw string) (int64, int64, bool) {
-	w.Header().Set("Cache-Control", "private, no-store")
-	token := accessToken(r)
-	if token == "" {
-		respond(w, 401, 40101, "请先登录", nil)
-		return 0, 0, false
-	}
-	claims, err := codec.Verify(token, auth.Access)
-	if err != nil {
-		respond(w, 401, 40101, "Token无效或已过期", nil)
-		return 0, 0, false
-	}
-	if n, err := repository.Touch(r.Context(), claims); err != nil || n != 1 {
-		respond(w, 401, 40101, "Token无效或已过期", nil)
+	user, ok := interactionActor(w, r, codec, repository)
+	if !ok {
 		return 0, 0, false
 	}
 	decoded, err := url.PathUnescape(raw)
@@ -41,7 +30,26 @@ func interactionIdentity(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 		respond(w, 400, 40001, "id 参数错误", nil)
 		return 0, 0, false
 	}
-	return claims.UserID, id, true
+	return user, id, true
+}
+
+func interactionActor(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository) (int64, bool) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	token := accessToken(r)
+	if token == "" {
+		respond(w, 401, 40101, "请先登录", nil)
+		return 0, false
+	}
+	claims, err := codec.Verify(token, auth.Access)
+	if err != nil {
+		respond(w, 401, 40101, "Token无效或已过期", nil)
+		return 0, false
+	}
+	if n, err := repository.Touch(r.Context(), claims); err != nil || n != 1 {
+		respond(w, 401, 40101, "Token无效或已过期", nil)
+		return 0, false
+	}
+	return claims.UserID, true
 }
 
 func setPostBookmark(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, raw string) {
