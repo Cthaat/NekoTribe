@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "id": "USER-PUBLIC-PROFILE",
+  "revision": 1,
+  "profile": {
+    "user_id": 7,
+    "username": "publicuser",
+    "display_name": "Public User",
+    "avatar_url": "/storage/default-avatar.png",
+    "bio": "hello",
+    "location": "",
+    "website": "",
+    "is_verified": 0,
+    "followers_count": 2,
+    "following_count": 3,
+    "posts_count": 4,
+    "likes_count": 5,
+    "relationship": {
+      "is_self": false,
+      "is_following": true,
+      "is_blocked": false,
+      "is_blocking": false,
+      "relation": "following"
+    },
+    "online_status": "online",
+    "last_seen_at": "2026-01-02T03:04:05.000Z"
+  },
+  "cases": [
+    {
+      "id": "PUBLIC-01",
+      "auth": "valid",
+      "target": "7",
+      "status": 200,
+      "profiles": 1
+    },
+    {
+      "id": "PUBLIC-02",
+      "auth": "cookie",
+      "target": "7",
+      "status": 200,
+      "profiles": 1
+    },
+    {
+      "id": "PUBLIC-03",
+      "auth": "valid",
+      "target": "7",
+      "status": 200,
+      "profiles": 1,
+      "hidden": true
+    },
+    {
+      "id": "PUBLIC-04",
+      "auth": "valid",
+      "target": "7",
+      "status": 200,
+      "profiles": 1,
+      "offline": true
+    },
+    {
+      "id": "PUBLIC-05",
+      "auth": "none",
+      "target": "7",
+      "status": 401,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-06",
+      "auth": "expired",
+      "target": "7",
+      "status": 401,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-07",
+      "auth": "bad-cookie",
+      "target": "7",
+      "status": 401,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-08",
+      "auth": "valid",
+      "target": "7",
+      "revoked": true,
+      "status": 401,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-09",
+      "auth": "valid",
+      "target": "7",
+      "touch_fail": true,
+      "status": 401,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-10",
+      "auth": "valid",
+      "target": "7",
+      "missing": true,
+      "status": 404,
+      "profiles": 1
+    },
+    {
+      "id": "PUBLIC-11",
+      "auth": "valid",
+      "target": "7",
+      "fault": true,
+      "status": 500,
+      "profiles": 1
+    },
+    {
+      "id": "PUBLIC-12",
+      "auth": "valid",
+      "target": "0",
+      "status": 400,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-13",
+      "auth": "valid",
+      "target": "-1",
+      "status": 400,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-14",
+      "auth": "valid",
+      "target": "1.5",
+      "status": 400,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-15",
+      "auth": "valid",
+      "target": "0x10",
+      "status": 400,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-16",
+      "auth": "valid",
+      "target": "1e3",
+      "status": 400,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-17",
+      "auth": "valid",
+      "target": "01",
+      "status": 400,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-18",
+      "auth": "valid",
+      "target": "9007199254740992",
+      "status": 400,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-19",
+      "auth": "none",
+      "target": "bad",
+      "status": 401,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-20",
+      "auth": "valid",
+      "target": "abc",
+      "status": 400,
+      "profiles": 0
+    },
+    {
+      "id": "PUBLIC-21",
+      "auth": "valid",
+      "target": "9007199254740991",
+      "missing": true,
+      "status": 404,
+      "profiles": 1
+    }
+  ]
+}

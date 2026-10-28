@@ -94,6 +94,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			getSelfProfile(w, r, codec, repository, refresh)
 			return
 		}
+		if id, ok := publicProfileSegment(r.URL.EscapedPath()); ok && id != "me" && r.Method == http.MethodGet {
+			getPublicProfile(w, r, codec, repository, refresh, id)
+			return
+		}
 		const prefix = "/api/v2/auth/sessions/"
 		path := r.URL.EscapedPath()
 		if !strings.HasPrefix(path, prefix) || strings.TrimPrefix(path, prefix) == "" || strings.Contains(strings.TrimPrefix(path, prefix), "/") {
