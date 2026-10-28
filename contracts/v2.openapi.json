@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-28-self-profile-update"
+    "x-contract-revision": "2026-10-28-public-profile"
   },
   "tags": [
     {
@@ -3941,7 +3941,7 @@
       "get": {
         "summary": "获取用户公开资料",
         "deprecated": false,
-        "description": "获取用户公开资料",
+        "description": "需要登录，按查看者计算关系并尊重在线状态隐私；id 为无前导零的十进制安全正整数。仅返回公开资料。",
         "operationId": "get_users_id",
         "tags": [
           "Users"
@@ -3950,11 +3950,13 @@
           {
             "name": "id",
             "in": "path",
-            "description": "用户 ID",
+            "description": "十进制正整数，不接受前导零、十六进制、科学计数法或小数",
             "required": true,
-            "example": 0,
+            "example": 7,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
             }
           }
         ],
@@ -3968,11 +3970,17 @@
                   "properties": {
                     "code": {
                       "type": "integer",
-                      "example": 200
+                      "example": 200,
+                      "enum": [
+                        200
+                      ]
                     },
                     "message": {
                       "type": "string",
-                      "example": "success"
+                      "example": "success",
+                      "enum": [
+                        "success"
+                      ]
                     },
                     "data": {
                       "type": "object",
@@ -4049,74 +4057,171 @@
                               "example": "following"
                             }
                           },
-                          "additionalProperties": false
+                          "additionalProperties": false,
+                          "required": [
+                            "is_self",
+                            "is_following",
+                            "is_blocked",
+                            "is_blocking",
+                            "relation"
+                          ]
+                        },
+                        "online_status": {
+                          "type": "string",
+                          "enum": [
+                            "online",
+                            "offline",
+                            "hidden"
+                          ]
+                        },
+                        "last_seen_at": {
+                          "type": "string",
+                          "nullable": true
                         }
                       },
-                      "additionalProperties": false
+                      "additionalProperties": false,
+                      "required": [
+                        "user_id",
+                        "username",
+                        "display_name",
+                        "avatar_url",
+                        "bio",
+                        "location",
+                        "website",
+                        "is_verified",
+                        "followers_count",
+                        "following_count",
+                        "posts_count",
+                        "likes_count",
+                        "relationship",
+                        "online_status",
+                        "last_seen_at"
+                      ]
                     },
                     "meta": {
                       "type": "object",
-                      "additionalProperties": true,
-                      "properties": {},
-                      "nullable": true
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
                     }
                   },
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ]
                 },
                 "example": {
                   "code": 200,
                   "message": "success",
                   "data": {
-                    "user_id": 1001,
-                    "username": "demo",
-                    "display_name": "Demo",
-                    "avatar_url": "/upload/avatars/1001.png",
+                    "user_id": 7,
+                    "username": "publicuser",
+                    "display_name": "Public User",
+                    "avatar_url": "/storage/default-avatar.png",
                     "bio": "hello",
-                    "location": "Shanghai",
-                    "website": "https://example.com",
-                    "is_verified": 1,
-                    "followers_count": 10,
-                    "following_count": 20,
-                    "posts_count": 30,
-                    "likes_count": 40,
+                    "location": "",
+                    "website": "",
+                    "is_verified": 0,
+                    "followers_count": 2,
+                    "following_count": 3,
+                    "posts_count": 4,
+                    "likes_count": 5,
                     "relationship": {
                       "is_self": false,
                       "is_following": true,
                       "is_blocked": false,
                       "is_blocking": false,
                       "relation": "following"
-                    }
+                    },
+                    "online_status": "online",
+                    "last_seen_at": "2026-01-02T03:04:05.000Z"
                   },
                   "meta": null
                 }
               }
             },
-            "headers": {}
+            "headers": {
+              "Cache-Control": {
+                "description": "Private user data must not be stored.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "private, no-store"
+                  ]
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest",
             "description": "请求参数错误"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized",
-            "description": "未认证或 token 无效"
+            "description": "未登录或会话失效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "403": {
             "$ref": "#/components/responses/Forbidden",
             "description": "权限不足"
           },
           "404": {
-            "$ref": "#/components/responses/NotFound",
-            "description": "资源不存在"
+            "description": "用户不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "500": {
-            "$ref": "#/components/responses/InternalError",
-            "description": "服务器内部错误"
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V2ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/V2HttpErrorTransport"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "accessTokenCookie": []
           }
         ]
       }
