@@ -52,7 +52,7 @@ const compiled = await build({
 const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text + '\n//# sourceURL=isolated-posts-bundle.mjs').toString('base64')}`);
 const access = (payload = {}, options = {}) => jwt.sign({userId: 1, userName: 'viewer', sessionId: 'session', jti: 'current', type: 'access', ...payload}, secret, {expiresIn: 600, ...options});
 
-function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false} = {}) {
+function database({revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false} = {}) {
   const schema = schemaFixture({ baseline: true });
   if (missingMediaSchema) {
     const table = schema.state.tables.get('N_MEDIA_ASSETS');
@@ -80,6 +80,7 @@ function database({revoked = false, expiredSession = false, failSession = false,
         return {rowsAffected: live ? 1 : 0};
       }
       if (sql.includes('FROM v_post_feed_item v')) {
+        if (failList) throw new Error('private-database-error SQL secret');
         let visible = posts.filter(post => !post.deleted);
         if (sql.includes('fn_can_view_post(:viewer_id, v.post_id) = 1')) visible = visible.filter(post =>
           post.VISIBILITY === 'public' || post.AUTHOR_ID === binds.viewer_id ||
@@ -157,6 +158,21 @@ test('post list binds search and pagination consistently for count and selected 
     assert.equal(rows.binds.end_row, 6);
     assert.match(rows.sql, /ORDER BY v\.engagement_score DESC, v\.created_at DESC/);
   } finally {await f.close();}
+});
+
+test('post list does not expose unexpected database failures', async () => {
+  const f = await fixture({failList: true});
+  const errors = [];
+  const previousError = console.error;
+  console.error = (...args) => errors.push(args.map(String).join(' '));
+  try {
+    const response = await f.request('/api/v2/posts');
+    const body = await response.text();
+    assert.equal(response.status, 500);
+    assert.ok(!body.includes('private-database-error'), body);
+    assert.ok(!body.includes('SQL secret'), body);
+    assert.ok(!errors.join('\n').includes('private-database-error'), errors.join('\n'));
+  } finally {console.error = previousError; await f.close();}
 });
 
 test('anonymous detail excludes private/followers/mentioned/deleted/group posts without incrementing their views', async () => {
@@ -284,6 +300,17 @@ test('missing media schema returns sanitized 503 without request-time DDL or vie
     assert(!/N_MEDIA|DESCRIPTION|Oracle|SELECT|migration/i.test(body.data.message));
     assert.equal(f.db.calls.filter(call => /^(CREATE|ALTER|DROP)\b/.test(call.sql)).length, 0);
     assert.equal(f.db.calls.filter(call => call.sql.startsWith('UPDATE n_post_stats')).length, 0);
+  } finally {await f.close();}
+});
+
+test('post list preserves 503 when a returned item needs an unavailable media schema', async () => {
+  const f = await fixture({missingMediaSchema: true});
+  try {
+    const response = await f.request('/api/v2/posts');
+    const body = await response.json();
+    assert.equal(response.status, 503);
+    assert.equal(body.data.code, 50301);
+    assert.equal(f.db.calls.filter(call => /^(CREATE|ALTER|DROP|UPDATE n_post_stats)\b/.test(call.sql)).length, 0);
   } finally {await f.close();}
 });
 

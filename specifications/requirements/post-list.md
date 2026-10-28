@@ -1,6 +1,6 @@
 # 帖子列表与搜索共同要求
 
-本切片目标是 `GET /api/v2/posts`；Nuxt `server/services/v2/posts.ts` 的 `v2ListPosts` 为现有业务来源，Rust/Go 原生列表尚未实现。热门、个人、用户、标签、回复和转发列表复用部分同一服务，但各自路由和授权尚需独立审查，不能因本切片而宣布其完成。
+本切片目标是 `GET /api/v2/posts`；Nuxt `server/services/v2/posts.ts` 的 `v2ListPosts` 为现有业务来源，Rust/Go 已接入原生列表并通过局部隔离测试，尚未完成全部共同场景和真实环境验收。热门、个人、用户、标签、回复和转发列表复用部分同一服务，但各自路由和授权尚需独立审查，不能因本切片而宣布其完成。
 
 ## 身份和过滤
 
@@ -18,4 +18,4 @@
 
 ## 验收边界
 
-`scenarios/post-list.json` 是待三端接入的共同验收清单；Nuxt 当前专项测试验证匿名/认证过滤、分页及搜索 SQL 绑定，并非对真实 Oracle LIKE、函数、排序、并发或数据库结构的证明。最终须阻断 Nuxt 上游分别验证 Rust/Go，使用隔离 Oracle/Redis 和两种前端验证数据读写、搜索、权限、分页和失败响应。
+`scenarios/post-list.json` 是待三端执行的共同验收清单；三端已有各自的局部隔离测试，涵盖匿名/认证过滤、分页、错误及搜索 SQL 绑定，但不是完整共同 runner，也不证明真实 Oracle LIKE、函数、排序、并发或数据库结构。URL 畸形编码和 Unicode 小写在不同运行时的边界仍需跨语言专项对照。最终须阻断 Nuxt 上游分别验证 Rust/Go，使用隔离 Oracle/Redis 和两种前端验证数据读写、搜索、权限、分页和失败响应。

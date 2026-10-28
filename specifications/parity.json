@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "77d6123c04432fcee9af7413753e12b4868966a6861edafdedc0007091ee603c"
+      "sha256": "7f798fe6d6e447572532a111a1c699c866ac9fbec33e50281e3bb45c438b8d60"
     },
     "sources": [
       {
@@ -711,7 +711,7 @@
       },
       {
         "path": "server/api/v2/posts/index.get.ts",
-        "sha256": "808740c45a1aa896787e6b3a703f9514111ea2153e7c5ffce8694e887f08a764"
+        "sha256": "5a0d0c09adcb345d7c66cd7dbe2c85efc5cae48aab4387d60b29d85dcfe341e2"
       },
       {
         "path": "server/api/v2/posts/index.post.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "6dcd2a245550dfe26107db2a8bd5dccfc30b13232d098bb84f602e6bf407fd8e"
+        "sha256": "5c1f613bacc208f5b6a9837a6d16b9289bf50daa30876aa9685bcc46e1cf08e5"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -3248,7 +3248,7 @@
     {
       "id": "API-get_posts",
       "title": "GET /api/v2/posts: 获取帖子列表或搜索帖子",
-      "revision": 2,
+      "revision": 3,
       "review": "reviewed",
       "definition": "specifications/requirements/post-list.md",
       "sourceFiles": [
@@ -3256,7 +3256,8 @@
         "server/services/v2/posts.ts",
         "server/models/v2.ts",
         "server/utils/v2.ts",
-        "server/middleware/auth.ts"
+        "server/middleware/auth.ts",
+        "server/utils/auth-entry-errors.ts"
       ],
       "operations": [
         "GET /api/v2/posts"
@@ -3270,38 +3271,49 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
-            "nuxt: implement and verify the shared post list requirements and scenarios.",
-            "nuxt: validate isolated Oracle visibility, search, pagination and cross-backend client behavior before acceptance."
+            "nuxt: verify post list behavior against all common scenarios.",
+            "nuxt: complete isolated real Oracle, cross-backend, client and deployment acceptance."
           ],
           "sourceFiles": [
             "server/api/v2/posts/index.get.ts",
             "server/services/v2/posts.ts",
             "server/models/v2.ts",
             "server/utils/v2.ts",
-            "server/middleware/auth.ts"
+            "server/middleware/auth.ts",
+            "server/utils/auth-entry-errors.ts"
           ],
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
-          "targetRevision": 2,
+          "state": "in-progress",
+          "targetRevision": 3,
           "tasks": [
-            "rust: implement and verify the shared post list requirements and scenarios.",
-            "rust: validate isolated Oracle visibility, search, pagination and cross-backend client behavior before acceptance."
+            "rust: verify post list behavior against all common scenarios.",
+            "rust: complete isolated real Oracle, cross-backend, client and deployment acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/posts/list.rs",
+            "src/posts/detail.rs",
+            "src/auth/sessions.rs",
+            "src/auth/session_repository.rs"
+          ],
           "evidence": []
         },
         "go": {
-          "state": "not-started",
-          "targetRevision": 2,
+          "state": "in-progress",
+          "targetRevision": 3,
           "tasks": [
-            "go: implement and verify the shared post list requirements and scenarios.",
-            "go: validate isolated Oracle visibility, search, pagination and cross-backend client behavior before acceptance."
+            "go: verify post list behavior against all common scenarios.",
+            "go: complete isolated real Oracle, cross-backend, client and deployment acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/post_list.go",
+            "internal/server/post_detail.go",
+            "internal/server/post_repository.go",
+            "internal/server/server.go"
+          ],
           "evidence": []
         }
       },
@@ -10617,7 +10629,7 @@
     {
       "source": {
         "path": "specifications/requirements/post-list.md",
-        "sha256": "d9832c5f0291df4acae340db29a88fbdb80b775692b0a33afb71883bdc0f7306"
+        "sha256": "c3b874e39bb0835802eed35d4d7f83919f5776f5fb2d2f16df7dea4213cbadd0"
       },
       "copies": {
         "rust": "contracts/requirements/post-list.md",

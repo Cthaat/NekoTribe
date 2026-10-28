@@ -33,6 +33,19 @@ test('post detail contract describes anonymous access and actual rich response',
   assert.equal(error(businessError), true, JSON.stringify(error.errors));
   assert.equal(error({error: true, url: '/api/v2/posts/1', statusCode: 503, statusMessage: 'Service temporarily unavailable', message: 'Service temporarily unavailable', data: businessError}), true, JSON.stringify(error.errors));
 });
+
+test('post list contract permits anonymous and rich results with compatible pagination', () => {
+  const operation = spec.paths['/api/v2/posts'].get;
+  assert.ok(operation.security.some(item => Object.keys(item).length === 0));
+  assert.ok(operation.security.some(item => Object.hasOwn(item, 'accessTokenCookie')));
+  const pointer = '/api/v2/posts'.replaceAll('/', '~1');
+  const check = ajv.compile({$ref: `${base}#/paths/${pointer}/get/responses/200/content/application~1json/schema`});
+  const fixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/post-detail-vectors.json', import.meta.url)));
+  const value = {code: 200, message: 'success', data: [fixture.post], meta: {page: 1.5, page_size: 2.5, total: 3, has_next: false}};
+  assert.equal(check(value), true, JSON.stringify(check.errors));
+  value.data[0].mentions = ['not a user'];
+  assert.equal(check(value), false);
+});
 // Local refs in operation fragments need the document's canonical base.
 function requestValidator(method, path) {
   const pointer = path.replaceAll('~', '~0').replaceAll('/', '~1');
