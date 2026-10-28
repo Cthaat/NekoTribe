@@ -1,0 +1,1617 @@
+{
+  "id": "POST-CREATE-REQUEST-VECTORS",
+  "revision": 1,
+  "scope": "Authenticated request parsing and pre-write validation for POST /api/v2/posts and POST /api/v2/posts/:id/retweets. Successful cases assume usable referenced entities and a successful repository stub; normalized input precedes relationship deduplication and caps.",
+  "cases": [
+    {
+      "id": "REQUEST-01-text-defaults",
+      "route": "create",
+      "body": {
+        "content": "hello"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-02-preserve-whitespace",
+      "route": "create",
+      "body": {
+        "content": "  hello\n",
+        "location": " \tplace "
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "  hello\n",
+          "visibility": "public",
+          "location": " \tplace ",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-03-number-and-boolean-strings",
+      "route": "create",
+      "body": {
+        "content": 0,
+        "location": false
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "0",
+          "visibility": "public",
+          "location": "false",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-04-boolean-content",
+      "route": "create",
+      "body": {
+        "content": false,
+        "location": 1.5
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "false",
+          "visibility": "public",
+          "location": "1.5",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-05-ignored-language",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "language": "invalid",
+        "location": {}
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-06-media-only",
+      "route": "create",
+      "body": {
+        "content": null,
+        "media_ids": [
+          11
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [
+            11
+          ],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-07-space-content-with-media",
+      "route": "create",
+      "body": {
+        "content": " \t\n﻿",
+        "media_ids": [
+          11
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": " \t\n﻿",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [
+            11
+          ],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-08-empty-post",
+      "route": "create",
+      "body": {},
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "content 不能为空"
+      }
+    },
+    {
+      "id": "REQUEST-09-object-content",
+      "route": "create",
+      "body": {
+        "content": {
+          "text": "hello"
+        }
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "content 不能为空"
+      }
+    },
+    {
+      "id": "REQUEST-10-array-content",
+      "route": "create",
+      "body": {
+        "content": [
+          "hello"
+        ]
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "content 不能为空"
+      }
+    },
+    {
+      "id": "REQUEST-11-whitespace-content",
+      "route": "create",
+      "body": {
+        "content": " \t\n﻿"
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "content 不能为空"
+      }
+    },
+    {
+      "id": "REQUEST-12-visibility-fallback-null",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": null
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-12-visibility-fallback-array",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": []
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-12-visibility-fallback-object",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": {}
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-13-visibility-public",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": "public"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-13-visibility-followers",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": "followers"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "followers",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-13-visibility-mentioned",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": "mentioned"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "mentioned",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-13-visibility-private",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": "private"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "private",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-14-visibility-invalid-empty",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": ""
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-14-visibility-invalid-spaces",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": " public "
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-14-visibility-invalid-case",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": "PUBLIC"
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-14-visibility-invalid-number",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": 1
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-14-visibility-invalid-bool",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "visibility": false
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-15-number-array-coercion",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "media_ids": [
+          -1,
+          0,
+          1.5,
+          " 2 ",
+          "0x10",
+          "0b11",
+          "0o7",
+          "1e2",
+          " ",
+          "",
+          "﻿",
+          true,
+          false,
+          null,
+          {},
+          [],
+          "NaN",
+          "Infinity",
+          "-Infinity",
+          "1e309"
+        ],
+        "mention_user_ids": [
+          -2,
+          -0.5,
+          0,
+          "+3",
+          ".5",
+          "4.",
+          "-1e2",
+          9007199254740992
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [
+            -1,
+            0,
+            1.5,
+            2,
+            16,
+            3,
+            7,
+            100,
+            0,
+            0
+          ],
+          "tag_names": [],
+          "mention_user_ids": [
+            -2,
+            -0.5,
+            0,
+            3,
+            0.5,
+            4,
+            -100,
+            9007199254740992
+          ],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-16-arrays-required",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "media_ids": "11",
+        "tag_names": "cat",
+        "mention_user_ids": 2
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-17-preserve-duplicates-and-order",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "media_ids": [
+          11,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "mention_user_ids": [
+          2,
+          2,
+          3
+        ],
+        "tag_names": [
+          " Cat ",
+          "Cat",
+          "#cat",
+          "cat"
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [
+            11,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "tag_names": [
+            "Cat",
+            "Cat",
+            "#cat",
+            "cat"
+          ],
+          "mention_user_ids": [
+            2,
+            2,
+            3
+          ],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-18-tag-string-conversion",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "tag_names": [
+          " # Cat ",
+          true,
+          false,
+          42,
+          null,
+          [],
+          {},
+          " ﻿"
+        ],
+        "location": [
+          "place"
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [
+            "# Cat",
+            "true",
+            "false",
+            "42"
+          ],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-19-camel-aliases",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "mediaIds": [
+          11
+        ],
+        "tagNames": [
+          " cat "
+        ],
+        "mentionUserIds": [
+          2
+        ],
+        "replyToPostId": "3"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "reply",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [
+            11
+          ],
+          "tag_names": [
+            "cat"
+          ],
+          "mention_user_ids": [
+            2
+          ],
+          "reply_to_post_id": 3,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-20-primary-null-wins",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "media_ids": null,
+        "mediaIds": [
+          11
+        ],
+        "tag_names": null,
+        "tagNames": [
+          "cat"
+        ],
+        "mention_user_ids": null,
+        "mentionUserIds": [
+          2
+        ],
+        "reply_to_post_id": null,
+        "replyToPostId": "3"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-21-primary-empty-wins",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "media_ids": [],
+        "mediaIds": [
+          11
+        ],
+        "tag_names": [],
+        "tagNames": [
+          "cat"
+        ],
+        "mention_user_ids": [],
+        "mentionUserIds": [
+          2
+        ],
+        "quoted_post_id": "",
+        "quotedPostId": "3"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-22-primary-value-wins",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "media_ids": [
+          12
+        ],
+        "mediaIds": [
+          11
+        ],
+        "tag_names": [
+          "dog"
+        ],
+        "tagNames": [
+          "cat"
+        ],
+        "mention_user_ids": [
+          3
+        ],
+        "mentionUserIds": [
+          2
+        ],
+        "repost_of_post_id": 4,
+        "repostOfPostId": 5
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "retweet created",
+        "post_type": "repost",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [
+            12
+          ],
+          "tag_names": [
+            "dog"
+          ],
+          "mention_user_ids": [
+            3
+          ],
+          "reply_to_post_id": null,
+          "repost_of_post_id": 4,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-23-null-empty-references",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": null,
+        "repost_of_post_id": "",
+        "quoted_post_id": null
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-24-reply-number",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": 3
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "reply",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": 3,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-25-quote-string",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "quoted_post_id": "3"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "quote",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": 3
+        }
+      }
+    },
+    {
+      "id": "REQUEST-26-repost-empty",
+      "route": "create",
+      "body": {
+        "repost_of_post_id": "3"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "retweet created",
+        "post_type": "repost",
+        "input": {
+          "content": "",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": 3,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-27-max-safe-reference",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "quotedPostId": "9007199254740991"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "quote",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": 9007199254740991
+        }
+      }
+    },
+    {
+      "id": "REQUEST-28-maximum-safe-number",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": 9007199254740991
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "reply",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": 9007199254740991,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-zero",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": 0
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-negative",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": -1
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-fraction",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": 1.5
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-zero-string",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": "0"
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-leading-zero",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": "01"
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-whitespace",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": " 1 "
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-plus",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": "+1"
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-exponent",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": "1e0"
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-decimal",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": "1.0"
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-bool",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": true
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-array",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": []
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-object",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": {}
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-unsafe-string",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": "9007199254740992"
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-29-reference-invalid-unsafe-number",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": 9007199254740992
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-30-primary-invalid-beats-alias",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": 0,
+        "replyToPostId": 3
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-31-multiple-references",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "reply_to_post_id": 1,
+        "quotedPostId": 2
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "引用字段只能传一个"
+      }
+    },
+    {
+      "id": "REQUEST-32-references-before-content",
+      "route": "create",
+      "body": {
+        "reply_to_post_id": 1,
+        "quoted_post_id": 2
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "引用字段只能传一个"
+      }
+    },
+    {
+      "id": "REQUEST-33-invalid-reference-before-content",
+      "route": "create",
+      "body": {
+        "reply_to_post_id": 0
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-34-visibility-before-references",
+      "route": "create",
+      "body": {
+        "visibility": "invalid",
+        "reply_to_post_id": 0
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-35-filtered-media-is-empty",
+      "route": "create",
+      "body": {
+        "media_ids": [
+          null,
+          true,
+          false,
+          "",
+          "invalid",
+          {},
+          []
+        ]
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "content 不能为空"
+      }
+    },
+    {
+      "id": "REQUEST-36-reply-requires-content",
+      "route": "create",
+      "body": {
+        "reply_to_post_id": 3
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "content 不能为空"
+      }
+    },
+    {
+      "id": "REQUEST-37-quote-requires-content",
+      "route": "create",
+      "body": {
+        "quoted_post_id": 3
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "content 不能为空"
+      }
+    },
+    {
+      "id": "REQUEST-38-nonobject-body-null",
+      "route": "create",
+      "body": null,
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "请求体必须是 JSON 对象"
+      }
+    },
+    {
+      "id": "REQUEST-38-nonobject-body-array",
+      "route": "create",
+      "body": [],
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "请求体必须是 JSON 对象"
+      }
+    },
+    {
+      "id": "REQUEST-38-nonobject-body-number",
+      "route": "create",
+      "body": 1,
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "请求体必须是 JSON 对象"
+      }
+    },
+    {
+      "id": "REQUEST-38-nonobject-body-boolean",
+      "route": "create",
+      "body": true,
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "请求体必须是 JSON 对象"
+      }
+    },
+    {
+      "id": "REQUEST-38-nonobject-body-string",
+      "route": "create",
+      "body": "text",
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "请求体必须是 JSON 对象"
+      }
+    },
+    {
+      "id": "REQUEST-39-retweet-minimal",
+      "route": "retweet",
+      "path_id": "3",
+      "body": {},
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "retweet created",
+        "post_type": "repost",
+        "input": {
+          "content": "",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": 3,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-40-retweet-preserve-content",
+      "route": "retweet",
+      "path_id": "3",
+      "body": {
+        "content": " \t\n",
+        "visibility": "followers"
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "retweet created",
+        "post_type": "repost",
+        "input": {
+          "content": " \t\n",
+          "visibility": "followers",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": 3,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-41-retweet-ignores-extra-fields",
+      "route": "retweet",
+      "path_id": "3",
+      "body": {
+        "content": false,
+        "visibility": "private",
+        "media_ids": [
+          11
+        ],
+        "mediaIds": [
+          12
+        ],
+        "tag_names": [
+          "cat"
+        ],
+        "tagNames": [
+          "dog"
+        ],
+        "mention_user_ids": [
+          2
+        ],
+        "mentionUserIds": [
+          3
+        ],
+        "location": "place",
+        "language": "en",
+        "reply_to_post_id": "invalid",
+        "replyToPostId": 4,
+        "repost_of_post_id": 9,
+        "repostOfPostId": 10,
+        "quoted_post_id": {},
+        "quotedPostId": 11
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "retweet created",
+        "post_type": "repost",
+        "input": {
+          "content": "false",
+          "visibility": "private",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": 3,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-42-retweet-invalid-visibility",
+      "route": "retweet",
+      "path_id": "3",
+      "body": {
+        "visibility": ""
+      },
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "visibility 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-43-retweet-nonobject-body",
+      "route": "retweet",
+      "path_id": "3",
+      "body": null,
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "请求体必须是 JSON 对象"
+      }
+    },
+    {
+      "id": "REQUEST-44-retweet-decoded-path",
+      "route": "retweet",
+      "path_id": "%33",
+      "body": {},
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "retweet created",
+        "post_type": "repost",
+        "input": {
+          "content": "",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": 3,
+          "quoted_post_id": null
+        }
+      }
+    },
+    {
+      "id": "REQUEST-45-retweet-invalid-path-zero",
+      "route": "retweet",
+      "path_id": "0",
+      "body": {},
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-45-retweet-invalid-path-leading-zero",
+      "route": "retweet",
+      "path_id": "03",
+      "body": {},
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-45-retweet-invalid-path-fraction",
+      "route": "retweet",
+      "path_id": "3.5",
+      "body": {},
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-45-retweet-invalid-path-negative",
+      "route": "retweet",
+      "path_id": "-3",
+      "body": {},
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-45-retweet-invalid-path-unsafe",
+      "route": "retweet",
+      "path_id": "9007199254740992",
+      "body": {},
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-45-retweet-invalid-path-escaped-space",
+      "route": "retweet",
+      "path_id": "%203",
+      "body": {},
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-45-retweet-invalid-path-escaped-slash",
+      "route": "retweet",
+      "path_id": "%2F",
+      "body": {},
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-45-retweet-invalid-path-malformed-escape",
+      "route": "retweet",
+      "path_id": "%zz",
+      "body": {},
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-46-path-before-body",
+      "route": "retweet",
+      "path_id": "03",
+      "body": null,
+      "expected": {
+        "status": 400,
+        "code": 40001,
+        "message": "id 参数错误"
+      }
+    },
+    {
+      "id": "REQUEST-47-ignored-unknown-fields",
+      "route": "create",
+      "body": {
+        "content": "hello",
+        "unknown": "ignored",
+        "post_type": "repost",
+        "author_id": 99
+      },
+      "expected": {
+        "status": 200,
+        "code": 200,
+        "message": "post created",
+        "post_type": "post",
+        "input": {
+          "content": "hello",
+          "visibility": "public",
+          "location": "",
+          "media_ids": [],
+          "tag_names": [],
+          "mention_user_ids": [],
+          "reply_to_post_id": null,
+          "repost_of_post_id": null,
+          "quoted_post_id": null
+        }
+      }
+    }
+  ]
+}
