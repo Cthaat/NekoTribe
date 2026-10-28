@@ -25,6 +25,28 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    fn create_post_atomic<'a>(
+        &'a self, _actor: u64, _input: &'a crate::posts::create_request::PostCreateInput,
+    ) -> StoreFuture<'a, crate::posts::create_transaction::PostCreation> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn post_create_actor_name(&self, _actor: u64) -> StoreFuture<'_, String> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn post_create_source_author(&self, _post: u64) -> StoreFuture<'_, Option<u64>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn post_create_excerpt(&self, _post: u64) -> StoreFuture<'_, String> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn resolve_post_mention_recipient(&self, _user: f64) -> StoreFuture<'_, Option<u64>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn store_post_create_notification<'a>(
+        &'a self, _input: &'a crate::posts::create_notification::PostNoticeInput,
+    ) -> StoreFuture<'a, Option<crate::auth::session_repository::StoredNotification>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn reset_password_atomic<'a>(
         &'a self,
         _email: &'a str,
@@ -540,7 +562,7 @@ pub fn build_native_router_with_realtime_and_publisher(
             "/api/v2/posts/{id}/likes",
             post(crate::posts::like::add).delete(crate::posts::bookmark::remove_like),
         )
-        .route("/api/v2/posts", get(crate::posts::list::list_posts))
+        .route("/api/v2/posts", get(crate::posts::list::list_posts).post(crate::posts::create::create))
         .route("/api/v2/notifications", get(crate::notifications::list))
         .route(
             "/api/v2/notifications/{id}",
@@ -591,7 +613,7 @@ pub fn build_native_router_with_realtime_and_publisher(
         )
         .route(
             "/api/v2/posts/{id}/retweets",
-            get(crate::posts::list::scoped_posts),
+            get(crate::posts::list::scoped_posts).post(crate::posts::create::retweet),
         )
         .route(
             "/api/v2/users/{id}",
@@ -945,7 +967,7 @@ pub(crate) fn access_token(headers: &HeaderMap) -> String {
         .trim()
         .to_owned()
 }
-fn percent_decode(value: &str) -> Option<String> {
+pub(crate) fn percent_decode(value: &str) -> Option<String> {
     let mut out = Vec::new();
     let b = value.as_bytes();
     let mut i = 0;

@@ -1,10 +1,12 @@
-# NekoTribe Rust 后端（兼容模式与原生会话切片）
+# NekoTribe Rust 后端（兼容模式与原生业务开发）
+
+原生 `POST /api/v2/posts` 和 `POST /api/v2/posts/{id}/retweets` 已接入请求解析、引用权限、单连接事务、媒体/标签/提及写入、提交后通知及完整帖子映射。最终读取不增加浏览量，原生路径不回退 Nuxt。80 条共同请求向量及事务、通知、响应错误边界已通过隔离测试；真实 Oracle、Redis、并发及双客户端仍待验收。通知或最终读取失败可能发生在帖子已提交之后，不得自动重试创建；非法 JSON 和 1 MiB 正文限制与 Nuxt 的差异见 `contracts/requirements/post-create-request.md`。
 
 模型传输现支持工具提议与工具结果的多轮历史编码，24 个共同合成场景及本机回环测试覆盖两种适配器；这不执行工具，也不代表 Agent、真实模型或业务验收完成。详见 `contracts/requirements/ai-tool-history.md`。
 
 原生 `POST /api/v2/posts/{id}/likes` 已接入点赞写入、可见性检查、首次点赞通知存储、完整通知及作者映射和 Redis 发布；重复点赞不重复通知。Redis 发布器按同一配置惰性连接，点赞与通知不是单个事务，通知错误可能在点赞提交后返回 500，Redis 失败时实时推送降级。当前仅通过隔离仓储与模拟 Redis 测试，真实 Oracle 触发器、并发、Redis、客户端和跨后端联调仍待验收。
 
-本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册登录/2FA 挑战、会话列表与撤销、验证码创建和校验、账号注册、令牌刷新与退出和进程健康检查，直接访问 Oracle，不注册其他业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
+本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册认证、用户资料、帖子读取与创建/转发、评论互动、标签、通知及通知 WebSocket 等原生切片，直接访问共享基础设施，不注册业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
 
 原生 `/_ws` 提供通知订阅和心跳：连接时验证 access token、Oracle 会话与浏览器来源；投递前和定期检查会话，撤销或过期后断开。使用 `REDIS_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、`REDIS_PASSWORD` 配置共享 Redis，支持 `rediss://`；浏览器跨域来源和反向代理外部来源需显式加入 `CORS_ALLOWED_ORIGINS`。当前仅覆盖通知与心跳，群聊、私信、在线状态、真实 Redis/Oracle 联调仍未完成。
 

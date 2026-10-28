@@ -93,6 +93,13 @@ fn post_list_sql(query: &crate::posts::list::PostListQuery) -> (&'static str, &'
     (count, page)
 }
 pub trait SessionExecutor: Send + Sync {
+    fn create_post_atomic<'a>(
+        &'a self,
+        _actor: u64,
+        _input: &'a crate::posts::create_request::PostCreateInput,
+    ) -> StoreFuture<'a, crate::posts::create_transaction::PostCreation> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn reset_password_atomic<'a>(
         &'a self,
         _email: &'a str,
@@ -257,6 +264,31 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn create_post_atomic<'a>(
+        &'a self,
+        actor: u64,
+        input: &'a crate::posts::create_request::PostCreateInput,
+    ) -> StoreFuture<'a, crate::posts::create_transaction::PostCreation> {
+        self.executor.create_post_atomic(actor, input)
+    }
+    fn post_create_actor_name(&self, actor: u64) -> StoreFuture<'_, String> {
+        Box::pin(crate::posts::create_notification::actor_name(&self.executor, actor))
+    }
+    fn post_create_source_author(&self, post: u64) -> StoreFuture<'_, Option<u64>> {
+        Box::pin(crate::posts::create_notification::source_author(&self.executor, post))
+    }
+    fn post_create_excerpt(&self, post: u64) -> StoreFuture<'_, String> {
+        Box::pin(crate::posts::create_notification::excerpt(&self.executor, post))
+    }
+    fn resolve_post_mention_recipient(&self, user: f64) -> StoreFuture<'_, Option<u64>> {
+        Box::pin(crate::posts::create_notification::resolve_mention_recipient(&self.executor, user))
+    }
+    fn store_post_create_notification<'a>(
+        &'a self,
+        input: &'a crate::posts::create_notification::PostNoticeInput,
+    ) -> StoreFuture<'a, Option<StoredNotification>> {
+        Box::pin(crate::posts::create_notification::store(self, input))
+    }
     fn set_comment_like<'a>(&'a self,viewer:u64,id:u64,liked:bool)->StoreFuture<'a,Option<crate::posts::like::PostLikeOutcome>> {
         Box::pin(async move {
             let id=i64::try_from(id).map_err(|_|SessionStoreError)?;
@@ -1470,6 +1502,20 @@ fn session_binds(user: u64, id: &str) -> BindMap {
     ])
 }
 impl SessionExecutor for OraclePool {
+    fn create_post_atomic<'a>(
+        &'a self,
+        actor: u64,
+        input: &'a crate::posts::create_request::PostCreateInput,
+    ) -> StoreFuture<'a, crate::posts::create_transaction::PostCreation> {
+        let input = input.clone();
+        Box::pin(async move {
+            self.run_blocking(move |connection| {
+                crate::posts::create_transaction::execute(connection, actor, &input)
+            })
+            .await
+            .map_err(|_| SessionStoreError)
+        })
+    }
     fn reset_password_atomic<'a>(
         &'a self,
         email: &'a str,

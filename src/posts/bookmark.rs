@@ -81,6 +81,22 @@ pub(crate) async fn interaction_identity(
     raw: &str,
     headers: &HeaderMap,
 ) -> Result<(u64, u64), ApiError> {
+    let user = interaction_actor(state, headers).await?;
+    if raw.is_empty() || raw.starts_with('0') || !raw.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(ApiError::bad_request("id 参数错误"));
+    }
+    let id = raw
+        .parse::<u64>()
+        .ok()
+        .filter(|id| *id > 0 && *id <= 9_007_199_254_740_991)
+        .ok_or_else(|| ApiError::bad_request("id 参数错误"))?;
+    Ok((user, id))
+}
+
+pub(crate) async fn interaction_actor(
+    state: &NativeState,
+    headers: &HeaderMap,
+) -> Result<u64, ApiError> {
     let token = access_token(headers);
     if token.is_empty() {
         return Err(ApiError::unauthorized("请先登录"));
@@ -92,13 +108,5 @@ pub(crate) async fn interaction_identity(
     if state.repository.touch(&claims).await.unwrap_or(0) != 1 {
         return Err(ApiError::unauthorized("Token无效或已过期"));
     }
-    if raw.is_empty() || raw.starts_with('0') || !raw.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(ApiError::bad_request("id 参数错误"));
-    }
-    let id = raw
-        .parse::<u64>()
-        .ok()
-        .filter(|id| *id > 0 && *id <= 9_007_199_254_740_991)
-        .ok_or_else(|| ApiError::bad_request("id 参数错误"))?;
-    Ok((claims.user_id, id))
+    Ok(claims.user_id)
 }
