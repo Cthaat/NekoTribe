@@ -302,6 +302,8 @@ pub(crate) struct NativeState {
     pub(crate) refresh_policy: RefreshPolicy,
     pub(crate) storage_urls: crate::auth::storage_urls::StorageUrlPolicy,
     pub(crate) otp_mailer: Arc<dyn crate::auth::otp::OtpMailer>,
+    pub(crate) cors: CorsPolicy,
+    pub(crate) notification_source: Option<Arc<dyn crate::notification_source::NotificationSource>>,
 }
 pub fn build_native_router(
     codec: TokenCodec,
@@ -354,6 +356,27 @@ pub fn build_native_router_with_mail(
     storage_urls: crate::auth::storage_urls::StorageUrlPolicy,
     otp_mailer: Arc<dyn crate::auth::otp::OtpMailer>,
 ) -> Router {
+    build_native_router_with_realtime(
+        codec,
+        repository,
+        cors,
+        clock,
+        refresh_policy,
+        storage_urls,
+        otp_mailer,
+        None,
+    )
+}
+pub fn build_native_router_with_realtime(
+    codec: TokenCodec,
+    repository: Arc<dyn SessionRepository>,
+    cors: CorsPolicy,
+    clock: Arc<dyn Fn() -> u64 + Send + Sync>,
+    refresh_policy: RefreshPolicy,
+    storage_urls: crate::auth::storage_urls::StorageUrlPolicy,
+    otp_mailer: Arc<dyn crate::auth::otp::OtpMailer>,
+    notification_source: Option<Arc<dyn crate::notification_source::NotificationSource>>,
+) -> Router {
     Router::new()
         .route(
             "/api/health",
@@ -403,6 +426,7 @@ pub fn build_native_router_with_mail(
         )
         .route("/api/v2/posts", get(crate::posts::list::list_posts))
         .route("/api/v2/notifications", get(crate::notifications::list))
+        .route("/_ws", get(crate::notification_websocket::upgrade))
         .route("/api/v2/tags", get(crate::tags::list_tags))
         .route("/api/v2/tags/trending", get(crate::tags::list_tags))
         .route(
@@ -446,7 +470,10 @@ pub fn build_native_router_with_mail(
             get(crate::users::self_profile::get_me).patch(crate::users::self_profile::patch_me),
         )
         .fallback(|| async { ApiError::route_not_found() })
-        .layer(middleware::from_fn_with_state(cors, cors_middleware))
+        .layer(middleware::from_fn_with_state(
+            cors.clone(),
+            cors_middleware,
+        ))
         .with_state(NativeState {
             codec: Arc::new(codec),
             repository,
@@ -454,6 +481,8 @@ pub fn build_native_router_with_mail(
             refresh_policy,
             storage_urls,
             otp_mailer,
+            cors,
+            notification_source,
         })
 }
 
@@ -674,7 +703,7 @@ fn body_refresh_token(headers: &HeaderMap, body: &[u8]) -> Option<String> {
         })
 }
 
-fn named_cookie(headers: &HeaderMap, target: &str) -> Option<String> {
+pub(crate) fn named_cookie(headers: &HeaderMap, target: &str) -> Option<String> {
     headers
         .get_all("cookie")
         .iter()
@@ -829,7 +858,7 @@ impl CorsPolicy {
             || (local.is_none() && get("NODE_ENV").as_deref() == Some("development"));
         policy
     }
-    fn allows(&self, origin: &str) -> bool {
+    pub(crate) fn allows(&self, origin: &str) -> bool {
         if normalize_origin(origin).is_none() {
             return false;
         };

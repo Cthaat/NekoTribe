@@ -36,6 +36,50 @@ fn native_config_validates_and_redacts() {
 }
 
 #[test]
+fn native_redis_uses_shared_configuration_and_redacts_credentials() {
+    let mut e = env();
+    e.insert(
+        "REDIS_URL".into(),
+        "redis://:old-secret@redis.example:6380/3".into(),
+    );
+    e.insert("REDIS_HOST".into(), "redis.internal".into());
+    e.insert("REDIS_PORT".into(), "6381".into());
+    e.insert("REDIS_DB".into(), "4".into());
+    e.insert("REDIS_PASSWORD".into(), "new@secret:/".into());
+    let config = AppConfig::native_from_lookup(|k| e.get(k).cloned()).unwrap();
+    let url = reqwest::Url::parse(&config.redis.connection_url()).unwrap();
+    assert_eq!(url.host_str(), Some("redis.internal"));
+    assert_eq!(url.port(), Some(6381));
+    assert_eq!(url.path(), "/4");
+    assert!(!format!("{config:?}").contains("secret"));
+    assert!(url.password().is_some());
+    let client = redis::Client::open(config.redis.connection_url()).unwrap();
+    assert_eq!(
+        client.get_connection_info().redis_settings().password(),
+        Some("new@secret:/")
+    );
+    e.insert("REDIS_URL".into(), "rediss://redis.example:6380/3".into());
+    let tls = AppConfig::native_from_lookup(|k| e.get(k).cloned()).unwrap();
+    assert!(tls.redis.connection_url().starts_with("rediss://"));
+    assert!(redis::Client::open(tls.redis.connection_url()).is_ok());
+    e.insert("REDIS_PORT".into(), "bad-secret".into());
+    let error = AppConfig::native_from_lookup(|k| e.get(k).cloned()).unwrap_err();
+    assert!(!error.to_string().contains("secret"));
+}
+
+#[test]
+fn native_redis_uses_docker_overrides_only_when_enabled() {
+    let mut e = env();
+    e.insert("REDIS_HOST".into(), "local.example".into());
+    e.insert("DOCKER_REDIS_HOST".into(), "container.example".into());
+    let local = AppConfig::native_from_lookup(|k| e.get(k).cloned()).unwrap();
+    assert_eq!(local.redis.host, "local.example");
+    e.insert("NEKOTRIBE_DOCKER".into(), "true".into());
+    let container = AppConfig::native_from_lookup(|k| e.get(k).cloned()).unwrap();
+    assert_eq!(container.redis.host, "container.example");
+}
+
+#[test]
 fn smtp_prefers_nuxt_variables_and_redacts_credentials() {
     use nekotribe_backend::auth::otp::SmtpConfig;
     let both = BTreeMap::from([

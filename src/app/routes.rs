@@ -74,7 +74,11 @@ fn native_router(
 ) -> Result<Router, SessionStoreError> {
     let options = config.native.as_ref().ok_or(SessionStoreError)?;
     let codec = options.keys.codec().map_err(|_| SessionStoreError)?;
-    Ok(sessions::build_native_router_with_mail(
+    let source = Arc::new(
+        crate::notification_source::RedisNotificationSource::new(&config.redis)
+            .map_err(|_| SessionStoreError)?,
+    );
+    Ok(sessions::build_native_router_with_realtime(
         codec,
         repository,
         options.cors.clone(),
@@ -82,6 +86,7 @@ fn native_router(
         options.refresh_policy,
         options.storage_urls.clone(),
         Arc::new(options.smtp.clone()),
+        Some(source),
     )
     .layer(axum_middleware::from_fn_with_state(
         config,

@@ -14,7 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 aes-gcm = "=0.10.3"
-axum = "0.8"
+axum = { version = "0.8", features = ["ws"] }
 base64 = "=0.22.1"
 bcrypt = "=0.17.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
@@ -25,7 +25,8 @@ http = "1"
 jsonwebtoken = { version = "=10.3.0", default-features = false, features = ["rust_crypto"] }
 lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "webpki-roots"] }
 oracle = { version = "0.6.3", features = ["chrono"] }
-redis = { version = "1.2.1", features = ["tokio-comp", "connection-manager"] }
+redis = { version = "1.2.1", features = ["tokio-rustls-comp", "connection-manager"] }
+futures-util = "0.3"
 regex = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "stream"] }
 serde = { version = "1", features = ["derive"] }
@@ -47,3 +48,4 @@ dotenvy = "0.15"
 http-body-util = "0.1"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 tower = { version = "0.5", features = ["util"] }
+tokio-tungstenite = "0.29"

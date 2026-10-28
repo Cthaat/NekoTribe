@@ -4,9 +4,11 @@
 
 本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册登录/2FA 挑战、会话列表与撤销、验证码创建和校验、账号注册、令牌刷新与退出和进程健康检查，直接访问 Oracle，不注册其他业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
 
+原生 `/_ws` 提供通知订阅和心跳：连接时验证 access token、Oracle 会话与浏览器来源；投递前和定期检查会话，撤销或过期后断开。使用 `REDIS_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、`REDIS_PASSWORD` 配置共享 Redis，支持 `rediss://`；浏览器跨域来源和反向代理外部来源需显式加入 `CORS_ALLOWED_ORIGINS`。当前仅覆盖通知与心跳，群聊、私信、在线状态、真实 Redis/Oracle 联调仍未完成。
+
 原生 `PATCH /api/v2/users/me` 已按共同规范接入资料部分更新，通过隔离路由与 SQL 绑定场景；真实 Oracle 和跨后端缓存仍待验收。
 
-媒体结构只读检查已复用共享迁移目录，供帖子等功能后续接入；帖子详情原生路由仍未实现。
+媒体结构只读检查已复用共享迁移目录；帖子详情、部分列表和收藏等已有原生切片，真实 Oracle 与完整业务验收仍待进行。
 
 原生 `GET /api/v2/users/{id}` 已接入公开资料、关系和在线状态隐私；共同隔离场景通过，真实 Oracle、时区和客户端联调仍待验收。
 

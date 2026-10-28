@@ -81,7 +81,7 @@ pub struct RedisConfig {
     pub url: Option<String>,
     pub host: String,
     pub port: u16,
-    pub db: u8,
+    pub db: u16,
     pub password: Option<String>,
 }
 impl fmt::Debug for RedisConfig {
@@ -203,13 +203,7 @@ impl AppConfig {
                 pool_min,
                 pool_max,
             },
-            redis: RedisConfig {
-                url: None,
-                host: "127.0.0.1".into(),
-                port: 6379,
-                db: 0,
-                password: None,
-            },
+            redis: native_redis_from_lookup(&get)?,
             legacy_backend: LegacyBackendConfig {
                 base_url: String::new(),
             },
@@ -266,7 +260,7 @@ impl AppConfig {
             "6379",
         ))?;
         let redis_db = env_var("REDIS_DB")
-            .and_then(|raw| raw.parse::<u8>().ok())
+            .and_then(|raw| raw.parse::<u16>().ok())
             .unwrap_or(0);
 
         Ok(Self {
@@ -342,6 +336,70 @@ impl AppConfig {
     }
 }
 
+fn native_redis_from_lookup(
+    get: &impl Fn(&str) -> Option<String>,
+) -> Result<RedisConfig, ConfigError> {
+    let value = |keys: &[&str]| {
+        keys.iter()
+            .find_map(|key| get(key).filter(|v| !v.is_empty()))
+    };
+    let docker = [
+        "NEKOTRIBE_DOCKER",
+        "RUNNING_IN_DOCKER",
+        "RUST_BACKEND_DOCKER",
+    ]
+    .iter()
+    .any(|key| parse_bool(get(key).as_deref()));
+    let mut raw = value(&["NUXT_REDIS_URL", "REDIS_URL"]);
+    let mut host = value(&["NUXT_REDIS_HOST", "REDIS_HOST"]);
+    let mut port = value(&["NUXT_REDIS_PORT", "REDIS_PORT"]);
+    if docker {
+        raw = value(&["DOCKER_REDIS_URL"]).or(raw);
+        host = value(&["DOCKER_REDIS_HOST"]).or(host);
+        port = value(&["DOCKER_REDIS_PORT"]).or(port);
+    }
+    let mut raw = raw.unwrap_or_else(|| "redis://127.0.0.1:6379/0".into());
+    if !raw.contains("://") {
+        raw = format!("redis://{raw}");
+    }
+    let invalid = || ConfigError::new("invalid Redis configuration");
+    let mut url = reqwest::Url::parse(&raw).map_err(|_| invalid())?;
+    if !matches!(url.scheme(), "redis" | "rediss")
+        || url.host_str().is_none()
+        || url.fragment().is_some()
+    {
+        return Err(invalid());
+    }
+    if let Some(host) = host {
+        url.set_host(Some(&host)).map_err(|_| invalid())?;
+    }
+    let port = match port {
+        Some(port) => native_port(&port).map_err(|_| invalid())?,
+        None => url.port().unwrap_or(6379),
+    };
+    url.set_port(Some(port)).map_err(|_| invalid())?;
+    let path = url.path().trim_start_matches('/');
+    let mut db = if path.is_empty() {
+        0
+    } else {
+        path.parse::<u16>().map_err(|_| invalid())?
+    };
+    if let Some(value) = value(&["NUXT_REDIS_DB", "REDIS_DB"]) {
+        db = value.parse::<u16>().map_err(|_| invalid())?;
+    }
+    url.set_path(&format!("/{db}"));
+    if let Some(password) = value(&["NUXT_REDIS_PASSWORD", "REDIS_PASSWORD"]) {
+        url.set_password(Some(&password)).map_err(|_| invalid())?;
+    }
+    Ok(RedisConfig {
+        host: url.host_str().ok_or_else(invalid)?.to_owned(),
+        port,
+        db,
+        url: Some(url.to_string()),
+        password: None,
+    })
+}
+
 impl ServerConfig {
     pub fn bind_addr(&self) -> String {
         format!("{}:{}", self.host, self.port)
@@ -372,7 +430,7 @@ impl RedisConfig {
     }
 }
 
-fn normalize_redis_url(input: &str, password: Option<&str>, db: u8) -> String {
+fn normalize_redis_url(input: &str, password: Option<&str>, db: u16) -> String {
     let mut url = if input.contains("://") {
         input.to_string()
     } else {
