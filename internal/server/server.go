@@ -124,6 +124,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 				removePostLike(w, r, codec, repository, parts[3])
 				return
 			}
+			if len(parts) == 5 && parts[0] == "api" && parts[1] == "v2" && parts[2] == "posts" && parts[3] != "" && parts[4] == "likes" && r.Method == http.MethodPost {
+				addPostLike(w, r, codec, repository, refresh, parts[3])
+				return
+			}
 		}
 		if r.Method == http.MethodGet {
 			mode, found := map[string]string{"/api/v2/posts": "all", "/api/v2/posts/trending": "trending", "/api/v2/users/me/posts": "me", "/api/v2/users/me/bookmarks": "bookmarks", "/api/v2/users/me/likes": "likes"}[r.URL.EscapedPath()]

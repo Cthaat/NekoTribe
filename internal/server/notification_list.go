@@ -25,7 +25,22 @@ type NotificationItem struct {
 	Metadata     any         `json:"metadata"`
 	CreatedAt    string      `json:"created_at"`
 	ActorID      *int64      `json:"-"`
+	metadataRaw  json.RawMessage
 }
+
+// Preserve valid metadata JSON verbatim so JavaScript UTF-16 surrogate escapes
+// survive a read-and-republish cycle through Go's UTF-8 string representation.
+func (item NotificationItem) MarshalJSON() ([]byte, error) {
+	type plain NotificationItem
+	if len(item.metadataRaw) == 0 {
+		return json.Marshal(plain(item))
+	}
+	return json.Marshal(struct {
+		plain
+		Metadata json.RawMessage `json:"metadata"`
+	}{plain(item), item.metadataRaw})
+}
+
 type NotificationQuery struct {
 	Page                    SessionPage
 	Type                    string
@@ -56,6 +71,8 @@ func scanNotification(row notificationScanner) (NotificationItem, error) {
 	if metadata.Valid && metadata.String != "" {
 		if json.Unmarshal([]byte(metadata.String), &item.Metadata) != nil {
 			item.Metadata = metadata.String
+		} else {
+			item.metadataRaw = json.RawMessage(metadata.String)
 		}
 	}
 	return item, nil

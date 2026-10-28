@@ -222,3 +222,21 @@ func TestNotificationByIDMissingAndDatabaseErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestNotificationLookupPreservesUTF16ExcerptEscape(t *testing.T) {
+	var calls []listQueryCall
+	db := sql.OpenDB(notificationConnector{&calls, &driverState{}, `{"post_excerpt":"prefix\ud83d..."}`})
+	defer db.Close()
+	item, found, err := (OracleSessions{db}).NotificationByID(context.Background(), 42, 12)
+	if err != nil || !found {
+		t.Fatal(found, err)
+	}
+	encoded, err := json.Marshal(item)
+	if err != nil || !strings.Contains(string(encoded), `"post_excerpt":"prefix\ud83d..."`) {
+		t.Fatal(string(encoded), err)
+	}
+	_, event, err := buildNotificationEvent(42, "notification_created", map[string]interface{}{"notification": item}, "server", 1)
+	if err != nil || !strings.Contains(string(event), `"post_excerpt":"prefix\ud83d..."`) {
+		t.Fatal(string(event), err)
+	}
+}
