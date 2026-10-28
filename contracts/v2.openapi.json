@@ -14443,7 +14443,7 @@
       "put": {
         "summary": "更新单条通知已读状态",
         "deprecated": false,
-        "description": "更新单条通知已读状态",
+        "description": "更新当前用户单条通知的已读状态；额外字段会被忽略，is_read 缺省时为未读。",
         "operationId": "put_notifications_id_read_status",
         "tags": [
           "Notifications"
@@ -14452,11 +14452,13 @@
           {
             "name": "id",
             "in": "path",
-            "description": "通知 ID",
+            "description": "规范正整数通知 ID（禁止前导零）",
             "required": true,
-            "example": 0,
+            "example": 1,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
             }
           }
         ],
@@ -14471,10 +14473,17 @@
                     "example": true
                   }
                 },
-                "additionalProperties": false
+                "additionalProperties": true
               },
               "example": {
                 "is_read": true
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": { "is_read": { "type": "string", "example": "true" } },
+                "additionalProperties": true
               }
             }
           },
@@ -14509,6 +14518,7 @@
                         },
                         "read_at": {
                           "type": "string",
+                          "nullable": true,
                           "example": "2026-04-26T01:00:00Z"
                         }
                       },
@@ -14559,6 +14569,9 @@
           }
         },
         "security": [
+          {
+            "accessTokenCookie": []
+          },
           {
             "bearerAuth": []
           }
