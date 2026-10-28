@@ -959,7 +959,7 @@
       },
       {
         "path": "server/services/ai/inference-transport.ts",
-        "sha256": "0f1b5b2ba9ca7a22ac870707a9a2164d86b49e2291952ad0f6f00600b3868e42"
+        "sha256": "c1b0968803e40ea174a24a60be3652d0e5c396cb624eddc9dba06bacc248d37e"
       },
       {
         "path": "server/services/ai/model-configuration.ts",
@@ -8695,7 +8695,7 @@
     },
     {
       "id": "AI-MODEL-SWITCHING",
-      "revision": 1,
+      "revision": 2,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-model-switching.md",
       "sourceFiles": [
@@ -8715,16 +8715,20 @@
         {
           "id": "AI-INFERENCE-TRANSPORT",
           "file": "specifications/scenarios/ai-inference-transport.json"
+        },
+        {
+          "id": "AI-TOOL-HISTORY",
+          "file": "specifications/scenarios/ai-tool-history.json"
         }
       ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "nuxt: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
             "nuxt: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle.",
-            "Configuration/select/CAS and native non-streaming Ollama/OpenAI-compatible HTTP components implemented and unit-tested; complete real capability checks, business/stream integration, tool-result rounds and MODEL-S001..008 including embedding index lifecycle before acceptance."
+            "Configuration, non-streaming transport and tool-history encoding implemented in isolated tests; complete business orchestration, authorization, streaming, real provider capability checks, MODEL-S001..008 and embedding lifecycle before acceptance."
           ],
           "sourceFiles": [
             "server/services/ai/model-configuration.ts",
@@ -8734,11 +8738,11 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "rust: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
             "rust: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle.",
-            "Configuration/select/CAS and native non-streaming Ollama/OpenAI-compatible HTTP components implemented and unit-tested; complete real capability checks, business/stream integration, tool-result rounds and MODEL-S001..008 including embedding index lifecycle before acceptance."
+            "Configuration, non-streaming transport and tool-history encoding implemented in isolated tests; complete business orchestration, authorization, streaming, real provider capability checks, MODEL-S001..008 and embedding lifecycle before acceptance."
           ],
           "sourceFiles": [
             "src/ai/model_config.rs",
@@ -8748,11 +8752,11 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "go: implement configurable role-to-model routing, provider adapters and per-request snapshots without hardcoded Qwen/endpoint.",
             "go: execute MODEL-S001..008 for actual provider switches, capability failures, secret isolation and embedding index lifecycle.",
-            "Configuration/select/CAS and native non-streaming Ollama/OpenAI-compatible HTTP components implemented and unit-tested; complete real capability checks, business/stream integration, tool-result rounds and MODEL-S001..008 including embedding index lifecycle before acceptance."
+            "Configuration, non-streaming transport and tool-history encoding implemented in isolated tests; complete business orchestration, authorization, streaming, real provider capability checks, MODEL-S001..008 and embedding lifecycle before acceptance."
           ],
           "sourceFiles": [
             "internal/ai/model_config.go",
@@ -8764,7 +8768,7 @@
     },
     {
       "id": "AI-KNOWLEDGE-WRITING",
-      "revision": 2,
+      "revision": 3,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
@@ -8778,7 +8782,7 @@
       "implementations": {
         "nuxt": {
           "state": "not-started",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "nuxt: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -8789,7 +8793,7 @@
         },
         "rust": {
           "state": "not-started",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "rust: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -8800,7 +8804,7 @@
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "go: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -8812,12 +8816,14 @@
       },
       "sharedDependencies": [
         "specifications/requirements/ai-agent-runtime.md",
-        "specifications/scenarios/ai-agent-runtime.json"
+        "specifications/scenarios/ai-agent-runtime.json",
+        "specifications/requirements/ai-tool-history.md",
+        "specifications/scenarios/ai-tool-history.json"
       ]
     },
     {
       "id": "AI-GROUP-AGENT",
-      "revision": 2,
+      "revision": 3,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
@@ -8835,7 +8841,7 @@
       "implementations": {
         "nuxt": {
           "state": "not-started",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "nuxt: Target-group-admin-only bounded public-content tools and draft workflow; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "nuxt: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance.",
@@ -8846,7 +8852,7 @@
         },
         "rust": {
           "state": "not-started",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "rust: Target-group-admin-only bounded public-content tools and draft workflow; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "rust: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance.",
@@ -8857,7 +8863,7 @@
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "go: Target-group-admin-only bounded public-content tools and draft workflow; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "go: execute AI-GROUP-AGENT acceptance scenarios with real business/model boundaries before acceptance.",
@@ -8869,12 +8875,14 @@
       },
       "sharedDependencies": [
         "specifications/requirements/ai-agent-runtime.md",
-        "specifications/scenarios/ai-agent-runtime.json"
+        "specifications/scenarios/ai-agent-runtime.json",
+        "specifications/requirements/ai-tool-history.md",
+        "specifications/scenarios/ai-tool-history.json"
       ]
     },
     {
       "id": "AI-MODERATION-AID",
-      "revision": 2,
+      "revision": 3,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [],
@@ -8888,7 +8896,7 @@
       "implementations": {
         "nuxt": {
           "state": "not-started",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "nuxt: Moderator-only evidence-based suggestions with human-controlled enforcement; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "nuxt: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance.",
@@ -8899,7 +8907,7 @@
         },
         "rust": {
           "state": "not-started",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "rust: Moderator-only evidence-based suggestions with human-controlled enforcement; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "rust: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance.",
@@ -8910,7 +8918,7 @@
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 2,
+          "targetRevision": 3,
           "tasks": [
             "go: Moderator-only evidence-based suggestions with human-controlled enforcement; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "go: execute AI-MODERATION-AID acceptance scenarios with real business/model boundaries before acceptance.",
@@ -8922,7 +8930,9 @@
       },
       "sharedDependencies": [
         "specifications/requirements/ai-agent-runtime.md",
-        "specifications/scenarios/ai-agent-runtime.json"
+        "specifications/scenarios/ai-agent-runtime.json",
+        "specifications/requirements/ai-tool-history.md",
+        "specifications/scenarios/ai-tool-history.json"
       ]
     },
     {
@@ -10007,7 +10017,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-inference-transport.md",
-        "sha256": "a0b34fc07125fee90f70194dc84bf583ae5488996c773684ff680be818a77af8"
+        "sha256": "cf745bcc4df29e338057c84b3094d6220bd310a56a8476e9b6977ec0ac622516"
       },
       "copies": {
         "rust": "contracts/requirements/ai-inference-transport.md",
@@ -10302,6 +10312,26 @@
       "copies": {
         "rust": "contracts/scenarios/user-self-profile.json",
         "go": "contracts/scenarios/user-self-profile.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-tool-history.md",
+        "sha256": "aad8e25dbc6ed5ffe444dba436f248d9a9ffc8ae9d970e7737d0cb4b1bf341e3"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-tool-history.md",
+        "go": "contracts/requirements/ai-tool-history.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-tool-history.json",
+        "sha256": "d628a07384a0182609fbd900350a87345f9e3e62a5dc3c6e805ea0743e77c03a"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-tool-history.json",
+        "go": "contracts/scenarios/ai-tool-history.json"
       }
     }
   ]

@@ -67,14 +67,57 @@ function exact(value: ObjectValue, required: string[], optional: string[] = []):
 function parsed(text: string, depth = 70): Json {
   try { return jsonCopy(JSON.parse(text), depth, 'INVALID_PROVIDER_RESPONSE'); } catch { return fail(); }
 }
+function encodeMessages(selection: AiModelSelection, messages: Json[]): { encoded: Json[]; hasHistory: boolean } {
+  const encoded: Json[] = [];
+  let pending: { id: string; name: string }[] = [];
+  let cursor = 0;
+  let hasHistory = false;
+  for (const raw of messages) {
+    const message = object(raw, 'INVALID_REQUEST');
+    if (typeof message.role !== 'string' || typeof message.content !== 'string') fail('INVALID_REQUEST');
+    if (message.role === 'tool') {
+      exact(message, ['role', 'content', 'toolCallId']);
+      const call = pending[cursor];
+      if (!call || message.toolCallId !== call.id) fail('INVALID_REQUEST');
+      encoded.push(selection.adapter === 'ollama'
+        ? { role: 'tool', tool_name: call.name, content: message.content }
+        : { role: 'tool', tool_call_id: call.id, content: message.content });
+      cursor++;
+      if (cursor === pending.length) { pending = []; cursor = 0; }
+      continue;
+    }
+    if (pending.length || !['system', 'user', 'assistant'].includes(message.role)) fail('INVALID_REQUEST');
+    if (message.role !== 'assistant' || !Object.hasOwn(message, 'toolCalls')) {
+      exact(message, ['role', 'content']);
+      encoded.push(message);
+      continue;
+    }
+    exact(message, ['role', 'content', 'toolCalls']);
+    if (!Array.isArray(message.toolCalls) || message.toolCalls.length < 1 || message.toolCalls.length > 32) fail('INVALID_REQUEST');
+    const ids = new Set<string>();
+    const providerCalls = message.toolCalls.map((rawCall, index): Json => {
+      const call = object(rawCall, 'INVALID_REQUEST');
+      exact(call, ['id', 'name', 'arguments']);
+      if (typeof call.id !== 'string' || !call.id || [...call.id].length > 128 || ids.has(call.id) ||
+          typeof call.name !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(call.name)) fail('INVALID_REQUEST');
+      const args = object(call.arguments, 'INVALID_REQUEST');
+      ids.add(call.id); pending.push({ id: call.id, name: call.name });
+      if (selection.adapter === 'ollama') {
+        return { type: 'function', function: { index, name: call.name, arguments: args } };
+      }
+      return { id: call.id, type: 'function', function: { name: call.name, arguments: JSON.stringify(args) } };
+    });
+    hasHistory = true;
+    encoded.push({ role: 'assistant', content: message.content, tool_calls: providerCalls });
+  }
+  if (pending.length) fail('INVALID_REQUEST');
+  return { encoded, hasHistory };
+}
 function requestBody(selection: AiModelSelection, input: unknown): { body: ObjectValue; tools: Set<string>; structured: boolean } {
   const request = object(jsonCopy(input, 64, 'INVALID_REQUEST'), 'INVALID_REQUEST');
   exact(request, ['messages'], ['tools', 'responseSchema']);
   if (!Array.isArray(request.messages) || request.messages.length < 1 || request.messages.length > 128) fail('INVALID_REQUEST');
-  for (const raw of request.messages) {
-    const message = object(raw, 'INVALID_REQUEST'); exact(message, ['role', 'content']);
-    if (typeof message.role !== 'string' || !['system', 'user', 'assistant'].includes(message.role) || typeof message.content !== 'string') fail('INVALID_REQUEST');
-  }
+  const { encoded: messages, hasHistory } = encodeMessages(selection, request.messages);
   const tools = Object.hasOwn(request, 'tools') ? request.tools : [];
   if (!Array.isArray(tools) || tools.length > 32) fail('INVALID_REQUEST');
   const names = new Set<string>();
@@ -86,8 +129,8 @@ function requestBody(selection: AiModelSelection, input: unknown): { body: Objec
   }
   const structured = Object.hasOwn(request, 'responseSchema');
   if (structured && (object(request.responseSchema, 'INVALID_REQUEST').type !== 'object' || tools.length)) fail('INVALID_REQUEST');
-  if ((tools.length && !selection.capabilities.includes('tools')) || (structured && !selection.capabilities.includes('structured-output'))) fail('UNSUPPORTED_CAPABILITY');
-  const body: ObjectValue = { model: selection.model, messages: request.messages, stream: false };
+  if (((tools.length || hasHistory) && !selection.capabilities.includes('tools')) || (structured && !selection.capabilities.includes('structured-output'))) fail('UNSUPPORTED_CAPABILITY');
+  const body: ObjectValue = { model: selection.model, messages, stream: false };
   if (selection.adapter === 'openai-compatible') { body.n = 1; body.max_tokens = selection.maxOutputTokens; }
   else if (selection.adapter === 'ollama') body.options = { num_predict: selection.maxOutputTokens, num_ctx: selection.contextWindowTokens };
   else fail('INVALID_REQUEST');

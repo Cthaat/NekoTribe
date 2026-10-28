@@ -7,6 +7,8 @@ import { listenForFetch } from './helpers/loopback-listener.mjs';
 
 const fixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-inference-transport.json', import.meta.url)));
 assert.equal(fixture.cases.length, 55);
+const historyFixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-tool-history.json', import.meta.url)));
+assert.equal(historyFixture.cases.length, 24);
 async function serverFor(handler, run) {
   const server = createServer(handler);
   const origin = await listenForFetch(server);
@@ -22,7 +24,7 @@ function safeError(code) {
     return true;
   };
 }
-for (const item of fixture.cases) {
+for (const item of [...fixture.cases, ...historyFixture.cases]) {
   test(`AI inference transport: ${item.id}`, async () => {
     let calls = 0;
     await serverFor(async (req, res) => {
@@ -48,6 +50,24 @@ for (const item of fixture.cases) {
 }
 
 const base = fixture.cases[1];
+test('provider tool proposal can be sent back with its result on both adapters', async () => {
+  for (const adapter of ['ollama','openai-compatible']) {
+    const first=fixture.cases.find(v=>v.id===(adapter==='ollama'?'TRANSPORT-O03':'TRANSPORT-C03'));
+    const last=fixture.cases.find(v=>v.id===(adapter==='ollama'?'TRANSPORT-O01':'TRANSPORT-C01'));
+    let count=0;
+    await serverFor(async (req,res)=>{
+      let data='';for await(const chunk of req)data+=chunk;const body=JSON.parse(data);count++;
+      if(count===2){const call=body.messages.at(-2).tool_calls[0], result=body.messages.at(-1);assert.equal(call.function.name,'search_public');assert.equal(result.role,'tool');assert.equal(result.content,'synthetic tool result');if(adapter==='ollama'){assert.equal(result.tool_name,'search_public');assert.deepEqual(call.function.arguments,first.expected.toolCalls[0].arguments);}else{assert.equal(result.tool_call_id,'call-1');assert.deepEqual(JSON.parse(call.function.arguments),first.expected.toolCalls[0].arguments);}}
+      res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify(count===1?first.response:last.response));
+    },async origin=>{
+      const selection={...first.selection,baseUrl:origin+new URL(first.selection.baseUrl).pathname,apiKeyEnv:null};const transport=new AiInferenceTransport();
+      const initial=await transport.infer(selection,first.request);assert.equal(initial.finishReason,'tool-calls');
+      const request={...first.request,messages:[...first.request.messages,{role:'assistant',content:initial.text,toolCalls:initial.toolCalls},{role:'tool',content:'synthetic tool result',toolCallId:initial.toolCalls[0].id}]};
+      const answer=await transport.infer(selection,request);assert.equal(answer.finishReason,'stop');assert.equal(answer.text,'合成回复');
+    });
+    assert.equal(count,2);
+  }
+});
 const selectionFor = origin => ({ ...structuredClone(base.selection), baseUrl: `${origin}/prefix/v1` });
 test('transport boundary: rejects non-JSON and malformed request values before credentials', async () => {
   const cyclic = {}; cyclic.self = cyclic;
