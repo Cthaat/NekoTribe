@@ -370,3 +370,81 @@ func TestChallengeRechecksSchemaBeforeReadingSecret(t *testing.T) {
 		t.Fatalf("status=%d checks=%d consumed=%v sessions=%d", response.Code, store.checks, store.consumed, len(base.inserted))
 	}
 }
+
+func TestSharedMediaReadinessScenarios(t *testing.T) {
+	data, err := os.ReadFile("../../contracts/scenarios/media-readiness.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		ID       string          `json:"id"`
+		Baseline json.RawMessage `json:"baseline"`
+		Cases    []struct {
+			ID        string `json:"id"`
+			Ready     bool   `json:"ready"`
+			Mutations []struct {
+				Op    string `json:"op"`
+				Path  []any  `json:"path"`
+				Value any    `json:"value"`
+			} `json:"mutations"`
+		} `json:"cases"`
+	}
+	if err = json.Unmarshal(data, &fixture); err != nil || fixture.ID != "MEDIA-READINESS" || len(fixture.Cases) != 14 {
+		t.Fatal("invalid fixture", err)
+	}
+	for _, scenario := range fixture.Cases {
+		t.Run(scenario.ID, func(t *testing.T) {
+			var snapshot map[string]any
+			if err := json.Unmarshal(fixture.Baseline, &snapshot); err != nil {
+				t.Fatal(err)
+			}
+			for _, m := range scenario.Mutations {
+				snapshot = applySchemaMutation(snapshot, m.Path, m.Op, m.Value).(map[string]any)
+			}
+			var calls []string
+			connections := 0
+			db := sql.OpenDB(schemaFixtureConnector{snapshot, &calls, &connections})
+			defer db.Close()
+			err := (OracleSessions{db}).CheckMediaSchema(context.Background())
+			if (err == nil) != scenario.Ready {
+				t.Fatalf("ready=%v expected=%v error=%v", err == nil, scenario.Ready, err)
+			}
+			if connections != 1 {
+				t.Fatalf("expected one connection, got %d", connections)
+			}
+			if len(calls) == 0 {
+				t.Fatal("no reads")
+			}
+		})
+	}
+}
+
+func TestMediaReadinessRechecksAndRedactsFailures(t *testing.T) {
+	data, err := os.ReadFile("../../contracts/scenarios/media-readiness.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Baseline map[string]any `json:"baseline"`
+	}
+	if json.Unmarshal(data, &fixture) != nil {
+		t.Fatal("invalid fixture")
+	}
+	var calls []string
+	connections := 0
+	db := sql.OpenDB(schemaFixtureConnector{fixture.Baseline, &calls, &connections})
+	defer db.Close()
+	repo := OracleSessions{db}
+	if err := repo.CheckMediaSchema(context.Background()); err != nil {
+		t.Fatal("valid schema rejected", err)
+	}
+	before := len(calls)
+	fixture.Baseline["failOnQuery"] = "FROM USER_TAB_COLUMNS"
+	err = repo.CheckMediaSchema(context.Background())
+	if err == nil || strings.Contains(err.Error(), "synthetic-private") {
+		t.Fatal("database failure not safely rejected")
+	}
+	if len(calls) <= before {
+		t.Fatal("expected repeated dictionary reads")
+	}
+}

@@ -7,3 +7,8 @@ import _ "embed"
 //
 //go:embed requirements/two-factor-schema-catalog.json
 var TwoFactorSchemaCatalog []byte
+
+// MediaSchemaCatalog is generated from the Nuxt migration authority.
+//
+//go:embed requirements/media-schema-catalog.json
+var MediaSchemaCatalog []byte

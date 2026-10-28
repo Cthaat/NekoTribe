@@ -337,8 +337,9 @@ func checkSchemaTable(ctx context.Context, q schemaQueryer, step schemaStep) err
 	return nil
 }
 
-func validateTwoFactorSchema(ctx context.Context, q schemaQueryer, catalog schemaCatalog) error {
-	if catalog.ID != "AUTH-2FA-SCHEMA-CATALOG" || catalog.Revision != 1 || catalog.Feature.ID != "two-factor" || len(catalog.Feature.Steps) != 9 || len(catalog.MigrationChecksums) == 0 {
+func validateFeatureSchema(ctx context.Context, q schemaQueryer, catalog schemaCatalog, feature string) error {
+	valid := feature == "two-factor" && catalog.ID == "AUTH-2FA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 9 || feature == "media" && catalog.ID == "MEDIA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1
+	if !valid || catalog.Revision != 1 || catalog.Feature.ID != feature || len(catalog.MigrationChecksums) == 0 {
 		return errSessionStore
 	}
 	owner, err := schemaRows(ctx, q, `SELECT USER AS USER_NAME, SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AS SCHEMA_NAME FROM dual`)
@@ -366,7 +367,7 @@ func validateTwoFactorSchema(ctx context.Context, q schemaQueryer, catalog schem
 	}
 	for _, step := range catalog.Feature.Steps {
 		switch step.Kind {
-		case "table":
+		case "table", "column":
 			if checkSchemaTable(ctx, q, step) != nil {
 				return errSessionStore
 			}
@@ -407,15 +408,21 @@ func validateTwoFactorSchema(ctx context.Context, q schemaQueryer, catalog schem
 // Hold the same Oracle session for the owner, ledger and all dictionary reads.
 // No ready result is cached; later requests recheck the deployed schema.
 func (s OracleSessions) CheckTwoFactorSchema(ctx context.Context) error {
+	return s.checkFeatureSchema(ctx, "two-factor", contracts.TwoFactorSchemaCatalog)
+}
+func (s OracleSessions) CheckMediaSchema(ctx context.Context) error {
+	return s.checkFeatureSchema(ctx, "media", contracts.MediaSchemaCatalog)
+}
+func (s OracleSessions) checkFeatureSchema(ctx context.Context, feature string, data []byte) error {
 	var catalog schemaCatalog
-	if json.Unmarshal(contracts.TwoFactorSchemaCatalog, &catalog) != nil {
+	if json.Unmarshal(data, &catalog) != nil {
 		return errSessionStore
 	}
 	connection, err := s.DB.Conn(ctx)
 	if err != nil {
 		return errSessionStore
 	}
-	result := validateTwoFactorSchema(ctx, connection, catalog)
+	result := validateFeatureSchema(ctx, connection, catalog, feature)
 	if connection.Close() != nil {
 		return errSessionStore
 	}
