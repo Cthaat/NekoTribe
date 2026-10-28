@@ -8893,12 +8893,20 @@
           "evidence": []
         },
         "rust": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement authenticated native notification socket, Redis subscription, origin checks and per-event session revalidation."
+            "Validate Redis credentials, ACL, TLS, session revocation, shutdown, slow consumers and cross-client isolation on real isolated services.",
+            "Extend beyond notification socket to group chat, direct messages and presence in the full WebSocket feature."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/notification_websocket.rs",
+            "src/notification_source.rs",
+            "src/auth/sessions.rs",
+            "src/app/routes.rs",
+            "src/config/env.rs",
+            "Cargo.toml"
+          ],
           "evidence": []
         },
         "go": {
