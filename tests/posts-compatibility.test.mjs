@@ -28,6 +28,7 @@ const compiled = await build({
   stdin: {contents: `
     export {default as auth} from './server/middleware/auth';
     export {default as list} from './server/api/v2/posts/index.get';
+    export {default as trending} from './server/api/v2/posts/trending.get';
     export {default as get} from './server/api/v2/posts/[id].get';
     export {default as create} from './server/api/v2/posts/index.post';
     export {default as remove} from './server/api/v2/posts/[id].delete';
@@ -109,6 +110,7 @@ async function fixture(options) {
   app.use(routes.auth);
   const router = createRouter();
   router.get('/api/v2/posts', routes.list);
+  router.get('/api/v2/posts/trending', routes.trending);
   router.get('/api/v2/posts/:id', routes.get);
   router.post('/api/v2/posts', routes.create);
   router.put('/api/v2/posts/:id', routes.update);
@@ -173,6 +175,30 @@ test('post list does not expose unexpected database failures', async () => {
     assert.ok(!body.includes('SQL secret'), body);
     assert.ok(!errors.join('\n').includes('private-database-error'), errors.join('\n'));
   } finally {console.error = previousError; await f.close();}
+});
+
+test('trending forces popular order and personal modes do not log database failures', async () => {
+  const f = await fixture();
+  try {
+    assert.equal((await f.request('/api/v2/posts/trending?sort=oldest')).status, 200);
+    const row = f.db.calls.find(call => call.sql.includes('FROM v_post_feed_item v') && !call.sql.startsWith('SELECT COUNT'));
+    assert.match(row.sql, /ORDER BY v\.engagement_score DESC, v\.created_at DESC/);
+    const likes = await f.request('/api/v2/users/me/likes?sort=oldest', {authorization: `Bearer ${access()}`});
+    assert.equal(likes.status, 200);
+    const liked = f.db.calls.find(call => call.sql.includes('SELECT MAX(l.created_at)'));
+    assert.match(liked.sql, /l\.user_id = :viewer_id \) ASC/);
+  } finally {await f.close();}
+  const broken = await fixture({failList: true});
+  const errors = []; const previousError = console.error; console.error = (...args) => errors.push(args.map(String).join(' '));
+  try {
+    for (const url of ['/api/v2/posts/trending', '/api/v2/users/me/posts', '/api/v2/users/me/bookmarks', '/api/v2/users/me/likes']) {
+      const headers = url.includes('/users/me/') ? {authorization: `Bearer ${access()}`} : {};
+      const response = await broken.request(url, headers);
+      assert.equal(response.status, 500, url);
+      assert.ok(!(await response.text()).includes('private-database-error'), url);
+    }
+    assert.ok(!errors.join('\n').includes('private-database-error'));
+  } finally {console.error = previousError; await broken.close();}
 });
 
 test('anonymous detail excludes private/followers/mentioned/deleted/group posts without incrementing their views', async () => {

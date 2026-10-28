@@ -46,6 +46,19 @@ test('post list contract permits anonymous and rich results with compatible pagi
   value.data[0].mentions = ['not a user'];
   assert.equal(check(value), false);
 });
+
+test('trending and personal list contracts match the common post payload', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/post-detail-vectors.json', import.meta.url)));
+  const value = {code: 200, message: 'success', data: [fixture.post], meta: {page: 1, page_size: 20, total: 1, has_next: false}};
+  for (const path of ['/api/v2/posts/trending', '/api/v2/users/me/posts', '/api/v2/users/me/bookmarks', '/api/v2/users/me/likes']) {
+    const operation = spec.paths[path].get;
+    assert.ok(operation.security.some(item => Object.hasOwn(item, 'accessTokenCookie')), path);
+    assert.equal(operation.security.some(item => Object.keys(item).length === 0), path.endsWith('/trending'), path);
+    const pointer = path.replaceAll('/', '~1');
+    const check = ajv.compile({$ref: `${base}#/paths/${pointer}/get/responses/200/content/application~1json/schema`});
+    assert.equal(check(value), true, `${path}: ${JSON.stringify(check.errors)}`);
+  }
+});
 // Local refs in operation fragments need the document's canonical base.
 function requestValidator(method, path) {
   const pointer = path.replaceAll('~', '~0').replaceAll('/', '~1');

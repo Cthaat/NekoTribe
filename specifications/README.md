@@ -13,7 +13,7 @@
 - `requirements/ai-agent-runtime.md`：知识库、持久化上下文与 Skills 的三端共同目标，10 条验收场景尚未执行；框架尚未选定。
 - `requirements/auth-password-reset.md`：三端密码重置的事务规则及 17 条隔离场景；旧密码并发登录、双因素挑战和已建立的实时连接仍需处理。
 - `requirements/post-detail.md`：帖子详情权限、附件及浏览量共同目标；三端均通过 22 条共同隔离样例，真实数据库及客户端联调待验收。
-- `requirements/post-list.md`：帖子列表、搜索与分页的共同需求；Rust/Go 已接入原生列表并完成局部隔离测试，完整共同场景和真实数据库联测仍待完成。
+- `requirements/post-list.md`：公共、热门、我的帖子、收藏和点赞列表的共同需求；Rust/Go 已接入相应原生路由并完成局部隔离测试，完整共同场景和真实数据库联测仍待完成。
 - `requirements/cache-shared-backends.md`：共享后端默认绕过两层 Nuxt 缓存；跨三后端可靠失效协议及真实环境验收仍待实现。
 - `requirements/user-self-profile-update.md`：三端当前用户资料部分更新和 18 条隔离场景；真实 Oracle 日期、约束、事务和跨实例缓存待验收。
 - `requirements/user-public-profile.md`：三端公开资料和 21 条隔离场景，真实 Oracle 在线状态、时区及双端联调待验收。
