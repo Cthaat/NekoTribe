@@ -34,6 +34,9 @@ type PublicUser struct {
 const publicProfileSQL = `SELECT u.user_id,u.username,u.avatar_url,u.display_name,u.bio,u.location,u.website,u.is_verified,u.followers_count,u.following_count,u.posts_count,u.likes_count,CASE WHEN NVL(us.show_online_status,1)=0 THEN 'hidden' WHEN EXISTS (SELECT 1 FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL AND s.last_accessed_at >= CURRENT_TIMESTAMP - NUMTODSINTERVAL(90,'SECOND')) THEN 'online' ELSE 'offline' END AS online_status,CASE WHEN NVL(us.show_online_status,1)=0 THEN NULL ELSE (SELECT MAX(s.last_accessed_at) FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL) END AS last_seen_at,fn_get_user_relationship(:viewer_id,u.user_id) AS relation FROM v_user_profile_public u LEFT JOIN n_user_settings us ON us.user_id=u.user_id WHERE u.user_id=:user_id AND u.is_active=1`
 
 func (s OracleSessions) PublicProfile(ctx context.Context, viewer, target int64) (PublicUser, bool, error) {
+	return s.publicProfile(ctx, viewer, target)
+}
+func (s OracleSessions) publicProfile(ctx context.Context, viewer any, target int64) (PublicUser, bool, error) {
 	var v PublicUser
 	var username, avatar, display, bio, location, website, status, relation sql.NullString
 	var verified, followers, following, posts, likes sql.NullInt64

@@ -98,6 +98,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			getPublicProfile(w, r, codec, repository, refresh, id)
 			return
 		}
+		if id, ok := postSegment(r.URL.EscapedPath()); ok && r.Method == http.MethodGet {
+			getPostDetail(w, r, codec, repository, refresh, id)
+			return
+		}
 		const prefix = "/api/v2/auth/sessions/"
 		path := r.URL.EscapedPath()
 		if !strings.HasPrefix(path, prefix) || strings.TrimPrefix(path, prefix) == "" || strings.Contains(strings.TrimPrefix(path, prefix), "/") {
