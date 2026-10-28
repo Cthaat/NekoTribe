@@ -1,0 +1,14 @@
+{
+  "id": "NOTIFICATION-EVENT-VECTORS",
+  "revision": 1,
+  "cases": [
+    {"id":"EVENT-01","user_id":42,"type":"notification_created","data":{"notification":{"notification_id":9},"notification_type":"like"},"server_id":"test-instance","timestamp":1700000000123,"valid":true},
+    {"id":"EVENT-02","user_id":7,"type":"notification_deleted","data":{"notification_id":12,"server_id":"untrusted"},"server_id":"test-instance","timestamp":1700000000123,"valid":true},
+    {"id":"EVENT-03","user_id":9007199254740991,"type":"notification_read_status_updated","data":{"is_read":1},"server_id":"test-instance","timestamp":1700000000123,"valid":true},
+    {"id":"EVENT-04","user_id":0,"type":"notification_created","data":{},"server_id":"test-instance","timestamp":1700000000123,"valid":false},
+    {"id":"EVENT-05","user_id":9007199254740992,"type":"notification_created","data":{},"server_id":"test-instance","timestamp":1700000000123,"valid":false},
+    {"id":"EVENT-06","user_id":1,"type":"arbitrary","data":{},"server_id":"test-instance","timestamp":1700000000123,"valid":false},
+    {"id":"EVENT-07","user_id":1,"type":"notification_restored","data":{},"server_id":"","timestamp":1700000000123,"valid":false},
+    {"id":"EVENT-08","user_id":1,"type":"notifications_read_status_updated","data":{"all":true},"server_id":"test-instance","timestamp":1700000000123,"valid":true}
+  ]
+}

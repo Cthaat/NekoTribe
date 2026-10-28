@@ -74,6 +74,11 @@ impl RedisPool {
         Ok(value)
     }
 
+    pub async fn publish(&self, channel: &str, payload: &str) -> Result<usize, RedisError> {
+        let mut manager = self.manager()?;
+        manager.publish(channel, payload).await.map_err(Into::into)
+    }
+
     fn manager(&self) -> Result<ConnectionManager, RedisError> {
         self.manager.clone().ok_or_else(|| {
             RedisError::Unavailable(
