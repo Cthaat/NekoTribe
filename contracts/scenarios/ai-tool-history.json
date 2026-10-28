@@ -1,0 +1,2607 @@
+{
+  "schemaVersion": 1,
+  "id": "AI-TOOL-HISTORY",
+  "revision": 1,
+  "scope": "provider-transport-only",
+  "cases": [
+    {
+      "id": "TOOL-HISTORY-O01",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "dog result",
+            "toolCallId": "call-b"
+          }
+        ],
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "Find public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "type": "function",
+                "function": {
+                  "index": 0,
+                  "name": "lookup",
+                  "arguments": {
+                    "query": "cats"
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "index": 1,
+                  "name": "lookup",
+                  "arguments": {
+                    "query": "dogs"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_name": "lookup",
+            "content": "cat result"
+          },
+          {
+            "role": "tool",
+            "tool_name": "lookup",
+            "content": "dog result"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        },
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "description": "Find public posts",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TOOL-HISTORY-C01",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "dog result",
+            "toolCallId": "call-b"
+          }
+        ],
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "Find public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-a",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"cats\"}"
+                }
+              },
+              {
+                "id": "call-b",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"dogs\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-a",
+            "content": "cat result"
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-b",
+            "content": "dog result"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512,
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "description": "Find public posts",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TOOL-HISTORY-C02",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "dog result",
+            "toolCallId": "call-b"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-a",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"cats\"}"
+                }
+              },
+              {
+                "id": "call-b",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"dogs\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-a",
+            "content": "cat result"
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-b",
+            "content": "dog result"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TOOL-HISTORY-O02",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "dog result",
+            "toolCallId": "call-b"
+          }
+        ],
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "Find public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "UNSUPPORTED_CAPABILITY",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-O03",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "dog result",
+            "toolCallId": "call-b"
+          },
+          {
+            "role": "assistant",
+            "content": "first complete"
+          },
+          {
+            "role": "user",
+            "content": "again"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "dog result",
+            "toolCallId": "call-b"
+          }
+        ],
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "Find public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "type": "function",
+                "function": {
+                  "index": 0,
+                  "name": "lookup",
+                  "arguments": {
+                    "query": "cats"
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "index": 1,
+                  "name": "lookup",
+                  "arguments": {
+                    "query": "dogs"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_name": "lookup",
+            "content": "cat result"
+          },
+          {
+            "role": "tool",
+            "tool_name": "lookup",
+            "content": "dog result"
+          },
+          {
+            "role": "assistant",
+            "content": "first complete"
+          },
+          {
+            "role": "user",
+            "content": "again"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "type": "function",
+                "function": {
+                  "index": 0,
+                  "name": "lookup",
+                  "arguments": {
+                    "query": "cats"
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "index": 1,
+                  "name": "lookup",
+                  "arguments": {
+                    "query": "dogs"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_name": "lookup",
+            "content": "cat result"
+          },
+          {
+            "role": "tool",
+            "tool_name": "lookup",
+            "content": "dog result"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        },
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "description": "Find public posts",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "合成回复",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TOOL-HISTORY-O04",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/prefix",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "dog result",
+            "toolCallId": "call-b"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/api/chat",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "type": "function",
+                "function": {
+                  "index": 0,
+                  "name": "lookup",
+                  "arguments": {
+                    "query": "cats"
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "index": 1,
+                  "name": "lookup",
+                  "arguments": {
+                    "query": "dogs"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_name": "lookup",
+            "content": "cat result"
+          },
+          {
+            "role": "tool",
+            "tool_name": "lookup",
+            "content": "dog result"
+          }
+        ],
+        "stream": false,
+        "options": {
+          "num_predict": 512,
+          "num_ctx": 8192
+        },
+        "format": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "done": true,
+        "done_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"summary\":\"公开摘要\"}",
+          "thinking": "never-return-this"
+        },
+        "prompt_eval_count": 7,
+        "eval_count": 3
+      },
+      "expected": {
+        "text": "{\"summary\":\"公开摘要\"}",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TOOL-HISTORY-C03",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "dog result",
+            "toolCallId": "call-b"
+          },
+          {
+            "role": "assistant",
+            "content": "first complete"
+          },
+          {
+            "role": "user",
+            "content": "again"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "dog result",
+            "toolCallId": "call-b"
+          }
+        ],
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "Find public posts",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-a",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"cats\"}"
+                }
+              },
+              {
+                "id": "call-b",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"dogs\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-a",
+            "content": "cat result"
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-b",
+            "content": "dog result"
+          },
+          {
+            "role": "assistant",
+            "content": "first complete"
+          },
+          {
+            "role": "user",
+            "content": "again"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-a",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"cats\"}"
+                }
+              },
+              {
+                "id": "call-b",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"dogs\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-a",
+            "content": "cat result"
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-b",
+            "content": "dog result"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512,
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "description": "Find public posts",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TOOL-HISTORY-C04",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "dog result",
+            "toolCallId": "call-b"
+          }
+        ],
+        "responseSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "expectedBody": {
+        "model": "arbitrary-model:v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-a",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"cats\"}"
+                }
+              },
+              {
+                "id": "call-b",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"dogs\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-a",
+            "content": "cat result"
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-b",
+            "content": "dog result"
+          }
+        ],
+        "stream": false,
+        "n": 1,
+        "max_tokens": 512,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "output",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "summary"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\"summary\":\"公开摘要\"}",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "{\"summary\":\"公开摘要\"}",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      }
+    },
+    {
+      "id": "TOOL-HISTORY-X01",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "tool",
+            "content": "orphan",
+            "toolCallId": "call-a"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X02",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "bad",
+            "toolCallId": "unknown"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X03",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "dog result",
+            "toolCallId": "call-b"
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X04",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X05",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X06",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "bad-name",
+                "arguments": {
+                  "query": "cats"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X07",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": []
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X08",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X09",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "bad",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X10",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X11",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "user",
+            "content": "interrupt"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X12",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X13",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                },
+                "extra": true
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X14",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "bad",
+            "toolCallId": []
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X15",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    },
+    {
+      "id": "TOOL-HISTORY-X16",
+      "selection": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "prototype",
+        "providerId": "local",
+        "adapter": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:8000/prefix/v1",
+        "model": "arbitrary-model:v1",
+        "apiKeyEnv": null,
+        "capabilities": [
+          "structured-output",
+          "tools"
+        ],
+        "contextWindowTokens": 8192,
+        "maxOutputTokens": 512
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find posts"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "call-a",
+                "name": "lookup",
+                "arguments": {
+                  "query": "cats"
+                }
+              },
+              {
+                "id": "call-b",
+                "name": "lookup",
+                "arguments": {
+                  "query": "dogs"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "cat result",
+            "toolCallId": "call-a"
+          },
+          {
+            "role": "system",
+            "content": "interrupt"
+          }
+        ]
+      },
+      "credentials": {},
+      "expectedPath": "/prefix/v1/chat/completions",
+      "status": 200,
+      "response": {
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "合成回复",
+              "reasoning": "never-return-this"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3
+        }
+      },
+      "expected": {
+        "text": "合成回复",
+        "toolCalls": [],
+        "finishReason": "stop",
+        "usage": {
+          "inputTokens": 7,
+          "outputTokens": 3
+        }
+      },
+      "expectedError": "INVALID_REQUEST",
+      "noNetwork": true
+    }
+  ]
+}

@@ -123,6 +123,94 @@ struct Encoded {
     names: HashSet<String>,
     structured: bool,
 }
+fn encode_history_messages(
+    s: &SelectionSnapshot,
+    messages: &[Value],
+) -> Result<(Vec<Value>, bool), TransportError> {
+    let mut output = Vec::with_capacity(messages.len());
+    let mut pending: Vec<(String, String)> = Vec::new();
+    let mut cursor = 0usize;
+    let mut has_history = false;
+    for value in messages {
+        let message = value.as_object().ok_or(INVALID_REQUEST)?;
+        let role = message
+            .get("role")
+            .and_then(Value::as_str)
+            .ok_or(INVALID_REQUEST)?;
+        let content = message
+            .get("content")
+            .and_then(Value::as_str)
+            .ok_or(INVALID_REQUEST)?;
+        if role == "tool" {
+            if !exact(message, &["role", "content", "toolCallId"], &[]) {
+                return Err(INVALID_REQUEST);
+            }
+            let (id, name) = pending.get(cursor).ok_or(INVALID_REQUEST)?;
+            if message.get("toolCallId").and_then(Value::as_str) != Some(id.as_str()) {
+                return Err(INVALID_REQUEST);
+            }
+            output.push(if s.adapter == "ollama" {
+                json!({"role":"tool","tool_name":name,"content":content})
+            } else {
+                json!({"role":"tool","tool_call_id":id,"content":content})
+            });
+            cursor += 1;
+            if cursor == pending.len() {
+                pending.clear();
+                cursor = 0;
+            }
+            continue;
+        }
+        if !pending.is_empty() || !matches!(role, "system" | "user" | "assistant") {
+            return Err(INVALID_REQUEST);
+        }
+        if role != "assistant" || !message.contains_key("toolCalls") {
+            if !exact(message, &["role", "content"], &[]) {
+                return Err(INVALID_REQUEST);
+            }
+            output.push(value.clone());
+            continue;
+        }
+        if !exact(message, &["role", "content", "toolCalls"], &[]) {
+            return Err(INVALID_REQUEST);
+        }
+        let calls = message["toolCalls"].as_array().ok_or(INVALID_REQUEST)?;
+        if calls.is_empty() || calls.len() > 32 {
+            return Err(INVALID_REQUEST);
+        }
+        let mut ids = HashSet::new();
+        let mut provider_calls = Vec::with_capacity(calls.len());
+        for (index, raw) in calls.iter().enumerate() {
+            let call = raw.as_object().ok_or(INVALID_REQUEST)?;
+            if !exact(call, &["id", "name", "arguments"], &[]) {
+                return Err(INVALID_REQUEST);
+            }
+            let id = call["id"].as_str().ok_or(INVALID_REQUEST)?;
+            let name = call["name"].as_str().ok_or(INVALID_REQUEST)?;
+            let args = call["arguments"].as_object().ok_or(INVALID_REQUEST)?;
+            if id.is_empty()
+                || id.chars().count() > 128
+                || !ids.insert(id.to_owned())
+                || !tool_name(name)
+            {
+                return Err(INVALID_REQUEST);
+            }
+            pending.push((id.to_owned(), name.to_owned()));
+            provider_calls.push(if s.adapter == "ollama" {
+                json!({"type":"function","function":{"index":index,"name":name,"arguments":args}})
+            } else {
+                let arguments = serde_json::to_string(args).map_err(|_| INVALID_REQUEST)?;
+                json!({"id":id,"type":"function","function":{"name":name,"arguments":arguments}})
+            });
+        }
+        has_history = true;
+        output.push(json!({"role":"assistant","content":content,"tool_calls":provider_calls}));
+    }
+    if !pending.is_empty() {
+        return Err(INVALID_REQUEST);
+    }
+    Ok((output, has_history))
+}
 fn encode(s: &SelectionSnapshot, input: &Value) -> Result<Encoded, TransportError> {
     if !depth(input, 64) {
         return Err(INVALID_REQUEST);
@@ -135,15 +223,7 @@ fn encode(s: &SelectionSnapshot, input: &Value) -> Result<Encoded, TransportErro
     if messages.is_empty() || messages.len() > 128 {
         return Err(INVALID_REQUEST);
     }
-    for value in messages {
-        let m = value.as_object().ok_or(INVALID_REQUEST)?;
-        if !exact(m, &["role", "content"], &[])
-            || !matches!(m["role"].as_str(), Some("system" | "user" | "assistant"))
-            || !m["content"].is_string()
-        {
-            return Err(INVALID_REQUEST);
-        }
-    }
+    let (encoded_messages, has_history) = encode_history_messages(s, messages)?;
     let empty = Vec::new();
     let tools = match request.get("tools") {
         None => &empty,
@@ -176,12 +256,12 @@ fn encode(s: &SelectionSnapshot, input: &Value) -> Result<Encoded, TransportErro
             return Err(INVALID_REQUEST);
         }
     }
-    if (!tools.is_empty() && !s.capabilities.iter().any(|v| v == "tools"))
+    if ((!tools.is_empty() || has_history) && !s.capabilities.iter().any(|v| v == "tools"))
         || (schema.is_some() && !s.capabilities.iter().any(|v| v == "structured-output"))
     {
         return Err(TransportError("UNSUPPORTED_CAPABILITY"));
     }
-    let mut body = json!({"model":s.model,"messages":messages,"stream":false});
+    let mut body = json!({"model":s.model,"messages":encoded_messages,"stream":false});
     match s.adapter.as_str() {
         "openai-compatible" => {
             body["n"] = json!(1);

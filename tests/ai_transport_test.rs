@@ -19,8 +19,13 @@ fn vectors() -> Vec<Value> {
         "../contracts/scenarios/ai-inference-transport.json"
     ))
     .unwrap();
-    let cases = root["cases"].as_array().unwrap().clone();
+    let mut cases = root["cases"].as_array().unwrap().clone();
     assert_eq!(cases.len(), 55);
+    let history: Value =
+        serde_json::from_str(include_str!("../contracts/scenarios/ai-tool-history.json")).unwrap();
+    let extra = history["cases"].as_array().unwrap();
+    assert_eq!(extra.len(), 24);
+    cases.extend(extra.iter().cloned());
     cases
 }
 fn selection(v: &Value) -> SelectionSnapshot {
@@ -181,6 +186,78 @@ async fn common_transport_vectors() {
             "{}",
             v["id"]
         );
+    }
+}
+
+#[tokio::test]
+async fn tool_proposal_round_trip_on_both_adapters() {
+    let all = vectors();
+    for adapter in ["ollama", "openai-compatible"] {
+        let first_id = if adapter == "ollama" {
+            "TRANSPORT-O03"
+        } else {
+            "TRANSPORT-C03"
+        };
+        let last_id = if adapter == "ollama" {
+            "TRANSPORT-O01"
+        } else {
+            "TRANSPORT-C01"
+        };
+        let first = all.iter().find(|v| v["id"] == first_id).unwrap().clone();
+        let last = all.iter().find(|v| v["id"] == last_id).unwrap().clone();
+        let count = Arc::new(Mutex::new(0));
+        let seen = count.clone();
+        let first_response = first["response"].to_string();
+        let last_response = last["response"].to_string();
+        let selected = adapter.to_owned();
+        let server = FakeServer::new(move |socket| {
+            let (_, body) = read_request(socket);
+            let mut n = seen.lock().unwrap();
+            *n += 1;
+            if *n == 2 {
+                let messages = body["messages"].as_array().unwrap();
+                let call = &messages[messages.len() - 2]["tool_calls"][0];
+                let result = &messages[messages.len() - 1];
+                assert_eq!(call["function"]["name"], "search_public");
+                assert_eq!(result["content"], "synthetic tool result");
+                if selected == "ollama" {
+                    assert_eq!(result["tool_name"], "search_public");
+                } else {
+                    assert_eq!(result["tool_call_id"], "call-1");
+                }
+            }
+            respond(
+                socket,
+                200,
+                if *n == 1 {
+                    first_response.as_bytes()
+                } else {
+                    last_response.as_bytes()
+                },
+                "",
+            );
+        });
+        let mut s = selection(&first["selection"]);
+        s.base_url = server.url.clone();
+        s.api_key_env = None;
+        let transport = Transport::new(None, None).unwrap();
+        let proposal = transport.infer(&s, &first["request"], None).await.unwrap();
+        assert_eq!(proposal.tool_calls.len(), 1);
+        let mut request = first["request"].clone();
+        let messages = request["messages"].as_array_mut().unwrap();
+        messages.push(
+            json!({"role":"assistant","content":proposal.text,"toolCalls":proposal.tool_calls}),
+        );
+        let call_id = messages.last().unwrap()["toolCalls"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        messages
+            .push(json!({"role":"tool","content":"synthetic tool result","toolCallId":call_id}));
+        let answer = transport.infer(&s, &request, None).await.unwrap();
+        assert_eq!(answer.finish_reason, "stop");
+        assert_eq!(answer.text, "合成回复");
+        assert_eq!(*count.lock().unwrap(), 2);
     }
 }
 

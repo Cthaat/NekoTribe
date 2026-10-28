@@ -1,5 +1,7 @@
 # NekoTribe Rust 后端（兼容模式与原生会话切片）
 
+模型传输现支持工具提议与工具结果的多轮历史编码，24 个共同合成场景及本机回环测试覆盖两种适配器；这不执行工具，也不代表 Agent、真实模型或业务验收完成。详见 `contracts/requirements/ai-tool-history.md`。
+
 本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册登录/2FA 挑战、会话列表与撤销、验证码创建和校验、账号注册、令牌刷新与退出和进程健康检查，直接访问 Oracle，不注册其他业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
 
 原生 `GET /api/v2/users/me` 已复用会话验证、自身资料查询和公共头像地址映射；当前只经过合成场景及替身检查，实际 Oracle 视图、跨后端数据更新和两个客户端仍待联测。

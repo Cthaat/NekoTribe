@@ -1,6 +1,6 @@
 # AI 推理传输组件 v1
 
-AI-MODEL-SWITCHING 的非流式 HTTP 子组件，三套后端原生实现；不是公开 AI 业务接口、权限实现或实际模型验收。模型配置/选择格式沿用 `ai-model-configuration.md`。本切片支持文本历史、工具调用提议、JSON schema 请求；流式输出、工具结果回合、图片、向量/索引、真实引擎能力探测在后续切片实现。
+AI-MODEL-SWITCHING 的非流式 HTTP 子组件，三套后端原生实现；不是公开 AI 业务接口、权限实现或实际模型验收。模型配置/选择格式沿用 `ai-model-configuration.md`。支持文本历史、工具调用提议和结果回传、JSON schema 请求；流式输出、实际工具执行、图片、向量/索引、真实引擎能力探测仍在后续切片实现。
 
 ## 服务端边界
 
@@ -14,10 +14,10 @@ AI-MODEL-SWITCHING 的非流式 HTTP 子组件，三套后端原生实现；不�
 
 只允许 `messages`、可选 `tools`、可选 `responseSchema`。未知键拒绝，不偷偷传给提供方。JSON 序列化必须成功，拒绝非 JSON 值/非有限数、循环、稀疏数组或带自定义序列化的对象（普通 JSON 数据的 toJSON 键允许，函数/访问器不允许）。请求 JSON 整体、独立解析的工具 arguments 与结构化 text 最大容器深度64；字符串和 object 键必须是 Unicode scalar：有效 UTF-8/合法成对的 UTF-16 转义允许，未配对的代理项拒绝，不能替换成 U+FFFD 或原样保留。根 object/array 计为1，每层 object/array 加1，标量不增加。编码后的 HTTP 请求及提供方 JSON 整体最多70层，给不同协议包装留出空间；检查必须有深度边界，不能先无界递归。
 
-- messages 长度 1..128；每项且只能有 `{role,content}`。role 为 system/user/assistant，content 必须是字符串（允许空），首期不支持 tool message 或工具调用历史，不静默丢弃。
+- messages 长度 1..128；普通 system/user/assistant 文本项只能有 `{role,content}`，content 必须是字符串（允许空）。完整工具调用及结果历史格式、顺序验证和两种提供方转换见 `ai-tool-history.md`。
 - tools 缺省为空数组，最多32个。每项且只能有 `{name,description,parameters}`；name 匹配 `^[A-Za-z_][A-Za-z0-9_]{0,63}$` 且唯一；description 是字符串；parameters 是 JSON object 且 `type:"object"`。发送的 schema 不在传输层完整验证或解释。
 - responseSchema 若提供必须是 JSON object 且 `type:"object"`，不允许 null/boolean。工具和 responseSchema 不可同时出现（首期跨引擎组合能力未验证）。
-- 有 tools 时快照须有 tools capability；有 responseSchema 时须有 structured-output capability，否则 UNSUPPORTED_CAPABILITY，且不得发网络请求。无凭据也应在请求和能力校验之后才处理，保证错误优先级一致。
+- 有 tools 或工具历史时快照须有 tools capability；有 responseSchema 时须有 structured-output capability，否则 UNSUPPORTED_CAPABILITY，且不得发网络请求。无凭据也应在请求和能力校验之后才处理，保证错误优先级一致。
 
 ## 提供方编码
 
