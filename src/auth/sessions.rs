@@ -25,6 +25,14 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    // An error means the commit outcome may be unknown; callers must retain the object.
+    fn create_media_atomic<'a>(
+        &'a self,
+        _input: &'a crate::media::upload_transaction::MediaUpload,
+        _policy: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::media::upload_transaction::MediaUploadOutcome<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn delete_media(&self, _user: u64, _id: f64) -> StoreFuture<'_, Option<crate::media::delete::MediaDelete>> {
         Box::pin(async { Err(SessionStoreError) })
     }

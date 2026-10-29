@@ -93,6 +93,13 @@ fn post_list_sql(query: &crate::posts::list::PostListQuery) -> (&'static str, &'
     (count, page)
 }
 pub trait SessionExecutor: Send + Sync {
+    fn create_media_atomic<'a>(
+        &'a self,
+        _input: &'a crate::media::upload_transaction::MediaUpload,
+        _policy: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::media::upload_transaction::MediaUploadOutcome<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn update_post_atomic<'a>(&'a self,_actor:u64,_id:u64,_input:&'a crate::posts::update_request::PostUpdateInput)->StoreFuture<'a,crate::posts::update_transaction::PostUpdate>{Box::pin(async{Err(SessionStoreError)})}
     fn create_post_atomic<'a>(
         &'a self,
@@ -265,6 +272,13 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn create_media_atomic<'a>(
+        &'a self,
+        input: &'a crate::media::upload_transaction::MediaUpload,
+        policy: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::media::upload_transaction::MediaUploadOutcome<serde_json::Value>> {
+        self.executor.create_media_atomic(input, policy)
+    }
     fn delete_media(&self, user: u64, id: f64) -> StoreFuture<'_, Option<crate::media::delete::MediaDelete>> {
         Box::pin(crate::media::delete::remove_from_store(&self.executor, user, id))
     }
@@ -1510,6 +1524,18 @@ fn session_binds(user: u64, id: &str) -> BindMap {
     ])
 }
 impl SessionExecutor for OraclePool {
+    fn create_media_atomic<'a>(
+        &'a self,
+        input: &'a crate::media::upload_transaction::MediaUpload,
+        policy: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::media::upload_transaction::MediaUploadOutcome<serde_json::Value>> {
+        let (input, policy) = (input.clone(), policy.clone());
+        Box::pin(async move {
+            self.run_blocking(move |connection| {
+                Ok(crate::media::upload_transaction::execute(connection, &input, |row| upload_media_json(&row, &policy)))
+            }).await.map_err(|_| SessionStoreError)
+        })
+    }
     fn update_post_atomic<'a>(&'a self,actor:u64,id:u64,input:&'a crate::posts::update_request::PostUpdateInput)->StoreFuture<'a,crate::posts::update_transaction::PostUpdate>{let input=input.clone();Box::pin(async move{self.run_blocking(move|connection|crate::posts::update_transaction::execute(connection,actor,id,&input)).await.map_err(|_|SessionStoreError)})}
     fn create_post_atomic<'a>(
         &'a self,
@@ -1697,6 +1723,17 @@ fn post_json(row: &DbRow, viewer: Option<u64>) -> serde_json::Value {
 fn media_json(row: &DbRow) -> serde_json::Value {
     serde_json::json!({"media_id":row_number(row,"MEDIA_ID"),"media_type":row_text(row,"MEDIA_TYPE"),"file_name":row_text(row,"FILE_NAME"),"public_url":row_text(row,"PUBLIC_URL"),"file_size":row_number(row,"FILE_SIZE"),"mime_type":row_text(row,"MIME_TYPE"),"width":nullable_number(row,"WIDTH"),"height":nullable_number(row,"HEIGHT"),"duration":nullable_number(row,"DURATION"),"thumbnail_url":nullable_text(row,"THUMBNAIL_URL"),"alt_text":nullable_text(row,"ALT_TEXT"),"description":nullable_text(row,"DESCRIPTION"),"status":row_text(row,"STATUS"),"created_at":nullable_text(row,"CREATED_AT").map(|x|profile_date(&x)).unwrap_or_default()})
 }
+fn upload_media_json(row: &DbRow, policy: &crate::auth::storage_urls::StorageUrlPolicy) -> Result<serde_json::Value, ()> {
+    if row_number(row, "MEDIA_ID") <= 0 || row_number(row, "FILE_SIZE") <= 0 || row_text(row, "PUBLIC_URL").is_empty() {
+        return Err(());
+    }
+    let mut result = media_json(row);
+    result["public_url"] = policy.normalize_avatar(&row_text(row, "PUBLIC_URL"))?.into();
+    if let Some(thumbnail) = nullable_text(row, "THUMBNAIL_URL") {
+        result["thumbnail_url"] = policy.normalize_avatar(&thumbnail)?.into();
+    }
+    Ok(result)
+}
 fn public_profile_json(row: &DbRow) -> serde_json::Value {
     let mut value = profile_json(row);
     let object = value.as_object_mut().expect("profile is an object");
@@ -1749,6 +1786,34 @@ fn profile_date(text: &str) -> String {
 #[cfg(test)]
 mod profile_tests {
     use super::*;
+    #[test]
+    fn upload_media_mapping_normalizes_urls_and_rejects_invalid_policy() {
+        let row = DbRow::from([
+            ("MEDIA_ID".into(), DbValue::I64(12)),
+            ("MEDIA_TYPE".into(), DbValue::String("image".into())),
+            ("FILE_NAME".into(), DbValue::String("a.png".into())),
+            ("PUBLIC_URL".into(), DbValue::String("/storage/posts/a.png".into())),
+            ("THUMBNAIL_URL".into(), DbValue::String("/storage/posts/thumb.png".into())),
+            ("FILE_SIZE".into(), DbValue::I64(17)),
+            ("MIME_TYPE".into(), DbValue::String("image/png".into())),
+            ("WIDTH".into(), DbValue::I64(2)),
+            ("HEIGHT".into(), DbValue::I64(3)),
+            ("STATUS".into(), DbValue::String("ready".into())),
+        ]);
+        let policy = crate::auth::storage_urls::StorageUrlPolicy::from_lookup(|key| match key {
+            "BASE_URL" => Some("https://example.test".into()),
+            "STORAGE_PUBLIC_BASE" => Some("/media".into()),
+            _ => None,
+        });
+        let value = upload_media_json(&row, &policy).unwrap();
+        assert_eq!(value["public_url"], "https://example.test/media/posts/a.png");
+        assert_eq!(value["thumbnail_url"], "https://example.test/media/posts/thumb.png");
+        assert_eq!(value["width"], 2.0);
+        assert!(value["duration"].is_null());
+        let invalid = crate::auth::storage_urls::StorageUrlPolicy::from_lookup(|key| (key == "STORAGE_PUBLIC_BASE").then(|| "//".into()));
+        assert!(upload_media_json(&row, &invalid).is_err());
+        assert!(upload_media_json(&DbRow::new(), &policy).is_err());
+    }
     #[test]
     fn self_profile_mapping_matches_shared_fixture() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
