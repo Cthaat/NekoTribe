@@ -4224,7 +4224,7 @@
           "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Connect multipart parsing, atomic publication and media database transaction to authentication and a real content detector; apply the cleanup-safe result, verify filesystem support, shared scenarios and real dependency acceptance."
+            "Complete real-format detector parity, WebP/AVIF and audio/video metadata, safe extension handling, filesystem support and real Oracle/client acceptance for the native route."
           ],
           "sourceFiles": [
             "internal/server/media_multipart.go",
@@ -4238,7 +4238,10 @@
             "internal/server/media_content.go",
             "internal/server/media_content_test.go",
             "internal/server/media_container.go",
-            "internal/server/media_container_test.go"
+            "internal/server/media_container_test.go",
+            "internal/server/media_upload.go",
+            "internal/server/media_upload_test.go",
+            "internal/server/server.go"
           ],
           "evidence": []
         }
@@ -11265,7 +11268,7 @@
     {
       "source": {
         "path": "specifications/requirements/media-upload.md",
-        "sha256": "21107d9e81af72844bb49156047328d8914d09bf881670a6dc638fbda50fb782"
+        "sha256": "01bab65595a866bedc8e1b4e8ea34ac917768b7649db92303520c51644a759f4"
       },
       "copies": {
         "rust": "contracts/requirements/media-upload.md",
