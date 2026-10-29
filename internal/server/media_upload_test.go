@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"image"
@@ -114,6 +115,34 @@ func TestMediaUploadImageMetadataAndUnavailableStorage(t *testing.T) {
 		if w.Code != 200 || store.calls != 1 || store.input.MIMEType != "image/png" || store.input.Width == nil || *store.input.Width != 2 || store.input.Height == nil || *store.input.Height != 3 {
 			t.Fatal(w.Code, store.input, w.Body.String())
 		}
+	}
+}
+
+func TestMediaUploadWebPDimensions(t *testing.T) {
+	codec, tokens := fixture(t)
+	for _, tc := range []struct {
+		name, content string
+		width, height float64
+	}{
+		{"lossy", "UklGRjAAAABXRUJQVlA4ICQAAABwAQCdASoHAAUAAUAmJYwCdAFAAAD+8sp8CStWbpYcm1zEAAA=", 7, 5},
+		{"lossless", "UklGRh4AAABXRUJQVlA4TBEAAAAvCgACEAdQlFKUp2aBiOh/AAA=", 11, 9},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := base64.StdEncoding.DecodeString(tc.content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			store := &mediaUploadFixture{memorySessions: store()}
+			body, typ := multipartFixture(t, []partFixture{{"file", "image.webp", string(data)}})
+			req := httptest.NewRequest("POST", "/api/v2/media", body)
+			req.Header.Set("Content-Type", typ)
+			req.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
+			w := httptest.NewRecorder()
+			NewHandlerWithConfig(codec, store, CorsPolicy{}, RefreshConfig{LocalStorage: LocalStorageConfig{Root: t.TempDir()}}).ServeHTTP(w, req)
+			if w.Code != 200 || store.calls != 1 || store.input.MIMEType != "image/webp" || store.input.Width == nil || *store.input.Width != tc.width || store.input.Height == nil || *store.input.Height != tc.height {
+				t.Fatal(w.Code, store.input, w.Body.String())
+			}
+		})
 	}
 }
 

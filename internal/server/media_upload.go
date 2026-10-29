@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/Cthaat/NekoTribe/backend-go/internal/auth"
+	_ "golang.org/x/image/webp"
 )
 
 type mediaUploadStore interface {
