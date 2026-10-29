@@ -4205,7 +4205,7 @@
           "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Connect multipart parsing and local object writing to authentication, content detection and transactional media persistence with compensation; verify partial-object visibility and run shared scenarios and real dependency acceptance."
+            "Connect multipart parsing and atomic local publication to authentication, content detection and transactional media persistence with compensation; verify filesystem support, shared scenarios and real dependency acceptance."
           ],
           "sourceFiles": [
             "internal/server/media_multipart.go",
