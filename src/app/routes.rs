@@ -93,6 +93,11 @@ fn native_router(
         Some(source),
         Some(publisher),
     )
+    .merge(
+        crate::storage::local_http::router(options.local_storage.clone()).layer(
+            axum_middleware::from_fn_with_state(options.cors.clone(), sessions::cors_middleware),
+        ),
+    )
     .layer(axum_middleware::from_fn_with_state(
         config,
         security_headers::security_headers,

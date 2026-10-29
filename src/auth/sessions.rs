@@ -1039,7 +1039,7 @@ impl CorsPolicy {
                 .is_ok_and(|ip| ip.octets()[0] == 127)
     }
 }
-async fn cors_middleware(
+pub(crate) async fn cors_middleware(
     State(policy): State<CorsPolicy>,
     request: Request<Body>,
     next: Next,
