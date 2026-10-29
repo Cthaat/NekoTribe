@@ -4202,12 +4202,15 @@
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Implement complete native multipart upload, validation, temporary files, transactional media persistence and failure compensation; run shared scenarios and real dependency acceptance."
+            "Connect the isolated streaming multipart parser to authentication, content detection, object storage and transactional media persistence with compensation; run shared scenarios and real dependency acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/media_multipart.go",
+            "internal/server/media_multipart_test.go"
+          ],
           "evidence": []
         }
       },
