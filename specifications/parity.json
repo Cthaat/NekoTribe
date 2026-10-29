@@ -9286,10 +9286,14 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Connect verified key/range components to a complete secure local storage provider, streaming HTTP routes, configuration and media authorization; validate on Windows/Linux."
+            "Complete upload and deletion, media authorization and handle-based filesystem isolation; public streaming GET is implemented but is not private attachment authorization."
           ],
           "sourceFiles": [
-            "src/storage/local_policy.rs"
+            "src/storage/local_policy.rs",
+            "src/storage/local_http.rs",
+            "tests/storage_local_http_test.rs",
+            "src/config/env.rs",
+            "src/app/routes.rs"
           ],
           "evidence": []
         },
@@ -11191,7 +11195,7 @@
     {
       "source": {
         "path": "specifications/requirements/storage-local-files.md",
-        "sha256": "4e8a2eb4ec782c8f4003bb936c0274c741fac1136f2e66f394c5935e94fde845"
+        "sha256": "a4dba5b9e164b12275d63aeeda05ec8c1709d16213b4e0b274ea0a4c325edfb9"
       },
       "copies": {
         "rust": "contracts/requirements/storage-local-files.md",
