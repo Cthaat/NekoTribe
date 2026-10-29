@@ -4205,11 +4205,13 @@
           "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Connect the isolated streaming multipart parser to authentication, content detection, object storage and transactional media persistence with compensation; run shared scenarios and real dependency acceptance."
+            "Connect multipart parsing and local object writing to authentication, content detection and transactional media persistence with compensation; verify partial-object visibility and run shared scenarios and real dependency acceptance."
           ],
           "sourceFiles": [
             "internal/server/media_multipart.go",
-            "internal/server/media_multipart_test.go"
+            "internal/server/media_multipart_test.go",
+            "internal/server/media_storage.go",
+            "internal/server/media_storage_test.go"
           ],
           "evidence": []
         }
