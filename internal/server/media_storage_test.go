@@ -47,6 +47,10 @@ func TestMediaStorageWritesWithoutOverwriting(t *testing.T) {
 	if err != nil || string(data) != "source-content" {
 		t.Fatal("original changed", err)
 	}
+	entries, err := os.ReadDir(filepath.Join(root, "temp", m.directory))
+	if err != nil || len(entries) != 1 || entries[0].Name() != "part-1" {
+		t.Fatal("staged files left after publication or collision", entries, err)
+	}
 }
 
 func TestMediaStorageRejectsUnsafePathsAndCleansPartialCopies(t *testing.T) {
@@ -99,6 +103,45 @@ func TestMediaStorageRejectsLinkedParent(t *testing.T) {
 type mediaCancelAfterRead struct {
 	context.Context
 	checks int
+}
+
+type mediaVisibilityProbe struct {
+	context.Context
+	target   string
+	observed bool
+	checks   int
+}
+
+func (p *mediaVisibilityProbe) Err() error {
+	p.checks++
+	if _, err := os.Lstat(p.target); err == nil {
+		p.observed = true
+	}
+	return nil
+}
+
+func TestMediaStoragePublishesOnlyAfterCopyCompletes(t *testing.T) {
+	root := t.TempDir()
+	body, contentType := multipartFixture(t, []partFixture{{"file", "source.txt", strings.Repeat("x", 256<<10)}})
+	r := httptest.NewRequest("POST", "/api/v2/media", body)
+	r.Header.Set("Content-Type", contentType)
+	m, err := parseMediaMultipart(r, LocalStorageConfig{Root: root}, mediaMultipartLimits{fileBytes: 300 << 10, totalBytes: 300 << 10, fieldBytes: 100, fields: 5, files: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	target := filepath.Join(root, "posts", "complete.txt")
+	probe := &mediaVisibilityProbe{Context: context.Background(), target: target}
+	if err := saveMediaObject(probe, m, LocalStorageConfig{Root: root}, "posts/complete.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if probe.checks < 3 || probe.observed {
+		t.Fatal("target became visible while copy was in progress", probe.checks, probe.observed)
+	}
+	info, err := os.Stat(target)
+	if err != nil || info.Size() != 256<<10 {
+		t.Fatal(info, err)
+	}
 }
 
 func (c *mediaCancelAfterRead) Err() error {

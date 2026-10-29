@@ -67,8 +67,8 @@ func (r mediaContextReader) Read(p []byte) (int, error) {
 
 // A key is generated server-side, never from the client filename. The source is
 // request-owned and stays available until the caller finishes its transaction.
-func saveMediaObject(ctx context.Context, m *mediaMultipart, config LocalStorageConfig, key string) (result error) {
-	if config.Unsupported || m == nil || m.closed || m.root == nil {
+func saveMediaObject(ctx context.Context, m *mediaMultipart, config LocalStorageConfig, key string) error {
+	if config.Unsupported || m == nil || m.closed || m.root == nil || m.temp == nil || m.request == nil || m.directory == "" {
 		return errMediaStorage
 	}
 	key, err := normalizeLocalFileKey(key)
@@ -110,30 +110,54 @@ func saveMediaObject(ctx context.Context, m *mediaMultipart, config LocalStorage
 			return errMediaStorage
 		}
 	}
-	destination, err := m.root.OpenFile(filepath.FromSlash(key), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	id, err := randomUUID()
+	if err != nil {
+		return errMediaStorage
+	}
+	stage := "publish-" + id
+	destination, err := m.request.OpenFile(stage, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err
 	}
+	m.files = append(m.files, stage)
+	defer func() {
+		if e := m.request.Remove(stage); e != nil && !errors.Is(e, os.ErrNotExist) {
+			log.Print("media upload temporary cleanup unavailable")
+		}
+	}()
 	created, statErr := destination.Stat()
 	if statErr != nil {
 		_ = destination.Close()
-		log.Print("media upload object cleanup unavailable")
 		return errMediaStorage
 	}
-	defer func() {
-		if result != nil {
-			current, e := m.root.Lstat(filepath.FromSlash(key))
-			if e == nil && os.SameFile(created, current) {
-				if e = m.root.Remove(filepath.FromSlash(key)); e != nil {
-					log.Print("media upload object cleanup unavailable")
-				}
-			}
-		}
-	}()
 	n, copyErr := io.CopyBuffer(destination, mediaContextReader{ctx: ctx, source: io.LimitReader(source, m.Selected.Size+1)}, make([]byte, 64<<10))
+	modeErr := destination.Chmod(0644)
 	closeErr := destination.Close()
-	if copyErr != nil || closeErr != nil || n != m.Selected.Size || ctx.Err() != nil {
+	if copyErr != nil || modeErr != nil || closeErr != nil || n != m.Selected.Size || ctx.Err() != nil {
 		return errMediaStorage
 	}
-	return nil
+	// Ensure path-based publication still refers to the private directory and
+	// staged inode opened above. Root.Link fails rather than copying across
+	// filesystems or overwriting an existing destination.
+	for _, pair := range []struct {
+		path string
+		root *os.Root
+	}{
+		{"temp", m.temp}, {filepath.Join("temp", m.directory), m.request},
+	} {
+		current, e := m.root.Lstat(pair.path)
+		opened, openErr := pair.root.Stat(".")
+		if e != nil || openErr != nil || !current.IsDir() || current.Mode()&os.ModeSymlink != 0 || !os.SameFile(current, opened) {
+			return errMediaStorage
+		}
+	}
+	stagedPath := filepath.Join("temp", m.directory, stage)
+	current, err := m.root.Lstat(stagedPath)
+	if err != nil || !current.Mode().IsRegular() || !os.SameFile(created, current) {
+		return errMediaStorage
+	}
+	if err := ctx.Err(); err != nil {
+		return errMediaStorage
+	}
+	return m.root.Link(stagedPath, filepath.FromSlash(key))
 }
