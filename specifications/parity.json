@@ -4214,7 +4214,7 @@
           "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Connect multipart parsing and atomic local publication to authentication, content detection and transactional media persistence with compensation; verify filesystem support, shared scenarios and real dependency acceptance."
+            "Connect multipart parsing, atomic publication and media database transaction to authentication and a real content detector; apply the cleanup-safe result, verify filesystem support, shared scenarios and real dependency acceptance."
           ],
           "sourceFiles": [
             "internal/server/media_multipart.go",
@@ -4222,7 +4222,9 @@
             "internal/server/media_storage.go",
             "internal/server/media_storage_test.go",
             "internal/server/media_type_selection.go",
-            "internal/server/media_type_selection_test.go"
+            "internal/server/media_type_selection_test.go",
+            "internal/server/media_upload_transaction.go",
+            "internal/server/media_upload_transaction_test.go"
           ],
           "evidence": []
         }
