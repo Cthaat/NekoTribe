@@ -979,7 +979,7 @@
       },
       {
         "path": "server/services/v2/media.ts",
-        "sha256": "c09efa2c1ba434d63370c5cdbccbb8c0f40a5d8eced9ab792f3a8ec9a12b2d1f"
+        "sha256": "ac5bf8242b4e6f4678daf8b1848d3c519c5fc862f9b9400ae0c0438d17aaa526"
       },
       {
         "path": "server/services/v2/moderation.ts",
@@ -4220,9 +4220,10 @@
       "title": "DELETE /api/v2/media/{id}: 删除媒体资源",
       "revision": 1,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/media-upload.md",
       "sourceFiles": [
-        "server/api/v2/media/[id].delete.ts"
+        "server/api/v2/media/[id].delete.ts",
+        "server/services/v2/media.ts"
       ],
       "operations": [
         "DELETE /api/v2/media/{id}"
@@ -4233,10 +4234,12 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for DELETE /api/v2/media/{id}; create shared acceptance scenarios."
+            "Verify shared object references, cleanup recovery and real Oracle concurrency; add common acceptance scenarios."
           ],
           "sourceFiles": [
-            "server/api/v2/media/[id].delete.ts"
+            "server/api/v2/media/[id].delete.ts",
+            "server/services/v2/media.ts",
+            "tests/media-delete-lifecycle.test.mjs"
           ],
           "evidence": []
         },
@@ -11184,7 +11187,7 @@
     {
       "source": {
         "path": "specifications/requirements/media-upload.md",
-        "sha256": "67d1ae11b86ea60d361ad021b2c0964921f958e8ddb51419fb10d930d52dfe40"
+        "sha256": "21107d9e81af72844bb49156047328d8914d09bf881670a6dc638fbda50fb782"
       },
       "copies": {
         "rust": "contracts/requirements/media-upload.md",

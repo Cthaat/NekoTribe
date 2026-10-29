@@ -23,6 +23,7 @@ import {
   v2NotFound,
   v2Ok,
   v2One,
+  v2ServerError,
   v2StringOrNull,
   v2Throw
 } from '~/server/utils/v2';
@@ -169,7 +170,7 @@ export async function v2DeleteMedia(
   );
   if (!row) v2NotFound('媒体不存在');
 
-  await v2Execute(
+  const deleted = await v2Execute(
     connection,
     `
     DELETE FROM n_media_assets
@@ -178,6 +179,8 @@ export async function v2DeleteMedia(
     `,
     { media_id: mediaId, user_id: auth.userId }
   );
+  if (deleted === 0) v2NotFound('媒体不存在');
+  if (deleted !== 1) v2ServerError('服务器内部错误');
 
   await deleteStorageReference({
     storageKey: v2StringOrNull(row.STORAGE_KEY),
