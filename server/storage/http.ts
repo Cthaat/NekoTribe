@@ -44,10 +44,16 @@ interface ParsedByteRange {
   end: number;
 }
 
+export function parseLocalByteRange(header:string|null|undefined,size:number):ParsedByteRange|null {
+  const value=header?.trim();
+  return value?parseRangeHeader(value,size):null;
+}
+
 export class StorageHttpError extends Error {
   constructor(
     public readonly statusCode: number,
-    message: string
+    message: string,
+    public readonly headers: Record<string,string> = {}
   ) {
     super(message);
     this.name = 'StorageHttpError';
@@ -72,7 +78,8 @@ function parseRangeHeader(
   if (!matched) {
     throw new StorageHttpError(
       416,
-      'Invalid range header'
+      'Invalid range header',
+      {'Content-Range':`bytes */${fileSize}`}
     );
   }
 
@@ -87,7 +94,8 @@ function parseRangeHeader(
     if (suffixLength <= 0) {
       throw new StorageHttpError(
         416,
-        'Invalid range header'
+        'Invalid range header',
+        {'Content-Range':`bytes */${fileSize}`}
       );
     }
 
@@ -106,7 +114,8 @@ function parseRangeHeader(
   ) {
     throw new StorageHttpError(
       416,
-      'Requested range not satisfiable'
+      'Requested range not satisfiable',
+      {'Content-Range':`bytes */${fileSize}`}
     );
   }
 
@@ -117,39 +126,26 @@ export async function createLocalReadResult(
   filePath: string,
   request: StorageReadRequest
 ): Promise<StorageReadResult> {
-  const stat = await fs.promises.stat(filePath);
-  const contentType = inferMimeType(filePath);
-  const headers: Record<string, string> = {
-    'Accept-Ranges': 'bytes',
-    'Cache-Control': 'public, max-age=31536000, immutable',
-    'Content-Type': contentType,
-    ETag: `"${stat.size}-${stat.mtimeMs}"`,
-    'Last-Modified': stat.mtime.toUTCString()
-  };
-
-  const rangeHeader = request.rangeHeader?.trim();
-  if (!rangeHeader) {
-    headers['Content-Length'] = String(stat.size);
-    return {
-      statusCode: 200,
-      headers,
-      stream: fs.createReadStream(filePath)
+  const file=await fs.promises.open(filePath,fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+  try {
+    const stat=await file.stat();
+    if(!stat.isFile())throw new StorageHttpError(404,'文件不存在');
+    const contentType=inferMimeType(filePath);
+    const headers:Record<string,string>={
+      'Accept-Ranges':'bytes',
+      'Cache-Control':'public, max-age=31536000, immutable',
+      'Content-Type':contentType,
+      'X-Content-Type-Options':'nosniff',
+      ETag:`"${stat.size}-${stat.mtimeMs}"`,
+      'Last-Modified':stat.mtime.toUTCString()
     };
-  }
-
-  const range = parseRangeHeader(rangeHeader, stat.size);
-  const contentLength = range.end - range.start + 1;
-
-  headers['Content-Length'] = String(contentLength);
-  headers['Content-Range'] =
-    `bytes ${range.start}-${range.end}/${stat.size}`;
-
-  return {
-    statusCode: 206,
-    headers,
-    stream: fs.createReadStream(filePath, {
-      start: range.start,
-      end: range.end
-    })
-  };
+    const range=parseLocalByteRange(request.rangeHeader,stat.size);
+    headers['Content-Length']=String(range?range.end-range.start+1:stat.size);
+    if(range)headers['Content-Range']=`bytes ${range.start}-${range.end}/${stat.size}`;
+    return {
+      statusCode:range?206:200,
+      headers,
+      stream:file.createReadStream(range?{start:range.start,end:range.end}:{})
+    };
+  } catch(error) { await file.close(); throw error; }
 }

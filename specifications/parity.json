@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "62c76306d64360a1762a9e233d2f8c3946eb65aa8d5745d256ea528fb06135fd"
+      "sha256": "e5b44f4b911951aea8560cfa6dfb0b019f3f8509c211fb43bcfbc96e9aee168c"
     },
     "sources": [
       {
@@ -579,7 +579,7 @@
       },
       {
         "path": "server/api/v2/media/index.post.ts",
-        "sha256": "433984fac769c1cbfd5afd4fbf6157e7b9d967647a72105259dd7cac312ce879"
+        "sha256": "3a230a6652a8a567b78883083fa3f70c4280c18f0f0a0e7a1e0b6b75cc3e8ef6"
       },
       {
         "path": "server/api/v2/moderation/appeals/[appeal_id].patch.ts",
@@ -947,7 +947,7 @@
       },
       {
         "path": "server/routes/storage/[...segments].get.ts",
-        "sha256": "ea7f766c9dfffe26d6b96bcc322d03e7885fdbf782825c4e10b044ba25969f52"
+        "sha256": "b15b62e3f0a394e24017e4d5249302aa7840cb0fd7084720eeb1aa853c4c695e"
       },
       {
         "path": "server/routes/upload/[...segments].get.ts",
@@ -979,7 +979,7 @@
       },
       {
         "path": "server/services/v2/media.ts",
-        "sha256": "ffe63b7b898d7e54c2e587e0d08097dc0bf004a2442d909792bf136397639184"
+        "sha256": "c09efa2c1ba434d63370c5cdbccbb8c0f40a5d8eced9ab792f3a8ec9a12b2d1f"
       },
       {
         "path": "server/services/v2/moderation.ts",
@@ -1007,7 +1007,7 @@
       },
       {
         "path": "server/storage/http.ts",
-        "sha256": "63a73a36cfb9156c53289b881bf09742d7c6d9680605d6c12e40d0e1d105b4c1"
+        "sha256": "ad7becc9702898ac66ce9e4daf3cbd11c4f6fcc82cb0638c062619de723ba5dc"
       },
       {
         "path": "server/storage/index.test.ts",
@@ -1015,11 +1015,11 @@
       },
       {
         "path": "server/storage/index.ts",
-        "sha256": "b41cc0ee0e64bc606a81820a31ebea787d220fb15fcb1d35fd22ea670e108917"
+        "sha256": "9b75f9f2d41542b3eea30963366386771a8db7ff7d08a7dabe9912fe37664fc2"
       },
       {
         "path": "server/storage/providers/local.ts",
-        "sha256": "4b0736dd387bf13a7de93b8c80b86fa97761d31e46c1672d3d8dd69f68a36567"
+        "sha256": "a35e9957a689d5c6619e82a4393f6870f07513322cf52508eea63d157a948da3"
       },
       {
         "path": "server/storage/providers/s3.ts",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "819d5f22e931914de1e0e1d2bf59f996868e341fd3d663480eba106ccb0f2083"
+        "sha256": "c6aba62e0d62eb05f38d759843b8b4f2f84807818dcabdb1a65edddf53b99c5b"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -1144,6 +1144,10 @@
       {
         "path": "server/utils/wsSession.ts",
         "sha256": "93a24c34dfeafd6fe229bd8d8262fb4365048bce9d89568e75a3e17a341b1859"
+      },
+      {
+        "path": "server/storage/local-path.ts",
+        "sha256": "a3c480315f2a830087b929e98b15872ed5ee32581252d4b04cd06b59e0c66de0"
       }
     ]
   },
@@ -4160,11 +4164,14 @@
     {
       "id": "API-post_media",
       "title": "POST /api/v2/media: 上传媒体资源",
-      "revision": 1,
+      "revision": 2,
       "review": "unreviewed",
-      "definition": null,
+      "definition": "specifications/requirements/media-upload.md",
       "sourceFiles": [
-        "server/api/v2/media/index.post.ts"
+        "server/api/v2/media/index.post.ts",
+        "server/services/v2/media.ts",
+        "server/storage/index.ts",
+        "server/storage/providers/local.ts"
       ],
       "operations": [
         "POST /api/v2/media"
@@ -4173,34 +4180,40 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for POST /api/v2/media; create shared acceptance scenarios."
+            "Validate multipart cleanup, unknown commits and existing MIME/metadata behavior against isolated Oracle and real storage."
           ],
           "sourceFiles": [
-            "server/api/v2/media/index.post.ts"
+            "server/api/v2/media/index.post.ts",
+            "server/services/v2/media.ts",
+            "server/storage/index.ts",
+            "server/storage/providers/local.ts"
           ],
           "evidence": []
         },
         "rust": {
           "state": "proxy",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/media natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Implement complete native multipart upload, validation, temporary files, transactional media persistence and failure compensation; run shared scenarios and real dependency acceptance."
           ],
           "sourceFiles": [],
           "evidence": []
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
-            "Implement POST /api/v2/media natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Implement complete native multipart upload, validation, temporary files, transactional media persistence and failure compensation; run shared scenarios and real dependency acceptance."
           ],
           "sourceFiles": [],
           "evidence": []
         }
-      }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/media-upload.md"
+      ]
     },
     {
       "id": "API-delete_media_id",
@@ -9230,6 +9243,68 @@
           "evidence": []
         }
       }
+    },
+    {
+      "id": "STORAGE-LOCAL-FILES",
+      "title": "本地存储文件安全与范围读取",
+      "revision": 1,
+      "review": "unreviewed",
+      "definition": "specifications/requirements/storage-local-files.md",
+      "sourceFiles": [
+        "server/storage/local-path.ts",
+        "server/storage/http.ts",
+        "server/storage/providers/local.ts",
+        "server/routes/storage/[...segments].get.ts"
+      ],
+      "operations": [],
+      "scenarios": [
+        {
+          "id": "STORAGE-LOCAL-POLICY",
+          "file": "specifications/scenarios/storage-local-policy.json"
+        }
+      ],
+      "sharedDependencies": [
+        "specifications/requirements/storage-local-files.md",
+        "specifications/scenarios/storage-local-policy.json"
+      ],
+      "implementations": {
+        "nuxt": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "Validate native local reads and writes on Windows/Linux, private attachment authorization and hostile filesystem races."
+          ],
+          "sourceFiles": [
+            "server/storage/local-path.ts",
+            "server/storage/http.ts",
+            "server/storage/providers/local.ts",
+            "server/routes/storage/[...segments].get.ts"
+          ],
+          "evidence": []
+        },
+        "rust": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "Connect verified key/range components to a complete secure local storage provider, streaming HTTP routes, configuration and media authorization; validate on Windows/Linux."
+          ],
+          "sourceFiles": [
+            "src/storage/local_policy.rs"
+          ],
+          "evidence": []
+        },
+        "go": {
+          "state": "in-progress",
+          "targetRevision": 1,
+          "tasks": [
+            "Connect verified key/range components to a complete secure local storage provider, streaming HTTP routes, configuration and media authorization; validate on Windows/Linux."
+          ],
+          "sourceFiles": [
+            "internal/server/storage_local_policy.go"
+          ],
+          "evidence": []
+        }
+      }
     }
   ],
   "sourceAudits": [
@@ -10139,6 +10214,13 @@
     {
       "id": "SOURCE-server-utils-wsSession.ts",
       "source": "server/utils/wsSession.ts",
+      "disposition": "unreviewed",
+      "featureIds": [],
+      "reason": ""
+    },
+    {
+      "id": "SOURCE-server-storage-local-path.ts",
+      "source": "server/storage/local-path.ts",
       "disposition": "unreviewed",
       "featureIds": [],
       "reason": ""
@@ -11089,6 +11171,39 @@
         "rust": "contracts/scenarios/post-update-request.json",
         "go": "contracts/scenarios/post-update-request.json",
         "flutter": "contracts/scenarios/post-update-request.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/media-upload.md",
+        "sha256": "67d1ae11b86ea60d361ad021b2c0964921f958e8ddb51419fb10d930d52dfe40"
+      },
+      "copies": {
+        "rust": "contracts/requirements/media-upload.md",
+        "go": "contracts/requirements/media-upload.md",
+        "flutter": "contracts/requirements/media-upload.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/storage-local-files.md",
+        "sha256": "d9eb8eac38c7e9c17119987faff9f2e8d9d8fb284dc3b64437dafcf36b648a73"
+      },
+      "copies": {
+        "rust": "contracts/requirements/storage-local-files.md",
+        "go": "contracts/requirements/storage-local-files.md",
+        "flutter": "contracts/requirements/storage-local-files.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/storage-local-policy.json",
+        "sha256": "6b6b19a8e1c018ad9b4c5cbe407a11487f5ab1250721f1285296b3260748af99"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/storage-local-policy.json",
+        "go": "contracts/scenarios/storage-local-policy.json",
+        "flutter": "contracts/scenarios/storage-local-policy.json"
       }
     }
   ]

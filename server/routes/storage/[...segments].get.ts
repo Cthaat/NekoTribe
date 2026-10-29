@@ -69,12 +69,13 @@ export default defineEventHandler(async event => {
     }
 
     if (error instanceof StorageHttpError) {
+      for(const [header,value]of Object.entries(error.headers))setResponseHeader(event,header,value);
       throw createError({
         statusCode: error.statusCode,
         statusMessage: error.message
       });
     }
 
-    throw error;
+    throw createError({statusCode:500,statusMessage:'Internal Server Error'});
   }
 });

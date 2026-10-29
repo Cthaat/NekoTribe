@@ -6,7 +6,7 @@
 
 - `requirements/authentication.md`：16 项兼容需求、35 个待执行完整业务场景、7 项需统一修订的缺口。另有三端相同的25个token样例和29个会话撤销HTTP/JWT隔离场景；后者需求见 `auth-session-revocation.md`，不能代替真实Oracle或完整认证验收。
 - `requirements/ai-product-scope.md`：三个已确认 AI 方向与角色权限；`ai-model-switching.md` 是完整切换要求；`ai-model-configuration.md` 和 `ai-inference-transport.md` 是已实现的配置/非流式传输组件。52 个配置样例和 55 个传输样例和 24 个工具历史样例已在三端隔离测试通过，后者使用合成 loopback 提供方；实际模型调用、产品权限接线及完整场景仍未验收。
-- `parity.json`：154个登记项覆盖162个规范操作及新增AI和公共存储地址工作；部分关联操作合为工作项，旧登记ID保存在 `supersedes`，不删除HTTP接口。284个server源码文件固定LF SHA-256，其他130个入口待分类/关联。13个旧情感分析操作标记退役；所有功能均未获得完整三后端业务验收。
+- `parity.json`：155个登记项覆盖162个规范操作及新增AI和公共存储地址工作；部分关联操作合为工作项，旧登记ID保存在 `supersedes`，不删除HTTP接口。284个server源码文件固定LF SHA-256，其他131个入口待分类/关联。13个旧情感分析操作标记退役；所有功能均未获得完整三后端业务验收。
 - `requirements/auth-session-list.md`：三端会话列表行为及 16 条分页样例；隔离测试不代替真实 Oracle、时区与跨实例验收。
 - `requirements/auth-otp-verification.md` 与 `auth-otp-creation.md`：验证码校验和邮件创建的共同规则与隔离场景；短信提供方、真实邮件及数据库联测仍需完成。
 - `requirements/auth-registration.md`：三端注册、验证码门槛与 29 条隔离场景；真实 Oracle 触发器、并发注册和跨后端登录尚待验收。
@@ -15,6 +15,7 @@
 - `requirements/post-detail.md`：帖子详情权限、附件及浏览量共同目标；三端均通过 22 条共同隔离样例，真实数据库及客户端联调待验收。
 - `requirements/post-list.md`：公共、热门、个人、收藏、点赞及指定用户、标签、回复、转发列表的共同需求；Rust/Go 已接入相应原生路由并完成局部隔离测试，完整共同场景和真实数据库联测仍待完成。
 - `requirements/post-create-reference.md`、`post-create-transaction.md` 与 `post-create-request.md`：发帖、回复、引用和转发的请求与事务要求；Rust/Go 均已接入原生请求、事务、提交后通知及完整响应，80 条请求向量在三端隔离测试通过。真实依赖及三端创建流程尚未通过共同验收。
+- `requirements/media-upload.md` 与 `storage-local-files.md`：上传补偿、临时文件和本地路径/范围规则；Nuxt 生命周期与文件边界已修正，Rust/Go 仅有纯规则组件，原生实际文件和媒体路由仍待接线。
 - `requirements/post-update.md`：PATCH 与兼容 PUT 的共同部分更新、行锁及原子事务；53 条请求向量与三端隔离事务/HTTP 检查通过，真实 Oracle 及客户端仍待验收。两个操作合为 `POST-UPDATE` 工作项并保留原 ID。
 - `requirements/post-delete.md`：三端所有者软删除、canonical 路径、并发条件写入及安全错误；17 条共同隔离场景通过，真实 Oracle、触发器及跨后端缓存仍待验收。
 - `requirements/post-comments-list.md`、`post-comment-create.md`、`post-comment-delete.md`、`post-comment-like.md`：Rust/Go 已接入评论列表、创建、删除及点赞/取消点赞的原生路径；真实数据库、通知副作用及跨后端联调仍待验收。
@@ -29,7 +30,7 @@
 - `requirements/user-self-profile-update.md`：三端当前用户资料部分更新和 18 条隔离场景；真实 Oracle 日期、约束、事务和跨实例缓存待验收。
 - `requirements/user-public-profile.md`：三端公开资料和 21 条隔离场景，真实 Oracle 在线状态、时区及双端联调待验收。
 - `requirements/user-self-profile.md`：三端当前用户资料与 10 条隔离鉴权场景；真实共享数据和两客户端联调待验收。
-- 2026-10-28 审计时，检查器核对 94 份公共需求/样例在 Rust/Go 的固定副本，并登记 49 份场景文件；这些数量是文档和场景登记量，不是业务通过数。自动复制工具、真实业务场景 runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
+- 2026-10-28 审计时，检查器核对 97 份公共需求/样例在 Rust/Go 的固定副本，并登记 50 份场景文件；这些数量是文档和场景登记量，不是业务通过数。自动复制工具、真实业务场景 runner、流水线及全量需求还原仍需继续实现，不宣称检查通过就会自动更新三种语言代码。
 
 ## 两种检查
 

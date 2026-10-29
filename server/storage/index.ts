@@ -10,6 +10,7 @@ import ffprobe from 'ffprobe-static';
 import { getStorageConfig } from './config';
 import { StorageHttpError } from './http';
 import { LocalStorageProvider } from './providers/local';
+import {ensureLocalStorageDirectory} from './local-path';
 import { S3StorageProvider } from './providers/s3';
 import type {
   FileMetadata,
@@ -403,9 +404,7 @@ export function getStorageTempDir(): string {
 }
 
 export async function ensureStorageTempDir(): Promise<string> {
-  const tempDir = getStorageTempDir();
-  await fs.promises.mkdir(tempDir, { recursive: true });
-  return tempDir;
+  return await ensureLocalStorageDirectory(getStorageConfig().rootPath,'temp');
 }
 
 export function managedPublicUrlToStorageKey(

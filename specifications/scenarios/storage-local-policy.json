@@ -1,0 +1,637 @@
+{
+  "id": "STORAGE-LOCAL-POLICY",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "key-0",
+      "kind": "key",
+      "value": "posts/images/42/2026/10/uuid.png",
+      "expected": {
+        "status": 200,
+        "key": "posts/images/42/2026/10/uuid.png"
+      }
+    },
+    {
+      "id": "key-1",
+      "kind": "key",
+      "value": "default-avatar.png",
+      "expected": {
+        "status": 200,
+        "key": "default-avatar.png"
+      }
+    },
+    {
+      "id": "key-2",
+      "kind": "key",
+      "value": "avatars\\42\\image.jpg",
+      "expected": {
+        "status": 200,
+        "key": "avatars/42/image.jpg"
+      }
+    },
+    {
+      "id": "key-3",
+      "kind": "key",
+      "value": "folder/中文名.txt",
+      "expected": {
+        "status": 200,
+        "key": "folder/中文名.txt"
+      }
+    },
+    {
+      "id": "key-4",
+      "kind": "key",
+      "value": "folder/my note.txt",
+      "expected": {
+        "status": 200,
+        "key": "folder/my note.txt"
+      }
+    },
+    {
+      "id": "key-5",
+      "kind": "key",
+      "value": "folder/.hidden",
+      "expected": {
+        "status": 200,
+        "key": "folder/.hidden"
+      }
+    },
+    {
+      "id": "key-6",
+      "kind": "key",
+      "value": "folder/console.txt",
+      "expected": {
+        "status": 200,
+        "key": "folder/console.txt"
+      }
+    },
+    {
+      "id": "key-7",
+      "kind": "key",
+      "value": "folder/COM10.txt",
+      "expected": {
+        "status": 200,
+        "key": "folder/COM10.txt"
+      }
+    },
+    {
+      "id": "key-8",
+      "kind": "key",
+      "value": "tempfile.txt",
+      "expected": {
+        "status": 200,
+        "key": "tempfile.txt"
+      }
+    },
+    {
+      "id": "key-9",
+      "kind": "key",
+      "value": "a%2fb.txt",
+      "expected": {
+        "status": 200,
+        "key": "a%2fb.txt"
+      }
+    },
+    {
+      "id": "key-10",
+      "kind": "key",
+      "value": "",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-11",
+      "kind": "key",
+      "value": "/etc/passwd",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-12",
+      "kind": "key",
+      "value": "\\Windows\\win.ini",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-13",
+      "kind": "key",
+      "value": "a//b",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-14",
+      "kind": "key",
+      "value": "a/",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-15",
+      "kind": "key",
+      "value": "a/./b",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-16",
+      "kind": "key",
+      "value": "a/../b",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-17",
+      "kind": "key",
+      "value": "../outside",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-18",
+      "kind": "key",
+      "value": "a\\..\\outside",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-19",
+      "kind": "key",
+      "value": "C:\\data",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-20",
+      "kind": "key",
+      "value": "file:stream",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-21",
+      "kind": "key",
+      "value": "a\u0000b",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-22",
+      "kind": "key",
+      "value": "a\nb",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-23",
+      "kind": "key",
+      "value": "ab",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-24",
+      "kind": "key",
+      "value": "a/b?x",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-25",
+      "kind": "key",
+      "value": "a/b*x",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-26",
+      "kind": "key",
+      "value": "a/<file>",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-27",
+      "kind": "key",
+      "value": "a/\"file\"",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-28",
+      "kind": "key",
+      "value": "a/file|pipe",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-29",
+      "kind": "key",
+      "value": "a/file.",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-30",
+      "kind": "key",
+      "value": "a/file ",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-31",
+      "kind": "key",
+      "value": "CON",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-32",
+      "kind": "key",
+      "value": "con.txt",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-33",
+      "kind": "key",
+      "value": "NUL.bin",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-34",
+      "kind": "key",
+      "value": "PRN",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-35",
+      "kind": "key",
+      "value": "AUX",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-36",
+      "kind": "key",
+      "value": "com1.log",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-37",
+      "kind": "key",
+      "value": "LPT9.ext",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-38",
+      "kind": "key",
+      "value": "COM¹.txt",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-39",
+      "kind": "key",
+      "value": "LPT²",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-40",
+      "kind": "key",
+      "value": "CONIN$",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-41",
+      "kind": "key",
+      "value": "conout$.txt",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "key-42",
+      "kind": "key",
+      "value": "CON .txt",
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "range-43",
+      "kind": "range",
+      "value": "",
+      "size": 12,
+      "expected": {
+        "status": 200,
+        "range": null
+      }
+    },
+    {
+      "id": "range-44",
+      "kind": "range",
+      "value": "  ",
+      "size": 12,
+      "expected": {
+        "status": 200,
+        "range": null
+      }
+    },
+    {
+      "id": "range-45",
+      "kind": "range",
+      "value": "bytes=0-3",
+      "size": 12,
+      "expected": {
+        "status": 200,
+        "range": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "range-46",
+      "kind": "range",
+      "value": "BYTES=2-",
+      "size": 12,
+      "expected": {
+        "status": 200,
+        "range": {
+          "start": 2,
+          "end": 11
+        }
+      }
+    },
+    {
+      "id": "range-47",
+      "kind": "range",
+      "value": " bytes=-4 ",
+      "size": 12,
+      "expected": {
+        "status": 200,
+        "range": {
+          "start": 8,
+          "end": 11
+        }
+      }
+    },
+    {
+      "id": "range-48",
+      "kind": "range",
+      "value": "bytes=-99",
+      "size": 12,
+      "expected": {
+        "status": 200,
+        "range": {
+          "start": 0,
+          "end": 11
+        }
+      }
+    },
+    {
+      "id": "range-49",
+      "kind": "range",
+      "value": "bytes=0-99",
+      "size": 12,
+      "expected": {
+        "status": 200,
+        "range": {
+          "start": 0,
+          "end": 11
+        }
+      }
+    },
+    {
+      "id": "range-50",
+      "kind": "range",
+      "value": "bytes=11-11",
+      "size": 12,
+      "expected": {
+        "status": 200,
+        "range": {
+          "start": 11,
+          "end": 11
+        }
+      }
+    },
+    {
+      "id": "range-51",
+      "kind": "range",
+      "value": "bytes=0001-0003",
+      "size": 12,
+      "expected": {
+        "status": 200,
+        "range": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "range-52",
+      "kind": "range",
+      "value": "bytes=0-9999999999999999999999999999",
+      "size": 12,
+      "expected": {
+        "status": 200,
+        "range": {
+          "start": 0,
+          "end": 11
+        }
+      }
+    },
+    {
+      "id": "range-53",
+      "kind": "range",
+      "value": "bytes=-9999999999999999999999999999",
+      "size": 12,
+      "expected": {
+        "status": 200,
+        "range": {
+          "start": 0,
+          "end": 11
+        }
+      }
+    },
+    {
+      "id": "range-54",
+      "kind": "range",
+      "value": "bytes=9999999999999999999999999999-",
+      "size": 12,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-55",
+      "kind": "range",
+      "value": "bytes=-0",
+      "size": 12,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-56",
+      "kind": "range",
+      "value": "bytes=-",
+      "size": 12,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-57",
+      "kind": "range",
+      "value": "bytes=12-",
+      "size": 12,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-58",
+      "kind": "range",
+      "value": "bytes=4-3",
+      "size": 12,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-59",
+      "kind": "range",
+      "value": "bytes=0-1,3-4",
+      "size": 12,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-60",
+      "kind": "range",
+      "value": "items=0-3",
+      "size": 12,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-61",
+      "kind": "range",
+      "value": "bytes =0-3",
+      "size": 12,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-62",
+      "kind": "range",
+      "value": "bytes=+1-2",
+      "size": 12,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-63",
+      "kind": "range",
+      "value": "bytes=1.5-3",
+      "size": 12,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-64",
+      "kind": "range",
+      "value": "bytes=0-0",
+      "size": 0,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-65",
+      "kind": "range",
+      "value": "bytes=-1",
+      "size": 0,
+      "expected": {
+        "status": 416
+      }
+    },
+    {
+      "id": "range-66",
+      "kind": "range",
+      "value": "",
+      "size": 0,
+      "expected": {
+        "status": 200,
+        "range": null
+      }
+    },
+    {
+      "id": "range-67",
+      "kind": "range",
+      "value": "bytes=0-0",
+      "size": 1,
+      "expected": {
+        "status": 200,
+        "range": {
+          "start": 0,
+          "end": 0
+        }
+      }
+    },
+    {
+      "id": "range-68",
+      "kind": "range",
+      "value": "byteſ=0-1",
+      "size": 12,
+      "expected": {
+        "status": 416
+      }
+    }
+  ]
+}

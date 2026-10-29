@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {normalizeLocalStorageKey,resolveLocalStoragePath} from '../local-path';
 import {
   createLocalReadResult,
   StorageHttpError
@@ -61,42 +62,17 @@ export class LocalStorageProvider
 
   constructor(private readonly config: StorageConfig) {}
 
-  private resolveAbsolutePath(key: string): string {
-    const normalizedKey = normalizeStorageKey(key);
-    const absolutePath = path.resolve(
-      this.config.rootPath,
-      normalizedKey
-    );
-    const relative = path.relative(
-      this.config.rootPath,
-      absolutePath
-    );
-
-    if (
-      relative.startsWith('..') ||
-      path.isAbsolute(relative)
-    ) {
-      throw new StorageHttpError(400, '非法存储路径');
-    }
-
-    return absolutePath;
+  private async resolveAbsolutePath(key: string,createParents=false): Promise<string> {
+    return await resolveLocalStoragePath(this.config.rootPath,key,createParents);
   }
+
 
   private async moveFile(
     sourcePath: string,
     targetPath: string
   ): Promise<void> {
-    try {
-      await fs.promises.rename(sourcePath, targetPath);
-    } catch (error) {
-      const maybeError = error as NodeJS.ErrnoException;
-      if (maybeError.code !== 'EXDEV') {
-        throw error;
-      }
-
-      await fs.promises.copyFile(sourcePath, targetPath);
-      await fs.promises.rm(sourcePath, { force: true });
-    }
+    await fs.promises.copyFile(sourcePath,targetPath,fs.constants.COPYFILE_EXCL);
+    await fs.promises.rm(sourcePath,{force:true});
   }
 
   async saveFromPath(
@@ -104,17 +80,14 @@ export class LocalStorageProvider
   ): Promise<StoredObject> {
     const visibility: StorageVisibility =
       input.visibility || 'public';
-    const absolutePath = this.resolveAbsolutePath(input.key);
-
-    await fs.promises.mkdir(path.dirname(absolutePath), {
-      recursive: true
-    });
+    const key=normalizeLocalStorageKey(input.key);
+    const absolutePath = await this.resolveAbsolutePath(key,true);
+    const stat=await fs.promises.stat(input.sourcePath);
+    if(!stat.isFile())throw new StorageHttpError(400,'上传文件不可用');
     await this.moveFile(input.sourcePath, absolutePath);
 
-    const stat = await fs.promises.stat(absolutePath);
-
     return {
-      key: normalizeStorageKey(input.key),
+      key,
       url: this.getPublicUrl(input.key, visibility),
       contentType: input.contentType,
       size: stat.size,
@@ -123,8 +96,10 @@ export class LocalStorageProvider
   }
 
   async deleteObject(key: string): Promise<void> {
-    const absolutePath = this.resolveAbsolutePath(key);
-    await fs.promises.rm(absolutePath, { force: true });
+    try {
+      const absolutePath = await this.resolveAbsolutePath(key);
+      await fs.promises.rm(absolutePath, { force: true });
+    } catch(error) { if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error; }
   }
 
   getPublicUrl(
@@ -141,15 +116,17 @@ export class LocalStorageProvider
     key: string,
     request: StorageReadRequest
   ): Promise<StorageReadResult> {
-    const absolutePath = this.resolveAbsolutePath(key);
-
     try {
+      const normalized=normalizeLocalStorageKey(key);
+      if(normalized.split('/')[0]!.toLowerCase()==='temp')throw new StorageHttpError(404,'文件不存在');
+      const absolutePath = await this.resolveAbsolutePath(key);
       return await createLocalReadResult(absolutePath, request);
     } catch (error) {
       const maybeError = error as NodeJS.ErrnoException;
       if (maybeError.code === 'ENOENT') {
         throw new StorageHttpError(404, '文件不存在');
       }
+      if (maybeError.code === 'ELOOP') throw new StorageHttpError(400,'非法存储路径');
       throw error;
     }
   }
