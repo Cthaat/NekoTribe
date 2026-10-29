@@ -144,6 +144,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			deletePost(w, r, codec, repository, id)
 			return
 		}
+		if id, ok := mediaSegment(r.URL.EscapedPath()); ok && r.Method == http.MethodDelete {
+			deleteMedia(w, r, codec, repository, refresh, id)
+			return
+		}
 		if id, ok := postSegment(r.URL.EscapedPath()); ok && (r.Method == http.MethodPatch || r.Method == http.MethodPut) {
 			updatePost(w, r, codec, repository, refresh, id)
 			return
