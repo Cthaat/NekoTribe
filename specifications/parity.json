@@ -4244,12 +4244,18 @@
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement DELETE /api/v2/media/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Verify real Oracle concurrency, shared-object references, cleanup recovery, handle-based filesystem isolation and common cross-backend scenarios."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/media/delete.rs",
+            "src/auth/session_repository.rs",
+            "src/auth/sessions.rs",
+            "src/auth/storage_urls.rs",
+            "tests/media_delete_test.rs"
+          ],
           "evidence": []
         },
         "go": {
