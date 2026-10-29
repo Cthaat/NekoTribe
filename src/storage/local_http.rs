@@ -51,7 +51,7 @@ fn error(status: StatusCode) -> Response<Body> {
         .unwrap()
 }
 
-fn link(metadata: &Metadata) -> bool {
+pub(crate) fn link(metadata: &Metadata) -> bool {
     if metadata.file_type().is_symlink() {
         return true;
     }

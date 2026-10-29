@@ -265,6 +265,9 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn delete_media(&self, user: u64, id: f64) -> StoreFuture<'_, Option<crate::media::delete::MediaDelete>> {
+        Box::pin(crate::media::delete::remove_from_store(&self.executor, user, id))
+    }
     fn update_post_atomic<'a>(&'a self,actor:u64,id:u64,input:&'a crate::posts::update_request::PostUpdateInput)->StoreFuture<'a,crate::posts::update_transaction::PostUpdate>{self.executor.update_post_atomic(actor,id,input)}
     fn delete_post<'a>(&'a self, user:u64, id:u64) -> StoreFuture<'a,crate::posts::delete::PostDelete> {
         Box::pin(crate::posts::delete::remove_from_store(&self.executor,user,id))

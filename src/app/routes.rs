@@ -98,6 +98,7 @@ fn native_router(
             axum_middleware::from_fn_with_state(options.cors.clone(), sessions::cors_middleware),
         ),
     )
+    .layer(axum::Extension(options.local_storage.clone()))
     .layer(axum_middleware::from_fn_with_state(
         config,
         security_headers::security_headers,

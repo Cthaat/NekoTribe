@@ -1,0 +1,223 @@
+use crate::{
+    auth::{
+        session_repository::SessionExecutor,
+        sessions::{NativeState, SessionStoreError},
+    },
+    db::{oracle::BindMap, value::DbValue},
+    httpx::{errors::ApiError, response::V2Response},
+    storage::{
+        local_http::{link, LocalStorageConfig},
+        local_policy::normalize_local_key,
+    },
+};
+use axum::{
+    extract::{OriginalUri, State},
+    http::{header, HeaderMap, HeaderValue},
+    response::{IntoResponse, Response},
+    Extension, Json,
+};
+use std::{fs, io, path::Path};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MediaDelete {
+    pub key: Option<String>,
+    pub public_url: Option<String>,
+    pub thumbnail_url: Option<String>,
+}
+
+pub(crate) async fn remove(
+    State(state): State<NativeState>,
+    OriginalUri(uri): OriginalUri,
+    headers: HeaderMap,
+    config: Option<Extension<LocalStorageConfig>>,
+) -> Response {
+    let result = async {
+        let user = crate::posts::bookmark::interaction_actor(&state, &headers).await?;
+        let raw = uri.path().strip_prefix("/api/v2/media/").unwrap_or("");
+        let decoded = crate::auth::sessions::percent_decode(raw)
+            .ok_or_else(|| ApiError::bad_request("id 参数错误"))?;
+        let id = crate::posts::create_request::string_number(crate::auth::login::js_trim(&decoded))
+            .filter(|v| v.is_finite() && *v > 0.0)
+            .ok_or_else(|| ApiError::bad_request("id 参数错误"))?;
+        let Some(record) = state
+            .repository
+            .delete_media(user, id)
+            .await
+            .map_err(|_| ApiError::server_error("服务器内部错误"))?
+        else {
+            return Err(ApiError::not_found("媒体不存在"));
+        };
+        let config = config
+            .map(|x| x.0)
+            .unwrap_or_else(|| LocalStorageConfig::from_lookup(|_| None));
+        let policy = state.storage_urls.clone();
+        tokio::task::spawn_blocking(move || {
+            remove_reference(
+                &config,
+                &policy,
+                record.key.as_deref(),
+                record.public_url.as_deref(),
+            )?;
+            remove_reference(&config, &policy, None, record.thumbnail_url.as_deref())
+        })
+        .await
+        .map_err(|_| ApiError::server_error("服务器内部错误"))?
+        .map_err(|_| ApiError::server_error("服务器内部错误"))?;
+        Ok(Json(V2Response::null("media deleted")).into_response())
+    }
+    .await;
+    let mut response = result.into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    response
+}
+
+pub async fn remove_from_store<E: SessionExecutor>(
+    executor: &E,
+    user: u64,
+    id: f64,
+) -> Result<Option<MediaDelete>, SessionStoreError> {
+    let user = i64::try_from(user).map_err(|_| SessionStoreError)?;
+    let bindings = || {
+        BindMap::from([
+            ("media_id".into(), DbValue::F64(id)),
+            ("user_id".into(), DbValue::I64(user)),
+        ])
+    };
+    let rows=executor.query("SELECT storage_key, public_url, thumbnail_url FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id",bindings()).await?;
+    let Some(row) = rows.first() else {
+        return Ok(None);
+    };
+    let value = |key: &str| -> Result<Option<String>, SessionStoreError> {
+        match row.get(key) {
+            Some(DbValue::Null) => Ok(None),
+            Some(DbValue::String(s)) => Ok((!s.is_empty()).then(|| s.clone())),
+            _ => Err(SessionStoreError),
+        }
+    };
+    let record = MediaDelete {
+        key: value("STORAGE_KEY")?,
+        public_url: value("PUBLIC_URL")?,
+        thumbnail_url: value("THUMBNAIL_URL")?,
+    };
+    match executor
+        .execute(
+            "DELETE FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id",
+            bindings(),
+        )
+        .await?
+    {
+        0 => Ok(None),
+        1 => Ok(Some(record)),
+        _ => Err(SessionStoreError),
+    }
+}
+
+fn remove_reference(
+    config: &LocalStorageConfig,
+    policy: &crate::auth::storage_urls::StorageUrlPolicy,
+    key: Option<&str>,
+    reference: Option<&str>,
+) -> Result<(), ()> {
+    let key = match key.filter(|s| !s.is_empty()) {
+        Some(key) => Some(normalize_local_key(key).map_err(|_| ())?),
+        None => policy.managed_key(reference.unwrap_or(""))?,
+    };
+    let Some(key) = key else { return Ok(()) };
+    if config.unsupported
+        || key
+            .split('/')
+            .next()
+            .is_some_and(|s| s.eq_ignore_ascii_case("temp"))
+    {
+        return Err(());
+    }
+    let mut current = config.root.clone();
+    let parts: Vec<_> = key.split('/').collect();
+    for (i, part) in parts.iter().enumerate() {
+        current.push(part);
+        let meta = match fs::symlink_metadata(&current) {
+            Ok(m) => m,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(_) => return Err(()),
+        };
+        if link(&meta)
+            || (i + 1 < parts.len() && !meta.is_dir())
+            || (i + 1 == parts.len() && !meta.is_file())
+        {
+            return Err(());
+        }
+    }
+    match fs::remove_file(Path::new(&current)) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn local_deletion_rejects_temp_traversal_and_external_reference() {
+        let root = std::env::temp_dir().join(format!("neko-media-path-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(root.join("owned")).unwrap();
+        let file = root.join("owned/a.txt");
+        fs::write(&file, b"safe").unwrap();
+        let config = LocalStorageConfig {
+            root: root.clone(),
+            unsupported: false,
+        };
+        let policy = crate::auth::storage_urls::StorageUrlPolicy::from_lookup(|key| match key {
+            "STORAGE_PUBLIC_BASE" => Some("/media".into()),
+            "BASE_URL" => Some("https://example.test".into()),
+            _ => None,
+        });
+        assert!(remove_reference(
+            &config,
+            &policy,
+            None,
+            Some("https://other.test/media/owned/a.txt")
+        )
+        .is_ok());
+        assert!(file.exists());
+        assert!(remove_reference(&config, &policy, Some("../escape"), None).is_err());
+        assert!(remove_reference(&config, &policy, Some("TEMP/other"), None).is_err());
+        assert!(remove_reference(
+            &config,
+            &policy,
+            None,
+            Some("https://example.test/media/owned/a.txt")
+        )
+        .is_ok());
+        assert!(!file.exists());
+        assert!(remove_reference(
+            &LocalStorageConfig {
+                root: root.clone(),
+                unsupported: true
+            },
+            &policy,
+            Some("owned/a.txt"),
+            None
+        )
+        .is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[cfg(unix)]
+    #[test]
+    fn local_deletion_rejects_linked_directory() {
+        let root = std::env::temp_dir().join(format!("neko-media-link-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(root.join("outside")).unwrap();
+        fs::write(root.join("outside/a.txt"), b"safe").unwrap();
+        std::os::unix::fs::symlink(root.join("outside"), root.join("link")).unwrap();
+        let config = LocalStorageConfig {
+            root: root.clone(),
+            unsupported: false,
+        };
+        assert!(remove_reference(&config, &Default::default(), Some("link/a.txt"), None).is_err());
+        assert!(root.join("outside/a.txt").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+}

@@ -27,6 +27,47 @@ fn trim_js(value: &str) -> &str {
 }
 
 impl StorageUrlPolicy {
+    pub(crate) fn managed_key(&self, reference: &str) -> Result<Option<String>, ()> {
+        if reference.is_empty() {
+            return Ok(None);
+        }
+        if self.invalid_credentials || self.invalid_public_base {
+            return Err(());
+        }
+        let prefixes = [
+            format!("{}/", self.public_base),
+            "/storage/".into(),
+            "/uploads/".into(),
+            "/upload/".into(),
+        ];
+        let find = |path: &str| -> Result<Option<String>, ()> {
+            for prefix in &prefixes {
+                if let Some(key) = path.strip_prefix(prefix) {
+                    return crate::storage::local_policy::normalize_local_key(key)
+                        .map(Some)
+                        .map_err(|_| ());
+                }
+            }
+            Ok(None)
+        };
+        if reference.starts_with('/') {
+            return find(reference);
+        }
+        let base = if self.cdn_base_url.is_empty() {
+            &self.base_url
+        } else {
+            &self.cdn_base_url
+        };
+        if base.is_empty() {
+            return Ok(None);
+        }
+        if let (Ok(url), Ok(origin)) = (Url::parse(reference), Url::parse(&format!("{base}/"))) {
+            if url.origin() == origin.origin() {
+                return find(url.path());
+            }
+        }
+        Ok(None)
+    }
     pub fn from_lookup(mut lookup: impl FnMut(&str) -> Option<String>) -> Self {
         let value = |s: Option<String>| trim_js(s.as_deref().unwrap_or_default()).to_owned();
         let raw = value(lookup("STORAGE_PUBLIC_BASE")).replace('\\', "/");

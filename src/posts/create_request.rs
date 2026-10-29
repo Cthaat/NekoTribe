@@ -196,7 +196,7 @@ pub(super) fn number_array(value: Option<&RawValue>) -> Vec<f64> {
         .collect()
 }
 
-fn string_number(text: &str) -> Option<f64> {
+pub(crate) fn string_number(text: &str) -> Option<f64> {
     if text.is_empty() {
         return Some(0.0);
     }

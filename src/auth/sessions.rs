@@ -25,6 +25,9 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    fn delete_media(&self, _user: u64, _id: f64) -> StoreFuture<'_, Option<crate::media::delete::MediaDelete>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn update_post_atomic<'a>(&'a self, _actor:u64, _id:u64, _input:&'a crate::posts::update_request::PostUpdateInput) -> StoreFuture<'a,crate::posts::update_transaction::PostUpdate> {
         Box::pin(async {Err(SessionStoreError)})
     }
@@ -524,6 +527,7 @@ pub fn build_native_router_with_realtime_and_publisher(
             get(|| async { Json(json!({"status":"ok","service":"nekotribe"})) }),
         )
         .route("/api/v2/auth/sessions/others", delete(revoke))
+        .route("/api/v2/media/{id}", delete(crate::media::delete::remove))
         .route(
             "/api/v2/auth/sessions",
             get(crate::auth::session_list::list_sessions),

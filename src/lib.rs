@@ -6,6 +6,7 @@ pub mod config;
 pub mod db;
 pub mod httpx;
 pub mod middleware;
+pub mod media;
 pub mod notification_events;
 pub mod notification_source;
 pub mod notification_websocket;
