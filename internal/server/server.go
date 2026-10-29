@@ -32,6 +32,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 		if preflight(w, r, cors) {
 			return
 		}
+		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/storage/") {
+			serveLocalStorage(w, r, refresh.LocalStorage)
+			return
+		}
 		if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/health" {
 			respond(w, 200, 200, "ok", map[string]string{"status": "ok", "service": "nekotribe-go"})
 			return

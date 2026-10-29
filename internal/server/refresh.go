@@ -32,6 +32,7 @@ type RefreshConfig struct {
 	CookieSecure                  bool
 	TrustProxy                    bool
 	Storage                       StorageURLPolicy
+	LocalStorage                  LocalStorageConfig
 	NotificationEvents            NotificationEventSource
 	NotificationPublisher         NotificationEventPublisher
 	otpMailer                     otpMailSender

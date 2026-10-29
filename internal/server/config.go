@@ -65,6 +65,7 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 	}
 	c.Refresh.CookieSecure = get("COOKIE_SECURE") == "true"
 	c.Refresh.Storage = storageURLConfig(lookup)
+	c.Refresh.LocalStorage = localStorageConfig(lookup)
 	c.Refresh.otpMailer = smtpFromLookup(lookup)
 	switch strings.ToLower(strings.TrimSpace(get("TRUST_PROXY"))) {
 	case "1", "true", "yes", "on":
