@@ -285,12 +285,30 @@ async function detectUploadedFile(
   const detected = await fileTypeFromFile(file.filepath);
   const originalName =
     file.originalFilename || path.basename(file.filepath);
+  return {
+    ...selectMediaFileType(originalName, file.mimetype, detected),
+    originalName
+  };
+}
+
+// The actual file-type detector runs separately; this function defines the
+// fallback and allowlist policy shared by the three backends.
+export function selectMediaFileType(
+  originalName: string,
+  uploadedType: string | null | undefined,
+  detected?: { ext: string; mime: string }
+): {
+  extension: string;
+  mimeType: string;
+  mediaType: ManagedMediaType;
+  supported: boolean;
+} {
   const extension = pickDetectedExtension(
     detected?.ext,
     originalName
   );
   const detectedMimeType = normalizeMimeType(detected?.mime);
-  const uploadedMimeType = normalizeMimeType(file.mimetype);
+  const uploadedMimeType = normalizeMimeType(uploadedType);
   const extensionMimeType = inferMimeTypeFromExtension(extension);
   const fallbackMimeType =
     uploadedMimeType === 'application/octet-stream'
@@ -298,11 +316,11 @@ async function detectUploadedFile(
       : uploadedMimeType;
   const mimeType =
     detectedMimeType || fallbackMimeType || extensionMimeType;
-
   return {
     extension,
     mimeType,
-    originalName
+    mediaType: inferManagedMediaType(mimeType),
+    supported: MEDIA_MIME_TYPES.has(mimeType)
   };
 }
 

@@ -1,0 +1,20 @@
+{
+  "id": "MEDIA-TYPE-SELECTION",
+  "revision": 1,
+  "cases": [
+    {"id":"detected-png-overrides-claims","name":"photo.txt","uploaded":"text/plain","detected":{"ext":"png","mime":"image/png"},"expected":{"extension":".png","mimeType":"image/png","mediaType":"image","supported":true}},
+    {"id":"detected-gif","name":"animation","uploaded":"","detected":{"ext":"gif","mime":"image/gif"},"expected":{"extension":".gif","mimeType":"image/gif","mediaType":"gif","supported":true}},
+    {"id":"detected-video","name":"clip.txt","uploaded":"text/plain","detected":{"ext":"mp4","mime":"video/mp4"},"expected":{"extension":".mp4","mimeType":"video/mp4","mediaType":"video","supported":true}},
+    {"id":"unsupported-detected-overrides-claims","name":"a.txt","uploaded":"text/plain","detected":{"ext":"exe","mime":"application/x-msdownload"},"expected":{"extension":".exe","mimeType":"application/x-msdownload","mediaType":"file","supported":false}},
+    {"id":"uploaded-type-trim","name":"notes.TXT","uploaded":" Text/Plain; charset=utf-8 ","detected":null,"expected":{"extension":".txt","mimeType":"text/plain","mediaType":"file","supported":true}},
+    {"id":"extension-fallback-octet","name":"report.PDF","uploaded":"application/octet-stream","detected":null,"expected":{"extension":".pdf","mimeType":"application/pdf","mediaType":"file","supported":true}},
+    {"id":"extension-fallback-empty","name":"archive.zip","uploaded":"","detected":null,"expected":{"extension":".zip","mimeType":"application/zip","mediaType":"file","supported":true}},
+    {"id":"unknown-octet-rejected","name":"unknown.zzz","uploaded":"application/octet-stream","detected":null,"expected":{"extension":".zzz","mimeType":"application/octet-stream","mediaType":"file","supported":false}},
+    {"id":"no-extension-text","name":"readme","uploaded":"text/plain","detected":null,"expected":{"extension":".bin","mimeType":"text/plain","mediaType":"file","supported":true}},
+    {"id":"hidden-dot-name","name":".env","uploaded":"text/plain","detected":null,"expected":{"extension":".bin","mimeType":"text/plain","mediaType":"file","supported":true}},
+    {"id":"dot-dot-name","name":"..","uploaded":"text/plain","detected":null,"expected":{"extension":".bin","mimeType":"text/plain","mediaType":"file","supported":true}},
+    {"id":"webp-uploaded-type","name":"x.webp","uploaded":"image/webp","detected":null,"expected":{"extension":".webp","mimeType":"image/webp","mediaType":"image","supported":true}},
+    {"id":"audio-uploaded-type","name":"sound.wav","uploaded":"audio/wav","detected":null,"expected":{"extension":".wav","mimeType":"audio/wav","mediaType":"audio","supported":true}},
+    {"id":"empty-unknown","name":"no-extension","uploaded":"","detected":null,"expected":{"extension":".bin","mimeType":"","mediaType":"file","supported":false}}
+  ]
+}

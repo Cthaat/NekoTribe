@@ -1015,7 +1015,7 @@
       },
       {
         "path": "server/storage/index.ts",
-        "sha256": "9b75f9f2d41542b3eea30963366386771a8db7ff7d08a7dabe9912fe37664fc2"
+        "sha256": "e092ebd987182ee73ee366cd8ab64351d90290ad7bd5f9dae8267b036ac91983"
       },
       {
         "path": "server/storage/providers/local.ts",
@@ -4176,7 +4176,12 @@
       "operations": [
         "POST /api/v2/media"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "MEDIA-TYPE-SELECTION",
+          "file": "specifications/scenarios/media-type-selection.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
@@ -4188,7 +4193,8 @@
             "server/api/v2/media/index.post.ts",
             "server/services/v2/media.ts",
             "server/storage/index.ts",
-            "server/storage/providers/local.ts"
+            "server/storage/providers/local.ts",
+            "tests/media-type-selection.test.mjs"
           ],
           "evidence": []
         },
@@ -4196,9 +4202,12 @@
           "state": "proxy",
           "targetRevision": 2,
           "tasks": [
-            "Implement complete native multipart upload, validation, temporary files, transactional media persistence and failure compensation; run shared scenarios and real dependency acceptance."
+            "Connect shared type selection to a real content detector and complete native multipart upload, metadata, temporary files, transactional persistence and compensation."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/storage/media_type_selection.rs",
+            "tests/media_type_selection_test.rs"
+          ],
           "evidence": []
         },
         "go": {
@@ -4211,13 +4220,16 @@
             "internal/server/media_multipart.go",
             "internal/server/media_multipart_test.go",
             "internal/server/media_storage.go",
-            "internal/server/media_storage_test.go"
+            "internal/server/media_storage_test.go",
+            "internal/server/media_type_selection.go",
+            "internal/server/media_type_selection_test.go"
           ],
           "evidence": []
         }
       },
       "sharedDependencies": [
-        "specifications/requirements/media-upload.md"
+        "specifications/requirements/media-upload.md",
+        "specifications/scenarios/media-type-selection.json"
       ]
     },
     {
@@ -10253,6 +10265,17 @@
     }
   ],
   "sharedFiles": [
+    {
+      "source": {
+        "path": "specifications/scenarios/media-type-selection.json",
+        "sha256": "ed3153fe4c8aa75ad7ee4f1db3ae5f016cf4970b08b4e5525f9bdcd526bdd426"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/media-type-selection.json",
+        "go": "contracts/scenarios/media-type-selection.json",
+        "flutter": "contracts/scenarios/media-type-selection.json"
+      }
+    },
     {
       "source": {
         "path": "specifications/requirements/ai-model-configuration.md",
