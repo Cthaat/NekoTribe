@@ -1,5 +1,7 @@
 # NekoTribe Rust 后端（兼容模式与原生业务开发）
 
+本地文件 key 与字节范围的共同规则组件已通过 69 条隔离样例；实际文件 provider、HTTP 流、上传/删除及私密附件权限仍待接线，见 `contracts/requirements/storage-local-files.md` 和 `media-upload.md`。
+
 原生 PATCH/PUT 帖子部分更新已接入，省略保留、明确空关系清空；行锁及全部关系写入在同一连接事务中完成，失败回滚。53 条共同请求向量及隔离事务/HTTP 检查通过，真实 Oracle、并发及双客户端仍待验收。规则见 `contracts/requirements/post-update.md`。
 
 原生 `DELETE /api/v2/posts/{id}` 已按公共规则接入作者专属软删除、并发条件更新和安全错误；17 条共同输入在隔离路由中通过。不会物理删除帖子或媒体。真实 Oracle、触发器、缓存及客户端仍待验收，见 `contracts/requirements/post-delete.md`。

@@ -15,3 +15,4 @@ pub mod tags;
 pub mod users;
 
 pub mod posts;
+pub mod storage;
