@@ -4253,12 +4253,16 @@
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement DELETE /api/v2/media/{id} natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Verify real Oracle concurrency, shared-object references, cleanup recovery and common cross-backend scenarios; current native route uses local storage and isolated database tests."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/media_delete.go",
+            "internal/server/media_delete_test.go",
+            "internal/server/server.go"
+          ],
           "evidence": []
         }
       }
