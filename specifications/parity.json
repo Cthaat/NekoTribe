@@ -4180,6 +4180,10 @@
         {
           "id": "MEDIA-TYPE-SELECTION",
           "file": "specifications/scenarios/media-type-selection.json"
+        },
+        {
+          "id": "MEDIA-CONTENT-SIGNATURES",
+          "file": "specifications/scenarios/media-content-signatures.json"
         }
       ],
       "implementations": {
@@ -4194,7 +4198,8 @@
             "server/services/v2/media.ts",
             "server/storage/index.ts",
             "server/storage/providers/local.ts",
-            "tests/media-type-selection.test.mjs"
+            "tests/media-type-selection.test.mjs",
+            "tests/media-content-signatures.test.mjs"
           ],
           "evidence": []
         },
@@ -4224,14 +4229,17 @@
             "internal/server/media_type_selection.go",
             "internal/server/media_type_selection_test.go",
             "internal/server/media_upload_transaction.go",
-            "internal/server/media_upload_transaction_test.go"
+            "internal/server/media_upload_transaction_test.go",
+            "internal/server/media_content.go",
+            "internal/server/media_content_test.go"
           ],
           "evidence": []
         }
       },
       "sharedDependencies": [
         "specifications/requirements/media-upload.md",
-        "specifications/scenarios/media-type-selection.json"
+        "specifications/scenarios/media-type-selection.json",
+        "specifications/scenarios/media-content-signatures.json"
       ]
     },
     {
@@ -10267,6 +10275,17 @@
     }
   ],
   "sharedFiles": [
+    {
+      "source": {
+        "path": "specifications/scenarios/media-content-signatures.json",
+        "sha256": "5a12444055ef6964f73bd0356a662c9c132d4654a50c3a4bf827e3c9a28bbc5b"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/media-content-signatures.json",
+        "go": "contracts/scenarios/media-content-signatures.json",
+        "flutter": "contracts/scenarios/media-content-signatures.json"
+      }
+    },
     {
       "source": {
         "path": "specifications/scenarios/media-type-selection.json",
