@@ -4184,6 +4184,10 @@
         {
           "id": "MEDIA-CONTENT-SIGNATURES",
           "file": "specifications/scenarios/media-content-signatures.json"
+        },
+        {
+          "id": "MEDIA-CONTAINER-SAMPLES",
+          "file": "specifications/scenarios/media-container-samples.json"
         }
       ],
       "implementations": {
@@ -4199,7 +4203,8 @@
             "server/storage/index.ts",
             "server/storage/providers/local.ts",
             "tests/media-type-selection.test.mjs",
-            "tests/media-content-signatures.test.mjs"
+            "tests/media-content-signatures.test.mjs",
+            "tests/media-container-samples.test.mjs"
           ],
           "evidence": []
         },
@@ -4231,7 +4236,9 @@
             "internal/server/media_upload_transaction.go",
             "internal/server/media_upload_transaction_test.go",
             "internal/server/media_content.go",
-            "internal/server/media_content_test.go"
+            "internal/server/media_content_test.go",
+            "internal/server/media_container.go",
+            "internal/server/media_container_test.go"
           ],
           "evidence": []
         }
@@ -4239,7 +4246,8 @@
       "sharedDependencies": [
         "specifications/requirements/media-upload.md",
         "specifications/scenarios/media-type-selection.json",
-        "specifications/scenarios/media-content-signatures.json"
+        "specifications/scenarios/media-content-signatures.json",
+        "specifications/scenarios/media-container-samples.json"
       ]
     },
     {
@@ -10275,6 +10283,17 @@
     }
   ],
   "sharedFiles": [
+    {
+      "source": {
+        "path": "specifications/scenarios/media-container-samples.json",
+        "sha256": "e1dd2b2e7f141a74bcca3002d7c442c6589460f856a3be44e5043e3175536852"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/media-container-samples.json",
+        "go": "contracts/scenarios/media-container-samples.json",
+        "flutter": "contracts/scenarios/media-container-samples.json"
+      }
+    },
     {
       "source": {
         "path": "specifications/scenarios/media-content-signatures.json",
