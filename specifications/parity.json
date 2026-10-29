@@ -4224,7 +4224,7 @@
           "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Complete real-format detector parity, WebP/AVIF and audio/video metadata, safe extension handling, filesystem support and real Oracle/client acceptance for the native route."
+            "Complete real-format detector parity, additional WebP cases, AVIF and audio/video metadata, safe extension handling, filesystem support and real Oracle/client acceptance for the native route."
           ],
           "sourceFiles": [
             "internal/server/media_multipart.go",
