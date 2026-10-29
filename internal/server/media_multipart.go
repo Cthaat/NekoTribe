@@ -12,6 +12,7 @@ import (
 )
 
 var errMediaMultipart = errors.New("invalid media upload")
+var errMediaNoFile = errors.New("media upload missing file")
 
 type mediaMultipartLimits struct {
 	fileBytes, totalBytes, fieldBytes int64
@@ -111,7 +112,7 @@ func parseMediaMultipart(r *http.Request, config LocalStorageConfig, limits medi
 	}
 	info, e := m.root.Lstat("temp")
 	if e != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return nil, errMediaMultipart
+		return nil, errMediaStorage
 	}
 	m.temp, e = m.root.OpenRoot("temp")
 	if e != nil {
@@ -187,6 +188,12 @@ func parseMediaMultipart(r *http.Request, config LocalStorageConfig, limits medi
 		}
 		n, e := io.Copy(file, io.LimitReader(part, remaining+1))
 		closeErr := file.Close()
+		if closeErr != nil {
+			return nil, errors.New("temporary media write failed")
+		}
+		if errors.Is(e, io.ErrUnexpectedEOF) {
+			return nil, errMediaMultipart
+		}
 		if e != nil || closeErr != nil {
 			return nil, errors.New("temporary media write failed")
 		}
@@ -208,7 +215,7 @@ func parseMediaMultipart(r *http.Request, config LocalStorageConfig, limits medi
 	} else if alternate != nil {
 		m.Selected = *alternate
 	} else {
-		return nil, errMediaMultipart
+		return nil, errMediaNoFile
 	}
 	return m, nil
 }

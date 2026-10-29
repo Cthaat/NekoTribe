@@ -100,6 +100,31 @@ func TestMediaStorageRejectsLinkedParent(t *testing.T) {
 	}
 }
 
+func TestMediaCleanupNeverDeletesReplacement(t *testing.T) {
+	root := t.TempDir()
+	m := mediaStoredFixture(t, root)
+	key := "posts/files/42/object.txt"
+	var identity *mediaObjectIdentity
+	if err := saveMediaObjectWithIdentity(context.Background(), m, LocalStorageConfig{Root: root}, key, &identity); err != nil {
+		t.Fatal(err)
+	}
+	defer identity.file.Close()
+	file := filepath.Join(root, filepath.FromSlash(key))
+	if err := os.Remove(file); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("replacement"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := cleanupPublishedMedia(m, key, identity); err == nil {
+		t.Fatal("replacement treated as owned")
+	}
+	data, err := os.ReadFile(file)
+	if err != nil || string(data) != "replacement" {
+		t.Fatal("replacement removed", err)
+	}
+}
+
 type mediaCancelAfterRead struct {
 	context.Context
 	checks int

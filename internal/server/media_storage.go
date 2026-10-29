@@ -68,6 +68,15 @@ func (r mediaContextReader) Read(p []byte) (int, error) {
 // A key is generated server-side, never from the client filename. The source is
 // request-owned and stays available until the caller finishes its transaction.
 func saveMediaObject(ctx context.Context, m *mediaMultipart, config LocalStorageConfig, key string) error {
+	return saveMediaObjectWithIdentity(ctx, m, config, key, nil)
+}
+
+type mediaObjectIdentity struct {
+	file *os.File
+	info os.FileInfo
+}
+
+func saveMediaObjectWithIdentity(ctx context.Context, m *mediaMultipart, config LocalStorageConfig, key string, identity **mediaObjectIdentity) error {
 	if config.Unsupported || m == nil || m.closed || m.root == nil || m.temp == nil || m.request == nil || m.directory == "" {
 		return errMediaStorage
 	}
@@ -159,5 +168,57 @@ func saveMediaObject(ctx context.Context, m *mediaMultipart, config LocalStorage
 	if err := ctx.Err(); err != nil {
 		return errMediaStorage
 	}
-	return m.root.Link(stagedPath, filepath.FromSlash(key))
+	var pinned *os.File
+	if identity != nil {
+		pinned, err = m.request.Open(stage)
+		if err != nil {
+			return errMediaStorage
+		}
+		pinnedInfo, statErr := pinned.Stat()
+		if statErr != nil || !os.SameFile(created, pinnedInfo) {
+			_ = pinned.Close()
+			return errMediaStorage
+		}
+	}
+	if err := m.root.Link(stagedPath, filepath.FromSlash(key)); err != nil {
+		if pinned != nil {
+			_ = pinned.Close()
+		}
+		return err
+	}
+	if identity != nil {
+		*identity = &mediaObjectIdentity{file: pinned, info: created}
+	}
+	return nil
+}
+
+// Remove only the inode created by this request after a confirmed rollback.
+func cleanupPublishedMedia(m *mediaMultipart, key string, identity *mediaObjectIdentity) error {
+	if m == nil || m.closed || m.root == nil || identity == nil || identity.file == nil || identity.info == nil {
+		return errMediaStorage
+	}
+	key, err := normalizeLocalFileKey(key)
+	if err != nil || !strings.HasPrefix(key, "posts/") {
+		return errMediaStorage
+	}
+	parts := strings.Split(key, "/")
+	for i := range parts {
+		current, err := m.root.Lstat(filepath.Join(parts[:i+1]...))
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return errMediaStorage
+		}
+		if current.Mode()&os.ModeSymlink != 0 || (i < len(parts)-1 && !current.IsDir()) {
+			return errMediaStorage
+		}
+		if i == len(parts)-1 && (!current.Mode().IsRegular() || !os.SameFile(identity.info, current)) {
+			return errMediaStorage
+		}
+	}
+	if err := m.root.Remove(filepath.FromSlash(key)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return errMediaStorage
+	}
+	return nil
 }

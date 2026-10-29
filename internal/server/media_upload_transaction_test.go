@@ -64,7 +64,15 @@ func (c *mediaUploadConn) QueryContext(_ context.Context, q string, args []drive
 		if c.s.mode == "missing" {
 			return emptyRows{&c.s.driverState}, nil
 		}
-		return &alertRows{values: []driver.Value{int64(99), "file", "a.txt", "/storage/posts/a.txt", int64(3), "text/plain", nil, nil, nil, nil, "alt", nil, "ready", time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)}}, nil
+		values := map[string]driver.Value{}
+		for _, call := range c.s.calls {
+			if strings.HasPrefix(call.sql, "INSERT INTO n_media_assets") {
+				for _, arg := range call.args {
+					values[arg.Name] = arg.Value
+				}
+			}
+		}
+		return &alertRows{values: []driver.Value{int64(99), values["media_type"], values["file_name"], values["public_url"], values["file_size"], values["mime_type"], values["width"], values["height"], values["duration"], values["thumbnail_url"], values["alt_text"], values["description"], "ready", time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)}}, nil
 	}
 	return nil, errors.New("unexpected query")
 }
