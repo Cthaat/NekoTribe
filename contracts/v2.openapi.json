@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-28-post-update"
+    "x-contract-revision": "2026-10-29-media-lifecycle"
   },
   "tags": [
     {
@@ -13170,7 +13170,7 @@
       "post": {
         "summary": "上传媒体资源",
         "deprecated": false,
-        "description": "上传媒体资源",
+        "description": "上传媒体到配置的存储。file 优先、media 为兼容字段；单文件及全部文件数据最多 500 MiB。提交结果不确定时对象可能保留，客户端不应自动重复上传。",
         "operationId": "post_media",
         "tags": [
           "Media"
@@ -13185,17 +13185,35 @@
                   "file": {
                     "type": "string",
                     "format": "binary",
-                    "description": "媒体文件，图片最多 10MB",
+                    "description": "媒体文件，大小不超过 500 MiB",
                     "example": ""
                   },
                   "alt_text": {
                     "type": "string",
                     "description": "替代文本",
                     "example": ""
+                  },
+                  "media": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "兼容文件字段；file 存在时优先使用 file"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "媒体描述"
                   }
                 },
-                "required": [
-                  "file"
+                "anyOf": [
+                  {
+                    "required": [
+                      "file"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "media"
+                    ]
+                  }
                 ]
               },
               "examples": {}
@@ -13239,26 +13257,34 @@
                           "type": "string"
                         },
                         "width": {
-                          "type": "integer"
+                          "type": "integer",
+                          "nullable": true
                         },
                         "height": {
-                          "type": "integer"
+                          "type": "integer",
+                          "nullable": true
                         },
                         "duration": {
-                          "type": "integer"
+                          "type": "integer",
+                          "nullable": true
                         },
                         "thumbnail_url": {
                           "type": "string",
                           "nullable": true
                         },
                         "alt_text": {
-                          "type": "string"
+                          "type": "string",
+                          "nullable": true
                         },
                         "status": {
                           "type": "string"
                         },
                         "created_at": {
                           "type": "string"
+                        },
+                        "description": {
+                          "type": "string",
+                          "nullable": true
                         }
                       },
                       "required": [
@@ -13274,7 +13300,8 @@
                         "thumbnail_url",
                         "alt_text",
                         "status",
-                        "created_at"
+                        "created_at",
+                        "description"
                       ]
                     },
                     "meta": {
@@ -13335,6 +13362,26 @@
           "500": {
             "$ref": "#/components/responses/InternalError",
             "description": "服务器内部错误"
+          },
+          "501": {
+            "description": "配置的存储提供方暂不支持上传",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "媒体结构暂不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            }
           }
         },
         "security": [
