@@ -338,7 +338,7 @@ func checkSchemaTable(ctx context.Context, q schemaQueryer, step schemaStep) err
 }
 
 func validateFeatureSchema(ctx context.Context, q schemaQueryer, catalog schemaCatalog, feature string) error {
-	valid := feature == "two-factor" && catalog.ID == "AUTH-2FA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 9 || feature == "media" && catalog.ID == "MEDIA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1 || feature == "user-settings" && catalog.ID == "USER-SETTINGS-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 5
+	valid := feature == "two-factor" && catalog.ID == "AUTH-2FA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 9 || feature == "media" && catalog.ID == "MEDIA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1 || feature == "user-settings" && catalog.ID == "USER-SETTINGS-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 5 || feature == "ai-conversations" && catalog.ID == "AI-CONVERSATION-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 3
 	if !valid || catalog.Revision != 1 || catalog.Feature.ID != feature || len(catalog.MigrationChecksums) == 0 {
 		return errSessionStore
 	}
@@ -415,6 +415,9 @@ func (s OracleSessions) CheckMediaSchema(ctx context.Context) error {
 }
 func (s OracleSessions) CheckUserSettingsSchema(ctx context.Context) error {
 	return s.checkFeatureSchema(ctx, "user-settings", contracts.UserSettingsSchemaCatalog)
+}
+func (s OracleSessions) CheckAIConversationSchema(ctx context.Context) error {
+	return s.checkFeatureSchema(ctx, "ai-conversations", contracts.AIConversationSchemaCatalog)
 }
 func (s OracleSessions) checkFeatureSchema(ctx context.Context, feature string, data []byte) error {
 	var catalog schemaCatalog

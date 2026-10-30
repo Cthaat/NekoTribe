@@ -17,3 +17,8 @@ var MediaSchemaCatalog []byte
 //
 //go:embed requirements/user-settings-schema-catalog.json
 var UserSettingsSchemaCatalog []byte
+
+// AIConversationSchemaCatalog is generated from the Nuxt migration authority.
+//
+//go:embed requirements/ai-conversation-schema-catalog.json
+var AIConversationSchemaCatalog []byte

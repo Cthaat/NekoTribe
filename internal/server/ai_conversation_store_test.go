@@ -1,0 +1,155 @@
+package server
+
+import (
+	"context"
+	"database/sql"
+	"database/sql/driver"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+)
+
+type conversationDB struct {
+	driverState
+	mode            string
+	permissionCalls int
+	owner           int64
+	id              string
+	purpose         string
+	group           driver.Value
+	title           driver.Value
+	calls           []listQueryCall
+}
+type conversationConnector struct{ state *conversationDB }
+type conversationConn struct {
+	*testConn
+	state *conversationDB
+}
+type conversationTx struct{ state *conversationDB }
+
+func (c conversationConnector) Connect(context.Context) (driver.Conn, error) {
+	return &conversationConn{&testConn{&c.state.driverState}, c.state}, nil
+}
+func (conversationConnector) Driver() driver.Driver   { return testDriver{} }
+func (c *conversationConn) Begin() (driver.Tx, error) { return &conversationTx{c.state}, nil }
+func (tx *conversationTx) Commit() error {
+	tx.state.commits++
+	if tx.state.mode == "commit" {
+		return errors.New("private")
+	}
+	return nil
+}
+func (tx *conversationTx) Rollback() error {
+	tx.state.rollbacks++
+	if tx.state.mode == "rollback" {
+		return errors.New("private")
+	}
+	return nil
+}
+func (c *conversationConn) ExecContext(_ context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	c.state.calls = append(c.state.calls, listQueryCall{query, append([]driver.NamedValue(nil), args...)})
+	if c.state.mode == "insert" {
+		return nil, errors.New("private")
+	}
+	for _, arg := range args {
+		switch arg.Name {
+		case "conversation_id":
+			c.state.id = arg.Value.(string)
+		case "owner_user_id":
+			c.state.owner = arg.Value.(int64)
+		case "purpose":
+			c.state.purpose = arg.Value.(string)
+		case "group_id":
+			c.state.group = arg.Value
+		case "title":
+			c.state.title = arg.Value
+		}
+	}
+	return driver.RowsAffected(1), nil
+}
+func (c *conversationConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	c.state.calls = append(c.state.calls, listQueryCall{query, append([]driver.NamedValue(nil), args...)})
+	if strings.Contains(query, "fn_has_group_permission") {
+		c.state.permissionCalls++
+		if c.state.mode == "denied" || (c.state.mode == "revoked" && c.state.permissionCalls > 1) || c.state.mode == "rollback" {
+			return &alertRows{values: []driver.Value{int64(0)}}, nil
+		}
+		return &alertRows{values: []driver.Value{int64(1)}}, nil
+	}
+	if strings.Contains(query, "SELECT username,email") {
+		return &alertRows{values: []driver.Value{"v2_admin", "admin@example.test"}}, nil
+	}
+	if strings.Contains(query, "FROM n_ai_conversations") {
+		if c.state.mode == "read" {
+			return nil, errors.New("private")
+		}
+		var id string
+		var owner int64
+		for _, arg := range args {
+			if arg.Name == "conversation_id" {
+				id = arg.Value.(string)
+			}
+			if arg.Name == "owner_user_id" {
+				owner = arg.Value.(int64)
+			}
+		}
+		if owner != c.state.owner || id != c.state.id {
+			return emptyRows{&c.state.driverState}, nil
+		}
+		stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		return &alertRows{values: []driver.Value{id, c.state.purpose, c.state.group, c.state.title, stamp, stamp}}, nil
+	}
+	return nil, errors.New("unexpected")
+}
+
+func TestConversationCreateTransactionAndAuthorization(t *testing.T) {
+	group := int64(7)
+	for _, mode := range []string{"ok", "schema", "denied", "revoked", "insert", "read", "commit", "rollback"} {
+		t.Run(mode, func(t *testing.T) {
+			state := &conversationDB{mode: mode}
+			db := sql.OpenDB(conversationConnector{state})
+			defer db.Close()
+			verify := func(context.Context, *sql.Conn) error {
+				if mode == "schema" {
+					return errConversationSchema
+				}
+				return nil
+			}
+			result, err := (OracleSessions{db}).conversationOperation(context.Background(), 42, "", &conversationInput{Purpose: "group", GroupID: &group, Title: " hello "}, conversationPolicy("", ""), verify)
+			if mode == "ok" {
+				if err != nil || result.Purpose != "group" || result.GroupID == nil || *result.GroupID != 7 || result.Title == nil || *result.Title != "hello" || state.permissionCalls != 2 || state.commits != 1 || state.rollbacks != 0 {
+					t.Fatal(result, err, state)
+				}
+			} else {
+				if err == nil || strings.Contains(err.Error(), "private") || state.commits != boolNumber(mode == "commit") || state.rollbacks != boolNumber(mode != "schema" && mode != "commit") {
+					t.Fatal(result, err, state)
+				}
+				if mode == "revoked" && !errors.Is(err, errConversationForbidden) {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func TestConversationReadOwnerAndPolicy(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	state := &conversationDB{owner: 42, id: id, purpose: "moderation"}
+	db := sql.OpenDB(conversationConnector{state})
+	defer db.Close()
+	verify := func(context.Context, *sql.Conn) error { return nil }
+	repo := OracleSessions{db}
+	if _, err := repo.conversationOperation(context.Background(), 9, id, nil, conversationPolicy("", ""), verify); !errors.Is(err, errConversationNotFound) {
+		t.Fatal(err)
+	}
+	if _, err := repo.conversationOperation(context.Background(), 42, id, nil, conversationPolicy("", "someone-else"), verify); !errors.Is(err, errConversationForbidden) {
+		t.Fatal(err)
+	}
+	if _, err := repo.conversationOperation(context.Background(), 42, id, nil, conversationPolicy("", "v2_admin"), verify); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.conversationOperation(context.Background(), 42, "invalid", nil, conversationPolicy("", ""), verify); !errors.Is(err, errConversationNotFound) {
+		t.Fatal(err)
+	}
+}

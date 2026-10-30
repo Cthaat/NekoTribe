@@ -1,0 +1,449 @@
+{
+  "id": "AI-CONVERSATION-READINESS",
+  "revision": 1,
+  "baseline": {
+    "owner": {
+      "user": "NEKO_APP",
+      "schema": "NEKO_APP"
+    },
+    "ledgerPresent": true,
+    "tables": {
+      "N_SCHEMA_MIGRATIONS": {
+        "columns": [
+          {
+            "COLUMN_NAME": "STEP_ID",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 128,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "CHECKSUM",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 64,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "APPLIED_AT",
+            "DATA_TYPE": "TIMESTAMP(6)",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 0,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "constraints": [
+          {
+            "CONSTRAINT_NAME": "NT13_9A3B3BE8E5C218A6F138",
+            "CONSTRAINT_TYPE": "P",
+            "SEARCH_CONDITION_VC": null,
+            "STATUS": "ENABLED",
+            "VALIDATED": "VALIDATED",
+            "DELETE_RULE": null,
+            "REFERENCED_TABLE": null,
+            "REFERENCED_OWNER": null,
+            "columns": [
+              "STEP_ID"
+            ],
+            "referencedColumns": []
+          }
+        ]
+      },
+      "N_AI_CONVERSATIONS": {
+        "columns": [
+          {
+            "COLUMN_NAME": "CONVERSATION_ID",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 36,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "OWNER_USER_ID",
+            "DATA_TYPE": "NUMBER",
+            "DATA_PRECISION": 10,
+            "DATA_SCALE": 0,
+            "CHAR_LENGTH": 0,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "PURPOSE",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 20,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "GROUP_ID",
+            "DATA_TYPE": "NUMBER",
+            "DATA_PRECISION": 15,
+            "DATA_SCALE": 0,
+            "CHAR_LENGTH": 0,
+            "NULLABLE": "Y",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "TITLE",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 200,
+            "NULLABLE": "Y",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "CREATED_AT",
+            "DATA_TYPE": "TIMESTAMP(6)",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 0,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": "CURRENT_TIMESTAMP"
+          },
+          {
+            "COLUMN_NAME": "UPDATED_AT",
+            "DATA_TYPE": "TIMESTAMP(6)",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 0,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "constraints": [
+          {
+            "CONSTRAINT_NAME": "NT13_60B765EAC53762CC6B72",
+            "CONSTRAINT_TYPE": "P",
+            "STATUS": "ENABLED",
+            "VALIDATED": "VALIDATED",
+            "REFERENCED_OWNER": null,
+            "columns": [
+              "CONVERSATION_ID"
+            ],
+            "referencedColumns": []
+          },
+          {
+            "CONSTRAINT_NAME": "CK_AI_CONV_PURPOSE",
+            "CONSTRAINT_TYPE": "C",
+            "SEARCH_CONDITION_VC": "purpose IN ('knowledge', 'writing', 'group', 'moderation')",
+            "STATUS": "ENABLED",
+            "VALIDATED": "VALIDATED",
+            "REFERENCED_OWNER": null,
+            "columns": [],
+            "referencedColumns": []
+          },
+          {
+            "CONSTRAINT_NAME": "FK_AI_CONV_OWNER",
+            "CONSTRAINT_TYPE": "R",
+            "STATUS": "ENABLED",
+            "VALIDATED": "VALIDATED",
+            "DELETE_RULE": "CASCADE",
+            "REFERENCED_TABLE": "N_USERS",
+            "REFERENCED_OWNER": "NEKO_APP",
+            "columns": [
+              "OWNER_USER_ID"
+            ],
+            "referencedColumns": [
+              "USER_ID"
+            ]
+          }
+        ]
+      },
+      "N_AI_MESSAGES": {
+        "columns": [
+          {
+            "COLUMN_NAME": "MESSAGE_ID",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 36,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "CONVERSATION_ID",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 36,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "SEQUENCE_NO",
+            "DATA_TYPE": "NUMBER",
+            "DATA_PRECISION": 10,
+            "DATA_SCALE": 0,
+            "CHAR_LENGTH": 0,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "ROLE",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 20,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "CONTENT",
+            "DATA_TYPE": "CLOB",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 0,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "TOOL_HISTORY",
+            "DATA_TYPE": "CLOB",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 0,
+            "NULLABLE": "Y",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "MODEL_ID",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 128,
+            "NULLABLE": "Y",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "MODEL_VERSION",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 128,
+            "NULLABLE": "Y",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "CONFIG_REVISION",
+            "DATA_TYPE": "NUMBER",
+            "DATA_PRECISION": 15,
+            "DATA_SCALE": 0,
+            "CHAR_LENGTH": 0,
+            "NULLABLE": "Y",
+            "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "CREATED_AT",
+            "DATA_TYPE": "TIMESTAMP(6)",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 0,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "constraints": [
+          {
+            "CONSTRAINT_NAME": "NT13_05843E0E3D28045DF97B",
+            "CONSTRAINT_TYPE": "P",
+            "STATUS": "ENABLED",
+            "VALIDATED": "VALIDATED",
+            "REFERENCED_OWNER": null,
+            "columns": [
+              "MESSAGE_ID"
+            ],
+            "referencedColumns": []
+          },
+          {
+            "CONSTRAINT_NAME": "UQ_AI_MESSAGE_SEQUENCE",
+            "CONSTRAINT_TYPE": "U",
+            "STATUS": "ENABLED",
+            "VALIDATED": "VALIDATED",
+            "REFERENCED_OWNER": null,
+            "columns": [
+              "CONVERSATION_ID",
+              "SEQUENCE_NO"
+            ],
+            "referencedColumns": []
+          },
+          {
+            "CONSTRAINT_NAME": "CK_AI_MESSAGE_SEQUENCE",
+            "CONSTRAINT_TYPE": "C",
+            "SEARCH_CONDITION_VC": "sequence_no > 0",
+            "STATUS": "ENABLED",
+            "VALIDATED": "VALIDATED",
+            "REFERENCED_OWNER": null,
+            "columns": [],
+            "referencedColumns": []
+          },
+          {
+            "CONSTRAINT_NAME": "CK_AI_MESSAGE_ROLE",
+            "CONSTRAINT_TYPE": "C",
+            "SEARCH_CONDITION_VC": "role IN ('user', 'assistant', 'tool')",
+            "STATUS": "ENABLED",
+            "VALIDATED": "VALIDATED",
+            "REFERENCED_OWNER": null,
+            "columns": [],
+            "referencedColumns": []
+          },
+          {
+            "CONSTRAINT_NAME": "FK_AI_MESSAGE_CONVERSATION",
+            "CONSTRAINT_TYPE": "R",
+            "STATUS": "ENABLED",
+            "VALIDATED": "VALIDATED",
+            "DELETE_RULE": "CASCADE",
+            "REFERENCED_TABLE": "N_AI_CONVERSATIONS",
+            "REFERENCED_OWNER": "NEKO_APP",
+            "columns": [
+              "CONVERSATION_ID"
+            ],
+            "referencedColumns": [
+              "CONVERSATION_ID"
+            ]
+          }
+        ]
+      }
+    },
+    "records": [
+      {
+        "STEP_ID": "t13-two-factor-seq_2fa_recovery_code_id",
+        "CHECKSUM": "90a60fd64eabdac15f4e7a8af14f0c8a9d6279510f95293897e2c966cee41b1d"
+      }
+    ],
+    "sequences": {},
+    "indexes": {
+      "IDX_AI_CONV_OWNER": {
+        "INDEX_NAME": "IDX_AI_CONV_OWNER",
+        "TABLE_NAME": "N_AI_CONVERSATIONS",
+        "UNIQUENESS": "NONUNIQUE",
+        "STATUS": "VALID",
+        "columns": [
+          {
+            "COLUMN_NAME": "OWNER_USER_ID",
+            "DESCEND": "ASC"
+          },
+          {
+            "COLUMN_NAME": "UPDATED_AT",
+            "DESCEND": "ASC"
+          }
+        ]
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "AI-SCHEMA-01",
+      "ready": true,
+      "mutations": []
+    },
+    {
+      "id": "AI-SCHEMA-02",
+      "ready": true,
+      "mutations": [
+        {
+          "op": "set",
+          "path": [
+            "ledgerPresent"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "AI-SCHEMA-03",
+      "ready": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": [
+            "owner",
+            "schema"
+          ],
+          "value": "OTHER"
+        }
+      ]
+    },
+    {
+      "id": "AI-SCHEMA-04",
+      "ready": false,
+      "mutations": [
+        {
+          "op": "delete",
+          "path": [
+            "tables",
+            "N_AI_CONVERSATIONS"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "AI-SCHEMA-05",
+      "ready": false,
+      "mutations": [
+        {
+          "op": "delete",
+          "path": [
+            "tables",
+            "N_AI_MESSAGES",
+            "columns",
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "AI-SCHEMA-06",
+      "ready": false,
+      "mutations": [
+        {
+          "op": "delete",
+          "path": [
+            "tables",
+            "N_AI_MESSAGES",
+            "constraints",
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "AI-SCHEMA-07",
+      "ready": false,
+      "mutations": [
+        {
+          "op": "delete",
+          "path": [
+            "indexes",
+            "IDX_AI_CONV_OWNER"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "AI-SCHEMA-08",
+      "ready": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": [
+            "records",
+            0,
+            "CHECKSUM"
+          ],
+          "value": "bad"
+        }
+      ]
+    }
+  ]
+}
