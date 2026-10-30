@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-30-ai-knowledge-history"
+    "x-contract-revision": "2026-10-30-ai-knowledge-generation"
   },
   "tags": [
     {
@@ -30744,6 +30744,34 @@
               }
             }
           }
+        }
+      }
+    },
+    "/api/v2/ai/conversations/{id}/knowledge-generate": {
+      "post": {
+        "summary": "生成知识会话回复",
+        "description": "仅 knowledge 用途。根据已保存的最新用户问题检索公开资料并生成带引用的回复；不接受客户端指定模型或凭据。无有效来源时不写入消息。当前只使用最新问题，不代表完整多轮问答。",
+        "operationId": "generateAIKnowledgeReply",
+        "tags": ["AI"],
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],
+        "responses": {
+          "200": {
+            "description": "生成成功或没有有效来源",
+            "content": {"application/json":{"schema":{
+              "type":"object", "required":["code","message","data","meta"],
+              "properties":{
+                "code":{"type":"integer"},"message":{"type":"string"},"meta":{"type":"object","nullable":true},
+                "data":{"type":"object","required":["status","message"],"properties":{
+                  "status":{"type":"string","enum":["generated","insufficient_evidence"]},
+                  "message":{"type":"object","nullable":true,"required":["message_id","conversation_id","sequence_no","role"],"properties":{
+                    "message_id":{"type":"string","format":"uuid"},"conversation_id":{"type":"string","format":"uuid"},"sequence_no":{"type":"integer","minimum":1},"role":{"type":"string","enum":["assistant"]}
+                  }}
+                }}
+              }
+            }}}
+          },
+          "400":{"description":"会话上下文或问题无效"},"401":{"description":"未登录"},"403":{"description":"无权限"},"404":{"description":"会话不存在"},"409":{"description":"会话内容已变化"},"503":{"description":"模型服务或数据库不可用"}
         }
       }
     },
