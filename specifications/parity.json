@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "053a45ed8c749357bcfbf24b16dc549f3fdea95062b7a1fffb2a8020319a65f7"
+      "sha256": "2aa3ed6330cefdc17ec19f93ddd73f56dbf0b040ecacb9303ab5122f2435ab05"
     },
     "sources": [
       {
@@ -288,6 +288,10 @@
       {
         "path": "server/api/v2/ai/conversations/[id].get.ts",
         "sha256": "154cc0fa39f3e8efc2d4843cbedb296d1959630867b76dea90248d27b3506bbc"
+      },
+      {
+        "path": "server/api/v2/ai/conversations/[id]/generate.post.ts",
+        "sha256": "ed561b9ce7b73afcacea45b23f6a48954212d2d18bbe91c73670dfc82daf3c18"
       },
       {
         "path": "server/api/v2/ai/conversations/[id]/messages/index.get.ts",
@@ -983,7 +987,7 @@
       },
       {
         "path": "server/services/ai/conversation-store.ts",
-        "sha256": "f1189ad4094ab3d652afa7b77befd04b6133b5ef93a7428efc47fcf107a93375"
+        "sha256": "dfa508a50deb5181c816ac46885176196ec04eaa0f737436542f731c18aa028c"
       },
       {
         "path": "server/services/ai/inference-transport.ts",
@@ -996,6 +1000,14 @@
       {
         "path": "server/services/ai/private-http.ts",
         "sha256": "42359877ac39fb52c98bbce79a72ff1a06cf872c05993c109a23ff4bb7e5ad7d"
+      },
+      {
+        "path": "server/services/ai/writing-service.ts",
+        "sha256": "f3c441cf0733806a6f6c3aeeb2c9fe46e6518ccc581758e75f80de3f48bd9237"
+      },
+      {
+        "path": "server/services/ai/writing-turn.ts",
+        "sha256": "59f30feb0a12c340dffc3537eee890effc6d5aeaff28a40640a0b0ad1891ce1b"
       },
       {
         "path": "server/services/v2/auth.ts",
@@ -1079,7 +1091,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "7cd16e9d84ae799916a2e5413cda4e12db27c35e8956758e2a2cce18e8b8a176"
+        "sha256": "b1e8a22b875d2d1d5f6bc8bbde578dbbc71d019cc3e2f9c8d6cb11f8b69fc4d9"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -1131,7 +1143,7 @@
       },
       {
         "path": "server/utils/oracle-query-cache.ts",
-        "sha256": "7726af28ac257e1e01bc5a3ae9dd038bdc66dd29435688ff4ef49da6bd05c069"
+        "sha256": "b966246b8a81a54e19c81bb2c1cbefaf37a442e0192158875c61c89e2a2f3be8"
       },
       {
         "path": "server/utils/oracle.ts",
@@ -8966,13 +8978,17 @@
         "server/api/v2/ai/conversations/[id]/messages/index.get.ts",
         "server/api/v2/ai/conversations/[id]/messages/index.post.ts",
         "server/services/ai/conversation-http.ts",
-        "server/services/ai/private-http.ts"
+        "server/services/ai/private-http.ts",
+        "server/api/v2/ai/conversations/[id]/generate.post.ts",
+        "server/services/ai/writing-service.ts",
+        "server/services/ai/writing-turn.ts"
       ],
       "operations": [
         "POST /api/v2/ai/conversations",
         "GET /api/v2/ai/conversations/{id}",
         "GET /api/v2/ai/conversations/{id}/messages",
-        "POST /api/v2/ai/conversations/{id}/messages"
+        "POST /api/v2/ai/conversations/{id}/messages",
+        "POST /api/v2/ai/conversations/{id}/generate"
       ],
       "scenarios": [
         {
@@ -9000,7 +9016,13 @@
             "server/api/v2/ai/conversations/[id]/messages/index.post.ts",
             "server/services/ai/conversation-http.ts",
             "server/services/ai/private-http.ts",
-            "tests/ai-conversation-http.test.mjs"
+            "tests/ai-conversation-http.test.mjs",
+            "server/api/v2/ai/conversations/[id]/generate.post.ts",
+            "server/services/ai/writing-service.ts",
+            "server/services/ai/writing-turn.ts",
+            "tests/ai-writing-turn.test.mjs",
+            "tests/ai-writing-service.test.mjs",
+            "tests/ai-writing-route.test.mjs"
           ],
           "evidence": []
         },

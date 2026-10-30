@@ -23,13 +23,13 @@ const stubs = {
   '~/server/services/v2/moderation': `export const requireModerationAccess=async(e,c)=>{if(!c.moderator)throw Error('403:需要审核权限')};`
 };
 const compiled = await build({
-  stdin: { contents: `export {createConversation,readConversation,appendUserMessage,appendAssistantMessage,listConversationMessages} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
+  stdin: { contents: `export {createConversation,readConversation,appendUserMessage,appendAssistantMessage,listConversationMessages,listRecentConversationMessages} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'conversation-store-boundaries', setup(builder) {
     builder.onResolve({ filter: /.*/ }, args => { if (Object.hasOwn(stubs, args.path)) return { path: args.path, namespace: 'stub' }; });
     builder.onLoad({ filter: /.*/, namespace: 'stub' }, args => ({ contents: stubs[args.path], loader: 'js' }));
   }}]
 });
-const { createConversation, readConversation, appendUserMessage, appendAssistantMessage, listConversationMessages } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+const { createConversation, readConversation, appendUserMessage, appendAssistantMessage, listConversationMessages, listRecentConversationMessages } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 function database() {
   return { checks: [], permissionChecks: 0, allowed: true, moderator: true, saved: null, pending: null, messages: [], pendingMessage: null, commits: 0, rollbacks: 0,
     async insert(sql, binds, autoCommit) {
@@ -53,11 +53,13 @@ function database() {
     },
     async execute(sql, binds, options) {
       assert.match(sql, /owner_user_id\s*=\s*:owner_user_id/i);
-      assert.match(sql, /ORDER BY m.sequence_no ASC/i);
+      assert.match(sql, /ORDER BY m.sequence_no (ASC|DESC)/i);
       assert.deepEqual(options.fetchTypeHandler({name: 'CONTENT'}), {type: {num: 2001}});
       assert.equal(options.fetchTypeHandler({name: 'MODEL_ID'}), undefined);
       if (this.revokeDuringList) this.allowed = false;
-      return { rows: this.messages.filter(m => m.sequence_no > binds.after_sequence).slice(0, binds.row_limit).map(m => ({
+      const messages=this.messages.filter(m => m.sequence_no > binds.after_sequence);
+      if (/ORDER BY m.sequence_no DESC/i.test(sql)) messages.reverse();
+      return { rows: messages.slice(0, binds.row_limit).map(m => ({
         MESSAGE_ID: m.message_id, CONVERSATION_ID: m.conversation_id, SEQUENCE_NO: m.sequence_no,
         ROLE: m.role, CONTENT: m.content, MODEL_ID: m.model_id, MODEL_VERSION: null, CONFIG_REVISION: m.config_revision, CREATED_AT: 'created'
       })) };
@@ -77,6 +79,14 @@ test('message history paginates by sequence and hides other users conversations'
   await assert.rejects(() => listConversationMessages({ userId: 9 }, db, conversation.conversation_id, 0, 10), /404:/);
   await assert.rejects(() => listConversationMessages({ userId: 42 }, db, conversation.conversation_id, -1, 10), /400:/);
   await assert.rejects(() => listConversationMessages({ userId: 42 }, db, conversation.conversation_id, 0, 51), /400:/);
+});
+
+test('recent conversation history uses newest messages in chronological order',async()=>{
+  const db=database(),actor={userId:42};
+  const conversation=await createConversation(actor,db,{purpose:'writing'});
+  for(let i=0;i<52;i++)await appendUserMessage(actor,db,conversation.conversation_id,String(i));
+  const messages=await listRecentConversationMessages(actor,db,conversation.conversation_id);
+  assert.equal(messages.length,50);assert.equal(messages[0].sequence_no,3);assert.equal(messages.at(-1).sequence_no,52);
 });
 
 test('message history is not returned after group permission is revoked during retrieval', async () => {

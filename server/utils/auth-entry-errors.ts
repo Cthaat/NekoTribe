@@ -9,13 +9,13 @@ const publicMessages: Record<number, ReadonlySet<string>> = {
   401: new Set(['账号或密码错误', '验证码错误', '双因素验证已过期，请重新登录', '双因素验证码错误', '未认证或 token 无效']),
   403: new Set(['账号不可用', '需要群管理员权限', '需要审核权限']),
   404: new Set(['用户不存在', '帖子不存在', '话题不存在', '通知不存在', '父评论不存在', '评论不存在', '会话不存在']),
-  409: new Set(['邮箱或用户名已被注册']),
+  409: new Set(['邮箱或用户名已被注册', '会话已变更，请重试']),
   422: new Set(['双因素认证尚未启用', '请先完成验证码校验', '只能删除自己的评论', '只能删除自己的帖子', '只能修改自己的帖子']),
   500: new Set(['服务器内部错误']),
   501: new Set(['短信验证码暂不可用', '媒体存储暂不可用']),
   503: new Set(['服务暂不可用，请稍后重试。'])
 };
-publicMessages[400] = new Set([...publicMessages[400]!, '会话参数错误', '会话用途错误', '群组参数错误', '会话标题错误', '会话标题过长', '消息参数错误', '消息内容错误', '分页参数错误']);
+publicMessages[400] = new Set([...publicMessages[400]!, '会话参数错误', '会话用途错误', '群组参数错误', '会话标题错误', '会话标题过长', '消息参数错误', '消息内容错误', '分页参数错误', '写作会话上下文不可用']);
 
 function sanitizedPublicError(error: unknown): ReturnType<typeof createError> | null {
   if (!isError(error)) return null;
@@ -37,8 +37,13 @@ function sanitizedPublicError(error: unknown): ReturnType<typeof createError> | 
 
 export function safeAuthEntry<T>(handler: V2RouteHandler<T>): V2RouteHandler<T> {
   return async (event, connection) => {
+    return safeV2Action(() => handler(event, connection));
+  };
+}
+
+export async function safeV2Action<T>(action: () => Promise<T>): Promise<T> {
     try {
-      return await handler(event, connection);
+      return await action();
     } catch (error) {
       // Driver exceptions can expose unexpected getters or proxy objects.
       let sanitized: ReturnType<typeof createError> | null;
@@ -47,5 +52,4 @@ export function safeAuthEntry<T>(handler: V2RouteHandler<T>): V2RouteHandler<T> 
       if (sanitized) throw sanitized;
       v2ServerError();
     }
-  };
 }

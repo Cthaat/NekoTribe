@@ -19,6 +19,22 @@ async function moduleFor(mode,id) {if(mode===undefined)delete process.env.NEKO_C
 function eventFor(redis) {const socket=new Socket(),req=new IncomingMessage(socket),res=new ServerResponse(req);req.url='/api/v2/posts';req.method='GET';req.headers.host='localhost';const event=createEvent(req,res);event.context.redis=redis;event.context.auth={userId:42};return {event,close(){res.destroy();socket.destroy()}}}
 function fakeRedis(){const values=new Map();let reads=0;return {get reads(){return reads},async mget(...keys){reads++;return keys.map(k=>values.get(k)??null)},async get(key){reads++;return values.get(key)??null},async incr(k){const v=Number(values.get(k)??0)+1;values.set(k,String(v));return v},async del(k){values.delete(k)},pipeline(){const actions=[];return {set(k,v){actions.push(()=>values.set(k,v));return this},expire(){return this},incr(k){actions.push(()=>values.set(k,String(Number(values.get(k)??0)+1)));return this},async exec(){actions.forEach(fn=>fn());return []}}}}}
 
+test('AI content and authorization queries never use Oracle cache',async()=>{
+ const original=process.env.NEKO_CACHE_MODE;try {
+  const m=await moduleFor('single-backend','ai-private');const redis=fakeRedis();let calls=0;
+  const conn=m.attachOracleQueryCacheWithSource({redis,authUserId:42,path:'/api/v2/ai/conversations/1/messages'},{async execute(){return {rows:[{VALUE:++calls}]}}});
+  for(const sql of ['SELECT content FROM n_ai_messages','SELECT fn_has_group_permission(:user_id,:group_id,:role) FROM dual','SELECT username FROM n_users']) {
+   const first=await conn.execute(sql),second=await conn.execute(sql);assert.notEqual(first.rows[0].VALUE,second.rows[0].VALUE);
+  }
+  assert.equal(redis.reads,0);
+  const direct=m.attachOracleQueryCacheWithSource({redis,authUserId:42,path:'/other'},{async execute(){return {rows:[{VALUE:++calls}]}}});
+  for(const sql of ['SELECT content FROM n_ai_messages','SELECT fn_has_group_permission(:user_id,:group_id,:role) FROM dual']) {
+   const first=await direct.execute(sql),second=await direct.execute(sql);assert.notEqual(first.rows[0].VALUE,second.rows[0].VALUE);
+  }
+  assert.equal(redis.reads,0);
+ } finally {if(original===undefined)delete process.env.NEKO_CACHE_MODE;else process.env.NEKO_CACHE_MODE=original}
+});
+
 test('default shared mode bypasses both cache layers for external writes',async()=>{
  const original=process.env.NEKO_CACHE_MODE;try {
   const m=await moduleFor(undefined,'shared');const redis=fakeRedis(),{event,close}=eventFor(redis);

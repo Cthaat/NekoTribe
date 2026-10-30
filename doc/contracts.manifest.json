@@ -2,23 +2,23 @@
   "schemaVersion": 2,
   "authority": "Nuxt doc/v2.openapi.json",
   "contractVersion": "2.0.0",
-  "revision": "2026-10-30-ai-conversations",
+  "revision": "2026-10-30-ai-writing",
   "normalization": "UTF-8 without BOM; LF. SHA-256 and Git blob identify exact snapshot bytes.",
   "source": {
     "project": "nuxt",
     "branch": "master",
-    "commit": "450b24edd357a588d153dee817c36227914c9475"
+    "commit": "e87cc3136d5215d093daeabef0446a33b5089c42"
   },
   "files": [
     {
       "path": "v2.openapi.json",
       "sourcePath": "doc/v2.openapi.json",
-      "sha256": "053a45ed8c749357bcfbf24b16dc549f3fdea95062b7a1fffb2a8020319a65f7",
-      "gitBlob": "594153a9860727d1810be09f1effcae91f47cf00",
+      "sha256": "2aa3ed6330cefdc17ec19f93ddd73f56dbf0b040ecacb9303ab5122f2435ab05",
+      "gitBlob": "b49af74c273052aec1b2f7a6567c9af1ebacec10",
       "committedSource": {
-        "commit": "450b24edd357a588d153dee817c36227914c9475",
-        "gitBlob": "d34aa799cc528e3f68bf8a3dc57e73c166eae1b5",
-        "sha256": "e5b44f4b911951aea8560cfa6dfb0b019f3f8509c211fb43bcfbc96e9aee168c"
+        "commit": "e87cc3136d5215d093daeabef0446a33b5089c42",
+        "gitBlob": "594153a9860727d1810be09f1effcae91f47cf00",
+        "sha256": "053a45ed8c749357bcfbf24b16dc549f3fdea95062b7a1fffb2a8020319a65f7"
       },
       "differsFromCommittedSource": true
     },
@@ -28,7 +28,7 @@
       "sha256": "700bb79c8efe738d3ba51eee92cde91772406587c3338ca1477462a0f2d5cdb7",
       "gitBlob": "748b5407fc7744827c7f70041808e55c14de52db",
       "committedSource": {
-        "commit": "450b24edd357a588d153dee817c36227914c9475",
+        "commit": "e87cc3136d5215d093daeabef0446a33b5089c42",
         "gitBlob": "748b5407fc7744827c7f70041808e55c14de52db",
         "sha256": "700bb79c8efe738d3ba51eee92cde91772406587c3338ca1477462a0f2d5cdb7"
       },

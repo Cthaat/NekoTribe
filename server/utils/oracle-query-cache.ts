@@ -152,7 +152,10 @@ function isSensitiveSql(normalizedSql: string): boolean {
     'refresh_jti',
     'verification_code',
     'n_auth_sessions',
-    'n_user_sessions'
+    'n_user_sessions',
+    'n_ai_conversations',
+    'n_ai_messages',
+    'fn_has_group_permission'
   ].some(token => normalizedSql.includes(token));
 }
 
@@ -671,7 +674,9 @@ export function attachOracleQueryCacheWithSource(
     const binds = args.length >= 2 ? args[1] : undefined;
     const options = executeOptionsFromArgs(args);
 
-    if (singleBackendCacheEnabled && redis && isCacheableSelectSql(sql)) {
+    const sourcePath = (currentSource.path ?? '').split('?')[0] ?? '';
+    const isAiPath = sourcePath === '/api/v2/ai' || sourcePath.startsWith('/api/v2/ai/');
+    if (singleBackendCacheEnabled && redis && !isAiPath && isCacheableSelectSql(sql)) {
       try {
         const context = await buildQueryCacheContext(
           currentSource,

@@ -61,6 +61,15 @@ export async function listConversationMessages(
   afterSequence: number,
   limit: number
 ): Promise<ConversationMessageRecord[]> {
+  return readMessages(event, connection, id, afterSequence, limit, false);
+}
+/** Internal context read: fetch only the newest bounded page, returned oldest first. */
+export async function listRecentConversationMessages(event: H3Event, connection: oracledb.Connection, id: string): Promise<ConversationMessageRecord[]> {
+  return readMessages(event, connection, id, 0, 50, true);
+}
+async function readMessages(
+  event: H3Event, connection: oracledb.Connection, id: string, afterSequence: number, limit: number, newest: boolean
+): Promise<ConversationMessageRecord[]> {
   const actor = v2Auth(event);
   if (!Number.isSafeInteger(afterSequence) || afterSequence < 0 || afterSequence > 9999999999 ||
       !Number.isSafeInteger(limit) || limit < 1 || limit > 50) v2BadRequest('分页参数错误');
@@ -69,13 +78,13 @@ export async function listConversationMessages(
     `SELECT m.message_id,m.conversation_id,m.sequence_no,m.role,m.content,m.model_id,m.model_version,m.config_revision,m.created_at
        FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id
        WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no>:after_sequence
-       ORDER BY m.sequence_no ASC FETCH FIRST :row_limit ROWS ONLY`,
+       ORDER BY m.sequence_no ${newest ? 'DESC' : 'ASC'} FETCH FIRST :row_limit ROWS ONLY`,
     { conversation_id: id, owner_user_id: actor.userId, after_sequence: afterSequence, row_limit: limit },
     { outFormat: oracledb.OUT_FORMAT_OBJECT, fetchTypeHandler: metadata =>
       metadata.name === 'CONTENT' ? { type: oracledb.STRING } : undefined }
   );
   await readConversation(event, connection, id);
-  return (result.rows ?? []).map(row => {
+  const messages = (result.rows ?? []).map(row => {
     if (typeof row.CONTENT !== 'string') v2ServerError();
     return {
       message_id: v2String(row.MESSAGE_ID),
@@ -89,6 +98,7 @@ export async function listConversationMessages(
       created_at: v2DateString(row.CREATED_AT) || ''
     };
   });
+  return newest ? messages.reverse() : messages;
 }
 
 export async function createConversation(event: H3Event, connection: oracledb.Connection, input: unknown): Promise<ConversationRecord> {
