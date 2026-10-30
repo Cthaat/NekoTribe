@@ -155,9 +155,13 @@ class AiWritingApi {
     },
   );
 
-  Future<bool> generateKnowledge(String id) => _client.requestData<bool>(
+  Future<bool> generateKnowledge(
+    String id, {
+    String? searchPhrase,
+  }) => _client.requestData<bool>(
     '${ApiPaths.aiConversations}/${Uri.encodeComponent(id)}/knowledge-generate',
     method: 'POST',
+    data: searchPhrase == null ? null : {'search_phrase': searchPhrase},
     decode: (data) {
       final result = toMap(data);
       final status = result['status'];

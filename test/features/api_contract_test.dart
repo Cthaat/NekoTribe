@@ -28,10 +28,11 @@ void main() {
         path: '/api/v2/ai/conversations',
         body: {'purpose': 'knowledge'},
       );
-      expect(await api.generateKnowledge(id), isFalse);
+      expect(await api.generateKnowledge(id, searchPhrase: '猫'), isFalse);
       recorder.expectLast(
         method: 'POST',
         path: '/api/v2/ai/conversations/$id/knowledge-generate',
+        body: {'search_phrase': '猫'},
       );
       recorder.knowledgeResult = {
         'status': 'generated',

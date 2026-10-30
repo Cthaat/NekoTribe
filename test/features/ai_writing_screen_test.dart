@@ -34,6 +34,7 @@ class FakeWritingApi extends AiWritingApi {
   bool noEvidence = false;
   int knowledgeCreations = 0;
   int knowledgeGenerations = 0;
+  final phrases = <String?>[];
   @override
   Future<String> createKnowledgeConversation() async {
     knowledgeCreations++;
@@ -41,8 +42,9 @@ class FakeWritingApi extends AiWritingApi {
   }
 
   @override
-  Future<bool> generateKnowledge(String id) async {
+  Future<bool> generateKnowledge(String id, {String? searchPhrase}) async {
     knowledgeGenerations++;
+    phrases.add(searchPhrase);
     return !noEvidence;
   }
 
@@ -135,6 +137,7 @@ void main() {
     (tester) async {
       final api = FakeWritingApi()..noEvidence = true;
       await pumpScreen(tester, api, knowledge: true);
+      await tester.enterText(find.byKey(const Key('ai-knowledge-search')), '猫');
       await tester.enterText(find.byKey(const Key('ai-writing-input')), '猫');
       await tester.tap(find.byKey(const Key('ai-writing-send')));
       await tester.pumpAndSettle();
@@ -145,6 +148,41 @@ void main() {
       expect(find.text('草稿'), findsNothing);
     },
   );
+  testWidgets('knowledge retry uses the new phrase without appending again', (
+    tester,
+  ) async {
+    final api = FakeWritingApi()..noEvidence = true;
+    await pumpScreen(tester, api, knowledge: true);
+    await tester.enterText(find.byKey(const Key('ai-knowledge-search')), '\ufeff猫\u00a0');
+    await tester.enterText(
+      find.byKey(const Key('ai-writing-input')),
+      '社区有什么猫？',
+    );
+    await tester.tap(find.byKey(const Key('ai-writing-send')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('ai-knowledge-search')), '猫咪');
+    await tester.tap(find.byKey(const Key('ai-writing-retry')));
+    await tester.pumpAndSettle();
+    expect(api.appends, 1);
+    expect(api.phrases, ['猫', '猫咪']);
+    expect(api.messages.single.content, '社区有什么猫？');
+  });
+  testWidgets('invalid knowledge search does not append a question', (
+    tester,
+  ) async {
+    final api = FakeWritingApi();
+    await pumpScreen(tester, api, knowledge: true);
+    await tester.enterText(find.byKey(const Key('ai-writing-input')), '问题');
+    await tester.enterText(
+      find.byKey(const Key('ai-knowledge-search')),
+      '猫' * 86,
+    );
+    await tester.tap(find.byKey(const Key('ai-writing-send')));
+    await tester.pumpAndSettle();
+    expect(api.appends, 0);
+    expect(api.knowledgeCreations, 0);
+    expect(find.text('请输入不含控制字符、最多 256 UTF-8 字节的检索词。'), findsOneWidget);
+  });
   testWidgets('knowledge history shows cited sources', (tester) async {
     final api = FakeWritingApi()
       ..hasHistory = true

@@ -51,10 +51,14 @@ class AppLocalizations {
   static const Map<String, Map<String, String>> _strings = {
     'zh': {
       'ai.knowledge.title': 'AI 知识助手',
-      'ai.knowledge.description': '按输入的完整文字匹配公开帖子和评论，回答请结合来源核对。',
+      'ai.knowledge.description': '根据检索词匹配公开帖子和评论并回答问题，请结合来源核对。',
       'ai.knowledge.empty': '输入要查找的公开内容原文片段',
       'ai.knowledge.history_empty': '暂无知识会话',
-      'ai.knowledge.placeholder': '输入要查找的完整原文片段',
+      'ai.knowledge.placeholder': '输入你想了解的问题',
+      'ai.knowledge.search_label': '检索词',
+      'ai.knowledge.search_placeholder': '输入公开内容中出现的文字',
+      'ai.knowledge.search_hint': '精确匹配；可修改检索词后重试。',
+      'ai.knowledge.search_invalid': '请输入不含控制字符、最多 256 UTF-8 字节的检索词。',
       'ai.knowledge.insufficient': '没有找到匹配的公开资料，请尝试其他文字。',
       'ai.knowledge.sources': '参考来源',
       'ai.knowledge.post': '帖子',
@@ -633,10 +637,16 @@ class AppLocalizations {
     'en': {
       'ai.knowledge.title': 'AI knowledge assistant',
       'ai.knowledge.description':
-          'Searches public posts and comments for an exact text match. Review the sources.',
+          'Answers your question using public posts and comments matching your search phrase. Review the sources.',
       'ai.knowledge.empty': 'Enter a public text passage to search',
       'ai.knowledge.history_empty': 'No knowledge conversations yet',
-      'ai.knowledge.placeholder': 'Enter the exact text you want to find',
+      'ai.knowledge.placeholder': 'Ask a question about the community',
+      'ai.knowledge.search_label': 'Search phrase',
+      'ai.knowledge.search_placeholder': 'Enter text found in public content',
+      'ai.knowledge.search_hint':
+          'Exact text match; edit this phrase to retry.',
+      'ai.knowledge.search_invalid':
+          'Enter a search phrase of at most 256 UTF-8 bytes without control characters.',
       'ai.knowledge.insufficient':
           'No matching public sources were found. Try different text.',
       'ai.knowledge.sources': 'Sources',

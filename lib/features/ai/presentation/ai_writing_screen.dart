@@ -17,6 +17,7 @@ class AiWritingScreen extends ConsumerStatefulWidget {
 
 class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
   final _input = TextEditingController();
+  final _search = TextEditingController();
   String? _conversation;
   List<AiWritingMessage> _messages = [];
   bool _busy = false;
@@ -26,6 +27,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
   @override
   void dispose() {
     _input.dispose();
+    _search.dispose();
     super.dispose();
   }
 
@@ -76,6 +78,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       final messages = await _readHistory(id);
       if (!mounted) return;
       _input.clear();
+      _search.clear();
       setState(() {
         _conversation = id;
         _messages = messages;
@@ -95,6 +98,8 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       setState(() => _notice = 'ai.writing.too_long');
       return;
     }
+    final phrase = widget.knowledge ? _validatedSearch() : null;
+    if (widget.knowledge && phrase == null) return;
     setState(() {
       _busy = true;
       _notice = null;
@@ -123,7 +128,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       _input.clear();
       await _refresh();
       if (!mounted) return;
-      await _generate(api, id);
+      await _generate(api, id, phrase);
       if (!mounted) return;
       await _refresh();
     } catch (_) {
@@ -140,6 +145,8 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
 
   Future<void> _reconcile({bool generate = false}) async {
     if (_busy || _conversation == null) return;
+    final phrase = generate && widget.knowledge ? _validatedSearch() : null;
+    if (generate && widget.knowledge && phrase == null) return;
     setState(() {
       _busy = true;
       _notice = null;
@@ -148,7 +155,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       await _refresh();
       if (!mounted) return;
       if (generate && _messages.isNotEmpty && _messages.last.role == 'user') {
-        await _generate(ref.read(aiWritingApiProvider), _conversation!);
+        await _generate(ref.read(aiWritingApiProvider), _conversation!, phrase);
         if (!mounted) return;
         await _refresh();
       }
@@ -164,10 +171,43 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
     }
   }
 
-  Future<void> _generate(AiWritingApi api, String id) async {
+  String? _validatedSearch() {
+    final raw = _search.text;
+    final units = raw.codeUnits;
+    for (var i = 0; i < units.length; i++) {
+      final n = units[i];
+      if (n >= 0xd800 && n <= 0xdbff) {
+        if (i + 1 >= units.length ||
+            units[i + 1] < 0xdc00 ||
+            units[i + 1] > 0xdfff) {
+          setState(() => _notice = 'ai.knowledge.search_invalid');
+          return null;
+        }
+        i++;
+      } else if (n >= 0xdc00 && n <= 0xdfff) {
+        setState(() => _notice = 'ai.knowledge.search_invalid');
+        return null;
+      }
+    }
+    const spaces =
+        r'[\u0009-\u000d\u0020\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]';
+    final phrase = raw
+        .replaceFirst(RegExp('^$spaces+'), '')
+        .replaceFirst(RegExp('$spaces+\$'), '');
+    if (phrase.isEmpty ||
+        utf8.encode(phrase).length > 256 ||
+        RegExp(r'[\x00-\x1f\x7f]').hasMatch(phrase)) {
+      setState(() => _notice = 'ai.knowledge.search_invalid');
+      return null;
+    }
+    return phrase;
+  }
+
+  Future<void> _generate(AiWritingApi api, String id, String? phrase) async {
     if (!widget.knowledge) {
       await api.generate(id);
-    } else if (!await api.generateKnowledge(id) && mounted) {
+    } else if (!await api.generateKnowledge(id, searchPhrase: phrase) &&
+        mounted) {
       setState(() => _notice = 'ai.knowledge.insufficient');
     }
   }
@@ -203,6 +243,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       await ref.read(aiWritingApiProvider).deleteConversation(id);
       if (!mounted) return;
       _input.clear();
+      _search.clear();
       setState(() {
         _conversation = null;
         _messages = [];
@@ -245,6 +286,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
                   ? null
                   : () {
                       _input.clear();
+                      _search.clear();
                       setState(() {
                         _conversation = null;
                         _messages = [];
@@ -347,6 +389,24 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
                       color: _notice == 'ai.knowledge.insufficient'
                           ? theme.colorScheme.onSurfaceVariant
                           : theme.colorScheme.error,
+                    ),
+                  ),
+                ),
+              if (widget.knowledge)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: TextField(
+                    key: const Key('ai-knowledge-search'),
+                    controller: _search,
+                    enabled: !_busy,
+                    decoration: InputDecoration(
+                      labelText: l10n.t('ai.knowledge.search_label'),
+                      hintText: l10n.t('ai.knowledge.search_placeholder'),
+                      helperText: l10n.t('ai.knowledge.search_hint'),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                 ),
