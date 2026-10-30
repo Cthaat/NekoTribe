@@ -4212,7 +4212,7 @@
           "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Complete detector parity, image and audio/video metadata, storage safety and real Oracle/client acceptance for the native upload route."
+            "Complete detector parity, additional image cases and audio/video metadata, storage safety and real Oracle/client acceptance for the native upload route."
           ],
           "sourceFiles": [
             "src/storage/media_type_selection.rs",
@@ -11275,7 +11275,7 @@
     {
       "source": {
         "path": "specifications/requirements/media-upload.md",
-        "sha256": "91ae5fa5f92f656e6c96d6b17ce36b5abd826d0690eb8e02811b5fd190cdcf1f"
+        "sha256": "f8eadb28990970423a9859012f4071c7399f70f5d5c401b846581875c44fb3cb"
       },
       "copies": {
         "rust": "contracts/requirements/media-upload.md",
