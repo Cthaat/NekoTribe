@@ -169,6 +169,20 @@ func TestAppendAssistantMessageChecksVersionAndCurrentSequence(t *testing.T) {
 }
 func (c *conversationConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	c.state.calls = append(c.state.calls, listQueryCall{query, append([]driver.NamedValue(nil), args...)})
+	if strings.Contains(query, "FROM n_ai_conversations c WHERE") {
+		if !strings.Contains(query, "c.owner_user_id=:owner_user_id") || !strings.Contains(query, "fn_has_group_permission") || !strings.Contains(query, "ORDER BY c.conversation_id ASC") {
+			return nil, errors.New("unsafe list query")
+		}
+		binds := map[string]driver.Value{}
+		for _, arg := range args {
+			binds[arg.Name] = arg.Value
+		}
+		if binds["owner_user_id"] != int64(42) || binds["moderation_allowed"] != int64(0) || binds["row_limit"] != int64(3) {
+			return nil, errors.New("wrong bindings")
+		}
+		stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		return &alertRows{values: []driver.Value{c.state.id, int64(42), "writing", nil, "draft", stamp, stamp}}, nil
+	}
 	if strings.Contains(query, "fn_has_group_permission") {
 		c.state.permissionCalls++
 		if c.state.mode == "denied" || (c.state.mode == "revoked" && c.state.permissionCalls > 1) || c.state.mode == "rollback" {
