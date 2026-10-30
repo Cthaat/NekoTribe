@@ -14,7 +14,7 @@ async function withConnection<T>(event:H3Event,action:(connection:oracledb.Conne
 }
 const checkCancelled=(signal?:AbortSignal)=>{if(signal?.aborted) throw new KnowledgeConversationError('CANCELLED');};
 /** Internal path; authorization occurs in each store operation and no DB connection is held for inference. */
-export async function generateKnowledgeConversation(event:H3Event,id:string,configuration=process.env.AI_MODEL_CONFIG_JSON,signal?:AbortSignal) {
+export async function generateKnowledgeConversation(event:H3Event,id:string,configuration=process.env.AI_MODEL_CONFIG_JSON,signal?:AbortSignal,searchPhrase?:string) {
   v2Auth(event);checkCancelled(signal);
   const context=await withConnection(event,async connection=>({
     conversation:await readConversation(event,connection,id),
@@ -29,7 +29,7 @@ export async function generateKnowledgeConversation(event:H3Event,id:string,conf
   const last=context.messages.at(-1);
   if(!last || last.role!=='user') throw new KnowledgeConversationError('INVALID_CONTEXT');
   checkCancelled(signal);
-  const result=await generateKnowledgeReply(event,last.content,configuration,signal);
+  const result=await generateKnowledgeReply(event,last.content,configuration,signal,searchPhrase);
   checkCancelled(signal);
   const answer=result.answer;
   if(answer===null) return {message:null};

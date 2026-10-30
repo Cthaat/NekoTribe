@@ -7,7 +7,7 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const source={kind:'post',id:1,post_id:1,content:'公开资料',version:'a'.repeat(64)};
 const stubs={
  '~/server/utils/v2':`export const v2Auth=e=>{if(!e.user)throw Error('401')};export const v2Connection=async e=>e.open();export const v2ServerError=()=>{throw Error('500')};`,
- './knowledge-source':`export async function discoverKnowledgeSources(e,c,q,l){e.events.push('discover');return e.sources};export async function hydrateKnowledgeSources(e,c,input){e.events.push('hydrate');return e.sources};`,
+ './knowledge-source':`export async function discoverKnowledgeSources(e,c,q,l){e.events.push('discover');e.search=q;return e.sources};export async function hydrateKnowledgeSources(e,c,input){e.events.push('hydrate');return e.sources};`,
  './model-configuration.ts':`export class AiModelRouter {constructor(){} select(role){if(role!=='knowledge')throw Error('wrong role');return {configurationRevision:1,profileId:'test',contextWindowTokens:8192,maxOutputTokens:512}}}`,
  './inference-transport.ts':`export class AiInferenceTransport {async infer(s,input){globalThis.__knowledgeEvents.push('infer');globalThis.__knowledgeInput=input;globalThis.__knowledgeOnInfer?.();return {text:globalThis.__knowledgeOutput??JSON.stringify({answer:'answer',citations:[{kind:'post',id:1,version:'a'.repeat(64)}]}),toolCalls:[],finishReason:'stop'}}}`
 };
@@ -20,6 +20,10 @@ test('closes connections around inference, uses knowledge model and passes data 
  assert.deepEqual(e.events,['open','discover','close','open','hydrate','close','infer','open','hydrate','close']);
  assert.equal(output.answer,'answer');assert.deepEqual(output.sources,[{kind:'post',id:1,version:source.version}]);
  const messages=globalThis.__knowledgeInput.messages;assert.equal(messages[0].role,'system');assert.equal(messages[1].role,'user');assert.match(messages[0].content,/不可信/);assert.equal(JSON.parse(messages[1].content).sources[0].content,'公开资料');
+});
+test('uses a separate retrieval phrase while preserving the original question for the model',async()=>{
+ const e=event();await generateKnowledgeReply(e,'社区里有哪些猫咪？','{}',undefined,'猫');
+ assert.equal(e.search,'猫');assert.equal(JSON.parse(globalThis.__knowledgeInput.messages[1].content).question,'社区里有哪些猫咪？');
 });
 test('does not invoke model for empty evidence or oversized context',async()=>{
  const e=event([]);const output=await generateKnowledgeReply(e,'猫','{}');assert.equal(output.answer,null);assert.ok(!e.events.includes('infer'));

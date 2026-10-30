@@ -18,7 +18,7 @@ async function withConnection<T>(event:H3Event,action:(connection:oracledb.Conne
 }
 
 /** Internal development path, not a public endpoint or persisted conversation. */
-export async function generateKnowledgeReply(event:H3Event,query:string,configuration=process.env.AI_MODEL_CONFIG_JSON,signal?:AbortSignal) {
+export async function generateKnowledgeReply(event:H3Event,query:string,configuration=process.env.AI_MODEL_CONFIG_JSON,signal?:AbortSignal,searchPhrase?:string) {
   v2Auth(event);
   let router:AiModelRouter;
   try {if(!configuration || Buffer.byteLength(configuration,'utf8')>65536) throw new Error();router=new AiModelRouter(JSON.parse(configuration));}
@@ -27,7 +27,7 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
   try {selection=router.select('knowledge');if(selection.configurationRevision>999999999999999) throw new Error();} catch {throw new KnowledgeServiceError('PROVIDER_FAILED');}
   const transport=new AiInferenceTransport(reference=>process.env[reference]);
   const turn=await runKnowledgeTurn({
-    discover:()=>withConnection(event,connection=>discoverKnowledgeSources(event,connection,query,20)),
+    discover:()=>withConnection(event,connection=>discoverKnowledgeSources(event,connection,searchPhrase ?? query,20)),
     hydrate:candidates=>withConnection(event,connection=>hydrateKnowledgeSources(event,connection,candidates)),
     infer:async(sources,cancel)=>{
       const data=JSON.stringify({question:query,sources});

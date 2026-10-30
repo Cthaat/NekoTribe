@@ -7,7 +7,7 @@ const ref={kind:'post',id:1,version:'a'.repeat(64)};
 const stubs={
  '~/server/utils/v2':`export const v2Auth=e=>{if(!e.user)throw Error('401')};export const v2Connection=e=>e.open();export const v2ServerError=()=>{throw Error('500')};`,
  './conversation-store':`export async function readConversation(e){e.events.push('read');return {purpose:e.purpose}};export async function listRecentConversationMessages(e){e.events.push('history');return e.messages};export async function appendKnowledgeAssistantMessage(e,c,id,input){e.events.push('append');e.saved=input;return {sequence_no:2}};`,
- './knowledge-service':`export async function generateKnowledgeReply(e,query){e.events.push('generate');e.query=query;e.onGenerate?.();return e.reply}`
+ './knowledge-service':`export async function generateKnowledgeReply(e,query,config,signal,search){e.events.push('generate');e.query=query;e.search=search;e.onGenerate?.();return e.reply}`
 };
 const built=await build({stdin:{contents:`export * from './server/services/ai/knowledge-conversation-service.ts'`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'boundaries',setup(b){b.onResolve({filter:/.*/},a=>{if(Object.hasOwn(stubs,a.path))return {path:a.path,namespace:'stub'}});b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js'}))}}]});
 const {generateKnowledgeConversation}=await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`);
@@ -22,4 +22,8 @@ test('no evidence, invalid conversation and cancellation do not write',async()=>
  const bad=event();bad.purpose='writing';await assert.rejects(()=>generateKnowledgeConversation(bad,'id','{}'),/INVALID_CONTEXT/);assert.ok(!bad.events.includes('generate'));
  const cancelled=event(),controller=new AbortController();controller.abort();await assert.rejects(()=>generateKnowledgeConversation(cancelled,'id','{}',controller.signal),/CANCELLED/);assert.deepEqual(cancelled.events,[]);
  const during=event(),mid=new AbortController();during.onGenerate=()=>mid.abort();await assert.rejects(()=>generateKnowledgeConversation(during,'id','{}',mid.signal),/CANCELLED/);assert.ok(!during.events.includes('append'));
+});
+test('passes an explicit search phrase separately from the persisted user question',async()=>{
+ const e=event();e.messages[0].content='社区里有哪些猫咪？';await generateKnowledgeConversation(e,'id','{}',undefined,'猫');
+ assert.equal(e.query,'社区里有哪些猫咪？');assert.equal(e.search,'猫');
 });
