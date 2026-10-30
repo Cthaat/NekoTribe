@@ -9124,7 +9124,10 @@
             "internal/server/ai_knowledge_turn.go",
             "internal/server/ai_knowledge_turn_test.go",
             "internal/server/ai_knowledge_service.go",
-            "internal/server/ai_knowledge_service_test.go"
+            "internal/server/ai_knowledge_service_test.go",
+            "internal/server/ai_knowledge_citations.go",
+            "internal/server/ai_knowledge_citations_test.go",
+            "internal/ai/transport.go"
           ],
           "evidence": []
         }
@@ -11588,7 +11591,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-turn.md",
-        "sha256": "c065a4380a6908ec4820ade4d52f7221204f12f43820d9ecdcd52f93e9978766"
+        "sha256": "619ba71aa142c9210c679e46e1f0465be0433758890ebf0b8d4d47bafd1ba578"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-turn.md",
