@@ -30154,6 +30154,137 @@
             }
           }
         }
+      },
+      "get": {
+        "summary": "列出当前用户有权访问的 AI 会话",
+        "operationId": "listAIConversations",
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "after_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "上一页最后返回的会话 UUID；省略表示第一页"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "items",
+                        "next_cursor"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "conversation_id",
+                              "purpose",
+                              "group_id",
+                              "title",
+                              "created_at",
+                              "updated_at"
+                            ],
+                            "properties": {
+                              "conversation_id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "purpose": {
+                                "type": "string",
+                                "enum": [
+                                  "knowledge",
+                                  "writing",
+                                  "group",
+                                  "moderation"
+                                ]
+                              },
+                              "group_id": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "title": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "created_at": {
+                                "type": "string"
+                              },
+                              "updated_at": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "next_cursor": {
+                          "type": "string",
+                          "format": "uuid",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "分页参数错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "503": {
+            "description": "数据库结构未就绪"
+          }
+        }
       }
     },
     "/api/v2/ai/conversations/{id}": {

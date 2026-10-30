@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "fe984a6a672dd4b3f76c54b987295c52036b4062866a3be9c235b260fd36ed3a"
+      "sha256": "28bb8cc4e110bdf263197e0735f3cd7f16a636f1eafe49dbe45ce1bf146243af"
     },
     "sources": [
       {
@@ -304,6 +304,10 @@
       {
         "path": "server/api/v2/ai/conversations/[id]/messages/index.post.ts",
         "sha256": "5a566abfb1eb33b3138c68b7aee799b7e77895ca72896fc8f8b977529cfc35b8"
+      },
+      {
+        "path": "server/api/v2/ai/conversations/index.get.ts",
+        "sha256": "7d36650a00206ee4fe9a6e1e3a8e33c5fcc41aa134e553d5d19d7ff3d163b5b2"
       },
       {
         "path": "server/api/v2/ai/conversations/index.post.ts",
@@ -987,7 +991,7 @@
       },
       {
         "path": "server/services/ai/conversation-http.ts",
-        "sha256": "dd0ede6249b02dbf3c0b70db83fbc2f4e3f1fe48085f8160ae24c31c94ad7584"
+        "sha256": "9d451c0e02190a33dd4967ee0361ea6c1e05bca0c5d7aa8e157b071c6ea8a7fa"
       },
       {
         "path": "server/services/ai/conversation-store.ts",
@@ -8986,7 +8990,8 @@
         "server/api/v2/ai/conversations/[id]/generate.post.ts",
         "server/services/ai/writing-service.ts",
         "server/services/ai/writing-turn.ts",
-        "server/api/v2/ai/conversations/[id].delete.ts"
+        "server/api/v2/ai/conversations/[id].delete.ts",
+        "server/api/v2/ai/conversations/index.get.ts"
       ],
       "operations": [
         "POST /api/v2/ai/conversations",
@@ -8994,7 +8999,8 @@
         "GET /api/v2/ai/conversations/{id}/messages",
         "POST /api/v2/ai/conversations/{id}/messages",
         "POST /api/v2/ai/conversations/{id}/generate",
-        "DELETE /api/v2/ai/conversations/{id}"
+        "DELETE /api/v2/ai/conversations/{id}",
+        "GET /api/v2/ai/conversations"
       ],
       "scenarios": [
         {
@@ -9029,7 +9035,8 @@
             "tests/ai-writing-turn.test.mjs",
             "tests/ai-writing-service.test.mjs",
             "tests/ai-writing-route.test.mjs",
-            "server/api/v2/ai/conversations/[id].delete.ts"
+            "server/api/v2/ai/conversations/[id].delete.ts",
+            "server/api/v2/ai/conversations/index.get.ts"
           ],
           "evidence": []
         },

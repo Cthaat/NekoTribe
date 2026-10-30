@@ -16,6 +16,7 @@ const stubs = {
     export const createConversation=async(e,c,b)=>({purpose:b.purpose});
     export const readConversation=async(e,c,id)=>({conversation_id:id});
     export const deleteConversation=async(e,c,id)=>{c.deleted=id};
+    export const listConversations=async(e,c,after,limit)=>({items:[],next_cursor:null,after,limit});
     export const appendUserMessage=async(e,c,id,content)=>({conversation_id:id,content});
     export const listConversationMessages=async(e,c,id,after,limit)=>[{id,after,limit}];`
 };
@@ -31,9 +32,15 @@ const api = await import(`data:text/javascript;base64,${Buffer.from(compiled.out
 const actor = {user:{userId:42},params:{id:'example'}};
 
 test('conversation operations require an authenticated actor',async()=>{
-  for(const operation of [api.create,api.read,api.remove,api.append,api.list]){
+  for(const operation of [api.create,api.read,api.remove,api.append,api.list,api.listOwned]){
     await assert.rejects(()=>operation({params:{id:'example'},body:{content:'x'}},{}),/401/);
   }
+});
+test('conversation listing validates cursor and limit',async()=>{
+  assert.deepEqual((await api.listOwned({...actor,query:{}},{})).data,{items:[],next_cursor:null,after:'',limit:20});
+  const id='f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb';
+  assert.equal((await api.listOwned({...actor,query:{after_id:id,limit:'50'}},{})).data.after,id);
+  for(const query of [{after_id:'bad'},{after_id:[id,id]},{limit:'0'},{limit:'51'},{limit:['1','2']}]) await assert.rejects(()=>api.listOwned({...actor,query},{}),/400/);
 });
 test('deleting a conversation returns null and delegates the authenticated identifier',async()=>{
   const db={};
