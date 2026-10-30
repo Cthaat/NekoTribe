@@ -24,7 +24,7 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
   try {if(!configuration || Buffer.byteLength(configuration,'utf8')>65536) throw new Error();router=new AiModelRouter(JSON.parse(configuration));}
   catch {throw new KnowledgeServiceError('PROVIDER_FAILED');}
   let selection:ReturnType<AiModelRouter['select']>;
-  try {selection=router.select('knowledge');} catch {throw new KnowledgeServiceError('PROVIDER_FAILED');}
+  try {selection=router.select('knowledge');if(selection.configurationRevision>999999999999999) throw new Error();} catch {throw new KnowledgeServiceError('PROVIDER_FAILED');}
   const transport=new AiInferenceTransport(reference=>process.env[reference]);
   const turn=await runKnowledgeTurn({
     discover:()=>withConnection(event,connection=>discoverKnowledgeSources(event,connection,query,20)),
@@ -40,5 +40,6 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
       return result.text;
     }
   },signal);
-  return turn.answer===null ? turn : parseKnowledgeAnswer(turn.answer,turn.sources);
+  const result=turn.answer===null ? turn : parseKnowledgeAnswer(turn.answer,turn.sources);
+  return {...result,modelId:selection.profileId,configRevision:selection.configurationRevision};
 }
