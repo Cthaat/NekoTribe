@@ -1,0 +1,17 @@
+{
+  "id": "AI-KNOWLEDGE-CITATIONS",
+  "revision": 1,
+  "executionStatus": "component-vectors-not-product-acceptance",
+  "verified": [{"kind":"post","id":1,"version":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],
+  "cases": [
+    {"id":"valid","output":"{\"answer\":\"答案\",\"citations\":[{\"kind\":\"post\",\"id\":1,\"version\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]}","accepted":true},
+    {"id":"decimal-id","output":"{\"answer\":\"ok\",\"citations\":[{\"kind\":\"post\",\"id\":1.0,\"version\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]}","accepted":true},
+    {"id":"unknown-id","output":"{\"answer\":\"答案\",\"citations\":[{\"kind\":\"post\",\"id\":2,\"version\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]}","accepted":false},
+    {"id":"duplicate","output":"{\"answer\":\"答案\",\"citations\":[{\"kind\":\"post\",\"id\":1,\"version\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"kind\":\"post\",\"id\":1,\"version\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]}","accepted":false},
+    {"id":"no-citations","output":"{\"answer\":\"答案\",\"citations\":[]}","accepted":false},
+    {"id":"extra-field","output":"{\"answer\":\"答案\",\"citations\":[{\"kind\":\"post\",\"id\":1,\"version\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"extra\":true}]}","accepted":false},
+    {"id":"blank-js-space","output":"{\"answer\":\"\\ufeff \",\"citations\":[{\"kind\":\"post\",\"id\":1,\"version\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]}","accepted":false},
+    {"id":"unpaired-surrogate","output":"{\"answer\":\"\\ud800\",\"citations\":[{\"kind\":\"post\",\"id\":1,\"version\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]}","accepted":false},
+    {"id":"non-json","output":"plain answer","accepted":false}
+  ]
+}

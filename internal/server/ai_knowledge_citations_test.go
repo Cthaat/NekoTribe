@@ -4,9 +4,36 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
+
+func TestKnowledgeCitationsSharedVectors(t *testing.T) {
+	data, err := os.ReadFile("../../contracts/scenarios/ai-knowledge-citation-vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vectors struct {
+		Verified []knowledgeCandidate `json:"verified"`
+		Cases    []struct {
+			ID       string `json:"id"`
+			Output   string `json:"output"`
+			Accepted bool   `json:"accepted"`
+		} `json:"cases"`
+	}
+	if err = json.Unmarshal(data, &vectors); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range vectors.Cases {
+		t.Run(row.ID, func(t *testing.T) {
+			_, err := parseKnowledgeAnswer(row.Output, vectors.Verified)
+			if (err == nil) != row.Accepted {
+				t.Fatal(row.ID, err)
+			}
+		})
+	}
+}
 
 func TestKnowledgeCitationsValidateVerifiedReferences(t *testing.T) {
 	source := knowledgeCandidate{Kind: "post", ID: 1, Version: strings.Repeat("a", 64)}
