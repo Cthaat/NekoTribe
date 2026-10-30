@@ -9,7 +9,7 @@ const stubs = {
   '~/server/utils/v2': `
     export const v2Auth=e=>{if(!e.userId)throw Error('unauthorized');return {userId:e.userId}};
     export const v2BadRequest=m=>{throw Error('400:'+m)};
-    export const v2Forbidden=m=>{throw Error('403:'+m)};
+    export const v2Forbidden=m=>{throw Object.assign(Error('403:'+m),{statusCode:403})};
     export const v2NotFound=m=>{throw Error('404:'+m)};
     export const v2Conflict=m=>{throw Error('409:'+m)};
     export const v2ServerError=()=>{throw Error('500:internal')};
@@ -19,17 +19,17 @@ const stubs = {
     export const v2Execute=async(c,sql,binds,autoCommit)=>c.insert(sql,binds,autoCommit);
     export const v2One=async(c,sql,binds)=>c.read(sql,binds);`,
   '~/server/database/readiness': `export const requireFeatureSchema=async(c,feature)=>{c.checks.push(feature)};`,
-  '~/server/services/v2/groups': `export const v2GroupPermission=async(c)=>{c.permissionChecks++;return c.allowed};`,
-  '~/server/services/v2/moderation': `export const requireModerationAccess=async(e,c)=>{if(!c.moderator)throw Error('403:需要审核权限')};`
+  '~/server/services/v2/groups': `export const v2GroupPermission=async(c)=>{c.permissionChecks++;if(c.permissionError)throw Error('database failure');return c.allowed};`,
+  '~/server/services/v2/moderation': `export const requireModerationAccess=async(e,c)=>{if(!c.moderator)throw Object.assign(Error('403:需要审核权限'),{statusCode:403})};`
 };
 const compiled = await build({
-  stdin: { contents: `export {createConversation,readConversation,deleteConversation,appendUserMessage,appendAssistantMessage,listConversationMessages,listRecentConversationMessages} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
+  stdin: { contents: `export {createConversation,readConversation,deleteConversation,listConversations,appendUserMessage,appendAssistantMessage,listConversationMessages,listRecentConversationMessages} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'conversation-store-boundaries', setup(builder) {
     builder.onResolve({ filter: /.*/ }, args => { if (Object.hasOwn(stubs, args.path)) return { path: args.path, namespace: 'stub' }; });
     builder.onLoad({ filter: /.*/, namespace: 'stub' }, args => ({ contents: stubs[args.path], loader: 'js' }));
   }}]
 });
-const { createConversation, readConversation, deleteConversation, appendUserMessage, appendAssistantMessage, listConversationMessages, listRecentConversationMessages } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+const { createConversation, readConversation, deleteConversation, listConversations, appendUserMessage, appendAssistantMessage, listConversationMessages, listRecentConversationMessages } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 function database() {
   return { checks: [], permissionChecks: 0, allowed: true, moderator: true, saved: null, pending: null, messages: [], pendingMessage: null, commits: 0, rollbacks: 0,
     async insert(sql, binds, autoCommit) {
@@ -76,6 +76,48 @@ function database() {
     async rollback() { this.rollbacks++; if (this.failRollback) throw Error('private rollback'); this.pendingDelete=false; this.pending = null; this.pendingMessage = null; }
   };
 }
+
+test('conversation listing uses a bounded owner-scoped cursor and rechecks revoked access',async()=>{
+  const db=database(),actor={userId:42};
+  const rows=[
+    {CONVERSATION_ID:'0f9da41c-7296-4f51-91f4-141f5c6e3c01',OWNER_USER_ID:42,PURPOSE:'writing',GROUP_ID:null,TITLE:'draft'},
+    {CONVERSATION_ID:'1f9da41c-7296-4f51-91f4-141f5c6e3c01',OWNER_USER_ID:42,PURPOSE:'group',GROUP_ID:7,TITLE:'hidden'},
+    {CONVERSATION_ID:'2f9da41c-7296-4f51-91f4-141f5c6e3c01',OWNER_USER_ID:42,PURPOSE:'knowledge',GROUP_ID:null,TITLE:'questions'},
+  ];
+  db.allowed=false; db.moderator=false;
+  db.execute=async(sql,binds)=>{
+    assert.match(sql,/owner_user_id\s*=\s*:owner_user_id/i);
+    assert.match(sql,/fn_has_group_permission/i);
+    assert.equal(binds.owner_user_id,42);assert.equal(binds.moderation_allowed,0);assert.equal(binds.row_limit,3);
+    return {rows};
+  };
+  const result=await listConversations(actor,db,'',2);
+  assert.deepEqual(result.items.map(x=>x.title),['draft','questions']);
+  assert.equal(result.next_cursor,rows[2].CONVERSATION_ID);
+  await assert.rejects(()=>listConversations(actor,db,'bad',2),/400:/);
+});
+
+test('conversation listing fails closed when permission checks fail and does not leak hidden cursor IDs',async()=>{
+  const db=database(),actor={userId:42};
+  const id='0f9da41c-7296-4f51-91f4-141f5c6e3c01';
+  db.permissionError=true;
+  db.execute=async()=>({rows:[{CONVERSATION_ID:id,OWNER_USER_ID:42,PURPOSE:'group',GROUP_ID:7,TITLE:'private'}]});
+  await assert.rejects(()=>listConversations(actor,db,'',10),/database failure/);
+  db.permissionError=false;db.allowed=false;
+  const page=await listConversations(actor,db,'',10);
+  assert.deepEqual(page,{items:[],next_cursor:null});
+});
+
+test('conversation listing advances with the last visible ID rather than inaccessible rows',async()=>{
+  const db=database(),actor={userId:42};
+  const ids=['0f9da41c-7296-4f51-91f4-141f5c6e3c01','1f9da41c-7296-4f51-91f4-141f5c6e3c01','2f9da41c-7296-4f51-91f4-141f5c6e3c01'];
+  db.allowed=false;
+  db.execute=async(sql,binds)=>({rows:ids.map((id,i)=>({CONVERSATION_ID:id,OWNER_USER_ID:42,PURPOSE:i===1?'group':'writing',GROUP_ID:i===1?7:null,TITLE:String(i)})).filter(row=>row.CONVERSATION_ID>(binds.after_id??''))});
+  const first=await listConversations(actor,db,'',1);
+  assert.deepEqual(first.items.map(x=>x.title),['0']);assert.equal(first.next_cursor,ids[0]);
+  const second=await listConversations(actor,db,first.next_cursor,1);
+  assert.deepEqual(second.items.map(x=>x.title),['2']);assert.equal(second.next_cursor,ids[2]);
+});
 
 test('delete locks owned conversation and removes its messages only after commit', async () => {
   const db=database(),actor={userId:42};

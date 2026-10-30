@@ -24,6 +24,10 @@ export interface ConversationMessageRecord {
   config_revision: number | null;
   created_at: string;
 }
+export interface ConversationPage {
+  items: ConversationRecord[];
+  next_cursor: string | null;
+}
 
 function validId(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -38,6 +42,56 @@ function mapRow(row: Record<string, unknown>): ConversationRecord {
     created_at: v2DateString(row.CREATED_AT) || '',
     updated_at: v2DateString(row.UPDATED_AT) || ''
   };
+}
+
+function forbidden(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'statusCode' in error && error.statusCode === 403;
+}
+
+/** List owned, currently authorized conversations without exposing inaccessible cursor IDs. */
+export async function listConversations(event: H3Event, connection: oracledb.Connection, after: string, limit: number): Promise<ConversationPage> {
+  const actor = v2Auth(event);
+  if ((after !== '' && !validId(after)) || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) v2BadRequest('分页参数错误');
+  await requireFeatureSchema(connection, 'ai-conversations');
+  let moderationAllowed = 1;
+  try {
+    await authorizeConversationScope(event, connection, {ownerUserId: actor.userId, purpose: 'moderation', groupId: null});
+  } catch (error) {
+    if (!forbidden(error)) throw error;
+    moderationAllowed = 0;
+  }
+  const items: ConversationRecord[] = [];
+  let scanAfter = after.toLowerCase();
+  for (let batch = 0; batch < 10; batch++) {
+    const result = await connection.execute<Record<string, unknown>>(
+      `SELECT c.conversation_id,c.owner_user_id,c.purpose,c.group_id,c.title,c.created_at,c.updated_at
+       FROM n_ai_conversations c WHERE c.owner_user_id=:owner_user_id
+       AND (:after_id IS NULL OR c.conversation_id>:after_id)
+       AND (c.purpose IN ('knowledge','writing') OR
+            (c.purpose='group' AND fn_has_group_permission(:owner_user_id,c.group_id,'admin')=1) OR
+            (c.purpose='moderation' AND :moderation_allowed=1))
+       ORDER BY c.conversation_id ASC FETCH FIRST :row_limit ROWS ONLY`,
+      {owner_user_id: actor.userId, after_id: scanAfter || null, moderation_allowed: moderationAllowed, row_limit: limit + 1},
+      {outFormat: oracledb.OUT_FORMAT_OBJECT}
+    );
+    const rows = result.rows ?? [];
+    for (const row of rows) {
+      const record = mapRow(row);
+      if (v2Number(row.OWNER_USER_ID) !== actor.userId || !validId(record.conversation_id) || record.conversation_id <= scanAfter) v2ServerError();
+      scanAfter = record.conversation_id;
+      try {
+        await authorizeConversationScope(event, connection, {ownerUserId: actor.userId, purpose: record.purpose, groupId: record.group_id});
+      } catch (error) {
+        if (forbidden(error)) continue;
+        throw error;
+      }
+      if (items.length === limit) return {items, next_cursor: items[items.length - 1]!.conversation_id};
+      items.push(record);
+    }
+    if (rows.length < limit + 1) return {items, next_cursor: null};
+    if (items.length) return {items, next_cursor: items[items.length - 1]!.conversation_id};
+  }
+  v2ServerError();
 }
 
 export async function readConversation(event: H3Event, connection: oracledb.Connection, id: string): Promise<ConversationRecord> {
