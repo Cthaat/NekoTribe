@@ -2,8 +2,8 @@
 use super::{
     knowledge_citations,
     knowledge_source::{self, Candidate, Source},
-    knowledge_turn::TurnResult,
 };
+use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
@@ -12,6 +12,19 @@ pub enum HistoryError {
     Invalid,
     SourceChanged,
     Store,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Citation {
+    pub kind: String,
+    pub id: i64,
+    pub version: String,
+    pub post_id: i64,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Restored {
+    pub answer: Option<String>,
+    pub sources: Vec<Candidate>,
+    pub citations: Vec<Citation>,
 }
 pub fn encode(answer: &str, sources: &[Candidate]) -> Result<String, HistoryError> {
     if sources.is_empty()
@@ -31,7 +44,7 @@ pub fn encode(answer: &str, sources: &[Candidate]) -> Result<String, HistoryErro
 pub fn restore(
     encoded: &str,
     hydrate: impl FnOnce(&[Candidate]) -> Result<Vec<Source>, HistoryError>,
-) -> Result<TurnResult, HistoryError> {
+) -> Result<Restored, HistoryError> {
     if encoded.len() > 65536 {
         return Err(HistoryError::Invalid);
     }
@@ -92,9 +105,37 @@ pub fn restore(
     let mut seen = HashSet::new();
     for row in &rows {
         let key = (row.kind.as_str(), row.id, row.version.as_str());
-        if !expected.contains(&key) || !seen.insert(key) {
+        if !expected.contains(&key)
+            || !seen.insert(key)
+            || !(1..=999_999_999_999_999).contains(&row.post_id)
+            || (row.kind == "post" && row.post_id != row.id)
+        {
             return Err(HistoryError::SourceChanged);
         }
     }
-    Ok(answer)
+    let citations = answer
+        .sources
+        .iter()
+        .map(|reference| {
+            let row = rows
+                .iter()
+                .find(|row| {
+                    row.kind == reference.kind
+                        && row.id == reference.id
+                        && row.version == reference.version
+                })
+                .ok_or(HistoryError::SourceChanged)?;
+            Ok(Citation {
+                kind: reference.kind.clone(),
+                id: reference.id,
+                version: reference.version.clone(),
+                post_id: row.post_id,
+            })
+        })
+        .collect::<Result<Vec<_>, HistoryError>>()?;
+    Ok(Restored {
+        answer: answer.answer,
+        sources: answer.sources,
+        citations,
+    })
 }

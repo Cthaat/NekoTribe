@@ -71,7 +71,7 @@ pub struct HistoryMessage {
     pub config_revision: Option<i64>,
     pub created_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub citations: Option<Vec<super::knowledge_source::Candidate>>,
+    pub citations: Option<Vec<super::knowledge_history::Citation>>,
 }
 #[derive(Clone)]
 pub struct ModerationPolicy {
@@ -195,7 +195,7 @@ trait Transaction {
         &self,
         _user: i64,
         _content: &str,
-    ) -> Result<super::knowledge_turn::TurnResult, Error> {
+    ) -> Result<super::knowledge_history::Restored, Error> {
         Err(Error::Store)
     }
 }
@@ -400,7 +400,7 @@ fn run_history_ordered(
                 if message.role == "assistant" {
                     let restored = tx.restore_knowledge(user, &message.content)?;
                     message.content = restored.answer.ok_or(Error::Store)?;
-                    message.citations = Some(restored.sources);
+                    message.citations = Some(restored.citations);
                 }
             }
         }
@@ -714,7 +714,7 @@ impl Transaction for OracleConversation<'_> {
         &self,
         user: i64,
         content: &str,
-    ) -> Result<super::knowledge_turn::TurnResult, Error> {
+    ) -> Result<super::knowledge_history::Restored, Error> {
         super::knowledge_history::restore(content, |refs| {
             super::knowledge_source::hydrate_sources(self.0, user, refs)
                 .map_err(|_| super::knowledge_history::HistoryError::Store)
@@ -1145,7 +1145,7 @@ mod tests {
             &self,
             _: i64,
             content: &str,
-        ) -> Result<super::super::knowledge_turn::TurnResult, Error> {
+        ) -> Result<super::super::knowledge_history::Restored, Error> {
             self.checks.set(self.checks.get() + 1);
             if self.revoke && self.checks.get() > 1 {
                 return Err(Error::Store);
@@ -1247,7 +1247,15 @@ mod tests {
         assert_eq!(tx.checks.get(), 2);
         let rows = run_history(&tx, 1, id, 0, 10, &policy).unwrap();
         assert_eq!(rows[0].content, "answer");
-        assert_eq!(rows[0].citations.as_ref().unwrap(), &vec![ref_.clone()]);
+        assert_eq!(
+            rows[0].citations.as_ref().unwrap(),
+            &vec![super::super::knowledge_history::Citation {
+                kind: ref_.kind.clone(),
+                id: ref_.id,
+                version: ref_.version.clone(),
+                post_id: ref_.id
+            }]
+        );
         let bad = KnowledgeFake {
             events: RefCell::new(vec![]),
             checks: Cell::new(0),

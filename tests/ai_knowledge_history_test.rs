@@ -49,3 +49,36 @@ fn refuses_invalid_references_and_oversized_storage() {
     );
     assert!(!called);
 }
+#[test]
+fn comment_citation_has_authorized_parent_without_source_content() {
+    let reference = Candidate {
+        kind: "comment".into(),
+        id: 23,
+        version: "b".repeat(64),
+    };
+    let encoded = encode("回答", std::slice::from_ref(&reference)).unwrap();
+    let result = restore(&encoded, |_| {
+        Ok(vec![Source {
+            kind: "comment".into(),
+            id: 23,
+            post_id: 99,
+            content: "internal text".into(),
+            version: reference.version.clone(),
+        }])
+    })
+    .unwrap();
+    assert_eq!(result.citations[0].post_id, 99);
+    assert!(!serde_json::to_string(&result.citations)
+        .unwrap()
+        .contains("internal text"));
+    assert_eq!(
+        restore(&encoded, |_| Ok(vec![Source {
+            kind: "comment".into(),
+            id: 23,
+            post_id: 0,
+            content: "x".into(),
+            version: reference.version.clone()
+        }])),
+        Err(HistoryError::SourceChanged)
+    );
+}
