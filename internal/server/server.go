@@ -110,6 +110,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			getUserSettings(w, r, codec, repository)
 			return
 		}
+		if r.URL.EscapedPath() == "/api/v2/users/me/settings" && r.Method == http.MethodPatch {
+			patchUserSettings(w, r, codec, repository, refresh)
+			return
+		}
 		if r.URL.EscapedPath() == "/api/v2/notifications" && r.Method == http.MethodGet {
 			listNotifications(w, r, codec, repository, refresh)
 			return

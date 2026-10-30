@@ -44,10 +44,47 @@ func (c *settingsConn) ExecContext(_ context.Context, query string, args []drive
 }
 func (c *settingsConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	c.state.calls = append(c.state.calls, listQueryCall{query, append([]driver.NamedValue(nil), args...)})
+	if strings.Contains(query, "MAX(s.last_accessed_at)") {
+		if c.state.mode == "presence-error" {
+			return nil, errors.New("secret")
+		}
+		if c.state.mode == "presence-missing" {
+			return emptyRows{&c.state.driverState}, nil
+		}
+		if c.state.mode == "presence-hidden" {
+			return &alertRows{values: []driver.Value{int64(0), time.Now(), "hidden"}}, nil
+		}
+		return &alertRows{values: []driver.Value{int64(1), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), "online"}}, nil
+	}
 	if c.state.mode == "read" {
 		return nil, errors.New("secret")
 	}
 	return &alertRows{values: []driver.Value{int64(42), int64(0), int64(1), "public", int64(1), int64(0), int64(1), int64(1), int64(0), nil, nil, int64(0), int64(3), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}}, nil
+}
+
+func TestUserPresenceRepository(t *testing.T) {
+	for _, tc := range []struct {
+		mode, status string
+		seen, fail   bool
+	}{
+		{"presence-online", "online", true, false},
+		{"presence-hidden", "hidden", false, false},
+		{"presence-missing", "offline", false, false},
+		{"presence-error", "", false, true},
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			state := &settingsDBState{mode: tc.mode}
+			db := sql.OpenDB(settingsConnector{state})
+			defer db.Close()
+			result, err := (OracleSessions{db}).UserPresence(context.Background(), 42)
+			if (err != nil) != tc.fail || result.OnlineStatus != tc.status || (result.LastSeenAt != nil) != tc.seen {
+				t.Fatal(result, err)
+			}
+			if len(state.calls) != 1 || len(state.calls[0].args) != 1 || state.calls[0].args[0].Name != "user_id" || state.calls[0].args[0].Value != int64(42) {
+				t.Fatal(state.calls)
+			}
+		})
+	}
 }
 
 func TestSettingsTransaction(t *testing.T) {

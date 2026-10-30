@@ -32,6 +32,10 @@ func (s OracleSessions) GetUserSettings(ctx context.Context, user int64) (userSe
 	return s.applyUserSettings(ctx, user, nil, verifyUserSettingsSchema)
 }
 
+func (s OracleSessions) PatchUserSettings(ctx context.Context, user int64, patch settingsPatch) (userSettings, error) {
+	return s.applyUserSettings(ctx, user, &patch, verifyUserSettingsSchema)
+}
+
 func verifyUserSettingsSchema(ctx context.Context, conn *sql.Conn) error {
 	var catalog schemaCatalog
 	if json.Unmarshal(contracts.UserSettingsSchemaCatalog, &catalog) != nil || validateFeatureSchema(ctx, conn, catalog, "user-settings") != nil {

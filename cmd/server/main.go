@@ -37,6 +37,7 @@ func run() (err error) {
 	}
 	defer redisPublisher.Close()
 	config.Refresh.NotificationPublisher = redisPublisher
+	config.Refresh.PresencePublisher = redisPublisher
 	codec, e := auth.NewTokenManager([]byte(config.AccessKey), []byte(config.RefreshKey), time.Now)
 	if e != nil {
 		return errors.New("invalid authentication configuration")

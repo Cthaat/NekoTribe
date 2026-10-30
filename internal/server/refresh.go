@@ -35,6 +35,7 @@ type RefreshConfig struct {
 	LocalStorage                  LocalStorageConfig
 	NotificationEvents            NotificationEventSource
 	NotificationPublisher         NotificationEventPublisher
+	PresencePublisher             presencePublisher
 	otpMailer                     otpMailSender
 	clock                         func() time.Time
 }
