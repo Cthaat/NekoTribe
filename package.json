@@ -14,6 +14,7 @@
     "parity:check": "node scripts/parity.mjs check",
     "parity:release": "node scripts/parity.mjs release",
     "schema-catalog:check": "node scripts/two-factor-schema-catalog.mjs --check",
+    "ai-terms:check": "node scripts/ai-public-terms-catalog.mjs --check",
     "deployment": "node scripts/deploy.mjs",
     "db:plan": "node scripts/migrate-db.mjs --plan",
     "db:check": "node scripts/migrate-db.mjs --check",

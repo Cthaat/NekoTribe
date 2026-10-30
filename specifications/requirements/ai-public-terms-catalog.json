@@ -1,0 +1,87 @@
+{
+  "id": "AI-PUBLIC-TERMS-CATALOG",
+  "revision": 1,
+  "source": "i18n/locales/{locale}.json#auth.terms.sections",
+  "documents": [
+    {
+      "key": "terms.acceptance",
+      "locale": "zh",
+      "href": "/zh/auth/terms#acceptance",
+      "title": "1. 接受条款",
+      "blocks": [
+        "通过访问或使用本服务，您同意遵守这些条款。如果您不同意这些条款，请不要使用本服务。"
+      ]
+    },
+    {
+      "key": "terms.accounts",
+      "locale": "zh",
+      "href": "/zh/auth/terms#accounts",
+      "title": "2. 账户责任",
+      "blocks": [
+        "您有责任维护您的账户信息的安全性和保密性。任何通过您的账户进行的活动都将被视为您本人所为。"
+      ]
+    },
+    {
+      "key": "terms.conduct",
+      "locale": "zh",
+      "href": "/zh/auth/terms#conduct",
+      "title": "3. 用户行为",
+      "blocks": [
+        "您同意不从事任何可能损害、禁用、过载或干扰本服务的行为。",
+        "3. 警告，请注意，您同意不得从事以下任何行为，否则将承担相应的责任：",
+        "冒充他人",
+        "发布虚假信息",
+        "进行恶意攻击"
+      ]
+    },
+    {
+      "key": "terms.termination",
+      "locale": "zh",
+      "href": "/zh/auth/terms#termination",
+      "title": "4. 终止服务",
+      "blocks": [
+        "我们保留在任何时候终止或暂停您的访问权限的权利，无论是否通知。"
+      ]
+    },
+    {
+      "key": "terms.acceptance",
+      "locale": "en",
+      "href": "/en/auth/terms#acceptance",
+      "title": "1. Acceptance of Terms",
+      "blocks": [
+        "By accessing or using this service, you agree to comply with these terms. If you do not agree with these terms, please do not use this service."
+      ]
+    },
+    {
+      "key": "terms.accounts",
+      "locale": "en",
+      "href": "/en/auth/terms#accounts",
+      "title": "2. Account Responsibilities",
+      "blocks": [
+        "You are responsible for maintaining the security and confidentiality of your account information. Any activity conducted through your account will be deemed to be carried out by you."
+      ]
+    },
+    {
+      "key": "terms.conduct",
+      "locale": "en",
+      "href": "/en/auth/terms#conduct",
+      "title": "3. User Conduct",
+      "blocks": [
+        "You agree not to engage in any behavior that may damage, disable, overburden, or interfere with this service.",
+        "3. Warning: Please note that you agree not to engage in any of the following behaviors, or you will bear corresponding responsibilities:",
+        "Impersonating others",
+        "Posting false information",
+        "Conducting malicious attacks"
+      ]
+    },
+    {
+      "key": "terms.termination",
+      "locale": "en",
+      "href": "/en/auth/terms#termination",
+      "title": "4. Termination of Service",
+      "blocks": [
+        "We reserve the right to terminate or suspend your access at any time, with or without notice."
+      ]
+    }
+  ]
+}

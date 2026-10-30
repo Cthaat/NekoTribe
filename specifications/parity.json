@@ -9108,6 +9108,9 @@
             "server/services/ai/knowledge-history.ts",
             "server/services/ai/knowledge-context.ts",
             "tests/ai-knowledge-context.test.mjs",
+            "scripts/ai-public-terms-catalog.mjs",
+            "scripts/lib/ai-public-terms-catalog.mjs",
+            "tests/ai-public-terms-catalog.test.mjs",
             "tests/ai-knowledge-history.test.mjs",
             "server/services/ai/knowledge-conversation-service.ts",
             "tests/ai-knowledge-conversation-service.test.mjs"
@@ -9209,6 +9212,7 @@
         "specifications/scenarios/ai-knowledge-search-body.json",
         "specifications/scenarios/ai-knowledge-citation-vectors.json",
         "specifications/scenarios/ai-knowledge-context-vectors.json",
+        "specifications/requirements/ai-public-terms-catalog.json",
         "specifications/requirements/ai-knowledge-history.md"
       ]
     },
@@ -11693,6 +11697,16 @@
       "copies": {
         "rust": "contracts/scenarios/ai-knowledge-context-vectors.json",
         "go": "contracts/scenarios/ai-knowledge-context-vectors.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-public-terms-catalog.json",
+        "sha256": "14e3a5afcbf46cef1dbb05462b358aef7b65ce59e5eee5ba01613f3765432c73"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-public-terms-catalog.json",
+        "go": "contracts/requirements/ai-public-terms-catalog.json"
       }
     },
     {

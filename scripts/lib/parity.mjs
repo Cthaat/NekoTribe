@@ -1,6 +1,7 @@
 import { lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { createHash } from 'node:crypto';
+import {buildPublicTermsCatalog,checkPublicTermsPage} from './ai-public-terms-catalog.mjs';
 
 const backends = ['nuxt', 'rust', 'go'];
 const states = new Set(['not-started', 'in-progress', 'proxy', 'implemented', 'accepted']);
@@ -62,6 +63,11 @@ function sharedCopies(root, workspaceRoot, entries) {
     checksum(publicDirectory(root, sourceDirectory), { path: source.path.slice(sourceDirectory.length + 1), sha256: source.sha256 },
       'Shared source changed; review requirements before re-pinning', true);
     checkTwoFactorCatalogSources(root, source.path);
+    if(source.path==='specifications/requirements/ai-public-terms-catalog.json') {
+      checkPublicTermsPage(file(root,'app/pages/auth/terms.vue').toString('utf8'));
+      const generated=buildPublicTermsCatalog({zh:json(root,'i18n/locales/zh.json'),en:json(root,'i18n/locales/en.json')});
+      ensure(JSON.stringify(json(root,source.path))===JSON.stringify(generated),'Public terms catalog is stale; regenerate and review shared copies');
+    }
     const copies = entry.copies;
     ensure(copies && typeof copies === 'object' && !Array.isArray(copies) && copies.rust && copies.go &&
       Object.keys(copies).every(backend => ['rust', 'go', 'flutter'].includes(backend)), 'Shared copies must include Rust and Go');
