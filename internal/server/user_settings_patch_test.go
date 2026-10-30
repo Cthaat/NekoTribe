@@ -2,10 +2,51 @@ package server
 
 import (
 	"database/sql"
+	"encoding/json"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestSharedUserSettingsPatchVectors(t *testing.T) {
+	data, err := os.ReadFile("../../contracts/scenarios/user-settings-patch.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		ID    string `json:"id"`
+		Cases []struct {
+			ID       string                 `json:"id"`
+			Body     map[string]interface{} `json:"body"`
+			Fields   map[string]interface{} `json:"fields"`
+			Presence bool                   `json:"presence"`
+			Error    string                 `json:"error"`
+		} `json:"cases"`
+	}
+	if json.Unmarshal(data, &fixture) != nil || fixture.ID != "USER-SETTINGS-PATCH" || len(fixture.Cases) != 16 {
+		t.Fatal("invalid fixture")
+	}
+	for _, tc := range fixture.Cases {
+		t.Run(tc.ID, func(t *testing.T) {
+			got, err := parseSettingsPatch(tc.Body)
+			if tc.Error != "" {
+				if err == nil || err.Error() != tc.Error {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err != nil || got.PublishPresence != tc.Presence {
+				t.Fatal(got, err)
+			}
+			actual, _ := json.Marshal(got.Fields)
+			expected, _ := json.Marshal(tc.Fields)
+			if string(actual) != string(expected) {
+				t.Fatalf("got %s want %s", actual, expected)
+			}
+		})
+	}
+}
 
 func TestSettingsPatchParsing(t *testing.T) {
 	cases := []struct {
