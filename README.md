@@ -1,6 +1,6 @@
 # NekoTribe Rust 后端（兼容模式与原生业务开发）
 
-本地文件 key 与字节范围的共同规则组件已通过 69 条隔离样例；实际文件 provider、HTTP 流、上传/删除及私密附件权限仍待接线，见 `contracts/requirements/storage-local-files.md` 和 `media-upload.md`。
+原生模式已接入本地公开文件读取、媒体上传和删除的开发中路径，规则见 `contracts/requirements/storage-local-files.md` 和 `media-upload.md`。图片尺寸可读取；音视频使用 `FFPROBE_PATH` 指定的 ffprobe，留空时从 PATH 查找，缺失或失败则相关元数据为空。Linux 使用可寻址文件句柄，Windows 使用流输入，格式和时长表现仍需实测。S3、私密附件权限、跨后端存储及真实依赖验收尚未完成。
 
 原生 PATCH/PUT 帖子部分更新已接入，省略保留、明确空关系清空；行锁及全部关系写入在同一连接事务中完成，失败回滚。53 条共同请求向量及隔离事务/HTTP 检查通过，真实 Oracle、并发及双客户端仍待验收。规则见 `contracts/requirements/post-update.md`。
 
@@ -110,8 +110,8 @@ docker compose --env-file .env.deploy up -d --build
 - compat 的规范内 v2 路由 OPTIONS 转发给 Nuxt；native 使用上述原生 CORS。规范外路径仍返回 404。
 - 代理过滤标准逐跳头及 `Connection` 指定的头；上游 CORS 响应头与多条 `Set-Cookie` 保留。当前请求和响应仍整包缓冲，且 HTTP 客户端仍使用默认重定向策略；流式传输和重定向链上的 Cookie/CORS 行为尚未完成真实联调。
 - 既有 SentimentFlow 非 OPTIONS 前缀例外暂时保留；该可选集成预检未覆盖，不表示已经联调。
-- compat 的 `/storage/**`、`/uploads/**` 读取依赖 Nuxt 上游；native 返回404。Rust 自身不持有上传目录。
-- 当前 Rust 没有 `/_ws` 路由。客户端必须单独配置 Nuxt 的公共 WebSocket 地址，或使用将 WebSocket 路由到 Nuxt 的统一入口；只改成 Rust 端口不能获得 WebSocket 支持。
+- compat 的 `/storage/**`、`/uploads/**` 读取依赖 Nuxt 上游；native 的 `/storage/**` 读取配置的本地存储，私密附件及 S3 仍未完成。
+- native 的 `/_ws` 当前提供通知与心跳；群聊、私信和在线状态尚未完成。
 
 ## 规范与历史
 

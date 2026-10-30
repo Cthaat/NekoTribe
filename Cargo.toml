@@ -35,7 +35,7 @@ sha1 = "=0.10.6"
 sha2 = "0.10"
 subtle = "2"
 thiserror = "2"
-tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["catch-panic", "cors", "request-id", "set-header", "trace", "util"] }
 tracing = "0.1"

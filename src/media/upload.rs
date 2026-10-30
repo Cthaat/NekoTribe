@@ -5,7 +5,7 @@ use crate::{
         content_detection,
         local_publish::{self, FinalizeError},
         multipart::{self, Limits, ParseError},
-        storage_key,
+        rich_metadata, storage_key,
         upload_transaction::MediaUpload,
     },
     posts::bookmark::interaction_actor,
@@ -92,6 +92,14 @@ async fn upload_inner(
     } else {
         None
     };
+    let rich = if selected.media_type == "video" || selected.media_type == "audio" {
+        let binary = std::env::var_os("FFPROBE_PATH")
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| "ffprobe".into());
+        rich_metadata::probe(&mut media.file, &binary, &selected.mime_type).await
+    } else {
+        None
+    };
     let config = config.unwrap_or_else(|| LocalStorageConfig::from_lookup(|_| None));
     if config.unsupported {
         return Err(ApiError::new(
@@ -119,9 +127,13 @@ async fn upload_inner(
         filename: name.to_owned(),
         media_type: selected.media_type,
         mime_type: selected.mime_type,
-        width: dimensions.map(|value| value.0),
-        height: dimensions.map(|value| value.1),
-        duration: None,
+        width: dimensions
+            .map(|value| value.0)
+            .or_else(|| rich.as_ref().and_then(|value| value.width)),
+        height: dimensions
+            .map(|value| value.1)
+            .or_else(|| rich.as_ref().and_then(|value| value.height)),
+        duration: rich.and_then(|value| value.duration),
         thumbnail_url: None,
         alt_text: Some(media.alt_text),
         description: Some(media.description),

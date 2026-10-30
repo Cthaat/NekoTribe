@@ -36,7 +36,7 @@ impl SessionRepository for Store {
             self.keys.lock().unwrap().push(input.key.clone());
             match self.mode {
                 "success" => Ok(MediaUploadOutcome::Created(
-                    serde_json::json!({"media_id": 12, "mime_type": input.mime_type, "file_size": input.size, "width": input.width, "height": input.height}),
+                    serde_json::json!({"media_id": 12, "mime_type": input.mime_type, "file_size": input.size, "width": input.width, "height": input.height, "duration": input.duration}),
                 )),
                 "rollback" => Ok(MediaUploadOutcome::Failed {
                     cleanup_safe: true,
@@ -54,6 +54,69 @@ impl SessionRepository for Store {
             }
         })
     }
+}
+
+#[tokio::test]
+#[ignore = "requires FFPROBE_PATH set to a working ffprobe"]
+async fn real_wav_upload_reports_duration() {
+    let tokens: serde_json::Value =
+        serde_json::from_str(include_str!("../contracts/scenarios/auth-tokens.json")).unwrap();
+    let token = tokens["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["id"] == "access-hs256")
+        .unwrap()["token"]
+        .as_str()
+        .unwrap();
+    let codec = TokenCodec::new(
+        tokens["keys"]["access"].as_str().unwrap().as_bytes(),
+        tokens["keys"]["refresh"].as_str().unwrap().as_bytes(),
+    )
+    .unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let store = Arc::new(Store {
+        mode: "success",
+        keys: Mutex::new(vec![]),
+    });
+    let app = build_native_router(
+        codec,
+        store,
+        CorsPolicy::default(),
+        Arc::new(|| 1_700_000_000),
+    )
+    .layer(Extension(LocalStorageConfig {
+        root: root.path().into(),
+        unsupported: false,
+    }));
+    let mut wav = Vec::from(&b"RIFF"[..]);
+    wav.extend_from_slice(&16036u32.to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&8000u32.to_le_bytes());
+    wav.extend_from_slice(&16000u32.to_le_bytes());
+    wav.extend_from_slice(&2u16.to_le_bytes());
+    wav.extend_from_slice(&16u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&16000u32.to_le_bytes());
+    wav.resize(wav.len() + 16000, 0);
+    let mut body = b"--x\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.wav\"\r\nContent-Type: audio/wav\r\n\r\n".to_vec();
+    body.extend_from_slice(&wav);
+    body.extend_from_slice(b"\r\n--x--\r\n");
+    let req = Request::post("/api/v2/media")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "multipart/form-data; boundary=x")
+        .body(Body::from(body))
+        .unwrap();
+    let response = app.oneshot(req).await.unwrap();
+    assert_eq!(response.status().as_u16(), 200);
+    let bytes = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["data"]["duration"], 1.0);
 }
 
 #[tokio::test]
