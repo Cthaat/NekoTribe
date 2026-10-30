@@ -9092,7 +9092,9 @@
             "internal/server/ai_conversation_listing.go",
             "internal/server/ai_conversation_listing_test.go",
             "internal/server/ai_knowledge_source.go",
-            "internal/server/ai_knowledge_source_test.go"
+            "internal/server/ai_knowledge_source_test.go",
+            "internal/server/ai_knowledge_discovery.go",
+            "internal/server/ai_knowledge_discovery_test.go"
           ],
           "evidence": []
         }
@@ -11555,7 +11557,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-discovery.md",
-        "sha256": "24fc1d3593d5d66eb930f950c0ed5c991d7638618ffe5141b54723d7c4bc007f"
+        "sha256": "fb19770deb7ca1bb312c45419685bdf294e83425fa78ca5cfa3d1f083f93aac6"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-discovery.md",
