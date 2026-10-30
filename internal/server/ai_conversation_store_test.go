@@ -20,6 +20,8 @@ type conversationDB struct {
 	group           driver.Value
 	title           driver.Value
 	calls           []listQueryCall
+	messages        int64
+	messageContent  string
 }
 type conversationConnector struct{ state *conversationDB }
 type conversationConn struct {
@@ -52,6 +54,18 @@ func (c *conversationConn) ExecContext(_ context.Context, query string, args []d
 	if c.state.mode == "insert" {
 		return nil, errors.New("private")
 	}
+	if strings.Contains(query, "INSERT INTO n_ai_messages") {
+		for _, arg := range args {
+			if arg.Name == "content" {
+				c.state.messageContent = arg.Value.(string)
+			}
+		}
+		c.state.messages++
+		return driver.RowsAffected(1), nil
+	}
+	if strings.Contains(query, "UPDATE n_ai_conversations") {
+		return driver.RowsAffected(1), nil
+	}
 	for _, arg := range args {
 		switch arg.Name {
 		case "conversation_id":
@@ -80,6 +94,9 @@ func (c *conversationConn) QueryContext(_ context.Context, query string, args []
 	if strings.Contains(query, "SELECT username,email") {
 		return &alertRows{values: []driver.Value{"v2_admin", "admin@example.test"}}, nil
 	}
+	if strings.Contains(query, "MAX(sequence_no)") {
+		return &alertRows{values: []driver.Value{c.state.messages + 1}}, nil
+	}
 	if strings.Contains(query, "FROM n_ai_conversations") {
 		if c.state.mode == "read" {
 			return nil, errors.New("private")
@@ -101,6 +118,65 @@ func (c *conversationConn) QueryContext(_ context.Context, query string, args []
 		return &alertRows{values: []driver.Value{id, c.state.purpose, c.state.group, c.state.title, stamp, stamp}}, nil
 	}
 	return nil, errors.New("unexpected")
+}
+
+func TestAppendConversationUserMessage(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	for _, mode := range []string{"ok", "revoked", "commit", "foreign", "oversize", "insert", "sequence-limit"} {
+		t.Run(mode, func(t *testing.T) {
+			state := &conversationDB{mode: mode, owner: 42, id: id, purpose: "group", group: int64(7)}
+			if mode == "sequence-limit" {
+				state.messages = 9999999999
+			}
+			db := sql.OpenDB(conversationConnector{state})
+			defer db.Close()
+			user, content := int64(42), "hello"
+			if mode == "foreign" {
+				user = 9
+			}
+			if mode == "oversize" {
+				content = strings.Repeat("猫", 21846)
+			}
+			result, err := (OracleSessions{db}).appendAIUserMessageOperation(context.Background(), user, id, content, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			if mode == "ok" {
+				if err != nil || result.SequenceNo != 1 || result.Role != "user" || state.messageContent != content || state.commits != 1 || state.permissionCalls != 2 {
+					t.Fatal(result, err, state)
+				}
+				locked := false
+				for _, call := range state.calls {
+					if strings.Contains(call.sql, "FOR UPDATE") && strings.Contains(call.sql, "owner_user_id=:owner_user_id") {
+						locked = true
+					}
+				}
+				if !locked {
+					t.Fatal("missing owned conversation lock")
+				}
+				next, nextErr := (OracleSessions{db}).appendAIUserMessageOperation(context.Background(), user, id, "next", conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+				if nextErr != nil || next.SequenceNo != 2 {
+					t.Fatal(next, nextErr)
+				}
+			} else {
+				if err == nil || strings.Contains(err.Error(), "private") {
+					t.Fatal(err)
+				}
+				if mode == "revoked" && (!errors.Is(err, errConversationForbidden) || state.rollbacks != 1 || state.commits != 0) {
+					t.Fatal(err, state)
+				}
+				if mode == "foreign" && !errors.Is(err, errConversationNotFound) {
+					t.Fatal(err)
+				}
+				if mode == "oversize" && (!errors.Is(err, errConversationInvalid) || len(state.calls) != 0) {
+					t.Fatal(err, state)
+				}
+				if mode == "commit" && (state.commits != 1 || state.rollbacks != 0) {
+					t.Fatal(err, state)
+				}
+				if (mode == "insert" || mode == "sequence-limit") && (state.commits != 0 || state.rollbacks != 1) {
+					t.Fatal(err, state)
+				}
+			}
+		})
+	}
 }
 
 func TestConversationCreateTransactionAndAuthorization(t *testing.T) {

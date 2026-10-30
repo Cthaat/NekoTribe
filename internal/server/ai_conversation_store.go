@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/Cthaat/NekoTribe/backend-go/contracts"
 )
@@ -33,6 +34,12 @@ type conversationInput struct {
 	GroupID *int64
 	Title   string
 }
+type conversationMessage struct {
+	ID             string `json:"message_id"`
+	ConversationID string `json:"conversation_id"`
+	SequenceNo     int64  `json:"sequence_no"`
+	Role           string `json:"role"`
+}
 type moderationPolicy struct {
 	AllowAll bool
 	Accounts map[string]bool
@@ -44,6 +51,10 @@ func (s OracleSessions) createAIConversation(ctx context.Context, user int64, in
 
 func (s OracleSessions) readAIConversation(ctx context.Context, user int64, id string, policy moderationPolicy) (conversationRecord, error) {
 	return s.conversationOperation(ctx, user, id, nil, policy, verifyConversationSchema)
+}
+
+func (s OracleSessions) appendAIUserMessage(ctx context.Context, user int64, id, content string, policy moderationPolicy) (conversationMessage, error) {
+	return s.appendAIUserMessageOperation(ctx, user, id, content, policy, verifyConversationSchema)
 }
 
 func conversationPolicy(allowAll, accounts string) moderationPolicy {
@@ -121,12 +132,16 @@ func authorizeConversation(ctx context.Context, tx *sql.Tx, user int64, input co
 	return nil
 }
 
-func readConversationRow(ctx context.Context, tx *sql.Tx, user int64, id string, policy moderationPolicy) (conversationRecord, error) {
+func readConversationRow(ctx context.Context, tx *sql.Tx, user int64, id string, policy moderationPolicy, lock bool) (conversationRecord, error) {
 	var result conversationRecord
 	var group sql.NullInt64
 	var title sql.NullString
 	var created, updated sql.NullTime
-	err := tx.QueryRowContext(ctx, `SELECT conversation_id,purpose,group_id,title,created_at,updated_at FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`, sql.Named("conversation_id", id), sql.Named("owner_user_id", user)).Scan(&result.ID, &result.Purpose, &group, &title, &created, &updated)
+	query := `SELECT conversation_id,purpose,group_id,title,created_at,updated_at FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`
+	if lock {
+		query += " FOR UPDATE"
+	}
+	err := tx.QueryRowContext(ctx, query, sql.Named("conversation_id", id), sql.Named("owner_user_id", user)).Scan(&result.ID, &result.Purpose, &group, &title, &created, &updated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return result, errConversationNotFound
 	}
@@ -209,7 +224,7 @@ func (s OracleSessions) conversationOperation(ctx context.Context, user int64, i
 			return result, errSessionStore
 		}
 	}
-	result, e = readConversationRow(ctx, tx, user, id, policy)
+	result, e = readConversationRow(ctx, tx, user, id, policy, false)
 	if e != nil {
 		return conversationRecord{}, e
 	}
@@ -218,4 +233,78 @@ func (s OracleSessions) conversationOperation(ctx context.Context, user int64, i
 		return conversationRecord{}, errSessionStore
 	}
 	return result, nil
+}
+
+// The caller authenticates the actor and supplies a trusted moderation policy.
+// The row lock serializes sequence allocation; no model call occurs in this transaction.
+func (s OracleSessions) appendAIUserMessageOperation(ctx context.Context, user int64, id, content string, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (result conversationMessage, err error) {
+	if user <= 0 || user > 9007199254740991 {
+		return result, errConversationInvalid
+	}
+	if !conversationUUID.MatchString(id) {
+		return result, errConversationNotFound
+	}
+	if len(content) == 0 || len(content) > 65536 || !utf8.ValidString(content) {
+		return result, errConversationInvalid
+	}
+	conn, e := s.DB.Conn(ctx)
+	if e != nil {
+		return result, errSessionStore
+	}
+	defer func() {
+		if conn.Close() != nil {
+			result = conversationMessage{}
+			err = errSessionStore
+		}
+	}()
+	if verify(ctx, conn) != nil {
+		return result, errConversationSchema
+	}
+	tx, e := conn.BeginTx(ctx, nil)
+	if e != nil {
+		return result, errSessionStore
+	}
+	commitStarted := false
+	defer func() {
+		if !commitStarted && tx.Rollback() != nil {
+			result = conversationMessage{}
+			err = errSessionStore
+		}
+	}()
+	record, e := readConversationRow(ctx, tx, user, id, policy, true)
+	if e != nil {
+		return result, e
+	}
+	var sequence int64
+	if tx.QueryRowContext(ctx, `SELECT NVL(MAX(sequence_no),0)+1 AS next_sequence FROM n_ai_messages WHERE conversation_id=:conversation_id`, sql.Named("conversation_id", id)).Scan(&sequence) != nil || sequence <= 0 || sequence > 9999999999 {
+		return result, errSessionStore
+	}
+	messageID, e := randomUUID()
+	if e != nil {
+		return result, errSessionStore
+	}
+	inserted, e := tx.ExecContext(ctx, `INSERT INTO n_ai_messages (message_id,conversation_id,sequence_no,role,content) VALUES (:message_id,:conversation_id,:sequence_no,'user',:content)`,
+		sql.Named("message_id", messageID), sql.Named("conversation_id", id), sql.Named("sequence_no", sequence), sql.Named("content", content))
+	if e != nil {
+		return result, errSessionStore
+	}
+	if count, e := inserted.RowsAffected(); e != nil || count != 1 {
+		return result, errSessionStore
+	}
+	updated, e := tx.ExecContext(ctx, `UPDATE n_ai_conversations SET updated_at=CURRENT_TIMESTAMP WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`, sql.Named("conversation_id", id), sql.Named("owner_user_id", user))
+	if e != nil {
+		return result, errSessionStore
+	}
+	if count, e := updated.RowsAffected(); e != nil || count != 1 {
+		return result, errSessionStore
+	}
+	scope := conversationInput{Purpose: record.Purpose, GroupID: record.GroupID}
+	if e = authorizeConversation(ctx, tx, user, scope, policy); e != nil {
+		return result, e
+	}
+	commitStarted = true
+	if tx.Commit() != nil {
+		return result, errSessionStore
+	}
+	return conversationMessage{ID: messageID, ConversationID: id, SequenceNo: sequence, Role: "user"}, nil
 }
