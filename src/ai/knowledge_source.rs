@@ -19,7 +19,7 @@ pub enum Error {
     Invalid,
     Store,
 }
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Candidate {
     pub kind: String,

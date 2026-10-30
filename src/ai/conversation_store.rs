@@ -70,6 +70,8 @@ pub struct HistoryMessage {
     pub model_version: Option<String>,
     pub config_revision: Option<i64>,
     pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub citations: Option<Vec<super::knowledge_source::Candidate>>,
 }
 #[derive(Clone)]
 pub struct ModerationPolicy {
@@ -81,11 +83,29 @@ pub enum AiOperation {
     Create(Input),
     Read(String),
     Delete(String),
-    ListOwned { after: String, limit: i64 },
-    Append { id: String, content: String },
-    List { id: String, after: i64, limit: i64 },
+    ListOwned {
+        after: String,
+        limit: i64,
+    },
+    Append {
+        id: String,
+        content: String,
+    },
+    List {
+        id: String,
+        after: i64,
+        limit: i64,
+    },
     Recent(String),
-    Assistant { id: String, input: AssistantInput },
+    Assistant {
+        id: String,
+        input: AssistantInput,
+    },
+    KnowledgeAssistant {
+        id: String,
+        input: AssistantInput,
+        sources: Vec<super::knowledge_source::Candidate>,
+    },
 }
 pub fn execute_operation(
     connection: &oracle::Connection,
@@ -118,6 +138,9 @@ pub fn execute_operation(
         AiOperation::Assistant { id, input } => serde_json::to_value(append_assistant_message(
             connection, user, &id, &input, policy,
         )?),
+        AiOperation::KnowledgeAssistant { id, input, sources } => serde_json::to_value(
+            append_knowledge_assistant_message(connection, user, &id, &input, &sources, policy)?,
+        ),
     }
     .map_err(|_| Error::Store)
 }
@@ -168,6 +191,13 @@ trait Transaction {
     fn read(&self, user: i64, id: &str) -> Result<Option<Record>, Error>;
     fn commit(&self) -> Result<(), Error>;
     fn rollback(&self) -> Result<(), Error>;
+    fn restore_knowledge(
+        &self,
+        _user: i64,
+        _content: &str,
+    ) -> Result<super::knowledge_turn::TurnResult, Error> {
+        Err(Error::Store)
+    }
 }
 trait ListingTransaction: Transaction {
     fn candidates(
@@ -356,15 +386,30 @@ fn run_history_ordered(
             title: String::new(),
         })
         .map_err(|_| Error::Store)?;
-        tx.authorize(user, &scope, policy)
+        tx.authorize(user, &scope, policy)?;
+        Ok(scope.purpose)
     };
     let result = (|| {
-        check_access()?;
+        let purpose = check_access()?;
         let mut messages = tx.messages(user, id, after, limit, newest)?;
+        if purpose == "knowledge" {
+            for message in &mut messages {
+                if message.role == "tool" {
+                    return Err(Error::Store);
+                }
+                if message.role == "assistant" {
+                    let restored = tx.restore_knowledge(user, &message.content)?;
+                    message.content = restored.answer.ok_or(Error::Store)?;
+                    message.citations = Some(restored.sources);
+                }
+            }
+        }
         if newest {
             messages.reverse();
         }
-        check_access()?;
+        if check_access()? != purpose {
+            return Err(Error::Store);
+        }
         Ok(messages)
     })();
     match result {
@@ -385,7 +430,7 @@ fn run_append(
     content: &str,
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
-    run_append_inner(tx, user, id, content, None, policy)
+    run_append_inner(tx, user, id, content, None, false, policy)
 }
 fn run_append_assistant(
     tx: &impl MessageTransaction,
@@ -394,6 +439,10 @@ fn run_append_assistant(
     input: &AssistantInput,
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
+    validate_assistant(input)?;
+    run_append_inner(tx, user, id, &input.content, Some(input), false, policy)
+}
+fn validate_assistant(input: &AssistantInput) -> Result<(), Error> {
     let id_ok = !input.model_id.is_empty()
         && input.model_id.len() <= 64
         && input.model_id.as_bytes()[0].is_ascii_alphanumeric()
@@ -407,7 +456,20 @@ fn run_append_assistant(
     {
         return Err(Error::Invalid);
     }
-    run_append_inner(tx, user, id, &input.content, Some(input), policy)
+    Ok(())
+}
+fn run_append_knowledge(
+    tx: &impl MessageTransaction,
+    user: i64,
+    id: &str,
+    input: &AssistantInput,
+    sources: &[super::knowledge_source::Candidate],
+    policy: &ModerationPolicy,
+) -> Result<UserMessage, Error> {
+    validate_assistant(input)?;
+    let encoded =
+        super::knowledge_history::encode(&input.content, sources).map_err(|_| Error::Invalid)?;
+    run_append_inner(tx, user, id, &encoded, Some(input), true, policy)
 }
 fn run_append_inner(
     tx: &impl MessageTransaction,
@@ -415,6 +477,7 @@ fn run_append_inner(
     id: &str,
     content: &str,
     assistant: Option<&AssistantInput>,
+    knowledge: bool,
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
     if !(1..=MAX_SAFE_ID).contains(&user) {
@@ -436,6 +499,12 @@ fn run_append_inner(
         })
         .map_err(|_| Error::Store)?;
         tx.authorize(user, &scope, policy)?;
+        if assistant.is_some() && ((scope.purpose == "knowledge") != knowledge) {
+            return Err(Error::Conflict);
+        }
+        if knowledge {
+            tx.restore_knowledge(user, content)?;
+        }
         let sequence = tx.next_sequence(id)?;
         if !(1..=9_999_999_999).contains(&sequence) {
             return Err(Error::Store);
@@ -447,6 +516,9 @@ fn run_append_inner(
         tx.insert_message(id, &message_id, sequence, content, assistant)?;
         tx.touch(user, id)?;
         tx.authorize(user, &scope, policy)?;
+        if knowledge {
+            tx.restore_knowledge(user, content)?;
+        }
         Ok(UserMessage {
             message_id,
             conversation_id: id.to_owned(),
@@ -638,6 +710,17 @@ impl Transaction for OracleConversation<'_> {
     fn rollback(&self) -> Result<(), Error> {
         OracleTx::new(self.0).rollback().map_err(|_| Error::Store)
     }
+    fn restore_knowledge(
+        &self,
+        user: i64,
+        content: &str,
+    ) -> Result<super::knowledge_turn::TurnResult, Error> {
+        super::knowledge_history::restore(content, |refs| {
+            super::knowledge_source::hydrate_sources(self.0, user, refs)
+                .map_err(|_| super::knowledge_history::HistoryError::Store)
+        })
+        .map_err(|_| Error::Store)
+    }
 }
 impl OracleConversation<'_> {
     fn read_owned(&self, user: i64, id: &str, lock: bool) -> Result<Option<Record>, Error> {
@@ -788,6 +871,7 @@ impl HistoryTransaction for OracleConversation<'_> {
                 created_at: nullable_text(&row, "CREATED_AT")
                     .map(|s| profile_date(&s))
                     .unwrap_or_default(),
+                citations: None,
             })
         })
         .collect()
@@ -853,6 +937,23 @@ pub fn append_assistant_message(
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
     run_append_assistant(&OracleConversation(connection), user, id, input, policy)
+}
+pub fn append_knowledge_assistant_message(
+    connection: &oracle::Connection,
+    user: i64,
+    id: &str,
+    input: &AssistantInput,
+    sources: &[super::knowledge_source::Candidate],
+    policy: &ModerationPolicy,
+) -> Result<UserMessage, Error> {
+    run_append_knowledge(
+        &OracleConversation(connection),
+        user,
+        id,
+        input,
+        sources,
+        policy,
+    )
 }
 /// The caller must authenticate the actor and supply a trusted moderation policy.
 pub fn list_messages(
@@ -1014,6 +1115,155 @@ mod tests {
         checks: Cell<u32>,
         revoked: bool,
     }
+    struct KnowledgeFake {
+        events: RefCell<Vec<&'static str>>,
+        checks: Cell<u32>,
+        revoke: bool,
+        encoded: String,
+    }
+    impl Transaction for KnowledgeFake {
+        fn check_schema(&self) -> Result<(), Error> {
+            Ok(())
+        }
+        fn authorize(&self, _: i64, _: &Input, _: &ModerationPolicy) -> Result<(), Error> {
+            Ok(())
+        }
+        fn insert(&self, _: i64, _: &str, _: &Input) -> Result<(), Error> {
+            Ok(())
+        }
+        fn read(&self, _: i64, id: &str) -> Result<Option<Record>, Error> {
+            Ok(Some(Record {
+                id: id.into(),
+                purpose: "knowledge".into(),
+                group_id: None,
+                title: None,
+                created_at: String::new(),
+                updated_at: String::new(),
+            }))
+        }
+        fn restore_knowledge(
+            &self,
+            _: i64,
+            content: &str,
+        ) -> Result<super::super::knowledge_turn::TurnResult, Error> {
+            self.checks.set(self.checks.get() + 1);
+            if self.revoke && self.checks.get() > 1 {
+                return Err(Error::Store);
+            };
+            super::super::knowledge_history::restore(content, |refs| {
+                Ok(refs
+                    .iter()
+                    .map(|r| super::super::knowledge_source::Source {
+                        kind: r.kind.clone(),
+                        id: r.id,
+                        post_id: r.id,
+                        content: "public".into(),
+                        version: r.version.clone(),
+                    })
+                    .collect())
+            })
+            .map_err(|_| Error::Store)
+        }
+        fn commit(&self) -> Result<(), Error> {
+            self.events.borrow_mut().push("commit");
+            Ok(())
+        }
+        fn rollback(&self) -> Result<(), Error> {
+            self.events.borrow_mut().push("rollback");
+            Ok(())
+        }
+    }
+    impl MessageTransaction for KnowledgeFake {
+        fn read_locked(&self, user: i64, id: &str) -> Result<Option<Record>, Error> {
+            self.read(user, id)
+        }
+        fn delete(&self, _: i64, _: &str) -> Result<(), Error> {
+            Ok(())
+        }
+        fn next_sequence(&self, _: &str) -> Result<i64, Error> {
+            Ok(2)
+        }
+        fn insert_message(
+            &self,
+            _: &str,
+            _: &str,
+            _: i64,
+            _: &str,
+            _: Option<&AssistantInput>,
+        ) -> Result<(), Error> {
+            Ok(())
+        }
+        fn touch(&self, _: i64, _: &str) -> Result<(), Error> {
+            Ok(())
+        }
+    }
+    impl HistoryTransaction for KnowledgeFake {
+        fn messages(
+            &self,
+            _: i64,
+            id: &str,
+            _: i64,
+            _: i64,
+            _: bool,
+        ) -> Result<Vec<HistoryMessage>, Error> {
+            Ok(vec![HistoryMessage {
+                message_id: "msg".into(),
+                conversation_id: id.into(),
+                sequence_no: 2,
+                role: "assistant".into(),
+                content: self.encoded.clone(),
+                model_id: None,
+                model_version: None,
+                config_revision: None,
+                created_at: String::new(),
+                citations: None,
+            }])
+        }
+    }
+    #[test]
+    fn knowledge_writes_and_history_recheck_sources() {
+        let ref_ = super::super::knowledge_source::Candidate {
+            kind: "post".into(),
+            id: 1,
+            version: "a".repeat(64),
+        };
+        let encoded =
+            super::super::knowledge_history::encode("answer", std::slice::from_ref(&ref_)).unwrap();
+        let id = "bf9da41c-7296-4f51-91f4-141f5c6e3c01";
+        let policy = ModerationPolicy::new("", "");
+        let tx = KnowledgeFake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoke: false,
+            encoded: encoded.clone(),
+        };
+        let input = AssistantInput {
+            content: "answer".into(),
+            expected_sequence: 1,
+            model_id: "profile-a".into(),
+            config_revision: 12,
+        };
+        run_append_knowledge(&tx, 1, id, &input, std::slice::from_ref(&ref_), &policy).unwrap();
+        assert_eq!(tx.checks.get(), 2);
+        let rows = run_history(&tx, 1, id, 0, 10, &policy).unwrap();
+        assert_eq!(rows[0].content, "answer");
+        assert_eq!(rows[0].citations.as_ref().unwrap(), &vec![ref_.clone()]);
+        let bad = KnowledgeFake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoke: true,
+            encoded,
+        };
+        assert_eq!(
+            run_append_knowledge(&bad, 1, id, &input, &[ref_], &policy),
+            Err(Error::Store)
+        );
+        assert_eq!(*bad.events.borrow(), vec!["rollback"]);
+        assert_eq!(
+            run_append_assistant(&tx, 1, id, &input, &policy),
+            Err(Error::Conflict)
+        );
+    }
     impl Transaction for Fake {
         fn check_schema(&self) -> Result<(), Error> {
             self.events.borrow_mut().push("schema");
@@ -1109,6 +1359,7 @@ mod tests {
                         model_version: None,
                         config_revision: None,
                         created_at: String::new(),
+                        citations: None,
                     })
                     .collect());
             }
@@ -1123,6 +1374,7 @@ mod tests {
                 model_version: None,
                 config_revision: None,
                 created_at: String::new(),
+                citations: None,
             }])
         }
     }
