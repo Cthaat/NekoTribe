@@ -9111,7 +9111,9 @@
             "src/ai/knowledge_service.rs",
             "tests/ai_knowledge_service_test.rs",
             "src/ai/knowledge_citations.rs",
-            "tests/ai_knowledge_citations_test.rs"
+            "tests/ai_knowledge_citations_test.rs",
+            "src/ai/knowledge_history.rs",
+            "tests/ai_knowledge_history_test.rs"
           ],
           "evidence": []
         },
@@ -11611,7 +11613,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-history.md",
-        "sha256": "8d4b6696dbdc9293247ca488bfd6beee2cfa14038c025745d9a4591ecf0d36c0"
+        "sha256": "e8663a68e60e8b0a022374dc890e71d620ce66e801234b915c53383955f088c7"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-history.md",
