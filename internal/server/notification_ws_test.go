@@ -112,6 +112,14 @@ func TestNotificationWebSocketAuthIsolationHeartbeatAndRevocation(t *testing.T) 
 	if msg := socketRead(t, a); msg["type"] != "notification_created" {
 		t.Fatal(msg)
 	}
+	source.send(42, `{"type":"presence_update","data":{"user_id":9,"online_status":"hidden","last_seen_at":null,"server_id":"peer"},"timestamp":1700000000123}`)
+	source.send(9, `{"type":"presence_update","data":{"user_id":9,"online_status":"hidden","last_seen_at":null,"server_id":"peer"},"timestamp":1700000000123}`)
+	if msg := socketRead(t, a); msg["type"] != "presence_update" {
+		t.Fatal(msg)
+	}
+	if msg := socketRead(t, b); msg["type"] != "presence_update" {
+		t.Fatal(msg)
+	}
 	sessions.revoked.Store(true)
 	source.send(9, `{"type":"notification_created","data":{},"timestamp":1700000000123}`)
 	readCtx, stop := context.WithTimeout(context.Background(), 3*time.Second)
@@ -119,6 +127,16 @@ func TestNotificationWebSocketAuthIsolationHeartbeatAndRevocation(t *testing.T) 
 	_, _, err = b.Read(readCtx)
 	if err == nil {
 		t.Fatal("revoked session received event")
+	}
+}
+
+func TestSocketEventChannelIsolationAndPrivacy(t *testing.T) {
+	const user = "ws:user:42"
+	valid := []byte(`{"type":"presence_update","data":{"user_id":9,"online_status":"hidden","last_seen_at":null,"server_id":"peer"},"timestamp":1}`)
+	leak := []byte(`{"type":"presence_update","data":{"user_id":9,"online_status":"hidden","last_seen_at":"secret","server_id":"peer"},"timestamp":1}`)
+	notification := []byte(`{"type":"notification_created","data":{},"timestamp":1}`)
+	if !socketEventMatchesChannel("ws:presence", user, valid) || socketEventMatchesChannel(user, user, valid) || socketEventMatchesChannel("ws:presence", user, leak) || socketEventMatchesChannel("ws:presence", user, notification) || !socketEventMatchesChannel(user, user, notification) {
+		t.Fatal("invalid channel or privacy handling")
 	}
 }
 func TestNotificationWebSocketRejectsUnauthorizedOriginAndUnavailableSource(t *testing.T) {

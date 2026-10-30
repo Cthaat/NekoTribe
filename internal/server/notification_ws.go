@@ -64,6 +64,38 @@ func socketOriginAllowed(r *http.Request, policy CorsPolicy) bool {
 	return u.Scheme == "http"
 }
 
+func validPresenceEvent(data map[string]json.RawMessage) bool {
+	var id int64
+	var status, serverID string
+	if json.Unmarshal(data["user_id"], &id) != nil || id <= 0 || id > 9007199254740991 || json.Unmarshal(data["online_status"], &status) != nil || json.Unmarshal(data["server_id"], &serverID) != nil || serverID == "" {
+		return false
+	}
+	if status != "online" && status != "offline" && status != "hidden" {
+		return false
+	}
+	last, exists := data["last_seen_at"]
+	if !exists {
+		return false
+	}
+	if string(last) == "null" {
+		return true
+	}
+	var text string
+	return status != "hidden" && json.Unmarshal(last, &text) == nil
+}
+
+func socketEventMatchesChannel(channel, userChannel string, body []byte) bool {
+	var event struct {
+		Type      string                     `json:"type"`
+		Data      map[string]json.RawMessage `json:"data"`
+		Timestamp *float64                   `json:"timestamp"`
+	}
+	if json.Unmarshal(body, &event) != nil || event.Timestamp == nil || event.Data == nil {
+		return false
+	}
+	return (channel == userChannel && isNotificationEvent(event.Type)) || (channel == "ws:presence" && event.Type == "presence_update" && validPresenceEvent(event.Data))
+}
+
 func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, cors CorsPolicy, source NotificationEventSource) {
 	if !validSocketHandshake(r) {
 		respond(w, 400, 40001, "请求参数错误", nil)
@@ -201,7 +233,7 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 				Data      map[string]json.RawMessage `json:"data"`
 				Timestamp *float64                   `json:"timestamp"`
 			}
-			if json.Unmarshal(body, &event) != nil || !isNotificationEvent(event.Type) || event.Data == nil || event.Timestamp == nil {
+			if json.Unmarshal(body, &event) != nil || event.Data == nil || event.Timestamp == nil || (!isNotificationEvent(event.Type) && !(event.Type == "presence_update" && validPresenceEvent(event.Data))) {
 				continue
 			}
 			if !alive() {

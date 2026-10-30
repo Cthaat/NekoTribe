@@ -20,7 +20,7 @@ AVIF 尺寸从最多 4 MiB 的文件前缀读取，按主图关联的 `ispe` 属
 
 媒体结构只读检查已复用共享迁移目录，帖子详情与部分列表已有原生实现；真实数据库与完整业务验收仍待进行。
 
-原生 `/_ws` 已接入通知事件订阅和心跳，连接时验证 access token、会话和浏览器来源，并在投递前再次检查会话。`REDIS_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、`REDIS_PASSWORD` 用于选择共享 Redis；TLS 可使用 `rediss://`。浏览器跨域来源必须列入 `CORS_ALLOWED_ORIGINS`，反向代理外部来源也应显式配置。该连接目前仅处理通知事件与心跳，群聊、私信、在线状态和真实 Redis/Oracle 联调尚未完成。
+原生 `/_ws` 已接入个人通知、共享在线状态事件和心跳，连接时验证 access token、会话和浏览器来源，并在投递前再次检查会话。`REDIS_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、`REDIS_PASSWORD` 用于选择共享 Redis；TLS 可使用 `rediss://`。浏览器跨域来源必须列入 `CORS_ALLOWED_ORIGINS`，反向代理外部来源也应显式配置。在线状态事件发布及订阅已做隔离测试；连接、断线及心跳驱动的完整状态生命周期、群聊、私信和真实 Redis/Oracle 联调尚未完成。
 
 原生 `GET /api/v2/users/{id}` 已接入公开资料、关系和在线状态隐私；共同隔离场景通过，真实 Oracle、时区和客户端联调仍待验收。
 

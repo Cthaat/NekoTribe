@@ -138,16 +138,38 @@ func (s *RedisNotificationSource) Subscribe(ctx context.Context, user int64) (<-
 	if s == nil || s.client == nil || user <= 0 || user > 9007199254740991 {
 		return nil, nil, errNotificationEvent
 	}
-	ps := s.client.Subscribe(ctx, fmt.Sprintf("ws:user:%d", user))
+	userChannel := fmt.Sprintf("ws:user:%d", user)
+	ps := s.client.Subscribe(ctx, userChannel, "ws:presence")
 	ackCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
-	ack, err := ps.Receive(ackCtx)
-	cancel()
-	confirmation, ok := ack.(*redis.Subscription)
-	if err != nil || !ok || confirmation == nil || confirmation.Kind != "subscribe" || confirmation.Channel != fmt.Sprintf("ws:user:%d", user) {
-		_ = ps.Close()
-		return nil, nil, errNotificationEvent
+	confirmed := make(map[string]bool, 2)
+	var early [][]byte
+	for len(confirmed) < 2 {
+		ack, err := ps.Receive(ackCtx)
+		if msg, ok := ack.(*redis.Message); ok && err == nil {
+			data := []byte(msg.Payload)
+			if len(data) <= 262144 && socketEventMatchesChannel(msg.Channel, userChannel, data) {
+				if len(early) == 16 {
+					cancel()
+					_ = ps.Close()
+					return nil, nil, errNotificationEvent
+				}
+				early = append(early, data)
+			}
+			continue
+		}
+		confirmation, ok := ack.(*redis.Subscription)
+		if err != nil || !ok || confirmation == nil || confirmation.Kind != "subscribe" || (confirmation.Channel != userChannel && confirmation.Channel != "ws:presence") || confirmed[confirmation.Channel] {
+			cancel()
+			_ = ps.Close()
+			return nil, nil, errNotificationEvent
+		}
+		confirmed[confirmation.Channel] = true
 	}
+	cancel()
 	out := make(chan []byte, 16)
+	for _, body := range early {
+		out <- body
+	}
 	done := make(chan struct{})
 	var once sync.Once
 	stop := func() {
@@ -177,6 +199,9 @@ func (s *RedisNotificationSource) Subscribe(ctx context.Context, user int64) (<-
 				}
 				data := []byte(event.Payload)
 				if len(data) > 262144 {
+					continue
+				}
+				if !socketEventMatchesChannel(event.Channel, userChannel, data) {
 					continue
 				}
 				select {

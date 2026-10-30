@@ -69,13 +69,14 @@ func TestRedisNotificationSourceSubscribesAndCloses(t *testing.T) {
 			case "HELLO":
 				_, e = io.WriteString(conn, "-ERR unknown command 'HELLO'\r\n")
 			case "SUBSCRIBE":
-				if len(args) != 2 || args[1] != "ws:user:42" {
+				if len(args) != 3 || args[1] != "ws:user:42" || args[2] != "ws:presence" {
 					serverDone <- errors.New("wrong channel")
 					return
 				}
 				channel := args[1]
 				body := `{"type":"notification_deleted","data":{},"timestamp":1}`
-				_, e = fmt.Fprintf(conn, "*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:1\r\n*3\r\n$7\r\nmessage\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n", len(channel), channel, len(channel), channel, len(body), body)
+				presence := `{"type":"presence_update","data":{"user_id":9,"online_status":"hidden","last_seen_at":null,"server_id":"peer"},"timestamp":1}`
+				_, e = fmt.Fprintf(conn, "*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:1\r\n*3\r\n$7\r\nmessage\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n*3\r\n$9\r\nsubscribe\r\n$11\r\nws:presence\r\n:2\r\n*3\r\n$7\r\nmessage\r\n$11\r\nws:presence\r\n$%d\r\n%s\r\n", len(channel), channel, len(channel), channel, len(body), body, len(presence), presence)
 				if e != nil {
 					serverDone <- e
 					return
@@ -117,6 +118,14 @@ func TestRedisNotificationSourceSubscribesAndCloses(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("subscription timeout")
+	}
+	select {
+	case message, ok := <-events:
+		if !ok || !strings.Contains(string(message), "presence_update") {
+			t.Fatal("missing presence event")
+		}
+	case <-ctx.Done():
+		t.Fatal("presence subscription timeout")
 	}
 	if err = source.Close(); err != nil {
 		t.Fatal(err)
