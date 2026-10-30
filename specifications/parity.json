@@ -9181,6 +9181,8 @@
             "internal/server/ai_knowledge_citations_test.go",
             "internal/server/ai_knowledge_history.go",
             "internal/server/ai_knowledge_history_test.go",
+            "internal/server/ai_knowledge_context.go",
+            "internal/server/ai_knowledge_context_test.go",
             "internal/server/ai_knowledge_conversation.go",
             "internal/server/ai_knowledge_search_body.go",
             "internal/server/ai_knowledge_search_body_test.go",
