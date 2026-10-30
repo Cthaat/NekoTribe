@@ -9143,6 +9143,8 @@
             "internal/server/ai_knowledge_service_test.go",
             "internal/server/ai_knowledge_citations.go",
             "internal/server/ai_knowledge_citations_test.go",
+            "internal/server/ai_knowledge_history.go",
+            "internal/server/ai_knowledge_history_test.go",
             "internal/ai/transport.go"
           ],
           "evidence": []
@@ -11609,7 +11611,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-history.md",
-        "sha256": "5f2f5c42190f4de00ab80cc94eaaaf4e728d16a496455c91204de909f24b8d6f"
+        "sha256": "8d4b6696dbdc9293247ca488bfd6beee2cfa14038c025745d9a4591ecf0d36c0"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-history.md",
