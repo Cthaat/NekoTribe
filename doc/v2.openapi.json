@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-29-media-lifecycle"
+    "x-contract-revision": "2026-10-30-ai-conversations"
   },
   "tags": [
     {
@@ -51,6 +51,9 @@
     },
     {
       "name": "私聊消息"
+    },
+    {
+      "name": "AI"
     }
   ],
   "paths": {
@@ -30015,6 +30018,517 @@
               "backend/app/main.py": "7e2e0fe41209c2749e4b6e7222a4d10f337de91249c2d91c8f023819d96be6b4"
             },
             "behavior": "stub"
+          }
+        }
+      }
+    },
+    "/api/v2/ai/conversations": {
+      "post": {
+        "summary": "创建 AI 会话",
+        "operationId": "createAIConversation",
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "conversation_id",
+                        "purpose",
+                        "group_id",
+                        "title",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "properties": {
+                        "conversation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "purpose": {
+                          "type": "string",
+                          "enum": [
+                            "knowledge",
+                            "writing",
+                            "group",
+                            "moderation"
+                          ]
+                        },
+                        "group_id": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "title": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "created_at": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "无权限"
+          },
+          "404": {
+            "description": "会话不存在"
+          },
+          "503": {
+            "description": "数据库结构未就绪"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "purpose"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "purpose": {
+                    "type": "string",
+                    "enum": [
+                      "knowledge",
+                      "writing",
+                      "group",
+                      "moderation"
+                    ]
+                  },
+                  "group_id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "nullable": true
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/ai/conversations/{id}": {
+      "get": {
+        "summary": "读取 AI 会话",
+        "operationId": "getAIConversation",
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "conversation_id",
+                        "purpose",
+                        "group_id",
+                        "title",
+                        "created_at",
+                        "updated_at"
+                      ],
+                      "properties": {
+                        "conversation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "purpose": {
+                          "type": "string",
+                          "enum": [
+                            "knowledge",
+                            "writing",
+                            "group",
+                            "moderation"
+                          ]
+                        },
+                        "group_id": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "title": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "created_at": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "无权限"
+          },
+          "404": {
+            "description": "会话不存在"
+          },
+          "503": {
+            "description": "数据库结构未就绪"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/ai/conversations/{id}/messages": {
+      "get": {
+        "summary": "读取 AI 消息历史",
+        "operationId": "listAIConversationMessages",
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "message_id",
+                          "conversation_id",
+                          "sequence_no",
+                          "role",
+                          "content",
+                          "model_id",
+                          "model_version",
+                          "config_revision",
+                          "created_at"
+                        ],
+                        "properties": {
+                          "message_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "conversation_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "sequence_no": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9999999999
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "assistant",
+                              "tool"
+                            ]
+                          },
+                          "content": {
+                            "type": "string"
+                          },
+                          "model_id": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "model_version": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "config_revision": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "无权限"
+          },
+          "404": {
+            "description": "会话不存在"
+          },
+          "503": {
+            "description": "数据库结构未就绪"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "after_sequence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9999999999,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "追加用户消息",
+        "operationId": "appendAIUserMessage",
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "message_id",
+                        "conversation_id",
+                        "sequence_no",
+                        "role"
+                      ],
+                      "properties": {
+                        "message_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "conversation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "sequence_no": {
+                          "type": "integer"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "user"
+                          ]
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "无权限"
+          },
+          "404": {
+            "description": "会话不存在"
+          },
+          "503": {
+            "description": "数据库结构未就绪"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "description": "仅用户消息；UTF-8 正文最多 65536 字节，服务端分配消息 ID 与顺序。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
           }
         }
       }

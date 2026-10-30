@@ -7,14 +7,15 @@ import type { V2RouteHandler } from './v2';
 const publicMessages: Record<number, ReadonlySet<string>> = {
   400: new Set(['请求体必须是 JSON 对象', 'account 不能为空', 'email 不能为空', 'username 不能为空', 'password 不能为空', 'new_password 不能为空', 'confirm_password 不能为空', 'display_name 不能为空', 'content 不能为空', '必须同意服务条款', '两次输入的密码不一致', 'challenge_id 不能为空', 'type 不能为空', 'type 参数错误', 'channel 参数错误', 'verification_id 不能为空', 'code 不能为空', '验证码不存在或已过期', 'id 参数错误', 'name 参数错误', 'parent_comment_id 参数错误', 'notification_ids 参数错误', '双因素密钥格式错误', 'visibility 参数错误', 'language 参数错误', '附件不存在或无权使用', '引用字段只能传一个', '媒体不存在或不可用', '请使用 multipart/form-data 上传媒体文件', '上传文件为空', '媒体上传失败', '仅支持图片、视频、音频、文档、文本或压缩包文件', '文件不能超过 500MB']),
   401: new Set(['账号或密码错误', '验证码错误', '双因素验证已过期，请重新登录', '双因素验证码错误', '未认证或 token 无效']),
-  403: new Set(['账号不可用']),
-  404: new Set(['用户不存在', '帖子不存在', '话题不存在', '通知不存在', '父评论不存在', '评论不存在']),
+  403: new Set(['账号不可用', '需要群管理员权限', '需要审核权限']),
+  404: new Set(['用户不存在', '帖子不存在', '话题不存在', '通知不存在', '父评论不存在', '评论不存在', '会话不存在']),
   409: new Set(['邮箱或用户名已被注册']),
   422: new Set(['双因素认证尚未启用', '请先完成验证码校验', '只能删除自己的评论', '只能删除自己的帖子', '只能修改自己的帖子']),
   500: new Set(['服务器内部错误']),
   501: new Set(['短信验证码暂不可用', '媒体存储暂不可用']),
   503: new Set(['服务暂不可用，请稍后重试。'])
 };
+publicMessages[400] = new Set([...publicMessages[400]!, '会话参数错误', '会话用途错误', '群组参数错误', '会话标题错误', '会话标题过长', '消息参数错误', '消息内容错误', '分页参数错误']);
 
 function sanitizedPublicError(error: unknown): ReturnType<typeof createError> | null {
   if (!isError(error)) return null;

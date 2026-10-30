@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "e5b44f4b911951aea8560cfa6dfb0b019f3f8509c211fb43bcfbc96e9aee168c"
+      "sha256": "053a45ed8c749357bcfbf24b16dc549f3fdea95062b7a1fffb2a8020319a65f7"
     },
     "sources": [
       {
@@ -284,6 +284,22 @@
       {
         "path": "server/api/v2/[...path].ts",
         "sha256": "7f6d336861605dfcc075f080f6c1c35bef671aa54638e187b50d785e497fb934"
+      },
+      {
+        "path": "server/api/v2/ai/conversations/[id].get.ts",
+        "sha256": "154cc0fa39f3e8efc2d4843cbedb296d1959630867b76dea90248d27b3506bbc"
+      },
+      {
+        "path": "server/api/v2/ai/conversations/[id]/messages/index.get.ts",
+        "sha256": "ea7733f3f311e01b79482875af3d5ef57246cd93b537dd4e4d842dcd1843114f"
+      },
+      {
+        "path": "server/api/v2/ai/conversations/[id]/messages/index.post.ts",
+        "sha256": "5a566abfb1eb33b3138c68b7aee799b7e77895ca72896fc8f8b977529cfc35b8"
+      },
+      {
+        "path": "server/api/v2/ai/conversations/index.post.ts",
+        "sha256": "ff9cd75c23a3c99dca3c00e0be4cdb08435de03fc7406327283e8910064f95c4"
       },
       {
         "path": "server/api/v2/auth/otp.post.ts",
@@ -962,6 +978,10 @@
         "sha256": "b3affce38adb6a1fc35395a44a85bc80dc1ecd181b2a315d80aa7cbdbf86afcc"
       },
       {
+        "path": "server/services/ai/conversation-http.ts",
+        "sha256": "da9a0dd49fc1e5f57e9acb58bdf65cd5aba817f8c9326edfb45e22ccfe7317de"
+      },
+      {
         "path": "server/services/ai/conversation-store.ts",
         "sha256": "c682505b5d8cffad4854ef5d12fe5950c098f11f44a8b9d23ec6ac19dcab6d57"
       },
@@ -972,6 +992,10 @@
       {
         "path": "server/services/ai/model-configuration.ts",
         "sha256": "8ed5369cd394c578c3f5e383434743b5344afcf14c8dce9a054eecfe0e5451ad"
+      },
+      {
+        "path": "server/services/ai/private-http.ts",
+        "sha256": "42359877ac39fb52c98bbce79a72ff1a06cf872c05993c109a23ff4bb7e5ad7d"
       },
       {
         "path": "server/services/v2/auth.ts",
@@ -1026,6 +1050,10 @@
         "sha256": "e092ebd987182ee73ee366cd8ab64351d90290ad7bd5f9dae8267b036ac91983"
       },
       {
+        "path": "server/storage/local-path.ts",
+        "sha256": "a3c480315f2a830087b929e98b15872ed5ee32581252d4b04cd06b59e0c66de0"
+      },
+      {
         "path": "server/storage/providers/local.ts",
         "sha256": "a35e9957a689d5c6619e82a4393f6870f07513322cf52508eea63d157a948da3"
       },
@@ -1051,7 +1079,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "c6aba62e0d62eb05f38d759843b8b4f2f84807818dcabdb1a65edddf53b99c5b"
+        "sha256": "7cd16e9d84ae799916a2e5413cda4e12db27c35e8956758e2a2cce18e8b8a176"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -1152,10 +1180,6 @@
       {
         "path": "server/utils/wsSession.ts",
         "sha256": "93a24c34dfeafd6fe229bd8d8262fb4365048bce9d89568e75a3e17a341b1859"
-      },
-      {
-        "path": "server/storage/local-path.ts",
-        "sha256": "a3c480315f2a830087b929e98b15872ed5ee32581252d4b04cd06b59e0c66de0"
       }
     ]
   },
@@ -8936,9 +8960,20 @@
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [
         "server/services/ai/conversation-access.ts",
-        "server/services/ai/conversation-store.ts"
+        "server/services/ai/conversation-store.ts",
+        "server/api/v2/ai/conversations/index.post.ts",
+        "server/api/v2/ai/conversations/[id].get.ts",
+        "server/api/v2/ai/conversations/[id]/messages/index.get.ts",
+        "server/api/v2/ai/conversations/[id]/messages/index.post.ts",
+        "server/services/ai/conversation-http.ts",
+        "server/services/ai/private-http.ts"
       ],
-      "operations": [],
+      "operations": [
+        "POST /api/v2/ai/conversations",
+        "GET /api/v2/ai/conversations/{id}",
+        "GET /api/v2/ai/conversations/{id}/messages",
+        "POST /api/v2/ai/conversations/{id}/messages"
+      ],
       "scenarios": [
         {
           "id": "AI-KNOWLEDGE-WRITING",
@@ -8958,7 +8993,14 @@
             "server/services/ai/conversation-access.ts",
             "server/services/ai/conversation-store.ts",
             "tests/ai-conversation-access.test.mjs",
-            "tests/ai-conversation-store.test.mjs"
+            "tests/ai-conversation-store.test.mjs",
+            "server/api/v2/ai/conversations/index.post.ts",
+            "server/api/v2/ai/conversations/[id].get.ts",
+            "server/api/v2/ai/conversations/[id]/messages/index.get.ts",
+            "server/api/v2/ai/conversations/[id]/messages/index.post.ts",
+            "server/services/ai/conversation-http.ts",
+            "server/services/ai/private-http.ts",
+            "tests/ai-conversation-http.test.mjs"
           ],
           "evidence": []
         },
