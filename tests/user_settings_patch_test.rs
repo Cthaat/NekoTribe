@@ -2,6 +2,42 @@ use nekotribe_backend::{db::value::DbValue, users::settings_patch::parse};
 use serde_json::json;
 
 #[test]
+fn shared_user_settings_patch_vectors() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../contracts/scenarios/user-settings-patch.json"
+    ))
+    .unwrap();
+    assert_eq!(fixture["id"], "USER-SETTINGS-PATCH");
+    assert_eq!(fixture["cases"].as_array().unwrap().len(), 16);
+    for case in fixture["cases"].as_array().unwrap() {
+        let result = parse(&case["body"]);
+        if let Some(error) = case.get("error").and_then(serde_json::Value::as_str) {
+            assert_eq!(result.unwrap_err().to_string(), error, "{}", case["id"]);
+        } else {
+            let patch = result.unwrap();
+            let fields: serde_json::Map<String, serde_json::Value> = patch
+                .fields
+                .iter()
+                .map(|(key, value)| {
+                    let value = match value {
+                        DbValue::BoolNumber(v) => json!(i32::from(*v)),
+                        _ => serde_json::to_value(value).unwrap(),
+                    };
+                    (key.clone(), value)
+                })
+                .collect();
+            assert_eq!(
+                serde_json::Value::Object(fields),
+                case["fields"],
+                "{}",
+                case["id"]
+            );
+            assert_eq!(patch.publish_presence, case["presence"].as_bool().unwrap());
+        }
+    }
+}
+
+#[test]
 fn hidden_presence_event_does_not_leak_last_seen() {
     let data = json!({"user_id":42,"online_status":"hidden","last_seen_at":"secret"});
     let body = nekotribe_backend::notification_events::encode_presence_event(
