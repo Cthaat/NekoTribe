@@ -577,7 +577,7 @@
   "aiKnowledge": {
     "eyebrow": "社区知识",
     "title": "知识助手",
-    "description": "按输入的完整文字匹配公开帖子和评论，回答请结合来源核对。",
+    "description": "根据检索词匹配公开帖子和评论并回答问题，请结合来源核对。",
     "new": "新建会话",
     "history": "历史会话",
     "historyEmpty": "暂无知识会话",
@@ -585,7 +585,10 @@
     "empty": "输入关于社区公开内容的问题。",
     "you": "你",
     "assistant": "知识助手",
-    "placeholder": "输入要查找的完整原文片段",
+    "placeholder": "输入你想了解的问题",
+    "searchLabel": "检索词",
+    "searchPlaceholder": "输入公开内容中出现的文字",
+    "searchHint": "按完整文字精确匹配；修改检索词后可重试，无需重新发送问题。",
     "send": "发送",
     "refreshState": "刷新会话状态",
     "retry": "重新生成回复",
@@ -596,7 +599,8 @@
       "append-unknown": "消息提交结果未知，请先刷新会话确认。",
       "history": "历史会话读取失败，请重试。",
       "delete-unknown": "删除未确认，请刷新会话状态或稍后重试。",
-      "too-long": "消息超过 65536 字节，请缩短后重试。"
+      "too-long": "消息超过 65536 字节，请缩短后重试。",
+      "search-invalid": "请输入不含控制字符、最多 256 UTF-8 字节的检索词。"
     },
     "insufficientEvidence": "没有找到匹配的公开资料，请尝试其他文字。",
     "sources": "参考来源",

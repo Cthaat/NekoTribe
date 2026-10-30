@@ -11646,7 +11646,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-history.md",
-        "sha256": "793bcac4c3e5fa3cd6507e31eccf3c0ccd07dd33cf247a9826ebc6c5ec509cb8"
+        "sha256": "cbd2b3859401e56b578226ed23867ae569cd6b7ce777da68ffe0bc76e4d2299a"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-history.md",

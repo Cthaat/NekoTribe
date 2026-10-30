@@ -2213,7 +2213,7 @@
   "aiKnowledge": {
     "eyebrow": "Community knowledge",
     "title": "Knowledge assistant",
-    "description": "Searches public posts and comments for an exact text match. Review the sources.",
+    "description": "Answers your question using public posts and comments matching your search phrase. Review the sources.",
     "new": "New conversation",
     "history": "Conversation history",
     "historyEmpty": "No knowledge conversations yet",
@@ -2221,7 +2221,10 @@
     "empty": "Ask a question about public community content.",
     "you": "You",
     "assistant": "Knowledge assistant",
-    "placeholder": "Enter the exact text you want to find",
+    "placeholder": "Ask a question about the community",
+    "searchLabel": "Search phrase",
+    "searchPlaceholder": "Enter text found in public content",
+    "searchHint": "Exact text match; edit this phrase to retry without sending the question again.",
     "send": "Send",
     "refreshState": "Refresh conversation",
     "retry": "Retry response",
@@ -2232,7 +2235,8 @@
       "append-unknown": "The message submission result is unknown. Refresh before continuing.",
       "history": "Could not load conversation history. Please retry.",
       "delete-unknown": "Deletion was not confirmed. Refresh or try again later.",
-      "too-long": "The message exceeds 65536 bytes. Please shorten it."
+      "too-long": "The message exceeds 65536 bytes. Please shorten it.",
+      "search-invalid": "Enter a search phrase of at most 256 UTF-8 bytes without control characters."
     },
     "insufficientEvidence": "No matching public sources were found. Try different text.",
     "sources": "Sources",

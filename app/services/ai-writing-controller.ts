@@ -5,23 +5,29 @@ export interface WritingPage { items: WritingConversation[]; next_cursor: string
 export interface WritingApi {
   create(): Promise<{ conversation_id: string }>;
   append(id: string, content: string): Promise<unknown>;
-  generate(id: string): Promise<unknown>;
+  generate(id: string, searchPhrase?: string): Promise<unknown>;
   messages(id: string, after: number): Promise<WritingMessage[]>;
   list(after: string | null): Promise<WritingPage>;
   remove(id: string): Promise<unknown>;
 }
-export type WritingError = 'generation' | 'append-unknown' | 'history' | 'delete-unknown' | 'too-long';
+export type WritingError = 'generation' | 'append-unknown' | 'history' | 'delete-unknown' | 'too-long' | 'search-invalid';
 export interface WritingState {
-  id: string | null; draft: string; messages: WritingMessage[]; history: WritingConversation[];
+  id: string | null; draft: string; searchPhrase: string; messages: WritingMessage[]; history: WritingConversation[];
   historyCursor: string | null; historyLoaded: boolean; historyBusy: boolean;
   busy: boolean; refreshRequired: boolean; error: WritingError | null; insufficientEvidence: boolean;
 }
 export function initialWritingState(): WritingState {
-  return {id:null,draft:'',messages:[],history:[],historyCursor:null,historyLoaded:false,historyBusy:false,busy:false,refreshRequired:false,error:null,insufficientEvidence:false};
+  return {id:null,draft:'',searchPhrase:'',messages:[],history:[],historyCursor:null,historyLoaded:false,historyBusy:false,busy:false,refreshRequired:false,error:null,insufficientEvidence:false};
 }
 export function createWritingController(api: WritingApi, state: WritingState, purpose: 'writing' | 'knowledge' = 'writing') {
-  async function generateReply(id: string) {
-    const result = await api.generate(id);
+  function validatedPhrase(): string | undefined {
+    if (purpose !== 'knowledge') return undefined;
+    const raw=state.searchPhrase, phrase=raw.trim();
+    if (!raw.isWellFormed() || !phrase || /[\u0000-\u001f\u007f]/.test(phrase) || new TextEncoder().encode(phrase).length>256) { state.error='search-invalid'; return undefined; }
+    return phrase;
+  }
+  async function generateReply(id: string, phrase?: string) {
+    const result = await api.generate(id, phrase);
     if (purpose === 'knowledge') {
       if (!result || typeof result !== 'object' || !('status' in result) || !['generated', 'insufficient_evidence'].includes(String(result.status))) throw Error('invalid generation result');
       state.insufficientEvidence = result.status === 'insufficient_evidence';
@@ -48,20 +54,23 @@ export function createWritingController(api: WritingApi, state: WritingState, pu
     const content=state.draft.trim();
     if (state.busy || state.refreshRequired || !content) return;
     if (new TextEncoder().encode(content).length>65536) {state.error='too-long';return}
+    const phrase=validatedPhrase();if (purpose==='knowledge' && phrase===undefined) return;
     state.busy=true;state.error=null;state.insufficientEvidence=false;
     try {
       const id=state.id ?? (await api.create()).conversation_id;
       if (!id) throw Error('invalid conversation');
       state.id=id;
       try {await api.append(id,content)} catch {state.refreshRequired=true;state.error='append-unknown';return}
-      state.draft='';await refresh();await generateReply(id);await refresh();
+      state.draft='';await refresh();await generateReply(id,phrase);await refresh();
     } catch {state.refreshRequired=state.id!==null;state.error='generation'}
     finally {state.busy=false}
   }
   async function retry(generate=true) {
     if (state.busy || !state.id) return;
+    const phrase=generate ? validatedPhrase() : undefined;
+    if (generate && purpose==='knowledge' && phrase===undefined) return;
     state.busy=true;state.error=null;state.insufficientEvidence=false;
-    try {await refresh();if(generate && state.messages.at(-1)?.role==='user'){await generateReply(state.id);await refresh()}}
+    try {await refresh();if(generate && state.messages.at(-1)?.role==='user'){await generateReply(state.id,phrase);await refresh()}}
     catch {state.refreshRequired=true;state.error='generation'}
     finally {state.busy=false}
   }
@@ -80,17 +89,17 @@ export function createWritingController(api: WritingApi, state: WritingState, pu
   async function select(id:string) {
     if(state.busy)return;
     state.busy=true;state.error=null;
-    try {const messages=await readAll(id);state.id=id;state.messages=messages;state.draft='';state.refreshRequired=false;state.insufficientEvidence=false}
+    try {const messages=await readAll(id);state.id=id;state.messages=messages;state.draft='';state.searchPhrase='';state.refreshRequired=false;state.insufficientEvidence=false}
     catch {state.error='history'}
     finally {state.busy=false}
   }
   async function remove() {
     if(state.busy||!state.id)return;
     state.busy=true;state.error=null;
-    try {await api.remove(state.id);state.id=null;state.messages=[];state.draft='';state.refreshRequired=false;state.historyLoaded=false;state.insufficientEvidence=false}
+    try {await api.remove(state.id);state.id=null;state.messages=[];state.draft='';state.searchPhrase='';state.refreshRequired=false;state.historyLoaded=false;state.insufficientEvidence=false}
     catch {state.error='delete-unknown';state.refreshRequired=true}
     finally {state.busy=false}
   }
-  function reset() {if(!state.busy){state.id=null;state.messages=[];state.draft='';state.error=null;state.refreshRequired=false;state.insufficientEvidence=false}}
+  function reset() {if(!state.busy){state.id=null;state.messages=[];state.draft='';state.searchPhrase='';state.error=null;state.refreshRequired=false;state.insufficientEvidence=false}}
   return {send,retry,loadHistory,select,remove,reset};
 }

@@ -7,7 +7,7 @@ const path=(id:string)=>`${base}/${encodeURIComponent(id)}`;
 export const knowledgeApi: WritingApi = {
   create: () => v2RequestData<WritingConversation,{purpose:string}>(base,{method:'POST',body:{purpose:'knowledge'}}),
   append: (id,content) => v2RequestData<unknown,{content:string}>(`${path(id)}/messages`,{method:'POST',body:{content}}),
-  generate: id => v2RequestData<unknown>(`${path(id)}/knowledge-generate`,{method:'POST'}),
+  generate: (id,phrase) => v2RequestData<unknown,{search_phrase:string}>(`${path(id)}/knowledge-generate`,{method:'POST',...(phrase===undefined?{}:{body:{search_phrase:phrase}})}),
   messages: (id,after) => v2RequestData<WritingMessage[],undefined,{after_sequence:number;limit:number}>(`${path(id)}/messages`,{query:{after_sequence:after,limit:50}}),
   list: after => v2RequestData<WritingPage,undefined,{after_id?:string;limit:number}>(base,{query:{...(after ? {after_id:after}:{}),limit:50}}),
   remove: id => v2RequestData<null>(path(id),{method:'DELETE'})

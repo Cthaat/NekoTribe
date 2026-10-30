@@ -82,9 +82,16 @@ async function submit() {
             <Button v-if="state.refreshRequired" variant="outline" size="sm" :disabled="state.busy" @click="controller.retry(false)">{{ label('refreshState') }}</Button>
             <Button v-if="lastUser" variant="outline" size="sm" :disabled="state.busy" @click="controller.retry()">{{ label('retry') }}</Button>
           </div>
-          <form class="flex items-end gap-2" @submit.prevent="submit">
-            <Textarea v-model="state.draft" :disabled="state.busy || state.refreshRequired" :placeholder="label('placeholder')" :aria-label="label('placeholder')" rows="2" />
-            <Button type="submit" :disabled="state.busy || state.refreshRequired || !state.draft.trim()"><Loader2 v-if="state.busy" class="h-4 w-4 animate-spin" /><Send v-else class="h-4 w-4" /><span class="sr-only">{{ label('send') }}</span></Button>
+          <form class="space-y-3" @submit.prevent="submit">
+            <div v-if="purpose === 'knowledge'" class="space-y-1">
+              <label for="knowledge-search-phrase" class="text-sm font-medium">{{ label('searchLabel') }}</label>
+              <Textarea id="knowledge-search-phrase" v-model="state.searchPhrase" :disabled="state.busy" :placeholder="label('searchPlaceholder')" :aria-describedby="'knowledge-search-hint'" rows="1" />
+              <p id="knowledge-search-hint" class="text-xs text-muted-foreground">{{ label('searchHint') }}</p>
+            </div>
+            <div class="flex items-end gap-2">
+              <Textarea v-model="state.draft" :disabled="state.busy || state.refreshRequired" :placeholder="label('placeholder')" :aria-label="label('placeholder')" rows="2" />
+              <Button type="submit" :disabled="state.busy || state.refreshRequired || !state.draft.trim()"><Loader2 v-if="state.busy" class="h-4 w-4 animate-spin" /><Send v-else class="h-4 w-4" /><span class="sr-only">{{ label('send') }}</span></Button>
+            </div>
           </form>
         </div>
       </section>
