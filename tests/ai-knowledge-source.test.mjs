@@ -6,14 +6,36 @@ import { fileURLToPath } from 'node:url';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const stubs={
   oracledb:`export default {OUT_FORMAT_OBJECT:4002,STRING:{num:2001}};`,
+  '~/server/database/readiness':`export const requireFeatureSchema=async()=>{};`,
   '~/server/utils/v2':`export const v2Auth=e=>{if(!e.userId)throw Error('401');return {userId:e.userId}};export const v2BadRequest=()=>{throw Error('400')};export const v2ServerError=()=>{throw Error('500')};`
 };
-const built=await build({stdin:{contents:`export * from './server/services/ai/knowledge-source.ts'`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'knowledge-stubs',setup(b){b.onResolve({filter:/.*/},a=>{if(Object.hasOwn(stubs,a.path))return {path:a.path,namespace:'stub'}});b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js'}))}}]});
-const {sourceVersion,hydrateKnowledgeSources}=await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`);
+const built=await build({stdin:{contents:`export * from './server/services/ai/knowledge-source.ts';export {encodeKnowledgeMessage,restoreKnowledgeMessage} from './server/services/ai/knowledge-history.ts'`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'knowledge-stubs',setup(b){b.onResolve({filter:/.*/},a=>{if(Object.hasOwn(stubs,a.path))return {path:a.path,namespace:'stub'}});b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js'}))}}]});
+const {sourceVersion,hydrateKnowledgeSources,encodeKnowledgeMessage,restoreKnowledgeMessage}=await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`);
 
 test('source fingerprints match shared cross-language vectors',()=>{
   const vectors=JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-knowledge-source-vectors.json',import.meta.url),'utf8'));
   for(const row of vectors.cases) assert.equal(sourceVersion(row.kind,row.source_id,row.post_id,row.content),row.version,row.id);
+});
+test('mixed term references are checked against the current shared authority',async()=>{
+ const vectors=JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-public-terms-source-vectors.json',import.meta.url),'utf8'));
+ const version=vectors.versions[0].version,ref={kind:'terms',id:1,version};let active=true,calls=0;
+ const db={async execute(sql){calls++;assert.match(sql,/FROM\s+n_ai_terms_active/i);return {rows:active?[{CATALOG_DIGEST:vectors.catalog_digest,GENERATION:1,ENABLED:1}]:[]}}};
+ const rows=await hydrateKnowledgeSources({userId:42},db,[ref]);assert.equal(rows.length,1);assert.equal(rows[0].kind,'terms');assert.equal(rows[0].id,1);assert.equal(rows[0].version,version);assert.equal(typeof rows[0].content,'string');assert(!('post_id' in rows[0]));
+ active=false;await assert.rejects(()=>hydrateKnowledgeSources({userId:42},db,[ref]));assert.equal(calls,2);
+});
+test('term hydration rejects duplicates and omits stale versions',async()=>{
+ const vectors=JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-public-terms-source-vectors.json',import.meta.url),'utf8'));
+ const ref={kind:'terms',id:1,version:'0'.repeat(64)},db={async execute(){return {rows:[{CATALOG_DIGEST:vectors.catalog_digest,GENERATION:1,ENABLED:1}]}}};
+ assert.deepEqual(await hydrateKnowledgeSources({userId:42},db,[ref]),[]);
+ await assert.rejects(()=>hydrateKnowledgeSources({userId:42},db,[ref,ref]),/400/);
+});
+test('mixed stored answer is withheld when a rule is disabled',async()=>{
+ const vectors=JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-public-terms-source-vectors.json',import.meta.url),'utf8'));
+ const post={kind:'post',id:11,version:sourceVersion('post',11,11,'post')},terms={kind:'terms',id:1,version:vectors.versions[0].version};let enabled=1;
+ const db={async execute(sql){return /FROM\s+n_ai_terms_active/i.test(sql)?{rows:[{CATALOG_DIGEST:vectors.catalog_digest,GENERATION:1,ENABLED:enabled}]}:{rows:[{SOURCE_ID:11,POST_ID:11,CONTENT:'post'}]}}};
+ const message=encodeKnowledgeMessage({answer:'answer',sources:[post,terms]});
+ const restore=()=>restoreKnowledgeMessage(message,refs=>hydrateKnowledgeSources({userId:42},db,refs));
+ assert.deepEqual((await restore()).citations,[{...post,post_id:11},terms]);enabled=0;await assert.rejects(restore);
 });
 
 test('current public sources are reloaded with owner-independent public and viewer checks',async()=>{

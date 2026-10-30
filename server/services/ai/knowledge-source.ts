@@ -2,6 +2,9 @@ import { createHash } from 'node:crypto';
 import type { H3Event } from 'h3';
 import oracledb from 'oracledb';
 import { v2Auth, v2BadRequest, v2ServerError } from '~/server/utils/v2';
+import termsCatalog from '../../../specifications/requirements/ai-public-terms-catalog.json';
+import {parseTermsCatalog,hydratePublicTerms,discoverPublicTerms} from './public-terms-source';
+import {readTermsAuthority} from './public-terms-authority';
 
 type SourceKind = 'post' | 'comment';
 type KnowledgeKind = SourceKind | 'terms';
@@ -50,31 +53,48 @@ export async function discoverKnowledgeSources(event: H3Event, connection: oracl
     }
     lists.push(sources);
   }
+  const terms=discoverPublicTerms(parseTermsCatalog(termsCatalog),term,limit);
+  if(terms.length) await readTermsAuthority(event,connection,termsCatalog);
+  lists.push(terms.map<KnowledgeSource>(row=>({kind:'terms',id:row.id,version:row.version,content:[row.title,...row.blocks].join('\n')})).filter(row=>Buffer.byteLength(row.content,'utf8')<=65536));
   const output: KnowledgeSource[] = [];
-  for (let i = 0; output.length < limit && (i < lists[0]!.length || i < lists[1]!.length); i++) {
+  for (let i = 0; output.length < limit && lists.some(list=>i<list.length); i++) {
     for (const list of lists) if (list[i] && output.length < limit) output.push(list[i]!);
   }
   return output;
 }
 
 /** Reload index candidates from live business tables; stale or invisible rows are omitted. */
-export async function hydrateKnowledgeSources(event: H3Event, connection: oracledb.Connection, input: unknown): Promise<KnowledgeSource[]> {
+export async function hydrateKnowledgeSources(event: H3Event, connection: oracledb.Connection, input: unknown, options:{lockTerms?:boolean}={}): Promise<KnowledgeSource[]> {
   const actor = v2Auth(event);
   if (!Array.isArray(input) || input.length > 20) v2BadRequest('知识来源参数错误');
-  const candidates: Array<IndexedSource & {kind:SourceKind}> = [];
+  const candidates: IndexedSource[] = [];
   const seen = new Set<string>();
   for (const value of input) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) v2BadRequest('知识来源参数错误');
     const candidate = value as Record<string, unknown>;
-    if (Object.keys(candidate).length !== 3 || (candidate.kind !== 'post' && candidate.kind !== 'comment') || !validId(candidate.id) ||
+    if (Object.keys(candidate).length !== 3 || (candidate.kind !== 'post' && candidate.kind !== 'comment' && candidate.kind !== 'terms') || !validId(candidate.id) || (candidate.kind === 'terms' && candidate.id > 8) ||
         typeof candidate.version !== 'string' || !/^[0-9a-f]{64}$/.test(candidate.version)) v2BadRequest('知识来源参数错误');
     const key = `${candidate.kind}:${candidate.id}`;
     if (seen.has(key)) v2BadRequest('知识来源参数错误');
     seen.add(key);
     candidates.push({kind:candidate.kind,id:candidate.id,version:candidate.version});
   }
+  const terms=candidates.filter(candidate=>candidate.kind==='terms');
+  let hydratedTerms:ReturnType<typeof hydratePublicTerms>=[];
+  if(terms.length) {
+    await readTermsAuthority(event,connection,termsCatalog,{lock:options.lockTerms===true});
+    hydratedTerms=hydratePublicTerms(parseTermsCatalog(termsCatalog),terms.map(ref=>({kind:'terms',id:ref.id,version:ref.version})));
+  }
   const output: KnowledgeSource[] = [];
   for (const candidate of candidates) {
+    if(candidate.kind==='terms') {
+      const term=hydratedTerms.find(row=>row.id===candidate.id && row.version===candidate.version);
+      if(term) {
+        const content=[term.title,...term.blocks].join('\n');
+        if(Buffer.byteLength(content,'utf8')<=65536) output.push({kind:'terms',id:term.id,version:term.version,content});
+      }
+      continue;
+    }
     const sql = candidate.kind === 'post'
       ? `SELECT p.post_id AS source_id,p.post_id AS post_id,p.content AS content FROM n_posts p
          WHERE p.post_id=:source_id AND p.visibility='public' AND p.is_deleted=0 AND DBMS_LOB.GETLENGTH(p.content) BETWEEN 1 AND 65536 AND fn_can_view_post(:viewer_id,p.post_id)=1`

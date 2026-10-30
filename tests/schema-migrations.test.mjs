@@ -12,8 +12,8 @@ const ddl = calls => calls.filter(c => /^(CREATE|ALTER|DROP)\b/.test(c.sql));
 test('default plan does not read dotenv, load a driver or connect', async () => {
   let loaded = false; const output = [];
   const plan = await migrateDatabase({ root: '\0invalid-directory', env: { ORACLE_PASSWORD: 'do-not-print' }, loadDriver: () => { loaded = true; throw Error('connected'); }, output: s => output.push(s) });
-  assert.equal(loaded, false); assert.equal(plan.length, 6); assert(!output.join('').includes('do-not-print'));
-  assert.equal(plan.flatMap(f => f.steps).length, 34);
+  assert.equal(loaded, false); assert.equal(plan.length, 7); assert(!output.join('').includes('do-not-print'));
+  assert.equal(plan.flatMap(f => f.steps).length, 35);
 });
 test('baseline metadata with migrated AI tables passes readiness and idempotent apply', async () => {
   const db = schemaFixture({ baseline: true });
@@ -45,6 +45,18 @@ test('AI conversation migration creates missing tables without changing existing
   const count = db.state.calls.length;
   await applySchema(db);
   assert.equal(ddl(db.state.calls.slice(count)).length, 0);
+});
+test('terms authority migration creates an empty guarded singleton without publishing rules',async()=>{
+ const db=schemaFixture();db.state.tables.delete('N_AI_TERMS_ACTIVE');
+ const steps=planSchema().find(feature=>feature.feature==='ai-terms')?.steps;
+ assert.equal(steps?.length,1);assert.equal(steps[0].name,'N_AI_TERMS_ACTIVE');
+ assert((await checkSchema(db,'ai-terms')).some(step=>step.status==='missing'));
+ const before=structuredClone(db.state.tables.get('N_USER_SETTINGS'));
+ await applySchema(db);
+ assert.deepEqual(db.state.tables.get('N_USER_SETTINGS'),before);
+ assert((await checkSchema(db,'ai-terms')).every(step=>step.status==='ready'));
+ assert(!db.state.calls.some(call=>/^(INSERT|MERGE|UPDATE)\s+.*N_AI_TERMS_ACTIVE/i.test(call.sql)));
+ const count=db.state.calls.length;await applySchema(db);assert.equal(ddl(db.state.calls.slice(count)).length,0);
 });
 test('existing settings and sequence state are preserved; missing settings insert only', async () => {
   const db = schemaFixture();

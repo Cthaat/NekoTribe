@@ -19,7 +19,7 @@ const stubs = {
     export const v2Execute=async(c,sql,binds,autoCommit)=>c.insert(sql,binds,autoCommit);
     export const v2One=async(c,sql,binds)=>c.read(sql,binds);`,
   '~/server/database/readiness': `export const requireFeatureSchema=async(c,feature)=>{c.checks.push(feature)};`,
-  './knowledge-source': `export async function hydrateKnowledgeSources(e,c,refs){c.knowledgeChecks++;if(c.revokeKnowledgeAfterMessage && c.pendingMessage)return [];return (c.knowledgeRows??[]).filter(r=>refs.some(x=>x.kind===r.kind && x.id===r.id) && !(c.pendingMessage && c.revokeHistoryId===r.id))}`,
+  './knowledge-source': `export async function hydrateKnowledgeSources(e,c,refs,opts){c.knowledgeChecks++;c.knowledgeOptions.push(opts);if(c.revokeKnowledgeAfterMessage && c.pendingMessage)return [];return (c.knowledgeRows??[]).filter(r=>refs.some(x=>x.kind===r.kind && x.id===r.id) && !(c.pendingMessage && c.revokeHistoryId===r.id))}`,
   '~/server/services/v2/groups': `export const v2GroupPermission=async(c)=>{c.permissionChecks++;if(c.permissionError)throw Error('database failure');return c.allowed};`,
   '~/server/services/v2/moderation': `export const requireModerationAccess=async(e,c)=>{if(!c.moderator)throw Object.assign(Error('403:需要审核权限'),{statusCode:403})};`
 };
@@ -32,7 +32,7 @@ const compiled = await build({
 });
 const { createConversation, readConversation, deleteConversation, listConversations, appendUserMessage, appendAssistantMessage, appendKnowledgeAssistantMessage, listConversationMessages, listRecentConversationMessages } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 function database() {
-  return { checks: [], permissionChecks: 0, knowledgeChecks:0, allowed: true, moderator: true, saved: null, pending: null, messages: [], pendingMessage: null, commits: 0, rollbacks: 0,
+  return { checks: [], permissionChecks: 0, knowledgeChecks:0, knowledgeOptions:[], allowed: true, moderator: true, saved: null, pending: null, messages: [], pendingMessage: null, commits: 0, rollbacks: 0,
     async insert(sql, binds, autoCommit) {
       if (/DELETE FROM n_ai_conversations/.test(sql)) {
         assert.equal(autoCommit, false);
@@ -117,6 +117,7 @@ test('mixed terms history survives transaction guards without a fabricated post 
  const forged=[{...snapshot[0],citations:[{...terms,post_id:1}]},snapshot[1]];
  await assert.rejects(()=>appendKnowledgeAssistantMessage(actor,db,c.conversation_id,{...input,contextSnapshot:forged}),/400:/);
  await appendKnowledgeAssistantMessage(actor,db,c.conversation_id,input);
+ assert(db.knowledgeOptions.some(option=>option?.lockTerms===true));
  assert.deepEqual((await listConversationMessages(actor,db,c.conversation_id,0,20))[3].citations,[{...post,post_id:1},terms]);
 });
 

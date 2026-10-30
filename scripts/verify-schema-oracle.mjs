@@ -1,7 +1,7 @@
 // Explicit destructive fixtures ONLY inside a newly provisioned disposable test schema.
 // No dotenv loading: never inherit the application's development database configuration.
 import assert from 'node:assert/strict';
-import { applySchema, assertSchemaReady, checkSchema } from '../server/database/schema.mjs';
+import { applySchema, assertSchemaReady, checkSchema, planSchema } from '../server/database/schema.mjs';
 import { loadOracleDriver } from './migrate-db.mjs';
 
 const user = process.env.NEKO_ORACLE_TEST_USER;
@@ -59,11 +59,12 @@ try {
   assert(heldAcrossDdl);
   assert.equal((await direct("SELECT COUNT(*) AS TOTAL FROM n_schema_migrations WHERE step_id = 't13-media-n_media_assets.description'")).rows[0].TOTAL, 0);
   passed('session lock survives DDL commits and failed step is not recorded');
-  assert.deepEqual(await applySchema(competing), { steps: 31 });
+  const expectedSteps = planSchema().flatMap(feature => feature.steps).length;
+  assert.deepEqual(await applySchema(competing), { steps: expectedSteps });
   const ready = await checkSchema(adapter);
-  assert.equal(ready.length, 31);
+  assert.equal(ready.length, expectedSteps);
   assert(ready.every(step => step.status === 'ready' && step.recorded), JSON.stringify(ready.filter(step => step.status !== 'ready')));
-  passed('another connection resumes interruption and verifies all 31 steps');
+  passed(`another connection resumes interruption and verifies all ${expectedSteps} steps`);
 
   const before = calls.length;
   await applySchema(adapter);
@@ -98,7 +99,7 @@ try {
   await direct('UPDATE n_schema_migrations SET checksum = :checksum WHERE step_id = :id', { checksum: recorded.CHECKSUM, id: recorded.STEP_ID });
   await applySchema(adapter);
   passed('ledger checksum drift rejected without marking success');
-  console.log(JSON.stringify({ engine: connection.oracleServerVersionString, schema: user, observations, migrationSteps: 31 }));
+  console.log(JSON.stringify({ engine: connection.oracleServerVersionString, schema: user, observations, migrationSteps: expectedSteps }));
 } finally {
   await contender.close();
   await connection.close();

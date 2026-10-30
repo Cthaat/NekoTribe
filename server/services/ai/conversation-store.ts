@@ -286,8 +286,8 @@ async function checkContextSnapshot(event:H3Event,connection:oracledb.Connection
     ...(message.citations ? {citations:message.citations.map(source=>({kind:source.kind,id:source.id,version:source.version,...(source.kind==='terms'?{}:{post_id:source.post_id})}))} : {})}));
   if(JSON.stringify(actual)!==JSON.stringify(snapshot)) v2Conflict('会话已变更，请重试');
 }
-async function safeRestoreKnowledge(event:H3Event,connection:oracledb.Connection,content:string) {
-  try {return await restoreKnowledgeMessage(content,refs=>hydrateKnowledgeSources(event,connection,refs));}
+async function safeRestoreKnowledge(event:H3Event,connection:oracledb.Connection,content:string,lockTerms=false) {
+  try {return await restoreKnowledgeMessage(content,refs=>hydrateKnowledgeSources(event,connection,refs,{lockTerms}));}
   catch {v2ServerError();}
 }
 
@@ -312,8 +312,8 @@ async function appendMessage<T extends AppendInput>(
     const scope = mapRow(row);
     await authorizeConversationScope(event, connection, { ownerUserId: v2Number(row.OWNER_USER_ID), purpose: scope.purpose, groupId: scope.group_id });
     if(input.role==='assistant' && (scope.purpose==='knowledge')!==Boolean(input.knowledge)) v2Conflict('会话用途不匹配');
-    if(input.role==='assistant' && input.knowledge) await safeRestoreKnowledge(event,connection,content);
-    if(input.role==='assistant' && input.knowledge && input.contextGuard) await safeRestoreKnowledge(event,connection,input.contextGuard);
+    if(input.role==='assistant' && input.knowledge) await safeRestoreKnowledge(event,connection,content,true);
+    if(input.role==='assistant' && input.knowledge && input.contextGuard) await safeRestoreKnowledge(event,connection,input.contextGuard,true);
     const next = await v2One(connection, 'SELECT NVL(MAX(sequence_no),0)+1 AS next_sequence FROM n_ai_messages WHERE conversation_id=:conversation_id', { conversation_id: id });
     const sequenceNo = v2Number(next?.NEXT_SEQUENCE);
     if (!Number.isSafeInteger(sequenceNo) || sequenceNo <= 0 || sequenceNo > 9999999999) v2ServerError();
@@ -332,8 +332,8 @@ async function appendMessage<T extends AppendInput>(
       { conversation_id: id, owner_user_id: actor.userId }, false);
     if (updated !== 1) v2ServerError();
     await authorizeConversationScope(event, connection, { ownerUserId: actor.userId, purpose: scope.purpose, groupId: scope.group_id });
-    if(input.role==='assistant' && input.knowledge) await safeRestoreKnowledge(event,connection,content);
-    if(input.role==='assistant' && input.knowledge && input.contextGuard) await safeRestoreKnowledge(event,connection,input.contextGuard);
+    if(input.role==='assistant' && input.knowledge) await safeRestoreKnowledge(event,connection,content,true);
+    if(input.role==='assistant' && input.knowledge && input.contextGuard) await safeRestoreKnowledge(event,connection,input.contextGuard,true);
     if(input.role==='assistant' && input.contextSnapshot) await checkContextSnapshot(event,connection,id,input.contextSnapshot);
     commitStarted = true;
     await connection.commit();

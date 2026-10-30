@@ -444,6 +444,26 @@ CONSTRAINT fk_mod_settings_user FOREIGN KEY (updated_by) REFERENCES n_users(user
 )`
       }
     ]
+  },
+  {
+    "id": "ai-terms",
+    "steps": [
+      {
+        "id": "t15-ai-terms-n_ai_terms_active",
+        "kind": "table",
+        "name": "N_AI_TERMS_ACTIVE",
+        "sql": `CREATE TABLE n_ai_terms_active (
+singleton_id NUMBER(1) PRIMARY KEY,
+catalog_digest VARCHAR2(64) NOT NULL,
+generation NUMBER(15) NOT NULL,
+enabled NUMBER(1) NOT NULL,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT ck_ai_terms_singleton CHECK (singleton_id = 1),
+CONSTRAINT ck_ai_terms_generation CHECK (generation > 0),
+CONSTRAINT ck_ai_terms_enabled CHECK (enabled IN (0, 1))
+)`
+      }
+    ]
   }
 ];
 definitions.find(feature => feature.id === 'moderation').steps.push(...moderationSettings.map(setting => ({

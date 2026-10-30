@@ -927,11 +927,11 @@
       },
       {
         "path": "server/database/schema-definition.mjs",
-        "sha256": "4b7fb272390b2fe6302b06b72f31f7fcea29cc32d4b5aced3a6c953a5942ae71"
+        "sha256": "b599c5bb98f2242fa9dc4f734de79421a32a263aa4058e9616726391a493b834"
       },
       {
         "path": "server/database/schema.d.mts",
-        "sha256": "7ef76da735f3cb0782581754709fc44da1e9c4f5a1f4c210303a5d77b9d2e26e"
+        "sha256": "eef17b5a7bf1ad8f99f41d936bc8b77e015844d3ce249cda1e0c5194e6f2df3b"
       },
       {
         "path": "server/database/schema.mjs",
@@ -999,7 +999,7 @@
       },
       {
         "path": "server/services/ai/conversation-store.ts",
-        "sha256": "ee4fc0a65afd26bb94555bd250be67d5a7b44a77465d3f5e37a84155ed47768b"
+        "sha256": "036e7a9c5c3a5e0717564753ac49489ad54ea4959ce4cf19735a4a579f0b3617"
       },
       {
         "path": "server/services/ai/inference-transport.ts",
@@ -1007,7 +1007,7 @@
       },
       {
         "path": "server/services/ai/knowledge-source.ts",
-        "sha256": "4aa93ceab0759b259c5b92510f1da89316232e79fcd30bd53c3f157392f09ed8"
+        "sha256": "f93ed19a6524303202464d91701e14b31e5577ba868491704cdd6384174a130f"
       },
       {
         "path": "server/services/ai/knowledge-search-body.ts",
@@ -1028,6 +1028,14 @@
       {
         "path": "server/services/ai/knowledge-context.ts",
         "sha256": "ac6837cd0ff52a564158c19bbafd3f268b2572c74671b1b0a6131bb20591fe28"
+      },
+      {
+        "path": "server/services/ai/public-terms-publication.ts",
+        "sha256": "e9dd6c304cf6b642bfbb1aa7eebf4eb8a242e4b34337c84870982f0ce282c15a"
+      },
+      {
+        "path": "server/services/ai/public-terms-authority.ts",
+        "sha256": "9bb32a2144fce1badd33569843caaf9f43dd0d99e5627b12889484e3311eb4df"
       },
       {
         "path": "server/services/ai/public-terms-source.ts",
@@ -9015,7 +9023,7 @@
     },
     {
       "id": "AI-KNOWLEDGE-WRITING",
-      "revision": 12,
+      "revision": 24,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [
@@ -9041,6 +9049,8 @@
         "server/services/ai/knowledge-history.ts",
         "server/services/ai/knowledge-context.ts",
         "server/services/ai/public-terms-source.ts",
+        "server/services/ai/public-terms-authority.ts",
+        "server/services/ai/public-terms-publication.ts",
         "server/services/ai/knowledge-conversation-service.ts"
       ],
       "operations": [
@@ -9057,12 +9067,16 @@
         {
           "id": "AI-KNOWLEDGE-WRITING",
           "file": "specifications/scenarios/ai-knowledge-writing.json"
+        },
+        {
+          "id": "AI-KNOWLEDGE-DISCOVERY-ORDER",
+          "file": "specifications/scenarios/ai-knowledge-discovery-order.json"
         }
       ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 12,
+          "targetRevision": 24,
           "tasks": [
             "nuxt: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9115,6 +9129,16 @@
             "tests/ai-knowledge-context.test.mjs",
             "server/services/ai/public-terms-source.ts",
             "tests/ai-public-terms-source.test.mjs",
+            "server/services/ai/public-terms-authority.ts",
+            "tests/ai-public-terms-authority.test.mjs",
+            "server/services/ai/public-terms-publication.ts",
+            "tests/ai-public-terms-publication.test.mjs",
+            "scripts/ai-public-terms-maintenance.mjs",
+            "scripts/build-ai-public-terms.mjs",
+            "scripts/lib/ai-public-terms-build.mjs",
+            "Dockerfile",
+            "tests/ai-public-terms-maintenance.test.mjs",
+            "docs/ai-terms-maintenance.md",
             "scripts/ai-public-terms-catalog.mjs",
             "scripts/lib/ai-public-terms-catalog.mjs",
             "tests/ai-public-terms-catalog.test.mjs",
@@ -9126,7 +9150,7 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 12,
+          "targetRevision": 24,
           "tasks": [
             "rust: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9153,6 +9177,8 @@
             "src/ai/knowledge_context.rs",
             "src/ai/public_terms_source.rs",
             "tests/ai_public_terms_source_test.rs",
+            "src/ai/public_terms_authority.rs",
+            "tests/ai_public_terms_authority_test.rs",
             "tests/ai_knowledge_context_vectors_test.rs",
             "src/ai/knowledge_conversation.rs",
             "src/ai/knowledge_search_body.rs",
@@ -9167,7 +9193,7 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 12,
+          "targetRevision": 24,
           "tasks": [
             "go: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9199,6 +9225,9 @@
             "internal/server/ai_knowledge_context_test.go",
             "internal/server/ai_public_terms_source.go",
             "internal/server/ai_public_terms_source_test.go",
+            "contracts/public_terms.go",
+            "internal/server/ai_public_terms_authority.go",
+            "internal/server/ai_public_terms_authority_test.go",
             "internal/server/ai_knowledge_conversation.go",
             "internal/server/ai_knowledge_search_body.go",
             "internal/server/ai_knowledge_search_body_test.go",
@@ -10846,7 +10875,7 @@
     {
       "source": {
         "path": "specifications/requirements/two-factor-schema-catalog.json",
-        "sha256": "9ac2a8f085ff6a0cf11daee07feffdc05ec326682925b8cabf17c077d87715b0"
+        "sha256": "9cc01ccd2c61de3844e03fb93eed4f21c903c79739791c2deba85014ae8690ae"
       },
       "copies": {
         "rust": "contracts/requirements/two-factor-schema-catalog.json",
@@ -11106,7 +11135,7 @@
     {
       "source": {
         "path": "specifications/requirements/media-schema-catalog.json",
-        "sha256": "9846dd57aa76382fec350c043a6495baa297c312abf2cc7e8babd028bfc85c93"
+        "sha256": "bfd372ba9e5d08bae25f2b01db4d70a32a1668f5ea8bcf59c8782a6cc0a307c1"
       },
       "copies": {
         "rust": "contracts/requirements/media-schema-catalog.json",
@@ -11116,7 +11145,7 @@
     {
       "source": {
         "path": "specifications/requirements/user-settings-schema-catalog.json",
-        "sha256": "9b9170f96dd95aab47e86e7b2e947944eb2af589d72997511bdb7282c3cf45a6"
+        "sha256": "6347a5ef9905a59e40f4d8ea92a6788f9192f02cb921bccd210fa9110ee8c66c"
       },
       "copies": {
         "rust": "contracts/requirements/user-settings-schema-catalog.json",
@@ -11136,7 +11165,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-conversation-schema-catalog.json",
-        "sha256": "5c34ede18b34dc4cf6e4b3a645c6879284a7e3e7ef17615ee580b214f7011d0b"
+        "sha256": "5afde5aad2a119c04761daddb1c88e176643c0e7a1e17d0645808ee0b25e8c0d"
       },
       "copies": {
         "rust": "contracts/requirements/ai-conversation-schema-catalog.json",
@@ -11684,6 +11713,16 @@
     },
     {
       "source": {
+        "path": "specifications/scenarios/ai-knowledge-discovery-order.json",
+        "sha256": "b0821582c01dab6b0cdb6ca630ab406086e86a65b206698f54b482c67d3b1840"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-knowledge-discovery-order.json",
+        "go": "contracts/scenarios/ai-knowledge-discovery-order.json"
+      }
+    },
+    {
+      "source": {
         "path": "specifications/scenarios/ai-knowledge-search-body.json",
         "sha256": "d52545e3e8f8890734c33c1454f1521d86d0651beb854865eb9a8890d27f1e94"
       },
@@ -11725,7 +11764,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-public-terms-source.md",
-        "sha256": "dfc42c51f97e42f77d608235fa454671115573500a22c1ac3b43eae97eb883e0"
+        "sha256": "246ddccd1839bfb650b7094dac2ff85f27e82ffd78afedf31fc19cbd727e0956"
       },
       "copies": {
         "rust": "contracts/requirements/ai-public-terms-source.md",
@@ -11735,7 +11774,7 @@
     {
       "source": {
         "path": "specifications/scenarios/ai-public-terms-source-vectors.json",
-        "sha256": "6bcbb0e907c2d2e7f6a9038f26a8b37e0a337c497db98d963f278018ca9c8803"
+        "sha256": "ef98c8bc1aececfafe1f60385cb9fca402e60886fb7f40d9bd8ce3834ebeaa24"
       },
       "copies": {
         "rust": "contracts/scenarios/ai-public-terms-source-vectors.json",
@@ -11755,7 +11794,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-discovery.md",
-        "sha256": "743060e920adba545bbe239eaabeac6a6cd0740314ddb8028634765d5e8c97a0"
+        "sha256": "babe5933c61c7923db2a58bde0c183a622e87bdf500df9693a761b47e6393f59"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-discovery.md",
