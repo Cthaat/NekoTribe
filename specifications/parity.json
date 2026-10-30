@@ -9066,7 +9066,9 @@
             "src/ai/conversation_http.rs",
             "tests/ai_conversation_route_test.rs",
             "src/ai/writing.rs",
-            "tests/ai_writing_route_test.rs"
+            "tests/ai_writing_route_test.rs",
+            "src/ai/knowledge_source.rs",
+            "tests/ai_knowledge_source_test.rs"
           ],
           "evidence": []
         },
