@@ -46,7 +46,7 @@ export async function hydrateKnowledgeSources(event: H3Event, connection: oracle
     const row = rows[0];
     if (!row) continue;
     const id = Number(row.SOURCE_ID), postId = Number(row.POST_ID), content = row.CONTENT;
-    if (!validId(id) || id !== candidate.id || !validId(postId) || typeof content !== 'string' || !content.isWellFormed()) v2ServerError();
+    if (!validId(id) || id !== candidate.id || !validId(postId) || (candidate.kind === 'post' && postId !== id) || typeof content !== 'string' || !content.isWellFormed()) v2ServerError();
     if (!content || Buffer.byteLength(content,'utf8') > 65536) continue;
     const version = sourceVersion(candidate.kind,id,postId,content);
     if (version === candidate.version) output.push({kind:candidate.kind,id,post_id:postId,content,version});

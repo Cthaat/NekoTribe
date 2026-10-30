@@ -41,7 +41,7 @@ test('oversized and empty content are omitted while corrupt database rows fail c
     const db={async execute(){return {rows:[{SOURCE_ID:11,POST_ID:11,CONTENT:content}]}}};
     assert.deepEqual(await hydrateKnowledgeSources(actor,db,[valid]),[]);
   }
-  for(const row of [{SOURCE_ID:11,POST_ID:11,CONTENT:'\ud800'},{SOURCE_ID:12,POST_ID:12,CONTENT:'text'}]) {
+  for(const row of [{SOURCE_ID:11,POST_ID:11,CONTENT:'\ud800'},{SOURCE_ID:12,POST_ID:12,CONTENT:'text'},{SOURCE_ID:11,POST_ID:12,CONTENT:'text'}]) {
     const db={async execute(){return {rows:[row]}}};
     await assert.rejects(()=>hydrateKnowledgeSources(actor,db,[valid]),/500/);
   }

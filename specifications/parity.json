@@ -1003,7 +1003,7 @@
       },
       {
         "path": "server/services/ai/knowledge-source.ts",
-        "sha256": "d2ee660bf3263de373cd6164e8f00ad86ab1697e31454e4d8a931a6f72e87041"
+        "sha256": "f524485d79abdf10fe58701a58782ed0866d32fb9a2ed2ef97a33d9f30ae975a"
       },
       {
         "path": "server/services/ai/model-configuration.ts",
@@ -9087,7 +9087,9 @@
             "internal/server/ai_writing.go",
             "internal/server/ai_writing_test.go",
             "internal/server/ai_conversation_listing.go",
-            "internal/server/ai_conversation_listing_test.go"
+            "internal/server/ai_conversation_listing_test.go",
+            "internal/server/ai_knowledge_source.go",
+            "internal/server/ai_knowledge_source_test.go"
           ],
           "evidence": []
         }
