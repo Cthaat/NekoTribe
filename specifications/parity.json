@@ -8963,14 +8963,17 @@
           "evidence": []
         },
         "rust": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 3,
           "tasks": [
             "rust: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
             "rust: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/ai/conversation_store.rs",
+            "tests/schema_readiness_test.rs"
+          ],
           "evidence": []
         },
         "go": {
