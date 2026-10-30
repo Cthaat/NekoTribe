@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/Cthaat/NekoTribe/backend-go/internal/auth"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -150,13 +151,27 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 		}
 		result, err = generateAIWriting(r.Context(), writer, actor, id, policy, config)
 	case "knowledge-generate":
+		body, readErr := io.ReadAll(io.LimitReader(r.Body, 4097))
+		if readErr != nil || len(body) > 4096 {
+			respond(w, 400, 40001, "知识检索参数错误", nil)
+			return true
+		}
+		phrase, parseErr := parseKnowledgeSearchBody(body)
+		if parseErr != nil {
+			respond(w, 400, 40001, "知识检索参数错误", nil)
+			return true
+		}
 		knowledge, ok := repository.(knowledgeConversationStore)
 		if !ok {
 			respond(w, 500, 50001, "服务器内部错误", nil)
 			return true
 		}
 		var message *conversationMessage
-		message, err = generateKnowledgeConversation(r.Context(), knowledge, actor, id, policy, config)
+		if phrase == nil {
+			message, err = generateKnowledgeConversation(r.Context(), knowledge, actor, id, policy, config)
+		} else {
+			message, err = generateKnowledgeConversation(r.Context(), knowledge, actor, id, policy, config, *phrase)
+		}
 		if err == nil {
 			status := "generated"
 			if message == nil {

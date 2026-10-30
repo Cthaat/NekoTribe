@@ -15,6 +15,7 @@ type knowledgeRouteFixture struct {
 	purpose   string
 	failWrite error
 	writes    int
+	query     string
 }
 
 func (f *knowledgeRouteFixture) readAIConversation(_ context.Context, _ int64, id string, _ moderationPolicy) (conversationRecord, error) {
@@ -23,7 +24,8 @@ func (f *knowledgeRouteFixture) readAIConversation(_ context.Context, _ int64, i
 func (f *knowledgeRouteFixture) listAIRecentConversationMessages(_ context.Context, _ int64, id string, _ moderationPolicy) ([]conversationHistoryMessage, error) {
 	return []conversationHistoryMessage{{ConversationID: id, SequenceNo: 1, Role: "user", Content: "猫"}}, nil
 }
-func (f *knowledgeRouteFixture) discoverKnowledgeSources(_ context.Context, _ int64, _ string, _ int) ([]knowledgeSource, error) {
+func (f *knowledgeRouteFixture) discoverKnowledgeSources(_ context.Context, _ int64, query string, _ int) ([]knowledgeSource, error) {
+	f.query = query
 	return f.rows, nil
 }
 func (f *knowledgeRouteFixture) hydrateKnowledgeSources(_ context.Context, _ int64, _ []knowledgeCandidate) ([]knowledgeSource, error) {
@@ -68,6 +70,24 @@ func TestKnowledgeGenerationRoute(t *testing.T) {
 				t.Fatal(w.Code, w.Body.String(), s.writes)
 			}
 		})
+	}
+	for _, tc := range []struct {
+		body   string
+		status int
+		query  string
+	}{
+		{`{"search_phrase":"狗"}`, 200, "狗"},
+		{`{"search_phrase":"猫","search_phrase":"狗"}`, 400, ""},
+		{strings.Repeat(" ", 4097), 400, ""},
+	} {
+		s := &knowledgeRouteFixture{aiHTTPFixture: &aiHTTPFixture{memorySessions: store()}, rows: []knowledgeSource{ref}, purpose: "knowledge"}
+		req := httptest.NewRequest("POST", path, strings.NewReader(tc.body))
+		req.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
+		w := httptest.NewRecorder()
+		NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{AIModelConfig: writingConfig(provider.URL)}).ServeHTTP(w, req)
+		if w.Code != tc.status || s.query != tc.query {
+			t.Fatalf("status=%d query=%q", w.Code, s.query)
+		}
 	}
 	s := &knowledgeRouteFixture{aiHTTPFixture: &aiHTTPFixture{memorySessions: store()}}
 	w := httptest.NewRecorder()

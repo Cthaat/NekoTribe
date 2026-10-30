@@ -10,6 +10,35 @@ import (
 
 var errKnowledgeSearchBody = errors.New("invalid knowledge search body")
 
+// Count top-level JSON members after syntax validation, without interpreting quoted punctuation.
+func hasMultipleJSONMembers(raw []byte) bool {
+	depth, fields := 0, 0
+	inString, escaped := false, false
+	for _, c := range raw {
+		if inString {
+			if escaped {
+				escaped = false
+			} else if c == '\\' {
+				escaped = true
+			} else if c == '"' {
+				inString = false
+			}
+		} else if c == '"' {
+			inString = true
+		} else if c == '{' || c == '[' {
+			depth++
+		} else if c == '}' || c == ']' {
+			depth--
+		} else if c == ':' && depth == 1 {
+			fields++
+			if fields > 1 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // json.Unmarshal replaces unpaired UTF-16 escapes; reject them before decoding.
 func validJSONSurrogates(raw []byte) bool {
 	inString := false
@@ -67,7 +96,7 @@ func parseKnowledgeSearchBody(raw []byte) (*string, error) {
 		return nil, errKnowledgeSearchBody
 	}
 	var value interface{}
-	if json.Unmarshal(raw, &value) != nil {
+	if json.Unmarshal(raw, &value) != nil || hasMultipleJSONMembers(raw) {
 		return nil, errKnowledgeSearchBody
 	}
 	body, ok := value.(map[string]interface{})
