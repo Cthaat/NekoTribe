@@ -316,7 +316,7 @@ function v2NormalizeInviteCode(code: string): string {
   return code.trim().toUpperCase();
 }
 
-async function v2GroupPermission(
+export async function v2GroupPermission(
   connection: oracledb.Connection,
   userId: number,
   groupId: number,

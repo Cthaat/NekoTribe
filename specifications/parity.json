@@ -958,6 +958,14 @@
         "sha256": "23178b2bc4fd21601a7c001b4e6239c93221e5a86e11cb8b4ab6498109d35722"
       },
       {
+        "path": "server/services/ai/conversation-access.ts",
+        "sha256": "b3affce38adb6a1fc35395a44a85bc80dc1ecd181b2a315d80aa7cbdbf86afcc"
+      },
+      {
+        "path": "server/services/ai/conversation-store.ts",
+        "sha256": "3948c059f44e7cbfab732918c467d454eca225fb6fd6743436933a5f0e03df28"
+      },
+      {
         "path": "server/services/ai/inference-transport.ts",
         "sha256": "c1b0968803e40ea174a24a60be3652d0e5c396cb624eddc9dba06bacc248d37e"
       },
@@ -975,7 +983,7 @@
       },
       {
         "path": "server/services/v2/groups.ts",
-        "sha256": "33320494c600cbfff45e4a820f5a60df82058fbebe6c3fc5759a6d016c606d59"
+        "sha256": "fb9cc5bc0cf4c934fff05970f39f71c3fab543ee98eb278cfe37c0c537faf2cf"
       },
       {
         "path": "server/services/v2/media.ts",
@@ -983,7 +991,7 @@
       },
       {
         "path": "server/services/v2/moderation.ts",
-        "sha256": "f99eecd22efd90c681d0e2a8c5be27ecd6e0eb1572e654c90a2f35264a0d5c56"
+        "sha256": "9fc6f937d5cc6497b8687cb6bb808a4866ac2c52379121ffa2251fc5559b710c"
       },
       {
         "path": "server/services/v2/notifications.ts",
@@ -8926,7 +8934,10 @@
       "revision": 3,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
-      "sourceFiles": [],
+      "sourceFiles": [
+        "server/services/ai/conversation-access.ts",
+        "server/services/ai/conversation-store.ts"
+      ],
       "operations": [],
       "scenarios": [
         {
@@ -8936,14 +8947,19 @@
       ],
       "implementations": {
         "nuxt": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 3,
           "tasks": [
             "nuxt: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
             "nuxt: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "server/services/ai/conversation-access.ts",
+            "server/services/ai/conversation-store.ts",
+            "tests/ai-conversation-access.test.mjs",
+            "tests/ai-conversation-store.test.mjs"
+          ],
           "evidence": []
         },
         "rust": {

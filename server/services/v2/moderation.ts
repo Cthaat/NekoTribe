@@ -117,7 +117,7 @@ function moderationAccessBypassEnabled(): boolean {
   );
 }
 
-async function requireModerationAccess(
+export async function requireModerationAccess(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2AuthPayload> {
