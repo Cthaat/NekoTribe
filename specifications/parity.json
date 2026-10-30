@@ -1014,6 +1014,10 @@
         "sha256": "6fc0ba8b7b36056b61158794de2bc931730112253c5e67925207772604de03d7"
       },
       {
+        "path": "server/services/ai/knowledge-history.ts",
+        "sha256": "2d887aa3b40092e2be92c9cd2b6478ccd44309fb9a8af581a49758fe2612240f"
+      },
+      {
         "path": "server/services/ai/knowledge-turn.ts",
         "sha256": "79a55a24d42cc51df516a38657bb8692b7c4b8ab7c20527406d047d673f5a98c"
       },
@@ -9011,7 +9015,8 @@
         "server/services/ai/knowledge-source.ts",
         "server/services/ai/knowledge-turn.ts",
         "server/services/ai/knowledge-service.ts",
-        "server/services/ai/knowledge-citations.ts"
+        "server/services/ai/knowledge-citations.ts",
+        "server/services/ai/knowledge-history.ts"
       ],
       "operations": [
         "POST /api/v2/ai/conversations",
@@ -9070,7 +9075,9 @@
             "server/services/ai/knowledge-service.ts",
             "tests/ai-knowledge-service.test.mjs",
             "server/services/ai/knowledge-citations.ts",
-            "tests/ai-knowledge-citations.test.mjs"
+            "tests/ai-knowledge-citations.test.mjs",
+            "server/services/ai/knowledge-history.ts",
+            "tests/ai-knowledge-history.test.mjs"
           ],
           "evidence": []
         },
@@ -9145,7 +9152,8 @@
         "specifications/scenarios/ai-knowledge-source-vectors.json",
         "specifications/requirements/ai-knowledge-discovery.md",
         "specifications/requirements/ai-knowledge-turn.md",
-        "specifications/scenarios/ai-knowledge-citation-vectors.json"
+        "specifications/scenarios/ai-knowledge-citation-vectors.json",
+        "specifications/requirements/ai-knowledge-history.md"
       ]
     },
     {
@@ -11589,6 +11597,16 @@
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-source.md",
         "go": "contracts/requirements/ai-knowledge-source.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-knowledge-history.md",
+        "sha256": "86557862445189a39b9a6318712fe3bb87c4a0e2601da9721a586ff4eea5fe44"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-knowledge-history.md",
+        "go": "contracts/requirements/ai-knowledge-history.md"
       }
     },
     {
