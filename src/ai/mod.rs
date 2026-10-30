@@ -8,6 +8,7 @@ pub mod knowledge_search_body;
 pub mod knowledge_source;
 pub mod knowledge_service;
 pub mod knowledge_turn;
+pub mod public_terms_source;
 pub mod model_config;
 pub mod transport;
 pub mod writing;

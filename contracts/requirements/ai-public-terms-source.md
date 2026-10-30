@@ -1,6 +1,6 @@
 # 公开条款知识来源组件共同规范
 
-状态：开发中。Nuxt 已实现内部来源组件；Go/Rust、问答链路、公开引用展示与实际部署一致性尚未完成。资料源为 `ai-public-terms-catalog.json`，取自现有公开条款页面，不代表规则已经运营审核或已启用 AI 问答。
+状态：开发中。Nuxt、Go、Rust 已实现内部来源组件；问答链路、公开引用展示与实际部署一致性尚未完成。资料源为 `ai-public-terms-catalog.json`，取自现有公开条款页面，不代表规则已经运营审核或已启用 AI 问答。
 
 目录须包含中文和英文的 acceptance、accounts、conduct、termination 各一节，固定编号：中文依次为 1–4，英文依次为 5–8。每节 key 为 `terms.<section>`，引用相应语言的 `/zh/auth/terms#<section>` 或 `/en/auth/terms#<section>`；标题和正文段落原样保留，conduct 必须包含五个正文段落，其余章节各一个。缺失、重复、非法文本或不匹配的内部路径整体拒绝，不从用户提供的任意 URL 加载内容。
 
