@@ -9151,6 +9151,8 @@
             "src/ai/knowledge_history.rs",
             "tests/ai_knowledge_history_test.rs",
             "src/ai/knowledge_context.rs",
+            "src/ai/public_terms_source.rs",
+            "tests/ai_public_terms_source_test.rs",
             "tests/ai_knowledge_context_vectors_test.rs",
             "src/ai/knowledge_conversation.rs",
             "src/ai/knowledge_search_body.rs",
@@ -9195,6 +9197,8 @@
             "internal/server/ai_knowledge_history_test.go",
             "internal/server/ai_knowledge_context.go",
             "internal/server/ai_knowledge_context_test.go",
+            "internal/server/ai_public_terms_source.go",
+            "internal/server/ai_public_terms_source_test.go",
             "internal/server/ai_knowledge_conversation.go",
             "internal/server/ai_knowledge_search_body.go",
             "internal/server/ai_knowledge_search_body_test.go",
@@ -11721,7 +11725,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-public-terms-source.md",
-        "sha256": "7761b4801520cfe43c102162763b7c4111d6f38c6b2f526c56f5b9667b417602"
+        "sha256": "15d62145cf75301e76586e92d7ce4b1e5d80c2b9af4794db753b8fae2fce7d46"
       },
       "copies": {
         "rust": "contracts/requirements/ai-public-terms-source.md",
