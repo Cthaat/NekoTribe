@@ -1,8 +1,8 @@
 # AI 写作接口开发配置
 
-当前 Nuxt、Go 已实现写作对话生成，Rust 还需实现同一接口。模型和 Oracle 的真实联调、知识库、Skills、群运营和审核助手均未完成。本页不代表生产部署验收。
+当前 Nuxt、Go、Rust 已实现有限的写作对话生成。模型和 Oracle 的真实联调、知识库、Skills、群运营和审核助手均未完成。本页不代表生产部署验收。
 
-由服务端运维人员向 Nuxt 进程注入 `AI_MODEL_CONFIG_JSON`。示例为单行 JSON（将模型名替换成推理服务已安装的模型）：
+由服务端运维人员向所选后端进程注入 `AI_MODEL_CONFIG_JSON`；Rust 和 Go 在进程启动时读取，修改后需重启。示例为单行 JSON（将模型名替换成推理服务已安装的模型）：
 
 ```json
 {"schemaVersion":1,"revision":1,"providers":[{"id":"local","adapter":"ollama","baseUrl":"http://127.0.0.1:11434"}],"models":[{"id":"local-model","providerId":"local","model":"replace-with-installed-model","capabilities":["tools","structured-output"],"contextWindowTokens":4096,"maxOutputTokens":512}],"bindings":{"knowledge":"local-model","writing":"local-model","agent":"local-model","moderation":"local-model"}}

@@ -9038,7 +9038,9 @@
             "src/ai/conversation_store.rs",
             "tests/schema_readiness_test.rs",
             "src/ai/conversation_http.rs",
-            "tests/ai_conversation_route_test.rs"
+            "tests/ai_conversation_route_test.rs",
+            "src/ai/writing.rs",
+            "tests/ai_writing_route_test.rs"
           ],
           "evidence": []
         },
