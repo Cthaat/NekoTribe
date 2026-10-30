@@ -531,6 +531,12 @@ async function v2EnsureSettings(
   userId: number
 ): Promise<void> {
   await v2EnsureSettingsSchema(connection);
+  const user = await v2One(
+    connection,
+    'SELECT user_id FROM n_users WHERE user_id = :user_id FOR UPDATE',
+    { user_id: userId }
+  );
+  if (!user) v2NotFound('用户不存在');
   await v2Execute(
     connection,
     `
