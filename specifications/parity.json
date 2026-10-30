@@ -2276,12 +2276,18 @@
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement PATCH /api/v2/users/me/settings natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Complete shared business scenarios, Rust websocket presence subscription, full presence lifecycle, concurrent initialization and real Oracle/Redis/client acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/users/settings_patch.rs",
+            "src/users/settings_read.rs",
+            "tests/user_settings_patch_test.rs",
+            "tests/user_settings_read_test.rs",
+            "src/notification_events.rs"
+          ],
           "evidence": []
         },
         "go": {
