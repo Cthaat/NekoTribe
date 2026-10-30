@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "f0da3686fff465564d7acb267ce40923dfc210c2941d988e5d3bd62ad7e16958"
+      "sha256": "83cc7cd8610143d7bc0430dcaa89661d121fc3acf8303cc868c663fac24b553a"
     },
     "sources": [
       {
@@ -9015,7 +9015,7 @@
     },
     {
       "id": "AI-KNOWLEDGE-WRITING",
-      "revision": 8,
+      "revision": 9,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [
@@ -9062,7 +9062,7 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 8,
+          "targetRevision": 9,
           "tasks": [
             "nuxt: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9126,7 +9126,7 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 8,
+          "targetRevision": 9,
           "tasks": [
             "rust: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9167,7 +9167,7 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 8,
+          "targetRevision": 9,
           "tasks": [
             "go: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -11725,7 +11725,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-public-terms-source.md",
-        "sha256": "15d62145cf75301e76586e92d7ce4b1e5d80c2b9af4794db753b8fae2fce7d46"
+        "sha256": "e7fad1f4aed95b81a42c097d59b712194686572ead1d3752d28c8fe9622df65c"
       },
       "copies": {
         "rust": "contracts/requirements/ai-public-terms-source.md",

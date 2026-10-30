@@ -1,5 +1,17 @@
 export interface WritingConversation { conversation_id: string; purpose: string; title: string | null; updated_at: string }
-export interface KnowledgeCitation { kind: 'post' | 'comment'; id: number; version: string; post_id?: number }
+export interface KnowledgeCitation { kind: 'post' | 'comment' | 'terms'; id: number; version: string; post_id?: number }
+export function citationTarget(source:KnowledgeCitation):{kind:'post';id:number}|{kind:'terms';href:string}|null {
+  if(!source || !Number.isSafeInteger(source.id) || source.id<1 || source.id>999999999999999 || typeof source.version!=='string' || !/^[0-9a-f]{64}$/.test(source.version)) return null;
+  if(source.kind==='terms') {
+    if(source.post_id!==undefined || source.id>8) return null;
+    const locale=source.id<=4?'zh':'en',section=['acceptance','accounts','conduct','termination'][(source.id-1)%4];
+    return {kind:'terms',href:`/${locale}/auth/terms#${section}`};
+  }
+  if(source.kind!=='post' && source.kind!=='comment') return null;
+  const id=source.post_id ?? (source.kind==='post'?source.id:null);
+  if(typeof id!=='number' || !Number.isSafeInteger(id) || id<1 || id>999999999999999 || (source.kind==='post' && id!==source.id)) return null;
+  return {kind:'post',id};
+}
 export interface WritingMessage { message_id: string; sequence_no: number; role: string; content: string; citations?: KnowledgeCitation[] }
 export interface WritingPage { items: WritingConversation[]; next_cursor: string | null }
 export interface WritingApi {

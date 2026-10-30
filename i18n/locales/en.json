@@ -2241,6 +2241,7 @@
     "insufficientEvidence": "No matching public sources were found. Try different text.",
     "sources": "Sources",
     "post": "Post",
-    "comment": "Comment"
+    "comment": "Comment",
+    "terms": "Platform terms"
   }
 }

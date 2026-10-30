@@ -4,7 +4,13 @@ import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const compiled=await build({stdin:{contents:`export * from './app/services/ai-writing-controller.ts'`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm'});
-const {createWritingController,initialWritingState}=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+const {createWritingController,initialWritingState,citationTarget}=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+test('terms citations resolve only known local section paths and never as posts',()=>{
+ assert.deepEqual(citationTarget({kind:'terms',id:3,version:'a'.repeat(64)}),{kind:'terms',href:'/zh/auth/terms#conduct'});
+ assert.deepEqual(citationTarget({kind:'terms',id:8,version:'a'.repeat(64)}),{kind:'terms',href:'/en/auth/terms#termination'});
+ assert.equal(citationTarget({kind:'terms',id:9,post_id:42,version:'a'.repeat(64)}),null);
+ assert.deepEqual(citationTarget({kind:'comment',id:3,post_id:42,version:'a'.repeat(64)}),{kind:'post',id:42});
+});
 test('knowledge conversations show insufficient evidence without writing a reply',async()=>{
   const state=initialWritingState();
   const messages=[];
