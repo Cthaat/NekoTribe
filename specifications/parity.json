@@ -2229,12 +2229,18 @@
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement GET /api/v2/users/me/settings natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Review GET settings against shared business scenarios and validate real Oracle, concurrent initialization and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/user_settings_repository.go",
+            "internal/server/user_settings_repository_test.go",
+            "internal/server/user_settings_route.go",
+            "internal/server/user_settings_route_test.go",
+            "internal/server/user_settings_schema_test.go"
+          ],
           "evidence": []
         }
       }
@@ -10825,6 +10831,26 @@
       "copies": {
         "rust": "contracts/requirements/media-schema-catalog.json",
         "go": "contracts/requirements/media-schema-catalog.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/user-settings-schema-catalog.json",
+        "sha256": "0da851b8d2ac3acd16ce36e7d0701b7a3a7087c4fa950e13e60a04b684087a09"
+      },
+      "copies": {
+        "rust": "contracts/requirements/user-settings-schema-catalog.json",
+        "go": "contracts/requirements/user-settings-schema-catalog.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/user-settings-readiness.json",
+        "sha256": "d224e3e2d319765e6dccffb0ed6c2450c5ab63ed22c2ac6cfc2db16c917d8c3f"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/user-settings-readiness.json",
+        "go": "contracts/scenarios/user-settings-readiness.json"
       }
     },
     {
