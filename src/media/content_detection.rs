@@ -18,10 +18,12 @@ pub async fn inspect_file(file: &mut tokio::fs::File) -> std::io::Result<Option<
         || prefix.starts_with(b"PK\x05\x06")
         || prefix.starts_with(b"PK\x07\x08")
     {
-        return Err(Error::new(
-            ErrorKind::Unsupported,
-            "ZIP inspection not implemented",
-        ));
+        let cloned = file.try_clone().await?.into_std().await;
+        let result = tokio::task::spawn_blocking(move || super::zip_detection::inspect(cloned))
+            .await
+            .map_err(|_| Error::other("ZIP inspection failed"))?;
+        file.seek(SeekFrom::Start(0)).await?;
+        return result.map(Some);
     }
     if prefix.starts_with(b"\x89PNG\r\n\x1a\n") {
         return inspect_png(file, size).await.map(Some);
@@ -155,28 +157,61 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn defers_zip_until_container_inspection_exists() {
+    async fn detects_shared_zip_containers() {
         use base64::{engine::general_purpose::STANDARD, Engine};
         use tokio::io::AsyncWriteExt;
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
             "../../contracts/scenarios/media-container-samples.json"
         ))
         .unwrap();
-        let zip = fixture["cases"]
+        for case in fixture["cases"].as_array().unwrap().iter().filter(|v| {
+            matches!(
+                v["id"].as_str(),
+                Some("large-zip" | "large-docx" | "large-odt" | "large-jar")
+            )
+        }) {
+            let mut file = tokio::fs::File::from_std(tempfile::tempfile().unwrap());
+            file.write_all(&STANDARD.decode(case["base64"].as_str().unwrap()).unwrap())
+                .await
+                .unwrap();
+            file.flush().await.unwrap();
+            let result = inspect_file(&mut file).await.unwrap().unwrap();
+            assert_eq!(
+                result.ext,
+                case["expected"]["ext"].as_str().unwrap(),
+                "{}",
+                case["id"]
+            );
+            assert_eq!(
+                result.mime,
+                case["expected"]["mime"].as_str().unwrap(),
+                "{}",
+                case["id"]
+            );
+            assert_eq!(file.stream_position().await.unwrap(), 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_zip_with_mismatched_local_header() {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        use tokio::io::AsyncWriteExt;
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../contracts/scenarios/media-container-samples.json"
+        ))
+        .unwrap();
+        let case = fixture["cases"]
             .as_array()
             .unwrap()
             .iter()
             .find(|v| v["id"] == "large-docx")
             .unwrap();
+        let mut data = STANDARD.decode(case["base64"].as_str().unwrap()).unwrap();
+        data[30] ^= 1;
         let mut file = tokio::fs::File::from_std(tempfile::tempfile().unwrap());
-        file.write_all(&STANDARD.decode(zip["base64"].as_str().unwrap()).unwrap())
-            .await
-            .unwrap();
+        file.write_all(&data).await.unwrap();
         file.flush().await.unwrap();
-        assert_eq!(
-            inspect_file(&mut file).await.unwrap_err().kind(),
-            std::io::ErrorKind::Unsupported
-        );
+        assert!(inspect_file(&mut file).await.is_err());
     }
 
     #[tokio::test]
