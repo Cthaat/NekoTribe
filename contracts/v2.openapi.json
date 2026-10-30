@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-30-ai-citation-parent"
+    "x-contract-revision": "2026-10-30-ai-context-preview"
   },
   "tags": [
     {
@@ -30751,7 +30751,7 @@
     "/api/v2/ai/conversations/{id}/knowledge-generate": {
       "post": {
         "summary": "生成知识会话回复",
-        "description": "仅 knowledge 用途。根据已保存的最新用户问题和可选检索词检索公开资料并生成带引用的回复；省略检索词时使用问题全文。请求体最多 4096 字节，检索词去除首尾 ECMAScript 空白后最多 256 UTF-8 字节且不含控制字符；拒绝重复字段。不接受客户端指定模型或凭据。无有效来源时不写入消息。当前只使用最新问题，不代表完整多轮问答。",
+        "description": "仅 knowledge 用途。根据已保存的最新用户问题和可选检索词检索公开资料并生成带引用的回复；省略检索词时使用问题全文。请求体最多 4096 字节，检索词去除首尾 ECMAScript 空白后最多 256 UTF-8 字节且不含控制字符；拒绝重复字段。不接受客户端指定模型或凭据。无有效来源时不写入消息。Nuxt 支持受限历史上下文；Rust 和 Go 暂只使用最新问题，三端多轮行为尚未完成共同验收。",
         "operationId": "generateAIKnowledgeReply",
         "tags": ["AI"],
         "security": [{"bearerAuth": []}],
