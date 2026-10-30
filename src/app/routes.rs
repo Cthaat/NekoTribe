@@ -100,6 +100,7 @@ fn native_router(
     )
     .layer(axum::Extension(options.local_storage.clone()))
     .layer(axum::Extension(options.ai_moderation.clone()))
+    .layer(axum::Extension(options.ai_writing.clone()))
     .layer(axum_middleware::from_fn_with_state(
         config,
         security_headers::security_headers,

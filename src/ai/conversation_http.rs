@@ -29,6 +29,43 @@ impl ModerationSettings {
         ModerationPolicy::new(&self.allow_all, &self.accounts)
     }
 }
+pub(crate) async fn generate(
+    State(state): State<NativeState>,
+    Path(id): Path<String>,
+    settings: Option<Extension<ModerationSettings>>,
+    writing: Option<Extension<crate::ai::writing::Settings>>,
+    request: Request<Body>,
+) -> Response {
+    async {
+        let (parts, _) = request.into_parts();
+        let actor = interaction_actor(&state, &parts.headers).await?;
+        if !conversation_store::valid_uuid(&id) {
+            return Err(ApiError::not_found("会话不存在"));
+        }
+        let policy = settings.map(|Extension(s)| s).unwrap_or_default().policy();
+        let config = writing.map(|Extension(s)| s).unwrap_or_default();
+        let value =
+            crate::ai::writing::generate(state.repository.as_ref(), actor, &id, policy, &config)
+                .await
+                .map_err(|e| match e {
+                    crate::ai::writing::Error::Store(e) => error(e),
+                    crate::ai::writing::Error::Repository => {
+                        ApiError::server_error("服务器内部错误")
+                    }
+                    crate::ai::writing::Error::Context => {
+                        ApiError::bad_request("会话内容无法用于生成")
+                    }
+                    crate::ai::writing::Error::Unavailable => ApiError::new(
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        50301,
+                        "服务暂不可用，请稍后重试。",
+                    ),
+                })?;
+        Ok::<_, ApiError>(Json(V2Response::ok(value)).into_response())
+    }
+    .await
+    .into_response()
+}
 pub(crate) async fn private_headers(request: Request<Body>, next: Next) -> Response {
     let is_ai =
         request.uri().path() == "/api/v2/ai" || request.uri().path().starts_with("/api/v2/ai/");

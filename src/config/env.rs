@@ -49,6 +49,7 @@ pub struct NativeOptions {
     pub local_storage: crate::storage::local_http::LocalStorageConfig,
     pub smtp: crate::auth::otp::SmtpConfig,
     pub ai_moderation: crate::ai::conversation_http::ModerationSettings,
+    pub ai_writing: crate::ai::writing::Settings,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -190,6 +191,7 @@ impl AppConfig {
                 local_storage: crate::storage::local_http::LocalStorageConfig::from_lookup(&get),
                 smtp: crate::auth::otp::SmtpConfig::from_lookup(&get),
                 ai_moderation: crate::ai::conversation_http::ModerationSettings::from_lookup(&get),
+                ai_writing: crate::ai::writing::Settings::from_lookup(&get),
             }),
             server: ServerConfig {
                 host,

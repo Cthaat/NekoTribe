@@ -62,7 +62,7 @@ native CORS 在鉴权前处理 OPTIONS，复用共同 origin、method/header、V
 
 `src/ai/model_config.rs` 按 `contracts/requirements/ai-model-configuration.md` 实现严格校验、独立选择快照、RwLock 版本比较及原子替换；失败不安装部分配置。`contracts/scenarios/ai-model-config.json` 含三端相同的 52 个组件场景，另有并发、隔离和错误边界测试。Linux 默认测试共 31 项通过、2 个真实依赖连通测试忽略；日志为 `.codex-logs/20261027-model-config-52-full.log`。格式检查通过。
 
-`src/ai/transport.rs` 已实现 OpenAI-compatible/Ollama JSON HTTP 传输、调用级密钥解析、超时/取消和安全错误，使用 loopback 提供方测试。配置与传输组件尚未接入应用 AI 路由，没有调用真实模型、能力探测、索引或完整产品流程。完整产品权限及切换验收见本地 `contracts/requirements/ai-product-scope.md`、`ai-model-switching.md`，不能以配置或传输组件通过宣称完整 AI 业务通过。
+`src/ai/transport.rs` 已实现 OpenAI-compatible/Ollama JSON HTTP 传输、调用级密钥解析、超时/取消和安全错误，使用 loopback 提供方测试。native 的写作生成接口已接入该传输：设置 `AI_MODEL_CONFIG_JSON`，按配置中的 `apiKeyEnv` 名称单独注入密钥，配置变更后重启进程；空配置时生成接口不可用。现有 compat Compose 只提供 Nuxt 代理，并不配置 native 服务。尚未调用真实模型、完成能力探测、索引或完整产品流程；完整产品权限及切换验收见本地 `contracts/requirements/ai-product-scope.md`、`ai-model-switching.md`。
 
 管理目录可执行 `node nuxt/scripts/parity.mjs check --workspace-root .` 核对公共需求/样例的 Rust/Go 副本；独立 Rust 编译和测试仍只读取本工程文件。
 

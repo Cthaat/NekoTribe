@@ -548,6 +548,7 @@ pub fn build_native_router_with_realtime_and_publisher(
         .route("/api/v2/ai/conversations", post(crate::ai::conversation_http::create))
         .route("/api/v2/ai/conversations/{id}", get(crate::ai::conversation_http::read))
         .route("/api/v2/ai/conversations/{id}/messages", get(crate::ai::conversation_http::list).post(crate::ai::conversation_http::append))
+        .route("/api/v2/ai/conversations/{id}/generate", post(crate::ai::conversation_http::generate))
         .route(
             "/api/health",
             get(|| async { Json(json!({"status":"ok","service":"nekotribe"})) }),

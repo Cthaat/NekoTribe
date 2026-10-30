@@ -10,6 +10,33 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 struct Store(Option<nekotribe_backend::ai::conversation_store::Error>);
+
+#[tokio::test]
+async fn writing_generation_requires_authentication() {
+    let f: serde_json::Value =
+        serde_json::from_str(include_str!("../contracts/scenarios/auth-tokens.json")).unwrap();
+    let codec = TokenCodec::new(
+        f["keys"]["access"].as_str().unwrap().as_bytes(),
+        f["keys"]["refresh"].as_str().unwrap().as_bytes(),
+    )
+    .unwrap();
+    let app = build_native_router(
+        codec,
+        Arc::new(Store(None)),
+        CorsPolicy::default(),
+        Arc::new(|| 1_700_000_000),
+    );
+    let request =
+        Request::post("/api/v2/ai/conversations/f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb/generate")
+            .body(Body::empty())
+            .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status().as_u16(), 401);
+    assert_eq!(
+        response.headers().get("cache-control").unwrap(),
+        "private, no-store"
+    );
+}
 impl SessionRepository for Store {
     fn touch<'a>(&'a self, claims: &'a TokenClaims) -> StoreFuture<'a, u64> {
         Box::pin(async move { Ok(u64::from(claims.user_id == 42)) })
