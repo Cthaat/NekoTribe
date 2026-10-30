@@ -1,7 +1,7 @@
 use nekotribe_backend::ai::{
     knowledge_service::{
-        generate_with_transport, generate_with_transport_and_search, KnowledgeStore,
-        KnowledgeTransport,
+        generate_with_history, generate_with_transport, generate_with_transport_and_search,
+        KnowledgeStore, KnowledgeTransport,
     },
     knowledge_source::{Candidate, Source},
     knowledge_turn::{TurnError, TurnFuture},
@@ -71,6 +71,80 @@ struct Transport {
     events: Arc<Mutex<Vec<&'static str>>>,
 }
 struct QuestionTransport;
+struct HistoryTransport;
+impl KnowledgeTransport for HistoryTransport {
+    fn infer<'a>(&'a self, _: &'a SelectionSnapshot, input: &'a Value) -> TurnFuture<'a, String> {
+        Box::pin(async move {
+            let data: Value =
+                serde_json::from_str(input["messages"][1]["content"].as_str().unwrap()).unwrap();
+            assert_eq!(data["history"][0]["content"], "旧回答");
+            assert!(input["messages"][0]["content"]
+                .as_str()
+                .unwrap()
+                .contains("历史对话"));
+            Ok(serde_json::json!({"answer":"answer","citations":[{"kind":"post","id":1,"version":"a".repeat(64)}]}).to_string())
+        })
+    }
+}
+#[tokio::test]
+async fn knowledge_history_is_used_and_revalidated() {
+    let events = Arc::new(Mutex::new(vec![]));
+    let store = Store {
+        events: events.clone(),
+        stale: false,
+        large: false,
+    };
+    let messages = vec![
+        serde_json::json!({"sequence_no":1,"role":"assistant","content":"旧回答","citations":[{"kind":"post","id":1,"post_id":1,"version":"a".repeat(64)}]}),
+        serde_json::json!({"sequence_no":2,"role":"user","content":"猫"}),
+    ];
+    let (result, context) = generate_with_history(
+        &store,
+        42,
+        "猫",
+        None,
+        selection(),
+        &HistoryTransport,
+        None,
+        &messages,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.answer.as_deref(), Some("answer"));
+    assert_eq!(context.unwrap().snapshot, messages);
+    assert_eq!(
+        events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|v| **v == "hydrate")
+            .count(),
+        4
+    );
+    let stale_events = Arc::new(Mutex::new(vec![]));
+    let stale = Store {
+        events: stale_events.clone(),
+        stale: true,
+        large: false,
+    };
+    let transport = Transport {
+        events: stale_events,
+    };
+    assert_eq!(
+        generate_with_history(
+            &stale,
+            42,
+            "猫",
+            None,
+            selection(),
+            &transport,
+            None,
+            &messages
+        )
+        .await,
+        Err(TurnError::SourceChanged)
+    );
+}
 impl KnowledgeTransport for QuestionTransport {
     fn infer<'a>(&'a self, _: &'a SelectionSnapshot, input: &'a Value) -> TurnFuture<'a, String> {
         Box::pin(async move {

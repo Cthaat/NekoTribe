@@ -119,7 +119,7 @@ pub async fn generate_with_transport_and_search<
     }
     let query = last["content"].as_str().ok_or(Error::Context)?;
     cancelled(&signal)?;
-    let result = knowledge_service::generate_with_transport_and_search(
+    let (result, context) = knowledge_service::generate_with_history(
         knowledge,
         user as i64,
         query,
@@ -127,6 +127,7 @@ pub async fn generate_with_transport_and_search<
         selection.clone(),
         transport,
         signal.clone(),
+        messages,
     )
     .await
     .map_err(Error::Knowledge)?;
@@ -134,6 +135,7 @@ pub async fn generate_with_transport_and_search<
     let Some(answer) = result.answer else {
         return Ok(None);
     };
+    let context = context.ok_or(Error::Context)?;
     let value = store(
         repository,
         user,
@@ -146,6 +148,7 @@ pub async fn generate_with_transport_and_search<
                 config_revision: selection.configuration_revision as i64,
             },
             sources: result.sources,
+            context_snapshot: context.snapshot,
         },
         policy,
     )

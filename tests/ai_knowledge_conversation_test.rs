@@ -49,7 +49,12 @@ impl SessionRepository for Store {
                     self.events.lock().unwrap().push("history");
                     Ok(json!([{"sequence_no":1,"role":"user","content":self.question}]))
                 }
-                AiOperation::KnowledgeAssistant { input, sources, .. } => {
+                AiOperation::KnowledgeAssistant {
+                    input,
+                    sources,
+                    context_snapshot,
+                    ..
+                } => {
                     self.events.lock().unwrap().push("append");
                     assert_eq!(
                         (
@@ -61,6 +66,10 @@ impl SessionRepository for Store {
                         ("answer", 1, "profile", 3)
                     );
                     assert_eq!(sources[0].id, 1);
+                    assert_eq!(
+                        context_snapshot,
+                        vec![json!({"sequence_no":1,"role":"user","content":self.question})]
+                    );
                     Ok(json!({"sequence_no":2}))
                 }
                 _ => panic!("unexpected"),

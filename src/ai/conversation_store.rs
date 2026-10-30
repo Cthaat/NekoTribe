@@ -105,6 +105,7 @@ pub enum AiOperation {
         id: String,
         input: AssistantInput,
         sources: Vec<super::knowledge_source::Candidate>,
+        context_snapshot: Vec<serde_json::Value>,
     },
 }
 pub fn execute_operation(
@@ -138,9 +139,20 @@ pub fn execute_operation(
         AiOperation::Assistant { id, input } => serde_json::to_value(append_assistant_message(
             connection, user, &id, &input, policy,
         )?),
-        AiOperation::KnowledgeAssistant { id, input, sources } => serde_json::to_value(
-            append_knowledge_assistant_message(connection, user, &id, &input, &sources, policy)?,
-        ),
+        AiOperation::KnowledgeAssistant {
+            id,
+            input,
+            sources,
+            context_snapshot,
+        } => serde_json::to_value(append_knowledge_assistant_message(
+            connection,
+            user,
+            &id,
+            &input,
+            &sources,
+            &context_snapshot,
+            policy,
+        )?),
     }
     .map_err(|_| Error::Store)
 }
@@ -284,7 +296,7 @@ fn run_conversation_listing(
         }
     }
 }
-trait MessageTransaction: Transaction {
+trait MessageTransaction: HistoryTransaction {
     fn read_locked(&self, user: i64, id: &str) -> Result<Option<Record>, Error>;
     fn delete(&self, user: i64, id: &str) -> Result<(), Error>;
     fn next_sequence(&self, id: &str) -> Result<i64, Error>;
@@ -430,7 +442,7 @@ fn run_append(
     content: &str,
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
-    run_append_inner(tx, user, id, content, None, false, policy)
+    run_append_inner(tx, user, id, content, None, false, None, policy)
 }
 fn run_append_assistant(
     tx: &impl MessageTransaction,
@@ -440,7 +452,16 @@ fn run_append_assistant(
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
     validate_assistant(input)?;
-    run_append_inner(tx, user, id, &input.content, Some(input), false, policy)
+    run_append_inner(
+        tx,
+        user,
+        id,
+        &input.content,
+        Some(input),
+        false,
+        None,
+        policy,
+    )
 }
 fn validate_assistant(input: &AssistantInput) -> Result<(), Error> {
     let id_ok = !input.model_id.is_empty()
@@ -458,6 +479,7 @@ fn validate_assistant(input: &AssistantInput) -> Result<(), Error> {
     }
     Ok(())
 }
+#[cfg(test)]
 fn run_append_knowledge(
     tx: &impl MessageTransaction,
     user: i64,
@@ -466,10 +488,68 @@ fn run_append_knowledge(
     sources: &[super::knowledge_source::Candidate],
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
+    run_append_knowledge_guarded(tx, user, id, input, sources, None, policy)
+}
+fn run_append_knowledge_guarded(
+    tx: &impl MessageTransaction,
+    user: i64,
+    id: &str,
+    input: &AssistantInput,
+    sources: &[super::knowledge_source::Candidate],
+    snapshot: Option<&[serde_json::Value]>,
+    policy: &ModerationPolicy,
+) -> Result<UserMessage, Error> {
     validate_assistant(input)?;
+    if let Some(snapshot) = snapshot {
+        let selected = super::knowledge_context::select(snapshot, 4_000_000, 20)
+            .map_err(|_| Error::Invalid)?;
+        if selected.snapshot.len() != snapshot.len()
+            || selected
+                .snapshot
+                .last()
+                .and_then(|m| m["sequence_no"].as_i64())
+                != Some(input.expected_sequence)
+            || selected.sources.iter().any(|s| !sources.contains(s))
+        {
+            return Err(Error::Invalid);
+        }
+    }
     let encoded =
         super::knowledge_history::encode(&input.content, sources).map_err(|_| Error::Invalid)?;
-    run_append_inner(tx, user, id, &encoded, Some(input), true, policy)
+    run_append_inner(tx, user, id, &encoded, Some(input), true, snapshot, policy)
+}
+fn check_context_snapshot(
+    tx: &impl MessageTransaction,
+    user: i64,
+    id: &str,
+    snapshot: &[serde_json::Value],
+) -> Result<(), Error> {
+    let first = snapshot
+        .first()
+        .and_then(|m| m["sequence_no"].as_i64())
+        .ok_or(Error::Invalid)?;
+    let mut messages = tx.messages(user, id, first - 1, snapshot.len() as i64, false)?;
+    if messages.len() != snapshot.len() {
+        return Err(Error::Conflict);
+    }
+    for msg in &mut messages {
+        if msg.role == "assistant" {
+            let restored = tx.restore_knowledge(user, &msg.content)?;
+            msg.content = restored.answer.ok_or(Error::Store)?;
+            msg.citations = Some(restored.citations);
+        }
+    }
+    let values: Vec<_> = messages
+        .iter()
+        .map(serde_json::to_value)
+        .collect::<Result<_, _>>()
+        .map_err(|_| Error::Store)?;
+    let current =
+        super::knowledge_context::select(&values, 4_000_000, 20).map_err(|_| Error::Conflict)?;
+    if current.snapshot != snapshot {
+        return Err(Error::Conflict);
+    }
+    Ok(())
 }
 fn run_append_inner(
     tx: &impl MessageTransaction,
@@ -478,6 +558,7 @@ fn run_append_inner(
     content: &str,
     assistant: Option<&AssistantInput>,
     knowledge: bool,
+    snapshot: Option<&[serde_json::Value]>,
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
     if !(1..=MAX_SAFE_ID).contains(&user) {
@@ -512,12 +593,18 @@ fn run_append_inner(
         if assistant.is_some_and(|input| sequence != input.expected_sequence + 1) {
             return Err(Error::Conflict);
         }
+        if let Some(snapshot) = snapshot {
+            check_context_snapshot(tx, user, id, snapshot)?;
+        }
         let message_id = uuid::Uuid::new_v4().to_string();
         tx.insert_message(id, &message_id, sequence, content, assistant)?;
         tx.touch(user, id)?;
         tx.authorize(user, &scope, policy)?;
         if knowledge {
             tx.restore_knowledge(user, content)?;
+        }
+        if let Some(snapshot) = snapshot {
+            check_context_snapshot(tx, user, id, snapshot)?;
         }
         Ok(UserMessage {
             message_id,
@@ -944,14 +1031,16 @@ pub fn append_knowledge_assistant_message(
     id: &str,
     input: &AssistantInput,
     sources: &[super::knowledge_source::Candidate],
+    context_snapshot: &[serde_json::Value],
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
-    run_append_knowledge(
+    run_append_knowledge_guarded(
         &OracleConversation(connection),
         user,
         id,
         input,
         sources,
+        Some(context_snapshot),
         policy,
     )
 }
@@ -1120,6 +1209,8 @@ mod tests {
         checks: Cell<u32>,
         revoke: bool,
         encoded: String,
+        history_mode: &'static str,
+        history_checks: Cell<u32>,
     }
     impl Transaction for KnowledgeFake {
         fn check_schema(&self) -> Result<(), Error> {
@@ -1206,6 +1297,23 @@ mod tests {
             _: i64,
             _: bool,
         ) -> Result<Vec<HistoryMessage>, Error> {
+            if !self.history_mode.is_empty() {
+                self.history_checks.set(self.history_checks.get() + 1);
+                let changed = self.history_mode == "before"
+                    || (self.history_mode == "during" && self.history_checks.get() > 1);
+                return Ok(vec![HistoryMessage {
+                    message_id: "msg".into(),
+                    conversation_id: id.into(),
+                    sequence_no: 1,
+                    role: "user".into(),
+                    content: if changed { "changed" } else { "question" }.into(),
+                    model_id: None,
+                    model_version: None,
+                    config_revision: None,
+                    created_at: String::new(),
+                    citations: None,
+                }]);
+            }
             Ok(vec![HistoryMessage {
                 message_id: "msg".into(),
                 conversation_id: id.into(),
@@ -1236,6 +1344,8 @@ mod tests {
             checks: Cell::new(0),
             revoke: false,
             encoded: encoded.clone(),
+            history_mode: "",
+            history_checks: Cell::new(0),
         };
         let input = AssistantInput {
             content: "answer".into(),
@@ -1261,6 +1371,8 @@ mod tests {
             checks: Cell::new(0),
             revoke: true,
             encoded,
+            history_mode: "",
+            history_checks: Cell::new(0),
         };
         assert_eq!(
             run_append_knowledge(&bad, 1, id, &input, &[ref_], &policy),
@@ -1271,6 +1383,48 @@ mod tests {
             run_append_assistant(&tx, 1, id, &input, &policy),
             Err(Error::Conflict)
         );
+    }
+    #[test]
+    fn knowledge_write_guards_exact_history_before_insert_and_commit() {
+        let reference = super::super::knowledge_source::Candidate {
+            kind: "post".into(),
+            id: 1,
+            version: "a".repeat(64),
+        };
+        let input = AssistantInput {
+            content: "answer".into(),
+            expected_sequence: 1,
+            model_id: "profile".into(),
+            config_revision: 1,
+        };
+        let snapshot =
+            vec![serde_json::json!({"sequence_no":1,"role":"user","content":"question"})];
+        for mode in ["ok", "before", "during"] {
+            let tx = KnowledgeFake {
+                events: RefCell::new(vec![]),
+                checks: Cell::new(0),
+                revoke: false,
+                encoded: String::new(),
+                history_mode: mode,
+                history_checks: Cell::new(0),
+            };
+            let result = run_append_knowledge_guarded(
+                &tx,
+                1,
+                "bf9da41c-7296-4f51-91f4-141f5c6e3c01",
+                &input,
+                std::slice::from_ref(&reference),
+                Some(&snapshot),
+                &ModerationPolicy::new("", ""),
+            );
+            if mode == "ok" {
+                assert!(result.is_ok());
+                assert_eq!(tx.history_checks.get(), 2)
+            } else {
+                assert_eq!(result, Err(Error::Conflict));
+                assert_eq!(*tx.events.borrow(), vec!["rollback"])
+            }
+        }
     }
     impl Transaction for Fake {
         fn check_schema(&self) -> Result<(), Error> {
