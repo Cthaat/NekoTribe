@@ -1010,6 +1010,10 @@
         "sha256": "fc5862df50b676bdf1cfa47a8627a66aff672bbf8092d04e1e46a99e8d309670"
       },
       {
+        "path": "server/services/ai/knowledge-search-body.ts",
+        "sha256": "6b124dd6d967af13152a5e1cde1badba11abee45c48165b903d5f16d8f3af9e7"
+      },
+      {
         "path": "server/services/ai/knowledge-service.ts",
         "sha256": "7e32795df8eb9928a79adce2bdf06e7b8a6572ded8a47bf769f936a22a28a0c2"
       },
@@ -9024,6 +9028,7 @@
         "server/services/ai/knowledge-source.ts",
         "server/services/ai/knowledge-turn.ts",
         "server/services/ai/knowledge-service.ts",
+        "server/services/ai/knowledge-search-body.ts",
         "server/services/ai/knowledge-citations.ts",
         "server/services/ai/knowledge-history.ts",
         "server/services/ai/knowledge-conversation-service.ts"
@@ -9090,6 +9095,8 @@
             "server/services/ai/knowledge-turn.ts",
             "tests/ai-knowledge-turn.test.mjs",
             "server/services/ai/knowledge-service.ts",
+            "server/services/ai/knowledge-search-body.ts",
+            "tests/ai-knowledge-search-body.test.mjs",
             "tests/ai-knowledge-service.test.mjs",
             "server/services/ai/knowledge-citations.ts",
             "tests/ai-knowledge-citations.test.mjs",
@@ -9127,6 +9134,8 @@
             "src/ai/knowledge_history.rs",
             "tests/ai_knowledge_history_test.rs",
             "src/ai/knowledge_conversation.rs",
+            "src/ai/knowledge_search_body.rs",
+            "tests/ai_knowledge_search_body_test.rs",
             "tests/ai_knowledge_conversation_test.rs",
             "src/ai/conversation_http.rs",
             "src/app/routes.rs",
@@ -9166,6 +9175,8 @@
             "internal/server/ai_knowledge_history.go",
             "internal/server/ai_knowledge_history_test.go",
             "internal/server/ai_knowledge_conversation.go",
+            "internal/server/ai_knowledge_search_body.go",
+            "internal/server/ai_knowledge_search_body_test.go",
             "internal/server/ai_knowledge_conversation_test.go",
             "internal/server/ai_knowledge_route_test.go",
             "internal/ai/transport.go"
@@ -9184,6 +9195,7 @@
         "specifications/scenarios/ai-knowledge-source-vectors.json",
         "specifications/requirements/ai-knowledge-discovery.md",
         "specifications/requirements/ai-knowledge-turn.md",
+        "specifications/scenarios/ai-knowledge-search-body.json",
         "specifications/scenarios/ai-knowledge-citation-vectors.json",
         "specifications/requirements/ai-knowledge-history.md"
       ]
@@ -11634,11 +11646,21 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-history.md",
-        "sha256": "e5bb1c7479c6d9799e15e7ea0e1a5f261538767cda89ead015307d6cfbd2b3e7"
+        "sha256": "468c4db6042dacb40e20573933b851571d544d5c2fcabe0c47fa117927c545bd"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-history.md",
         "go": "contracts/requirements/ai-knowledge-history.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-knowledge-search-body.json",
+        "sha256": "0c42e09f86b740177cf52528786d4cbb9d00c3fe215d95c61da78d952ecd2aff"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-knowledge-search-body.json",
+        "go": "contracts/scenarios/ai-knowledge-search-body.json"
       }
     },
     {
