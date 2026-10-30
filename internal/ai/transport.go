@@ -123,6 +123,11 @@ func boundedJSON(data []byte, maxDepth int) (any, bool) {
 	return value, true
 }
 
+// DecodeScalarJSON rejects invalid UTF-8 and unpaired surrogate escapes before decoding.
+func DecodeScalarJSON(data []byte, maxDepth int) (any, bool) {
+	return boundedJSON(data, maxDepth)
+}
+
 // encoding/json replaces unpaired UTF-16 escapes. Reject them before decoding
 // so the transport never silently changes request or provider strings/keys.
 func scalarJSONEscapes(data []byte) bool {

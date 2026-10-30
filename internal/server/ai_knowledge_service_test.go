@@ -34,11 +34,29 @@ type serviceDBTransport struct {
 	t  *testing.T
 }
 
-func (t serviceDBTransport) Infer(_ context.Context, _ ai.Selection, _ []byte) (ai.InferenceResult, error) {
+func (t serviceDBTransport) Infer(_ context.Context, _ ai.Selection, input []byte) (ai.InferenceResult, error) {
 	if t.db.Stats().InUse != 0 {
 		t.t.Fatal("database connection held during inference")
 	}
-	return ai.InferenceResult{Text: "answer", FinishReason: "stop"}, nil
+	return ai.InferenceResult{Text: fakeKnowledgeAnswer(input), FinishReason: "stop"}, nil
+}
+func fakeKnowledgeAnswer(input []byte) string {
+	var request struct {
+		Messages []struct {
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	if json.Unmarshal(input, &request) != nil || len(request.Messages) != 2 {
+		return "invalid"
+	}
+	var payload struct {
+		Sources []knowledgeSource `json:"sources"`
+	}
+	if json.Unmarshal([]byte(request.Messages[1].Content), &payload) != nil || len(payload.Sources) == 0 {
+		return "invalid"
+	}
+	text, _ := json.Marshal(map[string]any{"answer": "answer", "citations": knowledgeCandidates(payload.Sources)})
+	return string(text)
 }
 func TestKnowledgeServiceReleasesOracleConnectionBeforeInference(t *testing.T) {
 	db := sql.OpenDB(serviceConnector{&knowledgeDB{}})
@@ -75,9 +93,10 @@ func (f *knowledgeServiceFake) hydrateKnowledgeSources(_ context.Context, user i
 }
 
 type knowledgeTransportFake struct {
-	store  *knowledgeServiceFake
-	input  []byte
-	revoke bool
+	store        *knowledgeServiceFake
+	input        []byte
+	revoke       bool
+	textOverride string
 }
 
 func (f *knowledgeTransportFake) Infer(_ context.Context, selection ai.Selection, input []byte) (ai.InferenceResult, error) {
@@ -89,7 +108,22 @@ func (f *knowledgeTransportFake) Infer(_ context.Context, selection ai.Selection
 	if f.revoke {
 		f.store.revoke = true
 	}
-	return ai.InferenceResult{Text: "answer", FinishReason: "stop"}, nil
+	text := fakeKnowledgeAnswer(input)
+	if f.textOverride != "" {
+		text = f.textOverride
+	}
+	return ai.InferenceResult{Text: text, FinishReason: "stop"}, nil
+}
+
+func TestKnowledgeServiceRejectsInventedCitations(t *testing.T) {
+	source := knowledgeSource{Kind: "post", ID: 1, PostID: 1, Content: "资料", Version: strings.Repeat("a", 64)}
+	store := &knowledgeServiceFake{rows: []knowledgeSource{source}}
+	text, _ := json.Marshal(map[string]any{"answer": "answer", "citations": []knowledgeCandidate{{Kind: "post", ID: 999, Version: source.Version}}})
+	transport := &knowledgeTransportFake{store: store, textOverride: string(text)}
+	selection := ai.Selection{Role: "knowledge", ContextWindowTokens: 8192, MaxOutputTokens: 512}
+	if _, err := generateKnowledgeWithTransport(context.Background(), store, 42, "猫", selection, transport); !errors.Is(err, errKnowledgeCitations) {
+		t.Fatal(err)
+	}
 }
 
 func TestKnowledgeServiceConnectsSourcesAndInference(t *testing.T) {
