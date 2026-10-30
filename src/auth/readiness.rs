@@ -32,6 +32,11 @@ fn catalog(feature: &str) -> Result<Value, SessionStoreError> {
             "USER-SETTINGS-SCHEMA-CATALOG",
             5,
         ),
+        "ai-conversations" => (
+            include_str!("../../contracts/requirements/ai-conversation-schema-catalog.json"),
+            "AI-CONVERSATION-SCHEMA-CATALOG",
+            3,
+        ),
         _ => return Err(SessionStoreError),
     };
     let value: Value = serde_json::from_str(content).map_err(|_| SessionStoreError)?;
@@ -386,6 +391,13 @@ pub(crate) fn collect_user_settings_snapshot(
     connection: &::oracle::Connection,
 ) -> Result<Value, DbError> {
     collect_feature_with("user-settings", |sql, binds| query(connection, sql, binds))
+}
+pub(crate) fn collect_ai_conversation_snapshot(
+    connection: &::oracle::Connection,
+) -> Result<Value, DbError> {
+    collect_feature_with("ai-conversations", |sql, binds| {
+        query(connection, sql, binds)
+    })
 }
 
 /// Collects an Oracle dictionary snapshot through an injected SELECT executor.
