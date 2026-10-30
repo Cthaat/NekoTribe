@@ -72,6 +72,14 @@ func uploadMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManage
 			if imageInfo, _, decodeErr := image.DecodeConfig(io.NewSectionReader(file, 0, min(info.Size(), int64(4<<20)))); decodeErr == nil {
 				w, h := float64(imageInfo.Width), float64(imageInfo.Height)
 				width, height = &w, &h
+			} else if selected.MIMEType == "image/avif" {
+				prefix, readErr := io.ReadAll(io.NewSectionReader(file, 0, min(info.Size(), int64(4<<20))))
+				if readErr == nil {
+					if iw, ih, ok := avifDimensions(prefix); ok {
+						w, h := float64(iw), float64(ih)
+						width, height = &w, &h
+					}
+				}
 			}
 		}
 		if selected.Supported && !config.LocalStorage.Unsupported && (selected.MediaType == "video" || selected.MediaType == "audio") {

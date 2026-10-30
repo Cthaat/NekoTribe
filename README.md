@@ -2,6 +2,8 @@
 
 原生本地媒体上传、公开文件读取和删除路径已接入，仍需真实 Oracle、共享对象及私密附件权限验收。图片尺寸使用本地解析；音视频通过 `FFPROBE_PATH` 指定的程序或 PATH 中的 `ffprobe` 尝试提取时长和尺寸。探测失败时，标准 PCM WAV 可通过文件头补算时长，其他无法解析的元数据为空。Linux 使用可寻址文件句柄，Windows 使用管道；Windows PCM WAV 上传已隔离验证，更多格式仍需验证。S3 尚未实现，见 `contracts/requirements/storage-local-files.md` 和 `media-upload.md`。
 
+AVIF 尺寸从最多 4 MiB 的文件前缀读取，按主图关联的 `ispe` 属性选择，遇到不支持或损坏的结构返回空值；多种属性关联和旋转等变换尚需更多真实样例验证。
+
 原生 PATCH/PUT 帖子部分更新已接入，省略保留、明确空关系清空；行锁及全部关系写入在同一连接事务中完成，失败回滚。53 条共同请求向量及隔离事务/HTTP 检查通过，真实 Oracle、并发及双客户端仍待验收。规则见 `contracts/requirements/post-update.md`。
 
 原生 `DELETE /api/v2/posts/{id}` 已按公共规则接入作者专属软删除、并发条件更新和安全错误；17 条共同输入在隔离路由中通过。不会物理删除帖子或媒体。真实 Oracle、触发器、缓存及客户端仍待验收，见 `contracts/requirements/post-delete.md`。
