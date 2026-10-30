@@ -1,5 +1,5 @@
 export interface WritingConversation { conversation_id: string; purpose: string; title: string | null; updated_at: string }
-export interface KnowledgeCitation { kind: 'post' | 'comment'; id: number; version: string }
+export interface KnowledgeCitation { kind: 'post' | 'comment'; id: number; version: string; post_id?: number }
 export interface WritingMessage { message_id: string; sequence_no: number; role: string; content: string; citations?: KnowledgeCitation[] }
 export interface WritingPage { items: WritingConversation[]; next_cursor: string | null }
 export interface WritingApi {

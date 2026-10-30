@@ -5,6 +5,7 @@ export class KnowledgeHistoryError extends Error {
   constructor(readonly code:'INVALID_HISTORY'|'SOURCE_CHANGED') {super(code);this.name='KnowledgeHistoryError';}
 }
 type KnowledgeMessage={answer:string;sources:IndexedSource[]};
+export type RestoredCitation = IndexedSource & {post_id:number};
 const key=(source:IndexedSource)=>`${source.kind}:${source.id}:${source.version}`;
 function validate(value:unknown):KnowledgeMessage {
   if(!value || typeof value!=='object' || Array.isArray(value)) throw new KnowledgeHistoryError('INVALID_HISTORY');
@@ -30,13 +31,17 @@ export function encodeKnowledgeMessage(message:KnowledgeMessage):string {
   return encoded;
 }
 /** The caller must authenticate and supply a current, uncached source revalidation function. */
-export async function restoreKnowledgeMessage(encoded:string,hydrate:(sources:IndexedSource[])=>Promise<KnowledgeSource[]>):Promise<KnowledgeMessage> {
+export async function restoreKnowledgeMessage(encoded:string,hydrate:(sources:IndexedSource[])=>Promise<KnowledgeSource[]>):Promise<KnowledgeMessage & {citations:RestoredCitation[]}> {
   if(typeof encoded!=='string' || Buffer.byteLength(encoded,'utf8')>65536) throw new KnowledgeHistoryError('INVALID_HISTORY');
   let raw:unknown;try {raw=JSON.parse(encoded);} catch {throw new KnowledgeHistoryError('INVALID_HISTORY');}
   const message=validate(raw);
   const rows=await hydrate(message.sources.map(s=>({...s})));
   if(!Array.isArray(rows) || rows.length!==message.sources.length) throw new KnowledgeHistoryError('SOURCE_CHANGED');
-  const expected=new Set(message.sources.map(key));const actual=new Set<string>();
-  for(const row of rows) {const id=key(row);if(!expected.has(id) || actual.has(id)) throw new KnowledgeHistoryError('SOURCE_CHANGED');actual.add(id);}
-  return message;
+  const expected=new Set(message.sources.map(key));const actual=new Map<string,RestoredCitation>();
+  for(const row of rows) {
+    const id=key(row);
+    if(!expected.has(id) || actual.has(id) || !Number.isSafeInteger(row.post_id) || row.post_id<1 || row.post_id>999999999999999 || (row.kind==='post' && row.post_id!==row.id)) throw new KnowledgeHistoryError('SOURCE_CHANGED');
+    actual.set(id,{kind:row.kind,id:row.id,version:row.version,post_id:row.post_id});
+  }
+  return {...message,citations:message.sources.map(source=>actual.get(key(source))!)};
 }

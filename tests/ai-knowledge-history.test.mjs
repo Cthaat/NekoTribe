@@ -9,7 +9,14 @@ const source={kind:'post',id:1,version:'a'.repeat(64)};
 test('restores only currently authorized citations and preserves answer',async()=>{
  const encoded=encodeKnowledgeMessage({answer:'答案',sources:[source]});
  const result=await restoreKnowledgeMessage(encoded,async refs=>{assert.deepEqual(refs,[source]);return [{...source,post_id:1,content:'当前公开资料'}]});
- assert.deepEqual(result,{answer:'答案',sources:[source]});
+ assert.deepEqual(result,{answer:'答案',sources:[source],citations:[{...source,post_id:1}]});
+});
+test('restored comment citations identify the authorized parent without exposing source text',async()=>{
+ const comment={kind:'comment',id:23,version:'b'.repeat(64)};
+ const encoded=encodeKnowledgeMessage({answer:'回答',sources:[comment]});
+ const result=await restoreKnowledgeMessage(encoded,async()=>[{...comment,post_id:99,content:'公开评论'}]);
+ assert.deepEqual(result.citations,[{...comment,post_id:99}]);assert.ok(!JSON.stringify(result).includes('公开评论'));
+ await assert.rejects(()=>restoreKnowledgeMessage(encoded,async()=>[{...comment,post_id:0,content:'公开评论'}]),/SOURCE_CHANGED/);
 });
 test('withholds persisted answer when a reference changes or is no longer visible',async()=>{
  const encoded=encodeKnowledgeMessage({answer:'秘密派生',sources:[source]});

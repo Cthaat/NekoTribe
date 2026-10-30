@@ -86,7 +86,7 @@ test('knowledge assistant stores versioned references and rechecks history visib
   await appendKnowledgeAssistantMessage(actor,db,c.conversation_id,{answer:'answer',sources:[ref],expectedSequence:1,modelId:'profile-a',configRevision:1});
   assert.equal(db.knowledgeChecks,2);assert.deepEqual(JSON.parse(db.messages[1].content),{version:1,answer:'answer',sources:[ref]});
   const history=await listConversationMessages(actor,db,c.conversation_id,0,20);
-  assert.equal(history[1].content,'answer');assert.deepEqual(history[1].citations,[ref]);
+  assert.equal(history[1].content,'answer');assert.deepEqual(history[1].citations,[{...ref,post_id:1}]);
   db.knowledgeRows=[];
   await assert.rejects(()=>listConversationMessages(actor,db,c.conversation_id,0,20),/500:/);
   await assert.rejects(()=>listRecentConversationMessages(actor,db,c.conversation_id),/500:/);

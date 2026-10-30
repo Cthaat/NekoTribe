@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { writingApi } from '@/api/v2/ai-writing';
 import { knowledgeApi } from '@/api/v2/ai-knowledge';
 import { createWritingController, initialWritingState } from '@/services/ai-writing-controller';
+import type { KnowledgeCitation } from '@/services/ai-writing-controller';
 
 const props = defineProps<{ purpose: 'writing' | 'knowledge' }>();
 const { t } = useAppLocale();
@@ -17,6 +18,10 @@ const controller = createWritingController(props.purpose === 'knowledge' ? knowl
 const deleteOpen = ref(false);
 const lastUser = computed(() => state.messages.at(-1)?.role === 'user');
 const errorText = computed(() => state.error ? label(`errors.${state.error}`) : '');
+function citationPostId(source: KnowledgeCitation): number | null {
+  const id = source.post_id ?? (source.kind === 'post' ? source.id : null);
+  return typeof id === 'number' && Number.isSafeInteger(id) && id > 0 && id <= 999999999999999 ? id : null;
+}
 onMounted(() => { void controller.loadHistory(); });
 async function confirmDelete() {
   deleteOpen.value = false;
@@ -67,7 +72,7 @@ async function submit() {
                 <p class="mb-1 font-medium">{{ label('sources') }}</p>
                 <ul class="space-y-1">
                   <li v-for="source in message.citations" :key="`${source.kind}-${source.id}`">
-                    <NuxtLink v-if="source.kind === 'post'" class="underline underline-offset-2" :to="localePath(`/tweet/${source.id}`)">{{ label(source.kind) }} #{{ source.id }}</NuxtLink>
+                    <NuxtLink v-if="citationPostId(source)" class="underline underline-offset-2" :to="localePath(`/tweet/${citationPostId(source)}`)">{{ label(source.kind) }} #{{ source.id }}</NuxtLink>
                     <span v-else>{{ label(source.kind) }} #{{ source.id }}</span>
                   </li>
                 </ul>

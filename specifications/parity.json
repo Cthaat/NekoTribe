@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "77ba03fa154a0c38314e12daef25ceead7d77c40f5a5310b21f9f6f50414d670"
+      "sha256": "3ebe0dc15f1cf0262cb8d0731cb3d25d59d9551689cd117a128a1539d8d2025a"
     },
     "sources": [
       {
@@ -999,7 +999,7 @@
       },
       {
         "path": "server/services/ai/conversation-store.ts",
-        "sha256": "59d9b386fc1339fd5891163e1289a410e880acb6edff94ebd832afeb0be758f3"
+        "sha256": "0b378ab9c9287190559ecd40fea0cb94e0840a4cd9cca52163c91445b0ef9de3"
       },
       {
         "path": "server/services/ai/inference-transport.ts",
@@ -1027,7 +1027,7 @@
       },
       {
         "path": "server/services/ai/knowledge-history.ts",
-        "sha256": "2d887aa3b40092e2be92c9cd2b6478ccd44309fb9a8af581a49758fe2612240f"
+        "sha256": "e508edf7144a0adc4d182451da7ab5895831c05a78ff13c08454207f7eab39b0"
       },
       {
         "path": "server/services/ai/knowledge-turn.ts",
@@ -9007,7 +9007,7 @@
     },
     {
       "id": "AI-KNOWLEDGE-WRITING",
-      "revision": 4,
+      "revision": 5,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [
@@ -9052,7 +9052,7 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 4,
+          "targetRevision": 5,
           "tasks": [
             "nuxt: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9109,7 +9109,7 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 4,
+          "targetRevision": 5,
           "tasks": [
             "rust: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9146,7 +9146,7 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 4,
+          "targetRevision": 5,
           "tasks": [
             "go: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -11646,7 +11646,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-history.md",
-        "sha256": "cbd2b3859401e56b578226ed23867ae569cd6b7ce777da68ffe0bc76e4d2299a"
+        "sha256": "024ec4c858114fe44dec7eaa6b1c93d5f6727b808d88f5411b60199cb3dcc5a2"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-history.md",

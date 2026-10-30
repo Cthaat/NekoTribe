@@ -25,7 +25,7 @@ export interface ConversationMessageRecord {
   model_version: string | null;
   config_revision: number | null;
   created_at: string;
-  citations?: IndexedSource[];
+  citations?: import('./knowledge-history').RestoredCitation[];
 }
 export interface ConversationPage {
   items: ConversationRecord[];
@@ -186,7 +186,7 @@ async function readMessages(
     if(conversation.purpose==='knowledge' && message.role==='tool') v2ServerError();
     if(conversation.purpose==='knowledge' && message.role==='assistant') {
       const restored=await safeRestoreKnowledge(event,connection,message.content);
-      message.content=restored.answer;message.citations=restored.sources;
+      message.content=restored.answer;message.citations=restored.citations;
     }
     messages.push(message);
   }
