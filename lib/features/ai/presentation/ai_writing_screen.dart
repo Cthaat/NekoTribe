@@ -2,13 +2,15 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../data/ai_writing_api.dart';
 
 class AiWritingScreen extends ConsumerStatefulWidget {
-  const AiWritingScreen({super.key});
+  const AiWritingScreen({super.key, this.knowledge = false});
+  final bool knowledge;
   @override
   ConsumerState<AiWritingScreen> createState() => _AiWritingScreenState();
 }
@@ -60,7 +62,10 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
     if (_busy) return;
     final id = await showDialog<String>(
       context: context,
-      builder: (_) => _HistoryDialog(api: ref.read(aiWritingApiProvider)),
+      builder: (_) => _HistoryDialog(
+        api: ref.read(aiWritingApiProvider),
+        knowledge: widget.knowledge,
+      ),
     );
     if (!mounted || id == null) return;
     setState(() {
@@ -96,7 +101,11 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
     });
     try {
       final api = ref.read(aiWritingApiProvider);
-      final id = _conversation ?? await api.createConversation();
+      final id =
+          _conversation ??
+          await (widget.knowledge
+              ? api.createKnowledgeConversation()
+              : api.createConversation());
       if (!mounted) return;
       _conversation = id;
       try {
@@ -114,7 +123,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       _input.clear();
       await _refresh();
       if (!mounted) return;
-      await api.generate(id);
+      await _generate(api, id);
       if (!mounted) return;
       await _refresh();
     } catch (_) {
@@ -139,7 +148,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       await _refresh();
       if (!mounted) return;
       if (generate && _messages.isNotEmpty && _messages.last.role == 'user') {
-        await ref.read(aiWritingApiProvider).generate(_conversation!);
+        await _generate(ref.read(aiWritingApiProvider), _conversation!);
         if (!mounted) return;
         await _refresh();
       }
@@ -152,6 +161,14 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _generate(AiWritingApi api, String id) async {
+    if (!widget.knowledge) {
+      await api.generate(id);
+    } else if (!await api.generateKnowledge(id) && mounted) {
+      setState(() => _notice = 'ai.knowledge.insufficient');
     }
   }
 
@@ -210,7 +227,9 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
     final canRetry = _messages.isNotEmpty && _messages.last.role == 'user';
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.t('ai.writing.title')),
+        title: Text(
+          l10n.t(widget.knowledge ? 'ai.knowledge.title' : 'ai.writing.title'),
+        ),
         actions: [
           IconButton(
             key: const Key('ai-writing-history'),
@@ -252,13 +271,25 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
-                  l10n.t('ai.writing.description'),
+                  l10n.t(
+                    widget.knowledge
+                        ? 'ai.knowledge.description'
+                        : 'ai.writing.description',
+                  ),
                   style: theme.textTheme.bodySmall,
                 ),
               ),
               Expanded(
                 child: _messages.isEmpty
-                    ? Center(child: Text(l10n.t('ai.writing.empty')))
+                    ? Center(
+                        child: Text(
+                          l10n.t(
+                            widget.knowledge
+                                ? 'ai.knowledge.empty'
+                                : 'ai.writing.empty',
+                          ),
+                        ),
+                      )
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: _messages.length,
@@ -275,7 +306,32 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
                                   : theme.colorScheme.surfaceContainerHighest,
                               child: Padding(
                                 padding: const EdgeInsets.all(14),
-                                child: SelectableText(message.content),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SelectableText(message.content),
+                                    if (message.citations.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        l10n.t('ai.knowledge.sources'),
+                                        style: theme.textTheme.labelSmall,
+                                      ),
+                                      for (final source in message.citations)
+                                        source.kind == 'post'
+                                            ? TextButton(
+                                                onPressed: () => context.push(
+                                                  '/posts/${source.id}',
+                                                ),
+                                                child: Text(
+                                                  '${l10n.t('ai.knowledge.post')} #${source.id}',
+                                                ),
+                                              )
+                                            : Text(
+                                                '${l10n.t('ai.knowledge.comment')} #${source.id}',
+                                              ),
+                                    ],
+                                  ],
+                                ),
                               ),
                             ),
                           );
@@ -287,7 +343,11 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
                     l10n.t(_notice!),
-                    style: TextStyle(color: theme.colorScheme.error),
+                    style: TextStyle(
+                      color: _notice == 'ai.knowledge.insufficient'
+                          ? theme.colorScheme.onSurfaceVariant
+                          : theme.colorScheme.error,
+                    ),
                   ),
                 ),
               if (_needsRefresh)
@@ -315,7 +375,11 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
                         minLines: 1,
                         maxLines: 5,
                         decoration: InputDecoration(
-                          hintText: l10n.t('ai.writing.placeholder'),
+                          hintText: l10n.t(
+                            widget.knowledge
+                                ? 'ai.knowledge.placeholder'
+                                : 'ai.writing.placeholder',
+                          ),
                           border: const OutlineInputBorder(),
                         ),
                       ),
@@ -345,8 +409,9 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
 }
 
 class _HistoryDialog extends StatefulWidget {
-  const _HistoryDialog({required this.api});
+  const _HistoryDialog({required this.api, required this.knowledge});
   final AiWritingApi api;
+  final bool knowledge;
   @override
   State<_HistoryDialog> createState() => _HistoryDialogState();
 }
@@ -380,7 +445,12 @@ class _HistoryDialogState extends State<_HistoryDialog> {
         throw const FormatException('Invalid AI cursor');
       }
       setState(() {
-        _items.addAll(page.items.where((item) => item.purpose == 'writing'));
+        _items.addAll(
+          page.items.where(
+            (item) =>
+                item.purpose == (widget.knowledge ? 'knowledge' : 'writing'),
+          ),
+        );
         _next = page.nextCursor;
         _first = false;
       });
@@ -403,7 +473,15 @@ class _HistoryDialogState extends State<_HistoryDialog> {
           children: [
             Expanded(
               child: _items.isEmpty && !_loading && !_failed
-                  ? Center(child: Text(l10n.t('ai.writing.history_empty')))
+                  ? Center(
+                      child: Text(
+                        l10n.t(
+                          widget.knowledge
+                              ? 'ai.knowledge.history_empty'
+                              : 'ai.writing.history_empty',
+                        ),
+                      ),
+                    )
                   : ListView.builder(
                       itemCount: _items.length,
                       itemBuilder: (context, index) {

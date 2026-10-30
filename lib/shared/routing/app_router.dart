@@ -110,6 +110,7 @@ const productionRoutePaths = <String>{
   '/moderation/settings',
   '/sentiment',
   '/ai/writing',
+  '/ai/knowledge',
   '/about',
 };
 
@@ -186,6 +187,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/ai/writing',
             builder: (_, __) => const AiWritingScreen(),
+          ),
+          GoRoute(
+            path: '/ai/knowledge',
+            builder: (_, __) => const AiWritingScreen(knowledge: true),
           ),
           GoRoute(path: '/me', builder: (_, __) => const AccountScreen()),
           GoRoute(path: '/groups', builder: (_, __) => const GroupsScreen()),

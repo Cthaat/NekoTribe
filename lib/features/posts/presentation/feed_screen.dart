@@ -126,6 +126,16 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
         title: Text(l10n.t('app.title')),
         actions: [
           IconButton(
+            key: const Key('feed-ai-knowledge-button'),
+            tooltip: l10n.t('ai.knowledge.title'),
+            icon: const Icon(Icons.library_books_outlined),
+            onPressed: () {
+              if (requireAuthenticatedAction(context, ref)) {
+                context.push('/ai/knowledge');
+              }
+            },
+          ),
+          IconButton(
             key: const Key('feed-ai-writing-button'),
             tooltip: l10n.t('ai.writing.title'),
             icon: const Icon(Icons.auto_awesome_outlined),

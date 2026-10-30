@@ -30,6 +30,22 @@ class FakeWritingApi extends AiWritingApi {
   bool ambiguousAppend = false;
   bool failDelete = false;
   bool hasHistory = false;
+  String historyPurpose = 'writing';
+  bool noEvidence = false;
+  int knowledgeCreations = 0;
+  int knowledgeGenerations = 0;
+  @override
+  Future<String> createKnowledgeConversation() async {
+    knowledgeCreations++;
+    return 'id';
+  }
+
+  @override
+  Future<bool> generateKnowledge(String id) async {
+    knowledgeGenerations++;
+    return !noEvidence;
+  }
+
   @override
   Future<String> createConversation() async => 'id';
   @override
@@ -37,9 +53,9 @@ class FakeWritingApi extends AiWritingApi {
       AiConversationPage(
         items: hasHistory
             ? [
-                const AiConversation(
+                AiConversation(
                   id: 'id',
-                  purpose: 'writing',
+                  purpose: historyPurpose,
                   title: 'previous draft',
                   updatedAt: '2026-01-01',
                 ),
@@ -89,20 +105,24 @@ class FakeWritingApi extends AiWritingApi {
   }) async => messages.where((m) => m.sequence > afterSequence).toList();
 }
 
-Future<void> pumpScreen(WidgetTester tester, FakeWritingApi api) async {
+Future<void> pumpScreen(
+  WidgetTester tester,
+  FakeWritingApi api, {
+  bool knowledge = false,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [aiWritingApiProvider.overrideWithValue(api)],
-      child: const MaterialApp(
-        locale: Locale('zh'),
-        localizationsDelegates: [
+      child: MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: const [
           AppLocalizationsDelegate(),
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: AppLocalizations.supported,
-        home: AiWritingScreen(),
+        home: AiWritingScreen(knowledge: knowledge),
       ),
     ),
   );
@@ -110,6 +130,42 @@ Future<void> pumpScreen(WidgetTester tester, FakeWritingApi api) async {
 }
 
 void main() {
+  testWidgets(
+    'knowledge conversation reports missing evidence without a false answer',
+    (tester) async {
+      final api = FakeWritingApi()..noEvidence = true;
+      await pumpScreen(tester, api, knowledge: true);
+      await tester.enterText(find.byKey(const Key('ai-writing-input')), '猫');
+      await tester.tap(find.byKey(const Key('ai-writing-send')));
+      await tester.pumpAndSettle();
+      expect(api.knowledgeCreations, 1);
+      expect(api.knowledgeGenerations, 1);
+      expect(api.appends, 1);
+      expect(find.text('没有找到匹配的公开资料，请尝试其他文字。'), findsOneWidget);
+      expect(find.text('草稿'), findsNothing);
+    },
+  );
+  testWidgets('knowledge history shows cited sources', (tester) async {
+    final api = FakeWritingApi()
+      ..hasHistory = true
+      ..historyPurpose = 'knowledge';
+    api.messages.add(
+      const AiWritingMessage(
+        id: 'a',
+        sequence: 1,
+        role: 'assistant',
+        content: '回答',
+        citations: [AiKnowledgeCitation(kind: 'post', id: 42)],
+      ),
+    );
+    await pumpScreen(tester, api, knowledge: true);
+    await tester.tap(find.byKey(const Key('ai-writing-history')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('previous draft'));
+    await tester.pumpAndSettle();
+    expect(find.text('回答'), findsOneWidget);
+    expect(find.text('帖子 #42'), findsOneWidget);
+  });
   testWidgets('submits a writing request and shows the generated draft', (
     tester,
   ) async {

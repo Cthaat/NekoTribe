@@ -50,6 +50,15 @@ class AppLocalizations {
 
   static const Map<String, Map<String, String>> _strings = {
     'zh': {
+      'ai.knowledge.title': 'AI 知识助手',
+      'ai.knowledge.description': '按输入的完整文字匹配公开帖子和评论，回答请结合来源核对。',
+      'ai.knowledge.empty': '输入要查找的公开内容原文片段',
+      'ai.knowledge.history_empty': '暂无知识会话',
+      'ai.knowledge.placeholder': '输入要查找的完整原文片段',
+      'ai.knowledge.insufficient': '没有找到匹配的公开资料，请尝试其他文字。',
+      'ai.knowledge.sources': '参考来源',
+      'ai.knowledge.post': '帖子',
+      'ai.knowledge.comment': '评论',
       'ai.writing.title': 'AI 写作助手',
       'ai.writing.history': '历史会话',
       'ai.writing.new': '新建会话',
@@ -622,6 +631,17 @@ class AppLocalizations {
           '切换端点会立即重建网络层；如果切换前后属于不同后端环境，可能需要重新登录。所有 URL 均由 assets/config/app_config.json 与 SharedPreferences 共同管理，源码中不含任何硬编码。',
     },
     'en': {
+      'ai.knowledge.title': 'AI knowledge assistant',
+      'ai.knowledge.description':
+          'Searches public posts and comments for an exact text match. Review the sources.',
+      'ai.knowledge.empty': 'Enter a public text passage to search',
+      'ai.knowledge.history_empty': 'No knowledge conversations yet',
+      'ai.knowledge.placeholder': 'Enter the exact text you want to find',
+      'ai.knowledge.insufficient':
+          'No matching public sources were found. Try different text.',
+      'ai.knowledge.sources': 'Sources',
+      'ai.knowledge.post': 'Post',
+      'ai.knowledge.comment': 'Comment',
       'ai.writing.title': 'AI writing assistant',
       'ai.writing.history': 'Conversation history',
       'ai.writing.new': 'New conversation',

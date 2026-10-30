@@ -40,18 +40,38 @@ class AiConversationPage {
   final String? nextCursor;
 }
 
+class AiKnowledgeCitation {
+  const AiKnowledgeCitation({required this.kind, required this.id});
+  final String kind;
+  final int id;
+
+  factory AiKnowledgeCitation.fromJson(Map<String, dynamic> data) {
+    final kind = data['kind'], id = data['id'], version = data['version'];
+    if ((kind != 'post' && kind != 'comment') ||
+        id is! int ||
+        id < 1 ||
+        version is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(version)) {
+      throw const FormatException('Invalid AI citation');
+    }
+    return AiKnowledgeCitation(kind: kind as String, id: id);
+  }
+}
+
 class AiWritingMessage {
   const AiWritingMessage({
     required this.id,
     required this.sequence,
     required this.role,
     required this.content,
+    this.citations = const [],
   });
 
   final String id;
   final int sequence;
   final String role;
   final String content;
+  final List<AiKnowledgeCitation> citations;
 
   factory AiWritingMessage.fromJson(Map<String, dynamic> json) {
     final id = json['message_id'];
@@ -66,11 +86,20 @@ class AiWritingMessage {
         content is! String) {
       throw const FormatException('Invalid AI message');
     }
+    final citations = json['citations'];
+    if (citations != null && citations is! List) {
+      throw const FormatException('Invalid AI citations');
+    }
     return AiWritingMessage(
       id: id,
       sequence: sequence,
       role: role as String,
       content: content,
+      citations:
+          (citations as List?)
+              ?.map((item) => AiKnowledgeCitation.fromJson(toMap(item)))
+              .toList() ??
+          const [],
     );
   }
 }
@@ -110,6 +139,33 @@ class AiWritingApi {
         throw const FormatException('Invalid AI conversation');
       }
       return id;
+    },
+  );
+
+  Future<String> createKnowledgeConversation() => _client.requestData<String>(
+    ApiPaths.aiConversations,
+    method: 'POST',
+    data: {'purpose': 'knowledge'},
+    decode: (data) {
+      final id = toMap(data)['conversation_id'];
+      if (id is! String || id.isEmpty) {
+        throw const FormatException('Invalid AI conversation');
+      }
+      return id;
+    },
+  );
+
+  Future<bool> generateKnowledge(String id) => _client.requestData<bool>(
+    '${ApiPaths.aiConversations}/${Uri.encodeComponent(id)}/knowledge-generate',
+    method: 'POST',
+    decode: (data) {
+      final result = toMap(data);
+      final status = result['status'];
+      if (status == 'insufficient_evidence' && result['message'] == null) {
+        return false;
+      }
+      if (status == 'generated' && result['message'] is Map) return true;
+      throw const FormatException('Invalid knowledge generation result');
     },
   );
 

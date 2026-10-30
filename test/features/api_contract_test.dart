@@ -17,6 +17,53 @@ import 'package:nekotribe/features/sentiment_flow/data/sentiment_flow_api.dart';
 import 'package:nekotribe/features/users/data/users_api.dart';
 
 void main() {
+  test(
+    'AI knowledge uses shared generation contract and parses citations',
+    () async {
+      final recorder = _ApiRecorder();
+      final api = AiWritingApi(_client(recorder));
+      final id = await api.createKnowledgeConversation();
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/ai/conversations',
+        body: {'purpose': 'knowledge'},
+      );
+      expect(await api.generateKnowledge(id), isFalse);
+      recorder.expectLast(
+        method: 'POST',
+        path: '/api/v2/ai/conversations/$id/knowledge-generate',
+      );
+      recorder.knowledgeResult = {
+        'status': 'generated',
+        'message': {'message_id': 'a'},
+      };
+      expect(await api.generateKnowledge(id), isTrue);
+      recorder.knowledgeResult = {'status': 'generated', 'message': null};
+      await expectLater(api.generateKnowledge(id), throwsFormatException);
+      final message = AiWritingMessage.fromJson({
+        'message_id': 'a',
+        'sequence_no': 2,
+        'role': 'assistant',
+        'content': 'answer',
+        'citations': [
+          {'kind': 'post', 'id': 42, 'version': 'a' * 64},
+        ],
+      });
+      expect(message.citations.single.id, 42);
+      expect(
+        () => AiWritingMessage.fromJson({
+          'message_id': 'a',
+          'sequence_no': 2,
+          'role': 'assistant',
+          'content': 'answer',
+          'citations': [
+            {'kind': 'post', 'id': 42, 'version': 'invalid'},
+          ],
+        }),
+        throwsFormatException,
+      );
+    },
+  );
   test('AI writing uses the shared conversation contract', () async {
     final recorder = _ApiRecorder();
     final api = AiWritingApi(_client(recorder));
@@ -929,6 +976,10 @@ class _ApiRecorder implements HttpClientAdapter {
   _ApiRecorder({this.unreadNotificationTotal = 7});
 
   final int unreadNotificationTotal;
+  Map<String, Object?> knowledgeResult = {
+    'status': 'insufficient_evidence',
+    'message': null,
+  };
   final requests = <RequestOptions>[];
 
   @override
@@ -1006,6 +1057,10 @@ class _ApiRecorder implements HttpClientAdapter {
         };
       }
       return {'conversation_id': 'f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb'};
+    }
+    if (path.startsWith('/api/v2/ai/conversations/') &&
+        path.endsWith('/knowledge-generate')) {
+      return knowledgeResult;
     }
     if (path.startsWith('/api/v2/ai/conversations/') &&
         path.endsWith('/messages') &&
