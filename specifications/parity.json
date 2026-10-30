@@ -9144,7 +9144,8 @@
         "specifications/requirements/ai-knowledge-source.md",
         "specifications/scenarios/ai-knowledge-source-vectors.json",
         "specifications/requirements/ai-knowledge-discovery.md",
-        "specifications/requirements/ai-knowledge-turn.md"
+        "specifications/requirements/ai-knowledge-turn.md",
+        "specifications/scenarios/ai-knowledge-citation-vectors.json"
       ]
     },
     {
@@ -11588,6 +11589,16 @@
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-source.md",
         "go": "contracts/requirements/ai-knowledge-source.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-knowledge-citation-vectors.json",
+        "sha256": "661d9db81561ee916e00310c0a5aed904be06ab6d58c5f613dd5563608dde2af"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-knowledge-citation-vectors.json",
+        "go": "contracts/scenarios/ai-knowledge-citation-vectors.json"
       }
     },
     {
