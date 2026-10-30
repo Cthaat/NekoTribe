@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-30-ai-context-preview"
+    "x-contract-revision": "2026-10-30-ai-terms-citations-preview"
   },
   "tags": [
     {
@@ -30543,14 +30543,29 @@
                             "description": "Present on knowledge assistant messages after current source revalidation.",
                             "maxItems": 20,
                             "items": {
-                              "type": "object",
-                              "required": ["kind", "id", "version", "post_id"],
-                              "properties": {
-                                "kind": {"type": "string", "enum": ["post", "comment"]},
-                                "id": {"type": "integer", "minimum": 1, "maximum": 999999999999999},
-                                "post_id": {"type": "integer", "minimum": 1, "maximum": 999999999999999, "description": "经过当前访问权限和来源版本复核的所属帖子 ID。"},
-                                "version": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
-                              }
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "required": ["kind", "id", "version", "post_id"],
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "kind": {"type": "string", "enum": ["post", "comment"]},
+                                    "id": {"type": "integer", "minimum": 1, "maximum": 999999999999999},
+                                    "post_id": {"type": "integer", "minimum": 1, "maximum": 999999999999999, "description": "经过当前访问权限和来源版本复核的所属帖子 ID。"},
+                                    "version": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "required": ["kind", "id", "version"],
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "kind": {"type": "string", "enum": ["terms"]},
+                                    "id": {"type": "integer", "minimum": 1, "maximum": 8, "description": "固定条款章节和语言编号；客户端映射至对应的站内条款页面。"},
+                                    "version": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                                  }
+                                }
+                              ]
                             }
                           },
                           "model_id": {
