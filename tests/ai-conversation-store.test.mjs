@@ -19,7 +19,7 @@ const stubs = {
     export const v2Execute=async(c,sql,binds,autoCommit)=>c.insert(sql,binds,autoCommit);
     export const v2One=async(c,sql,binds)=>c.read(sql,binds);`,
   '~/server/database/readiness': `export const requireFeatureSchema=async(c,feature)=>{c.checks.push(feature)};`,
-  './knowledge-source': `export async function hydrateKnowledgeSources(e,c,refs){c.knowledgeChecks++;if(c.revokeKnowledgeAfterMessage && c.pendingMessage)return [];return c.knowledgeRows??[]}`,
+  './knowledge-source': `export async function hydrateKnowledgeSources(e,c,refs){c.knowledgeChecks++;if(c.revokeKnowledgeAfterMessage && c.pendingMessage)return [];return (c.knowledgeRows??[]).filter(r=>refs.some(x=>x.kind===r.kind && x.id===r.id) && !(c.pendingMessage && c.revokeHistoryId===r.id))}`,
   '~/server/services/v2/groups': `export const v2GroupPermission=async(c)=>{c.permissionChecks++;if(c.permissionError)throw Error('database failure');return c.allowed};`,
   '~/server/services/v2/moderation': `export const requireModerationAccess=async(e,c)=>{if(!c.moderator)throw Object.assign(Error('403:需要审核权限'),{statusCode:403})};`
 };
@@ -99,6 +99,19 @@ test('knowledge assistant rolls back when sources change before commit and rejec
   db.revokeKnowledgeAfterMessage=true;
   await assert.rejects(()=>appendKnowledgeAssistantMessage(actor,db,c.conversation_id,{answer:'answer',sources:[ref],expectedSequence:1,modelId:'p',configRevision:1}),/500:/);
   assert.equal(db.messages.length,1);assert.equal(db.rollbacks,2);
+});
+test('selected historical sources are revalidated in the answer transaction',async()=>{
+ const db=database(),actor={userId:42},ref={kind:'post',id:1,version:'a'.repeat(64)};
+ db.knowledgeRows=[{...ref,post_id:1,content:'public'}];const c=await createConversation(actor,db,{purpose:'knowledge'});await appendUserMessage(actor,db,c.conversation_id,'question');
+ await appendKnowledgeAssistantMessage(actor,db,c.conversation_id,{answer:'answer',sources:[ref],contextSources:[ref],expectedSequence:1,modelId:'p',configRevision:1});
+ assert.equal(db.knowledgeChecks,4);assert.deepEqual(JSON.parse(db.messages[1].content),{version:1,answer:'answer',sources:[ref]});
+});
+test('revoked historical source rolls back even when new answer sources remain visible',async()=>{
+ const db=database(),actor={userId:42},newRef={kind:'post',id:1,version:'a'.repeat(64)},oldRef={kind:'comment',id:2,version:'b'.repeat(64)};
+ db.knowledgeRows=[{...newRef,post_id:1,content:'new'},{...oldRef,post_id:1,content:'old'}];const c=await createConversation(actor,db,{purpose:'knowledge'});await appendUserMessage(actor,db,c.conversation_id,'question');
+ db.revokeHistoryId=2;
+ await assert.rejects(()=>appendKnowledgeAssistantMessage(actor,db,c.conversation_id,{answer:'answer',sources:[newRef],contextSources:[oldRef],expectedSequence:1,modelId:'p',configRevision:1}),/500:/);
+ assert.equal(db.messages.length,1);assert.equal(db.rollbacks,1);
 });
 test('legacy unreferenced knowledge assistant history fails closed',async()=>{
   const db=database(),actor={userId:42};const c=await createConversation(actor,db,{purpose:'knowledge'});

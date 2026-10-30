@@ -999,7 +999,7 @@
       },
       {
         "path": "server/services/ai/conversation-store.ts",
-        "sha256": "0b378ab9c9287190559ecd40fea0cb94e0840a4cd9cca52163c91445b0ef9de3"
+        "sha256": "f90d382328c281bf2b7fa491642d5a5a5a9e925329389210434e608e05ff4568"
       },
       {
         "path": "server/services/ai/inference-transport.ts",
@@ -1024,6 +1024,10 @@
       {
         "path": "server/services/ai/knowledge-citations.ts",
         "sha256": "6fc0ba8b7b36056b61158794de2bc931730112253c5e67925207772604de03d7"
+      },
+      {
+        "path": "server/services/ai/knowledge-context.ts",
+        "sha256": "218dff40dffe2e3cb1143753085ca8e368b743832533515494ecf9cedd4dcaef"
       },
       {
         "path": "server/services/ai/knowledge-history.ts",
@@ -9007,7 +9011,7 @@
     },
     {
       "id": "AI-KNOWLEDGE-WRITING",
-      "revision": 5,
+      "revision": 6,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [
@@ -9031,6 +9035,7 @@
         "server/services/ai/knowledge-search-body.ts",
         "server/services/ai/knowledge-citations.ts",
         "server/services/ai/knowledge-history.ts",
+        "server/services/ai/knowledge-context.ts",
         "server/services/ai/knowledge-conversation-service.ts"
       ],
       "operations": [
@@ -9052,7 +9057,7 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 5,
+          "targetRevision": 6,
           "tasks": [
             "nuxt: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9101,6 +9106,8 @@
             "server/services/ai/knowledge-citations.ts",
             "tests/ai-knowledge-citations.test.mjs",
             "server/services/ai/knowledge-history.ts",
+            "server/services/ai/knowledge-context.ts",
+            "tests/ai-knowledge-context.test.mjs",
             "tests/ai-knowledge-history.test.mjs",
             "server/services/ai/knowledge-conversation-service.ts",
             "tests/ai-knowledge-conversation-service.test.mjs"
@@ -9109,7 +9116,7 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 5,
+          "targetRevision": 6,
           "tasks": [
             "rust: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9146,7 +9153,7 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 5,
+          "targetRevision": 6,
           "tasks": [
             "go: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -11646,7 +11653,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-history.md",
-        "sha256": "024ec4c858114fe44dec7eaa6b1c93d5f6727b808d88f5411b60199cb3dcc5a2"
+        "sha256": "e056c3c24e1f51bb07aad7272aa84b6e4d0c6cf983f06a463cb493668a34f4aa"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-history.md",
