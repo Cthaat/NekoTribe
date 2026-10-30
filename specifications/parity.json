@@ -1002,6 +1002,10 @@
         "sha256": "c1b0968803e40ea174a24a60be3652d0e5c396cb624eddc9dba06bacc248d37e"
       },
       {
+        "path": "server/services/ai/knowledge-source.ts",
+        "sha256": "d2ee660bf3263de373cd6164e8f00ad86ab1697e31454e4d8a931a6f72e87041"
+      },
+      {
         "path": "server/services/ai/model-configuration.ts",
         "sha256": "8ed5369cd394c578c3f5e383434743b5344afcf14c8dce9a054eecfe0e5451ad"
       },
@@ -8991,7 +8995,8 @@
         "server/services/ai/writing-service.ts",
         "server/services/ai/writing-turn.ts",
         "server/api/v2/ai/conversations/[id].delete.ts",
-        "server/api/v2/ai/conversations/index.get.ts"
+        "server/api/v2/ai/conversations/index.get.ts",
+        "server/services/ai/knowledge-source.ts"
       ],
       "operations": [
         "POST /api/v2/ai/conversations",
@@ -9041,7 +9046,9 @@
             "app/api/v2/ai-writing.ts",
             "app/services/ai-writing-controller.ts",
             "tests/ai-writing-client.test.mjs",
-            "tests/ai-writing-api.test.mjs"
+            "tests/ai-writing-api.test.mjs",
+            "server/services/ai/knowledge-source.ts",
+            "tests/ai-knowledge-source.test.mjs"
           ],
           "evidence": []
         },
@@ -9091,7 +9098,9 @@
         "specifications/requirements/ai-conversation-schema-catalog.json",
         "specifications/scenarios/ai-agent-runtime.json",
         "specifications/requirements/ai-tool-history.md",
-        "specifications/scenarios/ai-tool-history.json"
+        "specifications/scenarios/ai-tool-history.json",
+        "specifications/requirements/ai-knowledge-source.md",
+        "specifications/scenarios/ai-knowledge-source-vectors.json"
       ]
     },
     {
@@ -11525,6 +11534,26 @@
         "rust": "contracts/scenarios/storage-local-policy.json",
         "go": "contracts/scenarios/storage-local-policy.json",
         "flutter": "contracts/scenarios/storage-local-policy.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-knowledge-source.md",
+        "sha256": "c3a013f01b05e7a1d8ec0c713e55e06f1c330167ced3bdef426462787806fff0"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-knowledge-source.md",
+        "go": "contracts/requirements/ai-knowledge-source.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-knowledge-source-vectors.json",
+        "sha256": "313a6317f104aa3241ac5de9c546e56097a04709c5920f77251eba788c7f2806"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-knowledge-source-vectors.json",
+        "go": "contracts/scenarios/ai-knowledge-source-vectors.json"
       }
     }
   ]
