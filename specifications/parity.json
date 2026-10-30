@@ -9015,7 +9015,7 @@
     },
     {
       "id": "AI-KNOWLEDGE-WRITING",
-      "revision": 11,
+      "revision": 12,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [
@@ -9062,7 +9062,7 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 11,
+          "targetRevision": 12,
           "tasks": [
             "nuxt: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9126,7 +9126,7 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 11,
+          "targetRevision": 12,
           "tasks": [
             "rust: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9167,7 +9167,7 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 11,
+          "targetRevision": 12,
           "tasks": [
             "go: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -11725,7 +11725,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-public-terms-source.md",
-        "sha256": "79e2483484ae3541a8a82f7cfb76d314f7bfec187a9c4c3ed6862e0754e345cb"
+        "sha256": "dfc42c51f97e42f77d608235fa454671115573500a22c1ac3b43eae97eb883e0"
       },
       "copies": {
         "rust": "contracts/requirements/ai-public-terms-source.md",
