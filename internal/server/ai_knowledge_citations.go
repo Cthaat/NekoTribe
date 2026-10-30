@@ -41,7 +41,7 @@ func parseKnowledgeAnswer(text string, verified []knowledgeCandidate) (knowledge
 		kind, kindOK := item["kind"].(string)
 		version, versionOK := item["version"].(string)
 		id, idOK := item["id"].(float64)
-		if !kindOK || !versionOK || !idOK || (kind != "post" && kind != "comment") || id < 1 || id > float64(knowledgeMaxID) || math.Trunc(id) != id {
+		if !kindOK || !versionOK || !idOK || (kind != "post" && kind != "comment" && kind != "terms") || id < 1 || id > float64(knowledgeMaxID) || (kind == "terms" && id > 8) || math.Trunc(id) != id {
 			return knowledgeTurnResult{}, errKnowledgeCitations
 		}
 		candidate := knowledgeCandidate{Kind: kind, ID: int64(id), Version: version}

@@ -9,6 +9,19 @@ import (
 	"testing"
 )
 
+func TestKnowledgeCitationsAcceptVerifiedTermsOnly(t *testing.T) {
+	terms := knowledgeCandidate{Kind: "terms", ID: 3, Version: strings.Repeat("b", 64)}
+	data, _ := json.Marshal(map[string]any{"answer": "answer", "citations": []knowledgeCandidate{terms}})
+	if _, err := parseKnowledgeAnswer(string(data), []knowledgeCandidate{terms}); err != nil {
+		t.Fatal(err)
+	}
+	terms.ID = 9
+	data, _ = json.Marshal(map[string]any{"answer": "answer", "citations": []knowledgeCandidate{terms}})
+	if _, err := parseKnowledgeAnswer(string(data), []knowledgeCandidate{terms}); !errors.Is(err, errKnowledgeCitations) {
+		t.Fatal(err)
+	}
+}
+
 func TestKnowledgeCitationsSharedVectors(t *testing.T) {
 	data, err := os.ReadFile("../../contracts/scenarios/ai-knowledge-citation-vectors.json")
 	if err != nil {

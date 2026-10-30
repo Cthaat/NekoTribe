@@ -41,7 +41,7 @@ type knowledgeCitation struct {
 	Kind    string `json:"kind"`
 	ID      int64  `json:"id"`
 	Version string `json:"version"`
-	PostID  int64  `json:"post_id"`
+	PostID  int64  `json:"post_id,omitempty"`
 }
 type knowledgeRestored struct {
 	knowledgeTurnResult
@@ -103,7 +103,7 @@ func restoreKnowledgeMessage(ctx context.Context, encoded string, hydrate func(c
 	}
 	byKey := make(map[string]knowledgeSource, len(rows))
 	for _, row := range rows {
-		if !validKnowledgeID(row.PostID) || (row.Kind == "post" && row.PostID != row.ID) {
+		if (row.Kind == "terms" && row.PostID != 0) || (row.Kind != "terms" && (!validKnowledgeID(row.PostID) || (row.Kind == "post" && row.PostID != row.ID))) {
 			return knowledgeRestored{}, errKnowledgeSourceChanged
 		}
 		byKey[knowledgeKey(row.Kind, row.ID)] = row

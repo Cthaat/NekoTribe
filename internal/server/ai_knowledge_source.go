@@ -24,7 +24,7 @@ type knowledgeCandidate struct {
 type knowledgeSource struct {
 	Kind    string `json:"kind"`
 	ID      int64  `json:"id"`
-	PostID  int64  `json:"post_id"`
+	PostID  int64  `json:"post_id,omitempty"`
 	Content string `json:"content"`
 	Version string `json:"version"`
 }
@@ -45,7 +45,7 @@ func validateKnowledgeCandidates(viewer int64, candidates []knowledgeCandidate) 
 	}
 	seen := make(map[string]bool, len(candidates))
 	for _, c := range candidates {
-		if (c.Kind != "post" && c.Kind != "comment") || !validKnowledgeID(c.ID) || !knowledgeVersion.MatchString(c.Version) {
+		if (c.Kind != "post" && c.Kind != "comment" && c.Kind != "terms") || !validKnowledgeID(c.ID) || (c.Kind == "terms" && c.ID > 8) || !knowledgeVersion.MatchString(c.Version) {
 			return errKnowledgeInvalid
 		}
 		key := fmt.Sprintf("%s:%d", c.Kind, c.ID)
@@ -59,6 +59,11 @@ func validateKnowledgeCandidates(viewer int64, candidates []knowledgeCandidate) 
 func hydrateKnowledge(ctx context.Context, reader knowledgeReader, viewer int64, candidates []knowledgeCandidate) ([]knowledgeSource, error) {
 	if err := validateKnowledgeCandidates(viewer, candidates); err != nil {
 		return nil, err
+	}
+	for _, c := range candidates {
+		if c.Kind == "terms" {
+			return nil, errKnowledgeInvalid
+		}
 	}
 	result := make([]knowledgeSource, 0, len(candidates))
 	for _, c := range candidates {
@@ -93,6 +98,9 @@ type knowledgeQueryer interface {
 type oracleKnowledgeReader struct{ conn knowledgeQueryer }
 
 func (r oracleKnowledgeReader) get(ctx context.Context, viewer int64, c knowledgeCandidate) (knowledgeSource, bool, error) {
+	if c.Kind != "post" && c.Kind != "comment" {
+		return knowledgeSource{}, false, errKnowledgeInvalid
+	}
 	query := knowledgePostSQL
 	if c.Kind == "comment" {
 		query = knowledgeCommentSQL
@@ -125,6 +133,11 @@ func (r oracleKnowledgeReader) get(ctx context.Context, viewer int64, c knowledg
 func (s OracleSessions) hydrateKnowledgeSources(ctx context.Context, viewer int64, candidates []knowledgeCandidate) (result []knowledgeSource, err error) {
 	if err = validateKnowledgeCandidates(viewer, candidates); err != nil {
 		return nil, err
+	}
+	for _, c := range candidates {
+		if c.Kind == "terms" {
+			return nil, errKnowledgeInvalid
+		}
 	}
 	conn, e := s.DB.Conn(ctx)
 	if e != nil {

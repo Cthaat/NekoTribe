@@ -63,6 +63,18 @@ func TestSelectKnowledgeContextHistoryAndSources(t *testing.T) {
 		t.Fatal("snapshot aliases input citations")
 	}
 }
+func TestKnowledgeContextTermsHasNoPostID(t *testing.T) {
+	citation := knowledgeCitation{Kind: "terms", ID: 3, Version: strings.Repeat("b", 64)}
+	history := []conversationHistoryMessage{{SequenceNo: 1, Role: "assistant", Content: "old", Citations: []knowledgeCitation{citation}}, {SequenceNo: 2, Role: "user", Content: "question"}}
+	result, err := selectKnowledgeContext(history, 10000, 20)
+	if err != nil || len(result.Sources) != 1 || result.Sources[0].Kind != "terms" {
+		t.Fatal(result, err)
+	}
+	history[0].Citations[0].PostID = 3
+	if _, err = selectKnowledgeContext(history, 10000, 20); !errors.Is(err, errKnowledgeConversationContext) {
+		t.Fatal(err)
+	}
+}
 
 func TestSelectKnowledgeContextLimitsAndInvalidHistory(t *testing.T) {
 	ref := knowledgeCitation{Kind: "post", ID: 1, PostID: 1, Version: strings.Repeat("a", 64)}

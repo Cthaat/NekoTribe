@@ -29,6 +29,31 @@ func TestKnowledgeHistoryRestoresOnlyCurrentSources(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+func TestKnowledgeHistoryRestoresMixedTermsWithoutPostID(t *testing.T) {
+	post := knowledgeCandidate{Kind: "post", ID: 1, Version: strings.Repeat("a", 64)}
+	terms := knowledgeCandidate{Kind: "terms", ID: 3, Version: strings.Repeat("b", 64)}
+	encoded, err := encodeKnowledgeMessage("回答", []knowledgeCandidate{post, terms})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := []knowledgeSource{{Kind: post.Kind, ID: post.ID, PostID: 1, Content: "post", Version: post.Version}, {Kind: terms.Kind, ID: terms.ID, Content: "terms", Version: terms.Version}}
+	result, err := restoreKnowledgeMessage(context.Background(), encoded, func(context.Context, []knowledgeCandidate) ([]knowledgeSource, error) { return rows, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	bytes, err := json.Marshal(result.Citations)
+	var encodedCitations []map[string]any
+	if err != nil || json.Unmarshal(bytes, &encodedCitations) != nil || len(encodedCitations) != 2 || encodedCitations[0]["post_id"] != float64(1) {
+		t.Fatal(string(bytes), err)
+	}
+	if _, present := encodedCitations[1]["post_id"]; present {
+		t.Fatal("terms citation has post ID", string(bytes))
+	}
+	rows[1].PostID = 3
+	if _, err = restoreKnowledgeMessage(context.Background(), encoded, func(context.Context, []knowledgeCandidate) ([]knowledgeSource, error) { return rows, nil }); !errors.Is(err, errKnowledgeSourceChanged) {
+		t.Fatal(err)
+	}
+}
 func TestKnowledgeHistoryRejectsInvalidAndOversize(t *testing.T) {
 	ref := knowledgeCandidate{Kind: "post", ID: 1, Version: strings.Repeat("a", 64)}
 	if _, err := encodeKnowledgeMessage("text", []knowledgeCandidate{ref, ref}); !errors.Is(err, errKnowledgeHistory) {
