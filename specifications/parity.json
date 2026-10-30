@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "2aa3ed6330cefdc17ec19f93ddd73f56dbf0b040ecacb9303ab5122f2435ab05"
+      "sha256": "2d3abb5e8a3d30344575d09b18946ef50aa1c160ff1008a12e63bb3cc9026915"
     },
     "sources": [
       {
@@ -9055,7 +9055,9 @@
             "internal/server/ai_conversation_store_test.go",
             "internal/server/ai_conversation_schema_test.go",
             "internal/server/ai_conversation_http.go",
-            "internal/server/ai_conversation_http_test.go"
+            "internal/server/ai_conversation_http_test.go",
+            "internal/server/ai_writing.go",
+            "internal/server/ai_writing_test.go"
           ],
           "evidence": []
         }

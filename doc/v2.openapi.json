@@ -30536,7 +30536,7 @@
     "/api/v2/ai/conversations/{id}/generate": {
       "post": {
         "summary": "生成写作会话回复",
-        "description": "仅 writing 用途；根据已保存的最后一条用户消息和近期上下文生成待审阅草稿。客户端不能指定模型、提供方或凭据。仅 Nuxt 实现，其他后端待接入。",
+        "description": "仅 writing 用途；根据已保存的最后一条用户消息和近期上下文生成待审阅草稿。客户端不能指定模型、提供方或凭据。",
         "operationId": "generateAIWritingReply",
         "tags": [
           "AI"
