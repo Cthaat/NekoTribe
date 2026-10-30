@@ -153,7 +153,10 @@ void main() {
   ) async {
     final api = FakeWritingApi()..noEvidence = true;
     await pumpScreen(tester, api, knowledge: true);
-    await tester.enterText(find.byKey(const Key('ai-knowledge-search')), '\ufeff猫\u00a0');
+    await tester.enterText(
+      find.byKey(const Key('ai-knowledge-search')),
+      '\ufeff猫\u00a0',
+    );
     await tester.enterText(
       find.byKey(const Key('ai-writing-input')),
       '社区有什么猫？',
@@ -193,7 +196,7 @@ void main() {
         sequence: 1,
         role: 'assistant',
         content: '回答',
-        citations: [AiKnowledgeCitation(kind: 'post', id: 42)],
+        citations: [AiKnowledgeCitation(kind: 'comment', id: 42, postId: 99)],
       ),
     );
     await pumpScreen(tester, api, knowledge: true);
@@ -202,7 +205,8 @@ void main() {
     await tester.tap(find.text('previous draft'));
     await tester.pumpAndSettle();
     expect(find.text('回答'), findsOneWidget);
-    expect(find.text('帖子 #42'), findsOneWidget);
+    expect(find.text('评论 #42'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '评论 #42'), findsOneWidget);
   });
   testWidgets('submits a writing request and shows the generated draft', (
     tester,

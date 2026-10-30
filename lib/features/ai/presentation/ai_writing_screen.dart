@@ -359,13 +359,14 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
                                         style: theme.textTheme.labelSmall,
                                       ),
                                       for (final source in message.citations)
-                                        source.kind == 'post'
+                                        source.kind == 'post' ||
+                                                source.postId != null
                                             ? TextButton(
                                                 onPressed: () => context.push(
-                                                  '/posts/${source.id}',
+                                                  '/posts/${source.postId ?? source.id}',
                                                 ),
                                                 child: Text(
-                                                  '${l10n.t('ai.knowledge.post')} #${source.id}',
+                                                  '${l10n.t(source.kind == 'post' ? 'ai.knowledge.post' : 'ai.knowledge.comment')} #${source.id}',
                                                 ),
                                               )
                                             : Text(

@@ -47,10 +47,26 @@ void main() {
         'role': 'assistant',
         'content': 'answer',
         'citations': [
-          {'kind': 'post', 'id': 42, 'version': 'a' * 64},
+          {'kind': 'comment', 'id': 42, 'post_id': 99, 'version': 'a' * 64},
         ],
       });
       expect(message.citations.single.id, 42);
+      expect(message.citations.single.postId, 99);
+      final legacy = AiKnowledgeCitation.fromJson({
+        'kind': 'comment',
+        'id': 42,
+        'version': 'b' * 64,
+      });
+      expect(legacy.postId, isNull);
+      expect(
+        () => AiKnowledgeCitation.fromJson({
+          'kind': 'post',
+          'id': 42,
+          'post_id': 99,
+          'version': 'a' * 64,
+        }),
+        throwsFormatException,
+      );
       expect(
         () => AiWritingMessage.fromJson({
           'message_id': 'a',

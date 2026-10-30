@@ -41,20 +41,35 @@ class AiConversationPage {
 }
 
 class AiKnowledgeCitation {
-  const AiKnowledgeCitation({required this.kind, required this.id});
+  const AiKnowledgeCitation({
+    required this.kind,
+    required this.id,
+    this.postId,
+  });
   final String kind;
   final int id;
+  final int? postId;
 
   factory AiKnowledgeCitation.fromJson(Map<String, dynamic> data) {
-    final kind = data['kind'], id = data['id'], version = data['version'];
+    final kind = data['kind'],
+        id = data['id'],
+        version = data['version'],
+        postId = data['post_id'];
     if ((kind != 'post' && kind != 'comment') ||
         id is! int ||
         id < 1 ||
         version is! String ||
-        !RegExp(r'^[0-9a-f]{64}$').hasMatch(version)) {
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(version) ||
+        (postId != null &&
+            (postId is! int || postId < 1 || postId > 999999999999999)) ||
+        (kind == 'post' && postId != null && postId != id)) {
       throw const FormatException('Invalid AI citation');
     }
-    return AiKnowledgeCitation(kind: kind as String, id: id);
+    return AiKnowledgeCitation(
+      kind: kind as String,
+      id: id,
+      postId: postId as int?,
+    );
   }
 }
 
