@@ -8974,14 +8974,18 @@
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 3,
           "tasks": [
             "go: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
             "go: implement scoped knowledge retrieval, persistent conversation context and controlled versioned Skills according to ai-agent-runtime.md."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/ai_conversation_store.go",
+            "internal/server/ai_conversation_store_test.go",
+            "internal/server/ai_conversation_schema_test.go"
+          ],
           "evidence": []
         }
       },
@@ -10906,6 +10910,16 @@
       "copies": {
         "rust": "contracts/requirements/ai-conversation-schema-catalog.json",
         "go": "contracts/requirements/ai-conversation-schema-catalog.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-conversation-readiness.json",
+        "sha256": "66c659e7b55b3b05de07b2871792445a003fe3f2b87388f590f613491e50cc72"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-conversation-readiness.json",
+        "go": "contracts/scenarios/ai-conversation-readiness.json"
       }
     },
     {
