@@ -21,30 +21,76 @@ const stubs = {
   '~/server/services/v2/moderation': `export const requireModerationAccess=async(e,c)=>{if(!c.moderator)throw Error('403:需要审核权限')};`
 };
 const compiled = await build({
-  stdin: { contents: `export {createConversation,readConversation} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
+  stdin: { contents: `export {createConversation,readConversation,appendUserMessage} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'conversation-store-boundaries', setup(builder) {
     builder.onResolve({ filter: /.*/ }, args => { if (Object.hasOwn(stubs, args.path)) return { path: args.path, namespace: 'stub' }; });
     builder.onLoad({ filter: /.*/, namespace: 'stub' }, args => ({ contents: stubs[args.path], loader: 'js' }));
   }}]
 });
-const { createConversation, readConversation } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+const { createConversation, readConversation, appendUserMessage } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 function database() {
-  return { checks: [], permissionChecks: 0, allowed: true, moderator: true, saved: null, pending: null, commits: 0, rollbacks: 0,
+  return { checks: [], permissionChecks: 0, allowed: true, moderator: true, saved: null, pending: null, messages: [], pendingMessage: null, commits: 0, rollbacks: 0,
     async insert(sql, binds, autoCommit) {
+      if (/INSERT INTO n_ai_messages/.test(sql)) {
+        assert.equal(autoCommit, false); this.pendingMessage = binds;
+        if (this.revokeAfterMessage) this.allowed = false;
+        return 1;
+      }
+      if (/UPDATE n_ai_conversations/.test(sql)) return 1;
       assert.match(sql, /INSERT INTO n_ai_conversations/); assert.equal(autoCommit, false);
       this.pending = { CONVERSATION_ID: binds.conversation_id, OWNER_USER_ID: binds.owner_user_id, PURPOSE: binds.purpose, GROUP_ID: binds.group_id, TITLE: binds.title, CREATED_AT: 'created', UPDATED_AT: 'updated' };
       if (this.revokeAfterInsert) this.allowed = false;
       return 1;
     },
     async read(sql, binds) {
+      if (/MAX\(sequence_no\)/i.test(sql)) return { NEXT_SEQUENCE: this.messages.length + 1 };
       assert.match(sql, /owner_user_id=:owner_user_id/);
+      if (this.expectLock) assert.match(sql, /FOR UPDATE/i);
       const row = this.pending ?? this.saved;
       return row && row.CONVERSATION_ID === binds.conversation_id && row.OWNER_USER_ID === binds.owner_user_id ? row : null;
     },
-    async commit() { this.commits++; if (this.failCommit) throw Error('private'); this.saved = this.pending; this.pending = null; },
-    async rollback() { this.rollbacks++; if (this.failRollback) throw Error('private rollback'); this.pending = null; }
+    async commit() { this.commits++; if (this.failCommit) throw Error('private'); if (this.pending) this.saved = this.pending; this.pending = null; if (this.pendingMessage) this.messages.push(this.pendingMessage); this.pendingMessage = null; },
+    async rollback() { this.rollbacks++; if (this.failRollback) throw Error('private rollback'); this.pending = null; this.pendingMessage = null; }
   };
 }
+
+test('append locks owned conversation and persists sequential user messages', async () => {
+  const db = database();
+  const conversation = await createConversation({ userId: 42 }, db, { purpose: 'knowledge' });
+  db.expectLock = true;
+  const first = await appendUserMessage({ userId: 42 }, db, conversation.conversation_id, 'hello');
+  const second = await appendUserMessage({ userId: 42 }, db, conversation.conversation_id, 'world');
+  assert.deepEqual([first.sequence_no, second.sequence_no], [1, 2]);
+  assert.deepEqual(db.messages.map(m => m.content), ['hello', 'world']);
+  await assert.rejects(() => appendUserMessage({ userId: 9 }, db, conversation.conversation_id, 'private'), /404:会话不存在/);
+  assert.equal(db.messages.length, 2);
+});
+
+test('append rolls back when a group administrator loses access before commit', async () => {
+  const db = database();
+  const conversation = await createConversation({ userId: 42 }, db, { purpose: 'group', group_id: 7 });
+  db.revokeAfterMessage = true;
+  await assert.rejects(() => appendUserMessage({ userId: 42 }, db, conversation.conversation_id, 'hello'), /403:需要群管理员权限/);
+  assert.equal(db.messages.length, 0);
+  assert.equal(db.rollbacks, 1);
+});
+
+test('append rejects empty or excessive messages', async () => {
+  const db = database();
+  const conversation = await createConversation({ userId: 42 }, db, { purpose: 'knowledge' });
+  await assert.rejects(() => appendUserMessage({ userId: 42 }, db, conversation.conversation_id, ''), /400:/);
+  await assert.rejects(() => appendUserMessage({ userId: 42 }, db, conversation.conversation_id, 'x'.repeat(65537)), /400:/);
+  await assert.rejects(() => appendUserMessage({ userId: 42 }, db, conversation.conversation_id, '猫'.repeat(21846)), /400:/);
+  assert.equal(db.messages.length, 0);
+});
+
+test('append reports an uncertain commit as failure without claiming rollback', async () => {
+  const db = database();
+  const conversation = await createConversation({ userId: 42 }, db, { purpose: 'knowledge' });
+  db.failCommit = true;
+  await assert.rejects(() => appendUserMessage({ userId: 42 }, db, conversation.conversation_id, 'hello'), error => error.message === '500:internal');
+  assert.equal(db.rollbacks, 0);
+});
 
 test('create and read restrict ownership and never accept provider credentials', async () => {
   const db = database();

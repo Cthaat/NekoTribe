@@ -73,3 +73,48 @@ export async function createConversation(event: H3Event, connection: oracledb.Co
     throw error;
   }
 }
+
+/** Internal entry point for a user turn; model/tool turns must use their own trusted path. */
+export async function appendUserMessage(
+  event: H3Event,
+  connection: oracledb.Connection,
+  id: string,
+  content: unknown
+): Promise<{ message_id: string; conversation_id: string; sequence_no: number; role: 'user' }> {
+  const actor = v2Auth(event);
+  if (!validId(id)) v2NotFound('会话不存在');
+  if (typeof content !== 'string' || content.length === 0 || Buffer.byteLength(content, 'utf8') > 65536) {
+    v2BadRequest('消息内容错误');
+  }
+  await requireFeatureSchema(connection, 'ai-conversations');
+  let commitStarted = false;
+  try {
+    const row = await v2One(connection, `SELECT conversation_id,owner_user_id,purpose,group_id,title,created_at,updated_at
+      FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id FOR UPDATE`,
+      { conversation_id: id, owner_user_id: actor.userId });
+    if (!row) v2NotFound('会话不存在');
+    const scope = mapRow(row);
+    await authorizeConversationScope(event, connection, { ownerUserId: v2Number(row.OWNER_USER_ID), purpose: scope.purpose, groupId: scope.group_id });
+    const next = await v2One(connection, 'SELECT NVL(MAX(sequence_no),0)+1 AS next_sequence FROM n_ai_messages WHERE conversation_id=:conversation_id', { conversation_id: id });
+    const sequenceNo = v2Number(next?.NEXT_SEQUENCE);
+    if (!Number.isSafeInteger(sequenceNo) || sequenceNo <= 0 || sequenceNo > 9999999999) v2ServerError();
+    const messageId = randomUUID();
+    const inserted = await v2Execute(connection, `INSERT INTO n_ai_messages
+      (message_id,conversation_id,sequence_no,role,content)
+      VALUES (:message_id,:conversation_id,:sequence_no,'user',:content)`,
+      { message_id: messageId, conversation_id: id, sequence_no: sequenceNo, content }, false);
+    if (inserted !== 1) v2ServerError();
+    const updated = await v2Execute(connection, `UPDATE n_ai_conversations SET updated_at=CURRENT_TIMESTAMP
+      WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`,
+      { conversation_id: id, owner_user_id: actor.userId }, false);
+    if (updated !== 1) v2ServerError();
+    await authorizeConversationScope(event, connection, { ownerUserId: actor.userId, purpose: scope.purpose, groupId: scope.group_id });
+    commitStarted = true;
+    await connection.commit();
+    return { message_id: messageId, conversation_id: id, sequence_no: sequenceNo, role: 'user' };
+  } catch (error) {
+    if (commitStarted) v2ServerError();
+    try { await connection.rollback(); } catch { v2ServerError(); }
+    throw error;
+  }
+}
