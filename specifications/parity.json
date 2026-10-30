@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "28bb8cc4e110bdf263197e0735f3cd7f16a636f1eafe49dbe45ce1bf146243af"
+      "sha256": "0ffd1a849fc5d80062adb46f80cbe712962098400747cc511b0267834b4e022e"
     },
     "sources": [
       {
@@ -995,7 +995,7 @@
       },
       {
         "path": "server/services/ai/conversation-store.ts",
-        "sha256": "49c1982a75029682e4890abceb68903ba43fc6b9dfdeabe138797ee457d4f057"
+        "sha256": "59d9b386fc1339fd5891163e1289a410e880acb6edff94ebd832afeb0be758f3"
       },
       {
         "path": "server/services/ai/inference-transport.ts",
@@ -11602,7 +11602,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-history.md",
-        "sha256": "86557862445189a39b9a6318712fe3bb87c4a0e2601da9721a586ff4eea5fe44"
+        "sha256": "d668a1c3bb991358f65a9c4820ea7e7f64e7c55e92b8a905d4a5ddf7a39dfb43"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-history.md",

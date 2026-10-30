@@ -4,6 +4,8 @@ import oracledb from 'oracledb';
 import { requireFeatureSchema } from '~/server/database/readiness';
 import { v2Auth, v2BadRequest, v2Conflict, v2DateString, v2Execute, v2NotFound, v2Number, v2One, v2ServerError, v2String } from '~/server/utils/v2';
 import { authorizeConversationScope, type ConversationPurpose } from './conversation-access';
+import { hydrateKnowledgeSources, type IndexedSource } from './knowledge-source';
+import { encodeKnowledgeMessage, restoreKnowledgeMessage } from './knowledge-history';
 
 export interface ConversationRecord {
   conversation_id: string;
@@ -23,6 +25,7 @@ export interface ConversationMessageRecord {
   model_version: string | null;
   config_revision: number | null;
   created_at: string;
+  citations?: IndexedSource[];
 }
 export interface ConversationPage {
   items: ConversationRecord[];
@@ -155,7 +158,7 @@ async function readMessages(
   const actor = v2Auth(event);
   if (!Number.isSafeInteger(afterSequence) || afterSequence < 0 || afterSequence > 9999999999 ||
       !Number.isSafeInteger(limit) || limit < 1 || limit > 50) v2BadRequest('分页参数错误');
-  await readConversation(event, connection, id);
+  const conversation=await readConversation(event, connection, id);
   const result = await connection.execute<Record<string, unknown>>(
     `SELECT m.message_id,m.conversation_id,m.sequence_no,m.role,m.content,m.model_id,m.model_version,m.config_revision,m.created_at
        FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id
@@ -166,9 +169,10 @@ async function readMessages(
       metadata.name === 'CONTENT' ? { type: oracledb.STRING } : undefined }
   );
   await readConversation(event, connection, id);
-  const messages = (result.rows ?? []).map(row => {
+  const messages:ConversationMessageRecord[] = [];
+  for (const row of result.rows ?? []) {
     if (typeof row.CONTENT !== 'string') v2ServerError();
-    return {
+    const message:ConversationMessageRecord={
       message_id: v2String(row.MESSAGE_ID),
       conversation_id: v2String(row.CONVERSATION_ID),
       sequence_no: v2Number(row.SEQUENCE_NO),
@@ -179,7 +183,14 @@ async function readMessages(
       config_revision: row.CONFIG_REVISION === null || row.CONFIG_REVISION === undefined ? null : v2Number(row.CONFIG_REVISION),
       created_at: v2DateString(row.CREATED_AT) || ''
     };
-  });
+    if(conversation.purpose==='knowledge' && message.role==='tool') v2ServerError();
+    if(conversation.purpose==='knowledge' && message.role==='assistant') {
+      const restored=await safeRestoreKnowledge(event,connection,message.content);
+      message.content=restored.answer;message.citations=restored.sources;
+    }
+    messages.push(message);
+  }
+  if(conversation.purpose==='knowledge') await readConversation(event,connection,id);
   return newest ? messages.reverse() : messages;
 }
 
@@ -232,16 +243,33 @@ export async function appendAssistantMessage(
   id: string,
   input: { content: string; expectedSequence: number; modelId: string; configRevision: number }
 ): Promise<{ message_id: string; conversation_id: string; sequence_no: number; role: 'assistant' }> {
+  validateAssistantInput(input);
+  return appendMessage(event, connection, id, { role: 'assistant', ...input });
+}
+function validateAssistantInput(input:{expectedSequence:number;modelId:string;configRevision:number}):void {
   if (!Number.isSafeInteger(input.expectedSequence) || input.expectedSequence < 1 ||
       input.expectedSequence >= 9999999999 || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(input.modelId) ||
       !Number.isSafeInteger(input.configRevision) || input.configRevision < 1 || input.configRevision > 999999999999999) {
     v2BadRequest('模型回复参数错误');
   }
-  return appendMessage(event, connection, id, { role: 'assistant', ...input });
+}
+/** Trusted knowledge generation path; references are checked inside the write transaction. */
+export async function appendKnowledgeAssistantMessage(
+  event:H3Event,connection:oracledb.Connection,id:string,
+  input:{answer:string;sources:IndexedSource[];expectedSequence:number;modelId:string;configRevision:number}
+):Promise<{message_id:string;conversation_id:string;sequence_no:number;role:'assistant'}> {
+  validateAssistantInput(input);
+  let content:string;
+  try {content=encodeKnowledgeMessage({answer:input.answer,sources:input.sources});} catch {v2BadRequest('知识回复参数错误');}
+  return appendMessage(event,connection,id,{role:'assistant',content,expectedSequence:input.expectedSequence,modelId:input.modelId,configRevision:input.configRevision,knowledge:true});
+}
+async function safeRestoreKnowledge(event:H3Event,connection:oracledb.Connection,content:string) {
+  try {return await restoreKnowledgeMessage(content,refs=>hydrateKnowledgeSources(event,connection,refs));}
+  catch {v2ServerError();}
 }
 
 type AppendInput = { role: 'user'; content: unknown } |
-  { role: 'assistant'; content: string; expectedSequence: number; modelId: string; configRevision: number };
+  { role: 'assistant'; content: string; expectedSequence: number; modelId: string; configRevision: number; knowledge?:boolean };
 async function appendMessage<T extends AppendInput>(
   event: H3Event, connection: oracledb.Connection, id: string, input: T
 ): Promise<{ message_id: string; conversation_id: string; sequence_no: number; role: T['role'] }> {
@@ -260,6 +288,8 @@ async function appendMessage<T extends AppendInput>(
     if (!row) v2NotFound('会话不存在');
     const scope = mapRow(row);
     await authorizeConversationScope(event, connection, { ownerUserId: v2Number(row.OWNER_USER_ID), purpose: scope.purpose, groupId: scope.group_id });
+    if(input.role==='assistant' && (scope.purpose==='knowledge')!==Boolean(input.knowledge)) v2Conflict('会话用途不匹配');
+    if(input.role==='assistant' && input.knowledge) await safeRestoreKnowledge(event,connection,content);
     const next = await v2One(connection, 'SELECT NVL(MAX(sequence_no),0)+1 AS next_sequence FROM n_ai_messages WHERE conversation_id=:conversation_id', { conversation_id: id });
     const sequenceNo = v2Number(next?.NEXT_SEQUENCE);
     if (!Number.isSafeInteger(sequenceNo) || sequenceNo <= 0 || sequenceNo > 9999999999) v2ServerError();
@@ -277,6 +307,7 @@ async function appendMessage<T extends AppendInput>(
       { conversation_id: id, owner_user_id: actor.userId }, false);
     if (updated !== 1) v2ServerError();
     await authorizeConversationScope(event, connection, { ownerUserId: actor.userId, purpose: scope.purpose, groupId: scope.group_id });
+    if(input.role==='assistant' && input.knowledge) await safeRestoreKnowledge(event,connection,content);
     commitStarted = true;
     await connection.commit();
     return { message_id: messageId, conversation_id: id, sequence_no: sequenceNo, role: input.role };
