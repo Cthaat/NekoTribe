@@ -40,6 +40,17 @@ type conversationMessage struct {
 	SequenceNo     int64  `json:"sequence_no"`
 	Role           string `json:"role"`
 }
+type conversationHistoryMessage struct {
+	ID             string  `json:"message_id"`
+	ConversationID string  `json:"conversation_id"`
+	SequenceNo     int64   `json:"sequence_no"`
+	Role           string  `json:"role"`
+	Content        string  `json:"content"`
+	ModelID        *string `json:"model_id"`
+	ModelVersion   *string `json:"model_version"`
+	ConfigRevision *int64  `json:"config_revision"`
+	CreatedAt      string  `json:"created_at"`
+}
 type moderationPolicy struct {
 	AllowAll bool
 	Accounts map[string]bool
@@ -55,6 +66,9 @@ func (s OracleSessions) readAIConversation(ctx context.Context, user int64, id s
 
 func (s OracleSessions) appendAIUserMessage(ctx context.Context, user int64, id, content string, policy moderationPolicy) (conversationMessage, error) {
 	return s.appendAIUserMessageOperation(ctx, user, id, content, policy, verifyConversationSchema)
+}
+func (s OracleSessions) listAIConversationMessages(ctx context.Context, user int64, id string, after, limit int64, policy moderationPolicy) ([]conversationHistoryMessage, error) {
+	return s.listAIConversationMessagesOperation(ctx, user, id, after, limit, policy, verifyConversationSchema)
 }
 
 func conversationPolicy(allowAll, accounts string) moderationPolicy {
@@ -307,4 +321,82 @@ func (s OracleSessions) appendAIUserMessageOperation(ctx context.Context, user i
 		return result, errSessionStore
 	}
 	return conversationMessage{ID: messageID, ConversationID: id, SequenceNo: sequence, Role: "user"}, nil
+}
+
+// Never return fetched message content until ownership and current role have been rechecked.
+func (s OracleSessions) listAIConversationMessagesOperation(ctx context.Context, user int64, id string, after, limit int64, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (result []conversationHistoryMessage, err error) {
+	if user <= 0 || user > 9007199254740991 || after < 0 || after > 9999999999 || limit < 1 || limit > 50 {
+		return nil, errConversationInvalid
+	}
+	if !conversationUUID.MatchString(id) {
+		return nil, errConversationNotFound
+	}
+	conn, e := s.DB.Conn(ctx)
+	if e != nil {
+		return nil, errSessionStore
+	}
+	defer func() {
+		if conn.Close() != nil {
+			result = nil
+			err = errSessionStore
+		}
+	}()
+	if verify(ctx, conn) != nil {
+		return nil, errConversationSchema
+	}
+	tx, e := conn.BeginTx(ctx, nil)
+	if e != nil {
+		return nil, errSessionStore
+	}
+	commitStarted := false
+	defer func() {
+		if !commitStarted && tx.Rollback() != nil {
+			result = nil
+			err = errSessionStore
+		}
+	}()
+	if _, e = readConversationRow(ctx, tx, user, id, policy, false); e != nil {
+		return nil, e
+	}
+	rows, e := tx.QueryContext(ctx, `SELECT m.message_id,m.conversation_id,m.sequence_no,m.role,m.content,m.model_id,m.model_version,m.config_revision,m.created_at FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no>:after_sequence ORDER BY m.sequence_no ASC FETCH FIRST :row_limit ROWS ONLY`,
+		sql.Named("conversation_id", id), sql.Named("owner_user_id", user), sql.Named("after_sequence", after), sql.Named("row_limit", limit))
+	if e != nil {
+		return nil, errSessionStore
+	}
+	items := make([]conversationHistoryMessage, 0)
+	for rows.Next() {
+		var item conversationHistoryMessage
+		var modelID, modelVersion sql.NullString
+		var revision sql.NullInt64
+		var created sql.NullTime
+		if e = rows.Scan(&item.ID, &item.ConversationID, &item.SequenceNo, &item.Role, &item.Content, &modelID, &modelVersion, &revision, &created); e != nil {
+			rows.Close()
+			return nil, errSessionStore
+		}
+		item.ModelID = nullableString(modelID)
+		item.ModelVersion = nullableString(modelVersion)
+		if revision.Valid {
+			value := revision.Int64
+			item.ConfigRevision = &value
+		}
+		if value := profileDate(created); value != nil {
+			item.CreatedAt = *value
+		}
+		items = append(items, item)
+	}
+	if rows.Err() != nil {
+		rows.Close()
+		return nil, errSessionStore
+	}
+	if rows.Close() != nil {
+		return nil, errSessionStore
+	}
+	if _, e = readConversationRow(ctx, tx, user, id, policy, false); e != nil {
+		return nil, e
+	}
+	commitStarted = true
+	if tx.Commit() != nil {
+		return nil, errSessionStore
+	}
+	return items, nil
 }

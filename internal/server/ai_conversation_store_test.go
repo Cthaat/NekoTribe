@@ -97,6 +97,26 @@ func (c *conversationConn) QueryContext(_ context.Context, query string, args []
 	if strings.Contains(query, "MAX(sequence_no)") {
 		return &alertRows{values: []driver.Value{c.state.messages + 1}}, nil
 	}
+	if strings.Contains(query, "FROM n_ai_messages m") {
+		if c.state.mode == "message-error" {
+			return nil, errors.New("private")
+		}
+		if !strings.Contains(query, "c.owner_user_id=:owner_user_id") || !strings.Contains(query, "ORDER BY m.sequence_no ASC") {
+			return nil, errors.New("unsafe query")
+		}
+		got := make(map[string]driver.Value)
+		for _, arg := range args {
+			got[arg.Name] = arg.Value
+		}
+		if got["owner_user_id"] != int64(42) || got["after_sequence"] != int64(1) || got["row_limit"] != int64(10) || got["conversation_id"] != c.state.id {
+			return nil, errors.New("incorrect page bindings")
+		}
+		if c.state.mode == "empty" {
+			return emptyRows{&c.state.driverState}, nil
+		}
+		stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		return &alertRows{values: []driver.Value{"a0f0f322-b5a7-4a4a-b843-3d0ea0d244dd", c.state.id, int64(2), "user", "第二条", nil, nil, nil, stamp}}, nil
+	}
 	if strings.Contains(query, "FROM n_ai_conversations") {
 		if c.state.mode == "read" {
 			return nil, errors.New("private")
@@ -118,6 +138,47 @@ func (c *conversationConn) QueryContext(_ context.Context, query string, args []
 		return &alertRows{values: []driver.Value{id, c.state.purpose, c.state.group, c.state.title, stamp, stamp}}, nil
 	}
 	return nil, errors.New("unexpected")
+}
+
+func TestConversationMessageHistory(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	for _, mode := range []string{"ok", "empty", "foreign", "revoked", "message-error", "invalid"} {
+		t.Run(mode, func(t *testing.T) {
+			state := &conversationDB{mode: mode, owner: 42, id: id, purpose: "group", group: int64(7)}
+			db := sql.OpenDB(conversationConnector{state})
+			defer db.Close()
+			user, limit := int64(42), int64(10)
+			if mode == "foreign" {
+				user = 9
+			}
+			if mode == "invalid" {
+				limit = 51
+			}
+			result, err := (OracleSessions{db}).listAIConversationMessagesOperation(context.Background(), user, id, 1, limit, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			if mode == "empty" {
+				if err != nil || result == nil || len(result) != 0 || state.permissionCalls != 2 {
+					t.Fatal(result, err, state)
+				}
+			} else if mode == "ok" {
+				if err != nil || len(result) != 1 || result[0].SequenceNo != 2 || result[0].Content != "第二条" || state.permissionCalls != 2 || state.commits != 1 {
+					t.Fatal(result, err, state)
+				}
+			} else {
+				if err == nil || len(result) != 0 || strings.Contains(err.Error(), "private") {
+					t.Fatal(result, err)
+				}
+				if mode == "foreign" && !errors.Is(err, errConversationNotFound) {
+					t.Fatal(err)
+				}
+				if mode == "revoked" && !errors.Is(err, errConversationForbidden) {
+					t.Fatal(err)
+				}
+				if mode == "invalid" && (!errors.Is(err, errConversationInvalid) || len(state.calls) != 0) {
+					t.Fatal(err, state)
+				}
+			}
+		})
+	}
 }
 
 func TestAppendConversationUserMessage(t *testing.T) {
