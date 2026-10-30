@@ -72,6 +72,61 @@ func (s OracleSessions) readAIConversation(ctx context.Context, user int64, id s
 	return s.conversationOperation(ctx, user, id, nil, policy, verifyConversationSchema)
 }
 
+func (s OracleSessions) deleteAIConversation(ctx context.Context, user int64, id string, policy moderationPolicy) error {
+	return s.deleteAIConversationOperation(ctx, user, id, policy, verifyConversationSchema)
+}
+
+func (s OracleSessions) deleteAIConversationOperation(ctx context.Context, user int64, id string, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (err error) {
+	if user <= 0 || user > 9007199254740991 {
+		return errConversationInvalid
+	}
+	if !conversationUUID.MatchString(id) {
+		return errConversationNotFound
+	}
+	conn, e := s.DB.Conn(ctx)
+	if e != nil {
+		return errSessionStore
+	}
+	defer func() {
+		if conn.Close() != nil {
+			err = errSessionStore
+		}
+	}()
+	if verify(ctx, conn) != nil {
+		return errConversationSchema
+	}
+	tx, e := conn.BeginTx(ctx, nil)
+	if e != nil {
+		return errSessionStore
+	}
+	commitStarted := false
+	defer func() {
+		if !commitStarted && tx.Rollback() != nil {
+			err = errSessionStore
+		}
+	}()
+	record, e := readConversationRow(ctx, tx, user, id, policy, true)
+	if e != nil {
+		return e
+	}
+	result, e := tx.ExecContext(ctx, `DELETE FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`, sql.Named("conversation_id", id), sql.Named("owner_user_id", user))
+	if e != nil {
+		return errSessionStore
+	}
+	rows, e := result.RowsAffected()
+	if e != nil || rows != 1 {
+		return errSessionStore
+	}
+	if e = authorizeConversation(ctx, tx, user, conversationInput{Purpose: record.Purpose, GroupID: record.GroupID}, policy); e != nil {
+		return e
+	}
+	commitStarted = true
+	if tx.Commit() != nil {
+		return errSessionStore
+	}
+	return nil
+}
+
 func (s OracleSessions) appendAIUserMessage(ctx context.Context, user int64, id, content string, policy moderationPolicy) (conversationMessage, error) {
 	return s.appendAIUserMessageOperation(ctx, user, id, content, policy, verifyConversationSchema)
 }

@@ -33,6 +33,39 @@ type conversationConn struct {
 }
 type conversationTx struct{ state *conversationDB }
 
+func TestDeleteConversationLocksAndRechecksPermission(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	for _, mode := range []string{"ok", "revoked", "commit"} {
+		t.Run(mode, func(t *testing.T) {
+			state := &conversationDB{mode: mode, owner: 42, id: id, purpose: "group", group: int64(7)}
+			db := sql.OpenDB(conversationConnector{state})
+			defer db.Close()
+			err := (OracleSessions{db}).deleteAIConversationOperation(context.Background(), 42, id, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			if mode == "ok" && (err != nil || state.commits != 1 || state.permissionCalls != 2) {
+				t.Fatal(err, state)
+			}
+			if mode == "revoked" && (!errors.Is(err, errConversationForbidden) || state.rollbacks != 1) {
+				t.Fatal(err, state)
+			}
+			if mode == "commit" && (err == nil || state.rollbacks != 0) {
+				t.Fatal(err, state)
+			}
+			if len(state.calls) < 2 || !strings.Contains(state.calls[0].sql, "FOR UPDATE") {
+				t.Fatal(state.calls)
+			}
+			found := false
+			for _, call := range state.calls {
+				if strings.Contains(call.sql, "DELETE FROM n_ai_conversations") {
+					found = strings.Contains(call.sql, "owner_user_id=:owner_user_id") && len(call.args) == 2
+				}
+			}
+			if !found {
+				t.Fatal("delete must be scoped to owner and conversation", state.calls)
+			}
+		})
+	}
+}
+
 func (c conversationConnector) Connect(context.Context) (driver.Conn, error) {
 	return &conversationConn{&testConn{&c.state.driverState}, c.state}, nil
 }
