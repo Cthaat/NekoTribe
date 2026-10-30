@@ -122,8 +122,90 @@ impl Drop for Stage {
     }
 }
 
+/// Holds the published inode open; dropping this value never deletes the object.
+pub struct PublishedMedia {
+    root: Dir,
+    target: Dir,
+    directories: Vec<String>,
+    name: String,
+    identity: same_file::Handle,
+}
+
+impl PublishedMedia {
+    /// Call only after a confirmed database rollback. A failed check preserves the object.
+    pub fn cleanup_after_confirmed_rollback(&self) -> io::Result<()> {
+        let changed = || io::Error::other("published object changed");
+        let mut current = self.root.try_clone()?;
+        for name in &self.directories {
+            let info = current.symlink_metadata(name)?;
+            if info.file_type().is_symlink() || !info.is_dir() {
+                return Err(changed());
+            }
+            current = current.open_dir(name)?;
+        }
+        let actual_directory = same_file::Handle::from_file(current.into_std_file())?;
+        let expected_directory =
+            same_file::Handle::from_file(self.target.try_clone()?.into_std_file())?;
+        if actual_directory != expected_directory {
+            return Err(changed());
+        }
+        let info = match self.target.symlink_metadata(&self.name) {
+            Ok(info) => info,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        if info.file_type().is_symlink() || !info.is_file() {
+            return Err(changed());
+        }
+        let current_file = self.target.open(&self.name)?;
+        if same_file::Handle::from_file(current_file.into_std())? != self.identity {
+            return Err(changed());
+        }
+        self.target.remove_file(&self.name)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum FinalizeError {
+    SchemaUnavailable,
+    StoreUnavailable,
+}
+
+/// Preserve the object whenever the transaction result is missing or uncertain.
+pub fn finalize<T>(
+    object: PublishedMedia,
+    result: Result<
+        crate::media::upload_transaction::MediaUploadOutcome<T>,
+        crate::auth::sessions::SessionStoreError,
+    >,
+) -> Result<T, FinalizeError> {
+    use crate::media::upload_transaction::MediaUploadOutcome;
+    match result {
+        Ok(MediaUploadOutcome::Created(value)) => Ok(value),
+        Ok(MediaUploadOutcome::Failed {
+            cleanup_safe,
+            schema_unavailable,
+        }) => {
+            if cleanup_safe && object.cleanup_after_confirmed_rollback().is_err() {
+                tracing::warn!("media upload rollback cleanup unavailable");
+            }
+            Err(if schema_unavailable {
+                FinalizeError::SchemaUnavailable
+            } else {
+                FinalizeError::StoreUnavailable
+            })
+        }
+        Err(_) => Err(FinalizeError::StoreUnavailable),
+    }
+}
+
 /// Hard-link a complete staged copy into place, without replacing a destination.
-pub fn publish(source: &mut std::fs::File, size: u64, root: &Path, key: &str) -> io::Result<()> {
+pub fn publish(
+    source: &mut std::fs::File,
+    size: u64,
+    root: &Path,
+    key: &str,
+) -> io::Result<PublishedMedia> {
     let invalid = || io::Error::new(io::ErrorKind::InvalidInput, "invalid media object");
     let key = crate::storage::local_policy::normalize_local_key(key).map_err(|_| invalid())?;
     if !key.starts_with("posts/")
@@ -135,6 +217,7 @@ pub fn publish(source: &mut std::fs::File, size: u64, root: &Path, key: &str) ->
         return Err(invalid());
     }
     let root = Dir::open_ambient_dir(root, ambient_authority())?;
+    let cleanup_root = root.try_clone()?;
     let temp = child_dir(&root, "temp")?;
     let (stage, mut file) = Stage::new(temp)?;
     source.seek(SeekFrom::Start(0))?;
@@ -144,13 +227,28 @@ pub fn publish(source: &mut std::fs::File, size: u64, root: &Path, key: &str) ->
     }
     file.sync_all()?;
     let mut target = root;
+    let mut directories = Vec::new();
     let mut parts = key.split('/').peekable();
     while let Some(name) = parts.next() {
         if parts.peek().is_none() {
             stage.verify_file(&file)?;
-            return stage.dir.hard_link("data", &target, name);
+            let identity = same_file::Handle::from_file(file.try_clone()?.into_std())?;
+            stage.dir.hard_link("data", &target, name)?;
+            let result = PublishedMedia {
+                root: cleanup_root,
+                target,
+                directories,
+                name: name.to_owned(),
+                identity,
+            };
+            let linked = result.target.open(name)?;
+            if same_file::Handle::from_file(linked.into_std())? != result.identity {
+                return Err(io::Error::other("published object changed"));
+            }
+            return Ok(result);
         }
         target = child_dir(&target, name)?;
+        directories.push(name.to_owned());
     }
     Err(invalid())
 }
@@ -159,6 +257,87 @@ pub fn publish(source: &mut std::fs::File, size: u64, root: &Path, key: &str) ->
 mod tests {
     use super::*;
     use std::io::{Read, Seek, SeekFrom, Write};
+
+    #[test]
+    fn transaction_outcome_controls_cleanup() {
+        use crate::auth::sessions::SessionStoreError;
+        use crate::media::upload_transaction::MediaUploadOutcome;
+        let root = tempfile::tempdir().unwrap();
+        let mut source = tempfile::tempfile().unwrap();
+        source.write_all(b"hello").unwrap();
+        for (index, result, retained) in [
+            (0, Ok(MediaUploadOutcome::Created(7)), true),
+            (
+                1,
+                Ok(MediaUploadOutcome::Failed {
+                    cleanup_safe: true,
+                    schema_unavailable: false,
+                }),
+                false,
+            ),
+            (
+                2,
+                Ok(MediaUploadOutcome::Failed {
+                    cleanup_safe: false,
+                    schema_unavailable: false,
+                }),
+                true,
+            ),
+            (3, Err(SessionStoreError), true),
+            (
+                4,
+                Ok(MediaUploadOutcome::Failed {
+                    cleanup_safe: true,
+                    schema_unavailable: true,
+                }),
+                false,
+            ),
+        ] {
+            let key = format!("posts/files/42/2026/01/{index}.txt");
+            let object = publish(&mut source, 5, root.path(), &key).unwrap();
+            let output = finalize(object, result);
+            assert_eq!(output.is_ok(), index == 0);
+            assert_eq!(root.path().join(key).exists(), retained, "case {index}");
+            if index == 4 {
+                assert!(matches!(output, Err(FinalizeError::SchemaUnavailable)));
+            }
+        }
+    }
+
+    #[test]
+    fn confirmed_rollback_cleans_only_the_published_identity() {
+        let root = tempfile::tempdir().unwrap();
+        let mut source = tempfile::tempfile().unwrap();
+        source.write_all(b"hello").unwrap();
+        let key = "posts/files/42/2026/01/file.txt";
+        let object = publish(&mut source, 5, root.path(), key).unwrap();
+        object.cleanup_after_confirmed_rollback().unwrap();
+        assert!(!root.path().join(key).exists());
+        let object = publish(&mut source, 5, root.path(), key).unwrap();
+        let path = root.path().join(key);
+        std::fs::remove_file(&path).unwrap();
+        std::fs::write(&path, b"replacement").unwrap();
+        assert!(object.cleanup_after_confirmed_rollback().is_err());
+        assert_eq!(std::fs::read(path).unwrap(), b"replacement");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rollback_does_not_remove_file_in_moved_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let mut source = tempfile::tempfile().unwrap();
+        source.write_all(b"hello").unwrap();
+        let key = "posts/files/42/2026/01/file.txt";
+        let object = publish(&mut source, 5, root.path(), key).unwrap();
+        let folder = root.path().join("posts/files/42/2026/01");
+        let moved = root.path().join("moved");
+        std::fs::rename(&folder, &moved).unwrap();
+        std::fs::create_dir(&folder).unwrap();
+        std::fs::write(folder.join("file.txt"), b"other").unwrap();
+        assert!(object.cleanup_after_confirmed_rollback().is_err());
+        assert_eq!(std::fs::read(folder.join("file.txt")).unwrap(), b"other");
+        assert_eq!(std::fs::read(moved.join("file.txt")).unwrap(), b"hello");
+    }
 
     #[test]
     fn staged_replacement_is_not_published_or_removed() {
