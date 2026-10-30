@@ -23,6 +23,11 @@ test('withholds persisted answer when a reference changes or is no longer visibl
  await assert.rejects(()=>restoreKnowledgeMessage(encoded,async()=>[]),/SOURCE_CHANGED/);
  await assert.rejects(()=>restoreKnowledgeMessage(encoded,async()=>[{...source,version:'b'.repeat(64),post_id:1,content:'新'}]),/SOURCE_CHANGED/);
 });
+test('transitive historical dependency prevents restoring an answer after the old source is revoked',async()=>{
+ const old={kind:'comment',id:23,version:'b'.repeat(64)};
+ const encoded=encodeKnowledgeMessage({answer:'derived answer',sources:[source,old]});
+ await assert.rejects(()=>restoreKnowledgeMessage(encoded,async()=>[{...source,post_id:1,content:'still public'}]),/SOURCE_CHANGED/);
+});
 test('invalid, missing or duplicate stored references never become visible',async()=>{
  let called=false;
  for(const raw of ['text',JSON.stringify({version:1,answer:'text',sources:[]}),JSON.stringify({version:1,answer:'text',sources:[source,source]})]) {

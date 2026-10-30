@@ -7,7 +7,7 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const source={kind:'post',id:1,post_id:1,content:'公开资料',version:'a'.repeat(64)};
 const stubs={
  '~/server/utils/v2':`export const v2Auth=e=>{if(!e.user)throw Error('401')};export const v2Connection=async e=>e.open();export const v2ServerError=()=>{throw Error('500')};`,
- './knowledge-source':`export async function discoverKnowledgeSources(e,c,q,l){e.events.push('discover');e.search=q;return e.sources};export async function hydrateKnowledgeSources(e,c,input){e.events.push('hydrate');return e.sources};`,
+ './knowledge-source':`export async function discoverKnowledgeSources(e,c,q,l){e.events.push('discover');e.search=q;return e.sources};export async function hydrateKnowledgeSources(e,c,input){e.events.push('hydrate');return [...e.sources,...(e.historical??[])].filter(r=>input.some(x=>x.kind===r.kind && x.id===r.id && x.version===r.version))};`,
  './model-configuration.ts':`export class AiModelRouter {constructor(){} select(role){if(role!=='knowledge')throw Error('wrong role');return {configurationRevision:1,profileId:'test',contextWindowTokens:8192,maxOutputTokens:512}}}`,
  './inference-transport.ts':`export class AiInferenceTransport {async infer(s,input){globalThis.__knowledgeEvents.push('infer');globalThis.__knowledgeInput=input;globalThis.__knowledgeOnInfer?.();return {text:globalThis.__knowledgeOutput??JSON.stringify({answer:'answer',citations:[{kind:'post',id:1,version:'a'.repeat(64)}]}),toolCalls:[],finishReason:'stop'}}}`
 };
@@ -24,6 +24,22 @@ test('closes connections around inference, uses knowledge model and passes data 
 test('uses a separate retrieval phrase while preserving the original question for the model',async()=>{
  const e=event();await generateKnowledgeReply(e,'社区里有哪些猫咪？','{}',undefined,'猫');
  assert.equal(e.search,'猫');assert.equal(JSON.parse(globalThis.__knowledgeInput.messages[1].content).question,'社区里有哪些猫咪？');
+});
+test('supplies selected history as untrusted data and rechecks its sources before and after inference',async()=>{
+ const e=event();const old={kind:'comment',id:23,post_id:1,version:'b'.repeat(64),content:'以前公开的评论'};e.historical=[old];
+ const history=[{sequence_no:1,role:'user',content:'以前问题'},{sequence_no:2,role:'assistant',content:'以前回答',citations:[{kind:old.kind,id:old.id,version:old.version,post_id:old.post_id}]},{sequence_no:3,role:'user',content:'新问题'}];
+ const result=await generateKnowledgeReply(e,'新问题','{}',undefined,'猫',history);
+ const payload=JSON.parse(globalThis.__knowledgeInput.messages[1].content);
+ assert.deepEqual(payload.history,[{role:'user',content:'以前问题'},{role:'assistant',content:'以前回答'}]);
+ assert.equal(payload.question,'新问题');assert.deepEqual(result.contextSources,[{kind:'comment',id:23,version:old.version}]);
+ assert.deepEqual(result.sources,[{kind:'post',id:1,version:source.version},{kind:'comment',id:23,version:old.version}]);
+ assert.equal(e.events.filter(x=>x==='hydrate').length,4);
+});
+test('withholds generated reply if a historical source is revoked during inference',async()=>{
+ const e=event(),old={kind:'comment',id:23,post_id:1,version:'b'.repeat(64),content:'以前公开的评论'};e.historical=[old];
+ const history=[{sequence_no:1,role:'assistant',content:'以前回答',citations:[{kind:old.kind,id:old.id,version:old.version,post_id:old.post_id}]},{sequence_no:2,role:'user',content:'新问题'}];
+ globalThis.__knowledgeOnInfer=()=>{e.historical=[]};
+ try {await assert.rejects(()=>generateKnowledgeReply(e,'新问题','{}',undefined,'猫',history),/SOURCE_CHANGED/);} finally {delete globalThis.__knowledgeOnInfer;}
 });
 test('does not invoke model for empty evidence or oversized context',async()=>{
  const e=event([]);const output=await generateKnowledgeReply(e,'猫','{}');assert.equal(output.answer,null);assert.ok(!e.events.includes('infer'));

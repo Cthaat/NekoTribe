@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "3ebe0dc15f1cf0262cb8d0731cb3d25d59d9551689cd117a128a1539d8d2025a"
+      "sha256": "f0da3686fff465564d7acb267ce40923dfc210c2941d988e5d3bd62ad7e16958"
     },
     "sources": [
       {
@@ -299,7 +299,7 @@
       },
       {
         "path": "server/api/v2/ai/conversations/[id]/knowledge-generate.post.ts",
-        "sha256": "4e17962dab51869b0badfb77d957e2c67e95bf9d383361b43509600ce309e292"
+        "sha256": "d73015eb17974e8f1f146bbcf99a99c8e7102c3bbf8e3b55ffd71bec044dd3c2"
       },
       {
         "path": "server/api/v2/ai/conversations/[id]/messages/index.get.ts",
@@ -1015,11 +1015,11 @@
       },
       {
         "path": "server/services/ai/knowledge-service.ts",
-        "sha256": "7e32795df8eb9928a79adce2bdf06e7b8a6572ded8a47bf769f936a22a28a0c2"
+        "sha256": "4fd82b0ee70c2f79b186771c9fb6a96c3b26edc2a18b232f8ba944a3cedbb49f"
       },
       {
         "path": "server/services/ai/knowledge-conversation-service.ts",
-        "sha256": "5ada4a41b934c51d1b04d3dcc8e4a88c7c8c63b2a8c9e27e283955b798940a44"
+        "sha256": "48f7ba75942666e0b1e9f59bfd964f2cbd54369c0b85a2c3ac46ad1ead5f2de0"
       },
       {
         "path": "server/services/ai/knowledge-citations.ts",
@@ -1027,7 +1027,7 @@
       },
       {
         "path": "server/services/ai/knowledge-context.ts",
-        "sha256": "218dff40dffe2e3cb1143753085ca8e368b743832533515494ecf9cedd4dcaef"
+        "sha256": "f602700fdedc030d4b6a0dd323a372c71ab249f2f0c43f8109cba6bcf46761fc"
       },
       {
         "path": "server/services/ai/knowledge-history.ts",
@@ -9011,7 +9011,7 @@
     },
     {
       "id": "AI-KNOWLEDGE-WRITING",
-      "revision": 6,
+      "revision": 7,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [
@@ -9057,7 +9057,7 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 6,
+          "targetRevision": 7,
           "tasks": [
             "nuxt: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9116,7 +9116,7 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 6,
+          "targetRevision": 7,
           "tasks": [
             "rust: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9153,7 +9153,7 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 6,
+          "targetRevision": 7,
           "tasks": [
             "go: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -11653,7 +11653,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-history.md",
-        "sha256": "e056c3c24e1f51bb07aad7272aa84b6e4d0c6cf983f06a463cb493668a34f4aa"
+        "sha256": "e95d8d0b0f3949c7f7b0645ea982c955599acb6e11e58ff4462ae822027a7e41"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-history.md",

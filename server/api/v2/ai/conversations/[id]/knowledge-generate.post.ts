@@ -21,7 +21,7 @@ export default defineEventHandler(async event=>{
       return 'message' in result ? v2Ok({status:'insufficient_evidence',message:null}) : v2Ok({status:'generated',message:result});
     } catch(error) {
       if(error instanceof KnowledgeConversationError && error.code==='INVALID_CONTEXT') v2BadRequest('知识会话上下文不可用');
-      if(error instanceof KnowledgeServiceError && error.code==='CONTEXT_TOO_LARGE') v2BadRequest('知识会话上下文不可用');
+      if(error instanceof KnowledgeServiceError && (error.code==='CONTEXT_TOO_LARGE' || error.code==='INVALID_CONTEXT')) v2BadRequest('知识会话上下文不可用');
       if(error instanceof KnowledgeConversationError || error instanceof KnowledgeServiceError || error instanceof KnowledgeCitationError || error instanceof KnowledgeTurnError) {
         throw createError({statusCode:503,statusMessage:'Service temporarily unavailable',data:{code:50301,message:'服务暂不可用，请稍后重试。',data:null,meta:null}});
       }

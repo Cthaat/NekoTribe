@@ -29,11 +29,11 @@ export async function generateKnowledgeConversation(event:H3Event,id:string,conf
   const last=context.messages.at(-1);
   if(!last || last.role!=='user') throw new KnowledgeConversationError('INVALID_CONTEXT');
   checkCancelled(signal);
-  const result=await generateKnowledgeReply(event,last.content,configuration,signal,searchPhrase);
+  const result=await generateKnowledgeReply(event,last.content,configuration,signal,searchPhrase,context.messages);
   checkCancelled(signal);
   const answer=result.answer;
   if(answer===null) return {message:null};
   return withConnection(event,connection=>appendKnowledgeAssistantMessage(event,connection,id,{
-    answer,sources:result.sources,expectedSequence:last.sequence_no,modelId:result.modelId,configRevision:result.configRevision
+    answer,sources:result.sources,...(result.contextSources?.length ? {contextSources:result.contextSources}:{}),expectedSequence:last.sequence_no,modelId:result.modelId,configRevision:result.configRevision
   }));
 }

@@ -1,14 +1,14 @@
 import type { IndexedSource } from './knowledge-source';
 
-type HistoryMessage = {sequence_no:number;role:string;content:string;citations?:Array<IndexedSource & {post_id:number}>};
+export type HistoryMessage = {sequence_no:number;role:string;content:string;citations?:Array<IndexedSource & {post_id:number}>};
 type ModelHistory = {role:'user'|'assistant';content:string};
 export class KnowledgeContextError extends Error {
   constructor(readonly code:'INVALID_CONTEXT'|'CONTEXT_TOO_LARGE') {super(code);this.name='KnowledgeContextError';}
 }
 
 /** Pure selection only: the caller must revalidate selected citations before delivery and commit. */
-export function selectKnowledgeContext(messages:HistoryMessage[],maxBytes:number):{question:string;history:ModelHistory[];sources:IndexedSource[]} {
-  if (!Array.isArray(messages) || !messages.length || messages.length>50 || !Number.isSafeInteger(maxBytes) || maxBytes<0) throw new KnowledgeContextError('INVALID_CONTEXT');
+export function selectKnowledgeContext(messages:HistoryMessage[],maxBytes:number,maxSources=20):{question:string;history:ModelHistory[];sources:IndexedSource[]} {
+  if (!Array.isArray(messages) || !messages.length || messages.length>50 || !Number.isSafeInteger(maxBytes) || maxBytes<0 || !Number.isInteger(maxSources) || maxSources<0 || maxSources>20) throw new KnowledgeContextError('INVALID_CONTEXT');
   let previous=0;
   for (const message of messages) {
     if (!Number.isSafeInteger(message.sequence_no) || message.sequence_no<=previous || message.sequence_no>9999999999 ||
@@ -42,7 +42,7 @@ export function selectKnowledgeContext(messages:HistoryMessage[],maxBytes:number
       if(existing && existing.version!==source.version) throw new KnowledgeContextError('INVALID_CONTEXT');
       refs.set(key,{kind:source.kind,id:source.id,version:source.version});
     }
-    if(refs.size>20) break;
+    if(refs.size>maxSources) break;
     history.unshift(next[0]!);
     sources.clear();for(const [key,value] of refs) sources.set(key,value);
   }

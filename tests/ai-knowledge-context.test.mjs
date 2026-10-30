@@ -31,3 +31,7 @@ test('bounds source guards and counts encoded JSON bytes including escapes',()=>
  assert.throws(()=>selectKnowledgeContext(input,byteLength-1),/CONTEXT_TOO_LARGE/);
  assert.equal(selectKnowledgeContext(input,byteLength).history.length,0);
 });
+test('reserves source capacity for newly retrieved evidence',()=>{
+ const selected=selectKnowledgeContext(messages,10000,0);
+ assert.equal(selected.question,'新的问题');assert.deepEqual(selected.history,[]);assert.deepEqual(selected.sources,[]);
+});
