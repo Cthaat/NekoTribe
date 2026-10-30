@@ -359,8 +359,12 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
                                         style: theme.textTheme.labelSmall,
                                       ),
                                       for (final source in message.citations)
-                                        source.kind == 'post' ||
-                                                source.postId != null
+                                        source.kind == 'terms'
+                                            ? Text(
+                                                '${l10n.t('ai.knowledge.terms')} #${source.id}',
+                                              )
+                                            : source.kind == 'post' ||
+                                                  source.postId != null
                                             ? TextButton(
                                                 onPressed: () => context.push(
                                                   '/posts/${source.postId ?? source.id}',

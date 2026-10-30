@@ -58,6 +58,39 @@ void main() {
         'version': 'b' * 64,
       });
       expect(legacy.postId, isNull);
+      final terms = AiKnowledgeCitation.fromJson({
+        'kind': 'terms',
+        'id': 3,
+        'version': 'a' * 64,
+      });
+      expect(terms.kind, 'terms');
+      expect(terms.postId, isNull);
+      expect(
+        () => AiKnowledgeCitation.fromJson({
+          'kind': 'terms',
+          'id': 9,
+          'version': 'a' * 64,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => AiKnowledgeCitation.fromJson({
+          'kind': 'terms',
+          'id': 3,
+          'post_id': 99,
+          'version': 'a' * 64,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => AiKnowledgeCitation.fromJson({
+          'kind': 'terms',
+          'id': 3,
+          'post_id': null,
+          'version': 'a' * 64,
+        }),
+        throwsFormatException,
+      );
       expect(
         () => AiKnowledgeCitation.fromJson({
           'kind': 'post',

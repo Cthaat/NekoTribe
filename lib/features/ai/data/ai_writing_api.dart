@@ -55,14 +55,16 @@ class AiKnowledgeCitation {
         id = data['id'],
         version = data['version'],
         postId = data['post_id'];
-    if ((kind != 'post' && kind != 'comment') ||
+    if ((kind != 'post' && kind != 'comment' && kind != 'terms') ||
         id is! int ||
         id < 1 ||
+        id > 999999999999999 ||
         version is! String ||
         !RegExp(r'^[0-9a-f]{64}$').hasMatch(version) ||
         (postId != null &&
             (postId is! int || postId < 1 || postId > 999999999999999)) ||
-        (kind == 'post' && postId != null && postId != id)) {
+        (kind == 'post' && postId != null && postId != id) ||
+        (kind == 'terms' && (id > 8 || data.containsKey('post_id')))) {
       throw const FormatException('Invalid AI citation');
     }
     return AiKnowledgeCitation(

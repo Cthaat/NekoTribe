@@ -208,6 +208,29 @@ void main() {
     expect(find.text('评论 #42'), findsOneWidget);
     expect(find.widgetWithText(TextButton, '评论 #42'), findsOneWidget);
   });
+  testWidgets('terms citations are labeled without navigating to a post', (
+    tester,
+  ) async {
+    final api = FakeWritingApi()
+      ..hasHistory = true
+      ..historyPurpose = 'knowledge';
+    api.messages.add(
+      const AiWritingMessage(
+        id: 'a',
+        sequence: 1,
+        role: 'assistant',
+        content: '回答',
+        citations: [AiKnowledgeCitation(kind: 'terms', id: 3)],
+      ),
+    );
+    await pumpScreen(tester, api, knowledge: true);
+    await tester.tap(find.byKey(const Key('ai-writing-history')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('previous draft'));
+    await tester.pumpAndSettle();
+    expect(find.text('平台条款 #3'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '平台条款 #3'), findsNothing);
+  });
   testWidgets('submits a writing request and shows the generated draft', (
     tester,
   ) async {
