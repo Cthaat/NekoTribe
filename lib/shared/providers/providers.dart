@@ -5,6 +5,7 @@ import '../../core/config/app_config.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/asset_url_resolver.dart';
 import '../../features/auth/data/auth_api.dart';
+import '../../features/ai/data/ai_writing_api.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_api.dart';
 import '../../features/groups/data/groups_api.dart';
@@ -152,6 +153,10 @@ final groupsApiProvider = Provider<GroupsApi>(
 
 final chatApiProvider = Provider<ChatApi>(
   (ref) => ChatApi(ref.watch(apiClientProvider)),
+);
+
+final aiWritingApiProvider = Provider<AiWritingApi>(
+  (ref) => AiWritingApi(ref.watch(apiClientProvider)),
 );
 
 final moderationApiProvider = Provider<ModerationApi>(

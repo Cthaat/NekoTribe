@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/forgot_password_screen.dart';
+import '../../features/ai/presentation/ai_writing_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/terms_screen.dart';
@@ -108,6 +109,7 @@ const productionRoutePaths = <String>{
   '/moderation/appeals',
   '/moderation/settings',
   '/sentiment',
+  '/ai/writing',
   '/about',
 };
 
@@ -181,6 +183,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, __) => const NotificationsScreen(),
           ),
           GoRoute(path: '/chat', builder: (_, __) => const ChatHomeScreen()),
+          GoRoute(
+            path: '/ai/writing',
+            builder: (_, __) => const AiWritingScreen(),
+          ),
           GoRoute(path: '/me', builder: (_, __) => const AccountScreen()),
           GoRoute(path: '/groups', builder: (_, __) => const GroupsScreen()),
           // Keep static group sub-tabs inside the shell so bottom/side nav
@@ -395,10 +401,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/chat/conversation/:id',
         builder: (_, state) {
           final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
-          final title = _routeExtraString(state.extra, const [
-            'title',
-            'name',
-          ]);
+          final title = _routeExtraString(state.extra, const ['title', 'name']);
           return ConversationScreen(conversationId: id, title: title);
         },
       ),

@@ -2,6 +2,7 @@ class ApiPaths {
   ApiPaths._();
 
   static const String health = '/api/health';
+  static const String aiConversations = '/api/v2/ai/conversations';
 
   // Auth
   static const String authOtp = '/api/v2/auth/otp';

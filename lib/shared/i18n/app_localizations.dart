@@ -50,6 +50,16 @@ class AppLocalizations {
 
   static const Map<String, Map<String, String>> _strings = {
     'zh': {
+      'ai.writing.title': 'AI 写作助手',
+      'ai.writing.description': '生成的内容仅供审阅，不会自动发布。当前页面关闭后暂不能恢复会话。',
+      'ai.writing.empty': '输入写作需求，开始生成草稿',
+      'ai.writing.placeholder': '描述你想写的内容',
+      'ai.writing.send': '发送',
+      'ai.writing.retry': '重新生成回复',
+      'ai.writing.refresh': '刷新会话状态',
+      'ai.writing.failed': '生成或读取失败，请刷新会话后重试。',
+      'ai.writing.append_unknown': '消息提交结果未知，请先刷新会话确认后再继续。',
+      'ai.writing.too_long': '消息超过 65536 字节，请缩短后重试。',
       'app.title': 'NekoTribe',
       'window.minimize': '最小化',
       'window.maximize': '最大化',
@@ -602,6 +612,20 @@ class AppLocalizations {
           '切换端点会立即重建网络层；如果切换前后属于不同后端环境，可能需要重新登录。所有 URL 均由 assets/config/app_config.json 与 SharedPreferences 共同管理，源码中不含任何硬编码。',
     },
     'en': {
+      'ai.writing.title': 'AI writing assistant',
+      'ai.writing.description':
+          'Drafts are for review and are never published automatically. This page cannot yet restore a conversation after it is closed.',
+      'ai.writing.empty': 'Describe what you want to write',
+      'ai.writing.placeholder': 'Describe your writing request',
+      'ai.writing.send': 'Send',
+      'ai.writing.retry': 'Retry response',
+      'ai.writing.refresh': 'Refresh conversation',
+      'ai.writing.failed':
+          'Generation or loading failed. Refresh the conversation and try again.',
+      'ai.writing.append_unknown':
+          'The message submission result is unknown. Refresh the conversation before continuing.',
+      'ai.writing.too_long':
+          'The message exceeds 65536 bytes. Please shorten it.',
       'app.title': 'NekoTribe',
       'window.minimize': 'Minimize',
       'window.maximize': 'Maximize',
@@ -1069,8 +1093,7 @@ class AppLocalizations {
       'billing.pending': 'Pending',
       'billing.paid': 'Paid',
       'billing.history': 'Billing history',
-      'billing.demo_notice':
-          'Demo data aligned with web; not real charges',
+      'billing.demo_notice': 'Demo data aligned with web; not real charges',
       'pro.workspace': 'Upgrade-ready workspace',
       'pro.description':
           'NekoTribe Pro surfaces AI assistance, realtime collaboration, advanced safety tooling, and higher operational limits when billing is enabled.',

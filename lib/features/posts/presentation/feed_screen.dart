@@ -88,9 +88,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
     } catch (e) {
       // Keep hasMore so the user can scroll to retry; surface the failure.
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ErrorView.describe(context, e))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
       }
     } finally {
       state.loadingMore = false;
@@ -125,6 +125,16 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       appBar: AppBar(
         title: Text(l10n.t('app.title')),
         actions: [
+          IconButton(
+            key: const Key('feed-ai-writing-button'),
+            tooltip: l10n.t('ai.writing.title'),
+            icon: const Icon(Icons.auto_awesome_outlined),
+            onPressed: () {
+              if (requireAuthenticatedAction(context, ref)) {
+                context.push('/ai/writing');
+              }
+            },
+          ),
           IconButton(
             key: const Key('feed-search-button'),
             tooltip: l10n.t('tab.discover'),

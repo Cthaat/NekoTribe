@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nekotribe/core/auth/token_store.dart';
 import 'package:nekotribe/core/config/app_config.dart';
 import 'package:nekotribe/core/network/api_client.dart';
+import 'package:nekotribe/features/ai/data/ai_writing_api.dart';
 import 'package:nekotribe/features/auth/data/auth_api.dart';
 import 'package:nekotribe/features/chat/data/chat_api.dart';
 import 'package:nekotribe/features/groups/data/groups_api.dart';
@@ -16,6 +17,37 @@ import 'package:nekotribe/features/sentiment_flow/data/sentiment_flow_api.dart';
 import 'package:nekotribe/features/users/data/users_api.dart';
 
 void main() {
+  test('AI writing uses the shared conversation contract', () async {
+    final recorder = _ApiRecorder();
+    final api = AiWritingApi(_client(recorder));
+    final conversation = await api.createConversation();
+    expect(conversation, 'f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb');
+    recorder.expectLast(
+      method: 'POST',
+      path: '/api/v2/ai/conversations',
+      body: {'purpose': 'writing'},
+    );
+    await api.appendMessage(conversation, 'hello');
+    recorder.expectLast(
+      method: 'POST',
+      path: '/api/v2/ai/conversations/$conversation/messages',
+      body: {'content': 'hello'},
+    );
+    await api.generate(conversation);
+    recorder.expectLast(
+      method: 'POST',
+      path: '/api/v2/ai/conversations/$conversation/generate',
+    );
+    final messages = await api.listMessages(conversation, afterSequence: 1);
+    recorder.expectLast(
+      method: 'GET',
+      path: '/api/v2/ai/conversations/$conversation/messages',
+      query: {'after_sequence': 1, 'limit': 50},
+    );
+    expect(messages.single.content, 'draft');
+    expect(messages.single.sequence, 2);
+    expect(messages.single.role, 'assistant');
+  });
   group('AuthApi v2 contract', () {
     test('otp requests use current type and channel payload', () async {
       final recorder = _ApiRecorder();
@@ -92,25 +124,28 @@ void main() {
   });
 
   group('PostsApi v2 contract', () {
-    test('post comments decode shared envelope and nullable thread IDs', () async {
-      final recorder = _ApiRecorder();
-      final api = PostsApi(_client(recorder));
+    test(
+      'post comments decode shared envelope and nullable thread IDs',
+      () async {
+        final recorder = _ApiRecorder();
+        final api = PostsApi(_client(recorder));
 
-      final page = await api.getComments(1, page: 2, size: 3);
-      recorder.expectLast(
-        method: 'GET',
-        path: '/api/v2/posts/1/comments',
-        query: {'page': 2, 'page_size': 3},
-      );
-      final comment = page.items.single;
-      expect(comment.commentId, 9);
-      expect(comment.parentCommentId, isNull);
-      expect(comment.rootCommentId, 3);
-      expect(comment.likesCount, 2);
-      expect(comment.isLiked, isTrue);
-      expect(comment.canDelete, isFalse);
-      expect(page.total, 4);
-    });
+        final page = await api.getComments(1, page: 2, size: 3);
+        recorder.expectLast(
+          method: 'GET',
+          path: '/api/v2/posts/1/comments',
+          query: {'page': 2, 'page_size': 3},
+        );
+        final comment = page.items.single;
+        expect(comment.commentId, 9);
+        expect(comment.parentCommentId, isNull);
+        expect(comment.rootCommentId, 3);
+        expect(comment.likesCount, 2);
+        expect(comment.isLiked, isTrue);
+        expect(comment.canDelete, isFalse);
+        expect(page.total, 4);
+      },
+    );
     test('feed uses timeline and page_size query keys', () async {
       final recorder = _ApiRecorder();
       final api = PostsApi(_client(recorder));
@@ -497,29 +532,38 @@ void main() {
   });
 
   group('NotificationsApi v2 contract', () {
-    test('batch read sends explicit read state and empty selection is a no-op', () async {
-      final recorder = _ApiRecorder();
-      final api = NotificationsApi(_client(recorder));
+    test(
+      'batch read sends explicit read state and empty selection is a no-op',
+      () async {
+        final recorder = _ApiRecorder();
+        final api = NotificationsApi(_client(recorder));
 
-      await api.markRead([3, 7]);
-      recorder.expectLast(
-        method: 'PUT',
-        path: '/api/v2/notifications/read-status',
-        body: {'notification_ids': [3, 7], 'is_read': true},
-      );
-      await api.markRead([]);
-      recorder.expectLast(
-        method: 'PUT',
-        path: '/api/v2/notifications/read-status',
-        body: {'notification_ids': [3, 7], 'is_read': true},
-      );
-      await api.markAllRead();
-      recorder.expectLast(
-        method: 'PUT',
-        path: '/api/v2/notifications/read-status',
-        body: {'is_read': true},
-      );
-    });
+        await api.markRead([3, 7]);
+        recorder.expectLast(
+          method: 'PUT',
+          path: '/api/v2/notifications/read-status',
+          body: {
+            'notification_ids': [3, 7],
+            'is_read': true,
+          },
+        );
+        await api.markRead([]);
+        recorder.expectLast(
+          method: 'PUT',
+          path: '/api/v2/notifications/read-status',
+          body: {
+            'notification_ids': [3, 7],
+            'is_read': true,
+          },
+        );
+        await api.markAllRead();
+        recorder.expectLast(
+          method: 'PUT',
+          path: '/api/v2/notifications/read-status',
+          body: {'is_read': true},
+        );
+      },
+    );
     for (final total in [7, 0]) {
       test('unread count uses filtered list total ($total)', () async {
         final recorder = _ApiRecorder(unreadNotificationTotal: total);
@@ -559,10 +603,7 @@ void main() {
       );
 
       await api.deleteNotification(3);
-      recorder.expectLast(
-        method: 'DELETE',
-        path: '/api/v2/notifications/3',
-      );
+      recorder.expectLast(method: 'DELETE', path: '/api/v2/notifications/3');
 
       await api.restoreNotification(3);
       recorder.expectLast(
@@ -938,6 +979,24 @@ class _ApiRecorder implements HttpClientAdapter {
 
   dynamic _dataFor(RequestOptions options) {
     final path = options.path;
+    if (path == '/api/v2/ai/conversations') {
+      return {'conversation_id': 'f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb'};
+    }
+    if (path.startsWith('/api/v2/ai/conversations/') &&
+        path.endsWith('/messages') &&
+        options.method == 'GET') {
+      return [
+        {
+          'message_id': 'a',
+          'sequence_no': 2,
+          'role': 'assistant',
+          'content': 'draft',
+        },
+      ];
+    }
+    if (path.startsWith('/api/v2/ai/conversations/')) {
+      return {'message_id': 'a', 'sequence_no': 2, 'role': 'assistant'};
+    }
     if (path == '/api/v2/posts/1/comments') {
       return <Object>[_postCommentJson];
     }
