@@ -46,6 +46,7 @@ pub(crate) async fn get(
 
 trait Transaction {
     fn check_schema(&self) -> Result<(), ()>;
+    fn lock_user(&self, user: i64) -> Result<(), ()>;
     fn ensure(&self, user: i64) -> Result<(), ()>;
     fn update(
         &self,
@@ -69,7 +70,8 @@ fn run(
         return Ok(SettingsRead::SchemaUnavailable);
     }
     let result = tx
-        .ensure(user)
+        .lock_user(user)
+        .and_then(|()| tx.ensure(user))
         .and_then(|()| match patch {
             Some(patch) => tx.update(user, patch),
             None => Ok(()),
@@ -115,6 +117,21 @@ impl Transaction for OracleSettings<'_> {
     fn check_schema(&self) -> Result<(), ()> {
         let snapshot = readiness::collect_user_settings_snapshot(self.0).map_err(|_| ())?;
         readiness::validate_feature_snapshot(&snapshot, "user-settings").map_err(|_| ())
+    }
+    fn lock_user(&self, user: i64) -> Result<(), ()> {
+        let values = bind_values(BindMap::from([("user_id".into(), DbValue::I64(user))]));
+        let refs = bind_refs(&values);
+        let id = self
+            .0
+            .query_row_as_named::<i64>(
+                "SELECT user_id FROM n_users WHERE user_id=:user_id FOR UPDATE",
+                &refs,
+            )
+            .map_err(|_| ())?;
+        if id != user {
+            return Err(());
+        }
+        Ok(())
     }
     fn ensure(&self, user: i64) -> Result<(), ()> {
         OracleTx::new(self.0).execute("MERGE INTO n_user_settings s USING (SELECT :user_id AS user_id FROM dual) src ON (s.user_id = src.user_id) WHEN NOT MATCHED THEN INSERT (user_id) VALUES (src.user_id)", BindMap::from([("user_id".into(), DbValue::I64(user))])).map(|_| ()).map_err(|_| ())
@@ -176,6 +193,9 @@ mod tests {
         fn check_schema(&self) -> Result<(), ()> {
             self.call("schema")
         }
+        fn lock_user(&self, _: i64) -> Result<(), ()> {
+            self.call("lock")
+        }
         fn ensure(&self, _: i64) -> Result<(), ()> {
             self.call("ensure")
         }
@@ -213,7 +233,7 @@ mod tests {
     }
     #[test]
     fn transaction_maps_and_rolls_back_errors() {
-        for mode in ["", "schema", "ensure", "read", "commit"] {
+        for mode in ["", "schema", "lock", "ensure", "read", "commit"] {
             let fake = Fake {
                 fail: mode,
                 calls: RefCell::new(vec![]),
@@ -232,9 +252,15 @@ mod tests {
                 "schema" => assert!(matches!(result, Ok(SettingsRead::SchemaUnavailable))),
                 _ => assert!(result.is_err()),
             }
+            if mode.is_empty() {
+                assert_eq!(
+                    &*fake.calls.borrow(),
+                    &["schema", "lock", "ensure", "read", "commit"]
+                );
+            }
             assert_eq!(
                 fake.calls.borrow().contains(&"rollback"),
-                mode == "ensure" || mode == "read"
+                mode == "lock" || mode == "ensure" || mode == "read"
             );
         }
     }
