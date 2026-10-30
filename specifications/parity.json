@@ -9123,7 +9123,11 @@
             "src/ai/knowledge_history.rs",
             "tests/ai_knowledge_history_test.rs",
             "src/ai/knowledge_conversation.rs",
-            "tests/ai_knowledge_conversation_test.rs"
+            "tests/ai_knowledge_conversation_test.rs",
+            "src/ai/conversation_http.rs",
+            "src/app/routes.rs",
+            "src/auth/sessions.rs",
+            "tests/ai_knowledge_route_test.rs"
           ],
           "evidence": []
         },
@@ -11626,7 +11630,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-history.md",
-        "sha256": "3c85df7cab3b336f61590b0b78ae03c32a3f91852a23bac7d3e406467c1bdec8"
+        "sha256": "3e1693adf10ae54e64b3c726fcf369f8d8ec81f5c701a64c86a911298d34cab0"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-history.md",
