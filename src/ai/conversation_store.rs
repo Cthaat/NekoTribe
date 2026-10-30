@@ -157,6 +157,7 @@ trait Transaction {
 }
 trait MessageTransaction: Transaction {
     fn read_locked(&self, user: i64, id: &str) -> Result<Option<Record>, Error>;
+    fn delete(&self, user: i64, id: &str) -> Result<(), Error>;
     fn next_sequence(&self, id: &str) -> Result<i64, Error>;
     fn insert_message(
         &self,
@@ -167,6 +168,39 @@ trait MessageTransaction: Transaction {
         assistant: Option<&AssistantInput>,
     ) -> Result<(), Error>;
     fn touch(&self, user: i64, id: &str) -> Result<(), Error>;
+}
+fn run_delete(
+    tx: &impl MessageTransaction,
+    user: i64,
+    id: &str,
+    policy: &ModerationPolicy,
+) -> Result<(), Error> {
+    if !(1..=MAX_SAFE_ID).contains(&user) {
+        return Err(Error::Invalid);
+    }
+    if !valid_uuid(id) {
+        return Err(Error::NotFound);
+    }
+    tx.check_schema()?;
+    let result = (|| {
+        let record = tx.read_locked(user, id)?.ok_or(Error::NotFound)?;
+        let scope = validate(Input {
+            purpose: record.purpose,
+            group_id: record.group_id,
+            title: String::new(),
+        })
+        .map_err(|_| Error::Store)?;
+        tx.authorize(user, &scope, policy)?;
+        tx.delete(user, id)?;
+        tx.authorize(user, &scope, policy)
+    })();
+    match result {
+        Ok(()) => tx.commit(),
+        Err(error) => {
+            tx.rollback()?;
+            Err(error)
+        }
+    }
 }
 trait HistoryTransaction: Transaction {
     fn messages(
@@ -500,6 +534,17 @@ impl MessageTransaction for OracleConversation<'_> {
     fn read_locked(&self, user: i64, id: &str) -> Result<Option<Record>, Error> {
         self.read_owned(user, id, true)
     }
+    fn delete(&self, user: i64, id: &str) -> Result<(), Error> {
+        let binds = BindMap::from([
+            ("conversation_id".into(), DbValue::String(id.into())),
+            ("owner_user_id".into(), DbValue::I64(user)),
+        ]);
+        let result = OracleTx::new(self.0).execute("DELETE FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id", binds).map_err(|_| Error::Store)?;
+        if result.rows_affected != 1 {
+            return Err(Error::Store);
+        }
+        Ok(())
+    }
     fn next_sequence(&self, id: &str) -> Result<i64, Error> {
         let values = bind_values(BindMap::from([(
             "conversation_id".into(),
@@ -624,6 +669,15 @@ pub fn read(
 ) -> Result<Record, Error> {
     run(&OracleConversation(connection), user, id, None, policy)
 }
+/// Deletes the owned conversation and its cascading messages after authorization.
+pub fn delete(
+    connection: &oracle::Connection,
+    user: i64,
+    id: &str,
+    policy: &ModerationPolicy,
+) -> Result<(), Error> {
+    run_delete(&OracleConversation(connection), user, id, policy)
+}
 /// The caller must authenticate the actor and supply a trusted moderation policy.
 pub fn append_user_message(
     connection: &oracle::Connection,
@@ -725,6 +779,10 @@ mod tests {
             self.events.borrow_mut().push("lock");
             self.read(user, id)
         }
+        fn delete(&self, _: i64, _: &str) -> Result<(), Error> {
+            self.events.borrow_mut().push("delete");
+            Ok(())
+        }
         fn next_sequence(&self, id: &str) -> Result<i64, Error> {
             self.events.borrow_mut().push("sequence");
             Ok(if id.starts_with("bf9") { 2 } else { 1 })
@@ -789,6 +847,64 @@ mod tests {
                 created_at: String::new(),
             }])
         }
+    }
+    #[test]
+    fn delete_rechecks_permission_and_rolls_back_when_revoked() {
+        let tx = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: true,
+        };
+        assert_eq!(
+            run_delete(
+                &tx,
+                1,
+                "af9da41c-7296-4f51-91f4-141f5c6e3c01",
+                &ModerationPolicy::new("", "")
+            ),
+            Err(Error::Forbidden)
+        );
+        assert_eq!(
+            *tx.events.borrow(),
+            vec![
+                "schema",
+                "lock",
+                "read",
+                "authorize",
+                "delete",
+                "authorize",
+                "rollback"
+            ]
+        );
+    }
+    #[test]
+    fn delete_commits_after_rechecking_access() {
+        let tx = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: false,
+        };
+        assert_eq!(
+            run_delete(
+                &tx,
+                1,
+                "af9da41c-7296-4f51-91f4-141f5c6e3c01",
+                &ModerationPolicy::new("", "")
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            *tx.events.borrow(),
+            vec![
+                "schema",
+                "lock",
+                "read",
+                "authorize",
+                "delete",
+                "authorize",
+                "commit"
+            ]
+        );
     }
     #[test]
     fn recent_history_selects_latest_messages_and_keeps_chronological_order() {
