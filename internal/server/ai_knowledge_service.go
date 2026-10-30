@@ -33,6 +33,9 @@ func generateKnowledgeWithHistory(ctx context.Context, store knowledgeServiceSto
 	}
 	var selected knowledgeContext
 	revalidate := func(ctx context.Context) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if len(selected.Sources) == 0 {
 			return nil
 		}
@@ -43,6 +46,9 @@ func generateKnowledgeWithHistory(ctx context.Context, store knowledgeServiceSto
 		_, err = restoreKnowledgeMessage(ctx, guard, func(ctx context.Context, refs []knowledgeCandidate) ([]knowledgeSource, error) {
 			return store.hydrateKnowledgeSources(ctx, viewer, refs)
 		})
+		if cancelled := ctx.Err(); cancelled != nil {
+			return cancelled
+		}
 		if err != nil {
 			return errKnowledgeSourceChanged
 		}
@@ -102,6 +108,9 @@ func generateKnowledgeWithHistory(ctx context.Context, store knowledgeServiceSto
 				return "", errKnowledgeProvider
 			}
 			answer, err := transport.Infer(ctx, selection, request)
+			if cancelled := ctx.Err(); cancelled != nil {
+				return "", cancelled
+			}
 			if err != nil || answer.FinishReason != "stop" || len(answer.ToolCalls) != 0 {
 				return "", errKnowledgeProvider
 			}

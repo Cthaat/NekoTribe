@@ -73,6 +73,7 @@ type knowledgeServiceFake struct {
 	historical []knowledgeSource
 	events     []string
 	revoke     bool
+	onHydrate  func()
 }
 
 func (f *knowledgeServiceFake) discoverKnowledgeSources(_ context.Context, user int64, query string, limit int) ([]knowledgeSource, error) {
@@ -87,6 +88,9 @@ func (f *knowledgeServiceFake) hydrateKnowledgeSources(_ context.Context, user i
 		return nil, errors.New("bad user")
 	}
 	f.events = append(f.events, "hydrate")
+	if f.onHydrate != nil {
+		f.onHydrate()
+	}
 	if f.revoke {
 		return nil, nil
 	}
@@ -100,6 +104,35 @@ func (f *knowledgeServiceFake) hydrateKnowledgeSources(_ context.Context, user i
 		}
 	}
 	return result, nil
+}
+
+type cancelledKnowledgeTransport struct{ cancel context.CancelFunc }
+
+func (t cancelledKnowledgeTransport) Infer(context.Context, ai.Selection, []byte) (ai.InferenceResult, error) {
+	t.cancel()
+	return ai.InferenceResult{}, context.Canceled
+}
+func TestKnowledgeServicePreservesCancellationDuringInferenceAndHistoryCheck(t *testing.T) {
+	source := knowledgeSource{Kind: "post", ID: 1, PostID: 1, Content: "资料", Version: strings.Repeat("a", 64)}
+	selection := ai.Selection{Role: "knowledge", ContextWindowTokens: 8192, MaxOutputTokens: 512}
+	ctx, cancel := context.WithCancel(context.Background())
+	store := &knowledgeServiceFake{rows: []knowledgeSource{source}}
+	if _, err := generateKnowledgeWithTransport(ctx, store, 42, "猫", selection, cancelledKnowledgeTransport{cancel}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("inference: %v", err)
+	}
+	ctx, cancel = context.WithCancel(context.Background())
+	store = &knowledgeServiceFake{rows: []knowledgeSource{source}}
+	store.onHydrate = func() {
+		if strings.Contains(strings.Join(store.events, ","), "infer") {
+			cancel()
+			store.revoke = true
+		}
+	}
+	history := []conversationHistoryMessage{{SequenceNo: 1, Role: "assistant", Content: "old", Citations: []knowledgeCitation{{Kind: "post", ID: 1, PostID: 1, Version: source.Version}}}, {SequenceNo: 2, Role: "user", Content: "猫"}}
+	_, _, err := generateKnowledgeWithHistory(ctx, store, 42, "猫", selection, &knowledgeTransportFake{store: store}, history)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("history revalidation: %v", err)
+	}
 }
 
 type knowledgeTransportFake struct {
