@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-10-30-ai-conversations"
+    "x-contract-revision": "2026-10-30-ai-writing"
   },
   "tags": [
     {
@@ -30529,6 +30529,108 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v2/ai/conversations/{id}/generate": {
+      "post": {
+        "summary": "生成写作会话回复",
+        "description": "仅 writing 用途；根据已保存的最后一条用户消息和近期上下文生成待审阅草稿。客户端不能指定模型、提供方或凭据。仅 Nuxt 实现，其他后端待接入。",
+        "operationId": "generateAIWritingReply",
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "message_id",
+                        "conversation_id",
+                        "sequence_no",
+                        "role"
+                      ],
+                      "properties": {
+                        "message_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "conversation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "sequence_no": {
+                          "type": "integer"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "user"
+                          ]
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "无权限"
+          },
+          "404": {
+            "description": "会话不存在"
+          },
+          "409": {
+            "description": "会话内容已变化"
+          },
+          "503": {
+            "description": "模型服务或数据库不可用"
           }
         }
       }
