@@ -82,14 +82,14 @@ impl KnowledgeTransport for Transport {
         })
     }
 }
-struct Service<'a, S, T> {
+struct Service<'a, S: ?Sized, T> {
     store: &'a S,
     transport: &'a T,
     viewer: i64,
     query: &'a str,
     selection: SelectionSnapshot,
 }
-impl<S: KnowledgeStore, T: KnowledgeTransport> Dependencies for Service<'_, S, T> {
+impl<S: KnowledgeStore + ?Sized, T: KnowledgeTransport> Dependencies for Service<'_, S, T> {
     fn discover(&self) -> TurnFuture<'_, Vec<Source>> {
         self.store.discover(self.viewer, self.query)
     }
@@ -112,7 +112,7 @@ impl<S: KnowledgeStore, T: KnowledgeTransport> Dependencies for Service<'_, S, T
         })
     }
 }
-pub async fn generate_with_transport<S: KnowledgeStore, T: KnowledgeTransport>(
+pub async fn generate_with_transport<S: KnowledgeStore + ?Sized, T: KnowledgeTransport>(
     store: &S,
     viewer: i64,
     query: &str,

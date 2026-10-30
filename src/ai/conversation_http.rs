@@ -12,6 +12,10 @@ use axum::{
     response::{IntoResponse, Response},
     Extension, Json,
 };
+use std::sync::Arc;
+
+#[derive(Clone)]
+pub struct KnowledgeRuntime(pub Arc<dyn crate::ai::knowledge_service::KnowledgeStore>);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ModerationSettings {
@@ -28,6 +32,67 @@ impl ModerationSettings {
     fn policy(&self) -> ModerationPolicy {
         ModerationPolicy::new(&self.allow_all, &self.accounts)
     }
+}
+pub(crate) async fn generate_knowledge(
+    State(state): State<NativeState>,
+    Path(id): Path<String>,
+    settings: Option<Extension<ModerationSettings>>,
+    writing: Option<Extension<crate::ai::writing::Settings>>,
+    knowledge: Option<Extension<KnowledgeRuntime>>,
+    request: Request<Body>,
+) -> Response {
+    async {
+        use crate::ai::{
+            knowledge_conversation::Error as KnowledgeError, knowledge_turn::TurnError,
+        };
+        let (parts, _) = request.into_parts();
+        let actor = interaction_actor(&state, &parts.headers).await?;
+        if !conversation_store::valid_uuid(&id) {
+            return Err(ApiError::not_found("会话不存在"));
+        }
+        let unavailable = || {
+            ApiError::new(
+                StatusCode::SERVICE_UNAVAILABLE,
+                50301,
+                "服务暂不可用，请稍后重试。",
+            )
+        };
+        let runtime = knowledge.ok_or_else(unavailable)?.0;
+        let config = writing.map(|Extension(s)| s).unwrap_or_default();
+        let policy = settings.map(|Extension(s)| s).unwrap_or_default().policy();
+        let result = crate::ai::knowledge_conversation::generate(
+            state.repository.as_ref(),
+            runtime.0.as_ref(),
+            actor,
+            &id,
+            policy,
+            config.configuration(),
+            None,
+        )
+        .await
+        .map_err(|e| match e {
+            KnowledgeError::Store(e) => error(e),
+            KnowledgeError::Repository => ApiError::server_error("服务器内部错误"),
+            KnowledgeError::Context
+            | KnowledgeError::Knowledge(TurnError::InvalidSource | TurnError::ContextTooLarge) => {
+                ApiError::bad_request("知识会话上下文不可用")
+            }
+            _ => unavailable(),
+        })?;
+        let status = if result.is_some() {
+            "generated"
+        } else {
+            "insufficient_evidence"
+        };
+        Ok::<_, ApiError>(
+            Json(V2Response::ok(
+                serde_json::json!({"status":status,"message":result}),
+            ))
+            .into_response(),
+        )
+    }
+    .await
+    .into_response()
 }
 pub(crate) async fn generate(
     State(state): State<NativeState>,

@@ -30,10 +30,11 @@ struct HealthResponse {
 
 pub fn build_router(config: AppConfig) -> Router {
     if config.backend_mode == BackendMode::Native {
+        let pool = OraclePool::new(config.oracle.clone());
         let repository = Arc::new(OracleSessions {
-            executor: OraclePool::new(config.oracle.clone()),
+            executor: pool.clone(),
         });
-        return native_router(config, repository).unwrap_or_else(|_| {
+        return native_router(config, repository, pool).unwrap_or_else(|_| {
             Router::new().fallback(|| async { ApiError::server_error("服务器内部错误") })
         });
     }
@@ -60,17 +61,19 @@ pub async fn prepare_router(config: AppConfig) -> Result<Router, SessionStoreErr
     if config.backend_mode == BackendMode::Compat {
         return Ok(build_router(config));
     }
+    let pool = OraclePool::new(config.oracle.clone());
     let repository = Arc::new(OracleSessions {
-        executor: OraclePool::new(config.oracle.clone()),
+        executor: pool.clone(),
     });
     tokio::time::timeout(std::time::Duration::from_secs(15), repository.preflight())
         .await
         .map_err(|_| SessionStoreError)??;
-    native_router(config, repository)
+    native_router(config, repository, pool)
 }
 fn native_router(
     config: AppConfig,
     repository: Arc<dyn SessionRepository>,
+    pool: OraclePool,
 ) -> Result<Router, SessionStoreError> {
     let options = config.native.as_ref().ok_or(SessionStoreError)?;
     let codec = options.keys.codec().map_err(|_| SessionStoreError)?;
@@ -101,6 +104,11 @@ fn native_router(
     .layer(axum::Extension(options.local_storage.clone()))
     .layer(axum::Extension(options.ai_moderation.clone()))
     .layer(axum::Extension(options.ai_writing.clone()))
+    .layer(axum::Extension(
+        crate::ai::conversation_http::KnowledgeRuntime(Arc::new(
+            crate::ai::knowledge_service::OracleKnowledgeStore(pool),
+        )),
+    ))
     .layer(axum_middleware::from_fn_with_state(
         config,
         security_headers::security_headers,

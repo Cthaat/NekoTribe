@@ -1,7 +1,7 @@
 //! Internal knowledge conversation generation; caller authenticates the user.
 use super::{
     conversation_store::{AiOperation, AssistantInput, ModerationPolicy},
-    knowledge_service::{self, KnowledgeStore, KnowledgeTransport, OracleKnowledgeStore},
+    knowledge_service::{self, KnowledgeStore, KnowledgeTransport},
     knowledge_turn::TurnError,
     model_config::{ModelRouter, SelectionSnapshot},
     transport::{CredentialResolver, Transport, TransportError},
@@ -14,6 +14,7 @@ use tokio::sync::watch;
 #[derive(Debug)]
 pub enum Error {
     Context,
+    Configuration,
     Cancelled,
     Knowledge(TurnError),
     Repository,
@@ -40,7 +41,7 @@ async fn store(
 }
 
 /// Repository calls complete before model inference and the sequence is checked when writing.
-pub async fn generate_with_transport<S: KnowledgeStore, T: KnowledgeTransport>(
+pub async fn generate_with_transport<S: KnowledgeStore + ?Sized, T: KnowledgeTransport>(
     repository: &dyn SessionRepository,
     knowledge: &S,
     user: u64,
@@ -131,10 +132,10 @@ pub async fn generate_with_transport<S: KnowledgeStore, T: KnowledgeTransport>(
     .await?;
     Ok(Some(value))
 }
-/// The configuration and credentials are server-owned; this does not expose an HTTP route.
-pub async fn generate(
+/// The configuration and credentials are server-owned.
+pub async fn generate<S: KnowledgeStore + ?Sized>(
     repository: &dyn SessionRepository,
-    knowledge: &OracleKnowledgeStore,
+    knowledge: &S,
     user: u64,
     id: &str,
     policy: ModerationPolicy,
@@ -142,16 +143,16 @@ pub async fn generate(
     signal: Option<watch::Receiver<bool>>,
 ) -> Result<Option<Value>, Error> {
     if configuration.is_empty() || configuration.len() > 65536 {
-        return Err(Error::Context);
+        return Err(Error::Configuration);
     }
-    let value: Value = serde_json::from_str(configuration).map_err(|_| Error::Context)?;
+    let value: Value = serde_json::from_str(configuration).map_err(|_| Error::Configuration)?;
     let selection = ModelRouter::new(&value)
         .and_then(|router| router.select("knowledge", &[]))
-        .map_err(|_| Error::Context)?;
+        .map_err(|_| Error::Configuration)?;
     let resolver: CredentialResolver = Arc::new(|reference| {
         std::env::var(reference).map_err(|_| TransportError("MISSING_CREDENTIAL"))
     });
-    let transport = Transport::new(Some(resolver), None).map_err(|_| Error::Context)?;
+    let transport = Transport::new(Some(resolver), None).map_err(|_| Error::Configuration)?;
     generate_with_transport(
         repository, knowledge, user, id, policy, selection, &transport, signal,
     )

@@ -19,6 +19,9 @@ impl std::fmt::Debug for Settings {
     }
 }
 impl Settings {
+    pub(crate) fn configuration(&self) -> &str {
+        &self.0
+    }
     pub fn from_lookup(get: &impl Fn(&str) -> Option<String>) -> Self {
         Self(get("AI_MODEL_CONFIG_JSON").unwrap_or_default())
     }
