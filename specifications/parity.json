@@ -9014,7 +9014,9 @@
           ],
           "sourceFiles": [
             "src/ai/conversation_store.rs",
-            "tests/schema_readiness_test.rs"
+            "tests/schema_readiness_test.rs",
+            "src/ai/conversation_http.rs",
+            "tests/ai_conversation_route_test.rs"
           ],
           "evidence": []
         },
