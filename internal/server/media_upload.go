@@ -65,7 +65,7 @@ func uploadMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManage
 	} else {
 		err = errMediaStorage
 	}
-	var width, height *float64
+	var width, height, duration *float64
 	if err == nil {
 		selected := selectMediaFileType(media.Selected.Name, media.Selected.MIME, detected)
 		if selected.Supported && (selected.MediaType == "image" || selected.MediaType == "gif") {
@@ -73,6 +73,10 @@ func uploadMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManage
 				w, h := float64(imageInfo.Width), float64(imageInfo.Height)
 				width, height = &w, &h
 			}
+		}
+		if selected.Supported && !config.LocalStorage.Unsupported && (selected.MediaType == "video" || selected.MediaType == "audio") {
+			metadata := probeMedia(r.Context(), file, selected.MIMEType, probeOptions{})
+			width, height, duration = metadata.Width, metadata.Height, metadata.Duration
 		}
 	}
 	closeErr := file.Close()
@@ -113,7 +117,7 @@ func uploadMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManage
 			log.Print("media upload object handle close unavailable")
 		}
 	}()
-	input := mediaUploadInput{UserID: user, Size: media.Selected.Size, Key: key, PublicURL: publicURL, FileName: name, MediaType: selected.MediaType, MIMEType: selected.MIMEType, AltText: media.AltText, Description: media.Description, Width: width, Height: height}
+	input := mediaUploadInput{UserID: user, Size: media.Selected.Size, Key: key, PublicURL: publicURL, FileName: name, MediaType: selected.MediaType, MIMEType: selected.MIMEType, AltText: media.AltText, Description: media.Description, Width: width, Height: height, Duration: duration}
 	result, err := store.CreateMediaAtomic(r.Context(), input, config.Storage)
 	if err != nil {
 		if result.CleanupSafe {

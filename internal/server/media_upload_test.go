@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"image"
@@ -12,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -21,6 +23,38 @@ type mediaUploadFixture struct {
 	mode  string
 	input mediaUploadInput
 	calls int
+}
+
+func TestMediaUploadRealWAV(t *testing.T) {
+	binaryPath := os.Getenv("NEKO_TEST_FFPROBE")
+	if binaryPath == "" || runtime.GOOS != "linux" {
+		t.Skip("requires a Linux ffprobe")
+	}
+	t.Setenv("FFPROBE_PATH", binaryPath)
+	wav := make([]byte, 44+16000)
+	copy(wav, "RIFF")
+	binary.LittleEndian.PutUint32(wav[4:], 16036)
+	copy(wav[8:], "WAVEfmt ")
+	binary.LittleEndian.PutUint32(wav[16:], 16)
+	binary.LittleEndian.PutUint16(wav[20:], 1)
+	binary.LittleEndian.PutUint16(wav[22:], 1)
+	binary.LittleEndian.PutUint32(wav[24:], 8000)
+	binary.LittleEndian.PutUint32(wav[28:], 16000)
+	binary.LittleEndian.PutUint16(wav[32:], 2)
+	binary.LittleEndian.PutUint16(wav[34:], 16)
+	copy(wav[36:], "data")
+	binary.LittleEndian.PutUint32(wav[40:], 16000)
+	codec, tokens := fixture(t)
+	store := &mediaUploadFixture{memorySessions: store()}
+	body, typ := multipartFixture(t, []partFixture{{"file", "a.wav", string(wav)}})
+	req := httptest.NewRequest("POST", "/api/v2/media", body)
+	req.Header.Set("Content-Type", typ)
+	req.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
+	w := httptest.NewRecorder()
+	NewHandlerWithConfig(codec, store, CorsPolicy{}, RefreshConfig{LocalStorage: LocalStorageConfig{Root: t.TempDir()}}).ServeHTTP(w, req)
+	if w.Code != 200 || store.input.MIMEType != "audio/wav" || store.input.Duration == nil || *store.input.Duration != 1 {
+		t.Fatal(w.Code, store.input, w.Body.String())
+	}
 }
 
 type mediaUploadIntegratedFixture struct {
