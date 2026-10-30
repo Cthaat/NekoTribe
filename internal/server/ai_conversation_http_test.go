@@ -14,8 +14,17 @@ type aiHTTPFixture struct {
 	actor        int64
 	after, limit int64
 	content      string
+	cursor       string
 	policy       moderationPolicy
 	fail         error
+}
+
+func (s *aiHTTPFixture) listAIConversations(_ context.Context, user int64, after string, limit int, policy moderationPolicy) (conversationPage, error) {
+	s.operation = "list-owned"
+	s.actor = user
+	s.cursor = after
+	s.limit = int64(limit)
+	return conversationPage{Items: []conversationRecord{}}, s.fail
 }
 
 func (s *aiHTTPFixture) createAIConversation(_ context.Context, user int64, input conversationInput, policy moderationPolicy) (conversationRecord, error) {
@@ -55,6 +64,9 @@ func TestAIConversationHTTPRoutes(t *testing.T) {
 		status                        int
 	}{
 		{"POST", "/api/v2/ai/conversations", `{"purpose":"knowledge"}`, "create", 200},
+		{"GET", "/api/v2/ai/conversations?limit=10", "", "list-owned", 200},
+		{"GET", "/api/v2/ai/conversations?after_id=bad", "", "", 400},
+		{"GET", "/api/v2/ai/conversations?limit=1&limit=2", "", "", 400},
 		{"GET", "/api/v2/ai/conversations/" + id, "", "read", 200},
 		{"DELETE", "/api/v2/ai/conversations/" + id, "", "delete", 200},
 		{"POST", "/api/v2/ai/conversations/" + id + "/messages", `{"content":"你好"}`, "append", 200},

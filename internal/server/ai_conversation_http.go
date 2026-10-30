@@ -18,6 +18,7 @@ type aiConversationStore interface {
 	deleteAIConversation(context.Context, int64, string, moderationPolicy) error
 	appendAIUserMessage(context.Context, int64, string, string, moderationPolicy) (conversationMessage, error)
 	listAIConversationMessages(context.Context, int64, string, int64, int64, moderationPolicy) ([]conversationHistoryMessage, error)
+	listAIConversations(context.Context, int64, string, int, moderationPolicy) (conversationPage, error)
 }
 
 var aiDecimal = regexp.MustCompile(`^(0|[1-9][0-9]*)$`)
@@ -32,8 +33,12 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 	parts := strings.Split(strings.TrimPrefix(path, prefix), "/")
 	operation := ""
 	id := ""
-	if path == prefix && r.Method == http.MethodPost {
-		operation = "create"
+	if path == prefix && (r.Method == http.MethodPost || r.Method == http.MethodGet) {
+		if r.Method == http.MethodPost {
+			operation = "create"
+		} else {
+			operation = "list-owned"
+		}
 	} else if len(parts) == 2 && parts[0] == "" && parts[1] != "" && (r.Method == http.MethodGet || r.Method == http.MethodDelete) {
 		if r.Method == http.MethodGet {
 			operation = "read"
@@ -77,6 +82,22 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 	var result interface{}
 	var err error
 	switch operation {
+	case "list-owned":
+		query := parseSessionQuery(r.URL.RawQuery)
+		after := ""
+		if values, found := query["after_id"]; found {
+			if len(values) != 1 || (values[0] != "" && !conversationUUID.MatchString(values[0])) {
+				respond(w, 400, 40001, "分页参数错误", nil)
+				return true
+			}
+			after = values[0]
+		}
+		limit, valid := aiPageParam(query, "limit", 20, 50)
+		if !valid || limit == 0 {
+			respond(w, 400, 40001, "分页参数错误", nil)
+			return true
+		}
+		result, err = store.listAIConversations(r.Context(), actor, after, int(limit), policy)
 	case "create":
 		body, valid := readPostCreateBody(r)
 		if !valid {
