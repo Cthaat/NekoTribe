@@ -46,6 +46,7 @@ multer = "3"
 tempfile = "3"
 infer = "0.19"
 zip = { version = "2.4.2", default-features = false, features = ["deflate"] }
+cap-std = "3"
 
 [dev-dependencies]
 dotenvy = "0.15"
