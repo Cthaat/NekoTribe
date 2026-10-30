@@ -51,6 +51,25 @@ pub async fn generate_with_transport<S: KnowledgeStore + ?Sized, T: KnowledgeTra
     transport: &T,
     signal: Option<watch::Receiver<bool>>,
 ) -> Result<Option<Value>, Error> {
+    generate_with_transport_and_search(
+        repository, knowledge, user, id, policy, selection, transport, signal, None,
+    )
+    .await
+}
+pub async fn generate_with_transport_and_search<
+    S: KnowledgeStore + ?Sized,
+    T: KnowledgeTransport,
+>(
+    repository: &dyn SessionRepository,
+    knowledge: &S,
+    user: u64,
+    id: &str,
+    policy: ModerationPolicy,
+    selection: SelectionSnapshot,
+    transport: &T,
+    signal: Option<watch::Receiver<bool>>,
+    search_phrase: Option<&str>,
+) -> Result<Option<Value>, Error> {
     cancelled(&signal)?;
     if user == 0
         || user > 9_007_199_254_740_991
@@ -100,10 +119,11 @@ pub async fn generate_with_transport<S: KnowledgeStore + ?Sized, T: KnowledgeTra
     }
     let query = last["content"].as_str().ok_or(Error::Context)?;
     cancelled(&signal)?;
-    let result = knowledge_service::generate_with_transport(
+    let result = knowledge_service::generate_with_transport_and_search(
         knowledge,
         user as i64,
         query,
+        search_phrase,
         selection.clone(),
         transport,
         signal.clone(),
@@ -142,6 +162,28 @@ pub async fn generate<S: KnowledgeStore + ?Sized>(
     configuration: &str,
     signal: Option<watch::Receiver<bool>>,
 ) -> Result<Option<Value>, Error> {
+    generate_and_search(
+        repository,
+        knowledge,
+        user,
+        id,
+        policy,
+        configuration,
+        signal,
+        None,
+    )
+    .await
+}
+pub async fn generate_and_search<S: KnowledgeStore + ?Sized>(
+    repository: &dyn SessionRepository,
+    knowledge: &S,
+    user: u64,
+    id: &str,
+    policy: ModerationPolicy,
+    configuration: &str,
+    signal: Option<watch::Receiver<bool>>,
+    search_phrase: Option<&str>,
+) -> Result<Option<Value>, Error> {
     if configuration.is_empty() || configuration.len() > 65536 {
         return Err(Error::Configuration);
     }
@@ -153,8 +195,16 @@ pub async fn generate<S: KnowledgeStore + ?Sized>(
         std::env::var(reference).map_err(|_| TransportError("MISSING_CREDENTIAL"))
     });
     let transport = Transport::new(Some(resolver), None).map_err(|_| Error::Configuration)?;
-    generate_with_transport(
-        repository, knowledge, user, id, policy, selection, &transport, signal,
+    generate_with_transport_and_search(
+        repository,
+        knowledge,
+        user,
+        id,
+        policy,
+        selection,
+        &transport,
+        signal,
+        search_phrase,
     )
     .await
 }

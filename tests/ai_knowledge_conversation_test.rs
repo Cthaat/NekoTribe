@@ -1,7 +1,9 @@
 use nekotribe_backend::{
     ai::{
         conversation_store::{AiOperation, Error as StoreError, ModerationPolicy},
-        knowledge_conversation::{generate_with_transport, Error},
+        knowledge_conversation::{
+            generate_with_transport, generate_with_transport_and_search, Error,
+        },
         knowledge_service::{KnowledgeStore, KnowledgeTransport},
         knowledge_source::{Candidate, Source},
         knowledge_turn::TurnFuture,
@@ -19,6 +21,7 @@ struct Store {
     events: Arc<Mutex<Vec<&'static str>>>,
     empty: bool,
     wrong: bool,
+    question: &'static str,
 }
 impl SessionRepository for Store {
     fn touch<'a>(&'a self, _: &'a TokenClaims) -> StoreFuture<'a, u64> {
@@ -44,7 +47,7 @@ impl SessionRepository for Store {
                 }
                 AiOperation::Recent(_) => {
                     self.events.lock().unwrap().push("history");
-                    Ok(json!([{"sequence_no":1,"role":"user","content":"猫"}]))
+                    Ok(json!([{"sequence_no":1,"role":"user","content":self.question}]))
                 }
                 AiOperation::KnowledgeAssistant { input, sources, .. } => {
                     self.events.lock().unwrap().push("append");
@@ -121,6 +124,40 @@ fn selection() -> SelectionSnapshot {
         max_output_tokens: 512,
     }
 }
+struct QuestionTransport;
+impl KnowledgeTransport for QuestionTransport {
+    fn infer<'a>(&'a self, _: &'a SelectionSnapshot, input: &'a Value) -> TurnFuture<'a, String> {
+        Box::pin(async move {
+            let data: Value =
+                serde_json::from_str(input["messages"][1]["content"].as_str().unwrap()).unwrap();
+            assert_eq!(data["question"], "社区里有哪些猫咪？");
+            Ok(json!({"answer":"answer","citations":[{"kind":"post","id":1,"version":"a".repeat(64)}]}).to_string())
+        })
+    }
+}
+#[tokio::test]
+async fn retains_question_when_search_phrase_is_separate() {
+    let store = Store {
+        events: Arc::new(Mutex::new(vec![])),
+        empty: false,
+        wrong: false,
+        question: "社区里有哪些猫咪？",
+    };
+    let result = generate_with_transport_and_search(
+        &store,
+        &store,
+        42,
+        "id",
+        ModerationPolicy::new("", ""),
+        selection(),
+        &QuestionTransport,
+        None,
+        Some("猫"),
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.unwrap()["sequence_no"], 2);
+}
 #[tokio::test]
 async fn persists_after_generation_with_fixed_sequence_and_model() {
     let events = Arc::new(Mutex::new(vec![]));
@@ -128,6 +165,7 @@ async fn persists_after_generation_with_fixed_sequence_and_model() {
         events: events.clone(),
         empty: false,
         wrong: false,
+        question: "猫",
     };
     let transport = Transport(events.clone());
     let result = generate_with_transport(
@@ -156,6 +194,7 @@ async fn no_evidence_or_wrong_purpose_never_writes() {
         events: events.clone(),
         empty: true,
         wrong: false,
+        question: "猫",
     };
     assert!(generate_with_transport(
         &store,
@@ -175,6 +214,7 @@ async fn no_evidence_or_wrong_purpose_never_writes() {
         events: events.clone(),
         empty: false,
         wrong: true,
+        question: "猫",
     };
     assert!(matches!(
         generate_with_transport(

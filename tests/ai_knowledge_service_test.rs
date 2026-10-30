@@ -1,5 +1,8 @@
 use nekotribe_backend::ai::{
-    knowledge_service::{generate_with_transport, KnowledgeStore, KnowledgeTransport},
+    knowledge_service::{
+        generate_with_transport, generate_with_transport_and_search, KnowledgeStore,
+        KnowledgeTransport,
+    },
     knowledge_source::{Candidate, Source},
     knowledge_turn::{TurnError, TurnFuture},
     model_config::SelectionSnapshot,
@@ -66,6 +69,37 @@ impl KnowledgeStore for Store {
 }
 struct Transport {
     events: Arc<Mutex<Vec<&'static str>>>,
+}
+struct QuestionTransport;
+impl KnowledgeTransport for QuestionTransport {
+    fn infer<'a>(&'a self, _: &'a SelectionSnapshot, input: &'a Value) -> TurnFuture<'a, String> {
+        Box::pin(async move {
+            let data: Value =
+                serde_json::from_str(input["messages"][1]["content"].as_str().unwrap()).unwrap();
+            assert_eq!(data["question"], "社区里有哪些猫咪？");
+            Ok(serde_json::json!({"answer":"answer","citations":[{"kind":"post","id":1,"version":"a".repeat(64)}]}).to_string())
+        })
+    }
+}
+#[tokio::test]
+async fn searches_separately_from_the_original_question() {
+    let store = Store {
+        events: Arc::new(Mutex::new(vec![])),
+        stale: false,
+        large: false,
+    };
+    let result = generate_with_transport_and_search(
+        &store,
+        42,
+        "社区里有哪些猫咪？",
+        Some("猫"),
+        selection(),
+        &QuestionTransport,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.answer.as_deref(), Some("answer"));
 }
 impl KnowledgeTransport for Transport {
     fn infer<'a>(

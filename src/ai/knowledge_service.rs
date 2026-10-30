@@ -87,11 +87,12 @@ struct Service<'a, S: ?Sized, T> {
     transport: &'a T,
     viewer: i64,
     query: &'a str,
+    search_phrase: &'a str,
     selection: SelectionSnapshot,
 }
 impl<S: KnowledgeStore + ?Sized, T: KnowledgeTransport> Dependencies for Service<'_, S, T> {
     fn discover(&self) -> TurnFuture<'_, Vec<Source>> {
-        self.store.discover(self.viewer, self.query)
+        self.store.discover(self.viewer, self.search_phrase)
     }
     fn hydrate<'a>(&'a self, candidates: &'a [Candidate]) -> TurnFuture<'a, Vec<Source>> {
         self.store.hydrate(self.viewer, candidates)
@@ -120,6 +121,21 @@ pub async fn generate_with_transport<S: KnowledgeStore + ?Sized, T: KnowledgeTra
     transport: &T,
     signal: Option<watch::Receiver<bool>>,
 ) -> Result<TurnResult, TurnError> {
+    generate_with_transport_and_search(store, viewer, query, None, selection, transport, signal)
+        .await
+}
+pub async fn generate_with_transport_and_search<
+    S: KnowledgeStore + ?Sized,
+    T: KnowledgeTransport,
+>(
+    store: &S,
+    viewer: i64,
+    query: &str,
+    search_phrase: Option<&str>,
+    selection: SelectionSnapshot,
+    transport: &T,
+    signal: Option<watch::Receiver<bool>>,
+) -> Result<TurnResult, TurnError> {
     if !(1..=9_007_199_254_740_991).contains(&viewer) || selection.role != "knowledge" {
         return Err(TurnError::InvalidSource);
     }
@@ -129,6 +145,7 @@ pub async fn generate_with_transport<S: KnowledgeStore + ?Sized, T: KnowledgeTra
             transport,
             viewer,
             query,
+            search_phrase: search_phrase.unwrap_or(query),
             selection,
         },
         signal,
