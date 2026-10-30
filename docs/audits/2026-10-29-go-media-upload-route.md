@@ -6,6 +6,6 @@ Go `POST /api/v2/media` 已连接 access 会话校验、请求专属流式暂存
 
 音视频元数据现可通过 `FFPROBE_PATH` 或 PATH 中的 ffprobe 尝试读取；限制进程并发、等待时间和输出大小。Linux WSL 使用真实 WAV 和 ffprobe 经上传路由验证了一秒时长，数据库仍为替身。Windows 使用管道，其他音视频格式的行为尚需实测。
 
-Windows 管道探测实际无法取得测试 PCM WAV 的时长。Go 现以受限 RIFF 解析作为补充：校验标准 PCM/浮点 WAV 的块长度、格式、字节率和帧对齐后计算时长，限制块数量，不读取音频载荷；不支持的或损坏的输入返回空值。Windows 实际上传测试覆盖 ffprobe 存在和不存在的情况，仍使用数据库替身；其他 Windows 格式未验证，Rust 尚未加入此补充。
+Windows 管道探测实际无法取得测试 PCM WAV 的时长。Go 和 Rust 现以受限 RIFF 解析作为补充：校验标准 PCM/浮点 WAV 的块长度、格式、字节率和帧对齐后计算时长，限制块数量，不读取音频载荷；不支持的或损坏的输入返回空值。Go 的 Windows 实际上传测试覆盖 ffprobe 存在和不存在的情况，Rust 的无 ffprobe 上传在 WSL 验证；均使用数据库替身。Rust Windows 原生构建及其他 Windows 格式未验证。
 
 该路径仍在开发中：AVIF 尺寸尚未实现；WebP 更多变体及音视频尺寸/时长尚需共同样例；Go 探测器和 Nuxt `file-type` 对全部真实格式尚未证明一致；ZIP64、分卷、特殊容器和超限元数据被拒绝，某些扩展名比 Nuxt 限制更严；硬链接发布要求同一支持硬链接的文件系统。共享对象引用、私密附件授权、恶意文件检查和高权限本机并发替换防护仍需后续完成。Rust 上传状态另见 `2026-10-29-rust-media-upload-transaction.md`。

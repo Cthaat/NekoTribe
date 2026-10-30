@@ -4216,6 +4216,8 @@
           ],
           "sourceFiles": [
             "src/storage/media_type_selection.rs",
+            "src/media/rich_metadata.rs",
+            "src/media/wav_duration.rs",
             "tests/media_type_selection_test.rs",
             "src/media/upload.rs",
             "src/media/multipart.rs",
