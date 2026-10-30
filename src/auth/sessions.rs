@@ -536,6 +536,7 @@ pub fn build_native_router_with_realtime_and_publisher(
         )
         .route("/api/v2/auth/sessions/others", delete(revoke))
         .route("/api/v2/media/{id}", delete(crate::media::delete::remove))
+        .route("/api/v2/media", post(crate::media::upload::upload))
         .route(
             "/api/v2/auth/sessions",
             get(crate::auth::session_list::list_sessions),

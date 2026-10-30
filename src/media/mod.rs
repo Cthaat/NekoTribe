@@ -3,5 +3,6 @@ pub mod delete;
 pub mod local_publish;
 pub mod multipart;
 pub mod storage_key;
+pub(crate) mod upload;
 pub mod upload_transaction;
 mod zip_detection;
