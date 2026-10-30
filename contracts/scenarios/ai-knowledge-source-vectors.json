@@ -1,0 +1,10 @@
+{
+  "id": "AI-KNOWLEDGE-SOURCE",
+  "revision": 1,
+  "executionStatus": "component-vectors-not-product-acceptance",
+  "cases": [
+    {"id":"post-zh","kind":"post","source_id":11,"post_id":11,"content":"公开帖子","version":"e5f6b762a5d38261f79ef4e6a11c5605ad5258369d0450446bf4a8a6d4f29ac2"},
+    {"id":"comment-zh","kind":"comment","source_id":21,"post_id":11,"content":"第一条评论","version":"97069366f6478ac8bf3ee68e847843125173caed042a37324a7af0924e457c8e"},
+    {"id":"post-newline","kind":"post","source_id":12,"post_id":12,"content":"line one\nline two","version":"bd40513810161688ee23bfd3a0636c44d23201ff904d3a789365a9dbc31ae72c"}
+  ]
+}
