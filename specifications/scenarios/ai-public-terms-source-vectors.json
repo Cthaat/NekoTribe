@@ -1,0 +1,60 @@
+{
+  "id": "AI-PUBLIC-TERMS-SOURCE-VECTORS",
+  "revision": 1,
+  "executionStatus": "component-vectors-not-product-acceptance",
+  "versions": [
+    {
+      "id": 1,
+      "version": "45f5db62d098eb36c56de71df83abfbeafb21774fe3d0506d63c3179031388aa"
+    },
+    {
+      "id": 2,
+      "version": "748ce79ffe0a384799bbae2cd7e3b20aacb5db695dfa4698f1f204fe7e58cfd1"
+    },
+    {
+      "id": 3,
+      "version": "4b0140a9620e309395994e0cd38c1cf12dca541a8aad989da23f4c855a5e879a"
+    },
+    {
+      "id": 4,
+      "version": "1e76ea0745ddd1efcc3085f9c8024313fc81ad564e886e1ffd6a0cb4f853fa03"
+    },
+    {
+      "id": 5,
+      "version": "e8e9cafc5e3edac8c4adad44c592d81622dbb92b86605bd9bb6c704b56bb87f3"
+    },
+    {
+      "id": 6,
+      "version": "58ea337acbf20d9d078ae84aee9c6d7e42a3629881465994290df2184f6e55fc"
+    },
+    {
+      "id": 7,
+      "version": "3a7170bf3109f8c035b08fe850eb15d5591f1342ee956ceef19c98d07e7cc93f"
+    },
+    {
+      "id": 8,
+      "version": "d7870088fdb997d0fd2cec9beadfbcfe055e057d06bdb571d97ff90297c0e9b1"
+    }
+  ],
+  "searches": [
+    {
+      "query": "账户",
+      "limit": 20,
+      "ids": [
+        2
+      ]
+    },
+    {
+      "query": "malicious attacks",
+      "limit": 20,
+      "ids": [
+        7
+      ]
+    },
+    {
+      "query": "不存在的精确短语",
+      "limit": 20,
+      "ids": []
+    }
+  ]
+}

@@ -1030,6 +1030,10 @@
         "sha256": "f602700fdedc030d4b6a0dd323a372c71ab249f2f0c43f8109cba6bcf46761fc"
       },
       {
+        "path": "server/services/ai/public-terms-source.ts",
+        "sha256": "69a9821e734fbec1bdf9cc0ca964cfaca026036c246716bba9a2085c1f37920b"
+      },
+      {
         "path": "server/services/ai/knowledge-history.ts",
         "sha256": "e508edf7144a0adc4d182451da7ab5895831c05a78ff13c08454207f7eab39b0"
       },
@@ -9036,6 +9040,7 @@
         "server/services/ai/knowledge-citations.ts",
         "server/services/ai/knowledge-history.ts",
         "server/services/ai/knowledge-context.ts",
+        "server/services/ai/public-terms-source.ts",
         "server/services/ai/knowledge-conversation-service.ts"
       ],
       "operations": [
@@ -9108,6 +9113,8 @@
             "server/services/ai/knowledge-history.ts",
             "server/services/ai/knowledge-context.ts",
             "tests/ai-knowledge-context.test.mjs",
+            "server/services/ai/public-terms-source.ts",
+            "tests/ai-public-terms-source.test.mjs",
             "scripts/ai-public-terms-catalog.mjs",
             "scripts/lib/ai-public-terms-catalog.mjs",
             "tests/ai-public-terms-catalog.test.mjs",
@@ -9213,6 +9220,8 @@
         "specifications/scenarios/ai-knowledge-citation-vectors.json",
         "specifications/scenarios/ai-knowledge-context-vectors.json",
         "specifications/requirements/ai-public-terms-catalog.json",
+        "specifications/requirements/ai-public-terms-source.md",
+        "specifications/scenarios/ai-public-terms-source-vectors.json",
         "specifications/requirements/ai-knowledge-history.md"
       ]
     },
@@ -11707,6 +11716,26 @@
       "copies": {
         "rust": "contracts/requirements/ai-public-terms-catalog.json",
         "go": "contracts/requirements/ai-public-terms-catalog.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-public-terms-source.md",
+        "sha256": "7761b4801520cfe43c102162763b7c4111d6f38c6b2f526c56f5b9667b417602"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-public-terms-source.md",
+        "go": "contracts/requirements/ai-public-terms-source.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-public-terms-source-vectors.json",
+        "sha256": "6bcbb0e907c2d2e7f6a9038f26a8b37e0a337c497db98d963f278018ca9c8803"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-public-terms-source-vectors.json",
+        "go": "contracts/scenarios/ai-public-terms-source-vectors.json"
       }
     },
     {
