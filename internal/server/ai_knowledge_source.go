@@ -8,7 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"unicode/utf8"
+
+	"github.com/Cthaat/NekoTribe/backend-go/contracts"
 )
 
 var errKnowledgeInvalid = errors.New("invalid knowledge source")
@@ -60,11 +63,6 @@ func hydrateKnowledge(ctx context.Context, reader knowledgeReader, viewer int64,
 	if err := validateKnowledgeCandidates(viewer, candidates); err != nil {
 		return nil, err
 	}
-	for _, c := range candidates {
-		if c.Kind == "terms" {
-			return nil, errKnowledgeInvalid
-		}
-	}
 	result := make([]knowledgeSource, 0, len(candidates))
 	for _, c := range candidates {
 		row, found, err := reader.get(ctx, viewer, c)
@@ -74,13 +72,16 @@ func hydrateKnowledge(ctx context.Context, reader knowledgeReader, viewer int64,
 		if !found {
 			continue
 		}
-		if row.Kind != c.Kind || row.ID != c.ID || !validKnowledgeID(row.PostID) || (c.Kind == "post" && row.PostID != row.ID) || !utf8.ValidString(row.Content) {
+		if row.Kind != c.Kind || row.ID != c.ID || (c.Kind == "terms" && row.PostID != 0) || (c.Kind != "terms" && !validKnowledgeID(row.PostID)) || (c.Kind == "post" && row.PostID != row.ID) || !utf8.ValidString(row.Content) {
 			return nil, errSessionStore
 		}
 		if row.Content == "" || len(row.Content) > 65536 {
 			continue
 		}
-		version := knowledgeSourceVersion(c.Kind, c.ID, row.PostID, row.Content)
+		version := row.Version
+		if c.Kind != "terms" {
+			version = knowledgeSourceVersion(c.Kind, c.ID, row.PostID, row.Content)
+		}
 		if version == c.Version {
 			row.Version = version
 			result = append(result, row)
@@ -97,7 +98,36 @@ type knowledgeQueryer interface {
 }
 type oracleKnowledgeReader struct{ conn knowledgeQueryer }
 
+// Only use on an active transaction whose commit or rollback releases the lock.
+type lockedKnowledgeReader struct{ conn knowledgeQueryer }
+
+func (r lockedKnowledgeReader) get(ctx context.Context, viewer int64, c knowledgeCandidate) (knowledgeSource, bool, error) {
+	return (oracleKnowledgeReader{r.conn}).getMode(ctx, viewer, c, true)
+}
+
 func (r oracleKnowledgeReader) get(ctx context.Context, viewer int64, c knowledgeCandidate) (knowledgeSource, bool, error) {
+	return r.getMode(ctx, viewer, c, false)
+}
+func (r oracleKnowledgeReader) getMode(ctx context.Context, viewer int64, c knowledgeCandidate, lock bool) (knowledgeSource, bool, error) {
+	if c.Kind == "terms" {
+		raw := contracts.PublicTermsCatalog()
+		if _, err := readPublicTermsAuthorityMode(ctx, r.conn, viewer, raw, lock); err != nil {
+			return knowledgeSource{}, false, errSessionStore
+		}
+		catalog, err := parsePublicTermsCatalog(raw)
+		if err != nil {
+			return knowledgeSource{}, false, errSessionStore
+		}
+		rows, err := hydratePublicTerms(catalog, []publicTermsReference{{Kind: "terms", ID: c.ID, Version: c.Version}})
+		if err != nil {
+			return knowledgeSource{}, false, errSessionStore
+		}
+		if len(rows) == 0 {
+			return knowledgeSource{}, false, nil
+		}
+		content := strings.Join(append([]string{rows[0].Title}, rows[0].Blocks...), "\n")
+		return knowledgeSource{Kind: "terms", ID: rows[0].ID, Version: rows[0].Version, Content: content}, true, nil
+	}
 	if c.Kind != "post" && c.Kind != "comment" {
 		return knowledgeSource{}, false, errKnowledgeInvalid
 	}
@@ -133,11 +163,6 @@ func (r oracleKnowledgeReader) get(ctx context.Context, viewer int64, c knowledg
 func (s OracleSessions) hydrateKnowledgeSources(ctx context.Context, viewer int64, candidates []knowledgeCandidate) (result []knowledgeSource, err error) {
 	if err = validateKnowledgeCandidates(viewer, candidates); err != nil {
 		return nil, err
-	}
-	for _, c := range candidates {
-		if c.Kind == "terms" {
-			return nil, errKnowledgeInvalid
-		}
 	}
 	conn, e := s.DB.Conn(ctx)
 	if e != nil {

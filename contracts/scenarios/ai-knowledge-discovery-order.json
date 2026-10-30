@@ -1,0 +1,14 @@
+{
+  "id": "AI-KNOWLEDGE-DISCOVERY-ORDER",
+  "revision": 1,
+  "executionStatus": "component-vectors-not-product-acceptance",
+  "cases": [
+    {"id":"first-post","query":"账户","limit":1,"posts":[11,10],"comments":[21,20],"authority":"enabled","expected":["post:11"]},
+    {"id":"two-types","query":"账户","limit":2,"posts":[11,10],"comments":[21,20],"authority":"enabled","expected":["post:11","comment:21"]},
+    {"id":"three-types","query":"账户","limit":3,"posts":[11,10],"comments":[21,20],"authority":"enabled","expected":["post:11","comment:21","terms:2"]},
+    {"id":"second-round","query":"账户","limit":5,"posts":[11,10],"comments":[21,20],"authority":"enabled","expected":["post:11","comment:21","terms:2","post:10","comment:20"]},
+    {"id":"terms-only","query":"账户","limit":3,"posts":[],"comments":[],"authority":"enabled","expected":["terms:2"]},
+    {"id":"disabled-matching","query":"账户","limit":3,"posts":[11],"comments":[21],"authority":"disabled","error":true},
+    {"id":"disabled-no-match","query":"猫","limit":3,"posts":[11],"comments":[21],"authority":"disabled","expected":["post:11","comment:21"]}
+  ]
+}

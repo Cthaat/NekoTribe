@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/Cthaat/NekoTribe/backend-go/contracts"
 )
 
 type knowledgeDiscoveryReader interface {
@@ -19,8 +21,8 @@ func discoverKnowledge(ctx context.Context, reader knowledgeDiscoveryReader, vie
 	if term == "" || len(term) > 256 || strings.IndexFunc(term, func(r rune) bool { return r <= 0x1f || r == 0x7f }) >= 0 {
 		return nil, errKnowledgeInvalid
 	}
-	lists := make([][]knowledgeSource, 0, 2)
-	for _, kind := range []string{"post", "comment"} {
+	lists := make([][]knowledgeSource, 0, 3)
+	for _, kind := range []string{"post", "comment", "terms"} {
 		rows, err := reader.search(ctx, viewer, kind, term, limit)
 		if err != nil || len(rows) > limit {
 			return nil, errSessionStore
@@ -28,20 +30,22 @@ func discoverKnowledge(ctx context.Context, reader knowledgeDiscoveryReader, vie
 		valid := make([]knowledgeSource, 0, len(rows))
 		seen := make(map[int64]bool)
 		for _, row := range rows {
-			if row.Kind != kind || !validKnowledgeID(row.ID) || !validKnowledgeID(row.PostID) || (kind == "post" && row.ID != row.PostID) || seen[row.ID] || !utf8.ValidString(row.Content) {
+			if row.Kind != kind || !validKnowledgeID(row.ID) || (kind == "terms" && (row.ID > 8 || row.PostID != 0 || !knowledgeVersion.MatchString(row.Version))) || (kind != "terms" && !validKnowledgeID(row.PostID)) || (kind == "post" && row.ID != row.PostID) || seen[row.ID] || !utf8.ValidString(row.Content) {
 				return nil, errSessionStore
 			}
 			seen[row.ID] = true
 			if row.Content == "" || len(row.Content) > 65536 {
 				continue
 			}
-			row.Version = knowledgeSourceVersion(kind, row.ID, row.PostID, row.Content)
+			if kind != "terms" {
+				row.Version = knowledgeSourceVersion(kind, row.ID, row.PostID, row.Content)
+			}
 			valid = append(valid, row)
 		}
 		lists = append(lists, valid)
 	}
 	result := make([]knowledgeSource, 0, limit)
-	for i := 0; len(result) < limit && (i < len(lists[0]) || i < len(lists[1])); i++ {
+	for i := 0; len(result) < limit && (i < len(lists[0]) || i < len(lists[1]) || i < len(lists[2])); i++ {
 		for _, list := range lists {
 			if i < len(list) && len(result) < limit {
 				result = append(result, list[i])
@@ -55,6 +59,30 @@ const knowledgeDiscoverPostsSQL = `SELECT p.post_id AS source_id,p.post_id AS po
 const knowledgeDiscoverCommentsSQL = `SELECT c.comment_id AS source_id,p.post_id AS post_id,c.content AS content FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id WHERE c.is_deleted=0 AND p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1 AND DBMS_LOB.GETLENGTH(c.content) BETWEEN 1 AND 65536 AND DBMS_LOB.INSTR(c.content,:term)>0 ORDER BY c.comment_id DESC FETCH FIRST :row_limit ROWS ONLY`
 
 func (r oracleKnowledgeReader) search(ctx context.Context, viewer int64, kind, term string, limit int) ([]knowledgeSource, error) {
+	if kind == "terms" {
+		raw := contracts.PublicTermsCatalog()
+		catalog, err := parsePublicTermsCatalog(raw)
+		if err != nil {
+			return nil, errSessionStore
+		}
+		matches, err := discoverPublicTerms(catalog, term, limit)
+		if err != nil {
+			return nil, errSessionStore
+		}
+		if len(matches) > 0 {
+			if _, err = readPublicTermsAuthority(ctx, r.conn, viewer, raw); err != nil {
+				return nil, errSessionStore
+			}
+		}
+		result := make([]knowledgeSource, 0, len(matches))
+		for _, row := range matches {
+			result = append(result, knowledgeSource{Kind: "terms", ID: row.ID, Version: row.Version, Content: strings.Join(append([]string{row.Title}, row.Blocks...), "\n")})
+		}
+		return result, nil
+	}
+	if kind != "post" && kind != "comment" {
+		return nil, errKnowledgeInvalid
+	}
 	query := knowledgeDiscoverPostsSQL
 	if kind == "comment" {
 		query = knowledgeDiscoverCommentsSQL

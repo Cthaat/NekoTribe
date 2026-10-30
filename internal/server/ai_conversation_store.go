@@ -459,7 +459,7 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 	}
 	recheck := func() error {
 		_, e := restoreKnowledgeMessage(ctx, content, func(ctx context.Context, refs []knowledgeCandidate) ([]knowledgeSource, error) {
-			return hydrateKnowledge(ctx, oracleKnowledgeReader{tx}, user, refs)
+			return hydrateKnowledge(ctx, lockedKnowledgeReader{tx}, user, refs)
 		})
 		if e != nil {
 			return errSessionStore

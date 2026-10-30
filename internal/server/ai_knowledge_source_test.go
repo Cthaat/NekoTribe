@@ -62,11 +62,11 @@ func TestKnowledgeSourceRepositoryUsesCurrentPublicVisibility(t *testing.T) {
 		}
 	}
 }
-func TestDatabaseKnowledgeReaderNeverTreatsTermsAsPosts(t *testing.T) {
-	fake := &knowledgeFake{}
-	terms := knowledgeCandidate{Kind: "terms", ID: 3, Version: strings.Repeat("b", 64)}
-	if _, err := hydrateKnowledge(context.Background(), fake, 42, []knowledgeCandidate{terms}); !errors.Is(err, errKnowledgeInvalid) || fake.calls != 0 {
-		t.Fatal(err, fake.calls)
+func TestDatabaseKnowledgeReaderRejectsUnknownKinds(t *testing.T) {
+	reader := oracleKnowledgeReader{}
+	_, _, err := reader.get(context.Background(), 42, knowledgeCandidate{Kind: "unknown", ID: 3, Version: strings.Repeat("b", 64)})
+	if !errors.Is(err, errKnowledgeInvalid) {
+		t.Fatal(err)
 	}
 }
 

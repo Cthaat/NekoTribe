@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Cthaat/NekoTribe/backend-go/contracts"
 )
 
 type conversationDB struct {
@@ -73,6 +75,24 @@ func TestKnowledgeAssistantStorageRevalidatesAndRejectsUnsafeWrite(t *testing.T)
 				t.Fatal(err, state)
 			}
 		})
+	}
+}
+
+func TestKnowledgeWriteLocksTermsUntilCommit(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	raw, _ := termsAuthorityFixtures(t)
+	catalog, err := parsePublicTermsCatalog(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := knowledgeCandidate{Kind: "terms", ID: 1, Version: catalog[0].Version}
+	state := &conversationDB{mode: "terms-write", owner: 42, id: id, purpose: "knowledge", messages: 1}
+	db := sql.OpenDB(conversationConnector{state})
+	defer db.Close()
+	input := assistantMessageInput{Content: "answer", ExpectedSequence: 1, ModelID: "profile", ConfigRevision: 1}
+	_, err = (OracleSessions{db}).appendAIKnowledgeAssistantOperation(context.Background(), 42, id, input, []knowledgeCandidate{ref}, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+	if err != nil || state.commits != 1 || state.knowledgeQueries != 2 {
+		t.Fatal(err, state)
 	}
 }
 
@@ -252,6 +272,18 @@ func TestAppendAssistantMessageChecksVersionAndCurrentSequence(t *testing.T) {
 }
 func (c *conversationConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	c.state.calls = append(c.state.calls, listQueryCall{query, append([]driver.NamedValue(nil), args...)})
+	if strings.Contains(query, "FROM n_ai_terms_active") && c.state.mode == "terms-write" {
+		if !strings.Contains(query, "FOR UPDATE WAIT 5") {
+			return nil, errors.New("missing terms lock")
+		}
+		c.state.knowledgeQueries++
+		raw := contracts.PublicTermsCatalog()
+		digest, err := publicTermsCatalogDigest(raw)
+		if err != nil {
+			return nil, err
+		}
+		return &alertRows{values: []driver.Value{digest, int64(1), int64(1)}}, nil
+	}
 	if strings.Contains(query, "SELECT m.sequence_no,m.role,m.content") {
 		c.state.historyChecks++
 		content := "question"
