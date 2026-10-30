@@ -59,10 +59,14 @@ impl SessionRepository for Store {
             assert_eq!(user, 42);
             Ok(match failure {
                 Some(error) => Err(error),
-                None => Ok(if matches!(operation, AiOperation::Delete(_)) {
-                    serde_json::Value::Null
-                } else {
-                    serde_json::json!({"ok":true})
+                None => Ok(match operation {
+                    AiOperation::Delete(_) => serde_json::Value::Null,
+                    AiOperation::ListOwned { after, limit } => {
+                        assert!(after.is_empty());
+                        assert_eq!(limit, 10);
+                        serde_json::json!({"items":[],"next_cursor":null})
+                    }
+                    _ => serde_json::json!({"ok":true}),
                 }),
             })
         })
@@ -99,6 +103,27 @@ async fn ai_routes_require_auth_validate_input_and_disable_caching() {
             r#"{"purpose":"knowledge"}"#,
             true,
             200,
+        ),
+        (
+            "GET",
+            "/api/v2/ai/conversations?limit=10".to_string(),
+            "",
+            true,
+            200,
+        ),
+        (
+            "GET",
+            "/api/v2/ai/conversations?after_id=bad".to_string(),
+            "",
+            true,
+            400,
+        ),
+        (
+            "GET",
+            "/api/v2/ai/conversations?limit=1&limit=2".to_string(),
+            "",
+            true,
+            400,
         ),
         (
             "GET",

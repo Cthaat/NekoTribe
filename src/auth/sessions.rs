@@ -545,7 +545,7 @@ pub fn build_native_router_with_realtime_and_publisher(
     notification_publisher: Option<Arc<dyn crate::notification_events::NotificationPublisher>>,
 ) -> Router {
     Router::new()
-        .route("/api/v2/ai/conversations", post(crate::ai::conversation_http::create))
+        .route("/api/v2/ai/conversations", post(crate::ai::conversation_http::create).get(crate::ai::conversation_http::list_owned))
         .route("/api/v2/ai/conversations/{id}", get(crate::ai::conversation_http::read).delete(crate::ai::conversation_http::remove))
         .route("/api/v2/ai/conversations/{id}/messages", get(crate::ai::conversation_http::list).post(crate::ai::conversation_http::append))
         .route("/api/v2/ai/conversations/{id}/generate", post(crate::ai::conversation_http::generate))

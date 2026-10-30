@@ -124,6 +124,40 @@ fn page(query: &str) -> Result<(i64, i64), ApiError> {
     }
     Ok((after.unwrap_or(0), limit))
 }
+fn owned_page(query: &str) -> Result<(String, i64), ApiError> {
+    let url = reqwest::Url::parse(&format!("http://localhost/?{query}"))
+        .map_err(|_| ApiError::bad_request("分页参数错误"))?;
+    let (mut after, mut limit) = (None, None);
+    for (key, value) in url.query_pairs() {
+        match key.as_ref() {
+            "after_id" => {
+                if after.is_some() || (!value.is_empty() && !conversation_store::valid_uuid(&value))
+                {
+                    return Err(ApiError::bad_request("分页参数错误"));
+                }
+                after = Some(value.into_owned());
+            }
+            "limit" => {
+                if limit.is_some()
+                    || value.is_empty()
+                    || (value.len() > 1 && value.starts_with('0'))
+                    || !value.bytes().all(|b| b.is_ascii_digit())
+                {
+                    return Err(ApiError::bad_request("分页参数错误"));
+                }
+                let n = value
+                    .parse::<i64>()
+                    .map_err(|_| ApiError::bad_request("分页参数错误"))?;
+                if !(1..=50).contains(&n) {
+                    return Err(ApiError::bad_request("分页参数错误"));
+                }
+                limit = Some(n);
+            }
+            _ => (),
+        }
+    }
+    Ok((after.unwrap_or_default(), limit.unwrap_or(20)))
+}
 async fn json_body(body: Body) -> Result<serde_json::Map<String, serde_json::Value>, ApiError> {
     let bytes = to_bytes(body, 1024 * 1024)
         .await
@@ -187,6 +221,10 @@ async fn execute(
     }
     let operation = match kind {
         "create" => AiOperation::Create(parse_create(json_body(body).await?)?),
+        "list-owned" => {
+            let (after, limit) = owned_page(parts.uri.query().unwrap_or_default())?;
+            AiOperation::ListOwned { after, limit }
+        }
         "read" => AiOperation::Read(id.expect("route id")),
         "delete" => AiOperation::Delete(id.expect("route id")),
         "append" => {
@@ -232,6 +270,15 @@ pub(crate) async fn create(
     request: Request<Body>,
 ) -> Response {
     execute(state, request, settings, "create", None)
+        .await
+        .into_response()
+}
+pub(crate) async fn list_owned(
+    State(state): State<NativeState>,
+    settings: Option<Extension<ModerationSettings>>,
+    request: Request<Body>,
+) -> Response {
+    execute(state, request, settings, "list-owned", None)
         .await
         .into_response()
 }

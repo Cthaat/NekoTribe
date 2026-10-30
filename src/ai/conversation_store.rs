@@ -81,6 +81,7 @@ pub enum AiOperation {
     Create(Input),
     Read(String),
     Delete(String),
+    ListOwned { after: String, limit: i64 },
     Append { id: String, content: String },
     List { id: String, after: i64, limit: i64 },
     Recent(String),
@@ -98,6 +99,9 @@ pub fn execute_operation(
             serde_json::to_value(create(connection, user, input, policy)?)
         }
         AiOperation::Read(id) => serde_json::to_value(read(connection, user, &id, policy)?),
+        AiOperation::ListOwned { after, limit } => {
+            serde_json::to_value(list_conversations(connection, user, &after, limit, policy)?)
+        }
         AiOperation::Delete(id) => {
             delete(connection, user, &id, policy)?;
             Ok(serde_json::Value::Null)
