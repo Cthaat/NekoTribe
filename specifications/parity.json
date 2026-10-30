@@ -9069,7 +9069,8 @@
             "src/ai/writing.rs",
             "tests/ai_writing_route_test.rs",
             "src/ai/knowledge_source.rs",
-            "tests/ai_knowledge_source_test.rs"
+            "tests/ai_knowledge_source_test.rs",
+            "tests/ai_knowledge_discovery_test.rs"
           ],
           "evidence": []
         },
@@ -11557,7 +11558,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-discovery.md",
-        "sha256": "fb19770deb7ca1bb312c45419685bdf294e83425fa78ca5cfa3d1f083f93aac6"
+        "sha256": "743060e920adba545bbe239eaabeac6a6cd0740314ddb8028634765d5e8c97a0"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-discovery.md",
