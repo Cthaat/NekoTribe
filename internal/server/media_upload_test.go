@@ -13,7 +13,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -25,12 +24,7 @@ type mediaUploadFixture struct {
 	calls int
 }
 
-func TestMediaUploadRealWAV(t *testing.T) {
-	binaryPath := os.Getenv("NEKO_TEST_FFPROBE")
-	if binaryPath == "" || runtime.GOOS != "linux" {
-		t.Skip("requires a Linux ffprobe")
-	}
-	t.Setenv("FFPROBE_PATH", binaryPath)
+func oneSecondWAV() []byte {
 	wav := make([]byte, 44+16000)
 	copy(wav, "RIFF")
 	binary.LittleEndian.PutUint32(wav[4:], 16036)
@@ -44,6 +38,25 @@ func TestMediaUploadRealWAV(t *testing.T) {
 	binary.LittleEndian.PutUint16(wav[34:], 16)
 	copy(wav[36:], "data")
 	binary.LittleEndian.PutUint32(wav[40:], 16000)
+	return wav
+}
+
+func TestMediaUploadRealWAV(t *testing.T) {
+	binaryPath := os.Getenv("NEKO_TEST_FFPROBE")
+	if binaryPath == "" {
+		t.Skip("requires NEKO_TEST_FFPROBE")
+	}
+	verifyWAVUpload(t, binaryPath)
+}
+
+func TestMediaUploadWAVWithoutFFprobe(t *testing.T) {
+	verifyWAVUpload(t, "nekotribe-nonexistent-ffprobe")
+}
+
+func verifyWAVUpload(t *testing.T, binaryPath string) {
+	t.Helper()
+	t.Setenv("FFPROBE_PATH", binaryPath)
+	wav := oneSecondWAV()
 	codec, tokens := fixture(t)
 	store := &mediaUploadFixture{memorySessions: store()}
 	body, typ := multipartFixture(t, []partFixture{{"file", "a.wav", string(wav)}})

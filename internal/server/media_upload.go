@@ -77,6 +77,9 @@ func uploadMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManage
 		if selected.Supported && !config.LocalStorage.Unsupported && (selected.MediaType == "video" || selected.MediaType == "audio") {
 			metadata := probeMedia(r.Context(), file, selected.MIMEType, probeOptions{})
 			width, height, duration = metadata.Width, metadata.Height, metadata.Duration
+			if duration == nil && selected.MIMEType == "audio/wav" {
+				duration = pcmWAVDuration(file)
+			}
 		}
 	}
 	closeErr := file.Close()
