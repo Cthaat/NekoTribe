@@ -5,6 +5,23 @@ use nekotribe_backend::ai::{
 };
 use serde_json::json;
 
+#[test]
+fn matches_shared_cross_backend_vectors() {
+    let vectors: serde_json::Value = serde_json::from_str(include_str!(
+        "../contracts/scenarios/ai-knowledge-citation-vectors.json"
+    ))
+    .unwrap();
+    let verified: Vec<Candidate> = serde_json::from_value(vectors["verified"].clone()).unwrap();
+    for row in vectors["cases"].as_array().unwrap() {
+        assert_eq!(
+            parse(row["output"].as_str().unwrap(), &verified).is_ok(),
+            row["accepted"].as_bool().unwrap(),
+            "{}",
+            row["id"]
+        );
+    }
+}
+
 fn source() -> Candidate {
     Candidate {
         kind: "post".into(),
