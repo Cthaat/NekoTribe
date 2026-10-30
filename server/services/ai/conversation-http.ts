@@ -2,7 +2,7 @@ import { getQuery } from 'h3';
 import type { H3Event } from 'h3';
 import type oracledb from 'oracledb';
 import { v2Auth, v2BadRequest, v2Body, v2Ok, v2RouterParam } from '~/server/utils/v2';
-import { appendUserMessage, createConversation, listConversationMessages, readConversation } from './conversation-store';
+import { appendUserMessage, createConversation, deleteConversation, listConversationMessages, readConversation } from './conversation-store';
 
 export async function create(event: H3Event, connection: oracledb.Connection) {
   v2Auth(event);
@@ -11,6 +11,11 @@ export async function create(event: H3Event, connection: oracledb.Connection) {
 export async function read(event: H3Event, connection: oracledb.Connection) {
   v2Auth(event);
   return v2Ok(await readConversation(event, connection, v2RouterParam(event, 'id')));
+}
+export async function remove(event: H3Event, connection: oracledb.Connection) {
+  v2Auth(event);
+  await deleteConversation(event, connection, v2RouterParam(event, 'id'));
+  return v2Ok(null);
 }
 export async function append(event: H3Event, connection: oracledb.Connection) {
   v2Auth(event);

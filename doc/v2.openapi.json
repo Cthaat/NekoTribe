@@ -30264,6 +30264,75 @@
             }
           }
         ]
+      },
+      "delete": {
+        "summary": "删除 AI 会话及其消息",
+        "operationId": "deleteAIConversation",
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true
+                    },
+                    "meta": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "无权限"
+          },
+          "404": {
+            "description": "会话不存在"
+          },
+          "503": {
+            "description": "数据库结构未就绪"
+          }
+        }
       }
     },
     "/api/v2/ai/conversations/{id}/messages": {

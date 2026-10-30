@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "2d3abb5e8a3d30344575d09b18946ef50aa1c160ff1008a12e63bb3cc9026915"
+      "sha256": "fe984a6a672dd4b3f76c54b987295c52036b4062866a3be9c235b260fd36ed3a"
     },
     "sources": [
       {
@@ -284,6 +284,10 @@
       {
         "path": "server/api/v2/[...path].ts",
         "sha256": "7f6d336861605dfcc075f080f6c1c35bef671aa54638e187b50d785e497fb934"
+      },
+      {
+        "path": "server/api/v2/ai/conversations/[id].delete.ts",
+        "sha256": "c0637a5d6c1529697bcada9d9787876a970ac3394f0df4ae87d5e2186348c013"
       },
       {
         "path": "server/api/v2/ai/conversations/[id].get.ts",
@@ -983,11 +987,11 @@
       },
       {
         "path": "server/services/ai/conversation-http.ts",
-        "sha256": "da9a0dd49fc1e5f57e9acb58bdf65cd5aba817f8c9326edfb45e22ccfe7317de"
+        "sha256": "dd0ede6249b02dbf3c0b70db83fbc2f4e3f1fe48085f8160ae24c31c94ad7584"
       },
       {
         "path": "server/services/ai/conversation-store.ts",
-        "sha256": "dfa508a50deb5181c816ac46885176196ec04eaa0f737436542f731c18aa028c"
+        "sha256": "eb9dde1c51b83ce888837c930e0592aa48f4ae1bf0fb7875c6319b50a029f9db"
       },
       {
         "path": "server/services/ai/inference-transport.ts",
@@ -8981,14 +8985,16 @@
         "server/services/ai/private-http.ts",
         "server/api/v2/ai/conversations/[id]/generate.post.ts",
         "server/services/ai/writing-service.ts",
-        "server/services/ai/writing-turn.ts"
+        "server/services/ai/writing-turn.ts",
+        "server/api/v2/ai/conversations/[id].delete.ts"
       ],
       "operations": [
         "POST /api/v2/ai/conversations",
         "GET /api/v2/ai/conversations/{id}",
         "GET /api/v2/ai/conversations/{id}/messages",
         "POST /api/v2/ai/conversations/{id}/messages",
-        "POST /api/v2/ai/conversations/{id}/generate"
+        "POST /api/v2/ai/conversations/{id}/generate",
+        "DELETE /api/v2/ai/conversations/{id}"
       ],
       "scenarios": [
         {
@@ -9022,7 +9028,8 @@
             "server/services/ai/writing-turn.ts",
             "tests/ai-writing-turn.test.mjs",
             "tests/ai-writing-service.test.mjs",
-            "tests/ai-writing-route.test.mjs"
+            "tests/ai-writing-route.test.mjs",
+            "server/api/v2/ai/conversations/[id].delete.ts"
           ],
           "evidence": []
         },
