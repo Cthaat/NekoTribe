@@ -18,7 +18,9 @@ var (
 	errConversationNotFound  = errors.New("conversation not found")
 	errConversationForbidden = errors.New("conversation access forbidden")
 	errConversationSchema    = errors.New("conversation schema unavailable")
+	errConversationConflict  = errors.New("conversation changed")
 	conversationUUID         = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	aiProfileID              = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 )
 
 type conversationRecord struct {
@@ -33,6 +35,12 @@ type conversationInput struct {
 	Purpose string
 	GroupID *int64
 	Title   string
+}
+type assistantMessageInput struct {
+	Content          string
+	ExpectedSequence int64
+	ModelID          string
+	ConfigRevision   int64
 }
 type conversationMessage struct {
 	ID             string `json:"message_id"`
@@ -66,6 +74,11 @@ func (s OracleSessions) readAIConversation(ctx context.Context, user int64, id s
 
 func (s OracleSessions) appendAIUserMessage(ctx context.Context, user int64, id, content string, policy moderationPolicy) (conversationMessage, error) {
 	return s.appendAIUserMessageOperation(ctx, user, id, content, policy, verifyConversationSchema)
+}
+
+// This method is for trusted server-side generation only, never direct client input.
+func (s OracleSessions) appendAIAssistantMessage(ctx context.Context, user int64, id string, input assistantMessageInput, policy moderationPolicy) (conversationMessage, error) {
+	return s.appendAIAssistantMessageOperation(ctx, user, id, input, policy, verifyConversationSchema)
 }
 func (s OracleSessions) listAIConversationMessages(ctx context.Context, user int64, id string, after, limit int64, policy moderationPolicy) ([]conversationHistoryMessage, error) {
 	return s.listAIConversationMessagesOperation(ctx, user, id, after, limit, policy, verifyConversationSchema)
@@ -252,6 +265,15 @@ func (s OracleSessions) conversationOperation(ctx context.Context, user int64, i
 // The caller authenticates the actor and supplies a trusted moderation policy.
 // The row lock serializes sequence allocation; no model call occurs in this transaction.
 func (s OracleSessions) appendAIUserMessageOperation(ctx context.Context, user int64, id, content string, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (result conversationMessage, err error) {
+	return s.appendAIMessageOperation(ctx, user, id, content, nil, policy, verify)
+}
+func (s OracleSessions) appendAIAssistantMessageOperation(ctx context.Context, user int64, id string, input assistantMessageInput, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (conversationMessage, error) {
+	if input.ExpectedSequence < 1 || input.ExpectedSequence >= 9999999999 || !aiProfileID.MatchString(input.ModelID) || input.ConfigRevision < 1 || input.ConfigRevision > 999999999999999 {
+		return conversationMessage{}, errConversationInvalid
+	}
+	return s.appendAIMessageOperation(ctx, user, id, input.Content, &input, policy, verify)
+}
+func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64, id, content string, assistant *assistantMessageInput, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (result conversationMessage, err error) {
 	if user <= 0 || user > 9007199254740991 {
 		return result, errConversationInvalid
 	}
@@ -293,12 +315,20 @@ func (s OracleSessions) appendAIUserMessageOperation(ctx context.Context, user i
 	if tx.QueryRowContext(ctx, `SELECT NVL(MAX(sequence_no),0)+1 AS next_sequence FROM n_ai_messages WHERE conversation_id=:conversation_id`, sql.Named("conversation_id", id)).Scan(&sequence) != nil || sequence <= 0 || sequence > 9999999999 {
 		return result, errSessionStore
 	}
+	role := "user"
+	var modelID, revision interface{}
+	if assistant != nil {
+		if sequence != assistant.ExpectedSequence+1 {
+			return result, errConversationConflict
+		}
+		role, modelID, revision = "assistant", assistant.ModelID, assistant.ConfigRevision
+	}
 	messageID, e := randomUUID()
 	if e != nil {
 		return result, errSessionStore
 	}
-	inserted, e := tx.ExecContext(ctx, `INSERT INTO n_ai_messages (message_id,conversation_id,sequence_no,role,content) VALUES (:message_id,:conversation_id,:sequence_no,'user',:content)`,
-		sql.Named("message_id", messageID), sql.Named("conversation_id", id), sql.Named("sequence_no", sequence), sql.Named("content", content))
+	inserted, e := tx.ExecContext(ctx, `INSERT INTO n_ai_messages (message_id,conversation_id,sequence_no,role,content,model_id,config_revision) VALUES (:message_id,:conversation_id,:sequence_no,:role,:content,:model_id,:config_revision)`,
+		sql.Named("message_id", messageID), sql.Named("conversation_id", id), sql.Named("sequence_no", sequence), sql.Named("role", role), sql.Named("content", content), sql.Named("model_id", modelID), sql.Named("config_revision", revision))
 	if e != nil {
 		return result, errSessionStore
 	}
@@ -320,7 +350,7 @@ func (s OracleSessions) appendAIUserMessageOperation(ctx context.Context, user i
 	if tx.Commit() != nil {
 		return result, errSessionStore
 	}
-	return conversationMessage{ID: messageID, ConversationID: id, SequenceNo: sequence, Role: "user"}, nil
+	return conversationMessage{ID: messageID, ConversationID: id, SequenceNo: sequence, Role: role}, nil
 }
 
 // Never return fetched message content until ownership and current role have been rechecked.

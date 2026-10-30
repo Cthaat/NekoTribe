@@ -22,6 +22,9 @@ type conversationDB struct {
 	calls           []listQueryCall
 	messages        int64
 	messageContent  string
+	messageRole     string
+	messageModel    driver.Value
+	messageRevision driver.Value
 }
 type conversationConnector struct{ state *conversationDB }
 type conversationConn struct {
@@ -59,6 +62,15 @@ func (c *conversationConn) ExecContext(_ context.Context, query string, args []d
 			if arg.Name == "content" {
 				c.state.messageContent = arg.Value.(string)
 			}
+			if arg.Name == "role" {
+				c.state.messageRole = arg.Value.(string)
+			}
+			if arg.Name == "model_id" {
+				c.state.messageModel = arg.Value
+			}
+			if arg.Name == "config_revision" {
+				c.state.messageRevision = arg.Value
+			}
 		}
 		c.state.messages++
 		return driver.RowsAffected(1), nil
@@ -81,6 +93,46 @@ func (c *conversationConn) ExecContext(_ context.Context, query string, args []d
 		}
 	}
 	return driver.RowsAffected(1), nil
+}
+
+func TestAppendAssistantMessageChecksVersionAndCurrentSequence(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	for _, mode := range []string{"ok", "stale", "revoked", "invalid", "commit"} {
+		t.Run(mode, func(t *testing.T) {
+			state := &conversationDB{mode: mode, owner: 42, id: id, purpose: "group", group: int64(7), messages: 1}
+			db := sql.OpenDB(conversationConnector{state})
+			defer db.Close()
+			input := assistantMessageInput{Content: "result", ExpectedSequence: 1, ModelID: "profile-a", ConfigRevision: 12}
+			if mode == "stale" {
+				input.ExpectedSequence = 2
+			}
+			if mode == "invalid" {
+				input.ConfigRevision = 1000000000000000
+			}
+			result, err := (OracleSessions{db}).appendAIAssistantMessageOperation(context.Background(), 42, id, input, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			if mode == "ok" {
+				if err != nil || result.SequenceNo != 2 || result.Role != "assistant" || state.messageModel != "profile-a" || state.messageRevision != int64(12) || state.messageRole != "assistant" || state.permissionCalls != 2 || state.commits != 1 {
+					t.Fatal(result, err, state)
+				}
+			} else {
+				if err == nil || strings.Contains(err.Error(), "private") {
+					t.Fatal(err)
+				}
+				if mode == "stale" && (!errors.Is(err, errConversationConflict) || state.messages != 1 || state.rollbacks != 1) {
+					t.Fatal(err, state)
+				}
+				if mode == "invalid" && (!errors.Is(err, errConversationInvalid) || len(state.calls) != 0) {
+					t.Fatal(err, state)
+				}
+				if mode == "revoked" && (!errors.Is(err, errConversationForbidden) || state.rollbacks != 1) {
+					t.Fatal(err, state)
+				}
+				if mode == "commit" && (state.commits != 1 || state.rollbacks != 0) {
+					t.Fatal(err, state)
+				}
+			}
+		})
+	}
 }
 func (c *conversationConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	c.state.calls = append(c.state.calls, listQueryCall{query, append([]driver.NamedValue(nil), args...)})
