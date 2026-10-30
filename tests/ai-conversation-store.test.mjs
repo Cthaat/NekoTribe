@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const stubs = {
+  'oracledb': `export default { OUT_FORMAT_OBJECT: 4002, STRING: { num: 2001 } };`,
   '~/server/utils/v2': `
     export const v2Auth=e=>{if(!e.userId)throw Error('unauthorized');return {userId:e.userId}};
     export const v2BadRequest=m=>{throw Error('400:'+m)};
@@ -21,13 +22,13 @@ const stubs = {
   '~/server/services/v2/moderation': `export const requireModerationAccess=async(e,c)=>{if(!c.moderator)throw Error('403:需要审核权限')};`
 };
 const compiled = await build({
-  stdin: { contents: `export {createConversation,readConversation,appendUserMessage} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
+  stdin: { contents: `export {createConversation,readConversation,appendUserMessage,listConversationMessages} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'conversation-store-boundaries', setup(builder) {
     builder.onResolve({ filter: /.*/ }, args => { if (Object.hasOwn(stubs, args.path)) return { path: args.path, namespace: 'stub' }; });
     builder.onLoad({ filter: /.*/, namespace: 'stub' }, args => ({ contents: stubs[args.path], loader: 'js' }));
   }}]
 });
-const { createConversation, readConversation, appendUserMessage } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+const { createConversation, readConversation, appendUserMessage, listConversationMessages } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 function database() {
   return { checks: [], permissionChecks: 0, allowed: true, moderator: true, saved: null, pending: null, messages: [], pendingMessage: null, commits: 0, rollbacks: 0,
     async insert(sql, binds, autoCommit) {
@@ -49,10 +50,40 @@ function database() {
       const row = this.pending ?? this.saved;
       return row && row.CONVERSATION_ID === binds.conversation_id && row.OWNER_USER_ID === binds.owner_user_id ? row : null;
     },
+    async execute(sql, binds, options) {
+      assert.match(sql, /owner_user_id\s*=\s*:owner_user_id/i);
+      assert.match(sql, /ORDER BY m.sequence_no ASC/i);
+      assert.deepEqual(options.fetchTypeHandler({name: 'CONTENT'}), {type: {num: 2001}});
+      assert.equal(options.fetchTypeHandler({name: 'MODEL_ID'}), undefined);
+      if (this.revokeDuringList) this.allowed = false;
+      return { rows: this.messages.filter(m => m.sequence_no > binds.after_sequence).slice(0, binds.row_limit).map(m => ({
+        MESSAGE_ID: m.message_id, CONVERSATION_ID: m.conversation_id, SEQUENCE_NO: m.sequence_no,
+        ROLE: 'user', CONTENT: m.content, MODEL_ID: null, MODEL_VERSION: null, CONFIG_REVISION: null, CREATED_AT: 'created'
+      })) };
+    },
     async commit() { this.commits++; if (this.failCommit) throw Error('private'); if (this.pending) this.saved = this.pending; this.pending = null; if (this.pendingMessage) this.messages.push(this.pendingMessage); this.pendingMessage = null; },
     async rollback() { this.rollbacks++; if (this.failRollback) throw Error('private rollback'); this.pending = null; this.pendingMessage = null; }
   };
 }
+
+test('message history paginates by sequence and hides other users conversations', async () => {
+  const db = database();
+  const conversation = await createConversation({ userId: 42 }, db, { purpose: 'knowledge' });
+  await appendUserMessage({ userId: 42 }, db, conversation.conversation_id, 'first');
+  await appendUserMessage({ userId: 42 }, db, conversation.conversation_id, 'second');
+  const page = await listConversationMessages({ userId: 42 }, db, conversation.conversation_id, 1, 10);
+  assert.deepEqual(page.map(m => [m.sequence_no, m.content]), [[2, 'second']]);
+  await assert.rejects(() => listConversationMessages({ userId: 9 }, db, conversation.conversation_id, 0, 10), /404:/);
+  await assert.rejects(() => listConversationMessages({ userId: 42 }, db, conversation.conversation_id, -1, 10), /400:/);
+  await assert.rejects(() => listConversationMessages({ userId: 42 }, db, conversation.conversation_id, 0, 51), /400:/);
+});
+
+test('message history is not returned after group permission is revoked during retrieval', async () => {
+  const db = database();
+  const conversation = await createConversation({ userId: 42 }, db, { purpose: 'group', group_id: 7 });
+  db.revokeDuringList = true;
+  await assert.rejects(() => listConversationMessages({ userId: 42 }, db, conversation.conversation_id, 0, 10), /403:/);
+});
 
 test('append locks owned conversation and persists sequential user messages', async () => {
   const db = database();

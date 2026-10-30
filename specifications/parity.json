@@ -963,7 +963,7 @@
       },
       {
         "path": "server/services/ai/conversation-store.ts",
-        "sha256": "2372935603c8320ec6dd838e13a2ac650dae45e5f489d87e70b157c5c0ba2fec"
+        "sha256": "c682505b5d8cffad4854ef5d12fe5950c098f11f44a8b9d23ec6ac19dcab6d57"
       },
       {
         "path": "server/services/ai/inference-transport.ts",
@@ -10898,7 +10898,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-conversation-storage.md",
-        "sha256": "a979282dc556f0d487c40b3c6efcafe74ab9d595c7f4e84d03e73ae1dea97747"
+        "sha256": "4f52f6833b5374678340ba7c5deef2d155f09b74a29b6e8987833070f7653b4b"
       },
       "copies": {
         "rust": "contracts/requirements/ai-conversation-storage.md",

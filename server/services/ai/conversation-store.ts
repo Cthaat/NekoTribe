@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { H3Event } from 'h3';
-import type oracledb from 'oracledb';
+import oracledb from 'oracledb';
 import { requireFeatureSchema } from '~/server/database/readiness';
 import { v2Auth, v2BadRequest, v2DateString, v2Execute, v2NotFound, v2Number, v2One, v2ServerError, v2String } from '~/server/utils/v2';
 import { authorizeConversationScope, type ConversationPurpose } from './conversation-access';
@@ -12,6 +12,17 @@ export interface ConversationRecord {
   title: string | null;
   created_at: string;
   updated_at: string;
+}
+export interface ConversationMessageRecord {
+  message_id: string;
+  conversation_id: string;
+  sequence_no: number;
+  role: string;
+  content: string;
+  model_id: string | null;
+  model_version: string | null;
+  config_revision: number | null;
+  created_at: string;
 }
 
 function validId(value: string): boolean {
@@ -40,6 +51,44 @@ export async function readConversation(event: H3Event, connection: oracledb.Conn
   const record = mapRow(row);
   await authorizeConversationScope(event, connection, { ownerUserId: v2Number(row.OWNER_USER_ID), purpose: record.purpose, groupId: record.group_id });
   return record;
+}
+
+/** Internal bounded history read. Rechecks permission before exposing fetched content. */
+export async function listConversationMessages(
+  event: H3Event,
+  connection: oracledb.Connection,
+  id: string,
+  afterSequence: number,
+  limit: number
+): Promise<ConversationMessageRecord[]> {
+  const actor = v2Auth(event);
+  if (!Number.isSafeInteger(afterSequence) || afterSequence < 0 || afterSequence > 9999999999 ||
+      !Number.isSafeInteger(limit) || limit < 1 || limit > 50) v2BadRequest('分页参数错误');
+  await readConversation(event, connection, id);
+  const result = await connection.execute<Record<string, unknown>>(
+    `SELECT m.message_id,m.conversation_id,m.sequence_no,m.role,m.content,m.model_id,m.model_version,m.config_revision,m.created_at
+       FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id
+       WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no>:after_sequence
+       ORDER BY m.sequence_no ASC FETCH FIRST :row_limit ROWS ONLY`,
+    { conversation_id: id, owner_user_id: actor.userId, after_sequence: afterSequence, row_limit: limit },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT, fetchTypeHandler: metadata =>
+      metadata.name === 'CONTENT' ? { type: oracledb.STRING } : undefined }
+  );
+  await readConversation(event, connection, id);
+  return (result.rows ?? []).map(row => {
+    if (typeof row.CONTENT !== 'string') v2ServerError();
+    return {
+      message_id: v2String(row.MESSAGE_ID),
+      conversation_id: v2String(row.CONVERSATION_ID),
+      sequence_no: v2Number(row.SEQUENCE_NO),
+      role: v2String(row.ROLE),
+      content: row.CONTENT,
+      model_id: row.MODEL_ID === null || row.MODEL_ID === undefined ? null : v2String(row.MODEL_ID),
+      model_version: row.MODEL_VERSION === null || row.MODEL_VERSION === undefined ? null : v2String(row.MODEL_VERSION),
+      config_revision: row.CONFIG_REVISION === null || row.CONFIG_REVISION === undefined ? null : v2Number(row.CONFIG_REVISION),
+      created_at: v2DateString(row.CREATED_AT) || ''
+    };
+  });
 }
 
 export async function createConversation(event: H3Event, connection: oracledb.Connection, input: unknown): Promise<ConversationRecord> {
