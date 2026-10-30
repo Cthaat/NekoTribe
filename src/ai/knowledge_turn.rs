@@ -12,6 +12,7 @@ pub enum TurnError {
     InvalidSource,
     SourceChanged,
     InvalidAnswer,
+    ContextTooLarge,
     Cancelled,
     Dependency,
 }
