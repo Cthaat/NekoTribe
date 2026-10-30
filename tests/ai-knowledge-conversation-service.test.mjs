@@ -30,5 +30,6 @@ test('passes an explicit search phrase separately from the persisted user questi
 test('passes authorized history to inference and guards the exact selected source snapshot during write',async()=>{
  const e=event(),old={kind:'post',id:2,version:'b'.repeat(64)};
  e.messages=[{sequence_no:1,role:'assistant',content:'old answer',citations:[{...old,post_id:2}]},{sequence_no:2,role:'user',content:'follow-up'}];e.reply.contextSources=[old];e.reply.sources=[ref,old];
- await generateKnowledgeConversation(e,'id','{}');assert.deepEqual(e.history,e.messages);assert.deepEqual(e.saved.contextSources,[old]);assert.deepEqual(e.saved.sources,[ref,old]);assert.equal(e.saved.expectedSequence,2);
+ e.reply.contextSnapshot=structuredClone(e.messages);
+ await generateKnowledgeConversation(e,'id','{}');assert.deepEqual(e.history,e.messages);assert.deepEqual(e.saved.contextSources,[old]);assert.deepEqual(e.saved.contextSnapshot,e.messages);assert.deepEqual(e.saved.sources,[ref,old]);assert.equal(e.saved.expectedSequence,2);
 });

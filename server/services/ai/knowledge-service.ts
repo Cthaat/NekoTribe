@@ -31,6 +31,7 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
   try {selection=router.select('knowledge');if(selection.configurationRevision>999999999999999) throw new Error();} catch {throw new KnowledgeServiceError('PROVIDER_FAILED');}
   const transport=new AiInferenceTransport(reference=>process.env[reference]);
   let contextSources:IndexedSource[]=[];
+  let contextSnapshot:HistoryMessage[]|undefined;
   const revalidateContext=async()=>{
     if(!contextSources.length) return;
     try {
@@ -50,6 +51,8 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
           const selected=selectKnowledgeContext(historyMessages,Math.max(0,budget-overhead),Math.max(0,20-sources.length));
           if(selected.question!==query) throw new KnowledgeContextError('INVALID_CONTEXT');
           history=selected.history;contextSources=selected.sources;
+          contextSnapshot=historyMessages.slice(-(history.length+1)).map(message=>({sequence_no:message.sequence_no,role:message.role,content:message.content,
+            ...(message.citations ? {citations:message.citations.map(source=>({kind:source.kind,id:source.id,version:source.version,post_id:source.post_id}))} : {})}));
         } catch(error) {
           if(error instanceof KnowledgeContextError) throw new KnowledgeServiceError(error.code);
           throw error;
@@ -78,5 +81,5 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
     if(refs.size>20) throw new KnowledgeServiceError('INVALID_CONTEXT');
     result.sources=[...refs.values()];
   }
-  return {...result,contextSources,modelId:selection.profileId,configRevision:selection.configurationRevision};
+  return {...result,contextSources,contextSnapshot,modelId:selection.profileId,configRevision:selection.configurationRevision};
 }

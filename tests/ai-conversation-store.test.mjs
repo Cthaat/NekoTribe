@@ -45,6 +45,7 @@ function database() {
       if (/INSERT INTO n_ai_messages/.test(sql)) {
         assert.equal(autoCommit, false); this.pendingMessage = binds;
         if (this.revokeAfterMessage) this.allowed = false;
+        if (this.changeHistoryAfterMessage) this.messages[0].content = 'changed concurrently';
         return 1;
       }
       if (/UPDATE n_ai_conversations/.test(sql)) return 1;
@@ -77,6 +78,34 @@ function database() {
     async rollback() { this.rollbacks++; if (this.failRollback) throw Error('private rollback'); this.pendingDelete=false; this.pending = null; this.pendingMessage = null; }
   };
 }
+
+test('knowledge answer rejects changed selected history before insert or before commit',async()=>{
+  for(const timing of ['before','during']) {
+    const db=database(),actor={userId:42},ref={kind:'post',id:1,version:'a'.repeat(64)};
+    db.knowledgeRows=[{...ref,post_id:1,content:'public'}];
+    const c=await createConversation(actor,db,{purpose:'knowledge'});
+    await appendUserMessage(actor,db,c.conversation_id,'original');
+    const contextSnapshot=[{sequence_no:1,role:'user',content:'original'}];
+    if(timing==='before') db.messages[0].content='changed concurrently';
+    else db.changeHistoryAfterMessage=true;
+    await assert.rejects(()=>appendKnowledgeAssistantMessage(actor,db,c.conversation_id,{answer:'answer',sources:[ref],contextSources:[],contextSnapshot,expectedSequence:1,modelId:'p',configRevision:1}),/409:/);
+    assert.equal(db.messages.length,1);assert.equal(db.rollbacks,1);
+  }
+});
+
+test('knowledge answer validates and accepts the exact selected historical messages and citations',async()=>{
+  const db=database(),actor={userId:42},old={kind:'post',id:1,version:'a'.repeat(64)},current={kind:'post',id:2,version:'b'.repeat(64)};
+  db.knowledgeRows=[{...old,post_id:1,content:'old'},{...current,post_id:2,content:'new'}];
+  const c=await createConversation(actor,db,{purpose:'knowledge'});
+  await appendUserMessage(actor,db,c.conversation_id,'first');
+  await appendKnowledgeAssistantMessage(actor,db,c.conversation_id,{answer:'old answer',sources:[old],expectedSequence:1,modelId:'p',configRevision:1});
+  await appendUserMessage(actor,db,c.conversation_id,'follow up');
+  const snapshot=[{sequence_no:2,role:'assistant',content:'old answer',citations:[{...old,post_id:1}]},{sequence_no:3,role:'user',content:'follow up'}];
+  const input={answer:'new answer',sources:[current,old],contextSources:[old],contextSnapshot:snapshot,expectedSequence:3,modelId:'p',configRevision:1};
+  await assert.rejects(()=>appendKnowledgeAssistantMessage(actor,db,c.conversation_id,{...input,contextSources:[]}),/400:/);
+  await appendKnowledgeAssistantMessage(actor,db,c.conversation_id,input);
+  assert.equal(db.messages.length,4);assert.equal(db.messages[3].sequence_no,4);
+});
 
 test('knowledge assistant stores versioned references and rechecks history visibility',async()=>{
   const db=database(),actor={userId:42},ref={kind:'post',id:1,version:'a'.repeat(64)};

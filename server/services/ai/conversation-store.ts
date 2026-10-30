@@ -6,6 +6,7 @@ import { v2Auth, v2BadRequest, v2Conflict, v2DateString, v2Execute, v2NotFound, 
 import { authorizeConversationScope, type ConversationPurpose } from './conversation-access';
 import { hydrateKnowledgeSources, type IndexedSource } from './knowledge-source';
 import { encodeKnowledgeMessage, restoreKnowledgeMessage } from './knowledge-history';
+import {selectKnowledgeContext, type HistoryMessage} from './knowledge-context';
 
 export interface ConversationRecord {
   conversation_id: string;
@@ -256,19 +257,33 @@ function validateAssistantInput(input:{expectedSequence:number;modelId:string;co
 /** Trusted knowledge generation path; references are checked inside the write transaction. */
 export async function appendKnowledgeAssistantMessage(
   event:H3Event,connection:oracledb.Connection,id:string,
-  input:{answer:string;sources:IndexedSource[];contextSources?:IndexedSource[];expectedSequence:number;modelId:string;configRevision:number}
+  input:{answer:string;sources:IndexedSource[];contextSources?:IndexedSource[];contextSnapshot?:HistoryMessage[];expectedSequence:number;modelId:string;configRevision:number}
 ):Promise<{message_id:string;conversation_id:string;sequence_no:number;role:'assistant'}> {
   validateAssistantInput(input);
   let content:string;
   let contextGuard:string|undefined;
+  let contextSnapshot:HistoryMessage[]|undefined;
   try {content=encodeKnowledgeMessage({answer:input.answer,sources:input.sources});} catch {v2BadRequest('知识回复参数错误');}
   try {
     if(input.contextSources!==undefined) {
       if(!Array.isArray(input.contextSources)) throw new Error('invalid context sources');
       if(input.contextSources.length) contextGuard=encodeKnowledgeMessage({answer:'context',sources:input.contextSources});
     }
+    if(input.contextSnapshot!==undefined) {
+      contextSnapshot=input.contextSnapshot.map(message=>({sequence_no:message.sequence_no,role:message.role,content:message.content,
+        ...(message.citations ? {citations:message.citations.map(source=>({kind:source.kind,id:source.id,version:source.version,post_id:source.post_id}))} : {})}));
+      const selected=selectKnowledgeContext(contextSnapshot,4000000);
+      if(contextSnapshot.at(-1)?.sequence_no!==input.expectedSequence || selected.history.length!==contextSnapshot.length-1 ||
+         JSON.stringify(selected.sources)!==JSON.stringify(input.contextSources ?? [])) throw new Error('invalid context snapshot');
+    }
   } catch {v2BadRequest('知识回复参数错误');}
-  return appendMessage(event,connection,id,{role:'assistant',content,expectedSequence:input.expectedSequence,modelId:input.modelId,configRevision:input.configRevision,knowledge:true,contextGuard});
+  return appendMessage(event,connection,id,{role:'assistant',content,expectedSequence:input.expectedSequence,modelId:input.modelId,configRevision:input.configRevision,knowledge:true,contextGuard,contextSnapshot});
+}
+async function checkContextSnapshot(event:H3Event,connection:oracledb.Connection,id:string,snapshot:HistoryMessage[]) {
+  const messages=await listConversationMessages(event,connection,id,snapshot[0]!.sequence_no-1,snapshot.length);
+  const actual=messages.map(message=>({sequence_no:message.sequence_no,role:message.role,content:message.content,
+    ...(message.citations ? {citations:message.citations.map(source=>({kind:source.kind,id:source.id,version:source.version,post_id:source.post_id}))} : {})}));
+  if(JSON.stringify(actual)!==JSON.stringify(snapshot)) v2Conflict('会话已变更，请重试');
 }
 async function safeRestoreKnowledge(event:H3Event,connection:oracledb.Connection,content:string) {
   try {return await restoreKnowledgeMessage(content,refs=>hydrateKnowledgeSources(event,connection,refs));}
@@ -276,7 +291,7 @@ async function safeRestoreKnowledge(event:H3Event,connection:oracledb.Connection
 }
 
 type AppendInput = { role: 'user'; content: unknown } |
-  { role: 'assistant'; content: string; expectedSequence: number; modelId: string; configRevision: number; knowledge?:boolean; contextGuard?:string };
+  { role: 'assistant'; content: string; expectedSequence: number; modelId: string; configRevision: number; knowledge?:boolean; contextGuard?:string; contextSnapshot?:HistoryMessage[] };
 async function appendMessage<T extends AppendInput>(
   event: H3Event, connection: oracledb.Connection, id: string, input: T
 ): Promise<{ message_id: string; conversation_id: string; sequence_no: number; role: T['role'] }> {
@@ -302,6 +317,7 @@ async function appendMessage<T extends AppendInput>(
     const sequenceNo = v2Number(next?.NEXT_SEQUENCE);
     if (!Number.isSafeInteger(sequenceNo) || sequenceNo <= 0 || sequenceNo > 9999999999) v2ServerError();
     if (input.role === 'assistant' && sequenceNo !== input.expectedSequence + 1) v2Conflict('会话已变更，请重试');
+    if(input.role==='assistant' && input.contextSnapshot) await checkContextSnapshot(event,connection,id,input.contextSnapshot);
     const messageId = randomUUID();
     const inserted = await v2Execute(connection, `INSERT INTO n_ai_messages
       (message_id,conversation_id,sequence_no,role,content,model_id,config_revision)
@@ -317,6 +333,7 @@ async function appendMessage<T extends AppendInput>(
     await authorizeConversationScope(event, connection, { ownerUserId: actor.userId, purpose: scope.purpose, groupId: scope.group_id });
     if(input.role==='assistant' && input.knowledge) await safeRestoreKnowledge(event,connection,content);
     if(input.role==='assistant' && input.knowledge && input.contextGuard) await safeRestoreKnowledge(event,connection,input.contextGuard);
+    if(input.role==='assistant' && input.contextSnapshot) await checkContextSnapshot(event,connection,id,input.contextSnapshot);
     commitStarted = true;
     await connection.commit();
     return { message_id: messageId, conversation_id: id, sequence_no: sequenceNo, role: input.role };

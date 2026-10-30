@@ -999,7 +999,7 @@
       },
       {
         "path": "server/services/ai/conversation-store.ts",
-        "sha256": "f90d382328c281bf2b7fa491642d5a5a5a9e925329389210434e608e05ff4568"
+        "sha256": "6a7f556702e93d6543587fbd61ba3f961304739a076fedc0b6fd18238b89efa5"
       },
       {
         "path": "server/services/ai/inference-transport.ts",
@@ -1015,11 +1015,11 @@
       },
       {
         "path": "server/services/ai/knowledge-service.ts",
-        "sha256": "4fd82b0ee70c2f79b186771c9fb6a96c3b26edc2a18b232f8ba944a3cedbb49f"
+        "sha256": "e962e5f7e1ee2e3db4c4a9ac65d02cadbd2a8a2552e9e5e158bb07a69f8b4f23"
       },
       {
         "path": "server/services/ai/knowledge-conversation-service.ts",
-        "sha256": "48f7ba75942666e0b1e9f59bfd964f2cbd54369c0b85a2c3ac46ad1ead5f2de0"
+        "sha256": "bf8c3d0aafd0db2b6786bea3ed0cfce30063cf6432618193a3e89abde22d686e"
       },
       {
         "path": "server/services/ai/knowledge-citations.ts",
@@ -9011,7 +9011,7 @@
     },
     {
       "id": "AI-KNOWLEDGE-WRITING",
-      "revision": 7,
+      "revision": 8,
       "review": "reviewed",
       "definition": "specifications/requirements/ai-product-scope.md",
       "sourceFiles": [
@@ -9057,7 +9057,7 @@
       "implementations": {
         "nuxt": {
           "state": "in-progress",
-          "targetRevision": 7,
+          "targetRevision": 8,
           "tasks": [
             "nuxt: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "nuxt: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9116,7 +9116,7 @@
         },
         "rust": {
           "state": "in-progress",
-          "targetRevision": 7,
+          "targetRevision": 8,
           "tasks": [
             "rust: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "rust: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -9153,7 +9153,7 @@
         },
         "go": {
           "state": "in-progress",
-          "targetRevision": 7,
+          "targetRevision": 8,
           "tasks": [
             "go: Login-only public-content knowledge answers with citations and user-controlled writing drafts; implement the same authorization, data scope, model routing, cancellation and audit semantics from ai-product-scope.md.",
             "go: execute AI-KNOWLEDGE-WRITING acceptance scenarios with real business/model boundaries before acceptance.",
@@ -10944,7 +10944,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-agent-runtime.md",
-        "sha256": "adf68938f70f72c92d5af1bd274e68c4f7a04bb041e6bb85ab1257c6f2c72c2e"
+        "sha256": "74887e1e7fef06cc410bcc1ea68b08fb73c497c3476f32b9e69553228a570dc2"
       },
       "copies": {
         "rust": "contracts/requirements/ai-agent-runtime.md",

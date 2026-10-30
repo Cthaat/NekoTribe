@@ -34,6 +34,6 @@ export async function generateKnowledgeConversation(event:H3Event,id:string,conf
   const answer=result.answer;
   if(answer===null) return {message:null};
   return withConnection(event,connection=>appendKnowledgeAssistantMessage(event,connection,id,{
-    answer,sources:result.sources,...(result.contextSources?.length ? {contextSources:result.contextSources}:{}),expectedSequence:last.sequence_no,modelId:result.modelId,configRevision:result.configRevision
+    answer,sources:result.sources,...(result.contextSources?.length ? {contextSources:result.contextSources}:{}),...(result.contextSnapshot ? {contextSnapshot:result.contextSnapshot}:{}),expectedSequence:last.sequence_no,modelId:result.modelId,configRevision:result.configRevision
   }));
 }

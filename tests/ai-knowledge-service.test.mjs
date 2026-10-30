@@ -32,6 +32,9 @@ test('supplies selected history as untrusted data and rechecks its sources befor
  const payload=JSON.parse(globalThis.__knowledgeInput.messages[1].content);
  assert.deepEqual(payload.history,[{role:'user',content:'以前问题'},{role:'assistant',content:'以前回答'}]);
  assert.equal(payload.question,'新问题');assert.deepEqual(result.contextSources,[{kind:'comment',id:23,version:old.version}]);
+ assert.deepEqual(result.contextSnapshot,history);
+ history[1].citations[0].version='c'.repeat(64);history[2].content='changed';
+ assert.equal(result.contextSnapshot[1].citations[0].version,old.version);assert.equal(result.contextSnapshot[2].content,'新问题');
  assert.deepEqual(result.sources,[{kind:'post',id:1,version:source.version},{kind:'comment',id:23,version:old.version}]);
  assert.equal(e.events.filter(x=>x==='hydrate').length,4);
 });
