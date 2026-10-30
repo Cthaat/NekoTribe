@@ -46,6 +46,18 @@ pub struct UserMessage {
     pub sequence_no: i64,
     pub role: &'static str,
 }
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct HistoryMessage {
+    pub message_id: String,
+    pub conversation_id: String,
+    pub sequence_no: i64,
+    pub role: String,
+    pub content: String,
+    pub model_id: Option<String>,
+    pub model_version: Option<String>,
+    pub config_revision: Option<i64>,
+    pub created_at: String,
+}
 pub struct ModerationPolicy {
     allow_all: bool,
     accounts: HashSet<String>,
@@ -109,6 +121,60 @@ trait MessageTransaction: Transaction {
         content: &str,
     ) -> Result<(), Error>;
     fn touch(&self, user: i64, id: &str) -> Result<(), Error>;
+}
+trait HistoryTransaction: Transaction {
+    fn messages(
+        &self,
+        user: i64,
+        id: &str,
+        after: i64,
+        limit: i64,
+    ) -> Result<Vec<HistoryMessage>, Error>;
+}
+fn run_history(
+    tx: &impl HistoryTransaction,
+    user: i64,
+    id: &str,
+    after: i64,
+    limit: i64,
+    policy: &ModerationPolicy,
+) -> Result<Vec<HistoryMessage>, Error> {
+    if !(1..=MAX_SAFE_ID).contains(&user)
+        || !(0..=9_999_999_999).contains(&after)
+        || !(1..=50).contains(&limit)
+    {
+        return Err(Error::Invalid);
+    }
+    if !valid_uuid(id) {
+        return Err(Error::NotFound);
+    }
+    tx.check_schema()?;
+    let check_access = || {
+        let record = tx.read(user, id)?.ok_or(Error::NotFound)?;
+        let scope = validate(Input {
+            purpose: record.purpose,
+            group_id: record.group_id,
+            title: String::new(),
+        })
+        .map_err(|_| Error::Store)?;
+        tx.authorize(user, &scope, policy)
+    };
+    let result = (|| {
+        check_access()?;
+        let messages = tx.messages(user, id, after, limit)?;
+        check_access()?;
+        Ok(messages)
+    })();
+    match result {
+        Ok(messages) => {
+            tx.commit()?;
+            Ok(messages)
+        }
+        Err(error) => {
+            tx.rollback()?;
+            Err(error)
+        }
+    }
 }
 fn run_append(
     tx: &impl MessageTransaction,
@@ -369,6 +435,48 @@ impl MessageTransaction for OracleConversation<'_> {
         Ok(())
     }
 }
+impl HistoryTransaction for OracleConversation<'_> {
+    fn messages(
+        &self,
+        user: i64,
+        id: &str,
+        after: i64,
+        limit: i64,
+    ) -> Result<Vec<HistoryMessage>, Error> {
+        let values = bind_values(BindMap::from([
+            ("conversation_id".into(), DbValue::String(id.into())),
+            ("owner_user_id".into(), DbValue::I64(user)),
+            ("after_sequence".into(), DbValue::I64(after)),
+            ("row_limit".into(), DbValue::I64(limit)),
+        ]));
+        let rows = self.0.query_named("SELECT m.message_id,m.conversation_id,m.sequence_no,m.role,m.content,m.model_id,m.model_version,m.config_revision,m.created_at FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no>:after_sequence ORDER BY m.sequence_no ASC FETCH FIRST :row_limit ROWS ONLY", &bind_refs(&values)).map_err(|_| Error::Store)?;
+        rows.map(|row| {
+            let row =
+                oracle_row_to_db_row(&row.map_err(|_| Error::Store)?).map_err(|_| Error::Store)?;
+            let content = row
+                .get("CONTENT")
+                .and_then(DbValue::as_str)
+                .ok_or(Error::Store)?
+                .to_owned();
+            let revision =
+                nullable_text(&row, "CONFIG_REVISION").map(|_| row_number(&row, "CONFIG_REVISION"));
+            Ok(HistoryMessage {
+                message_id: row_text(&row, "MESSAGE_ID"),
+                conversation_id: row_text(&row, "CONVERSATION_ID"),
+                sequence_no: row_number(&row, "SEQUENCE_NO"),
+                role: row_text(&row, "ROLE"),
+                content,
+                model_id: nullable_text(&row, "MODEL_ID"),
+                model_version: nullable_text(&row, "MODEL_VERSION"),
+                config_revision: revision,
+                created_at: nullable_text(&row, "CREATED_AT")
+                    .map(|s| profile_date(&s))
+                    .unwrap_or_default(),
+            })
+        })
+        .collect()
+    }
+}
 pub fn create(
     connection: &oracle::Connection,
     user: i64,
@@ -400,6 +508,24 @@ pub fn append_user_message(
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
     run_append(&OracleConversation(connection), user, id, content, policy)
+}
+/// The caller must authenticate the actor and supply a trusted moderation policy.
+pub fn list_messages(
+    connection: &oracle::Connection,
+    user: i64,
+    id: &str,
+    after: i64,
+    limit: i64,
+    policy: &ModerationPolicy,
+) -> Result<Vec<HistoryMessage>, Error> {
+    run_history(
+        &OracleConversation(connection),
+        user,
+        id,
+        after,
+        limit,
+        policy,
+    )
 }
 
 #[cfg(test)]
@@ -467,6 +593,91 @@ mod tests {
             self.events.borrow_mut().push("touch");
             Ok(())
         }
+    }
+    impl HistoryTransaction for Fake {
+        fn messages(
+            &self,
+            _: i64,
+            id: &str,
+            after: i64,
+            limit: i64,
+        ) -> Result<Vec<HistoryMessage>, Error> {
+            self.events.borrow_mut().push("messages");
+            assert_eq!((after, limit), (1, 10));
+            Ok(vec![HistoryMessage {
+                message_id: "message".into(),
+                conversation_id: id.into(),
+                sequence_no: 2,
+                role: "user".into(),
+                content: "第二条".into(),
+                model_id: None,
+                model_version: None,
+                config_revision: None,
+                created_at: String::new(),
+            }])
+        }
+    }
+    #[test]
+    fn history_rechecks_group_permission_before_returning_messages() {
+        let tx = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: true,
+        };
+        assert_eq!(
+            run_history(
+                &tx,
+                1,
+                "af9da41c-7296-4f51-91f4-141f5c6e3c01",
+                1,
+                10,
+                &ModerationPolicy::new("", "")
+            ),
+            Err(Error::Forbidden)
+        );
+        assert_eq!(
+            *tx.events.borrow(),
+            vec![
+                "schema",
+                "read",
+                "authorize",
+                "messages",
+                "read",
+                "authorize",
+                "rollback"
+            ]
+        );
+    }
+    #[test]
+    fn history_returns_ordered_content_and_rejects_invalid_page() {
+        let tx = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: false,
+        };
+        let id = "af9da41c-7296-4f51-91f4-141f5c6e3c01";
+        assert_eq!(
+            run_history(&tx, 1, id, -1, 10, &ModerationPolicy::new("", "")),
+            Err(Error::Invalid)
+        );
+        assert!(tx.events.borrow().is_empty());
+        let result = run_history(&tx, 1, id, 1, 10, &ModerationPolicy::new("", "")).unwrap();
+        assert_eq!(
+            (result[0].sequence_no, result[0].content.as_str()),
+            (2, "第二条")
+        );
+        assert_eq!(
+            *tx.events.borrow(),
+            vec![
+                "schema",
+                "read",
+                "authorize",
+                "messages",
+                "read",
+                "authorize",
+                "commit"
+            ]
+        );
     }
     #[test]
     fn user_message_rechecks_group_permission_before_commit() {
