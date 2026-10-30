@@ -4250,6 +4250,8 @@
             "internal/server/media_upload_test.go",
             "internal/server/media_probe.go",
             "internal/server/media_probe_test.go",
+            "internal/server/media_wav.go",
+            "internal/server/media_wav_test.go",
             "internal/server/server.go"
           ],
           "evidence": []
