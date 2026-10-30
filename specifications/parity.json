@@ -895,11 +895,11 @@
       },
       {
         "path": "server/database/schema-definition.mjs",
-        "sha256": "426031b8b16fa3bfacb1f9a13084e0b83e313d9dab12bf72b3ce80fdee5e832f"
+        "sha256": "4b7fb272390b2fe6302b06b72f31f7fcea29cc32d4b5aced3a6c953a5942ae71"
       },
       {
         "path": "server/database/schema.d.mts",
-        "sha256": "c1e220514eae19d2e62a342e502d4524a34c1b0f059418bd72e2b3fd475f0dc3"
+        "sha256": "7ef76da735f3cb0782581754709fc44da1e9c4f5a1f4c210303a5d77b9d2e26e"
       },
       {
         "path": "server/database/schema.mjs",
@@ -8971,6 +8971,8 @@
       },
       "sharedDependencies": [
         "specifications/requirements/ai-agent-runtime.md",
+        "specifications/requirements/ai-conversation-storage.md",
+        "specifications/requirements/ai-conversation-schema-catalog.json",
         "specifications/scenarios/ai-agent-runtime.json",
         "specifications/requirements/ai-tool-history.md",
         "specifications/scenarios/ai-tool-history.json"
@@ -9030,6 +9032,8 @@
       },
       "sharedDependencies": [
         "specifications/requirements/ai-agent-runtime.md",
+        "specifications/requirements/ai-conversation-storage.md",
+        "specifications/requirements/ai-conversation-schema-catalog.json",
         "specifications/scenarios/ai-agent-runtime.json",
         "specifications/requirements/ai-tool-history.md",
         "specifications/scenarios/ai-tool-history.json"
@@ -9085,6 +9089,8 @@
       },
       "sharedDependencies": [
         "specifications/requirements/ai-agent-runtime.md",
+        "specifications/requirements/ai-conversation-storage.md",
+        "specifications/requirements/ai-conversation-schema-catalog.json",
         "specifications/scenarios/ai-agent-runtime.json",
         "specifications/requirements/ai-tool-history.md",
         "specifications/scenarios/ai-tool-history.json"
@@ -10589,7 +10595,7 @@
     {
       "source": {
         "path": "specifications/requirements/two-factor-schema-catalog.json",
-        "sha256": "368e876e20a2288d6788a980f8e8495d3445d0fb4352dcdc58139df2477702fc"
+        "sha256": "9ac2a8f085ff6a0cf11daee07feffdc05ec326682925b8cabf17c077d87715b0"
       },
       "copies": {
         "rust": "contracts/requirements/two-factor-schema-catalog.json",
@@ -10849,7 +10855,7 @@
     {
       "source": {
         "path": "specifications/requirements/media-schema-catalog.json",
-        "sha256": "9b2113d12fc9fd64473dcb835c1345523c19aef0d5506246025aef0934d4dbdd"
+        "sha256": "9846dd57aa76382fec350c043a6495baa297c312abf2cc7e8babd028bfc85c93"
       },
       "copies": {
         "rust": "contracts/requirements/media-schema-catalog.json",
@@ -10859,11 +10865,31 @@
     {
       "source": {
         "path": "specifications/requirements/user-settings-schema-catalog.json",
-        "sha256": "0da851b8d2ac3acd16ce36e7d0701b7a3a7087c4fa950e13e60a04b684087a09"
+        "sha256": "9b9170f96dd95aab47e86e7b2e947944eb2af589d72997511bdb7282c3cf45a6"
       },
       "copies": {
         "rust": "contracts/requirements/user-settings-schema-catalog.json",
         "go": "contracts/requirements/user-settings-schema-catalog.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-conversation-storage.md",
+        "sha256": "c8d9c9001c24cb65242f36ebf3b7ffcd52817e465b48b39bd5be337540e5945f"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-conversation-storage.md",
+        "go": "contracts/requirements/ai-conversation-storage.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-conversation-schema-catalog.json",
+        "sha256": "5c34ede18b34dc4cf6e4b3a645c6879284a7e3e7ef17615ee580b214f7011d0b"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-conversation-schema-catalog.json",
+        "go": "contracts/requirements/ai-conversation-schema-catalog.json"
       }
     },
     {

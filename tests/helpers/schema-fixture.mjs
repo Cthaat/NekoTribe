@@ -39,7 +39,7 @@ export function schemaFixture({ baseline = false } = {}) {
   for (const raw of all) {
     const step = describeStep(raw);
     if (['table', 'column'].includes(step.kind)) {
-      if (baseline && !state.tables.has(step.table)) state.tables.set(step.table, tableState(describeStep({ kind: 'table', sql: baselineTable(sqlBaseline, step.table) })));
+      if (baseline && !state.tables.has(step.table)) state.tables.set(step.table, tableState(step.id.startsWith('t14-ai-conversations-') ? step : describeStep({ kind: 'table', sql: baselineTable(sqlBaseline, step.table) })));
       else if (!baseline && step.kind === 'table') state.tables.set(step.table, tableState(step));
       else if (!baseline) {
         const table = state.tables.get(step.table) ?? { columns: [], constraints: [] };

@@ -1,4 +1,4 @@
-export type SchemaFeature = 'two-factor' | 'groups' | 'moderation' | 'media' | 'user-settings';
+export type SchemaFeature = 'two-factor' | 'groups' | 'moderation' | 'media' | 'user-settings' | 'ai-conversations';
 export interface SchemaAdapter {
   execute(sql: string, binds?: Record<string, unknown>): Promise<{
     rows?: Record<string, unknown>[];

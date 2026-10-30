@@ -38,6 +38,54 @@ export const moderationSettings = freeze([
 ]);
 const definitions = [
   {
+    "id": "ai-conversations",
+    "steps": [
+      {
+        "id": "t14-ai-conversations-n_ai_conversations",
+        "kind": "table",
+        "name": "N_AI_CONVERSATIONS",
+        "sql": `CREATE TABLE n_ai_conversations (
+conversation_id VARCHAR2(36) PRIMARY KEY,
+owner_user_id NUMBER(10) NOT NULL,
+purpose VARCHAR2(20) NOT NULL,
+group_id NUMBER(15),
+title VARCHAR2(200),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT ck_ai_conv_purpose CHECK (purpose IN ('knowledge', 'writing', 'group', 'moderation')),
+CONSTRAINT fk_ai_conv_owner FOREIGN KEY (owner_user_id) REFERENCES n_users(user_id) ON DELETE CASCADE
+)`
+      },
+      {
+        "id": "t14-ai-conversations-n_ai_messages",
+        "kind": "table",
+        "name": "N_AI_MESSAGES",
+        "sql": `CREATE TABLE n_ai_messages (
+message_id VARCHAR2(36) PRIMARY KEY,
+conversation_id VARCHAR2(36) NOT NULL,
+sequence_no NUMBER(10) NOT NULL,
+role VARCHAR2(20) NOT NULL,
+content CLOB NOT NULL,
+tool_history CLOB,
+model_id VARCHAR2(128),
+model_version VARCHAR2(128),
+config_revision NUMBER(15),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT uq_ai_message_sequence UNIQUE (conversation_id, sequence_no),
+CONSTRAINT ck_ai_message_sequence CHECK (sequence_no > 0),
+CONSTRAINT ck_ai_message_role CHECK (role IN ('user', 'assistant', 'tool')),
+CONSTRAINT fk_ai_message_conversation FOREIGN KEY (conversation_id) REFERENCES n_ai_conversations(conversation_id) ON DELETE CASCADE
+)`
+      },
+      {
+        "id": "t14-ai-conversations-idx_ai_conv_owner",
+        "kind": "index",
+        "name": "IDX_AI_CONV_OWNER",
+        "sql": `CREATE INDEX idx_ai_conv_owner ON n_ai_conversations (owner_user_id, updated_at)`
+      }
+    ]
+  },
+  {
     "id": "two-factor",
     "steps": [
       {

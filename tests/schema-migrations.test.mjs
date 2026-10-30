@@ -12,10 +12,10 @@ const ddl = calls => calls.filter(c => /^(CREATE|ALTER|DROP)\b/.test(c.sql));
 test('default plan does not read dotenv, load a driver or connect', async () => {
   let loaded = false; const output = [];
   const plan = await migrateDatabase({ root: '\0invalid-directory', env: { ORACLE_PASSWORD: 'do-not-print' }, loadDriver: () => { loaded = true; throw Error('connected'); }, output: s => output.push(s) });
-  assert.equal(loaded, false); assert.equal(plan.length, 5); assert(!output.join('').includes('do-not-print'));
-  assert.equal(plan.flatMap(f => f.steps).length, 31);
+  assert.equal(loaded, false); assert.equal(plan.length, 6); assert(!output.join('').includes('do-not-print'));
+  assert.equal(plan.flatMap(f => f.steps).length, 34);
 });
-test('actual baseline table metadata passes complete read-only readiness and idempotent apply', async () => {
+test('baseline metadata with migrated AI tables passes readiness and idempotent apply', async () => {
   const db = schemaFixture({ baseline: true });
   const initial = await checkSchema(db);
   assert(initial.every(x => x.status === 'ready'), JSON.stringify(initial.filter(x => x.status !== 'ready')));
@@ -28,9 +28,23 @@ test('actual baseline table metadata passes complete read-only readiness and ide
   assert(!db.state.calls.slice(before).some(c => /^(INSERT|MERGE|UPDATE|DELETE)\b/.test(c.sql)));
   const baseline = readFileSync(new URL('../data/neko_tribe-oracle-v2.sql', import.meta.url), 'utf8');
   for (const f of schemaFeatures) for (const s of f.steps) {
+    if (f.id === 'ai-conversations') continue;
     if (s.kind === 'sequence' || s.kind === 'index') assert(baseline.toUpperCase().includes(`CREATE ${s.kind.toUpperCase()} ${s.name}`), s.name);
     if (s.kind === 'seed') assert(baseline.includes(`VALUES ('${s.setting.key}', '${s.setting.value}', '${s.setting.value_type}'`));
   }
+});
+test('AI conversation migration creates missing tables without changing existing data', async () => {
+  const db = schemaFixture({ baseline: true });
+  db.state.tables.delete('N_AI_CONVERSATIONS'); db.state.tables.delete('N_AI_MESSAGES'); db.state.indexes.delete('IDX_AI_CONV_OWNER');
+  const existing = structuredClone(db.state.tables.get('N_USER_SETTINGS'));
+  const pending = await checkSchema(db, 'ai-conversations');
+  assert.equal(pending.filter(item => item.status === 'missing').length, 3);
+  await applySchema(db);
+  assert.deepEqual(db.state.tables.get('N_USER_SETTINGS'), existing);
+  assert((await checkSchema(db, 'ai-conversations')).every(item => item.status === 'ready'));
+  const count = db.state.calls.length;
+  await applySchema(db);
+  assert.equal(ddl(db.state.calls.slice(count)).length, 0);
 });
 test('existing settings and sequence state are preserved; missing settings insert only', async () => {
   const db = schemaFixture();
