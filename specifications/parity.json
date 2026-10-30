@@ -9159,6 +9159,7 @@
             "internal/server/ai_knowledge_history_test.go",
             "internal/server/ai_knowledge_conversation.go",
             "internal/server/ai_knowledge_conversation_test.go",
+            "internal/server/ai_knowledge_route_test.go",
             "internal/ai/transport.go"
           ],
           "evidence": []
@@ -11625,7 +11626,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-history.md",
-        "sha256": "5413dc0aaeef7889dff4337cd3df6454d5fbe055a3a799ab9f7ff2983203ad4d"
+        "sha256": "3c85df7cab3b336f61590b0b78ae03c32a3f91852a23bac7d3e406467c1bdec8"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-history.md",
