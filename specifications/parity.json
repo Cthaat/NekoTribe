@@ -2274,12 +2274,15 @@
           "evidence": []
         },
         "go": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement PATCH /api/v2/users/me/settings natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Connect settings schema readiness, authenticated route, Oracle transaction and response mapping, presence event, shared scenarios and real dependency acceptance."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "internal/server/user_settings_patch.go",
+            "internal/server/user_settings_patch_test.go"
+          ],
           "evidence": []
         }
       }
