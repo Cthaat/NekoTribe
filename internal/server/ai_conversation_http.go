@@ -56,6 +56,9 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 	} else if len(parts) == 3 && parts[0] == "" && parts[1] != "" && parts[2] == "generate" && r.Method == http.MethodPost {
 		id = parts[1]
 		operation = "generate"
+	} else if len(parts) == 3 && parts[0] == "" && parts[1] != "" && parts[2] == "knowledge-generate" && r.Method == http.MethodPost {
+		id = parts[1]
+		operation = "knowledge-generate"
 	}
 	if operation == "" {
 		respond(w, 404, 40404, "API route not found", nil)
@@ -146,6 +149,21 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 			return true
 		}
 		result, err = generateAIWriting(r.Context(), writer, actor, id, policy, config)
+	case "knowledge-generate":
+		knowledge, ok := repository.(knowledgeConversationStore)
+		if !ok {
+			respond(w, 500, 50001, "服务器内部错误", nil)
+			return true
+		}
+		var message *conversationMessage
+		message, err = generateKnowledgeConversation(r.Context(), knowledge, actor, id, policy, config)
+		if err == nil {
+			status := "generated"
+			if message == nil {
+				status = "insufficient_evidence"
+			}
+			result = map[string]interface{}{"status": status, "message": message}
+		}
 	}
 	if err != nil {
 		switch {
@@ -161,6 +179,10 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 			respond(w, 409, 40901, "会话已变更，请重试", nil)
 		case errors.Is(err, errWritingContext):
 			respond(w, 400, 40001, "写作会话上下文不可用", nil)
+		case errors.Is(err, errKnowledgeConversationContext), errors.Is(err, errKnowledgeInvalid), errors.Is(err, errKnowledgeContextTooLarge):
+			respond(w, 400, 40001, "知识会话上下文不可用", nil)
+		case errors.Is(err, errKnowledgeProvider), errors.Is(err, errKnowledgeCitations), errors.Is(err, errKnowledgeSourceChanged), errors.Is(err, errKnowledgeAnswerInvalid), errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
 		case errors.Is(err, errWritingUnavailable):
 			respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
 		default:
