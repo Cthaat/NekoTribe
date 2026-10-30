@@ -2262,16 +2262,23 @@
       "operations": [
         "PATCH /api/v2/users/me/settings"
       ],
-      "scenarios": [],
+      "scenarios": [
+        {
+          "id": "USER-SETTINGS-PATCH",
+          "file": "specifications/scenarios/user-settings-patch.json"
+        }
+      ],
       "implementations": {
         "nuxt": {
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Restore source behavior, permissions, errors and persistence/events for PATCH /api/v2/users/me/settings; create shared acceptance scenarios."
+            "Complete shared persistence, concurrency, presence and real dependency acceptance scenarios for PATCH settings."
           ],
           "sourceFiles": [
-            "server/api/v2/users/me/settings.patch.ts"
+            "server/api/v2/users/me/settings.patch.ts",
+            "server/services/v2/users.ts",
+            "tests/user-settings-patch.test.mjs"
           ],
           "evidence": []
         },
@@ -10867,6 +10874,16 @@
       "copies": {
         "rust": "contracts/scenarios/user-settings-readiness.json",
         "go": "contracts/scenarios/user-settings-readiness.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/user-settings-patch.json",
+        "sha256": "57e626194d125fa762e8289a875faf4fb74e4faca12bc17ae82292028ada2bbd"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/user-settings-patch.json",
+        "go": "contracts/scenarios/user-settings-patch.json"
       }
     },
     {

@@ -1,0 +1,22 @@
+{
+  "id": "USER-SETTINGS-PATCH",
+  "revision": 1,
+  "cases": [
+    {"id":"empty", "body":{}, "fields":{}, "presence":false},
+    {"id":"ignore-unknown", "body":{"unknown":"x"}, "fields":{}, "presence":false},
+    {"id":"bool-yes", "body":{"show_online_status":"YES","login_alerts":" true "}, "fields":{"show_online_status":1,"login_alerts":0}, "presence":true},
+    {"id":"bool-numbers", "body":{"push_notification_enabled":1,"email_notification_enabled":2}, "fields":{"push_notification_enabled":1,"email_notification_enabled":0}, "presence":false},
+    {"id":"bool-null", "body":{"allow_dm_from_strangers":null}, "fields":{"allow_dm_from_strangers":0}, "presence":false},
+    {"id":"privacy", "body":{"profile_visibility":"private"}, "fields":{"profile_visibility":"private"}, "presence":false},
+    {"id":"privacy-invalid", "body":{"profile_visibility":"PRIVATE"}, "error":"profile_visibility 参数错误"},
+    {"id":"two-factor-forbidden", "body":{"two_factor_enabled":null}, "error":"请通过双因素认证设置流程修改 two_factor_enabled"},
+    {"id":"model-trim", "body":{"ai_sentiment_model_id":"  model  "}, "fields":{"ai_sentiment_model_id":"model"}, "presence":false},
+    {"id":"model-clear", "body":{"ai_sentiment_model_id":null}, "fields":{"ai_sentiment_model_id":null}, "presence":false},
+    {"id":"top-fraction", "body":{"ai_sentiment_top_k":3.9}, "fields":{"ai_sentiment_top_k":3}, "presence":false},
+    {"id":"top-hex", "body":{"ai_sentiment_top_k":"0xa"}, "fields":{"ai_sentiment_top_k":10}, "presence":false},
+    {"id":"top-invalid-default", "body":{"ai_sentiment_top_k":"no"}, "fields":{"ai_sentiment_top_k":3}, "presence":false},
+    {"id":"top-empty-error", "body":{"ai_sentiment_top_k":""}, "error":"ai_sentiment_top_k 必须在 1 到 10 之间"},
+    {"id":"top-limit", "body":{"ai_sentiment_top_k":10.9}, "fields":{"ai_sentiment_top_k":10}, "presence":false},
+    {"id":"top-outside", "body":{"ai_sentiment_top_k":11}, "error":"ai_sentiment_top_k 必须在 1 到 10 之间"}
+  ]
+}
