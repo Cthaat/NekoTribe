@@ -6,7 +6,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "0ffd1a849fc5d80062adb46f80cbe712962098400747cc511b0267834b4e022e"
+      "sha256": "734ab53516250da49c03cf1006c48922bb5e099b7ae65988b6b5bdb4bd01d1fa"
     },
     "sources": [
       {
@@ -296,6 +296,10 @@
       {
         "path": "server/api/v2/ai/conversations/[id]/generate.post.ts",
         "sha256": "ed561b9ce7b73afcacea45b23f6a48954212d2d18bbe91c73670dfc82daf3c18"
+      },
+      {
+        "path": "server/api/v2/ai/conversations/[id]/knowledge-generate.post.ts",
+        "sha256": "e606a2ca7b637d9b664843b4cc1fc7cc5773bb321d63c0fdb293360f81a8abc1"
       },
       {
         "path": "server/api/v2/ai/conversations/[id]/messages/index.get.ts",
@@ -1123,7 +1127,7 @@
       },
       {
         "path": "server/utils/auth-entry-errors.ts",
-        "sha256": "b1e8a22b875d2d1d5f6bc8bbde578dbbc71d019cc3e2f9c8d6cb11f8b69fc4d9"
+        "sha256": "6a5a8ea9fb8105ef9eec3aec12e9a13460e0e8c8cbed326c29af4f8ec8ff401a"
       },
       {
         "path": "server/utils/auth-token-response.test.ts",
@@ -9012,6 +9016,7 @@
         "server/services/ai/conversation-http.ts",
         "server/services/ai/private-http.ts",
         "server/api/v2/ai/conversations/[id]/generate.post.ts",
+        "server/api/v2/ai/conversations/[id]/knowledge-generate.post.ts",
         "server/services/ai/writing-service.ts",
         "server/services/ai/writing-turn.ts",
         "server/api/v2/ai/conversations/[id].delete.ts",
@@ -9029,6 +9034,7 @@
         "GET /api/v2/ai/conversations/{id}/messages",
         "POST /api/v2/ai/conversations/{id}/messages",
         "POST /api/v2/ai/conversations/{id}/generate",
+        "POST /api/v2/ai/conversations/{id}/knowledge-generate",
         "DELETE /api/v2/ai/conversations/{id}",
         "GET /api/v2/ai/conversations"
       ],
@@ -9060,6 +9066,8 @@
             "server/services/ai/private-http.ts",
             "tests/ai-conversation-http.test.mjs",
             "server/api/v2/ai/conversations/[id]/generate.post.ts",
+            "server/api/v2/ai/conversations/[id]/knowledge-generate.post.ts",
+            "tests/ai-knowledge-route.test.mjs",
             "server/services/ai/writing-service.ts",
             "server/services/ai/writing-turn.ts",
             "tests/ai-writing-turn.test.mjs",
@@ -11617,7 +11625,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-history.md",
-        "sha256": "a000faf9b5e36d5bdf7ba533c9a949a22c62b57eee94ea04c485af489628f0ea"
+        "sha256": "5413dc0aaeef7889dff4337cd3df6454d5fbe055a3a799ab9f7ff2983203ad4d"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-history.md",

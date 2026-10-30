@@ -15,7 +15,7 @@ const publicMessages: Record<number, ReadonlySet<string>> = {
   501: new Set(['短信验证码暂不可用', '媒体存储暂不可用']),
   503: new Set(['服务暂不可用，请稍后重试。'])
 };
-publicMessages[400] = new Set([...publicMessages[400]!, '会话参数错误', '会话用途错误', '群组参数错误', '会话标题错误', '会话标题过长', '消息参数错误', '消息内容错误', '分页参数错误', '写作会话上下文不可用']);
+publicMessages[400] = new Set([...publicMessages[400]!, '会话参数错误', '会话用途错误', '群组参数错误', '会话标题错误', '会话标题过长', '消息参数错误', '消息内容错误', '分页参数错误', '写作会话上下文不可用', '知识会话上下文不可用', '知识检索参数错误']);
 
 function sanitizedPublicError(error: unknown): ReturnType<typeof createError> | null {
   if (!isError(error)) return null;
