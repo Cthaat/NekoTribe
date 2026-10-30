@@ -45,11 +45,16 @@ pub(crate) async fn generate_knowledge(
         use crate::ai::{
             knowledge_conversation::Error as KnowledgeError, knowledge_turn::TurnError,
         };
-        let (parts, _) = request.into_parts();
+        let (parts, body) = request.into_parts();
         let actor = interaction_actor(&state, &parts.headers).await?;
         if !conversation_store::valid_uuid(&id) {
             return Err(ApiError::not_found("会话不存在"));
         }
+        let bytes = to_bytes(body, 4096)
+            .await
+            .map_err(|_| ApiError::bad_request("知识检索参数错误"))?;
+        let search_phrase = crate::ai::knowledge_search_body::parse(&bytes)
+            .map_err(|_| ApiError::bad_request("知识检索参数错误"))?;
         let unavailable = || {
             ApiError::new(
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -60,7 +65,7 @@ pub(crate) async fn generate_knowledge(
         let runtime = knowledge.ok_or_else(unavailable)?.0;
         let config = writing.map(|Extension(s)| s).unwrap_or_default();
         let policy = settings.map(|Extension(s)| s).unwrap_or_default().policy();
-        let result = crate::ai::knowledge_conversation::generate(
+        let result = crate::ai::knowledge_conversation::generate_and_search(
             state.repository.as_ref(),
             runtime.0.as_ref(),
             actor,
@@ -68,6 +73,7 @@ pub(crate) async fn generate_knowledge(
             policy,
             config.configuration(),
             None,
+            search_phrase.as_deref(),
         )
         .await
         .map_err(|e| match e {

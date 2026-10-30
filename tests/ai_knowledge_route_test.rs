@@ -38,6 +38,7 @@ impl SessionRepository for Store {
 struct LiveStore {
     empty: bool,
     purpose: &'static str,
+    question: &'static str,
     conflict: bool,
     writes: Mutex<usize>,
 }
@@ -71,7 +72,7 @@ impl SessionRepository for LiveStore {
             Ok(match operation {
                 AiOperation::Read(_) => Ok(json!({"purpose":self.purpose})),
                 AiOperation::Recent(_) => {
-                    Ok(json!([{"sequence_no":1,"role":"user","content":"猫"}]))
+                    Ok(json!([{"sequence_no":1,"role":"user","content":self.question}]))
                 }
                 AiOperation::KnowledgeAssistant { input, sources, .. } => {
                     assert_eq!(
@@ -131,11 +132,51 @@ async fn knowledge_route_generates_or_rejects_without_false_writes() {
         .unwrap()["token"]
         .as_str()
         .unwrap();
-    for (purpose, empty, conflict, expected, result, writes) in [
-        ("knowledge", false, false, 200, "generated", 1),
-        ("knowledge", true, false, 200, "insufficient_evidence", 0),
-        ("writing", false, false, 400, "", 0),
-        ("knowledge", false, true, 409, "", 0),
+    let oversized = " ".repeat(4097);
+    for (purpose, empty, conflict, expected, result, writes, question, input) in [
+        ("knowledge", false, false, 200, "generated", 1, "猫", ""),
+        (
+            "knowledge",
+            true,
+            false,
+            200,
+            "insufficient_evidence",
+            0,
+            "猫",
+            "",
+        ),
+        ("writing", false, false, 400, "", 0, "猫", ""),
+        ("knowledge", false, true, 409, "", 0, "猫", ""),
+        (
+            "knowledge",
+            false,
+            false,
+            200,
+            "generated",
+            1,
+            "关于猫的问题",
+            "{\"search_phrase\":\"猫\"}",
+        ),
+        (
+            "knowledge",
+            false,
+            false,
+            400,
+            "",
+            0,
+            "猫",
+            "{\"search_phrase\":\"猫\",\"search_phrase\":\"猫\"}",
+        ),
+        (
+            "knowledge",
+            false,
+            false,
+            400,
+            "",
+            0,
+            "猫",
+            oversized.as_str(),
+        ),
     ] {
         let codec = TokenCodec::new(
             fixture["keys"]["access"].as_str().unwrap().as_bytes(),
@@ -145,6 +186,7 @@ async fn knowledge_route_generates_or_rejects_without_false_writes() {
         let store = Arc::new(LiveStore {
             empty,
             purpose,
+            question,
             conflict,
             writes: Mutex::new(0),
         });
@@ -158,7 +200,7 @@ async fn knowledge_route_generates_or_rejects_without_false_writes() {
         )
         .layer(Extension(KnowledgeRuntime(store.clone())))
         .layer(Extension(settings));
-        let response = app.oneshot(Request::post("/api/v2/ai/conversations/f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb/knowledge-generate").header("authorization",format!("Bearer {token}")).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app.oneshot(Request::post("/api/v2/ai/conversations/f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb/knowledge-generate").header("authorization",format!("Bearer {token}")).body(Body::from(input.to_owned())).unwrap()).await.unwrap();
         assert_eq!(response.status(), expected);
         assert_eq!(response.headers()["cache-control"], "private, no-store");
         let body: Value =
