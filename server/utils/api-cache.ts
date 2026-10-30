@@ -398,6 +398,8 @@ async function buildCacheContext(
 
   const url = getRequestURL(event);
   if (!url.pathname.startsWith('/api/v2/')) return null;
+  // AI conversations contain private text and permissions can change in any backend.
+  if (url.pathname === '/api/v2/ai' || url.pathname.startsWith('/api/v2/ai/')) return null;
   // Shared session and self-profile data may be changed by other backends
   // without invalidating this Nuxt response cache.
   if (['/api/v2/auth/sessions', '/api/v2/users/me'].includes(url.pathname.replace(/\/+$/, ''))) return null;
