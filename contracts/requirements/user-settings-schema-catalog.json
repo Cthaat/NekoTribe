@@ -5,7 +5,7 @@
   "sources": [
     {
       "path": "server/database/schema-definition.mjs",
-      "sha256": "4b7fb272390b2fe6302b06b72f31f7fcea29cc32d4b5aced3a6c953a5942ae71"
+      "sha256": "b599c5bb98f2242fa9dc4f734de79421a32a263aa4058e9616726391a493b834"
     },
     {
       "path": "server/database/schema.mjs",
@@ -82,7 +82,8 @@
     "t13-moderation-setting-auto_hide_report_threshold": "524d97889ef4d7dff5e20909a02aa8b3c07d3a22344879b7489bcbdfc182bd13",
     "t13-moderation-setting-require_note_on_reject": "d842365391fb11ee1149780828d47be6df8e8f57405c9c5a2f3f0399e078b556",
     "t13-moderation-setting-allow_moderator_claim": "2b83d8bfe4a90c8a6ef5f22e0542f0485ecef6c8261291d49e5791fcb225f2a7",
-    "t13-moderation-setting-default_mute_hours": "3c8ea3dec55c1119293a4e69f6f32bc83857aeac4a600fe7211a47ff979ca5bd"
+    "t13-moderation-setting-default_mute_hours": "3c8ea3dec55c1119293a4e69f6f32bc83857aeac4a600fe7211a47ff979ca5bd",
+    "t15-ai-terms-n_ai_terms_active": "6910f8800a90327327a32084a91aa74e186b75cdc14971dfd35e7f1939707813"
   },
   "feature": {
     "id": "user-settings",

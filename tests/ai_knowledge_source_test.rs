@@ -1,6 +1,10 @@
 use nekotribe_backend::ai::knowledge_source::{
     hydrate, source_version, Candidate, Error, Reader, Source,
 };
+use nekotribe_backend::{
+    ai::public_terms_authority,
+    db::{row::DbRow, value::DbValue},
+};
 use serde_json::Value;
 use std::cell::Cell;
 
@@ -20,7 +24,7 @@ impl Reader for Fake {
     }
 }
 #[test]
-fn database_reader_does_not_treat_terms_as_posts() {
+fn reader_can_omit_missing_terms_without_treating_them_as_posts() {
     let reader = Fake {
         source: None,
         fail: false,
@@ -31,8 +35,96 @@ fn database_reader_does_not_treat_terms_as_posts() {
         id: 3,
         version: "b".repeat(64),
     };
-    assert_eq!(hydrate(&reader, 42, &[terms]), Err(Error::Invalid));
-    assert_eq!(reader.calls.get(), 0);
+    assert_eq!(hydrate(&reader, 42, &[terms]), Ok(vec![]));
+    assert_eq!(reader.calls.get(), 1);
+}
+
+struct TermsAuthority {
+    enabled: Cell<bool>,
+    digest: String,
+}
+impl public_terms_authority::Reader for TermsAuthority {
+    fn load(&self) -> Result<Vec<DbRow>, public_terms_authority::Error> {
+        Ok(vec![DbRow::from([
+            (
+                "CATALOG_DIGEST".into(),
+                DbValue::String(self.digest.clone()),
+            ),
+            ("GENERATION".into(), DbValue::String("1".into())),
+            (
+                "ENABLED".into(),
+                DbValue::String(if self.enabled.get() { "1" } else { "0" }.into()),
+            ),
+        ])])
+    }
+}
+struct MixedReader {
+    authority: TermsAuthority,
+    catalog: Value,
+}
+impl Reader for MixedReader {
+    fn get(&self, viewer: i64, c: &Candidate) -> Result<Option<Source>, Error> {
+        if c.kind == "terms" {
+            nekotribe_backend::ai::knowledge_source::read_terms_source(
+                &self.authority,
+                viewer,
+                c,
+                &self.catalog,
+            )
+        } else {
+            Ok(Some(Source {
+                kind: "post".into(),
+                id: 11,
+                post_id: 11,
+                content: "public post".into(),
+                version: String::new(),
+            }))
+        }
+    }
+}
+#[test]
+fn mixed_history_revalidates_terms_authority_before_restoration() {
+    use nekotribe_backend::ai::knowledge_history::{encode, restore};
+    let catalog: Value = serde_json::from_str(include_str!(
+        "../contracts/requirements/ai-public-terms-catalog.json"
+    ))
+    .unwrap();
+    let vectors: Value = serde_json::from_str(include_str!(
+        "../contracts/scenarios/ai-public-terms-source-vectors.json"
+    ))
+    .unwrap();
+    let terms = Candidate {
+        kind: "terms".into(),
+        id: 1,
+        version: vectors["versions"][0]["version"].as_str().unwrap().into(),
+    };
+    let post = Candidate {
+        kind: "post".into(),
+        id: 11,
+        version: source_version("post", 11, 11, "public post"),
+    };
+    let reader = MixedReader {
+        authority: TermsAuthority {
+            enabled: Cell::new(true),
+            digest: vectors["catalog_digest"].as_str().unwrap().into(),
+        },
+        catalog,
+    };
+    let encoded = encode("answer", &[post, terms]).unwrap();
+    let result = restore(&encoded, |refs| {
+        hydrate(&reader, 42, refs)
+            .map_err(|_| nekotribe_backend::ai::knowledge_history::HistoryError::Store)
+    })
+    .unwrap();
+    assert_eq!(result.citations.len(), 2);
+    assert_eq!(result.citations[1].post_id, 0);
+    reader.authority.enabled.set(false);
+    assert!(
+        restore(&encoded, |refs| hydrate(&reader, 42, refs).map_err(|_| {
+            nekotribe_backend::ai::knowledge_history::HistoryError::Store
+        }))
+        .is_err()
+    );
 }
 #[test]
 fn versions_match_shared_cross_language_vectors() {

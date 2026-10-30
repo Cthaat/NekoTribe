@@ -1,4 +1,5 @@
 //! Revalidate index candidates against the current public business source.
+use super::{public_terms_authority, public_terms_source};
 use crate::db::{
     oracle::{bind_refs, bind_values, BindMap},
     row::oracle_row_to_db_row,
@@ -67,8 +68,8 @@ pub fn discover(
     {
         return Err(Error::Invalid);
     }
-    let mut lists = Vec::with_capacity(2);
-    for kind in ["post", "comment"] {
+    let mut lists = Vec::with_capacity(3);
+    for kind in ["post", "comment", "terms"] {
         let rows = reader
             .search(viewer, kind, term, limit)
             .map_err(|_| Error::Store)?;
@@ -80,7 +81,19 @@ pub fn discover(
         for mut row in rows {
             if row.kind != kind
                 || !valid_id(row.id)
-                || !valid_id(row.post_id)
+                || (kind == "terms"
+                    && (row.id > 8
+                        || row.post_id != 0
+                        || validate(
+                            viewer,
+                            &[Candidate {
+                                kind: row.kind.clone(),
+                                id: row.id,
+                                version: row.version.clone(),
+                            }],
+                        )
+                        .is_err()))
+                || (kind != "terms" && !valid_id(row.post_id))
                 || (kind == "post" && row.id != row.post_id)
                 || !seen.insert(row.id)
             {
@@ -89,7 +102,9 @@ pub fn discover(
             if row.content.is_empty() || row.content.len() > 65536 {
                 continue;
             }
-            row.version = source_version(kind, row.id, row.post_id, &row.content);
+            if kind != "terms" {
+                row.version = source_version(kind, row.id, row.post_id, &row.content);
+            }
             valid.push(row);
         }
         lists.push(valid);
@@ -105,6 +120,38 @@ pub fn discover(
         }
     }
     Ok(output)
+}
+
+/// Search bundled rule texts, checking authority only when there are matches.
+pub fn discover_terms_sources(
+    reader: &impl public_terms_authority::Reader,
+    viewer: i64,
+    query: &str,
+    limit: usize,
+    raw: &serde_json::Value,
+) -> Result<Vec<Source>, Error> {
+    if !(1..=MAX_USER).contains(&viewer) {
+        return Err(Error::Invalid);
+    }
+    let catalog = public_terms_source::parse(raw).map_err(|_| Error::Store)?;
+    let matches =
+        public_terms_source::discover(&catalog, query, limit).map_err(|_| Error::Invalid)?;
+    if !matches.is_empty() {
+        public_terms_authority::read(reader, viewer, raw).map_err(|_| Error::Store)?;
+    }
+    Ok(matches
+        .into_iter()
+        .map(|row| Source {
+            kind: "terms".into(),
+            id: row.id,
+            post_id: 0,
+            content: std::iter::once(row.title.as_str())
+                .chain(row.blocks.iter().map(String::as_str))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            version: row.version,
+        })
+        .collect())
 }
 
 pub fn source_version(kind: &str, id: i64, post_id: i64, content: &str) -> String {
@@ -143,9 +190,6 @@ pub fn hydrate(
     candidates: &[Candidate],
 ) -> Result<Vec<Source>, Error> {
     validate(viewer, candidates)?;
-    if candidates.iter().any(|candidate| candidate.kind == "terms") {
-        return Err(Error::Invalid);
-    }
     let mut output = Vec::new();
     for candidate in candidates {
         let Some(mut row) = reader.get(viewer, candidate).map_err(|_| Error::Store)? else {
@@ -153,7 +197,8 @@ pub fn hydrate(
         };
         if row.kind != candidate.kind
             || row.id != candidate.id
-            || !valid_id(row.post_id)
+            || (row.kind == "terms" && row.post_id != 0)
+            || (row.kind != "terms" && !valid_id(row.post_id))
             || (row.kind == "post" && row.id != row.post_id)
         {
             return Err(Error::Store);
@@ -161,13 +206,52 @@ pub fn hydrate(
         if row.content.is_empty() || row.content.len() > 65536 {
             continue;
         }
-        let version = source_version(&row.kind, row.id, row.post_id, &row.content);
+        let version = if row.kind == "terms" {
+            row.version.clone()
+        } else {
+            source_version(&row.kind, row.id, row.post_id, &row.content)
+        };
         if version == candidate.version {
             row.version = version;
             output.push(row)
         }
     }
     Ok(output)
+}
+
+/// The caller supplies an authenticated viewer; the authority is read for every use.
+pub fn read_terms_source(
+    reader: &impl public_terms_authority::Reader,
+    viewer: i64,
+    candidate: &Candidate,
+    raw: &serde_json::Value,
+) -> Result<Option<Source>, Error> {
+    validate(viewer, std::slice::from_ref(candidate))?;
+    if candidate.kind != "terms" {
+        return Err(Error::Invalid);
+    }
+    public_terms_authority::read(reader, viewer, raw).map_err(|_| Error::Store)?;
+    let catalog = public_terms_source::parse(raw).map_err(|_| Error::Store)?;
+    let refs = [public_terms_source::Reference {
+        kind: "terms".into(),
+        id: candidate.id,
+        version: candidate.version.clone(),
+    }];
+    let mut rows = public_terms_source::hydrate(&catalog, &refs).map_err(|_| Error::Store)?;
+    let Some(row) = rows.pop() else {
+        return Ok(None);
+    };
+    let content = std::iter::once(row.title.as_str())
+        .chain(row.blocks.iter().map(String::as_str))
+        .collect::<Vec<_>>()
+        .join("\n");
+    Ok(Some(Source {
+        kind: "terms".into(),
+        id: row.id,
+        post_id: 0,
+        content,
+        version: row.version,
+    }))
 }
 struct OracleReader<'a>(&'a oracle::Connection);
 fn discovery_query_parts(
@@ -198,6 +282,22 @@ impl DiscoveryReader for OracleReader<'_> {
         term: &str,
         limit: usize,
     ) -> Result<Vec<Source>, Error> {
+        if kind == "terms" {
+            let raw: serde_json::Value = serde_json::from_str(include_str!(
+                "../../contracts/requirements/ai-public-terms-catalog.json"
+            ))
+            .map_err(|_| Error::Store)?;
+            return discover_terms_sources(
+                &public_terms_authority::OracleReader(self.0, false),
+                viewer,
+                term,
+                limit,
+                &raw,
+            );
+        }
+        if !matches!(kind, "post" | "comment") {
+            return Err(Error::Invalid);
+        }
         let (query, binds) = discovery_query_parts(viewer, kind, term, limit);
         let binds = bind_values(binds);
         let rows = self
@@ -258,6 +358,18 @@ fn query_parts(viewer: i64, candidate: &Candidate) -> (&'static str, BindMap) {
 }
 impl Reader for OracleReader<'_> {
     fn get(&self, viewer: i64, candidate: &Candidate) -> Result<Option<Source>, Error> {
+        if candidate.kind == "terms" {
+            let raw: serde_json::Value = serde_json::from_str(include_str!(
+                "../../contracts/requirements/ai-public-terms-catalog.json"
+            ))
+            .map_err(|_| Error::Store)?;
+            return read_terms_source(
+                &public_terms_authority::OracleReader(self.0, false),
+                viewer,
+                candidate,
+                &raw,
+            );
+        }
         if !matches!(candidate.kind.as_str(), "post" | "comment") {
             return Err(Error::Invalid);
         }

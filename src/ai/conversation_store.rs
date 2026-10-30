@@ -210,6 +210,13 @@ trait Transaction {
     ) -> Result<super::knowledge_history::Restored, Error> {
         Err(Error::Store)
     }
+    fn restore_knowledge_for_write(
+        &self,
+        user: i64,
+        content: &str,
+    ) -> Result<super::knowledge_history::Restored, Error> {
+        self.restore_knowledge(user, content)
+    }
 }
 trait ListingTransaction: Transaction {
     fn candidates(
@@ -584,7 +591,7 @@ fn run_append_inner(
             return Err(Error::Conflict);
         }
         if knowledge {
-            tx.restore_knowledge(user, content)?;
+            tx.restore_knowledge_for_write(user, content)?;
         }
         let sequence = tx.next_sequence(id)?;
         if !(1..=9_999_999_999).contains(&sequence) {
@@ -601,7 +608,7 @@ fn run_append_inner(
         tx.touch(user, id)?;
         tx.authorize(user, &scope, policy)?;
         if knowledge {
-            tx.restore_knowledge(user, content)?;
+            tx.restore_knowledge_for_write(user, content)?;
         }
         if let Some(snapshot) = snapshot {
             check_context_snapshot(tx, user, id, snapshot)?;
@@ -803,6 +810,25 @@ impl Transaction for OracleConversation<'_> {
         content: &str,
     ) -> Result<super::knowledge_history::Restored, Error> {
         super::knowledge_history::restore(content, |refs| {
+            super::knowledge_source::hydrate_sources(self.0, user, refs)
+                .map_err(|_| super::knowledge_history::HistoryError::Store)
+        })
+        .map_err(|_| Error::Store)
+    }
+    fn restore_knowledge_for_write(
+        &self,
+        user: i64,
+        content: &str,
+    ) -> Result<super::knowledge_history::Restored, Error> {
+        super::knowledge_history::restore(content, |refs| {
+            if refs.iter().any(|r| r.kind == "terms") {
+                let raw: serde_json::Value = serde_json::from_str(include_str!(
+                    "../../contracts/requirements/ai-public-terms-catalog.json"
+                ))
+                .map_err(|_| super::knowledge_history::HistoryError::Store)?;
+                super::public_terms_authority::read_from_oracle_locked(self.0, user, &raw)
+                    .map_err(|_| super::knowledge_history::HistoryError::Store)?;
+            }
             super::knowledge_source::hydrate_sources(self.0, user, refs)
                 .map_err(|_| super::knowledge_history::HistoryError::Store)
         })
@@ -1207,6 +1233,7 @@ mod tests {
     struct KnowledgeFake {
         events: RefCell<Vec<&'static str>>,
         checks: Cell<u32>,
+        write_checks: Cell<u32>,
         revoke: bool,
         encoded: String,
         history_mode: &'static str,
@@ -1254,6 +1281,14 @@ mod tests {
                     .collect())
             })
             .map_err(|_| Error::Store)
+        }
+        fn restore_knowledge_for_write(
+            &self,
+            user: i64,
+            content: &str,
+        ) -> Result<super::super::knowledge_history::Restored, Error> {
+            self.write_checks.set(self.write_checks.get() + 1);
+            self.restore_knowledge(user, content)
         }
         fn commit(&self) -> Result<(), Error> {
             self.events.borrow_mut().push("commit");
@@ -1342,6 +1377,7 @@ mod tests {
         let tx = KnowledgeFake {
             events: RefCell::new(vec![]),
             checks: Cell::new(0),
+            write_checks: Cell::new(0),
             revoke: false,
             encoded: encoded.clone(),
             history_mode: "",
@@ -1355,7 +1391,9 @@ mod tests {
         };
         run_append_knowledge(&tx, 1, id, &input, std::slice::from_ref(&ref_), &policy).unwrap();
         assert_eq!(tx.checks.get(), 2);
+        assert_eq!(tx.write_checks.get(), 2);
         let rows = run_history(&tx, 1, id, 0, 10, &policy).unwrap();
+        assert_eq!(tx.write_checks.get(), 2);
         assert_eq!(rows[0].content, "answer");
         assert_eq!(
             rows[0].citations.as_ref().unwrap(),
@@ -1369,6 +1407,7 @@ mod tests {
         let bad = KnowledgeFake {
             events: RefCell::new(vec![]),
             checks: Cell::new(0),
+            write_checks: Cell::new(0),
             revoke: true,
             encoded,
             history_mode: "",
@@ -1403,6 +1442,7 @@ mod tests {
             let tx = KnowledgeFake {
                 events: RefCell::new(vec![]),
                 checks: Cell::new(0),
+                write_checks: Cell::new(0),
                 revoke: false,
                 encoded: String::new(),
                 history_mode: mode,
