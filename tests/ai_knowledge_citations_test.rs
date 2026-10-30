@@ -4,6 +4,19 @@ use nekotribe_backend::ai::{
     knowledge_turn::{TurnError, TurnResult},
 };
 use serde_json::json;
+#[test]
+fn accepts_only_verified_fixed_terms_ids() {
+    let mut terms = Candidate {
+        kind: "terms".into(),
+        id: 3,
+        version: "b".repeat(64),
+    };
+    let data = json!({"answer":"answer","citations":[terms]}).to_string();
+    assert!(parse(&data, &[terms.clone()]).is_ok());
+    terms.id = 9;
+    let data = json!({"answer":"answer","citations":[terms]}).to_string();
+    assert_eq!(parse(&data, &[terms]), Err(TurnError::InvalidCitations));
+}
 
 #[test]
 fn matches_shared_cross_backend_vectors() {

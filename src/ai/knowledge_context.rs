@@ -67,20 +67,32 @@ pub fn select(
                     .get("version")
                     .and_then(Value::as_str)
                     .ok_or(ContextError::Invalid)?;
-                let post_id = citation
-                    .get("post_id")
-                    .and_then(Value::as_i64)
-                    .filter(|n| (1..=999_999_999_999_999).contains(n))
-                    .ok_or(ContextError::Invalid)?;
-                if kind == "post" && id != post_id {
-                    return Err(ContextError::Invalid);
-                }
+                let post_id = if kind == "terms" {
+                    if citation.get("post_id").is_some() {
+                        return Err(ContextError::Invalid);
+                    }
+                    None
+                } else {
+                    let n = citation
+                        .get("post_id")
+                        .and_then(Value::as_i64)
+                        .filter(|n| (1..=999_999_999_999_999).contains(n))
+                        .ok_or(ContextError::Invalid)?;
+                    if kind == "post" && id != n {
+                        return Err(ContextError::Invalid);
+                    }
+                    Some(n)
+                };
                 refs.push(Candidate {
                     kind: kind.into(),
                     id,
                     version: version.into(),
                 });
-                clean.push(json!({"kind":kind,"id":id,"version":version,"post_id":post_id}));
+                let mut entry = json!({"kind":kind,"id":id,"version":version});
+                if let Some(post_id) = post_id {
+                    entry["post_id"] = json!(post_id)
+                }
+                clean.push(entry);
             }
             knowledge_source::validate(1, &refs).map_err(|_| ContextError::Invalid)?;
             item["citations"] = Value::Array(clean);
@@ -176,6 +188,20 @@ mod tests {
         );
         assert_eq!(result.sources.len(), 1);
         assert_eq!(result.snapshot, messages);
+    }
+    #[test]
+    fn terms_history_never_accepts_post_id() {
+        let terms = json!({"kind":"terms","id":3,"version":"b".repeat(64)});
+        let mut messages = vec![
+            json!({"sequence_no":1,"role":"assistant","content":"old","citations":[terms]}),
+            json!({"sequence_no":2,"role":"user","content":"q"}),
+        ];
+        assert_eq!(
+            select(&messages, 10000, 20).unwrap().sources[0].kind,
+            "terms"
+        );
+        messages[0]["citations"][0]["post_id"] = json!(3);
+        assert_eq!(select(&messages, 10000, 20), Err(ContextError::Invalid));
     }
 
     #[test]

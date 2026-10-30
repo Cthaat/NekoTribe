@@ -37,13 +37,16 @@ pub fn parse(text: &str, verified: &[Candidate]) -> Result<TurnResult, TurnError
         let kind = item
             .get("kind")
             .and_then(Value::as_str)
-            .filter(|v| matches!(*v, "post" | "comment"))
+            .filter(|v| matches!(*v, "post" | "comment" | "terms"))
             .ok_or_else(fail)?;
         let id = item
             .get("id")
             .and_then(Value::as_f64)
             .filter(|v| *v >= 1.0 && *v <= 999_999_999_999_999.0 && v.fract() == 0.0)
             .ok_or_else(fail)? as i64;
+        if kind == "terms" && id > 8 {
+            return Err(fail());
+        }
         let version = item
             .get("version")
             .and_then(Value::as_str)

@@ -20,6 +20,21 @@ impl Reader for Fake {
     }
 }
 #[test]
+fn database_reader_does_not_treat_terms_as_posts() {
+    let reader = Fake {
+        source: None,
+        fail: false,
+        calls: Cell::new(0),
+    };
+    let terms = Candidate {
+        kind: "terms".into(),
+        id: 3,
+        version: "b".repeat(64),
+    };
+    assert_eq!(hydrate(&reader, 42, &[terms]), Err(Error::Invalid));
+    assert_eq!(reader.calls.get(), 0);
+}
+#[test]
 fn versions_match_shared_cross_language_vectors() {
     let root: Value = serde_json::from_str(include_str!(
         "../contracts/scenarios/ai-knowledge-source-vectors.json"

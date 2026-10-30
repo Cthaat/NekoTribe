@@ -30,9 +30,13 @@ pub struct Candidate {
 pub struct Source {
     pub kind: String,
     pub id: i64,
+    #[serde(skip_serializing_if = "is_zero")]
     pub post_id: i64,
     pub content: String,
     pub version: String,
+}
+fn is_zero(value: &i64) -> bool {
+    *value == 0
 }
 pub trait Reader {
     fn get(&self, viewer: i64, candidate: &Candidate) -> Result<Option<Source>, Error>;
@@ -118,8 +122,9 @@ pub(crate) fn validate(viewer: i64, candidates: &[Candidate]) -> Result<(), Erro
     }
     let mut seen = HashSet::new();
     for c in candidates {
-        if !matches!(c.kind.as_str(), "post" | "comment")
+        if !matches!(c.kind.as_str(), "post" | "comment" | "terms")
             || !valid_id(c.id)
+            || (c.kind == "terms" && c.id > 8)
             || c.version.len() != 64
             || !c
                 .version
@@ -138,6 +143,9 @@ pub fn hydrate(
     candidates: &[Candidate],
 ) -> Result<Vec<Source>, Error> {
     validate(viewer, candidates)?;
+    if candidates.iter().any(|candidate| candidate.kind == "terms") {
+        return Err(Error::Invalid);
+    }
     let mut output = Vec::new();
     for candidate in candidates {
         let Some(mut row) = reader.get(viewer, candidate).map_err(|_| Error::Store)? else {
@@ -250,6 +258,9 @@ fn query_parts(viewer: i64, candidate: &Candidate) -> (&'static str, BindMap) {
 }
 impl Reader for OracleReader<'_> {
     fn get(&self, viewer: i64, candidate: &Candidate) -> Result<Option<Source>, Error> {
+        if !matches!(candidate.kind.as_str(), "post" | "comment") {
+            return Err(Error::Invalid);
+        }
         let (query, binds) = query_parts(viewer, candidate);
         let binds = bind_values(binds);
         let mut rows = self

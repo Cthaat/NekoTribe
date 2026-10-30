@@ -10,6 +10,42 @@ fn candidate() -> Candidate {
     }
 }
 #[test]
+fn mixed_terms_history_omits_post_id_and_revalidates() {
+    let post = candidate();
+    let terms = Candidate {
+        kind: "terms".into(),
+        id: 3,
+        version: "b".repeat(64),
+    };
+    let encoded = encode("answer", &[post.clone(), terms.clone()]).unwrap();
+    let rows = vec![
+        Source {
+            kind: post.kind.clone(),
+            id: 1,
+            post_id: 1,
+            content: "post".into(),
+            version: post.version.clone(),
+        },
+        Source {
+            kind: terms.kind.clone(),
+            id: 3,
+            post_id: 0,
+            content: "terms".into(),
+            version: terms.version.clone(),
+        },
+    ];
+    let result = restore(&encoded, |_| Ok(rows.clone())).unwrap();
+    let value = serde_json::to_value(result.citations).unwrap();
+    assert_eq!(value[0]["post_id"], 1);
+    assert!(value[1].get("post_id").is_none());
+    let mut forged = rows;
+    forged[1].post_id = 3;
+    assert_eq!(
+        restore(&encoded, |_| Ok(forged)),
+        Err(HistoryError::SourceChanged)
+    );
+}
+#[test]
 fn restores_only_current_sources() {
     let ref_ = candidate();
     let encoded = encode("答案", std::slice::from_ref(&ref_)).unwrap();

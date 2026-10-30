@@ -18,7 +18,11 @@ pub struct Citation {
     pub kind: String,
     pub id: i64,
     pub version: String,
+    #[serde(skip_serializing_if = "is_zero")]
     pub post_id: i64,
+}
+fn is_zero(value: &i64) -> bool {
+    *value == 0
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Restored {
@@ -107,8 +111,10 @@ pub fn restore(
         let key = (row.kind.as_str(), row.id, row.version.as_str());
         if !expected.contains(&key)
             || !seen.insert(key)
-            || !(1..=999_999_999_999_999).contains(&row.post_id)
-            || (row.kind == "post" && row.post_id != row.id)
+            || (row.kind == "terms" && row.post_id != 0)
+            || (row.kind != "terms"
+                && (!(1..=999_999_999_999_999).contains(&row.post_id)
+                    || (row.kind == "post" && row.post_id != row.id)))
         {
             return Err(HistoryError::SourceChanged);
         }
