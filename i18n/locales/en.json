@@ -2209,5 +2209,34 @@
       "delete-unknown": "Deletion was not confirmed. Refresh or try again later.",
       "too-long": "The message exceeds 65536 bytes. Please shorten it."
     }
+  },
+  "aiKnowledge": {
+    "eyebrow": "Community knowledge",
+    "title": "Knowledge assistant",
+    "description": "Searches public posts and comments for an exact text match. Review the sources.",
+    "new": "New conversation",
+    "history": "Conversation history",
+    "historyEmpty": "No knowledge conversations yet",
+    "untitled": "Untitled conversation",
+    "empty": "Ask a question about public community content.",
+    "you": "You",
+    "assistant": "Knowledge assistant",
+    "placeholder": "Enter the exact text you want to find",
+    "send": "Send",
+    "refreshState": "Refresh conversation",
+    "retry": "Retry response",
+    "deleteTitle": "Delete this conversation?",
+    "deleteDescription": "The conversation and its messages will be deleted.",
+    "errors": {
+      "generation": "Generation or loading failed. Refresh and try again.",
+      "append-unknown": "The message submission result is unknown. Refresh before continuing.",
+      "history": "Could not load conversation history. Please retry.",
+      "delete-unknown": "Deletion was not confirmed. Refresh or try again later.",
+      "too-long": "The message exceeds 65536 bytes. Please shorten it."
+    },
+    "insufficientEvidence": "No matching public sources were found. Try different text.",
+    "sources": "Sources",
+    "post": "Post",
+    "comment": "Comment"
   }
 }
