@@ -120,6 +120,11 @@ const baseNavData = computed(() => ({
       icon: MessageSquare
     },
     {
+      title: t('aiWriting.title'),
+      url: '/ai/writing',
+      icon: Bot
+    },
+    {
       title: t('nav.main.account'),
       url: 'account-overview', // 使用路由名称
       icon: Settings2,

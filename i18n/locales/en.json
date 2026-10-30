@@ -2184,5 +2184,30 @@
         }
       }
     }
+  },
+  "aiWriting": {
+    "eyebrow": "AI writing",
+    "title": "Writing assistant",
+    "description": "Drafts are for review and are never published automatically.",
+    "new": "New conversation",
+    "history": "Conversation history",
+    "historyEmpty": "No writing conversations yet",
+    "untitled": "Untitled conversation",
+    "empty": "Describe what you would like to write.",
+    "you": "You",
+    "assistant": "Writing assistant",
+    "placeholder": "Describe your writing request",
+    "send": "Send",
+    "refreshState": "Refresh conversation",
+    "retry": "Retry response",
+    "deleteTitle": "Delete this conversation?",
+    "deleteDescription": "The conversation and its messages will be deleted.",
+    "errors": {
+      "generation": "Generation or loading failed. Refresh and try again.",
+      "append-unknown": "The message submission result is unknown. Refresh before continuing.",
+      "history": "Could not load conversation history. Please retry.",
+      "delete-unknown": "Deletion was not confirmed. Refresh or try again later.",
+      "too-long": "The message exceeds 65536 bytes. Please shorten it."
+    }
   }
 }

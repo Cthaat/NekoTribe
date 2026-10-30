@@ -9036,7 +9036,12 @@
             "tests/ai-writing-service.test.mjs",
             "tests/ai-writing-route.test.mjs",
             "server/api/v2/ai/conversations/[id].delete.ts",
-            "server/api/v2/ai/conversations/index.get.ts"
+            "server/api/v2/ai/conversations/index.get.ts",
+            "app/pages/ai/writing.vue",
+            "app/api/v2/ai-writing.ts",
+            "app/services/ai-writing-controller.ts",
+            "tests/ai-writing-client.test.mjs",
+            "tests/ai-writing-api.test.mjs"
           ],
           "evidence": []
         },
