@@ -1006,6 +1006,10 @@
         "sha256": "fc5862df50b676bdf1cfa47a8627a66aff672bbf8092d04e1e46a99e8d309670"
       },
       {
+        "path": "server/services/ai/knowledge-turn.ts",
+        "sha256": "79a55a24d42cc51df516a38657bb8692b7c4b8ab7c20527406d047d673f5a98c"
+      },
+      {
         "path": "server/services/ai/model-configuration.ts",
         "sha256": "8ed5369cd394c578c3f5e383434743b5344afcf14c8dce9a054eecfe0e5451ad"
       },
@@ -8996,7 +9000,8 @@
         "server/services/ai/writing-turn.ts",
         "server/api/v2/ai/conversations/[id].delete.ts",
         "server/api/v2/ai/conversations/index.get.ts",
-        "server/services/ai/knowledge-source.ts"
+        "server/services/ai/knowledge-source.ts",
+        "server/services/ai/knowledge-turn.ts"
       ],
       "operations": [
         "POST /api/v2/ai/conversations",
@@ -9049,7 +9054,9 @@
             "tests/ai-writing-api.test.mjs",
             "server/services/ai/knowledge-source.ts",
             "tests/ai-knowledge-source.test.mjs",
-            "tests/ai-knowledge-discovery.test.mjs"
+            "tests/ai-knowledge-discovery.test.mjs",
+            "server/services/ai/knowledge-turn.ts",
+            "tests/ai-knowledge-turn.test.mjs"
           ],
           "evidence": []
         },
@@ -9109,7 +9116,8 @@
         "specifications/scenarios/ai-tool-history.json",
         "specifications/requirements/ai-knowledge-source.md",
         "specifications/scenarios/ai-knowledge-source-vectors.json",
-        "specifications/requirements/ai-knowledge-discovery.md"
+        "specifications/requirements/ai-knowledge-discovery.md",
+        "specifications/requirements/ai-knowledge-turn.md"
       ]
     },
     {
@@ -11553,6 +11561,16 @@
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-source.md",
         "go": "contracts/requirements/ai-knowledge-source.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-knowledge-turn.md",
+        "sha256": "13f7145841d0581eca0b497af6bb207b8789075e22ea89f5fcbaa4862e4cac83"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-knowledge-turn.md",
+        "go": "contracts/requirements/ai-knowledge-turn.md"
       }
     },
     {
