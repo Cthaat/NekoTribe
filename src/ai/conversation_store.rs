@@ -39,6 +39,13 @@ pub struct Record {
     pub created_at: String,
     pub updated_at: String,
 }
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct UserMessage {
+    pub message_id: String,
+    pub conversation_id: String,
+    pub sequence_no: i64,
+    pub role: &'static str,
+}
 pub struct ModerationPolicy {
     allow_all: bool,
     accounts: HashSet<String>,
@@ -90,6 +97,70 @@ trait Transaction {
     fn read(&self, user: i64, id: &str) -> Result<Option<Record>, Error>;
     fn commit(&self) -> Result<(), Error>;
     fn rollback(&self) -> Result<(), Error>;
+}
+trait MessageTransaction: Transaction {
+    fn read_locked(&self, user: i64, id: &str) -> Result<Option<Record>, Error>;
+    fn next_sequence(&self, id: &str) -> Result<i64, Error>;
+    fn insert_message(
+        &self,
+        id: &str,
+        message_id: &str,
+        sequence: i64,
+        content: &str,
+    ) -> Result<(), Error>;
+    fn touch(&self, user: i64, id: &str) -> Result<(), Error>;
+}
+fn run_append(
+    tx: &impl MessageTransaction,
+    user: i64,
+    id: &str,
+    content: &str,
+    policy: &ModerationPolicy,
+) -> Result<UserMessage, Error> {
+    if !(1..=MAX_SAFE_ID).contains(&user) {
+        return Err(Error::Invalid);
+    }
+    if !valid_uuid(id) {
+        return Err(Error::NotFound);
+    }
+    if content.is_empty() || content.len() > 65536 {
+        return Err(Error::Invalid);
+    }
+    tx.check_schema()?;
+    let result = (|| {
+        let record = tx.read_locked(user, id)?.ok_or(Error::NotFound)?;
+        let scope = validate(Input {
+            purpose: record.purpose,
+            group_id: record.group_id,
+            title: String::new(),
+        })
+        .map_err(|_| Error::Store)?;
+        tx.authorize(user, &scope, policy)?;
+        let sequence = tx.next_sequence(id)?;
+        if !(1..=9_999_999_999).contains(&sequence) {
+            return Err(Error::Store);
+        }
+        let message_id = uuid::Uuid::new_v4().to_string();
+        tx.insert_message(id, &message_id, sequence, content)?;
+        tx.touch(user, id)?;
+        tx.authorize(user, &scope, policy)?;
+        Ok(UserMessage {
+            message_id,
+            conversation_id: id.to_owned(),
+            sequence_no: sequence,
+            role: "user",
+        })
+    })();
+    match result {
+        Ok(message) => {
+            tx.commit()?;
+            Ok(message)
+        }
+        Err(error) => {
+            tx.rollback()?;
+            Err(error)
+        }
+    }
 }
 fn run(
     tx: &impl Transaction,
@@ -205,11 +276,30 @@ impl Transaction for OracleConversation<'_> {
         Ok(())
     }
     fn read(&self, user: i64, id: &str) -> Result<Option<Record>, Error> {
+        self.read_owned(user, id, false)
+    }
+    fn commit(&self) -> Result<(), Error> {
+        OracleTx::new(self.0).commit().map_err(|_| Error::Store)
+    }
+    fn rollback(&self) -> Result<(), Error> {
+        OracleTx::new(self.0).rollback().map_err(|_| Error::Store)
+    }
+}
+impl OracleConversation<'_> {
+    fn read_owned(&self, user: i64, id: &str, lock: bool) -> Result<Option<Record>, Error> {
         let values = bind_values(BindMap::from([
             ("conversation_id".into(), DbValue::String(id.into())),
             ("owner_user_id".into(), DbValue::I64(user)),
         ]));
-        let mut rows = self.0.query_named("SELECT conversation_id,purpose,group_id,title,created_at,updated_at FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id", &bind_refs(&values)).map_err(|_| Error::Store)?;
+        let query = if lock {
+            "SELECT conversation_id,purpose,group_id,title,created_at,updated_at FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id FOR UPDATE"
+        } else {
+            "SELECT conversation_id,purpose,group_id,title,created_at,updated_at FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id"
+        };
+        let mut rows = self
+            .0
+            .query_named(query, &bind_refs(&values))
+            .map_err(|_| Error::Store)?;
         let Some(row) = rows.next().transpose().map_err(|_| Error::Store)? else {
             return Ok(None);
         };
@@ -231,11 +321,52 @@ impl Transaction for OracleConversation<'_> {
                 .unwrap_or_default(),
         }))
     }
-    fn commit(&self) -> Result<(), Error> {
-        OracleTx::new(self.0).commit().map_err(|_| Error::Store)
+}
+impl MessageTransaction for OracleConversation<'_> {
+    fn read_locked(&self, user: i64, id: &str) -> Result<Option<Record>, Error> {
+        self.read_owned(user, id, true)
     }
-    fn rollback(&self) -> Result<(), Error> {
-        OracleTx::new(self.0).rollback().map_err(|_| Error::Store)
+    fn next_sequence(&self, id: &str) -> Result<i64, Error> {
+        let values = bind_values(BindMap::from([(
+            "conversation_id".into(),
+            DbValue::String(id.into()),
+        )]));
+        self.0.query_row_as_named::<i64>("SELECT NVL(MAX(sequence_no),0)+1 AS next_sequence FROM n_ai_messages WHERE conversation_id=:conversation_id", &bind_refs(&values)).map_err(|_| Error::Store)
+    }
+    fn insert_message(
+        &self,
+        id: &str,
+        message_id: &str,
+        sequence: i64,
+        content: &str,
+    ) -> Result<(), Error> {
+        use oracle::sql_type::{Clob, ToSql};
+        use std::io::Write;
+        let mut clob = Clob::new(self.0).map_err(|_| Error::Store)?;
+        clob.write_all(content.as_bytes())
+            .map_err(|_| Error::Store)?;
+        let binds: &[(&str, &dyn ToSql)] = &[
+            ("message_id", &message_id),
+            ("conversation_id", &id),
+            ("sequence_no", &sequence),
+            ("content", &clob),
+        ];
+        let result = self.0.execute_named("INSERT INTO n_ai_messages (message_id,conversation_id,sequence_no,role,content) VALUES (:message_id,:conversation_id,:sequence_no,'user',:content)", binds).map_err(|_| Error::Store)?;
+        if result.row_count().map_err(|_| Error::Store)? != 1 {
+            return Err(Error::Store);
+        }
+        Ok(())
+    }
+    fn touch(&self, user: i64, id: &str) -> Result<(), Error> {
+        let binds = BindMap::from([
+            ("conversation_id".into(), DbValue::String(id.into())),
+            ("owner_user_id".into(), DbValue::I64(user)),
+        ]);
+        let result = OracleTx::new(self.0).execute("UPDATE n_ai_conversations SET updated_at=CURRENT_TIMESTAMP WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id", binds).map_err(|_| Error::Store)?;
+        if result.rows_affected != 1 {
+            return Err(Error::Store);
+        }
+        Ok(())
     }
 }
 pub fn create(
@@ -259,6 +390,16 @@ pub fn read(
     policy: &ModerationPolicy,
 ) -> Result<Record, Error> {
     run(&OracleConversation(connection), user, id, None, policy)
+}
+/// The caller must authenticate the actor and supply a trusted moderation policy.
+pub fn append_user_message(
+    connection: &oracle::Connection,
+    user: i64,
+    id: &str,
+    content: &str,
+    policy: &ModerationPolicy,
+) -> Result<UserMessage, Error> {
+    run_append(&OracleConversation(connection), user, id, content, policy)
 }
 
 #[cfg(test)]
@@ -308,6 +449,111 @@ mod tests {
             self.events.borrow_mut().push("rollback");
             Ok(())
         }
+    }
+    impl MessageTransaction for Fake {
+        fn read_locked(&self, user: i64, id: &str) -> Result<Option<Record>, Error> {
+            self.events.borrow_mut().push("lock");
+            self.read(user, id)
+        }
+        fn next_sequence(&self, _: &str) -> Result<i64, Error> {
+            self.events.borrow_mut().push("sequence");
+            Ok(1)
+        }
+        fn insert_message(&self, _: &str, _: &str, _: i64, _: &str) -> Result<(), Error> {
+            self.events.borrow_mut().push("message");
+            Ok(())
+        }
+        fn touch(&self, _: i64, _: &str) -> Result<(), Error> {
+            self.events.borrow_mut().push("touch");
+            Ok(())
+        }
+    }
+    #[test]
+    fn user_message_rechecks_group_permission_before_commit() {
+        let tx = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: true,
+        };
+        assert_eq!(
+            run_append(
+                &tx,
+                1,
+                "af9da41c-7296-4f51-91f4-141f5c6e3c01",
+                "hello",
+                &ModerationPolicy::new("", "")
+            ),
+            Err(Error::Forbidden)
+        );
+        assert_eq!(
+            *tx.events.borrow(),
+            vec![
+                "schema",
+                "lock",
+                "read",
+                "authorize",
+                "sequence",
+                "message",
+                "touch",
+                "authorize",
+                "rollback"
+            ]
+        );
+    }
+    #[test]
+    fn user_message_checks_utf8_length_before_touching_database() {
+        let tx = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: false,
+        };
+        let id = "af9da41c-7296-4f51-91f4-141f5c6e3c01";
+        assert_eq!(
+            run_append(
+                &tx,
+                1,
+                id,
+                &"猫".repeat(21846),
+                &ModerationPolicy::new("", "")
+            ),
+            Err(Error::Invalid)
+        );
+        assert!(tx.events.borrow().is_empty());
+    }
+    #[test]
+    fn user_message_commits_after_lock_and_permission_recheck() {
+        let tx = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: false,
+        };
+        let id = "af9da41c-7296-4f51-91f4-141f5c6e3c01";
+        let result = run_append(
+            &tx,
+            1,
+            id,
+            &"x".repeat(65536),
+            &ModerationPolicy::new("", ""),
+        )
+        .unwrap();
+        assert_eq!(result.sequence_no, 1);
+        assert_eq!(result.role, "user");
+        assert_eq!(result.conversation_id, id);
+        assert!(valid_uuid(&result.message_id));
+        assert_eq!(
+            *tx.events.borrow(),
+            vec![
+                "schema",
+                "lock",
+                "read",
+                "authorize",
+                "sequence",
+                "message",
+                "touch",
+                "authorize",
+                "commit"
+            ]
+        );
     }
     #[test]
     fn revoked_group_permission_rolls_back_before_commit() {
