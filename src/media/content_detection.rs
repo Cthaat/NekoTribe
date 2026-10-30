@@ -215,6 +215,70 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rejects_zip_with_mismatched_central_flags() {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        use tokio::io::AsyncWriteExt;
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../contracts/scenarios/media-container-samples.json"
+        ))
+        .unwrap();
+        let case = fixture["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["id"] == "large-zip")
+            .unwrap();
+        let mut data = STANDARD.decode(case["base64"].as_str().unwrap()).unwrap();
+        let central = data.windows(4).position(|b| b == b"PK\x01\x02").unwrap();
+        data[central + 9] ^= 0x08; // UTF-8 flag in central directory only.
+        let mut file = tokio::fs::File::from_std(tempfile::tempfile().unwrap());
+        file.write_all(&data).await.unwrap();
+        file.flush().await.unwrap();
+        assert!(inspect_file(&mut file).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_central_directory_fields() {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        use tokio::io::AsyncWriteExt;
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../contracts/scenarios/media-container-samples.json"
+        ))
+        .unwrap();
+        let case = fixture["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["id"] == "large-zip")
+            .unwrap();
+        let original = STANDARD.decode(case["base64"].as_str().unwrap()).unwrap();
+        let central = original
+            .windows(4)
+            .position(|b| b == b"PK\x01\x02")
+            .unwrap();
+        let end = original
+            .windows(4)
+            .rposition(|b| b == b"PK\x05\x06")
+            .unwrap();
+        for (offset, value) in [
+            (central + 16, 0xff),
+            (central + 34, 1),
+            (end + 14, 0xff),
+            (end + 8, 0xff),
+        ] {
+            let mut data = original.clone();
+            data[offset] ^= value;
+            let mut file = tokio::fs::File::from_std(tempfile::tempfile().unwrap());
+            file.write_all(&data).await.unwrap();
+            file.flush().await.unwrap();
+            assert!(
+                inspect_file(&mut file).await.is_err(),
+                "changed byte {offset}"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn inspects_streamed_upload_without_consuming_its_file() {
         use axum::body::Body;
         use tokio::io::AsyncReadExt;

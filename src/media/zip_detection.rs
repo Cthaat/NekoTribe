@@ -1,6 +1,9 @@
 //! Bounded ZIP classification. The archive is never extracted.
 use crate::storage::media_type_selection::DetectedType;
-use std::io::{self, Read, Seek, SeekFrom};
+use std::{
+    collections::BTreeMap,
+    io::{self, Read, Seek, SeekFrom},
+};
 
 fn invalid() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "invalid ZIP")
@@ -25,7 +28,69 @@ struct Entry {
     size: u64,
     crc: u32,
     method: u16,
+    flags: u16,
     name: Vec<u8>,
+}
+
+struct CentralEntry {
+    flags: u16,
+    method: u16,
+    crc: u32,
+    compressed: u32,
+    size: u32,
+    name: Vec<u8>,
+}
+
+fn central_entries(
+    file: &mut std::fs::File,
+    offset: u64,
+    size: u64,
+    count: usize,
+) -> io::Result<BTreeMap<u64, CentralEntry>> {
+    file.seek(SeekFrom::Start(offset))?;
+    let mut bytes = vec![0; size as usize];
+    file.read_exact(&mut bytes)?;
+    let mut position = 0usize;
+    let mut result = BTreeMap::new();
+    for _ in 0..count {
+        if position.checked_add(46).is_none_or(|n| n > bytes.len()) {
+            return Err(invalid());
+        }
+        let h = &bytes[position..position + 46];
+        if &h[..4] != b"PK\x01\x02" || u16le(&h[34..]) != 0 {
+            return Err(invalid());
+        }
+        let name_len = u16le(&h[28..]) as usize;
+        let extra_len = u16le(&h[30..]) as usize;
+        let comment_len = u16le(&h[32..]) as usize;
+        let end = position
+            .checked_add(46)
+            .and_then(|n| n.checked_add(name_len))
+            .and_then(|n| n.checked_add(extra_len))
+            .and_then(|n| n.checked_add(comment_len))
+            .filter(|n| *n <= bytes.len())
+            .ok_or_else(invalid)?;
+        let local_offset = u32le(&h[42..]);
+        if local_offset == u32::MAX || u32le(&h[20..]) == u32::MAX || u32le(&h[24..]) == u32::MAX {
+            return Err(invalid());
+        }
+        let entry = CentralEntry {
+            flags: u16le(&h[8..]),
+            method: u16le(&h[10..]),
+            crc: u32le(&h[16..]),
+            compressed: u32le(&h[20..]),
+            size: u32le(&h[24..]),
+            name: bytes[position + 46..position + 46 + name_len].to_vec(),
+        };
+        if result.insert(local_offset as u64, entry).is_some() {
+            return Err(invalid());
+        }
+        position = end;
+    }
+    if position != bytes.len() {
+        return Err(invalid());
+    }
+    Ok(result)
 }
 
 pub fn inspect(mut file: std::fs::File) -> io::Result<DetectedType> {
@@ -57,6 +122,7 @@ pub fn inspect(mut file: std::fs::File) -> io::Result<DetectedType> {
     {
         return Err(invalid());
     }
+    let mut central = central_entries(&mut file, dir_offset, dir_size, entries)?;
     let mut archive = zip::ZipArchive::new(file.try_clone()?).map_err(|_| invalid())?;
     if archive.len() != entries {
         return Err(invalid());
@@ -70,22 +136,35 @@ pub fn inspect(mut file: std::fs::File) -> io::Result<DetectedType> {
         {
             return Err(invalid());
         }
+        let source = central.remove(&entry.header_start()).ok_or_else(invalid)?;
+        if source.name != entry.name_raw()
+            || source.crc != entry.crc32()
+            || source.compressed as u64 != entry.compressed_size()
+            || source.size as u64 != entry.size()
+        {
+            return Err(invalid());
+        }
+        let method = match entry.compression() {
+            zip::CompressionMethod::Stored => 0,
+            zip::CompressionMethod::Deflated => 8,
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "ZIP compression unavailable",
+                ))
+            }
+        };
+        if source.method != method {
+            return Err(invalid());
+        }
         items.push(Entry {
             header: entry.header_start(),
             data: entry.data_start(),
             compressed: entry.compressed_size(),
             size: entry.size(),
             crc: entry.crc32(),
-            method: match entry.compression() {
-                zip::CompressionMethod::Stored => 0,
-                zip::CompressionMethod::Deflated => 8,
-                _ => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Unsupported,
-                        "ZIP compression unavailable",
-                    ))
-                }
-            },
+            method,
+            flags: source.flags,
             name: entry.name_raw().to_vec(),
         });
     }
@@ -102,7 +181,7 @@ pub fn inspect(mut file: std::fs::File) -> io::Result<DetectedType> {
             return Err(invalid());
         }
         let flags = u16le(&header[6..]);
-        if flags & 1 != 0 || u16le(&header[8..]) != entry.method {
+        if flags & 1 != 0 || flags != entry.flags || u16le(&header[8..]) != entry.method {
             return Err(invalid());
         }
         let name_len = u16le(&header[26..]) as u64;
