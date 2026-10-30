@@ -1,0 +1,441 @@
+{
+  "id": "AI-KNOWLEDGE-CONTEXT",
+  "revision": 1,
+  "executionStatus": "component-vectors-not-product-acceptance",
+  "cases": [
+    {
+      "id": "full-history",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "user",
+          "content": "之前的问题"
+        },
+        {
+          "sequence_no": 2,
+          "role": "assistant",
+          "content": "之前的回答",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 1
+            }
+          ]
+        },
+        {
+          "sequence_no": 3,
+          "role": "user",
+          "content": "新的问题"
+        }
+      ],
+      "max_bytes": 10000,
+      "max_sources": 20,
+      "expected": {
+        "question": "新的问题",
+        "history": [
+          {
+            "role": "user",
+            "content": "之前的问题"
+          },
+          {
+            "role": "assistant",
+            "content": "之前的回答"
+          }
+        ],
+        "sources": [
+          {
+            "kind": "post",
+            "id": 1,
+            "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      }
+    },
+    {
+      "id": "reserved-source-capacity",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "user",
+          "content": "之前的问题"
+        },
+        {
+          "sequence_no": 2,
+          "role": "assistant",
+          "content": "之前的回答",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 1
+            }
+          ]
+        },
+        {
+          "sequence_no": 3,
+          "role": "user",
+          "content": "新的问题"
+        }
+      ],
+      "max_bytes": 10000,
+      "max_sources": 0,
+      "expected": {
+        "question": "新的问题",
+        "history": [],
+        "sources": []
+      }
+    },
+    {
+      "id": "source-limit-trims-oldest",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "assistant",
+          "content": "older",
+          "citations": [
+            {
+              "kind": "comment",
+              "id": 2,
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "post_id": 1
+            }
+          ]
+        },
+        {
+          "sequence_no": 2,
+          "role": "assistant",
+          "content": "newer",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 1
+            }
+          ]
+        },
+        {
+          "sequence_no": 3,
+          "role": "user",
+          "content": "question"
+        }
+      ],
+      "max_bytes": 10000,
+      "max_sources": 1,
+      "expected": {
+        "question": "question",
+        "history": [
+          {
+            "role": "assistant",
+            "content": "newer"
+          }
+        ],
+        "sources": [
+          {
+            "kind": "post",
+            "id": 1,
+            "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      }
+    },
+    {
+      "id": "newest-sources-first",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "assistant",
+          "content": "older",
+          "citations": [
+            {
+              "kind": "comment",
+              "id": 2,
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "post_id": 1
+            }
+          ]
+        },
+        {
+          "sequence_no": 2,
+          "role": "assistant",
+          "content": "newer",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 1
+            }
+          ]
+        },
+        {
+          "sequence_no": 3,
+          "role": "user",
+          "content": "question"
+        }
+      ],
+      "max_bytes": 10000,
+      "max_sources": 20,
+      "expected": {
+        "question": "question",
+        "history": [
+          {
+            "role": "assistant",
+            "content": "older"
+          },
+          {
+            "role": "assistant",
+            "content": "newer"
+          }
+        ],
+        "sources": [
+          {
+            "kind": "post",
+            "id": 1,
+            "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "kind": "comment",
+            "id": 2,
+            "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ]
+      }
+    },
+    {
+      "id": "escaped-unicode-too-large",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "assistant",
+          "content": "older",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 1
+            }
+          ]
+        },
+        {
+          "sequence_no": 2,
+          "role": "user",
+          "content": "\"\\猫 "
+        }
+      ],
+      "max_bytes": 37,
+      "max_sources": 20,
+      "error": "CONTEXT_TOO_LARGE"
+    },
+    {
+      "id": "escaped-unicode-exact-budget",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "assistant",
+          "content": "older",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 1
+            }
+          ]
+        },
+        {
+          "sequence_no": 2,
+          "role": "user",
+          "content": "\"\\猫 "
+        }
+      ],
+      "max_bytes": 38,
+      "max_sources": 20,
+      "expected": {
+        "question": "\"\\猫 ",
+        "history": [],
+        "sources": []
+      }
+    },
+    {
+      "id": "missing-citations",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "assistant",
+          "content": "old",
+          "citations": []
+        },
+        {
+          "sequence_no": 2,
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "max_bytes": 10000,
+      "max_sources": 20,
+      "error": "INVALID_CONTEXT"
+    },
+    {
+      "id": "duplicate-citations",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "assistant",
+          "content": "old",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 1
+            },
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 1
+            }
+          ]
+        },
+        {
+          "sequence_no": 2,
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "max_bytes": 10000,
+      "max_sources": 20,
+      "error": "INVALID_CONTEXT"
+    },
+    {
+      "id": "conflicting-versions",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "assistant",
+          "content": "older",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 1
+            }
+          ]
+        },
+        {
+          "sequence_no": 2,
+          "role": "assistant",
+          "content": "newer",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "post_id": 1
+            }
+          ]
+        },
+        {
+          "sequence_no": 3,
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "max_bytes": 10000,
+      "max_sources": 20,
+      "error": "INVALID_CONTEXT"
+    },
+    {
+      "id": "user-citations",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "user",
+          "content": "q",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 1
+            }
+          ]
+        }
+      ],
+      "max_bytes": 10000,
+      "max_sources": 20,
+      "error": "INVALID_CONTEXT"
+    },
+    {
+      "id": "incorrect-post-parent",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "assistant",
+          "content": "old",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 2
+            }
+          ]
+        },
+        {
+          "sequence_no": 2,
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "max_bytes": 10000,
+      "max_sources": 20,
+      "error": "INVALID_CONTEXT"
+    },
+    {
+      "id": "nonascending-sequence",
+      "messages": [
+        {
+          "sequence_no": 2,
+          "role": "user",
+          "content": "first"
+        },
+        {
+          "sequence_no": 1,
+          "role": "user",
+          "content": "second"
+        }
+      ],
+      "max_bytes": 10000,
+      "max_sources": 20,
+      "error": "INVALID_CONTEXT"
+    },
+    {
+      "id": "last-not-user",
+      "messages": [
+        {
+          "sequence_no": 1,
+          "role": "assistant",
+          "content": "answer",
+          "citations": [
+            {
+              "kind": "post",
+              "id": 1,
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "post_id": 1
+            }
+          ]
+        }
+      ],
+      "max_bytes": 10000,
+      "max_sources": 20,
+      "error": "INVALID_CONTEXT"
+    }
+  ]
+}

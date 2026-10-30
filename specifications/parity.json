@@ -9141,6 +9141,7 @@
             "src/ai/knowledge_history.rs",
             "tests/ai_knowledge_history_test.rs",
             "src/ai/knowledge_context.rs",
+            "tests/ai_knowledge_context_vectors_test.rs",
             "src/ai/knowledge_conversation.rs",
             "src/ai/knowledge_search_body.rs",
             "tests/ai_knowledge_search_body_test.rs",
@@ -9207,6 +9208,7 @@
         "specifications/requirements/ai-knowledge-turn.md",
         "specifications/scenarios/ai-knowledge-search-body.json",
         "specifications/scenarios/ai-knowledge-citation-vectors.json",
+        "specifications/scenarios/ai-knowledge-context-vectors.json",
         "specifications/requirements/ai-knowledge-history.md"
       ]
     },
@@ -11681,6 +11683,16 @@
       "copies": {
         "rust": "contracts/scenarios/ai-knowledge-citation-vectors.json",
         "go": "contracts/scenarios/ai-knowledge-citation-vectors.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/ai-knowledge-context-vectors.json",
+        "sha256": "9896aac0345b076d77966f13bcbf9d5cc51bee283e54821abeab8011e48afbdb"
+      },
+      "copies": {
+        "rust": "contracts/scenarios/ai-knowledge-context-vectors.json",
+        "go": "contracts/scenarios/ai-knowledge-context-vectors.json"
       }
     },
     {

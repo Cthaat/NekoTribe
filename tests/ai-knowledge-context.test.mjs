@@ -2,11 +2,19 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {build} from 'esbuild';
 import {fileURLToPath} from 'node:url';
+import {readFileSync} from 'node:fs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const built=await build({stdin:{contents:`export * from './server/services/ai/knowledge-context.ts'`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm'});
 const {selectKnowledgeContext}=await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`);
 const ref={kind:'post',id:1,version:'a'.repeat(64),post_id:1};
 const messages=[{sequence_no:1,role:'user',content:'之前的问题'}, {sequence_no:2,role:'assistant',content:'之前的回答',citations:[ref]}, {sequence_no:3,role:'user',content:'新的问题'}];
+test('matches shared cross-backend history vectors',()=>{
+ const vectors=JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-knowledge-context-vectors.json',import.meta.url),'utf8'));
+ for(const item of vectors.cases){
+  if(item.error) assert.throws(()=>selectKnowledgeContext(item.messages,item.max_bytes,item.max_sources),e=>e.code===item.error,item.id);
+  else assert.deepEqual(selectKnowledgeContext(item.messages,item.max_bytes,item.max_sources),item.expected,item.id);
+ }
+});
 test('selects history and current question while collecting authorized citation guards',()=>{
  const result=selectKnowledgeContext(messages,10000);
  assert.deepEqual(result,{question:'新的问题',history:[{role:'user',content:'之前的问题'},{role:'assistant',content:'之前的回答'}],sources:[{kind:'post',id:1,version:ref.version}]});
