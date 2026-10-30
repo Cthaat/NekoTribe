@@ -2220,12 +2220,17 @@
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement GET /api/v2/users/me/settings natively from reviewed shared requirements and scenarios, with no Nuxt business fallback."
+            "Review native GET settings against shared business scenarios and validate real Oracle, concurrent initialization and both clients."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "src/users/settings_read.rs",
+            "tests/user_settings_read_test.rs",
+            "src/auth/readiness.rs",
+            "tests/schema_readiness_test.rs"
+          ],
           "evidence": []
         },
         "go": {
