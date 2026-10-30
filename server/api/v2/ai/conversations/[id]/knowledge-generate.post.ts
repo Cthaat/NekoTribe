@@ -5,6 +5,7 @@ import {generateKnowledgeConversation,KnowledgeConversationError} from '~/server
 import {KnowledgeServiceError} from '~/server/services/ai/knowledge-service';
 import {KnowledgeCitationError} from '~/server/services/ai/knowledge-citations';
 import {KnowledgeTurnError} from '~/server/services/ai/knowledge-turn';
+import {readKnowledgeSearchBody} from '~/server/services/ai/knowledge-search-body';
 
 export default defineEventHandler(async event=>{
   setResponseHeader(event,'Cache-Control','private, no-store');
@@ -14,7 +15,9 @@ export default defineEventHandler(async event=>{
     event.node?.req?.once('aborted',cancel);event.node?.res?.once('close',cancel);
     if(event.node?.req?.aborted || event.node?.res?.destroyed) cancel();
     try {
-      const result=await generateKnowledgeConversation(event,v2RouterParam(event,'id'),undefined,controller.signal);
+      let phrase: string | null;
+      try {phrase=await readKnowledgeSearchBody(event.node.req);} catch {v2BadRequest('知识检索参数错误');}
+      const result=await generateKnowledgeConversation(event,v2RouterParam(event,'id'),undefined,controller.signal,phrase ?? undefined);
       return 'message' in result ? v2Ok({status:'insufficient_evidence',message:null}) : v2Ok({status:'generated',message:result});
     } catch(error) {
       if(error instanceof KnowledgeConversationError && error.code==='INVALID_CONTEXT') v2BadRequest('知识会话上下文不可用');
