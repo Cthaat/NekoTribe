@@ -3,6 +3,7 @@ pub mod conversation_store;
 pub mod knowledge_citations;
 pub mod knowledge_conversation;
 pub mod knowledge_history;
+pub mod knowledge_search_body;
 pub mod knowledge_source;
 pub mod knowledge_service;
 pub mod knowledge_turn;

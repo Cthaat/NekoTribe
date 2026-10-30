@@ -1,0 +1,26 @@
+{
+  "id": "AI-KNOWLEDGE-SEARCH-BODY",
+  "revision": 1,
+  "executionStatus": "component-vectors-not-product-acceptance",
+  "cases": [
+    {"id":"empty-body","body":"","accepted":true,"phrase":null},
+    {"id":"empty-object","body":"{}","accepted":true,"phrase":null},
+    {"id":"chinese","body":"{\"search_phrase\":\"猫\"}","accepted":true,"phrase":"猫"},
+    {"id":"js-trim","body":"{\"search_phrase\":\"\\ufeff 猫 \\u00a0\"}","accepted":true,"phrase":"猫"},
+    {"id":"emoji","body":"{\"search_phrase\":\"🐈\"}","accepted":true,"phrase":"🐈"},
+    {"id":"escaped-pair","body":"{\"search_phrase\":\"\\ud83d\\udc08\"}","accepted":true,"phrase":"🐈"},
+    {"id":"blank","body":"{\"search_phrase\":\"   \"}","accepted":false},
+    {"id":"embedded-control","body":"{\"search_phrase\":\"猫\\n咪\"}","accepted":false},
+    {"id":"surrogate","body":"{\"search_phrase\":\"\\ud800\"}","accepted":false},
+    {"id":"low-surrogate","body":"{\"search_phrase\":\"\\udc00\"}","accepted":false},
+    {"id":"bad-pair","body":"{\"search_phrase\":\"\\ud800\\u0041\"}","accepted":false},
+    {"id":"literal-escape","body":"{\"search_phrase\":\"\\\\ud800\"}","accepted":true,"phrase":"\\ud800"},
+    {"id":"null","body":"{\"search_phrase\":null}","accepted":false},
+    {"id":"number","body":"{\"search_phrase\":1}","accepted":false},
+    {"id":"extra","body":"{\"search_phrase\":\"猫\",\"model\":\"untrusted\"}","accepted":false},
+    {"id":"array","body":"[]","accepted":false},
+    {"id":"json-null","body":"null","accepted":false},
+    {"id":"invalid-json","body":"{","accepted":false},
+    {"id":"whitespace-body","body":"  ","accepted":false}
+  ]
+}
