@@ -46,6 +46,7 @@ fn error(error: Error) -> ApiError {
         Error::Invalid => ApiError::bad_request("会话参数错误"),
         Error::NotFound => ApiError::not_found("会话不存在"),
         Error::Forbidden => ApiError::forbidden("权限不足"),
+        Error::Conflict => ApiError::conflict("会话已变更，请重试"),
         Error::SchemaUnavailable => ApiError::new(
             StatusCode::SERVICE_UNAVAILABLE,
             50301,

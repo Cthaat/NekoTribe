@@ -170,6 +170,7 @@ async fn ai_store_errors_are_mapped_to_safe_http_responses() {
     for (failure, status) in [
         (Error::NotFound, 404),
         (Error::Forbidden, 403),
+        (Error::Conflict, 409),
         (Error::SchemaUnavailable, 503),
         (Error::Store, 500),
     ] {

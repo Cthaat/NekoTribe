@@ -20,6 +20,7 @@ pub enum Error {
     Invalid,
     NotFound,
     Forbidden,
+    Conflict,
     SchemaUnavailable,
     Store,
 }
@@ -45,6 +46,13 @@ pub struct UserMessage {
     pub conversation_id: String,
     pub sequence_no: i64,
     pub role: &'static str,
+}
+#[derive(Clone)]
+pub struct AssistantInput {
+    pub content: String,
+    pub expected_sequence: i64,
+    pub model_id: String,
+    pub config_revision: i64,
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct HistoryMessage {
@@ -148,6 +156,7 @@ trait MessageTransaction: Transaction {
         message_id: &str,
         sequence: i64,
         content: &str,
+        assistant: Option<&AssistantInput>,
     ) -> Result<(), Error>;
     fn touch(&self, user: i64, id: &str) -> Result<(), Error>;
 }
@@ -212,6 +221,38 @@ fn run_append(
     content: &str,
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
+    run_append_inner(tx, user, id, content, None, policy)
+}
+fn run_append_assistant(
+    tx: &impl MessageTransaction,
+    user: i64,
+    id: &str,
+    input: &AssistantInput,
+    policy: &ModerationPolicy,
+) -> Result<UserMessage, Error> {
+    let id_ok = !input.model_id.is_empty()
+        && input.model_id.len() <= 64
+        && input.model_id.as_bytes()[0].is_ascii_alphanumeric()
+        && input
+            .model_id
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'.' | b'_' | b'-'));
+    if !(1..9_999_999_999).contains(&input.expected_sequence)
+        || !(1..=999_999_999_999_999).contains(&input.config_revision)
+        || !id_ok
+    {
+        return Err(Error::Invalid);
+    }
+    run_append_inner(tx, user, id, &input.content, Some(input), policy)
+}
+fn run_append_inner(
+    tx: &impl MessageTransaction,
+    user: i64,
+    id: &str,
+    content: &str,
+    assistant: Option<&AssistantInput>,
+    policy: &ModerationPolicy,
+) -> Result<UserMessage, Error> {
     if !(1..=MAX_SAFE_ID).contains(&user) {
         return Err(Error::Invalid);
     }
@@ -235,15 +276,22 @@ fn run_append(
         if !(1..=9_999_999_999).contains(&sequence) {
             return Err(Error::Store);
         }
+        if assistant.is_some_and(|input| sequence != input.expected_sequence + 1) {
+            return Err(Error::Conflict);
+        }
         let message_id = uuid::Uuid::new_v4().to_string();
-        tx.insert_message(id, &message_id, sequence, content)?;
+        tx.insert_message(id, &message_id, sequence, content, assistant)?;
         tx.touch(user, id)?;
         tx.authorize(user, &scope, policy)?;
         Ok(UserMessage {
             message_id,
             conversation_id: id.to_owned(),
             sequence_no: sequence,
-            role: "user",
+            role: if assistant.is_some() {
+                "assistant"
+            } else {
+                "user"
+            },
         })
     })();
     match result {
@@ -434,19 +482,30 @@ impl MessageTransaction for OracleConversation<'_> {
         message_id: &str,
         sequence: i64,
         content: &str,
+        assistant: Option<&AssistantInput>,
     ) -> Result<(), Error> {
         use oracle::sql_type::{Clob, ToSql};
         use std::io::Write;
         let mut clob = Clob::new(self.0).map_err(|_| Error::Store)?;
         clob.write_all(content.as_bytes())
             .map_err(|_| Error::Store)?;
+        let role = if assistant.is_some() {
+            "assistant"
+        } else {
+            "user"
+        };
+        let model_id = assistant.map(|input| input.model_id.clone());
+        let revision = assistant.map(|input| input.config_revision);
         let binds: &[(&str, &dyn ToSql)] = &[
             ("message_id", &message_id),
             ("conversation_id", &id),
             ("sequence_no", &sequence),
+            ("role", &role),
             ("content", &clob),
+            ("model_id", &model_id),
+            ("config_revision", &revision),
         ];
-        let result = self.0.execute_named("INSERT INTO n_ai_messages (message_id,conversation_id,sequence_no,role,content) VALUES (:message_id,:conversation_id,:sequence_no,'user',:content)", binds).map_err(|_| Error::Store)?;
+        let result = self.0.execute_named("INSERT INTO n_ai_messages (message_id,conversation_id,sequence_no,role,content,model_id,config_revision) VALUES (:message_id,:conversation_id,:sequence_no,:role,:content,:model_id,:config_revision)", binds).map_err(|_| Error::Store)?;
         if result.row_count().map_err(|_| Error::Store)? != 1 {
             return Err(Error::Store);
         }
@@ -538,6 +597,16 @@ pub fn append_user_message(
 ) -> Result<UserMessage, Error> {
     run_append(&OracleConversation(connection), user, id, content, policy)
 }
+/// Trusted internal generation only; clients cannot supply assistant metadata.
+pub fn append_assistant_message(
+    connection: &oracle::Connection,
+    user: i64,
+    id: &str,
+    input: &AssistantInput,
+    policy: &ModerationPolicy,
+) -> Result<UserMessage, Error> {
+    run_append_assistant(&OracleConversation(connection), user, id, input, policy)
+}
 /// The caller must authenticate the actor and supply a trusted moderation policy.
 pub fn list_messages(
     connection: &oracle::Connection,
@@ -610,12 +679,23 @@ mod tests {
             self.events.borrow_mut().push("lock");
             self.read(user, id)
         }
-        fn next_sequence(&self, _: &str) -> Result<i64, Error> {
+        fn next_sequence(&self, id: &str) -> Result<i64, Error> {
             self.events.borrow_mut().push("sequence");
-            Ok(1)
+            Ok(if id.starts_with("bf9") { 2 } else { 1 })
         }
-        fn insert_message(&self, _: &str, _: &str, _: i64, _: &str) -> Result<(), Error> {
+        fn insert_message(
+            &self,
+            _: &str,
+            _: &str,
+            _: i64,
+            _: &str,
+            assistant: Option<&AssistantInput>,
+        ) -> Result<(), Error> {
             self.events.borrow_mut().push("message");
+            if let Some(input) = assistant {
+                assert_eq!(input.model_id, "profile-a");
+                assert_eq!(input.config_revision, 12);
+            }
             Ok(())
         }
         fn touch(&self, _: i64, _: &str) -> Result<(), Error> {
@@ -794,6 +874,85 @@ mod tests {
                 "commit"
             ]
         );
+    }
+    #[test]
+    fn assistant_message_rejects_stale_sequence_and_invalid_revision() {
+        let tx = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: false,
+        };
+        let id = "af9da41c-7296-4f51-91f4-141f5c6e3c01";
+        let mut input = AssistantInput {
+            content: "answer".into(),
+            expected_sequence: 1,
+            model_id: "profile-a".into(),
+            config_revision: 12,
+        };
+        assert_eq!(
+            run_append_assistant(&tx, 1, id, &input, &ModerationPolicy::new("", "")),
+            Err(Error::Conflict)
+        );
+        assert_eq!(
+            *tx.events.borrow(),
+            vec![
+                "schema",
+                "lock",
+                "read",
+                "authorize",
+                "sequence",
+                "rollback"
+            ]
+        );
+        tx.events.borrow_mut().clear();
+        input.config_revision = 1_000_000_000_000_000;
+        assert_eq!(
+            run_append_assistant(&tx, 1, id, &input, &ModerationPolicy::new("", "")),
+            Err(Error::Invalid)
+        );
+        assert!(tx.events.borrow().is_empty());
+    }
+    #[test]
+    fn assistant_message_preserves_model_metadata_and_rechecks_access() {
+        let tx = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: false,
+        };
+        let id = "bf9da41c-7296-4f51-91f4-141f5c6e3c01";
+        let input = AssistantInput {
+            content: "result".into(),
+            expected_sequence: 1,
+            model_id: "profile-a".into(),
+            config_revision: 12,
+        };
+        let result =
+            run_append_assistant(&tx, 1, id, &input, &ModerationPolicy::new("", "")).unwrap();
+        assert_eq!((result.sequence_no, result.role), (2, "assistant"));
+        assert_eq!(
+            *tx.events.borrow(),
+            vec![
+                "schema",
+                "lock",
+                "read",
+                "authorize",
+                "sequence",
+                "message",
+                "touch",
+                "authorize",
+                "commit"
+            ]
+        );
+        let revoked = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: true,
+        };
+        assert_eq!(
+            run_append_assistant(&revoked, 1, id, &input, &ModerationPolicy::new("", "")),
+            Err(Error::Forbidden)
+        );
+        assert_eq!(revoked.events.borrow().last(), Some(&"rollback"));
     }
     #[test]
     fn revoked_group_permission_rolls_back_before_commit() {
