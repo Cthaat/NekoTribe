@@ -1,6 +1,7 @@
 pub mod conversation_http;
 pub mod conversation_store;
 pub mod knowledge_citations;
+pub mod knowledge_conversation;
 pub mod knowledge_history;
 pub mod knowledge_source;
 pub mod knowledge_service;
