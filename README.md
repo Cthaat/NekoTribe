@@ -1,6 +1,6 @@
 # NekoTribe Rust 后端（兼容模式与原生业务开发）
 
-原生模式已接入本地公开文件读取、媒体上传和删除的开发中路径，规则见 `contracts/requirements/storage-local-files.md` 和 `media-upload.md`。图片尺寸可读取；音视频使用 `FFPROBE_PATH` 指定的 ffprobe，留空时从 PATH 查找，缺失或失败则相关元数据为空。Linux 使用可寻址文件句柄，Windows 使用流输入，格式和时长表现仍需实测。S3、私密附件权限、跨后端存储及真实依赖验收尚未完成。
+原生模式已接入本地公开文件读取、媒体上传和删除的开发中路径，规则见 `contracts/requirements/storage-local-files.md` 和 `media-upload.md`。图片尺寸可读取；音视频使用 `FFPROBE_PATH` 指定的 ffprobe，留空时从 PATH 查找。未读取到时长时标准 PCM WAV 可通过文件头补算，其余无法解析的元数据为空。Linux 使用可寻址文件句柄，Windows 使用流输入，Windows 原生构建及更多格式仍需实测。S3、私密附件权限、跨后端存储及真实依赖验收尚未完成。
 
 原生 PATCH/PUT 帖子部分更新已接入，省略保留、明确空关系清空；行锁及全部关系写入在同一连接事务中完成，失败回滚。53 条共同请求向量及隔离事务/HTTP 检查通过，真实 Oracle、并发及双客户端仍待验收。规则见 `contracts/requirements/post-update.md`。
 

@@ -57,8 +57,7 @@ impl SessionRepository for Store {
 }
 
 #[tokio::test]
-#[ignore = "requires FFPROBE_PATH set to a working ffprobe"]
-async fn real_wav_upload_reports_duration() {
+async fn wav_upload_reports_duration() {
     let tokens: serde_json::Value =
         serde_json::from_str(include_str!("../contracts/scenarios/auth-tokens.json")).unwrap();
     let token = tokens["cases"]

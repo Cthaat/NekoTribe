@@ -7,6 +7,7 @@ use crate::{
         multipart::{self, Limits, ParseError},
         rich_metadata, storage_key,
         upload_transaction::MediaUpload,
+        wav_duration,
     },
     posts::bookmark::interaction_actor,
     storage::{local_http::LocalStorageConfig, media_type_selection::select_media_file_type},
@@ -100,6 +101,13 @@ async fn upload_inner(
     } else {
         None
     };
+    let wav_duration = if selected.mime_type == "audio/wav"
+        && rich.as_ref().and_then(|value| value.duration).is_none()
+    {
+        wav_duration::pcm_duration(&mut media.file).await
+    } else {
+        None
+    };
     let config = config.unwrap_or_else(|| LocalStorageConfig::from_lookup(|_| None));
     if config.unsupported {
         return Err(ApiError::new(
@@ -133,7 +141,7 @@ async fn upload_inner(
         height: dimensions
             .map(|value| value.1)
             .or_else(|| rich.as_ref().and_then(|value| value.height)),
-        duration: rich.and_then(|value| value.duration),
+        duration: rich.and_then(|value| value.duration).or(wav_duration),
         thumbnail_url: None,
         alt_text: Some(media.alt_text),
         description: Some(media.description),
