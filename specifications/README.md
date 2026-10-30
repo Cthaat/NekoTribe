@@ -15,7 +15,7 @@
 - `requirements/post-detail.md`：帖子详情权限、附件及浏览量共同目标；三端均通过 22 条共同隔离样例，真实数据库及客户端联调待验收。
 - `requirements/post-list.md`：公共、热门、个人、收藏、点赞及指定用户、标签、回复、转发列表的共同需求；Rust/Go 已接入相应原生路由并完成局部隔离测试，完整共同场景和真实数据库联测仍待完成。
 - `requirements/post-create-reference.md`、`post-create-transaction.md` 与 `post-create-request.md`：发帖、回复、引用和转发的请求与事务要求；Rust/Go 均已接入原生请求、事务、提交后通知及完整响应，80 条请求向量在三端隔离测试通过。真实依赖及三端创建流程尚未通过共同验收。
-- `requirements/media-upload.md` 与 `storage-local-files.md`：上传补偿、临时文件和本地路径/范围规则；Rust/Go 已接入公开读取和原生删除，Go 已接入开发中的上传路径；Rust 上传、Go 格式与元数据完整性、私密附件授权及真实依赖验收仍待完成。
+- `requirements/media-upload.md` 与 `storage-local-files.md`：上传补偿、临时文件和本地路径/范围规则；Rust/Go 已接入公开读取、原生删除及开发中的上传路径；两端格式与元数据完整性、私密附件授权及真实依赖验收仍待完成。
 - `requirements/post-update.md`：PATCH 与兼容 PUT 的共同部分更新、行锁及原子事务；53 条请求向量与三端隔离事务/HTTP 检查通过，真实 Oracle 及客户端仍待验收。两个操作合为 `POST-UPDATE` 工作项并保留原 ID。
 - `requirements/post-delete.md`：三端所有者软删除、canonical 路径、并发条件写入及安全错误；17 条共同隔离场景通过，真实 Oracle、触发器及跨后端缓存仍待验收。
 - `requirements/post-comments-list.md`、`post-comment-create.md`、`post-comment-delete.md`、`post-comment-like.md`：Rust/Go 已接入评论列表、创建、删除及点赞/取消点赞的原生路径；真实数据库、通知副作用及跨后端联调仍待验收。

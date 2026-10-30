@@ -4209,14 +4209,21 @@
           "evidence": []
         },
         "rust": {
-          "state": "proxy",
+          "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Connect shared type selection to a real content detector and complete native multipart upload, metadata, temporary files, transactional persistence and compensation."
+            "Complete detector parity, image and audio/video metadata, storage safety and real Oracle/client acceptance for the native upload route."
           ],
           "sourceFiles": [
             "src/storage/media_type_selection.rs",
-            "tests/media_type_selection_test.rs"
+            "tests/media_type_selection_test.rs",
+            "src/media/upload.rs",
+            "src/media/multipart.rs",
+            "src/media/content_detection.rs",
+            "src/media/zip_detection.rs",
+            "src/media/local_publish.rs",
+            "src/media/upload_transaction.rs",
+            "tests/media_upload_route_test.rs"
           ],
           "evidence": []
         },
@@ -11268,7 +11275,7 @@
     {
       "source": {
         "path": "specifications/requirements/media-upload.md",
-        "sha256": "01bab65595a866bedc8e1b4e8ea34ac917768b7649db92303520c51644a759f4"
+        "sha256": "91ae5fa5f92f656e6c96d6b17ce36b5abd826d0690eb8e02811b5fd190cdcf1f"
       },
       "copies": {
         "rust": "contracts/requirements/media-upload.md",
