@@ -41,6 +41,11 @@ pub struct Record {
     pub updated_at: String,
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ConversationPage {
+    pub items: Vec<Record>,
+    pub next_cursor: Option<String>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct UserMessage {
     pub message_id: String,
     pub conversation_id: String,
@@ -159,6 +164,91 @@ trait Transaction {
     fn read(&self, user: i64, id: &str) -> Result<Option<Record>, Error>;
     fn commit(&self) -> Result<(), Error>;
     fn rollback(&self) -> Result<(), Error>;
+}
+trait ListingTransaction: Transaction {
+    fn candidates(
+        &self,
+        user: i64,
+        after: &str,
+        limit: i64,
+        moderation_allowed: bool,
+    ) -> Result<Vec<Record>, Error>;
+}
+fn run_conversation_listing(
+    tx: &impl ListingTransaction,
+    user: i64,
+    after: &str,
+    limit: i64,
+    policy: &ModerationPolicy,
+) -> Result<ConversationPage, Error> {
+    if !(1..=MAX_SAFE_ID).contains(&user)
+        || (!after.is_empty() && !valid_uuid(after))
+        || !(1..=50).contains(&limit)
+    {
+        return Err(Error::Invalid);
+    }
+    tx.check_schema()?;
+    let result = (|| {
+        let moderation = Input {
+            purpose: "moderation".into(),
+            group_id: None,
+            title: String::new(),
+        };
+        let moderation_allowed = match tx.authorize(user, &moderation, policy) {
+            Ok(()) => true,
+            Err(Error::Forbidden) => false,
+            Err(error) => return Err(error),
+        };
+        let mut page = ConversationPage {
+            items: Vec::new(),
+            next_cursor: None,
+        };
+        let mut scan_after = after.to_ascii_lowercase();
+        for _ in 0..10 {
+            let rows = tx.candidates(user, &scan_after, limit + 1, moderation_allowed)?;
+            let count = rows.len();
+            for record in rows {
+                if !valid_uuid(&record.id) || record.id <= scan_after {
+                    return Err(Error::Store);
+                }
+                scan_after = record.id.clone();
+                let scope = validate(Input {
+                    purpose: record.purpose.clone(),
+                    group_id: record.group_id,
+                    title: String::new(),
+                })
+                .map_err(|_| Error::Store)?;
+                match tx.authorize(user, &scope, policy) {
+                    Ok(()) => (),
+                    Err(Error::Forbidden) => continue,
+                    Err(error) => return Err(error),
+                }
+                if page.items.len() == limit as usize {
+                    page.next_cursor = page.items.last().map(|item| item.id.clone());
+                    return Ok(page);
+                }
+                page.items.push(record);
+            }
+            if count < (limit + 1) as usize {
+                return Ok(page);
+            }
+            if !page.items.is_empty() {
+                page.next_cursor = page.items.last().map(|item| item.id.clone());
+                return Ok(page);
+            }
+        }
+        Err(Error::Store)
+    })();
+    match result {
+        Ok(page) => {
+            tx.commit()?;
+            Ok(page)
+        }
+        Err(error) => {
+            tx.rollback()?;
+            Err(error)
+        }
+    }
 }
 trait MessageTransaction: Transaction {
     fn read_locked(&self, user: i64, id: &str) -> Result<Option<Record>, Error>;
@@ -418,6 +508,53 @@ fn run(
 }
 
 struct OracleConversation<'a>(&'a oracle::Connection);
+impl ListingTransaction for OracleConversation<'_> {
+    fn candidates(
+        &self,
+        user: i64,
+        after: &str,
+        limit: i64,
+        moderation_allowed: bool,
+    ) -> Result<Vec<Record>, Error> {
+        let values = bind_values(BindMap::from([
+            ("owner_user_id".into(), DbValue::I64(user)),
+            (
+                "after_id".into(),
+                if after.is_empty() {
+                    DbValue::Null
+                } else {
+                    DbValue::String(after.into())
+                },
+            ),
+            (
+                "moderation_allowed".into(),
+                DbValue::I64(i64::from(moderation_allowed)),
+            ),
+            ("row_limit".into(), DbValue::I64(limit)),
+        ]));
+        let rows = self.0.query_named("SELECT c.conversation_id,c.owner_user_id,c.purpose,c.group_id,c.title,c.created_at,c.updated_at FROM n_ai_conversations c WHERE c.owner_user_id=:owner_user_id AND (:after_id IS NULL OR c.conversation_id>:after_id) AND (c.purpose IN ('knowledge','writing') OR (c.purpose='group' AND fn_has_group_permission(:owner_user_id,c.group_id,'admin')=1) OR (c.purpose='moderation' AND :moderation_allowed=1)) ORDER BY c.conversation_id ASC FETCH FIRST :row_limit ROWS ONLY", &bind_refs(&values)).map_err(|_| Error::Store)?;
+        rows.map(|row| {
+            let row =
+                oracle_row_to_db_row(&row.map_err(|_| Error::Store)?).map_err(|_| Error::Store)?;
+            if row_number(&row, "OWNER_USER_ID") != user {
+                return Err(Error::Store);
+            }
+            Ok(Record {
+                id: row_text(&row, "CONVERSATION_ID"),
+                purpose: row_text(&row, "PURPOSE"),
+                group_id: nullable_text(&row, "GROUP_ID").map(|_| row_number(&row, "GROUP_ID")),
+                title: nullable_text(&row, "TITLE"),
+                created_at: nullable_text(&row, "CREATED_AT")
+                    .map(|s| profile_date(&s))
+                    .unwrap_or_default(),
+                updated_at: nullable_text(&row, "UPDATED_AT")
+                    .map(|s| profile_date(&s))
+                    .unwrap_or_default(),
+            })
+        })
+        .collect()
+    }
+}
 impl Transaction for OracleConversation<'_> {
     fn check_schema(&self) -> Result<(), Error> {
         let snapshot = readiness::collect_ai_conversation_snapshot(self.0)
@@ -674,6 +811,16 @@ pub fn read(
 ) -> Result<Record, Error> {
     run(&OracleConversation(connection), user, id, None, policy)
 }
+/// Lists owned conversations after filtering and rechecking their current permissions.
+pub fn list_conversations(
+    connection: &oracle::Connection,
+    user: i64,
+    after: &str,
+    limit: i64,
+    policy: &ModerationPolicy,
+) -> Result<ConversationPage, Error> {
+    run_conversation_listing(&OracleConversation(connection), user, after, limit, policy)
+}
 /// Deletes the owned conversation and its cascading messages after authorization.
 pub fn delete(
     connection: &oracle::Connection,
@@ -735,6 +882,128 @@ pub fn recent_messages(
 mod tests {
     use super::*;
     use std::cell::{Cell, RefCell};
+
+    struct ListingFake {
+        records: Vec<Record>,
+        fail_group: bool,
+    }
+    impl ListingFake {
+        fn new(fail_group: bool) -> Self {
+            let ids = [
+                "0f9da41c-7296-4f51-91f4-141f5c6e3c01",
+                "1f9da41c-7296-4f51-91f4-141f5c6e3c01",
+                "2f9da41c-7296-4f51-91f4-141f5c6e3c01",
+            ];
+            let records = ids
+                .iter()
+                .enumerate()
+                .map(|(i, id)| Record {
+                    id: (*id).into(),
+                    purpose: if i == 1 { "group" } else { "writing" }.into(),
+                    group_id: if i == 1 { Some(7) } else { None },
+                    title: Some(["first", "hidden", "third"][i].into()),
+                    created_at: String::new(),
+                    updated_at: String::new(),
+                })
+                .collect();
+            Self {
+                records,
+                fail_group,
+            }
+        }
+    }
+    impl Transaction for ListingFake {
+        fn check_schema(&self) -> Result<(), Error> {
+            Ok(())
+        }
+        fn authorize(&self, _: i64, input: &Input, _: &ModerationPolicy) -> Result<(), Error> {
+            match input.purpose.as_str() {
+                "moderation" => Err(Error::Forbidden),
+                "group" if self.fail_group => Err(Error::Store),
+                "group" => Err(Error::Forbidden),
+                _ => Ok(()),
+            }
+        }
+        fn insert(&self, _: i64, _: &str, _: &Input) -> Result<(), Error> {
+            unreachable!()
+        }
+        fn read(&self, _: i64, _: &str) -> Result<Option<Record>, Error> {
+            unreachable!()
+        }
+        fn commit(&self) -> Result<(), Error> {
+            Ok(())
+        }
+        fn rollback(&self) -> Result<(), Error> {
+            Ok(())
+        }
+    }
+    impl ListingTransaction for ListingFake {
+        fn candidates(
+            &self,
+            user: i64,
+            after: &str,
+            limit: i64,
+            moderation_allowed: bool,
+        ) -> Result<Vec<Record>, Error> {
+            assert_eq!(user, 42);
+            assert!(!moderation_allowed);
+            Ok(self
+                .records
+                .iter()
+                .filter(|r| r.id.as_str() > after)
+                .take(limit as usize)
+                .cloned()
+                .collect())
+        }
+    }
+
+    #[test]
+    fn listing_filters_revoked_items_and_uses_only_visible_cursor() {
+        let tx = ListingFake::new(false);
+        let policy = ModerationPolicy::new("", "");
+        let first = run_conversation_listing(&tx, 42, "", 1, &policy).unwrap();
+        assert_eq!(first.items[0].title.as_deref(), Some("first"));
+        assert_eq!(
+            first.next_cursor.as_deref(),
+            Some("0f9da41c-7296-4f51-91f4-141f5c6e3c01")
+        );
+        let second =
+            run_conversation_listing(&tx, 42, first.next_cursor.as_deref().unwrap(), 1, &policy)
+                .unwrap();
+        assert_eq!(second.items[0].title.as_deref(), Some("third"));
+        assert_eq!(
+            second.next_cursor.as_deref(),
+            Some("2f9da41c-7296-4f51-91f4-141f5c6e3c01")
+        );
+        assert_eq!(
+            run_conversation_listing(&tx, 42, "invalid", 1, &policy),
+            Err(Error::Invalid)
+        );
+        let failed = ListingFake::new(true);
+        assert_eq!(
+            run_conversation_listing(
+                &failed,
+                42,
+                "1f9da41c-7296-4f51-91f4-141f5c6e3c01",
+                1,
+                &policy
+            ),
+            Ok(ConversationPage {
+                items: vec![failed.records[2].clone()],
+                next_cursor: None
+            })
+        );
+        assert_eq!(
+            run_conversation_listing(
+                &failed,
+                42,
+                "0f9da41c-7296-4f51-91f4-141f5c6e3c01",
+                1,
+                &policy
+            ),
+            Err(Error::Store)
+        );
+    }
 
     struct Fake {
         events: RefCell<Vec<&'static str>>,
