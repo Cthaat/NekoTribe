@@ -1,11 +1,55 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestKnowledgeContextSharedVectors(t *testing.T) {
+	data, err := os.ReadFile("../../contracts/scenarios/ai-knowledge-context-vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vectors struct {
+		Cases []struct {
+			ID         string                       `json:"id"`
+			Messages   []conversationHistoryMessage `json:"messages"`
+			MaxBytes   int                          `json:"max_bytes"`
+			MaxSources int                          `json:"max_sources"`
+			Error      string                       `json:"error"`
+			Expected   struct {
+				Question string                  `json:"question"`
+				History  []knowledgeModelMessage `json:"history"`
+				Sources  []knowledgeCandidate    `json:"sources"`
+			} `json:"expected"`
+		} `json:"cases"`
+	}
+	if err = json.Unmarshal(data, &vectors); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range vectors.Cases {
+		t.Run(row.ID, func(t *testing.T) {
+			result, err := selectKnowledgeContext(row.Messages, row.MaxBytes, row.MaxSources)
+			if row.Error != "" {
+				expected := errKnowledgeConversationContext
+				if row.Error == "CONTEXT_TOO_LARGE" {
+					expected = errKnowledgeContextTooLarge
+				}
+				if !errors.Is(err, expected) {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err != nil || result.Question != row.Expected.Question || !reflect.DeepEqual(result.History, row.Expected.History) || !reflect.DeepEqual(result.Sources, row.Expected.Sources) {
+				t.Fatal(result, err)
+			}
+		})
+	}
+}
 
 func TestSelectKnowledgeContextHistoryAndSources(t *testing.T) {
 	ref := knowledgeCitation{Kind: "post", ID: 1, PostID: 1, Version: strings.Repeat("a", 64)}
