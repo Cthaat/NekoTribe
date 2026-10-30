@@ -4212,7 +4212,7 @@
           "state": "in-progress",
           "targetRevision": 2,
           "tasks": [
-            "Complete detector parity, additional image cases and audio/video metadata, storage safety and real Oracle/client acceptance for the native upload route."
+            "Complete detector parity, additional image and audio/video metadata cases across Windows and Linux, storage safety and real Oracle/client acceptance for the native upload route."
           ],
           "sourceFiles": [
             "src/storage/media_type_selection.rs",
