@@ -83,6 +83,9 @@ func (s OracleSessions) appendAIAssistantMessage(ctx context.Context, user int64
 func (s OracleSessions) listAIConversationMessages(ctx context.Context, user int64, id string, after, limit int64, policy moderationPolicy) ([]conversationHistoryMessage, error) {
 	return s.listAIConversationMessagesOperation(ctx, user, id, after, limit, policy, verifyConversationSchema)
 }
+func (s OracleSessions) listAIRecentConversationMessages(ctx context.Context, user int64, id string, policy moderationPolicy) ([]conversationHistoryMessage, error) {
+	return s.listAIHistoryOperation(ctx, user, id, 0, 50, policy, verifyConversationSchema, true)
+}
 
 func conversationPolicy(allowAll, accounts string) moderationPolicy {
 	p := moderationPolicy{Accounts: make(map[string]bool)}
@@ -355,6 +358,9 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 
 // Never return fetched message content until ownership and current role have been rechecked.
 func (s OracleSessions) listAIConversationMessagesOperation(ctx context.Context, user int64, id string, after, limit int64, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (result []conversationHistoryMessage, err error) {
+	return s.listAIHistoryOperation(ctx, user, id, after, limit, policy, verify, false)
+}
+func (s OracleSessions) listAIHistoryOperation(ctx context.Context, user int64, id string, after, limit int64, policy moderationPolicy, verify func(context.Context, *sql.Conn) error, newest bool) (result []conversationHistoryMessage, err error) {
 	if user <= 0 || user > 9007199254740991 || after < 0 || after > 9999999999 || limit < 1 || limit > 50 {
 		return nil, errConversationInvalid
 	}
@@ -388,7 +394,11 @@ func (s OracleSessions) listAIConversationMessagesOperation(ctx context.Context,
 	if _, e = readConversationRow(ctx, tx, user, id, policy, false); e != nil {
 		return nil, e
 	}
-	rows, e := tx.QueryContext(ctx, `SELECT m.message_id,m.conversation_id,m.sequence_no,m.role,m.content,m.model_id,m.model_version,m.config_revision,m.created_at FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no>:after_sequence ORDER BY m.sequence_no ASC FETCH FIRST :row_limit ROWS ONLY`,
+	order := "ASC"
+	if newest {
+		order = "DESC"
+	}
+	rows, e := tx.QueryContext(ctx, `SELECT m.message_id,m.conversation_id,m.sequence_no,m.role,m.content,m.model_id,m.model_version,m.config_revision,m.created_at FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no>:after_sequence ORDER BY m.sequence_no `+order+` FETCH FIRST :row_limit ROWS ONLY`,
 		sql.Named("conversation_id", id), sql.Named("owner_user_id", user), sql.Named("after_sequence", after), sql.Named("row_limit", limit))
 	if e != nil {
 		return nil, errSessionStore
@@ -420,6 +430,11 @@ func (s OracleSessions) listAIConversationMessagesOperation(ctx context.Context,
 	}
 	if rows.Close() != nil {
 		return nil, errSessionStore
+	}
+	if newest {
+		for left, right := 0, len(items)-1; left < right; left, right = left+1, right-1 {
+			items[left], items[right] = items[right], items[left]
+		}
 	}
 	if _, e = readConversationRow(ctx, tx, user, id, policy, false); e != nil {
 		return nil, e

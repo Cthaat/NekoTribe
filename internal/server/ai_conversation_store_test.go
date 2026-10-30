@@ -153,14 +153,19 @@ func (c *conversationConn) QueryContext(_ context.Context, query string, args []
 		if c.state.mode == "message-error" {
 			return nil, errors.New("private")
 		}
-		if !strings.Contains(query, "c.owner_user_id=:owner_user_id") || !strings.Contains(query, "ORDER BY m.sequence_no ASC") {
+		newest := strings.Contains(query, "ORDER BY m.sequence_no DESC")
+		if !strings.Contains(query, "c.owner_user_id=:owner_user_id") || (!newest && !strings.Contains(query, "ORDER BY m.sequence_no ASC")) {
 			return nil, errors.New("unsafe query")
 		}
 		got := make(map[string]driver.Value)
 		for _, arg := range args {
 			got[arg.Name] = arg.Value
 		}
-		if got["owner_user_id"] != int64(42) || got["after_sequence"] != int64(1) || got["row_limit"] != int64(10) || got["conversation_id"] != c.state.id {
+		after, limit := int64(1), int64(10)
+		if newest {
+			after, limit = 0, 50
+		}
+		if got["owner_user_id"] != int64(42) || got["after_sequence"] != after || got["row_limit"] != limit || got["conversation_id"] != c.state.id {
 			return nil, errors.New("incorrect page bindings")
 		}
 		if c.state.mode == "empty" {
@@ -190,6 +195,17 @@ func (c *conversationConn) QueryContext(_ context.Context, query string, args []
 		return &alertRows{values: []driver.Value{id, c.state.purpose, c.state.group, c.state.title, stamp, stamp}}, nil
 	}
 	return nil, errors.New("unexpected")
+}
+
+func TestRecentConversationHistoryUsesOwnerAndDescendingWindow(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	state := &conversationDB{owner: 42, id: id, purpose: "group", group: int64(7)}
+	db := sql.OpenDB(conversationConnector{state})
+	defer db.Close()
+	items, err := (OracleSessions{db}).listAIHistoryOperation(context.Background(), 42, id, 0, 50, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil }, true)
+	if err != nil || len(items) != 1 || items[0].Content != "第二条" || state.permissionCalls != 2 {
+		t.Fatal(items, err, state)
+	}
 }
 
 func TestConversationMessageHistory(t *testing.T) {

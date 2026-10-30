@@ -43,6 +43,9 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 		} else if r.Method == http.MethodPost {
 			operation = "append"
 		}
+	} else if len(parts) == 3 && parts[0] == "" && parts[1] != "" && parts[2] == "generate" && r.Method == http.MethodPost {
+		id = parts[1]
+		operation = "generate"
 	}
 	if operation == "" {
 		respond(w, 404, 40404, "API route not found", nil)
@@ -108,6 +111,13 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 			return true
 		}
 		result, err = store.listAIConversationMessages(r.Context(), actor, id, after, limit, policy)
+	case "generate":
+		writer, ok := repository.(aiWritingStore)
+		if !ok {
+			respond(w, 500, 50001, "服务器内部错误", nil)
+			return true
+		}
+		result, err = generateAIWriting(r.Context(), writer, actor, id, policy, config)
 	}
 	if err != nil {
 		switch {
@@ -118,6 +128,12 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 		case errors.Is(err, errConversationForbidden):
 			respond(w, 403, 40301, "权限不足", nil)
 		case errors.Is(err, errConversationSchema):
+			respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
+		case errors.Is(err, errConversationConflict):
+			respond(w, 409, 40901, "会话已变更，请重试", nil)
+		case errors.Is(err, errWritingContext):
+			respond(w, 400, 40001, "写作会话上下文不可用", nil)
+		case errors.Is(err, errWritingUnavailable):
 			respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
 		default:
 			respond(w, 500, 50001, "服务器内部错误", nil)

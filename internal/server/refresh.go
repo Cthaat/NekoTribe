@@ -38,6 +38,8 @@ type RefreshConfig struct {
 	PresencePublisher             presencePublisher
 	ModerationAllowAll            string
 	ModerationAdminAccounts       string
+	AIModelConfig                 string
+	aiCredential                  func(string) (string, error)
 	otpMailer                     otpMailSender
 	clock                         func() time.Time
 }

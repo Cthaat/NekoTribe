@@ -68,6 +68,14 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 	c.Refresh.LocalStorage = localStorageConfig(lookup)
 	c.Refresh.ModerationAllowAll = get("MODERATION_ALLOW_ALL")
 	c.Refresh.ModerationAdminAccounts = get("MODERATION_ADMIN_ACCOUNTS")
+	c.Refresh.AIModelConfig = get("AI_MODEL_CONFIG_JSON")
+	c.Refresh.aiCredential = func(name string) (string, error) {
+		value, ok := lookup(name)
+		if !ok {
+			return "", errConfig
+		}
+		return value, nil
+	}
 	c.Refresh.otpMailer = smtpFromLookup(lookup)
 	switch strings.ToLower(strings.TrimSpace(get("TRUST_PROXY"))) {
 	case "1", "true", "yes", "on":

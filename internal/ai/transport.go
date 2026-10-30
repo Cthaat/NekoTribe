@@ -54,6 +54,9 @@ type Transport struct {
 	client   *http.Client
 }
 
+// CloseIdleConnections releases the transport's pooled sockets without interrupting in-flight calls.
+func (t *Transport) CloseIdleConnections() { t.client.CloseIdleConnections() }
+
 func NewTransport(resolver func(string) (string, error), timeoutMs ...int) (*Transport, error) {
 	timeout := 30000
 	if len(timeoutMs) > 1 {
