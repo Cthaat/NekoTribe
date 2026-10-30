@@ -29,6 +29,11 @@ func (s *aiHTTPFixture) readAIConversation(_ context.Context, user int64, id str
 	s.actor = user
 	return conversationRecord{ID: id, Purpose: "knowledge"}, s.fail
 }
+func (s *aiHTTPFixture) deleteAIConversation(_ context.Context, user int64, id string, policy moderationPolicy) error {
+	s.operation = "delete"
+	s.actor = user
+	return s.fail
+}
 func (s *aiHTTPFixture) appendAIUserMessage(_ context.Context, user int64, id, content string, policy moderationPolicy) (conversationMessage, error) {
 	s.operation = "append"
 	s.actor = user
@@ -51,6 +56,7 @@ func TestAIConversationHTTPRoutes(t *testing.T) {
 	}{
 		{"POST", "/api/v2/ai/conversations", `{"purpose":"knowledge"}`, "create", 200},
 		{"GET", "/api/v2/ai/conversations/" + id, "", "read", 200},
+		{"DELETE", "/api/v2/ai/conversations/" + id, "", "delete", 200},
 		{"POST", "/api/v2/ai/conversations/" + id + "/messages", `{"content":"你好"}`, "append", 200},
 		{"GET", "/api/v2/ai/conversations/" + id + "/messages?after_sequence=2&limit=10", "", "list", 200},
 		{"POST", "/api/v2/ai/conversations/" + id + "/messages", `{"content":"x","role":"assistant"}`, "", 400},
@@ -72,6 +78,9 @@ func TestAIConversationHTTPRoutes(t *testing.T) {
 			if w.Code != tc.status || s.operation != tc.operation || w.Header().Get("Cache-Control") != "private, no-store" {
 				t.Fatalf("status=%d operation=%s body=%s headers=%v", w.Code, s.operation, w.Body.String(), w.Header())
 			}
+			if tc.operation == "delete" && (s.actor != 42 || !strings.Contains(w.Body.String(), `"data":null`)) {
+				t.Fatal(s.actor, w.Body.String())
+			}
 			if tc.operation == "list" && (s.actor != 42 || s.after != 2 || s.limit != 10) {
 				t.Fatal(s)
 			}
@@ -92,6 +101,12 @@ func TestAIConversationHTTPRoutes(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	r = httptest.NewRequest("GET", "/api/v2/ai/conversations/"+id, nil)
+	w = httptest.NewRecorder()
+	NewHandler(codec, s, CorsPolicy{}).ServeHTTP(w, r)
+	if w.Code != 401 || w.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatal(w.Code, w.Header())
+	}
+	r = httptest.NewRequest("DELETE", "/api/v2/ai/conversations/"+id, nil)
 	w = httptest.NewRecorder()
 	NewHandler(codec, s, CorsPolicy{}).ServeHTTP(w, r)
 	if w.Code != 401 || w.Header().Get("Cache-Control") != "private, no-store" {

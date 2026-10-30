@@ -15,6 +15,7 @@ import (
 type aiConversationStore interface {
 	createAIConversation(context.Context, int64, conversationInput, moderationPolicy) (conversationRecord, error)
 	readAIConversation(context.Context, int64, string, moderationPolicy) (conversationRecord, error)
+	deleteAIConversation(context.Context, int64, string, moderationPolicy) error
 	appendAIUserMessage(context.Context, int64, string, string, moderationPolicy) (conversationMessage, error)
 	listAIConversationMessages(context.Context, int64, string, int64, int64, moderationPolicy) ([]conversationHistoryMessage, error)
 }
@@ -33,8 +34,12 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 	id := ""
 	if path == prefix && r.Method == http.MethodPost {
 		operation = "create"
-	} else if len(parts) == 2 && parts[0] == "" && parts[1] != "" && r.Method == http.MethodGet {
-		operation = "read"
+	} else if len(parts) == 2 && parts[0] == "" && parts[1] != "" && (r.Method == http.MethodGet || r.Method == http.MethodDelete) {
+		if r.Method == http.MethodGet {
+			operation = "read"
+		} else {
+			operation = "delete"
+		}
 		id = parts[1]
 	} else if len(parts) == 3 && parts[0] == "" && parts[1] != "" && parts[2] == "messages" {
 		id = parts[1]
@@ -86,6 +91,8 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 		result, err = store.createAIConversation(r.Context(), actor, input, policy)
 	case "read":
 		result, err = store.readAIConversation(r.Context(), actor, id, policy)
+	case "delete":
+		err = store.deleteAIConversation(r.Context(), actor, id, policy)
 	case "append":
 		body, valid := readPostCreateBody(r)
 		if !valid {
