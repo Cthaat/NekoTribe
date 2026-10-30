@@ -12,3 +12,8 @@ var TwoFactorSchemaCatalog []byte
 //
 //go:embed requirements/media-schema-catalog.json
 var MediaSchemaCatalog []byte
+
+// UserSettingsSchemaCatalog is generated from the Nuxt migration authority.
+//
+//go:embed requirements/user-settings-schema-catalog.json
+var UserSettingsSchemaCatalog []byte
