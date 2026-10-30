@@ -7,13 +7,23 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const source={kind:'post',id:1,post_id:1,content:'公开资料',version:'a'.repeat(64)};
 const stubs={
  '~/server/utils/v2':`export const v2Auth=e=>{if(!e.user)throw Error('401')};export const v2Connection=async e=>e.open();export const v2ServerError=()=>{throw Error('500')};`,
- './knowledge-source':`export async function discoverKnowledgeSources(e,c,q,l){e.events.push('discover');e.search=q;return e.sources};export async function hydrateKnowledgeSources(e,c,input){e.events.push('hydrate');return [...e.sources,...(e.historical??[])].filter(r=>input.some(x=>x.kind===r.kind && x.id===r.id && x.version===r.version))};`,
+ './knowledge-source':`export async function discoverKnowledgeSources(e,c,q,l){e.events.push('discover');e.search=q;return e.sources};export async function hydrateKnowledgeSources(e,c,input){e.events.push('hydrate');e.onHydrate?.();return [...e.sources,...(e.historical??[])].filter(r=>input.some(x=>x.kind===r.kind && x.id===r.id && x.version===r.version))};`,
  './model-configuration.ts':`export class AiModelRouter {constructor(){} select(role){if(role!=='knowledge')throw Error('wrong role');return {configurationRevision:1,profileId:'test',contextWindowTokens:8192,maxOutputTokens:512}}}`,
  './inference-transport.ts':`export class AiInferenceTransport {async infer(s,input){globalThis.__knowledgeEvents.push('infer');globalThis.__knowledgeInput=input;globalThis.__knowledgeOnInfer?.();return {text:globalThis.__knowledgeOutput??JSON.stringify({answer:'answer',citations:[{kind:'post',id:1,version:'a'.repeat(64)}]}),toolCalls:[],finishReason:'stop'}}}`
 };
 const built=await build({stdin:{contents:`export * from './server/services/ai/knowledge-service.ts'`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'service-stubs',setup(b){b.onResolve({filter:/.*/},a=>{if(Object.hasOwn(stubs,a.path))return {path:a.path,namespace:'stub'}});b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js'}))}}]});
 const {generateKnowledgeReply}=await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`);
 function event(sources=[source]) { const events=[];globalThis.__knowledgeEvents=events;return {user:true,sources,events,async open(){events.push('open');return {async close(){events.push('close')}}}}; }
+
+test('preserves cancellation when inference or historical source revalidation is interrupted',async()=>{
+ const e=event(),controller=new AbortController();
+ globalThis.__knowledgeOnInfer=()=>{controller.abort();throw Error('transport aborted')};
+ try {await assert.rejects(()=>generateKnowledgeReply(e,'猫','{}',controller.signal),error=>error.code==='CANCELLED');} finally {delete globalThis.__knowledgeOnInfer;}
+ const e2=event(),second=new AbortController();
+ const history=[{sequence_no:1,role:'assistant',content:'old',citations:[{kind:'post',id:1,version:source.version,post_id:1}]},{sequence_no:2,role:'user',content:'猫'}];
+ e2.onHydrate=()=>{if(e2.events.includes('infer')) {second.abort();throw Error('query cancelled')}};
+ await assert.rejects(()=>generateKnowledgeReply(e2,'猫','{}',second.signal,undefined,history),error=>error.code==='CANCELLED');
+});
 
 test('closes connections around inference, uses knowledge model and passes data as user content',async()=>{
  const e=event();const output=await generateKnowledgeReply(e,'猫','{}');

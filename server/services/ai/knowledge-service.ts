@@ -33,11 +33,13 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
   let contextSources:IndexedSource[]=[];
   let contextSnapshot:HistoryMessage[]|undefined;
   const revalidateContext=async()=>{
+    if(signal?.aborted) throw new KnowledgeTurnError('CANCELLED');
     if(!contextSources.length) return;
     try {
       const guard=encodeKnowledgeMessage({answer:'context',sources:contextSources});
       await withConnection(event,connection=>restoreKnowledgeMessage(guard,refs=>hydrateKnowledgeSources(event,connection,refs)));
-    } catch {throw new KnowledgeTurnError('SOURCE_CHANGED');}
+    } catch {if(signal?.aborted) throw new KnowledgeTurnError('CANCELLED');throw new KnowledgeTurnError('SOURCE_CHANGED');}
+    if(signal?.aborted) throw new KnowledgeTurnError('CANCELLED');
   };
   const turn=await runKnowledgeTurn({
     discover:()=>withConnection(event,connection=>discoverKnowledgeSources(event,connection,searchPhrase ?? query,20)),
@@ -64,7 +66,7 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
       if(cancel?.aborted) throw new KnowledgeTurnError('CANCELLED');
       let result:Awaited<ReturnType<AiInferenceTransport['infer']>>;
       try {result=await transport.infer(selection,{messages:[{role:'system',content:system},{role:'user',content:data}]},cancel);}
-      catch {throw new KnowledgeServiceError('PROVIDER_FAILED');}
+      catch {if(cancel?.aborted) throw new KnowledgeTurnError('CANCELLED');throw new KnowledgeServiceError('PROVIDER_FAILED');}
       if(result.finishReason!=='stop' || result.toolCalls.length!==0) throw new KnowledgeServiceError('PROVIDER_FAILED');
       await revalidateContext();
       return result.text;

@@ -1015,7 +1015,7 @@
       },
       {
         "path": "server/services/ai/knowledge-service.ts",
-        "sha256": "e962e5f7e1ee2e3db4c4a9ac65d02cadbd2a8a2552e9e5e158bb07a69f8b4f23"
+        "sha256": "78d8cc5a37023cc82bb4136b935b6440b80e1c06031b3489ee76feec282e4566"
       },
       {
         "path": "server/services/ai/knowledge-conversation-service.ts",
