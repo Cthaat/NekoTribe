@@ -65,6 +65,8 @@ HTTP 设置头/读写/闲置超时，退出先停止 HTTP 再关闭数据库。`
 
 ## 模型配置组件
 
+AI 会话的创建、读取、用户消息追加和历史读取已接入原生 HTTP 路由；需要有效登录会话，群会话和审核会话分别检查当前权限，响应禁用缓存。审核账号使用 `MODERATION_ADMIN_ACCOUNTS` 和 `MODERATION_ALLOW_ALL`，须与其他后端一致。真实 Oracle、跨后端联调和完整 AI 产品尚未验收。
+
 `internal/ai/model_config.go` 按 `contracts/requirements/ai-model-configuration.md` 校验提供方/模型/用途绑定，返回独立选择快照；`Replace` 用版本比较和互斥锁原子发布，失败保留旧配置。模型名称自由配置，凭据仅引用环境变量名。`internal/ai/transport.go` 已实现 OpenAI-compatible/Ollama JSON HTTP 传输、调用级密钥解析、超时和取消及安全错误，使用 loopback 提供方验证；尚未注册到应用 AI 路由，也未调用真实模型、探测能力或重建索引。
 
 `contracts/scenarios/ai-model-config.json` 的 52 个共享组件场景已通过，补充测试覆盖配置隔离和并发。`go test ./...`、`go vet ./...` 通过。产品权限和完整验收要求位于 `contracts/requirements/ai-product-scope.md`、`ai-model-switching.md`，相关产品场景仍为 not-run；不能把配置选择成功当作真实模型切换通过。

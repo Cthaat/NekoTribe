@@ -40,6 +40,9 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			respond(w, 200, 200, "ok", map[string]string{"status": "ok", "service": "nekotribe-go"})
 			return
 		}
+		if aiConversationRoute(w, r, codec, repository, refresh) {
+			return
+		}
 		if r.Method == http.MethodGet && r.URL.EscapedPath() == "/_ws" {
 			notificationWebSocket(w, r, codec, repository, cors, refresh.NotificationEvents)
 			return

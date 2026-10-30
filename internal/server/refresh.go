@@ -36,6 +36,8 @@ type RefreshConfig struct {
 	NotificationEvents            NotificationEventSource
 	NotificationPublisher         NotificationEventPublisher
 	PresencePublisher             presencePublisher
+	ModerationAllowAll            string
+	ModerationAdminAccounts       string
 	otpMailer                     otpMailSender
 	clock                         func() time.Time
 }
