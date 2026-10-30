@@ -54,7 +54,7 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
           if(selected.question!==query) throw new KnowledgeContextError('INVALID_CONTEXT');
           history=selected.history;contextSources=selected.sources;
           contextSnapshot=historyMessages.slice(-(history.length+1)).map(message=>({sequence_no:message.sequence_no,role:message.role,content:message.content,
-            ...(message.citations ? {citations:message.citations.map(source=>({kind:source.kind,id:source.id,version:source.version,post_id:source.post_id}))} : {})}));
+            ...(message.citations ? {citations:message.citations.map(source=>({kind:source.kind,id:source.id,version:source.version,...(source.kind==='terms'?{}:{post_id:source.post_id})}))} : {})}));
         } catch(error) {
           if(error instanceof KnowledgeContextError) throw new KnowledgeServiceError(error.code);
           throw error;

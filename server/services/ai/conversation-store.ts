@@ -270,8 +270,9 @@ export async function appendKnowledgeAssistantMessage(
       if(input.contextSources.length) contextGuard=encodeKnowledgeMessage({answer:'context',sources:input.contextSources});
     }
     if(input.contextSnapshot!==undefined) {
+      selectKnowledgeContext(input.contextSnapshot,4000000);
       contextSnapshot=input.contextSnapshot.map(message=>({sequence_no:message.sequence_no,role:message.role,content:message.content,
-        ...(message.citations ? {citations:message.citations.map(source=>({kind:source.kind,id:source.id,version:source.version,post_id:source.post_id}))} : {})}));
+        ...(message.citations ? {citations:message.citations.map(source=>({kind:source.kind,id:source.id,version:source.version,...(source.kind==='terms'?{}:{post_id:source.post_id})}))} : {})}));
       const selected=selectKnowledgeContext(contextSnapshot,4000000);
       if(contextSnapshot.at(-1)?.sequence_no!==input.expectedSequence || selected.history.length!==contextSnapshot.length-1 ||
          JSON.stringify(selected.sources)!==JSON.stringify(input.contextSources ?? [])) throw new Error('invalid context snapshot');
@@ -282,7 +283,7 @@ export async function appendKnowledgeAssistantMessage(
 async function checkContextSnapshot(event:H3Event,connection:oracledb.Connection,id:string,snapshot:HistoryMessage[]) {
   const messages=await listConversationMessages(event,connection,id,snapshot[0]!.sequence_no-1,snapshot.length);
   const actual=messages.map(message=>({sequence_no:message.sequence_no,role:message.role,content:message.content,
-    ...(message.citations ? {citations:message.citations.map(source=>({kind:source.kind,id:source.id,version:source.version,post_id:source.post_id}))} : {})}));
+    ...(message.citations ? {citations:message.citations.map(source=>({kind:source.kind,id:source.id,version:source.version,...(source.kind==='terms'?{}:{post_id:source.post_id})}))} : {})}));
   if(JSON.stringify(actual)!==JSON.stringify(snapshot)) v2Conflict('会话已变更，请重试');
 }
 async function safeRestoreKnowledge(event:H3Event,connection:oracledb.Connection,content:string) {

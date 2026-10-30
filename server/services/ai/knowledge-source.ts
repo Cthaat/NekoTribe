@@ -4,8 +4,9 @@ import oracledb from 'oracledb';
 import { v2Auth, v2BadRequest, v2ServerError } from '~/server/utils/v2';
 
 type SourceKind = 'post' | 'comment';
-export interface IndexedSource { kind: SourceKind; id: number; version: string }
-export interface KnowledgeSource extends IndexedSource { post_id: number; content: string }
+type KnowledgeKind = SourceKind | 'terms';
+export interface IndexedSource { kind: KnowledgeKind; id: number; version: string }
+export interface KnowledgeSource extends IndexedSource { post_id?: number; content: string }
 const MAX_ID = 999_999_999_999_999;
 const validId = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0 && value <= MAX_ID;
 
@@ -60,7 +61,7 @@ export async function discoverKnowledgeSources(event: H3Event, connection: oracl
 export async function hydrateKnowledgeSources(event: H3Event, connection: oracledb.Connection, input: unknown): Promise<KnowledgeSource[]> {
   const actor = v2Auth(event);
   if (!Array.isArray(input) || input.length > 20) v2BadRequest('知识来源参数错误');
-  const candidates: IndexedSource[] = [];
+  const candidates: Array<IndexedSource & {kind:SourceKind}> = [];
   const seen = new Set<string>();
   for (const value of input) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) v2BadRequest('知识来源参数错误');

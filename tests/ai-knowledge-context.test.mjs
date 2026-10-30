@@ -8,6 +8,12 @@ const built=await build({stdin:{contents:`export * from './server/services/ai/kn
 const {selectKnowledgeContext}=await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`);
 const ref={kind:'post',id:1,version:'a'.repeat(64),post_id:1};
 const messages=[{sequence_no:1,role:'user',content:'之前的问题'}, {sequence_no:2,role:'assistant',content:'之前的回答',citations:[ref]}, {sequence_no:3,role:'user',content:'新的问题'}];
+test('history may contain a terms citation without a post ID',()=>{
+ const terms={kind:'terms',id:3,version:'b'.repeat(64)};
+ const input=[{sequence_no:1,role:'assistant',content:'旧回答',citations:[terms]},{sequence_no:2,role:'user',content:'新问题'}];
+ assert.deepEqual(selectKnowledgeContext(input,10000).sources,[terms]);
+ assert.throws(()=>selectKnowledgeContext([{...input[0],citations:[{...terms,post_id:3}]},input[1]],10000),/INVALID_CONTEXT/);
+});
 test('matches shared cross-backend history vectors',()=>{
  const vectors=JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-knowledge-context-vectors.json',import.meta.url),'utf8'));
  for(const item of vectors.cases){

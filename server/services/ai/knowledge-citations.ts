@@ -17,7 +17,7 @@ export function parseKnowledgeAnswer(text:string,verified:IndexedSource[]):{answ
   for(const raw of object.citations) {
     if(!raw || typeof raw!=='object' || Array.isArray(raw)) return invalid();
     const citation=raw as Record<string,unknown>;
-    if(Object.keys(citation).length!==3 || (citation.kind!=='post' && citation.kind!=='comment') || typeof citation.id!=='number' || !Number.isSafeInteger(citation.id) || citation.id<=0 || typeof citation.version!=='string') return invalid();
+    if(Object.keys(citation).length!==3 || (citation.kind!=='post' && citation.kind!=='comment' && citation.kind!=='terms') || typeof citation.id!=='number' || !Number.isSafeInteger(citation.id) || citation.id<=0 || citation.id>999999999999999 || (citation.kind==='terms' && citation.id>8) || typeof citation.version!=='string') return invalid();
     const id=key({kind:citation.kind,id:citation.id,version:citation.version});
     const matched=permitted.get(id);
     if(!matched || seen.has(id)) return invalid();

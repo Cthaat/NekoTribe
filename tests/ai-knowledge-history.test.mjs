@@ -6,6 +6,16 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const built=await build({stdin:{contents:`export * from './server/services/ai/knowledge-history.ts'`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm'});
 const {encodeKnowledgeMessage,restoreKnowledgeMessage}=await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`);
 const source={kind:'post',id:1,version:'a'.repeat(64)};
+test('mixed post and terms citations restore without inventing post identifiers',async()=>{
+ const terms={kind:'terms',id:3,version:'b'.repeat(64)};
+ const encoded=encodeKnowledgeMessage({answer:'回答',sources:[source,terms]});
+ const rows=[{...source,post_id:1,content:'帖子'},{...terms,content:'条款正文'}];
+ const result=await restoreKnowledgeMessage(encoded,async()=>rows);
+ assert.deepEqual(result.citations,[{...source,post_id:1},terms]);
+ await assert.rejects(()=>restoreKnowledgeMessage(encoded,async()=>[rows[0]]),/SOURCE_CHANGED/);
+ await assert.rejects(()=>restoreKnowledgeMessage(encoded,async()=>[rows[0],{...rows[1],post_id:3}]),/SOURCE_CHANGED/);
+ assert.throws(()=>encodeKnowledgeMessage({answer:'x',sources:[{...terms,id:9}]}),/INVALID_HISTORY/);
+});
 test('restores only currently authorized citations and preserves answer',async()=>{
  const encoded=encodeKnowledgeMessage({answer:'答案',sources:[source]});
  const result=await restoreKnowledgeMessage(encoded,async refs=>{assert.deepEqual(refs,[source]);return [{...source,post_id:1,content:'当前公开资料'}]});

@@ -106,6 +106,19 @@ test('knowledge answer validates and accepts the exact selected historical messa
   await appendKnowledgeAssistantMessage(actor,db,c.conversation_id,input);
   assert.equal(db.messages.length,4);assert.equal(db.messages[3].sequence_no,4);
 });
+test('mixed terms history survives transaction guards without a fabricated post ID',async()=>{
+ const db=database(),actor={userId:42},terms={kind:'terms',id:3,version:'b'.repeat(64)},post={kind:'post',id:1,version:'a'.repeat(64)};
+ db.knowledgeRows=[{...terms,content:'规则'},{...post,post_id:1,content:'帖子'}];
+ const c=await createConversation(actor,db,{purpose:'knowledge'});await appendUserMessage(actor,db,c.conversation_id,'first');
+ await appendKnowledgeAssistantMessage(actor,db,c.conversation_id,{answer:'old',sources:[terms],expectedSequence:1,modelId:'p',configRevision:1});
+ await appendUserMessage(actor,db,c.conversation_id,'next');
+ const snapshot=[{sequence_no:2,role:'assistant',content:'old',citations:[terms]},{sequence_no:3,role:'user',content:'next'}];
+ const input={answer:'new',sources:[post,terms],contextSources:[terms],contextSnapshot:snapshot,expectedSequence:3,modelId:'p',configRevision:1};
+ const forged=[{...snapshot[0],citations:[{...terms,post_id:1}]},snapshot[1]];
+ await assert.rejects(()=>appendKnowledgeAssistantMessage(actor,db,c.conversation_id,{...input,contextSnapshot:forged}),/400:/);
+ await appendKnowledgeAssistantMessage(actor,db,c.conversation_id,input);
+ assert.deepEqual((await listConversationMessages(actor,db,c.conversation_id,0,20))[3].citations,[{...post,post_id:1},terms]);
+});
 
 test('knowledge assistant stores versioned references and rechecks history visibility',async()=>{
   const db=database(),actor={userId:42},ref={kind:'post',id:1,version:'a'.repeat(64)};

@@ -1,6 +1,6 @@
 import type { IndexedSource } from './knowledge-source';
 
-export type HistoryMessage = {sequence_no:number;role:string;content:string;citations?:Array<IndexedSource & {post_id:number}>};
+export type HistoryMessage = {sequence_no:number;role:string;content:string;citations?:Array<IndexedSource & {post_id?:number}>};
 type ModelHistory = {role:'user'|'assistant';content:string};
 export class KnowledgeContextError extends Error {
   constructor(readonly code:'INVALID_CONTEXT'|'CONTEXT_TOO_LARGE') {super(code);this.name='KnowledgeContextError';}
@@ -18,7 +18,7 @@ export function selectKnowledgeContext(messages:HistoryMessage[],maxBytes:number
       if (!Array.isArray(message.citations) || !message.citations.length || message.citations.length>20) throw new KnowledgeContextError('INVALID_CONTEXT');
       const seen=new Set<string>();
       for (const source of message.citations) {
-        if (!source || (source.kind!=='post' && source.kind!=='comment') || !Number.isSafeInteger(source.id) || source.id<1 || source.id>999999999999999 || !Number.isSafeInteger(source.post_id) || source.post_id<1 || source.post_id>999999999999999 || (source.kind==='post' && source.id!==source.post_id) || typeof source.version!=='string' || !/^[0-9a-f]{64}$/.test(source.version)) throw new KnowledgeContextError('INVALID_CONTEXT');
+        if (!source || (source.kind!=='post' && source.kind!=='comment' && source.kind!=='terms') || !Number.isSafeInteger(source.id) || source.id<1 || source.id>999999999999999 || (source.kind==='terms' ? source.id>8 || 'post_id' in source : typeof source.post_id!=='number' || !Number.isSafeInteger(source.post_id) || source.post_id<1 || source.post_id>999999999999999 || (source.kind==='post' && source.id!==source.post_id)) || typeof source.version!=='string' || !/^[0-9a-f]{64}$/.test(source.version)) throw new KnowledgeContextError('INVALID_CONTEXT');
         const key=`${source.kind}:${source.id}`;
         if(seen.has(key)) throw new KnowledgeContextError('INVALID_CONTEXT');
         seen.add(key);
