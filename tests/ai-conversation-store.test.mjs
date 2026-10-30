@@ -23,16 +23,24 @@ const stubs = {
   '~/server/services/v2/moderation': `export const requireModerationAccess=async(e,c)=>{if(!c.moderator)throw Error('403:需要审核权限')};`
 };
 const compiled = await build({
-  stdin: { contents: `export {createConversation,readConversation,appendUserMessage,appendAssistantMessage,listConversationMessages,listRecentConversationMessages} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
+  stdin: { contents: `export {createConversation,readConversation,deleteConversation,appendUserMessage,appendAssistantMessage,listConversationMessages,listRecentConversationMessages} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'conversation-store-boundaries', setup(builder) {
     builder.onResolve({ filter: /.*/ }, args => { if (Object.hasOwn(stubs, args.path)) return { path: args.path, namespace: 'stub' }; });
     builder.onLoad({ filter: /.*/, namespace: 'stub' }, args => ({ contents: stubs[args.path], loader: 'js' }));
   }}]
 });
-const { createConversation, readConversation, appendUserMessage, appendAssistantMessage, listConversationMessages, listRecentConversationMessages } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+const { createConversation, readConversation, deleteConversation, appendUserMessage, appendAssistantMessage, listConversationMessages, listRecentConversationMessages } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 function database() {
   return { checks: [], permissionChecks: 0, allowed: true, moderator: true, saved: null, pending: null, messages: [], pendingMessage: null, commits: 0, rollbacks: 0,
     async insert(sql, binds, autoCommit) {
+      if (/DELETE FROM n_ai_conversations/.test(sql)) {
+        assert.equal(autoCommit, false);
+        assert.equal(binds.owner_user_id, this.saved?.OWNER_USER_ID);
+        assert.equal(binds.conversation_id, this.saved?.CONVERSATION_ID);
+        this.pendingDelete = true;
+        if (this.revokeAfterDelete) this.allowed = false;
+        return 1;
+      }
       if (/INSERT INTO n_ai_messages/.test(sql)) {
         assert.equal(autoCommit, false); this.pendingMessage = binds;
         if (this.revokeAfterMessage) this.allowed = false;
@@ -64,10 +72,40 @@ function database() {
         ROLE: m.role, CONTENT: m.content, MODEL_ID: m.model_id, MODEL_VERSION: null, CONFIG_REVISION: m.config_revision, CREATED_AT: 'created'
       })) };
     },
-    async commit() { this.commits++; if (this.failCommit) throw Error('private'); if (this.pending) this.saved = this.pending; this.pending = null; if (this.pendingMessage) this.messages.push(this.pendingMessage); this.pendingMessage = null; },
-    async rollback() { this.rollbacks++; if (this.failRollback) throw Error('private rollback'); this.pending = null; this.pendingMessage = null; }
+    async commit() { this.commits++; if (this.failCommit) throw Error('private'); if (this.pendingDelete) {this.saved=null;this.messages=[];this.pendingDelete=false;} if (this.pending) this.saved = this.pending; this.pending = null; if (this.pendingMessage) this.messages.push(this.pendingMessage); this.pendingMessage = null; },
+    async rollback() { this.rollbacks++; if (this.failRollback) throw Error('private rollback'); this.pendingDelete=false; this.pending = null; this.pendingMessage = null; }
   };
 }
+
+test('delete locks owned conversation and removes its messages only after commit', async () => {
+  const db=database(),actor={userId:42};
+  const c=await createConversation(actor,db,{purpose:'writing'});
+  await appendUserMessage(actor,db,c.conversation_id,'private');
+  db.expectLock=true;
+  await assert.rejects(()=>deleteConversation({userId:9},db,c.conversation_id),/404:/);
+  assert.equal(db.messages.length,1);
+  await deleteConversation(actor,db,c.conversation_id);
+  assert.equal(db.saved,null); assert.deepEqual(db.messages,[]);
+});
+
+test('delete rolls back if group permission is revoked before commit',async()=>{
+  const db=database(),actor={userId:42};
+  const c=await createConversation(actor,db,{purpose:'group',group_id:7});
+  db.revokeAfterDelete=true;
+  await assert.rejects(()=>deleteConversation(actor,db,c.conversation_id),/403:/);
+  assert.equal(db.saved.CONVERSATION_ID,c.conversation_id); assert.equal(db.rollbacks,1);
+});
+
+test('delete rejects malformed identifiers and never assumes an uncertain commit rolled back',async()=>{
+  const db=database(),actor={userId:42};
+  const c=await createConversation(actor,db,{purpose:'writing'});
+  const checks=db.checks.length;
+  await assert.rejects(()=>deleteConversation(actor,db,'invalid'),/404:/);
+  assert.equal(db.checks.length,checks);
+  db.failCommit=true;
+  await assert.rejects(()=>deleteConversation(actor,db,c.conversation_id),error=>error.message==='500:internal');
+  assert.equal(db.rollbacks,0);
+});
 
 test('message history paginates by sequence and hides other users conversations', async () => {
   const db = database();

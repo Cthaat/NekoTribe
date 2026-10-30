@@ -53,6 +53,34 @@ export async function readConversation(event: H3Event, connection: oracledb.Conn
   return record;
 }
 
+/** Delete the owned conversation and its cascading messages under the same access policy. */
+export async function deleteConversation(event: H3Event, connection: oracledb.Connection, id: string): Promise<void> {
+  const actor = v2Auth(event);
+  if (!validId(id)) v2NotFound('会话不存在');
+  await requireFeatureSchema(connection, 'ai-conversations');
+  let commitStarted = false;
+  try {
+    const row = await v2One(connection, `SELECT conversation_id,owner_user_id,purpose,group_id,title,created_at,updated_at
+      FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id FOR UPDATE`,
+      { conversation_id: id, owner_user_id: actor.userId });
+    if (!row) v2NotFound('会话不存在');
+    const record = mapRow(row);
+    const scope = { ownerUserId: v2Number(row.OWNER_USER_ID), purpose: record.purpose, groupId: record.group_id };
+    await authorizeConversationScope(event, connection, scope);
+    const deleted = await v2Execute(connection, `DELETE FROM n_ai_conversations
+      WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`,
+      { conversation_id: id, owner_user_id: actor.userId }, false);
+    if (deleted !== 1) v2ServerError();
+    await authorizeConversationScope(event, connection, scope);
+    commitStarted = true;
+    await connection.commit();
+  } catch (error) {
+    if (commitStarted) v2ServerError();
+    try { await connection.rollback(); } catch { v2ServerError(); }
+    throw error;
+  }
+}
+
 /** Internal bounded history read. Rechecks permission before exposing fetched content. */
 export async function listConversationMessages(
   event: H3Event,
