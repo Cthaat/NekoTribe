@@ -2283,11 +2283,16 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Connect settings schema readiness, authenticated route, Oracle transaction and response mapping, presence event, shared scenarios and real dependency acceptance."
+            "Complete shared business scenarios, Go websocket presence subscription, concurrent initialization and real Oracle/Redis/client acceptance."
           ],
           "sourceFiles": [
             "internal/server/user_settings_patch.go",
-            "internal/server/user_settings_patch_test.go"
+            "internal/server/user_settings_patch_test.go",
+            "internal/server/user_settings_repository.go",
+            "internal/server/user_settings_route.go",
+            "internal/server/user_settings_route_test.go",
+            "internal/server/presence_event.go",
+            "internal/server/presence_event_test.go"
           ],
           "evidence": []
         }
