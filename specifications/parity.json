@@ -2283,7 +2283,7 @@
           "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Complete shared business scenarios, Go websocket presence subscription, concurrent initialization and real Oracle/Redis/client acceptance."
+            "Complete shared business scenarios, full presence lifecycle, concurrent initialization and real Oracle/Redis/client acceptance."
           ],
           "sourceFiles": [
             "internal/server/user_settings_patch.go",
