@@ -41,6 +41,7 @@ type assistantMessageInput struct {
 	ExpectedSequence int64
 	ModelID          string
 	ConfigRevision   int64
+	Knowledge        bool
 }
 type conversationMessage struct {
 	ID             string `json:"message_id"`
@@ -49,15 +50,16 @@ type conversationMessage struct {
 	Role           string `json:"role"`
 }
 type conversationHistoryMessage struct {
-	ID             string  `json:"message_id"`
-	ConversationID string  `json:"conversation_id"`
-	SequenceNo     int64   `json:"sequence_no"`
-	Role           string  `json:"role"`
-	Content        string  `json:"content"`
-	ModelID        *string `json:"model_id"`
-	ModelVersion   *string `json:"model_version"`
-	ConfigRevision *int64  `json:"config_revision"`
-	CreatedAt      string  `json:"created_at"`
+	ID             string               `json:"message_id"`
+	ConversationID string               `json:"conversation_id"`
+	SequenceNo     int64                `json:"sequence_no"`
+	Role           string               `json:"role"`
+	Content        string               `json:"content"`
+	ModelID        *string              `json:"model_id"`
+	ModelVersion   *string              `json:"model_version"`
+	ConfigRevision *int64               `json:"config_revision"`
+	CreatedAt      string               `json:"created_at"`
+	Citations      []knowledgeCandidate `json:"citations,omitempty"`
 }
 type moderationPolicy struct {
 	AllowAll bool
@@ -134,6 +136,9 @@ func (s OracleSessions) appendAIUserMessage(ctx context.Context, user int64, id,
 // This method is for trusted server-side generation only, never direct client input.
 func (s OracleSessions) appendAIAssistantMessage(ctx context.Context, user int64, id string, input assistantMessageInput, policy moderationPolicy) (conversationMessage, error) {
 	return s.appendAIAssistantMessageOperation(ctx, user, id, input, policy, verifyConversationSchema)
+}
+func (s OracleSessions) appendAIKnowledgeAssistantMessage(ctx context.Context, user int64, id string, input assistantMessageInput, sources []knowledgeCandidate, policy moderationPolicy) (conversationMessage, error) {
+	return s.appendAIKnowledgeAssistantOperation(ctx, user, id, input, sources, policy, verifyConversationSchema)
 }
 func (s OracleSessions) listAIConversationMessages(ctx context.Context, user int64, id string, after, limit int64, policy moderationPolicy) ([]conversationHistoryMessage, error) {
 	return s.listAIConversationMessagesOperation(ctx, user, id, after, limit, policy, verifyConversationSchema)
@@ -331,6 +336,15 @@ func (s OracleSessions) appendAIAssistantMessageOperation(ctx context.Context, u
 	}
 	return s.appendAIMessageOperation(ctx, user, id, input.Content, &input, policy, verify)
 }
+func (s OracleSessions) appendAIKnowledgeAssistantOperation(ctx context.Context, user int64, id string, input assistantMessageInput, sources []knowledgeCandidate, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (conversationMessage, error) {
+	content, err := encodeKnowledgeMessage(input.Content, sources)
+	if err != nil {
+		return conversationMessage{}, errConversationInvalid
+	}
+	input.Content = content
+	input.Knowledge = true
+	return s.appendAIAssistantMessageOperation(ctx, user, id, input, policy, verify)
+}
 func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64, id, content string, assistant *assistantMessageInput, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (result conversationMessage, err error) {
 	if user <= 0 || user > 9007199254740991 {
 		return result, errConversationInvalid
@@ -369,6 +383,23 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 	if e != nil {
 		return result, e
 	}
+	if assistant != nil && ((record.Purpose == "knowledge") != assistant.Knowledge) {
+		return result, errConversationConflict
+	}
+	recheck := func() error {
+		_, e := restoreKnowledgeMessage(ctx, content, func(ctx context.Context, refs []knowledgeCandidate) ([]knowledgeSource, error) {
+			return hydrateKnowledge(ctx, oracleKnowledgeReader{tx}, user, refs)
+		})
+		if e != nil {
+			return errSessionStore
+		}
+		return nil
+	}
+	if assistant != nil && assistant.Knowledge {
+		if e = recheck(); e != nil {
+			return result, e
+		}
+	}
 	var sequence int64
 	if tx.QueryRowContext(ctx, `SELECT NVL(MAX(sequence_no),0)+1 AS next_sequence FROM n_ai_messages WHERE conversation_id=:conversation_id`, sql.Named("conversation_id", id)).Scan(&sequence) != nil || sequence <= 0 || sequence > 9999999999 {
 		return result, errSessionStore
@@ -403,6 +434,11 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 	scope := conversationInput{Purpose: record.Purpose, GroupID: record.GroupID}
 	if e = authorizeConversation(ctx, tx, user, scope, policy); e != nil {
 		return result, e
+	}
+	if assistant != nil && assistant.Knowledge {
+		if e = recheck(); e != nil {
+			return result, e
+		}
 	}
 	commitStarted = true
 	if tx.Commit() != nil {
@@ -446,7 +482,8 @@ func (s OracleSessions) listAIHistoryOperation(ctx context.Context, user int64, 
 			err = errSessionStore
 		}
 	}()
-	if _, e = readConversationRow(ctx, tx, user, id, policy, false); e != nil {
+	record, e := readConversationRow(ctx, tx, user, id, policy, false)
+	if e != nil {
 		return nil, e
 	}
 	order := "ASC"
@@ -485,6 +522,24 @@ func (s OracleSessions) listAIHistoryOperation(ctx context.Context, user int64, 
 	}
 	if rows.Close() != nil {
 		return nil, errSessionStore
+	}
+	if record.Purpose == "knowledge" {
+		for i := range items {
+			if items[i].Role == "tool" {
+				return nil, errSessionStore
+			}
+			if items[i].Role != "assistant" {
+				continue
+			}
+			message, e := restoreKnowledgeMessage(ctx, items[i].Content, func(ctx context.Context, refs []knowledgeCandidate) ([]knowledgeSource, error) {
+				return hydrateKnowledge(ctx, oracleKnowledgeReader{tx}, user, refs)
+			})
+			if e != nil || message.Answer == nil {
+				return nil, errSessionStore
+			}
+			items[i].Content = *message.Answer
+			items[i].Citations = message.Sources
+		}
 	}
 	if newest {
 		for left, right := 0, len(items)-1; left < right; left, right = left+1, right-1 {

@@ -12,20 +12,81 @@ import (
 
 type conversationDB struct {
 	driverState
-	mode            string
-	permissionCalls int
-	owner           int64
-	id              string
-	purpose         string
-	group           driver.Value
-	title           driver.Value
-	calls           []listQueryCall
-	messages        int64
-	messageContent  string
-	messageRole     string
-	messageModel    driver.Value
-	messageRevision driver.Value
+	mode             string
+	permissionCalls  int
+	owner            int64
+	id               string
+	purpose          string
+	group            driver.Value
+	title            driver.Value
+	calls            []listQueryCall
+	messages         int64
+	messageContent   string
+	messageRole      string
+	messageModel     driver.Value
+	messageRevision  driver.Value
+	knowledgeQueries int
 }
+
+func TestKnowledgeAssistantStorageRevalidatesAndRejectsUnsafeWrite(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	ref := knowledgeCandidate{Kind: "post", ID: 11, Version: knowledgeSourceVersion("post", 11, 11, "public")}
+	for _, mode := range []string{"ok", "source-revoked", "unsafe"} {
+		t.Run(mode, func(t *testing.T) {
+			state := &conversationDB{mode: mode, owner: 42, id: id, purpose: "knowledge", messages: 1}
+			db := sql.OpenDB(conversationConnector{state})
+			defer db.Close()
+			input := assistantMessageInput{Content: "answer", ExpectedSequence: 1, ModelID: "profile-a", ConfigRevision: 12}
+			var err error
+			if mode == "unsafe" {
+				_, err = (OracleSessions{db}).appendAIAssistantMessageOperation(context.Background(), 42, id, input, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			} else {
+				_, err = (OracleSessions{db}).appendAIKnowledgeAssistantOperation(context.Background(), 42, id, input, []knowledgeCandidate{ref}, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			}
+			if mode == "ok" {
+				if err != nil || state.knowledgeQueries != 2 || !strings.Contains(state.messageContent, `"sources"`) {
+					t.Fatal(err, state)
+				}
+			} else if err == nil || state.rollbacks != 1 {
+				t.Fatal(err, state)
+			}
+		})
+	}
+}
+
+func TestKnowledgeHistoryRevalidatesBeforeReturning(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	ref := knowledgeCandidate{Kind: "post", ID: 11, Version: knowledgeSourceVersion("post", 11, 11, "public")}
+	encoded, err := encodeKnowledgeMessage("answer", []knowledgeCandidate{ref})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"ok", "source-revoked", "legacy", "tool"} {
+		t.Run(mode, func(t *testing.T) {
+			state := &conversationDB{mode: mode, owner: 42, id: id, purpose: "knowledge", messageContent: encoded, messageRole: "assistant"}
+			if mode == "source-revoked" {
+				state.knowledgeQueries = 1
+			}
+			if mode == "legacy" {
+				state.messageContent = "unreferenced"
+			}
+			if mode == "tool" {
+				state.messageRole = "tool"
+			}
+			db := sql.OpenDB(conversationConnector{state})
+			defer db.Close()
+			items, err := (OracleSessions{db}).listAIConversationMessagesOperation(context.Background(), 42, id, 1, 10, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			if mode == "ok" {
+				if err != nil || len(items) != 1 || items[0].Content != "answer" || len(items[0].Citations) != 1 || items[0].Citations[0] != ref {
+					t.Fatal(items, err)
+				}
+			} else if err == nil || len(items) != 0 {
+				t.Fatal(items, err)
+			}
+		})
+	}
+}
+
 type conversationConnector struct{ state *conversationDB }
 type conversationConn struct {
 	*testConn
@@ -169,6 +230,13 @@ func TestAppendAssistantMessageChecksVersionAndCurrentSequence(t *testing.T) {
 }
 func (c *conversationConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	c.state.calls = append(c.state.calls, listQueryCall{query, append([]driver.NamedValue(nil), args...)})
+	if strings.Contains(query, "FROM n_posts p") {
+		c.state.knowledgeQueries++
+		if c.state.mode == "source-revoked" && c.state.knowledgeQueries > 1 {
+			return emptyRows{&c.state.driverState}, nil
+		}
+		return &alertRows{values: []driver.Value{int64(11), int64(11), "public"}}, nil
+	}
 	if strings.Contains(query, "FROM n_ai_conversations c WHERE") {
 		if !strings.Contains(query, "c.owner_user_id=:owner_user_id") || !strings.Contains(query, "fn_has_group_permission") || !strings.Contains(query, "ORDER BY c.conversation_id ASC") {
 			return nil, errors.New("unsafe list query")
@@ -219,6 +287,9 @@ func (c *conversationConn) QueryContext(_ context.Context, query string, args []
 			return emptyRows{&c.state.driverState}, nil
 		}
 		stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		if c.state.purpose == "knowledge" && c.state.messageRole != "" {
+			return &alertRows{values: []driver.Value{"a0f0f322-b5a7-4a4a-b843-3d0ea0d244dd", c.state.id, int64(2), c.state.messageRole, c.state.messageContent, nil, nil, nil, stamp}}, nil
+		}
 		return &alertRows{values: []driver.Value{"a0f0f322-b5a7-4a4a-b843-3d0ea0d244dd", c.state.id, int64(2), "user", "第二条", nil, nil, nil, stamp}}, nil
 	}
 	if strings.Contains(query, "FROM n_ai_conversations") {

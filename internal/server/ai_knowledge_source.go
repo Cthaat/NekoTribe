@@ -87,7 +87,10 @@ func hydrateKnowledge(ctx context.Context, reader knowledgeReader, viewer int64,
 const knowledgePostSQL = `SELECT p.post_id AS source_id,p.post_id AS post_id,p.content AS content FROM n_posts p WHERE p.post_id=:source_id AND p.visibility='public' AND p.is_deleted=0 AND DBMS_LOB.GETLENGTH(p.content) BETWEEN 1 AND 65536 AND fn_can_view_post(:viewer_id,p.post_id)=1`
 const knowledgeCommentSQL = `SELECT c.comment_id AS source_id,p.post_id AS post_id,c.content AS content FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id WHERE c.comment_id=:source_id AND c.is_deleted=0 AND DBMS_LOB.GETLENGTH(c.content) BETWEEN 1 AND 65536 AND p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1`
 
-type oracleKnowledgeReader struct{ conn *sql.Conn }
+type knowledgeQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+type oracleKnowledgeReader struct{ conn knowledgeQueryer }
 
 func (r oracleKnowledgeReader) get(ctx context.Context, viewer int64, c knowledgeCandidate) (knowledgeSource, bool, error) {
 	query := knowledgePostSQL
