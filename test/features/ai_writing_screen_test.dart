@@ -29,8 +29,24 @@ class FakeWritingApi extends AiWritingApi {
   bool failFirst = false;
   bool ambiguousAppend = false;
   bool failDelete = false;
+  bool hasHistory = false;
   @override
   Future<String> createConversation() async => 'id';
+  @override
+  Future<AiConversationPage> listConversations({String? afterId}) async =>
+      AiConversationPage(
+        items: hasHistory
+            ? [
+                const AiConversation(
+                  id: 'id',
+                  purpose: 'writing',
+                  title: 'previous draft',
+                  updatedAt: '2026-01-01',
+                ),
+              ]
+            : [],
+        nextCursor: null,
+      );
   @override
   Future<void> deleteConversation(String id) async {
     deletions++;
@@ -174,5 +190,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('草稿'), findsOneWidget);
     expect(find.text('删除未确认，请刷新会话状态或稍后重试。'), findsOneWidget);
+  });
+
+  testWidgets('restores an existing conversation and reads its messages', (
+    tester,
+  ) async {
+    final api = FakeWritingApi()..hasHistory = true;
+    api.messages.add(
+      const AiWritingMessage(
+        id: 'a',
+        sequence: 1,
+        role: 'assistant',
+        content: 'old draft',
+      ),
+    );
+    await pumpScreen(tester, api);
+    await tester.tap(find.byKey(const Key('ai-writing-history')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('previous draft'));
+    await tester.pumpAndSettle();
+    expect(find.text('old draft'), findsOneWidget);
   });
 }

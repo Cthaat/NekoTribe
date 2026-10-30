@@ -2,6 +2,44 @@ import '../../../core/constants/api_paths.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/json_utils.dart';
 
+class AiConversation {
+  const AiConversation({
+    required this.id,
+    required this.purpose,
+    required this.title,
+    required this.updatedAt,
+  });
+  final String id;
+  final String purpose;
+  final String? title;
+  final String updatedAt;
+  factory AiConversation.fromJson(Map<String, dynamic> data) {
+    final id = data['conversation_id'],
+        purpose = data['purpose'],
+        title = data['title'],
+        updated = data['updated_at'];
+    if (id is! String ||
+        id.isEmpty ||
+        purpose is! String ||
+        (title != null && title is! String) ||
+        updated is! String) {
+      throw const FormatException('Invalid AI conversation');
+    }
+    return AiConversation(
+      id: id,
+      purpose: purpose,
+      title: title as String?,
+      updatedAt: updated,
+    );
+  }
+}
+
+class AiConversationPage {
+  const AiConversationPage({required this.items, required this.nextCursor});
+  final List<AiConversation> items;
+  final String? nextCursor;
+}
+
 class AiWritingMessage {
   const AiWritingMessage({
     required this.id,
@@ -40,6 +78,27 @@ class AiWritingMessage {
 class AiWritingApi {
   AiWritingApi(this._client);
   final ApiClient _client;
+
+  Future<AiConversationPage> listConversations({String? afterId}) =>
+      _client.requestData<AiConversationPage>(
+        ApiPaths.aiConversations,
+        query: {'limit': 50, if (afterId != null) 'after_id': afterId},
+        decode: (raw) {
+          final data = toMap(raw),
+              items = data['items'],
+              next = data['next_cursor'];
+          if (items is! List ||
+              (next != null && (next is! String || next.isEmpty))) {
+            throw const FormatException('Invalid AI conversation page');
+          }
+          return AiConversationPage(
+            items: items
+                .map((item) => AiConversation.fromJson(toMap(item)))
+                .toList(),
+            nextCursor: next as String?,
+          );
+        },
+      );
 
   Future<String> createConversation() => _client.requestData<String>(
     ApiPaths.aiConversations,

@@ -20,6 +20,13 @@ void main() {
   test('AI writing uses the shared conversation contract', () async {
     final recorder = _ApiRecorder();
     final api = AiWritingApi(_client(recorder));
+    final page = await api.listConversations();
+    recorder.expectLast(
+      method: 'GET',
+      path: '/api/v2/ai/conversations',
+      query: {'limit': 50},
+    );
+    expect(page.items.single.title, 'previous draft');
     final conversation = await api.createConversation();
     expect(conversation, 'f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb');
     recorder.expectLast(
@@ -985,6 +992,19 @@ class _ApiRecorder implements HttpClientAdapter {
   dynamic _dataFor(RequestOptions options) {
     final path = options.path;
     if (path == '/api/v2/ai/conversations') {
+      if (options.method == 'GET') {
+        return {
+          'items': [
+            {
+              'conversation_id': 'f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb',
+              'purpose': 'writing',
+              'title': 'previous draft',
+              'updated_at': '2026-01-01',
+            },
+          ],
+          'next_cursor': null,
+        };
+      }
       return {'conversation_id': 'f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb'};
     }
     if (path.startsWith('/api/v2/ai/conversations/') &&

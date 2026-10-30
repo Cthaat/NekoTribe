@@ -30,6 +30,15 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
   Future<void> _refresh() async {
     final id = _conversation;
     if (id == null) return;
+    final result = await _readHistory(id);
+    if (!mounted) return;
+    setState(() {
+      _messages = result;
+      _needsRefresh = false;
+    });
+  }
+
+  Future<List<AiWritingMessage>> _readHistory(String id) async {
     final api = ref.read(aiWritingApiProvider);
     final result = <AiWritingMessage>[];
     var after = 0;
@@ -44,11 +53,34 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       }
       if (page.length < 50) break;
     }
-    if (!mounted) return;
+    return result;
+  }
+
+  Future<void> _openHistory() async {
+    if (_busy) return;
+    final id = await showDialog<String>(
+      context: context,
+      builder: (_) => _HistoryDialog(api: ref.read(aiWritingApiProvider)),
+    );
+    if (!mounted || id == null) return;
     setState(() {
-      _messages = result;
-      _needsRefresh = false;
+      _busy = true;
+      _notice = null;
     });
+    try {
+      final messages = await _readHistory(id);
+      if (!mounted) return;
+      _input.clear();
+      setState(() {
+        _conversation = id;
+        _messages = messages;
+        _needsRefresh = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _notice = 'ai.writing.history_failed');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _send() async {
@@ -180,6 +212,29 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       appBar: AppBar(
         title: Text(l10n.t('ai.writing.title')),
         actions: [
+          IconButton(
+            key: const Key('ai-writing-history'),
+            tooltip: l10n.t('ai.writing.history'),
+            onPressed: _busy ? null : _openHistory,
+            icon: const Icon(Icons.history),
+          ),
+          if (_conversation != null)
+            IconButton(
+              key: const Key('ai-writing-new'),
+              tooltip: l10n.t('ai.writing.new'),
+              onPressed: _busy
+                  ? null
+                  : () {
+                      _input.clear();
+                      setState(() {
+                        _conversation = null;
+                        _messages = [];
+                        _needsRefresh = false;
+                        _notice = null;
+                      });
+                    },
+              icon: const Icon(Icons.add_comment_outlined),
+            ),
           if (_conversation != null)
             IconButton(
               key: const Key('ai-writing-delete'),
@@ -285,6 +340,104 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _HistoryDialog extends StatefulWidget {
+  const _HistoryDialog({required this.api});
+  final AiWritingApi api;
+  @override
+  State<_HistoryDialog> createState() => _HistoryDialogState();
+}
+
+class _HistoryDialogState extends State<_HistoryDialog> {
+  final _items = <AiConversation>[];
+  String? _next;
+  bool _loading = false;
+  bool _first = true;
+  bool _failed = false;
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    try {
+      final page = await widget.api.listConversations(
+        afterId: _first ? null : _next,
+      );
+      if (!mounted) return;
+      if (page.nextCursor != null &&
+          _next != null &&
+          page.nextCursor!.compareTo(_next!) <= 0) {
+        throw const FormatException('Invalid AI cursor');
+      }
+      setState(() {
+        _items.addAll(page.items.where((item) => item.purpose == 'writing'));
+        _next = page.nextCursor;
+        _first = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l10n.t('ai.writing.history')),
+      content: SizedBox(
+        width: 500,
+        height: MediaQuery.sizeOf(context).height * 0.5,
+        child: Column(
+          children: [
+            Expanded(
+              child: _items.isEmpty && !_loading && !_failed
+                  ? Center(child: Text(l10n.t('ai.writing.history_empty')))
+                  : ListView.builder(
+                      itemCount: _items.length,
+                      itemBuilder: (context, index) {
+                        final item = _items[index];
+                        return ListTile(
+                          title: Text(
+                            item.title?.isNotEmpty == true
+                                ? item.title!
+                                : item.id,
+                          ),
+                          subtitle: Text(item.updatedAt),
+                          onTap: () => Navigator.pop(context, item.id),
+                        );
+                      },
+                    ),
+            ),
+            if (_loading) const CircularProgressIndicator(),
+            if (_failed) Text(l10n.t('ai.writing.history_failed')),
+            if (!_loading && (_failed || _next != null))
+              TextButton(
+                onPressed: _load,
+                child: Text(
+                  l10n.t(_failed ? 'ai.writing.retry' : 'ai.writing.more'),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.t('ai.writing.cancel')),
+        ),
+      ],
     );
   }
 }

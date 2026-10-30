@@ -51,12 +51,17 @@ class AppLocalizations {
   static const Map<String, Map<String, String>> _strings = {
     'zh': {
       'ai.writing.title': 'AI 写作助手',
+      'ai.writing.history': '历史会话',
+      'ai.writing.new': '新建会话',
+      'ai.writing.history_empty': '暂无写作会话',
+      'ai.writing.history_failed': '历史会话读取失败，请重试。',
+      'ai.writing.more': '加载更多',
       'ai.writing.delete': '删除会话',
       'ai.writing.delete_title': '删除此会话？',
       'ai.writing.delete_prompt': '会话及其消息将被删除，且无法从这里恢复。',
       'ai.writing.delete_unknown': '删除未确认，请刷新会话状态或稍后重试。',
       'ai.writing.cancel': '取消',
-      'ai.writing.description': '生成的内容仅供审阅，不会自动发布。当前页面关闭后暂不能恢复会话。',
+      'ai.writing.description': '生成的内容仅供审阅，不会自动发布。',
       'ai.writing.empty': '输入写作需求，开始生成草稿',
       'ai.writing.placeholder': '描述你想写的内容',
       'ai.writing.send': '发送',
@@ -618,6 +623,12 @@ class AppLocalizations {
     },
     'en': {
       'ai.writing.title': 'AI writing assistant',
+      'ai.writing.history': 'Conversation history',
+      'ai.writing.new': 'New conversation',
+      'ai.writing.history_empty': 'No writing conversations yet',
+      'ai.writing.history_failed':
+          'Could not load conversation history. Please retry.',
+      'ai.writing.more': 'Load more',
       'ai.writing.delete': 'Delete conversation',
       'ai.writing.delete_title': 'Delete this conversation?',
       'ai.writing.delete_prompt':
@@ -626,7 +637,7 @@ class AppLocalizations {
           'Deletion was not confirmed. Refresh the conversation or try again later.',
       'ai.writing.cancel': 'Cancel',
       'ai.writing.description':
-          'Drafts are for review and are never published automatically. This page cannot yet restore a conversation after it is closed.',
+          'Drafts are for review and are never published automatically.',
       'ai.writing.empty': 'Describe what you want to write',
       'ai.writing.placeholder': 'Describe your writing request',
       'ai.writing.send': 'Send',
