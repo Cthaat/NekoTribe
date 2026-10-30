@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -40,5 +41,29 @@ func TestKnowledgeHistoryRejectsInvalidAndOversize(t *testing.T) {
 	_, err := restoreKnowledgeMessage(context.Background(), `{"version":1,"answer":"x","sources":[]}`, func(context.Context, []knowledgeCandidate) ([]knowledgeSource, error) { called = true; return nil, nil })
 	if !errors.Is(err, errKnowledgeHistory) || called {
 		t.Fatal(err, called)
+	}
+}
+func TestKnowledgeHistoryReturnsAuthorizedParentForComments(t *testing.T) {
+	ref := knowledgeCandidate{Kind: "comment", ID: 23, Version: strings.Repeat("b", 64)}
+	encoded, err := encodeKnowledgeMessage("回答", []knowledgeCandidate{ref})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := func(_ context.Context, _ []knowledgeCandidate) ([]knowledgeSource, error) {
+		return []knowledgeSource{{Kind: "comment", ID: 23, PostID: 99, Content: "private internal", Version: ref.Version}}, nil
+	}
+	result, err := restoreKnowledgeMessage(context.Background(), encoded, reader)
+	if err != nil || len(result.Citations) != 1 || result.Citations[0].PostID != 99 || result.Citations[0].ID != 23 {
+		t.Fatal(result, err)
+	}
+	raw, err := json.Marshal(result.Citations)
+	if err != nil || strings.Contains(string(raw), "private internal") {
+		t.Fatal(string(raw), err)
+	}
+	_, err = restoreKnowledgeMessage(context.Background(), encoded, func(context.Context, []knowledgeCandidate) ([]knowledgeSource, error) {
+		return []knowledgeSource{{Kind: "comment", ID: 23, PostID: 0, Content: "x", Version: ref.Version}}, nil
+	})
+	if !errors.Is(err, errKnowledgeSourceChanged) {
+		t.Fatal(err)
 	}
 }

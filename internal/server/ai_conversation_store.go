@@ -50,16 +50,16 @@ type conversationMessage struct {
 	Role           string `json:"role"`
 }
 type conversationHistoryMessage struct {
-	ID             string               `json:"message_id"`
-	ConversationID string               `json:"conversation_id"`
-	SequenceNo     int64                `json:"sequence_no"`
-	Role           string               `json:"role"`
-	Content        string               `json:"content"`
-	ModelID        *string              `json:"model_id"`
-	ModelVersion   *string              `json:"model_version"`
-	ConfigRevision *int64               `json:"config_revision"`
-	CreatedAt      string               `json:"created_at"`
-	Citations      []knowledgeCandidate `json:"citations,omitempty"`
+	ID             string              `json:"message_id"`
+	ConversationID string              `json:"conversation_id"`
+	SequenceNo     int64               `json:"sequence_no"`
+	Role           string              `json:"role"`
+	Content        string              `json:"content"`
+	ModelID        *string             `json:"model_id"`
+	ModelVersion   *string             `json:"model_version"`
+	ConfigRevision *int64              `json:"config_revision"`
+	CreatedAt      string              `json:"created_at"`
+	Citations      []knowledgeCitation `json:"citations,omitempty"`
 }
 type moderationPolicy struct {
 	AllowAll bool
@@ -538,7 +538,7 @@ func (s OracleSessions) listAIHistoryOperation(ctx context.Context, user int64, 
 				return nil, errSessionStore
 			}
 			items[i].Content = *message.Answer
-			items[i].Citations = message.Sources
+			items[i].Citations = message.Citations
 		}
 	}
 	if newest {

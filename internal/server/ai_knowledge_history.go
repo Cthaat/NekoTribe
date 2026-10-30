@@ -36,58 +36,82 @@ func encodeKnowledgeMessage(answer string, sources []knowledgeCandidate) (string
 	}
 	return encoded, nil
 }
-func restoreKnowledgeMessage(ctx context.Context, encoded string, hydrate func(context.Context, []knowledgeCandidate) ([]knowledgeSource, error)) (knowledgeTurnResult, error) {
+
+type knowledgeCitation struct {
+	Kind    string `json:"kind"`
+	ID      int64  `json:"id"`
+	Version string `json:"version"`
+	PostID  int64  `json:"post_id"`
+}
+type knowledgeRestored struct {
+	knowledgeTurnResult
+	Citations []knowledgeCitation
+}
+
+func restoreKnowledgeMessage(ctx context.Context, encoded string, hydrate func(context.Context, []knowledgeCandidate) ([]knowledgeSource, error)) (knowledgeRestored, error) {
 	if len(encoded) > 65536 {
-		return knowledgeTurnResult{}, errKnowledgeHistory
+		return knowledgeRestored{}, errKnowledgeHistory
 	}
 	value, ok := ai.DecodeScalarJSON([]byte(encoded), 4)
 	if !ok {
-		return knowledgeTurnResult{}, errKnowledgeHistory
+		return knowledgeRestored{}, errKnowledgeHistory
 	}
 	body, ok := value.(map[string]any)
 	if !ok || len(body) != 3 || body["version"] != float64(1) {
-		return knowledgeTurnResult{}, errKnowledgeHistory
+		return knowledgeRestored{}, errKnowledgeHistory
 	}
 	answer, ok := body["answer"].(string)
 	if !ok {
-		return knowledgeTurnResult{}, errKnowledgeHistory
+		return knowledgeRestored{}, errKnowledgeHistory
 	}
 	raw, ok := body["sources"].([]any)
 	if !ok || len(raw) == 0 || len(raw) > 20 {
-		return knowledgeTurnResult{}, errKnowledgeHistory
+		return knowledgeRestored{}, errKnowledgeHistory
 	}
 	packed, err := json.Marshal(map[string]any{"answer": answer, "citations": raw})
 	if err != nil {
-		return knowledgeTurnResult{}, errKnowledgeHistory
+		return knowledgeRestored{}, errKnowledgeHistory
 	}
 	// Validate exact citation shape and scalar IDs before accepting stored references.
 	var candidates []knowledgeCandidate
 	for _, item := range raw {
 		object, valid := item.(map[string]any)
 		if !valid || len(object) != 3 {
-			return knowledgeTurnResult{}, errKnowledgeHistory
+			return knowledgeRestored{}, errKnowledgeHistory
 		}
 		kind, kindOK := object["kind"].(string)
 		version, versionOK := object["version"].(string)
 		id, idOK := object["id"].(float64)
 		if !kindOK || !versionOK || !idOK || id < 1 || id > float64(knowledgeMaxID) || math.Trunc(id) != id {
-			return knowledgeTurnResult{}, errKnowledgeHistory
+			return knowledgeRestored{}, errKnowledgeHistory
 		}
 		candidates = append(candidates, knowledgeCandidate{Kind: kind, ID: int64(id), Version: version})
 	}
 	if validateKnowledgeCandidates(1, candidates) != nil {
-		return knowledgeTurnResult{}, errKnowledgeHistory
+		return knowledgeRestored{}, errKnowledgeHistory
 	}
 	message, err := parseKnowledgeAnswer(string(packed), candidates)
 	if err != nil {
-		return knowledgeTurnResult{}, errKnowledgeHistory
+		return knowledgeRestored{}, errKnowledgeHistory
 	}
 	rows, err := hydrate(ctx, append([]knowledgeCandidate(nil), message.Sources...))
 	if err != nil {
-		return knowledgeTurnResult{}, err
+		return knowledgeRestored{}, err
 	}
 	if len(rows) != len(message.Sources) || checkKnowledgeRows(message.Sources, rows) != nil {
-		return knowledgeTurnResult{}, errKnowledgeSourceChanged
+		return knowledgeRestored{}, errKnowledgeSourceChanged
 	}
-	return message, nil
+	byKey := make(map[string]knowledgeSource, len(rows))
+	for _, row := range rows {
+		if !validKnowledgeID(row.PostID) || (row.Kind == "post" && row.PostID != row.ID) {
+			return knowledgeRestored{}, errKnowledgeSourceChanged
+		}
+		byKey[knowledgeKey(row.Kind, row.ID)] = row
+	}
+	citations := make([]knowledgeCitation, 0, len(message.Sources))
+	for _, ref := range message.Sources {
+		row := byKey[knowledgeKey(ref.Kind, ref.ID)]
+		citations = append(citations, knowledgeCitation{Kind: ref.Kind, ID: ref.ID, Version: ref.Version, PostID: row.PostID})
+	}
+	return knowledgeRestored{knowledgeTurnResult: message, Citations: citations}, nil
 }

@@ -77,7 +77,7 @@ func TestKnowledgeHistoryRevalidatesBeforeReturning(t *testing.T) {
 			defer db.Close()
 			items, err := (OracleSessions{db}).listAIConversationMessagesOperation(context.Background(), 42, id, 1, 10, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
 			if mode == "ok" {
-				if err != nil || len(items) != 1 || items[0].Content != "answer" || len(items[0].Citations) != 1 || items[0].Citations[0] != ref {
+				if err != nil || len(items) != 1 || items[0].Content != "answer" || len(items[0].Citations) != 1 || items[0].Citations[0] != (knowledgeCitation{Kind: ref.Kind, ID: ref.ID, Version: ref.Version, PostID: ref.ID}) {
 					t.Fatal(items, err)
 				}
 			} else if err == nil || len(items) != 0 {
