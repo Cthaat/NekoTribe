@@ -112,7 +112,7 @@ pub fn source_version(kind: &str, id: i64, post_id: i64, content: &str) -> Strin
 fn valid_id(id: i64) -> bool {
     (1..=MAX_ID).contains(&id)
 }
-fn validate(viewer: i64, candidates: &[Candidate]) -> Result<(), Error> {
+pub(crate) fn validate(viewer: i64, candidates: &[Candidate]) -> Result<(), Error> {
     if !(1..=MAX_USER).contains(&viewer) || candidates.len() > 20 {
         return Err(Error::Invalid);
     }
