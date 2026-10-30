@@ -77,6 +77,8 @@ pub enum AiOperation {
     Read(String),
     Append { id: String, content: String },
     List { id: String, after: i64, limit: i64 },
+    Recent(String),
+    Assistant { id: String, input: AssistantInput },
 }
 pub fn execute_operation(
     connection: &oracle::Connection,
@@ -96,6 +98,12 @@ pub fn execute_operation(
         AiOperation::List { id, after, limit } => {
             serde_json::to_value(list_messages(connection, user, &id, after, limit, policy)?)
         }
+        AiOperation::Recent(id) => {
+            serde_json::to_value(recent_messages(connection, user, &id, policy)?)
+        }
+        AiOperation::Assistant { id, input } => serde_json::to_value(append_assistant_message(
+            connection, user, &id, &input, policy,
+        )?),
     }
     .map_err(|_| Error::Store)
 }
@@ -167,6 +175,7 @@ trait HistoryTransaction: Transaction {
         id: &str,
         after: i64,
         limit: i64,
+        newest: bool,
     ) -> Result<Vec<HistoryMessage>, Error>;
 }
 fn run_history(
@@ -175,6 +184,25 @@ fn run_history(
     id: &str,
     after: i64,
     limit: i64,
+    policy: &ModerationPolicy,
+) -> Result<Vec<HistoryMessage>, Error> {
+    run_history_ordered(tx, user, id, after, limit, false, policy)
+}
+fn run_recent_history(
+    tx: &impl HistoryTransaction,
+    user: i64,
+    id: &str,
+    policy: &ModerationPolicy,
+) -> Result<Vec<HistoryMessage>, Error> {
+    run_history_ordered(tx, user, id, 0, 50, true, policy)
+}
+fn run_history_ordered(
+    tx: &impl HistoryTransaction,
+    user: i64,
+    id: &str,
+    after: i64,
+    limit: i64,
+    newest: bool,
     policy: &ModerationPolicy,
 ) -> Result<Vec<HistoryMessage>, Error> {
     if !(1..=MAX_SAFE_ID).contains(&user)
@@ -199,7 +227,10 @@ fn run_history(
     };
     let result = (|| {
         check_access()?;
-        let messages = tx.messages(user, id, after, limit)?;
+        let mut messages = tx.messages(user, id, after, limit, newest)?;
+        if newest {
+            messages.reverse();
+        }
         check_access()?;
         Ok(messages)
     })();
@@ -530,6 +561,7 @@ impl HistoryTransaction for OracleConversation<'_> {
         id: &str,
         after: i64,
         limit: i64,
+        newest: bool,
     ) -> Result<Vec<HistoryMessage>, Error> {
         let values = bind_values(BindMap::from([
             ("conversation_id".into(), DbValue::String(id.into())),
@@ -537,7 +569,12 @@ impl HistoryTransaction for OracleConversation<'_> {
             ("after_sequence".into(), DbValue::I64(after)),
             ("row_limit".into(), DbValue::I64(limit)),
         ]));
-        let rows = self.0.query_named("SELECT m.message_id,m.conversation_id,m.sequence_no,m.role,m.content,m.model_id,m.model_version,m.config_revision,m.created_at FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no>:after_sequence ORDER BY m.sequence_no ASC FETCH FIRST :row_limit ROWS ONLY", &bind_refs(&values)).map_err(|_| Error::Store)?;
+        let order = if newest { "DESC" } else { "ASC" };
+        let query = format!("SELECT m.message_id,m.conversation_id,m.sequence_no,m.role,m.content,m.model_id,m.model_version,m.config_revision,m.created_at FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no>:after_sequence ORDER BY m.sequence_no {order} FETCH FIRST :row_limit ROWS ONLY");
+        let rows = self
+            .0
+            .query_named(&query, &bind_refs(&values))
+            .map_err(|_| Error::Store)?;
         rows.map(|row| {
             let row =
                 oracle_row_to_db_row(&row.map_err(|_| Error::Store)?).map_err(|_| Error::Store)?;
@@ -625,6 +662,15 @@ pub fn list_messages(
         policy,
     )
 }
+/// Internal history window for model inference, returned in chronological order.
+pub fn recent_messages(
+    connection: &oracle::Connection,
+    user: i64,
+    id: &str,
+    policy: &ModerationPolicy,
+) -> Result<Vec<HistoryMessage>, Error> {
+    run_recent_history(&OracleConversation(connection), user, id, policy)
+}
 
 #[cfg(test)]
 mod tests {
@@ -710,8 +756,26 @@ mod tests {
             id: &str,
             after: i64,
             limit: i64,
+            newest: bool,
         ) -> Result<Vec<HistoryMessage>, Error> {
             self.events.borrow_mut().push("messages");
+            if newest {
+                assert_eq!((after, limit), (0, 50));
+                return Ok([52, 51]
+                    .into_iter()
+                    .map(|sequence_no| HistoryMessage {
+                        message_id: "message".into(),
+                        conversation_id: id.into(),
+                        sequence_no,
+                        role: "user".into(),
+                        content: "text".into(),
+                        model_id: None,
+                        model_version: None,
+                        config_revision: None,
+                        created_at: String::new(),
+                    })
+                    .collect());
+            }
             assert_eq!((after, limit), (1, 10));
             Ok(vec![HistoryMessage {
                 message_id: "message".into(),
@@ -725,6 +789,44 @@ mod tests {
                 created_at: String::new(),
             }])
         }
+    }
+    #[test]
+    fn recent_history_selects_latest_messages_and_keeps_chronological_order() {
+        let tx = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: false,
+        };
+        let messages = run_recent_history(
+            &tx,
+            1,
+            "af9da41c-7296-4f51-91f4-141f5c6e3c01",
+            &ModerationPolicy::new("", ""),
+        )
+        .unwrap();
+        assert_eq!(
+            messages.iter().map(|m| m.sequence_no).collect::<Vec<_>>(),
+            vec![51, 52]
+        );
+        assert_eq!(tx.events.borrow().last(), Some(&"commit"));
+    }
+    #[test]
+    fn recent_history_does_not_return_messages_after_permission_revocation() {
+        let tx = Fake {
+            events: RefCell::new(vec![]),
+            checks: Cell::new(0),
+            revoked: true,
+        };
+        assert_eq!(
+            run_recent_history(
+                &tx,
+                1,
+                "af9da41c-7296-4f51-91f4-141f5c6e3c01",
+                &ModerationPolicy::new("", ""),
+            ),
+            Err(Error::Forbidden)
+        );
+        assert_eq!(tx.events.borrow().last(), Some(&"rollback"));
     }
     #[test]
     fn history_rechecks_group_permission_before_returning_messages() {
