@@ -9,7 +9,7 @@ const stubs={
  '~/server/utils/v2':`export const v2Auth=e=>{if(!e.user)throw Error('401')};export const v2Connection=async e=>e.open();export const v2ServerError=()=>{throw Error('500')};`,
  './knowledge-source':`export async function discoverKnowledgeSources(e,c,q,l){e.events.push('discover');return e.sources};export async function hydrateKnowledgeSources(e,c,input){e.events.push('hydrate');return e.sources};`,
  './model-configuration.ts':`export class AiModelRouter {constructor(){} select(role){if(role!=='knowledge')throw Error('wrong role');return {configurationRevision:1,profileId:'test',contextWindowTokens:8192,maxOutputTokens:512}}}`,
- './inference-transport.ts':`export class AiInferenceTransport {async infer(s,input){globalThis.__knowledgeEvents.push('infer');globalThis.__knowledgeInput=input;globalThis.__knowledgeOnInfer?.();return {text:'answer',toolCalls:[],finishReason:'stop'}}}`
+ './inference-transport.ts':`export class AiInferenceTransport {async infer(s,input){globalThis.__knowledgeEvents.push('infer');globalThis.__knowledgeInput=input;globalThis.__knowledgeOnInfer?.();return {text:globalThis.__knowledgeOutput??JSON.stringify({answer:'answer',citations:[{kind:'post',id:1,version:'a'.repeat(64)}]}),toolCalls:[],finishReason:'stop'}}}`
 };
 const built=await build({stdin:{contents:`export * from './server/services/ai/knowledge-service.ts'`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'service-stubs',setup(b){b.onResolve({filter:/.*/},a=>{if(Object.hasOwn(stubs,a.path))return {path:a.path,namespace:'stub'}});b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js'}))}}]});
 const {generateKnowledgeReply}=await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`);
@@ -34,4 +34,8 @@ test('does not deliver a model reply when its source becomes inaccessible during
  const e=event();globalThis.__knowledgeOnInfer=()=>{e.sources=[]};
  try {await assert.rejects(()=>generateKnowledgeReply(e,'猫','{}'),/SOURCE_CHANGED/);} finally {delete globalThis.__knowledgeOnInfer;}
  assert.deepEqual(e.events,['open','discover','close','open','hydrate','close','infer','open','hydrate','close']);
+});
+test('does not deliver invented citations',async()=>{
+ const e=event();globalThis.__knowledgeOutput=JSON.stringify({answer:'invented',citations:[{kind:'post',id:999,version:'a'.repeat(64)}]});
+ try {await assert.rejects(()=>generateKnowledgeReply(e,'猫','{}'),/INVALID_CITATIONS/);} finally {delete globalThis.__knowledgeOutput;}
 });

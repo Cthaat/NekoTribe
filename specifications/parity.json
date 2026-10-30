@@ -1007,7 +1007,11 @@
       },
       {
         "path": "server/services/ai/knowledge-service.ts",
-        "sha256": "2e25732ea9cca5b7d7531051d290e37c1203fc8e57d96e6dc2b5aafaa4690c8e"
+        "sha256": "beec3532f9ec1c4307afb1e704a96263801d23c41168f30f3af7340d45e51f69"
+      },
+      {
+        "path": "server/services/ai/knowledge-citations.ts",
+        "sha256": "6fc0ba8b7b36056b61158794de2bc931730112253c5e67925207772604de03d7"
       },
       {
         "path": "server/services/ai/knowledge-turn.ts",
@@ -9006,7 +9010,8 @@
         "server/api/v2/ai/conversations/index.get.ts",
         "server/services/ai/knowledge-source.ts",
         "server/services/ai/knowledge-turn.ts",
-        "server/services/ai/knowledge-service.ts"
+        "server/services/ai/knowledge-service.ts",
+        "server/services/ai/knowledge-citations.ts"
       ],
       "operations": [
         "POST /api/v2/ai/conversations",
@@ -9063,7 +9068,9 @@
             "server/services/ai/knowledge-turn.ts",
             "tests/ai-knowledge-turn.test.mjs",
             "server/services/ai/knowledge-service.ts",
-            "tests/ai-knowledge-service.test.mjs"
+            "tests/ai-knowledge-service.test.mjs",
+            "server/services/ai/knowledge-citations.ts",
+            "tests/ai-knowledge-citations.test.mjs"
           ],
           "evidence": []
         },
@@ -11581,7 +11588,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-knowledge-turn.md",
-        "sha256": "d97c6a9b85a54e0d7edebd8fd5e754f4a62e8ae546ba69963b627329ea0dfc3e"
+        "sha256": "c065a4380a6908ec4820ade4d52f7221204f12f43820d9ecdcd52f93e9978766"
       },
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-turn.md",
