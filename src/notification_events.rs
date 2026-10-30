@@ -39,6 +39,9 @@ pub(crate) fn notification_json_raw(
 
 pub type PublishFuture<'a> = Pin<Box<dyn Future<Output = Result<(), EventError>> + Send + 'a>>;
 pub trait NotificationPublisher: Send + Sync {
+    fn publish_presence<'a>(&'a self, _data: &'a Map<String, Value>) -> PublishFuture<'a> {
+        Box::pin(async { Err(EventError) })
+    }
     fn publish<'a>(
         &'a self,
         user: u64,
@@ -61,6 +64,31 @@ impl RedisNotificationPublisher {
     }
 }
 impl NotificationPublisher for RedisNotificationPublisher {
+    fn publish_presence<'a>(&'a self, data: &'a Map<String, Value>) -> PublishFuture<'a> {
+        Box::pin(async move {
+            let payload = encode_presence_event(
+                data,
+                &self.server_id,
+                chrono::Utc::now().timestamp_millis(),
+            )?;
+            tokio::time::timeout(Duration::from_millis(1500), async {
+                let mut conn = self
+                    .client
+                    .get_multiplexed_async_connection()
+                    .await
+                    .map_err(|_| EventError)?;
+                redis::cmd("PUBLISH")
+                    .arg("ws:presence")
+                    .arg(payload)
+                    .query_async::<usize>(&mut conn)
+                    .await
+                    .map_err(|_| EventError)?;
+                Ok(())
+            })
+            .await
+            .map_err(|_| EventError)?
+        })
+    }
     fn publish<'a>(
         &'a self,
         user: u64,
@@ -93,6 +121,38 @@ impl NotificationPublisher for RedisNotificationPublisher {
             .map_err(|_| EventError)?
         })
     }
+}
+
+pub fn encode_presence_event(
+    data: &Map<String, Value>,
+    server_id: &str,
+    timestamp: i64,
+) -> Result<String, EventError> {
+    let mut data = data.clone();
+    let user = data
+        .get("user_id")
+        .and_then(Value::as_u64)
+        .filter(|v| *v > 0 && *v <= 9_007_199_254_740_991)
+        .ok_or(EventError)?;
+    let status = data
+        .get("online_status")
+        .and_then(Value::as_str)
+        .ok_or(EventError)?;
+    if server_id.is_empty() || !matches!(status, "online" | "offline" | "hidden") {
+        return Err(EventError);
+    }
+    if status == "hidden" {
+        data.insert("last_seen_at".into(), Value::Null);
+    } else if !data
+        .get("last_seen_at")
+        .is_some_and(|v| v.is_null() || v.is_string())
+    {
+        return Err(EventError);
+    }
+    data.insert("user_id".into(), user.into());
+    data.insert("server_id".into(), server_id.into());
+    serde_json::to_string(&json!({"type":"presence_update", "data":data, "timestamp":timestamp}))
+        .map_err(|_| EventError)
 }
 
 pub fn encode_notification_event(

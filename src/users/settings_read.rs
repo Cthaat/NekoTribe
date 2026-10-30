@@ -47,12 +47,21 @@ pub(crate) async fn get(
 trait Transaction {
     fn check_schema(&self) -> Result<(), ()>;
     fn ensure(&self, user: i64) -> Result<(), ()>;
+    fn update(
+        &self,
+        user: i64,
+        patch: &crate::users::settings_patch::SettingsPatch,
+    ) -> Result<(), ()>;
     fn read(&self, user: i64) -> Result<DbRow, ()>;
     fn commit(&self) -> Result<(), ()>;
     fn rollback(&self) -> Result<(), ()>;
 }
 
-fn run(tx: &impl Transaction, user: i64) -> Result<SettingsRead, ()> {
+fn run(
+    tx: &impl Transaction,
+    user: i64,
+    patch: Option<&crate::users::settings_patch::SettingsPatch>,
+) -> Result<SettingsRead, ()> {
     if user <= 0 {
         return Err(());
     }
@@ -61,6 +70,10 @@ fn run(tx: &impl Transaction, user: i64) -> Result<SettingsRead, ()> {
     }
     let result = tx
         .ensure(user)
+        .and_then(|()| match patch {
+            Some(patch) => tx.update(user, patch),
+            None => Ok(()),
+        })
         .and_then(|()| tx.read(user))
         .map(|row| map_settings(&row));
     let value = match result {
@@ -106,6 +119,18 @@ impl Transaction for OracleSettings<'_> {
     fn ensure(&self, user: i64) -> Result<(), ()> {
         OracleTx::new(self.0).execute("MERGE INTO n_user_settings s USING (SELECT :user_id AS user_id FROM dual) src ON (s.user_id = src.user_id) WHEN NOT MATCHED THEN INSERT (user_id) VALUES (src.user_id)", BindMap::from([("user_id".into(), DbValue::I64(user))])).map(|_| ()).map_err(|_| ())
     }
+    fn update(
+        &self,
+        user: i64,
+        patch: &crate::users::settings_patch::SettingsPatch,
+    ) -> Result<(), ()> {
+        if let Some((query, binds)) = crate::users::settings_patch::update_statement(user, patch) {
+            OracleTx::new(self.0)
+                .execute(&query, binds)
+                .map_err(|_| ())?;
+        }
+        Ok(())
+    }
     fn read(&self, user: i64) -> Result<DbRow, ()> {
         let values = bind_values(BindMap::from([("user_id".into(), DbValue::I64(user))]));
         let refs = bind_refs(&values);
@@ -127,7 +152,16 @@ impl Transaction for OracleSettings<'_> {
 
 pub(crate) fn execute(connection: &oracle::Connection, user: u64) -> Result<SettingsRead, DbError> {
     let user = i64::try_from(user).map_err(|_| DbError::SchemaNotReady)?;
-    run(&OracleSettings(connection), user).map_err(|_| DbError::SchemaNotReady)
+    run(&OracleSettings(connection), user, None).map_err(|_| DbError::SchemaNotReady)
+}
+
+pub(crate) fn execute_patch(
+    connection: &oracle::Connection,
+    user: u64,
+    patch: &crate::users::settings_patch::SettingsPatch,
+) -> Result<SettingsRead, DbError> {
+    let user = i64::try_from(user).map_err(|_| DbError::SchemaNotReady)?;
+    run(&OracleSettings(connection), user, Some(patch)).map_err(|_| DbError::SchemaNotReady)
 }
 
 #[cfg(test)]
@@ -144,6 +178,13 @@ mod tests {
         }
         fn ensure(&self, _: i64) -> Result<(), ()> {
             self.call("ensure")
+        }
+        fn update(
+            &self,
+            _: i64,
+            _: &crate::users::settings_patch::SettingsPatch,
+        ) -> Result<(), ()> {
+            self.call("update")
         }
         fn read(&self, _: i64) -> Result<DbRow, ()> {
             self.call("read")?;
@@ -177,7 +218,7 @@ mod tests {
                 fail: mode,
                 calls: RefCell::new(vec![]),
             };
-            let result = run(&fake, 42);
+            let result = run(&fake, 42, None);
             match mode {
                 "" => match result {
                     Ok(SettingsRead::Ready(value)) => {
@@ -195,6 +236,27 @@ mod tests {
                 fake.calls.borrow().contains(&"rollback"),
                 mode == "ensure" || mode == "read"
             );
+        }
+    }
+
+    #[test]
+    fn patch_update_and_read_share_rollback_boundary() {
+        for mode in ["", "update", "read", "commit"] {
+            let fake = Fake {
+                fail: mode,
+                calls: RefCell::new(vec![]),
+            };
+            let result = run(
+                &fake,
+                42,
+                Some(&crate::users::settings_patch::SettingsPatch::default()),
+            );
+            assert_eq!(result.is_ok(), mode.is_empty());
+            assert_eq!(
+                fake.calls.borrow().contains(&"rollback"),
+                mode == "update" || mode == "read"
+            );
+            assert!(fake.calls.borrow().contains(&"update"));
         }
     }
 }

@@ -93,6 +93,9 @@ fn post_list_sql(query: &crate::posts::list::PostListQuery) -> (&'static str, &'
     (count, page)
 }
 pub trait SessionExecutor: Send + Sync {
+    fn patch_user_settings<'a>(&'a self, _user: u64, _patch: &'a crate::users::settings_patch::SettingsPatch) -> StoreFuture<'a, crate::users::settings_read::SettingsRead> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn get_user_settings(&self, _user: u64) -> StoreFuture<'_, crate::users::settings_read::SettingsRead> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -278,6 +281,19 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn user_presence(&self, user: u64) -> StoreFuture<'_, serde_json::Value> {
+        Box::pin(async move {
+            let rows = self.executor.query("SELECT NVL(us.show_online_status,1) AS show_online_status, (SELECT MAX(s.last_accessed_at) FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL) AS last_seen_at, CASE WHEN NVL(us.show_online_status,1)=0 THEN 'hidden' WHEN EXISTS (SELECT 1 FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL AND s.last_accessed_at >= CURRENT_TIMESTAMP - NUMTODSINTERVAL(90,'SECOND')) THEN 'online' ELSE 'offline' END AS online_status FROM n_users u LEFT JOIN n_user_settings us ON us.user_id=u.user_id WHERE u.user_id=:user_id", user_bind(user)).await?;
+            let Some(row) = rows.first() else { return Ok(serde_json::json!({"user_id":user,"online_status":"offline","last_seen_at":null})); };
+            let status = row_text(row, "ONLINE_STATUS");
+            if !matches!(status.as_str(), "online" | "offline" | "hidden") { return Err(SessionStoreError); }
+            let last_seen = if status != "hidden" && row_number(row, "SHOW_ONLINE_STATUS") == 1 { nullable_text(row, "LAST_SEEN_AT").map(|v| profile_date(&v)) } else { None };
+            Ok(serde_json::json!({"user_id":user,"online_status":status,"last_seen_at":last_seen}))
+        })
+    }
+    fn patch_user_settings<'a>(&'a self, user: u64, patch: &'a crate::users::settings_patch::SettingsPatch) -> StoreFuture<'a, crate::users::settings_read::SettingsRead> {
+        self.executor.patch_user_settings(user, patch)
+    }
     fn get_user_settings(&self, user: u64) -> StoreFuture<'_, crate::users::settings_read::SettingsRead> {
         self.executor.get_user_settings(user)
     }
@@ -1539,6 +1555,12 @@ fn session_binds(user: u64, id: &str) -> BindMap {
     ])
 }
 impl SessionExecutor for OraclePool {
+    fn patch_user_settings<'a>(&'a self, user: u64, patch: &'a crate::users::settings_patch::SettingsPatch) -> StoreFuture<'a, crate::users::settings_read::SettingsRead> {
+        let patch = patch.clone();
+        Box::pin(async move {
+            self.run_blocking(move |connection| crate::users::settings_read::execute_patch(connection, user, &patch)).await.map_err(|_| SessionStoreError)
+        })
+    }
     fn get_user_settings(&self, user: u64) -> StoreFuture<'_, crate::users::settings_read::SettingsRead> {
         Box::pin(async move {
             self.run_blocking(move |connection| crate::users::settings_read::execute(connection, user)).await.map_err(|_| SessionStoreError)

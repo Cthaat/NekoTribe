@@ -30,7 +30,7 @@ pub struct NotificationReadResult {
     pub read_at: Option<String>,
 }
 
-fn read_flag(value: Option<&Value>) -> bool {
+pub(crate) fn read_flag(value: Option<&Value>) -> bool {
     match value {
         Some(Value::Bool(v)) => *v,
         Some(Value::Number(v)) => v.as_f64() == Some(1.0),

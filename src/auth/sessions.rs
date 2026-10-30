@@ -25,6 +25,12 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    fn user_presence(&self, _user: u64) -> StoreFuture<'_, serde_json::Value> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn patch_user_settings<'a>(&'a self, _user: u64, _patch: &'a crate::users::settings_patch::SettingsPatch) -> StoreFuture<'a, crate::users::settings_read::SettingsRead> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn get_user_settings(&self, _user: u64) -> StoreFuture<'_, crate::users::settings_read::SettingsRead> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -648,7 +654,7 @@ pub fn build_native_router_with_realtime_and_publisher(
             "/api/v2/users/me",
             get(crate::users::self_profile::get_me).patch(crate::users::self_profile::patch_me),
         )
-        .route("/api/v2/users/me/settings", get(crate::users::settings_read::get))
+        .route("/api/v2/users/me/settings", get(crate::users::settings_read::get).patch(crate::users::settings_patch::patch))
         .fallback(|| async { ApiError::route_not_found() })
         .layer(middleware::from_fn_with_state(
             cors.clone(),
