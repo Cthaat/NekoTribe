@@ -177,6 +177,11 @@ async fn notifications_are_user_scoped_and_revoked_sessions_cannot_receive() {
     assert!(tokio::time::timeout(Duration::from_millis(100), b.next())
         .await
         .is_err());
+    let presence = json!({"type":"presence_update","data":{"user_id":9,"online_status":"hidden","last_seen_at":null,"server_id":"peer"},"timestamp":151});
+    source.publish(42, presence.clone()).await;
+    source.publish(9, presence.clone()).await;
+    assert_eq!(receive(&mut a).await, presence);
+    assert_eq!(receive(&mut b).await, presence);
     repo.0.store(true, Ordering::SeqCst);
     source.publish(42, event).await;
     let result = tokio::time::timeout(Duration::from_secs(3), a.next())

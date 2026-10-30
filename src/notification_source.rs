@@ -40,7 +40,11 @@ impl NotificationSource for RedisNotificationSource {
                     .map_err(|_| EventError)?
                     .map_err(|_| EventError)?;
             let channel = format!("{}{user}", REDIS_CHANNELS.user_prefix);
-            tokio::time::timeout(Duration::from_millis(1500), pubsub.subscribe(channel))
+            tokio::time::timeout(Duration::from_millis(1500), pubsub.subscribe(&channel))
+                .await
+                .map_err(|_| EventError)?
+                .map_err(|_| EventError)?;
+            tokio::time::timeout(Duration::from_millis(1500), pubsub.subscribe("ws:presence"))
                 .await
                 .map_err(|_| EventError)?
                 .map_err(|_| EventError)?;
@@ -53,7 +57,7 @@ impl NotificationSource for RedisNotificationSource {
                         _=tx.closed()=>break,
                         message=stream.next()=>{
                             let Some(message)=message else {break};
-                            let payload=message.get_payload_bytes();if payload.len()>262144 {continue;}
+                            let payload=message.get_payload_bytes();if payload.len()>262144 || !crate::notification_websocket::event_matches_channel(message.get_channel_name(), &channel, payload) {continue;}
                             if tx.try_send(payload.to_vec()).is_err(){break;}
                         }
                     }

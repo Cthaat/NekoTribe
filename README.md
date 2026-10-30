@@ -14,7 +14,7 @@
 
 本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册认证、用户资料、帖子读取与创建/转发、评论互动、标签、通知及通知 WebSocket 等原生切片，直接访问共享基础设施，不注册业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
 
-原生 `/_ws` 提供通知订阅和心跳：连接时验证 access token、Oracle 会话与浏览器来源；投递前和定期检查会话，撤销或过期后断开。使用 `REDIS_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、`REDIS_PASSWORD` 配置共享 Redis，支持 `rediss://`；浏览器跨域来源和反向代理外部来源需显式加入 `CORS_ALLOWED_ORIGINS`。当前仅覆盖通知与心跳，群聊、私信、在线状态、真实 Redis/Oracle 联调仍未完成。
+原生 `/_ws` 提供个人通知、共享在线状态事件订阅和心跳：连接时验证 access token、Oracle 会话与浏览器来源；投递前和定期检查会话，撤销或过期后断开。使用 `REDIS_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、`REDIS_PASSWORD` 配置共享 Redis，支持 `rediss://`；浏览器跨域来源和反向代理外部来源需显式加入 `CORS_ALLOWED_ORIGINS`。在线状态事件已通过隔离测试；连接、断线和心跳驱动的完整状态生命周期、群聊、私信、真实 Redis/Oracle 联调仍未完成。
 
 原生 `PATCH /api/v2/users/me` 已按共同规范接入资料部分更新，通过隔离路由与 SQL 绑定场景；真实 Oracle 和跨后端缓存仍待验收。
 
@@ -111,7 +111,7 @@ docker compose --env-file .env.deploy up -d --build
 - 代理过滤标准逐跳头及 `Connection` 指定的头；上游 CORS 响应头与多条 `Set-Cookie` 保留。当前请求和响应仍整包缓冲，且 HTTP 客户端仍使用默认重定向策略；流式传输和重定向链上的 Cookie/CORS 行为尚未完成真实联调。
 - 既有 SentimentFlow 非 OPTIONS 前缀例外暂时保留；该可选集成预检未覆盖，不表示已经联调。
 - compat 的 `/storage/**`、`/uploads/**` 读取依赖 Nuxt 上游；native 的 `/storage/**` 读取配置的本地存储，私密附件及 S3 仍未完成。
-- native 的 `/_ws` 当前提供通知与心跳；群聊、私信和在线状态尚未完成。
+- native 的 `/_ws` 提供通知、在线状态事件接收与心跳；群聊、私信和完整在线状态生命周期尚未完成。
 
 ## 规范与历史
 

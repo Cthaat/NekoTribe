@@ -26,6 +26,59 @@ struct NotificationEnvelope<'a> {
     timestamp: serde_json::Number,
 }
 
+fn is_notification(kind: &str) -> bool {
+    matches!(
+        kind,
+        "notification_created"
+            | "notification_read_status_updated"
+            | "notifications_read_status_updated"
+            | "notification_deleted"
+            | "notification_restored"
+    )
+}
+
+fn valid_presence(raw: &str) -> bool {
+    let Ok(data) = serde_json::from_str::<Value>(raw) else {
+        return false;
+    };
+    let Some(id) = data.get("user_id").and_then(Value::as_u64) else {
+        return false;
+    };
+    if id == 0
+        || id > 9_007_199_254_740_991
+        || data
+            .get("server_id")
+            .and_then(Value::as_str)
+            .is_none_or(str::is_empty)
+    {
+        return false;
+    }
+    let Some(status) = data.get("online_status").and_then(Value::as_str) else {
+        return false;
+    };
+    let Some(last_seen) = data.get("last_seen_at") else {
+        return false;
+    };
+    match status {
+        "hidden" => last_seen.is_null(),
+        "online" | "offline" => last_seen.is_null() || last_seen.is_string(),
+        _ => false,
+    }
+}
+
+pub(crate) fn event_matches_channel(channel: &str, user_channel: &str, body: &[u8]) -> bool {
+    let Ok(event) = serde_json::from_slice::<NotificationEnvelope<'_>>(body) else {
+        return false;
+    };
+    if !event.data.get().trim_start().starts_with('{') {
+        return false;
+    }
+    (channel == user_channel && is_notification(&event.kind))
+        || (channel == "ws:presence"
+            && event.kind == "presence_update"
+            && valid_presence(event.data.get()))
+}
+
 fn access_token(uri: &Uri, headers: &HeaderMap) -> String {
     let query = reqwest::Url::parse(&format!(
         "http://localhost/?{}",
@@ -197,7 +250,7 @@ async fn handle(
                 let Some(body) = event else { break };
                 if body.len() > 262144 { continue; }
                 let Ok(value) = serde_json::from_slice::<NotificationEnvelope<'_>>(&body) else { continue };
-                if !matches!(value.kind.as_str(), "notification_created" | "notification_read_status_updated" | "notifications_read_status_updated" | "notification_deleted" | "notification_restored")
+                if !(is_notification(&value.kind) || (value.kind == "presence_update" && valid_presence(value.data.get())))
                     || !value.data.get().trim_start().starts_with('{') { continue; }
                 let _ = value.timestamp;
                 if !alive(&state, &token, user, &session).await { break; }
@@ -206,5 +259,21 @@ async fn handle(
                     .await.is_ok_and(|result| result.is_ok()) { break; }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn channel_checks_preserve_notification_json_and_hide_last_seen() {
+        let raw = br#"{"type":"notification_created","data":{"text":"\ud83d"},"timestamp":1}"#;
+        let valid = br#"{"type":"presence_update","data":{"user_id":9,"online_status":"hidden","last_seen_at":null,"server_id":"peer"},"timestamp":1}"#;
+        let leaked = br#"{"type":"presence_update","data":{"user_id":9,"online_status":"hidden","last_seen_at":"secret","server_id":"peer"},"timestamp":1}"#;
+        assert!(event_matches_channel("ws:user:42", "ws:user:42", raw));
+        assert!(!event_matches_channel("ws:presence", "ws:user:42", raw));
+        assert!(event_matches_channel("ws:presence", "ws:user:42", valid));
+        assert!(!event_matches_channel("ws:user:42", "ws:user:42", valid));
+        assert!(!event_matches_channel("ws:presence", "ws:user:42", leaked));
     }
 }
