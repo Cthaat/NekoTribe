@@ -58,9 +58,38 @@ pub struct HistoryMessage {
     pub config_revision: Option<i64>,
     pub created_at: String,
 }
+#[derive(Clone)]
 pub struct ModerationPolicy {
     allow_all: bool,
     accounts: HashSet<String>,
+}
+#[derive(Clone)]
+pub enum AiOperation {
+    Create(Input),
+    Read(String),
+    Append { id: String, content: String },
+    List { id: String, after: i64, limit: i64 },
+}
+pub fn execute_operation(
+    connection: &oracle::Connection,
+    user: u64,
+    operation: AiOperation,
+    policy: &ModerationPolicy,
+) -> Result<serde_json::Value, Error> {
+    let user = i64::try_from(user).map_err(|_| Error::Invalid)?;
+    match operation {
+        AiOperation::Create(input) => {
+            serde_json::to_value(create(connection, user, input, policy)?)
+        }
+        AiOperation::Read(id) => serde_json::to_value(read(connection, user, &id, policy)?),
+        AiOperation::Append { id, content } => serde_json::to_value(append_user_message(
+            connection, user, &id, &content, policy,
+        )?),
+        AiOperation::List { id, after, limit } => {
+            serde_json::to_value(list_messages(connection, user, &id, after, limit, policy)?)
+        }
+    }
+    .map_err(|_| Error::Store)
 }
 impl ModerationPolicy {
     pub fn new(allow_all: &str, accounts: &str) -> Self {
@@ -82,7 +111,7 @@ impl ModerationPolicy {
         }
     }
 }
-fn validate(mut input: Input) -> Result<Input, Error> {
+pub(crate) fn validate(mut input: Input) -> Result<Input, Error> {
     match (input.purpose.as_str(), input.group_id) {
         ("group", Some(id)) if (1..=MAX_SAFE_ID).contains(&id) => {}
         ("knowledge" | "writing" | "moderation", None) => {}
@@ -94,7 +123,7 @@ fn validate(mut input: Input) -> Result<Input, Error> {
     }
     Ok(input)
 }
-fn valid_uuid(id: &str) -> bool {
+pub(crate) fn valid_uuid(id: &str) -> bool {
     id.len() == 36
         && uuid::Uuid::parse_str(id).is_ok_and(|u| {
             u.get_version_num() == 4

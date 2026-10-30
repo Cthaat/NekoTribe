@@ -93,6 +93,9 @@ fn post_list_sql(query: &crate::posts::list::PostListQuery) -> (&'static str, &'
     (count, page)
 }
 pub trait SessionExecutor: Send + Sync {
+    fn ai_conversation(&self, _user:u64, _operation:crate::ai::conversation_store::AiOperation, _policy:crate::ai::conversation_store::ModerationPolicy) -> StoreFuture<'_, Result<serde_json::Value,crate::ai::conversation_store::Error>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn patch_user_settings<'a>(&'a self, _user: u64, _patch: &'a crate::users::settings_patch::SettingsPatch) -> StoreFuture<'a, crate::users::settings_read::SettingsRead> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -281,6 +284,9 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn ai_conversation(&self,user:u64,operation:crate::ai::conversation_store::AiOperation,policy:crate::ai::conversation_store::ModerationPolicy) -> StoreFuture<'_,Result<serde_json::Value,crate::ai::conversation_store::Error>> {
+        self.executor.ai_conversation(user,operation,policy)
+    }
     fn user_presence(&self, user: u64) -> StoreFuture<'_, serde_json::Value> {
         Box::pin(async move {
             let rows = self.executor.query("SELECT NVL(us.show_online_status,1) AS show_online_status, (SELECT MAX(s.last_accessed_at) FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL) AS last_seen_at, CASE WHEN NVL(us.show_online_status,1)=0 THEN 'hidden' WHEN EXISTS (SELECT 1 FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL AND s.last_accessed_at >= CURRENT_TIMESTAMP - NUMTODSINTERVAL(90,'SECOND')) THEN 'online' ELSE 'offline' END AS online_status FROM n_users u LEFT JOIN n_user_settings us ON us.user_id=u.user_id WHERE u.user_id=:user_id", user_bind(user)).await?;
@@ -1555,6 +1561,11 @@ fn session_binds(user: u64, id: &str) -> BindMap {
     ])
 }
 impl SessionExecutor for OraclePool {
+    fn ai_conversation(&self,user:u64,operation:crate::ai::conversation_store::AiOperation,policy:crate::ai::conversation_store::ModerationPolicy) -> StoreFuture<'_,Result<serde_json::Value,crate::ai::conversation_store::Error>> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| Ok(crate::ai::conversation_store::execute_operation(connection,user,operation,&policy))).await.map_err(|_| SessionStoreError)
+        })
+    }
     fn patch_user_settings<'a>(&'a self, user: u64, patch: &'a crate::users::settings_patch::SettingsPatch) -> StoreFuture<'a, crate::users::settings_read::SettingsRead> {
         let patch = patch.clone();
         Box::pin(async move {

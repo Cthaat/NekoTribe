@@ -25,6 +25,9 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    fn ai_conversation(&self, _user:u64, _operation:crate::ai::conversation_store::AiOperation, _policy:crate::ai::conversation_store::ModerationPolicy) -> StoreFuture<'_, Result<serde_json::Value,crate::ai::conversation_store::Error>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn user_presence(&self, _user: u64) -> StoreFuture<'_, serde_json::Value> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -542,6 +545,9 @@ pub fn build_native_router_with_realtime_and_publisher(
     notification_publisher: Option<Arc<dyn crate::notification_events::NotificationPublisher>>,
 ) -> Router {
     Router::new()
+        .route("/api/v2/ai/conversations", post(crate::ai::conversation_http::create))
+        .route("/api/v2/ai/conversations/{id}", get(crate::ai::conversation_http::read))
+        .route("/api/v2/ai/conversations/{id}/messages", get(crate::ai::conversation_http::list).post(crate::ai::conversation_http::append))
         .route(
             "/api/health",
             get(|| async { Json(json!({"status":"ok","service":"nekotribe"})) }),
@@ -656,6 +662,7 @@ pub fn build_native_router_with_realtime_and_publisher(
         )
         .route("/api/v2/users/me/settings", get(crate::users::settings_read::get).patch(crate::users::settings_patch::patch))
         .fallback(|| async { ApiError::route_not_found() })
+        .layer(middleware::from_fn(crate::ai::conversation_http::private_headers))
         .layer(middleware::from_fn_with_state(
             cors.clone(),
             cors_middleware,

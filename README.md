@@ -58,6 +58,8 @@ native CORS 在鉴权前处理 OPTIONS，复用共同 origin、method/header、V
 
 ## 模型配置组件
 
+原生模式已接入 AI 会话创建、读取、用户消息追加及历史读取路由；使用既有登录会话认证，群及审核用途再次检查当前权限，响应禁止缓存。审核账号由 `MODERATION_ADMIN_ACCOUNTS` 与 `MODERATION_ALLOW_ALL` 配置，须与其他后端一致。当前隔离测试不能代替真实 Oracle、跨后端或客户端验收。
+
 `src/ai/model_config.rs` 按 `contracts/requirements/ai-model-configuration.md` 实现严格校验、独立选择快照、RwLock 版本比较及原子替换；失败不安装部分配置。`contracts/scenarios/ai-model-config.json` 含三端相同的 52 个组件场景，另有并发、隔离和错误边界测试。Linux 默认测试共 31 项通过、2 个真实依赖连通测试忽略；日志为 `.codex-logs/20261027-model-config-52-full.log`。格式检查通过。
 
 `src/ai/transport.rs` 已实现 OpenAI-compatible/Ollama JSON HTTP 传输、调用级密钥解析、超时/取消和安全错误，使用 loopback 提供方测试。配置与传输组件尚未接入应用 AI 路由，没有调用真实模型、能力探测、索引或完整产品流程。完整产品权限及切换验收见本地 `contracts/requirements/ai-product-scope.md`、`ai-model-switching.md`，不能以配置或传输组件通过宣称完整 AI 业务通过。
