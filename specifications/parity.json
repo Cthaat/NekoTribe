@@ -9140,6 +9140,7 @@
             "tests/ai_knowledge_citations_test.rs",
             "src/ai/knowledge_history.rs",
             "tests/ai_knowledge_history_test.rs",
+            "src/ai/knowledge_context.rs",
             "src/ai/knowledge_conversation.rs",
             "src/ai/knowledge_search_body.rs",
             "tests/ai_knowledge_search_body_test.rs",
