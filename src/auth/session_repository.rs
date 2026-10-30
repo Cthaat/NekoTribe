@@ -93,6 +93,9 @@ fn post_list_sql(query: &crate::posts::list::PostListQuery) -> (&'static str, &'
     (count, page)
 }
 pub trait SessionExecutor: Send + Sync {
+    fn get_user_settings(&self, _user: u64) -> StoreFuture<'_, crate::users::settings_read::SettingsRead> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn create_media_atomic<'a>(
         &'a self,
         _input: &'a crate::media::upload_transaction::MediaUpload,
@@ -123,6 +126,9 @@ pub trait SessionExecutor: Send + Sync {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn media_readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn user_settings_readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
@@ -272,6 +278,9 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn get_user_settings(&self, user: u64) -> StoreFuture<'_, crate::users::settings_read::SettingsRead> {
+        self.executor.get_user_settings(user)
+    }
     fn create_media_atomic<'a>(
         &'a self,
         input: &'a crate::media::upload_transaction::MediaUpload,
@@ -1098,6 +1107,12 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
             crate::auth::readiness::validate_feature_snapshot(&snapshot, "media")
         })
     }
+    fn user_settings_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
+        Box::pin(async move {
+            let snapshot = self.executor.user_settings_readiness_snapshot().await?;
+            crate::auth::readiness::validate_feature_snapshot(&snapshot, "user-settings")
+        })
+    }
     fn two_factor_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
         Box::pin(async move {
             let snapshot = self.executor.readiness_snapshot().await?;
@@ -1524,6 +1539,11 @@ fn session_binds(user: u64, id: &str) -> BindMap {
     ])
 }
 impl SessionExecutor for OraclePool {
+    fn get_user_settings(&self, user: u64) -> StoreFuture<'_, crate::users::settings_read::SettingsRead> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| crate::users::settings_read::execute(connection, user)).await.map_err(|_| SessionStoreError)
+        })
+    }
     fn create_media_atomic<'a>(
         &'a self,
         input: &'a crate::media::upload_transaction::MediaUpload,
@@ -1581,6 +1601,13 @@ impl SessionExecutor for OraclePool {
                 .map_err(|_| SessionStoreError)
         })
     }
+    fn user_settings_readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
+        Box::pin(async move {
+            self.run_blocking(crate::auth::readiness::collect_user_settings_snapshot)
+                .await
+                .map_err(|_| SessionStoreError)
+        })
+    }
     fn readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
         Box::pin(async move {
             self.run_blocking(crate::auth::readiness::collect_snapshot)
@@ -1616,7 +1643,7 @@ impl SessionExecutor for OraclePool {
 fn user_bind(user: u64) -> BindMap {
     BindMap::from([("user_id".into(), DbValue::I64(user as i64))])
 }
-fn row_number(row: &DbRow, key: &str) -> i64 {
+pub(crate) fn row_number(row: &DbRow, key: &str) -> i64 {
     row.get(key).and_then(DbValue::as_i64).unwrap_or_default()
 }
 fn row_id(row: &DbRow, key: &str) -> Result<u64, SessionStoreError> {
@@ -1625,7 +1652,7 @@ fn row_id(row: &DbRow, key: &str) -> Result<u64, SessionStoreError> {
         .filter(|n| *n > 0 && *n <= 9_007_199_254_740_991)
         .ok_or(SessionStoreError)
 }
-fn row_text(row: &DbRow, key: &str) -> String {
+pub(crate) fn row_text(row: &DbRow, key: &str) -> String {
     row.get(key)
         .and_then(DbValue::as_str)
         .unwrap_or_default()
@@ -1705,7 +1732,7 @@ fn nullable_number(row: &DbRow, key: &str) -> serde_json::Value {
         serde_json::json!(row_float(row, key))
     }
 }
-fn nullable_text(row: &DbRow, key: &str) -> Option<String> {
+pub(crate) fn nullable_text(row: &DbRow, key: &str) -> Option<String> {
     row.get(key)
         .and_then(DbValue::as_str)
         .filter(|s| !s.is_empty())
@@ -1761,7 +1788,7 @@ fn public_profile_json(row: &DbRow) -> serde_json::Value {
     }
     value
 }
-fn profile_date(text: &str) -> String {
+pub(crate) fn profile_date(text: &str) -> String {
     use chrono::{SecondsFormat, TimeZone};
     if let Ok(date) = chrono::DateTime::parse_from_rfc3339(text) {
         return date

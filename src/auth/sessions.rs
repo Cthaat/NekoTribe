@@ -25,6 +25,9 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    fn get_user_settings(&self, _user: u64) -> StoreFuture<'_, crate::users::settings_read::SettingsRead> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     // An error means the commit outcome may be unknown; callers must retain the object.
     fn create_media_atomic<'a>(
         &'a self,
@@ -150,6 +153,9 @@ pub trait SessionRepository: Send + Sync {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn media_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn user_settings_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn two_factor_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
@@ -642,6 +648,7 @@ pub fn build_native_router_with_realtime_and_publisher(
             "/api/v2/users/me",
             get(crate::users::self_profile::get_me).patch(crate::users::self_profile::patch_me),
         )
+        .route("/api/v2/users/me/settings", get(crate::users::settings_read::get))
         .fallback(|| async { ApiError::route_not_found() })
         .layer(middleware::from_fn_with_state(
             cors.clone(),
