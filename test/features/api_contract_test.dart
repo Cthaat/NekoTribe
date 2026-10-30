@@ -47,6 +47,11 @@ void main() {
     expect(messages.single.content, 'draft');
     expect(messages.single.sequence, 2);
     expect(messages.single.role, 'assistant');
+    await api.deleteConversation(conversation);
+    recorder.expectLast(
+      method: 'DELETE',
+      path: '/api/v2/ai/conversations/$conversation',
+    );
   });
   group('AuthApi v2 contract', () {
     test('otp requests use current type and channel payload', () async {

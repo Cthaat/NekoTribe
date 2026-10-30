@@ -25,10 +25,19 @@ class FakeWritingApi extends AiWritingApi {
   final messages = <AiWritingMessage>[];
   int appends = 0;
   int generations = 0;
+  int deletions = 0;
   bool failFirst = false;
   bool ambiguousAppend = false;
+  bool failDelete = false;
   @override
   Future<String> createConversation() async => 'id';
+  @override
+  Future<void> deleteConversation(String id) async {
+    deletions++;
+    if (failDelete) throw StateError('connection lost');
+    messages.clear();
+  }
+
   @override
   Future<void> appendMessage(String id, String content) async {
     appends++;
@@ -132,5 +141,38 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('公告'), findsWidgets);
     expect(api.appends, 1);
+  });
+
+  testWidgets('deleting a conversation asks for confirmation and clears it', (
+    tester,
+  ) async {
+    final api = FakeWritingApi();
+    await pumpScreen(tester, api);
+    await tester.enterText(find.byKey(const Key('ai-writing-input')), '公告');
+    await tester.tap(find.byKey(const Key('ai-writing-send')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('ai-writing-delete')));
+    await tester.pumpAndSettle();
+    expect(api.deletions, 0);
+    await tester.tap(find.byKey(const Key('ai-writing-confirm-delete')));
+    await tester.pumpAndSettle();
+    expect(api.deletions, 1);
+    expect(find.text('草稿'), findsNothing);
+  });
+
+  testWidgets('uncertain delete keeps visible history and reports it', (
+    tester,
+  ) async {
+    final api = FakeWritingApi()..failDelete = true;
+    await pumpScreen(tester, api);
+    await tester.enterText(find.byKey(const Key('ai-writing-input')), '公告');
+    await tester.tap(find.byKey(const Key('ai-writing-send')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('ai-writing-delete')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('ai-writing-confirm-delete')));
+    await tester.pumpAndSettle();
+    expect(find.text('草稿'), findsOneWidget);
+    expect(find.text('删除未确认，请刷新会话状态或稍后重试。'), findsOneWidget);
   });
 }

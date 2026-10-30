@@ -123,13 +123,72 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
     }
   }
 
+  Future<void> _delete() async {
+    final id = _conversation;
+    if (_busy || id == null) return;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.t('ai.writing.delete_title')),
+        content: Text(l10n.t('ai.writing.delete_prompt')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.t('ai.writing.cancel')),
+          ),
+          TextButton(
+            key: const Key('ai-writing-confirm-delete'),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l10n.t('ai.writing.delete')),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    setState(() {
+      _busy = true;
+      _notice = null;
+    });
+    try {
+      await ref.read(aiWritingApiProvider).deleteConversation(id);
+      if (!mounted) return;
+      _input.clear();
+      setState(() {
+        _conversation = null;
+        _messages = [];
+        _needsRefresh = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _needsRefresh = true;
+          _notice = 'ai.writing.delete_unknown';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final canRetry = _messages.isNotEmpty && _messages.last.role == 'user';
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('ai.writing.title'))),
+      appBar: AppBar(
+        title: Text(l10n.t('ai.writing.title')),
+        actions: [
+          if (_conversation != null)
+            IconButton(
+              key: const Key('ai-writing-delete'),
+              tooltip: l10n.t('ai.writing.delete'),
+              onPressed: _busy ? null : _delete,
+              icon: const Icon(Icons.delete_outline),
+            ),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),

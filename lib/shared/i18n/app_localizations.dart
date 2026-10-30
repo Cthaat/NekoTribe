@@ -51,6 +51,11 @@ class AppLocalizations {
   static const Map<String, Map<String, String>> _strings = {
     'zh': {
       'ai.writing.title': 'AI 写作助手',
+      'ai.writing.delete': '删除会话',
+      'ai.writing.delete_title': '删除此会话？',
+      'ai.writing.delete_prompt': '会话及其消息将被删除，且无法从这里恢复。',
+      'ai.writing.delete_unknown': '删除未确认，请刷新会话状态或稍后重试。',
+      'ai.writing.cancel': '取消',
       'ai.writing.description': '生成的内容仅供审阅，不会自动发布。当前页面关闭后暂不能恢复会话。',
       'ai.writing.empty': '输入写作需求，开始生成草稿',
       'ai.writing.placeholder': '描述你想写的内容',
@@ -613,6 +618,13 @@ class AppLocalizations {
     },
     'en': {
       'ai.writing.title': 'AI writing assistant',
+      'ai.writing.delete': 'Delete conversation',
+      'ai.writing.delete_title': 'Delete this conversation?',
+      'ai.writing.delete_prompt':
+          'The conversation and its messages will be deleted and cannot be restored here.',
+      'ai.writing.delete_unknown':
+          'Deletion was not confirmed. Refresh the conversation or try again later.',
+      'ai.writing.cancel': 'Cancel',
       'ai.writing.description':
           'Drafts are for review and are never published automatically. This page cannot yet restore a conversation after it is closed.',
       'ai.writing.empty': 'Describe what you want to write',

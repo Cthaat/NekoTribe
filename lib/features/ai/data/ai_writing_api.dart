@@ -71,6 +71,14 @@ class AiWritingApi {
     );
   }
 
+  Future<void> deleteConversation(String id) async {
+    await _client.request<void>(
+      '${ApiPaths.aiConversations}/${Uri.encodeComponent(id)}',
+      method: 'DELETE',
+      decode: (_) {},
+    );
+  }
+
   Future<List<AiWritingMessage>> listMessages(
     String id, {
     int afterSequence = 0,
