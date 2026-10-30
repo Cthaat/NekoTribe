@@ -48,6 +48,7 @@ infer = "0.19"
 zip = { version = "2.4.2", default-features = false, features = ["deflate"] }
 cap-std = "3"
 same-file = "1.0.6"
+imagesize = { version = "0.14", default-features = false, features = ["gif", "heif", "jpeg", "png", "webp"] }
 
 [dev-dependencies]
 dotenvy = "0.15"
