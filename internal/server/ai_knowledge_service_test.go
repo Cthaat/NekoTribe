@@ -69,9 +69,10 @@ func TestKnowledgeServiceReleasesOracleConnectionBeforeInference(t *testing.T) {
 }
 
 type knowledgeServiceFake struct {
-	rows   []knowledgeSource
-	events []string
-	revoke bool
+	rows       []knowledgeSource
+	historical []knowledgeSource
+	events     []string
+	revoke     bool
 }
 
 func (f *knowledgeServiceFake) discoverKnowledgeSources(_ context.Context, user int64, query string, limit int) ([]knowledgeSource, error) {
@@ -89,7 +90,16 @@ func (f *knowledgeServiceFake) hydrateKnowledgeSources(_ context.Context, user i
 	if f.revoke {
 		return nil, nil
 	}
-	return f.rows, nil
+	var result []knowledgeSource
+	for _, row := range append(append([]knowledgeSource(nil), f.rows...), f.historical...) {
+		for _, candidate := range candidates {
+			if row.Kind == candidate.Kind && row.ID == candidate.ID {
+				result = append(result, row)
+				break
+			}
+		}
+	}
+	return result, nil
 }
 
 type knowledgeTransportFake struct {

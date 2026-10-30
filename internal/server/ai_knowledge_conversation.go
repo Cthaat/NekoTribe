@@ -50,7 +50,7 @@ func generateKnowledgeConversationWithTransport(ctx context.Context, store knowl
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	result, err := generateKnowledgeWithTransport(ctx, store, user, last.Content, selection, transport, searchPhrase...)
+	result, selected, err := generateKnowledgeWithHistory(ctx, store, user, last.Content, selection, transport, messages, searchPhrase...)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func generateKnowledgeConversationWithTransport(ctx context.Context, store knowl
 	if result.Answer == nil {
 		return nil, nil
 	}
-	message, err := store.appendAIKnowledgeAssistantMessage(ctx, user, id, assistantMessageInput{Content: *result.Answer, ExpectedSequence: last.SequenceNo, ModelID: selection.ProfileID, ConfigRevision: selection.ConfigurationRevision}, result.Sources, policy)
+	message, err := store.appendAIKnowledgeAssistantMessage(ctx, user, id, assistantMessageInput{Content: *result.Answer, ExpectedSequence: last.SequenceNo, ModelID: selection.ProfileID, ConfigRevision: selection.ConfigurationRevision, ContextSnapshot: selected.Snapshot}, result.Sources, policy)
 	if err != nil {
 		return nil, err
 	}

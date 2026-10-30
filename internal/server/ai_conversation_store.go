@@ -42,6 +42,7 @@ type assistantMessageInput struct {
 	ModelID          string
 	ConfigRevision   int64
 	Knowledge        bool
+	ContextSnapshot  []conversationHistoryMessage
 }
 type conversationMessage struct {
 	ID             string `json:"message_id"`
@@ -337,6 +338,25 @@ func (s OracleSessions) appendAIAssistantMessageOperation(ctx context.Context, u
 	return s.appendAIMessageOperation(ctx, user, id, input.Content, &input, policy, verify)
 }
 func (s OracleSessions) appendAIKnowledgeAssistantOperation(ctx context.Context, user int64, id string, input assistantMessageInput, sources []knowledgeCandidate, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (conversationMessage, error) {
+	if input.ContextSnapshot != nil {
+		selected, err := selectKnowledgeContext(input.ContextSnapshot, 4000000, 20)
+		if err != nil || len(selected.Snapshot) != len(input.ContextSnapshot) || selected.Snapshot[len(selected.Snapshot)-1].SequenceNo != input.ExpectedSequence {
+			return conversationMessage{}, errConversationInvalid
+		}
+		for _, ref := range selected.Sources {
+			found := false
+			for _, source := range sources {
+				if ref == source {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return conversationMessage{}, errConversationInvalid
+			}
+		}
+		input.ContextSnapshot = selected.Snapshot
+	}
 	content, err := encodeKnowledgeMessage(input.Content, sources)
 	if err != nil {
 		return conversationMessage{}, errConversationInvalid
@@ -344,6 +364,57 @@ func (s OracleSessions) appendAIKnowledgeAssistantOperation(ctx context.Context,
 	input.Content = content
 	input.Knowledge = true
 	return s.appendAIAssistantMessageOperation(ctx, user, id, input, policy, verify)
+}
+
+func checkKnowledgeContextSnapshot(ctx context.Context, tx *sql.Tx, user int64, id string, snapshot []conversationHistoryMessage) error {
+	rows, err := tx.QueryContext(ctx, `SELECT m.sequence_no,m.role,m.content FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no>:after_sequence ORDER BY m.sequence_no ASC FETCH FIRST :row_limit ROWS ONLY`, sql.Named("conversation_id", id), sql.Named("owner_user_id", user), sql.Named("after_sequence", snapshot[0].SequenceNo-1), sql.Named("row_limit", len(snapshot)))
+	if err != nil {
+		return errSessionStore
+	}
+	actual := make([]conversationHistoryMessage, 0, len(snapshot))
+	for rows.Next() {
+		var m conversationHistoryMessage
+		if rows.Scan(&m.SequenceNo, &m.Role, &m.Content) != nil {
+			rows.Close()
+			return errSessionStore
+		}
+		actual = append(actual, m)
+	}
+	if rows.Err() != nil {
+		rows.Close()
+		return errSessionStore
+	}
+	if rows.Close() != nil {
+		return errSessionStore
+	}
+	if len(actual) != len(snapshot) {
+		return errConversationConflict
+	}
+	for i, expected := range snapshot {
+		m := actual[i]
+		if m.SequenceNo != expected.SequenceNo || m.Role != expected.Role {
+			return errConversationConflict
+		}
+		if m.Role == "assistant" {
+			restored, e := restoreKnowledgeMessage(ctx, m.Content, func(ctx context.Context, refs []knowledgeCandidate) ([]knowledgeSource, error) {
+				return hydrateKnowledge(ctx, oracleKnowledgeReader{tx}, user, refs)
+			})
+			if e != nil || restored.Answer == nil {
+				return errSessionStore
+			}
+			m.Content = *restored.Answer
+			m.Citations = restored.Citations
+		}
+		if m.Content != expected.Content || len(m.Citations) != len(expected.Citations) {
+			return errConversationConflict
+		}
+		for j := range m.Citations {
+			if m.Citations[j] != expected.Citations[j] {
+				return errConversationConflict
+			}
+		}
+	}
+	return nil
 }
 func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64, id, content string, assistant *assistantMessageInput, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (result conversationMessage, err error) {
 	if user <= 0 || user > 9007199254740991 {
@@ -412,6 +483,11 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 		}
 		role, modelID, revision = "assistant", assistant.ModelID, assistant.ConfigRevision
 	}
+	if assistant != nil && assistant.ContextSnapshot != nil {
+		if e = checkKnowledgeContextSnapshot(ctx, tx, user, id, assistant.ContextSnapshot); e != nil {
+			return result, e
+		}
+	}
 	messageID, e := randomUUID()
 	if e != nil {
 		return result, errSessionStore
@@ -437,6 +513,11 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 	}
 	if assistant != nil && assistant.Knowledge {
 		if e = recheck(); e != nil {
+			return result, e
+		}
+	}
+	if assistant != nil && assistant.ContextSnapshot != nil {
+		if e = checkKnowledgeContextSnapshot(ctx, tx, user, id, assistant.ContextSnapshot); e != nil {
 			return result, e
 		}
 	}

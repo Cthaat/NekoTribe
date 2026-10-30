@@ -26,6 +26,28 @@ type conversationDB struct {
 	messageModel     driver.Value
 	messageRevision  driver.Value
 	knowledgeQueries int
+	historyChecks    int
+}
+
+func TestKnowledgeWriteRejectsChangedHistory(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	ref := knowledgeCandidate{Kind: "post", ID: 11, Version: knowledgeSourceVersion("post", 11, 11, "public")}
+	for _, mode := range []string{"history-ok", "history-before", "history-during"} {
+		t.Run(mode, func(t *testing.T) {
+			state := &conversationDB{mode: mode, owner: 42, id: id, purpose: "knowledge", messages: 1}
+			db := sql.OpenDB(conversationConnector{state})
+			defer db.Close()
+			input := assistantMessageInput{Content: "answer", ExpectedSequence: 1, ModelID: "profile", ConfigRevision: 1, ContextSnapshot: []conversationHistoryMessage{{SequenceNo: 1, Role: "user", Content: "question"}}}
+			_, err := (OracleSessions{db}).appendAIKnowledgeAssistantOperation(context.Background(), 42, id, input, []knowledgeCandidate{ref}, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			if mode == "history-ok" {
+				if err != nil || state.historyChecks != 2 {
+					t.Fatal(err, state.historyChecks)
+				}
+			} else if !errors.Is(err, errConversationConflict) || state.rollbacks != 1 {
+				t.Fatal(err, state.rollbacks)
+			}
+		})
+	}
 }
 
 func TestKnowledgeAssistantStorageRevalidatesAndRejectsUnsafeWrite(t *testing.T) {
@@ -230,6 +252,14 @@ func TestAppendAssistantMessageChecksVersionAndCurrentSequence(t *testing.T) {
 }
 func (c *conversationConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	c.state.calls = append(c.state.calls, listQueryCall{query, append([]driver.NamedValue(nil), args...)})
+	if strings.Contains(query, "SELECT m.sequence_no,m.role,m.content") {
+		c.state.historyChecks++
+		content := "question"
+		if c.state.mode == "history-before" || (c.state.mode == "history-during" && c.state.historyChecks > 1) {
+			content = "changed"
+		}
+		return &alertRows{values: []driver.Value{int64(1), "user", content}}, nil
+	}
 	if strings.Contains(query, "FROM n_posts p") {
 		c.state.knowledgeQueries++
 		if c.state.mode == "source-revoked" && c.state.knowledgeQueries > 1 {
