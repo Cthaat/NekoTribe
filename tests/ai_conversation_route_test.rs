@@ -57,10 +57,13 @@ impl SessionRepository for Store {
         let failure = self.0.clone();
         Box::pin(async move {
             assert_eq!(user, 42);
-            let _ = operation;
             Ok(match failure {
                 Some(error) => Err(error),
-                None => Ok(serde_json::json!({"ok":true})),
+                None => Ok(if matches!(operation, AiOperation::Delete(_)) {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!({"ok":true})
+                }),
             })
         })
     }
@@ -99,6 +102,13 @@ async fn ai_routes_require_auth_validate_input_and_disable_caching() {
         ),
         (
             "GET",
+            format!("/api/v2/ai/conversations/{id}"),
+            "",
+            true,
+            200,
+        ),
+        (
+            "DELETE",
             format!("/api/v2/ai/conversations/{id}"),
             "",
             true,
@@ -160,6 +170,20 @@ async fn ai_routes_require_auth_validate_input_and_disable_caching() {
             false,
             401,
         ),
+        (
+            "DELETE",
+            format!("/api/v2/ai/conversations/{id}"),
+            "",
+            false,
+            401,
+        ),
+        (
+            "DELETE",
+            "/api/v2/ai/conversations/invalid".to_string(),
+            "",
+            true,
+            404,
+        ),
     ] {
         let mut req = Request::builder()
             .method(method)
@@ -178,6 +202,13 @@ async fn ai_routes_require_auth_validate_input_and_disable_caching() {
             response.headers().get("cache-control").unwrap(),
             "private, no-store"
         );
+        if method == "DELETE" && status == 200 {
+            let body = axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap();
+            let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(body["data"], serde_json::Value::Null);
+        }
     }
 }
 

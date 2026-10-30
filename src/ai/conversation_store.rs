@@ -75,6 +75,7 @@ pub struct ModerationPolicy {
 pub enum AiOperation {
     Create(Input),
     Read(String),
+    Delete(String),
     Append { id: String, content: String },
     List { id: String, after: i64, limit: i64 },
     Recent(String),
@@ -92,6 +93,10 @@ pub fn execute_operation(
             serde_json::to_value(create(connection, user, input, policy)?)
         }
         AiOperation::Read(id) => serde_json::to_value(read(connection, user, &id, policy)?),
+        AiOperation::Delete(id) => {
+            delete(connection, user, &id, policy)?;
+            Ok(serde_json::Value::Null)
+        }
         AiOperation::Append { id, content } => serde_json::to_value(append_user_message(
             connection, user, &id, &content, policy,
         )?),

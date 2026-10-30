@@ -188,6 +188,7 @@ async fn execute(
     let operation = match kind {
         "create" => AiOperation::Create(parse_create(json_body(body).await?)?),
         "read" => AiOperation::Read(id.expect("route id")),
+        "delete" => AiOperation::Delete(id.expect("route id")),
         "append" => {
             let body = json_body(body).await?;
             if body.len() != 1 || !body.contains_key("content") {
@@ -241,6 +242,16 @@ pub(crate) async fn read(
     request: Request<Body>,
 ) -> Response {
     execute(state, request, settings, "read", Some(id))
+        .await
+        .into_response()
+}
+pub(crate) async fn remove(
+    State(state): State<NativeState>,
+    Path(id): Path<String>,
+    settings: Option<Extension<ModerationSettings>>,
+    request: Request<Body>,
+) -> Response {
+    execute(state, request, settings, "delete", Some(id))
         .await
         .into_response()
 }
