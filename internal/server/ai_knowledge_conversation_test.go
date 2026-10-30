@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -16,6 +17,30 @@ type knowledgeConversationFake struct {
 	saved     assistantMessageInput
 	refs      []knowledgeCandidate
 	appendErr error
+}
+
+func TestKnowledgeConversationSeparatesSearchPhraseFromQuestion(t *testing.T) {
+	store := &knowledgeConversationFake{knowledgeServiceFake: knowledgeServiceFake{rows: []knowledgeSource{{Kind: "post", ID: 1, PostID: 1, Content: "资料", Version: strings.Repeat("a", 64)}}}, purpose: "knowledge", messages: []conversationHistoryMessage{{SequenceNo: 1, Role: "user", Content: "社区里有哪些猫咪？"}}}
+	transport := &knowledgeTransportFake{store: &store.knowledgeServiceFake}
+	selection := ai.Selection{Role: "knowledge", ProfileID: "profile", ConfigurationRevision: 3, ContextWindowTokens: 8192, MaxOutputTokens: 512}
+	_, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, "猫")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var request struct {
+		Messages []struct {
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	if err = json.Unmarshal(transport.input, &request); err != nil || len(request.Messages) != 2 {
+		t.Fatal(err)
+	}
+	var data struct {
+		Question string `json:"question"`
+	}
+	if err = json.Unmarshal([]byte(request.Messages[1].Content), &data); err != nil || data.Question != "社区里有哪些猫咪？" {
+		t.Fatal(data, err)
+	}
 }
 
 func (f *knowledgeConversationFake) readAIConversation(context.Context, int64, string, moderationPolicy) (conversationRecord, error) {

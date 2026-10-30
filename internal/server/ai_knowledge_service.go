@@ -22,13 +22,17 @@ type knowledgeTransport interface {
 }
 
 // Internal development path. Store methods must close their connections before returning.
-func generateKnowledgeWithTransport(ctx context.Context, store knowledgeServiceStore, viewer int64, query string, selection ai.Selection, transport knowledgeTransport) (knowledgeTurnResult, error) {
-	if viewer <= 0 || viewer > 9007199254740991 || selection.Role != "knowledge" {
+func generateKnowledgeWithTransport(ctx context.Context, store knowledgeServiceStore, viewer int64, query string, selection ai.Selection, transport knowledgeTransport, searchPhrase ...string) (knowledgeTurnResult, error) {
+	if viewer <= 0 || viewer > 9007199254740991 || selection.Role != "knowledge" || len(searchPhrase) > 1 {
 		return knowledgeTurnResult{}, errKnowledgeInvalid
+	}
+	term := query
+	if len(searchPhrase) == 1 {
+		term = searchPhrase[0]
 	}
 	result, err := runKnowledgeTurn(ctx, knowledgeTurnDeps{
 		discover: func(ctx context.Context) ([]knowledgeSource, error) {
-			return store.discoverKnowledgeSources(ctx, viewer, query, 20)
+			return store.discoverKnowledgeSources(ctx, viewer, term, 20)
 		},
 		hydrate: func(ctx context.Context, candidates []knowledgeCandidate) ([]knowledgeSource, error) {
 			return store.hydrateKnowledgeSources(ctx, viewer, candidates)

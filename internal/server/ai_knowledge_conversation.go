@@ -18,7 +18,7 @@ type knowledgeConversationStore interface {
 }
 
 // Store calls finish before inference; no database transaction spans the model request.
-func generateKnowledgeConversationWithTransport(ctx context.Context, store knowledgeConversationStore, user int64, id string, policy moderationPolicy, selection ai.Selection, transport knowledgeTransport) (*conversationMessage, error) {
+func generateKnowledgeConversationWithTransport(ctx context.Context, store knowledgeConversationStore, user int64, id string, policy moderationPolicy, selection ai.Selection, transport knowledgeTransport, searchPhrase ...string) (*conversationMessage, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func generateKnowledgeConversationWithTransport(ctx context.Context, store knowl
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	result, err := generateKnowledgeWithTransport(ctx, store, user, last.Content, selection, transport)
+	result, err := generateKnowledgeWithTransport(ctx, store, user, last.Content, selection, transport, searchPhrase...)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func generateKnowledgeConversationWithTransport(ctx context.Context, store knowl
 }
 
 // The caller authenticates the user and obtains configuration from the server environment.
-func generateKnowledgeConversation(ctx context.Context, store knowledgeConversationStore, user int64, id string, policy moderationPolicy, config RefreshConfig) (*conversationMessage, error) {
+func generateKnowledgeConversation(ctx context.Context, store knowledgeConversationStore, user int64, id string, policy moderationPolicy, config RefreshConfig, searchPhrase ...string) (*conversationMessage, error) {
 	if config.AIModelConfig == "" || len(config.AIModelConfig) > 65536 {
 		return nil, errKnowledgeProvider
 	}
@@ -85,5 +85,5 @@ func generateKnowledgeConversation(ctx context.Context, store knowledgeConversat
 		return nil, errKnowledgeProvider
 	}
 	defer transport.CloseIdleConnections()
-	return generateKnowledgeConversationWithTransport(ctx, store, user, id, policy, selection, transport)
+	return generateKnowledgeConversationWithTransport(ctx, store, user, id, policy, selection, transport, searchPhrase...)
 }
