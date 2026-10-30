@@ -9066,7 +9066,9 @@
             "internal/server/ai_conversation_http.go",
             "internal/server/ai_conversation_http_test.go",
             "internal/server/ai_writing.go",
-            "internal/server/ai_writing_test.go"
+            "internal/server/ai_writing_test.go",
+            "internal/server/ai_conversation_listing.go",
+            "internal/server/ai_conversation_listing_test.go"
           ],
           "evidence": []
         }
