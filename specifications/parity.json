@@ -9029,7 +9029,9 @@
           "sourceFiles": [
             "internal/server/ai_conversation_store.go",
             "internal/server/ai_conversation_store_test.go",
-            "internal/server/ai_conversation_schema_test.go"
+            "internal/server/ai_conversation_schema_test.go",
+            "internal/server/ai_conversation_http.go",
+            "internal/server/ai_conversation_http_test.go"
           ],
           "evidence": []
         }
