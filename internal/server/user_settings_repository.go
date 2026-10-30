@@ -72,6 +72,10 @@ func (s OracleSessions) applyUserSettings(ctx context.Context, user int64, patch
 			err = errSessionStore
 		}
 	}()
+	var lockedUser int64
+	if err = tx.QueryRowContext(ctx, `SELECT user_id FROM n_users WHERE user_id=:user_id FOR UPDATE`, sql.Named("user_id", user)).Scan(&lockedUser); err != nil || lockedUser != user {
+		return result, errSessionStore
+	}
 	const merge = `MERGE INTO n_user_settings s USING (SELECT :user_id AS user_id FROM dual) src ON (s.user_id = src.user_id) WHEN NOT MATCHED THEN INSERT (user_id) VALUES (src.user_id)`
 	if _, err = tx.ExecContext(ctx, merge, sql.Named("user_id", user)); err != nil {
 		return result, errSessionStore

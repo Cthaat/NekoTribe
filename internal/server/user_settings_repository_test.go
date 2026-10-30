@@ -44,6 +44,15 @@ func (c *settingsConn) ExecContext(_ context.Context, query string, args []drive
 }
 func (c *settingsConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	c.state.calls = append(c.state.calls, listQueryCall{query, append([]driver.NamedValue(nil), args...)})
+	if strings.Contains(query, "FOR UPDATE") {
+		if c.state.mode == "lock" {
+			return nil, errors.New("secret")
+		}
+		if c.state.mode == "missing-user" {
+			return emptyRows{&c.state.driverState}, nil
+		}
+		return &alertRows{values: []driver.Value{int64(42)}}, nil
+	}
 	if strings.Contains(query, "MAX(s.last_accessed_at)") {
 		if c.state.mode == "presence-error" {
 			return nil, errors.New("secret")
@@ -88,7 +97,7 @@ func TestUserPresenceRepository(t *testing.T) {
 }
 
 func TestSettingsTransaction(t *testing.T) {
-	for _, mode := range []string{"ok", "schema", "merge", "update", "read", "commit"} {
+	for _, mode := range []string{"ok", "schema", "lock", "missing-user", "merge", "update", "read", "commit"} {
 		t.Run(mode, func(t *testing.T) {
 			state := &settingsDBState{mode: mode}
 			db := sql.OpenDB(settingsConnector{state})
@@ -109,6 +118,9 @@ func TestSettingsTransaction(t *testing.T) {
 					if len(call.args) == 0 || call.args[0].Name != "user_id" || call.args[0].Value != int64(42) {
 						t.Fatal(call)
 					}
+				}
+				if len(state.calls) < 2 || !strings.Contains(state.calls[0].sql, "FOR UPDATE") || !strings.HasPrefix(state.calls[1].sql, "MERGE INTO n_user_settings") {
+					t.Fatal("lock must precede initialization", state.calls)
 				}
 			} else if err == nil || strings.Contains(err.Error(), "secret") || state.commits != boolNumber(mode == "commit") || state.rollbacks != boolNumber(mode != "schema" && mode != "commit") {
 				t.Fatal(result, err, state)
