@@ -5,7 +5,7 @@
   "sources": [
     {
       "path": "server/database/schema-definition.mjs",
-      "sha256": "426031b8b16fa3bfacb1f9a13084e0b83e313d9dab12bf72b3ce80fdee5e832f"
+      "sha256": "4b7fb272390b2fe6302b06b72f31f7fcea29cc32d4b5aced3a6c953a5942ae71"
     },
     {
       "path": "server/database/schema.mjs",
@@ -49,6 +49,9 @@
     ]
   },
   "migrationChecksums": {
+    "t14-ai-conversations-n_ai_conversations": "401d2c04d67b37c5deaf820b97971c4682e54f0591d2ff987e1df7a9365e6ba0",
+    "t14-ai-conversations-n_ai_messages": "96e7ff2b571f5bdafd38e550cbd71430fd0577fca7ed2b5a9c1a835d6659db37",
+    "t14-ai-conversations-idx_ai_conv_owner": "27b071842e0d027761657909278475ccc5a5eb7e5f7f5485ae9ee6950acba6f1",
     "t13-two-factor-seq_2fa_recovery_code_id": "90a60fd64eabdac15f4e7a8af14f0c8a9d6279510f95293897e2c966cee41b1d",
     "t13-two-factor-seq_2fa_trusted_device_id": "e1be11f71aa8d6be57b7a3b5e8d20e15421567610ba1b3cddf5159464b3d0dbf",
     "t13-two-factor-n_user_two_factor_secrets": "eec88e92a4d4d900267f80ff3be6e3e9cd69c664bcf9830ee774846bc172b026",
