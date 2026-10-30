@@ -1003,7 +1003,7 @@
       },
       {
         "path": "server/services/ai/knowledge-source.ts",
-        "sha256": "f524485d79abdf10fe58701a58782ed0866d32fb9a2ed2ef97a33d9f30ae975a"
+        "sha256": "fc5862df50b676bdf1cfa47a8627a66aff672bbf8092d04e1e46a99e8d309670"
       },
       {
         "path": "server/services/ai/model-configuration.ts",
@@ -9048,7 +9048,8 @@
             "tests/ai-writing-client.test.mjs",
             "tests/ai-writing-api.test.mjs",
             "server/services/ai/knowledge-source.ts",
-            "tests/ai-knowledge-source.test.mjs"
+            "tests/ai-knowledge-source.test.mjs",
+            "tests/ai-knowledge-discovery.test.mjs"
           ],
           "evidence": []
         },
@@ -9104,7 +9105,8 @@
         "specifications/requirements/ai-tool-history.md",
         "specifications/scenarios/ai-tool-history.json",
         "specifications/requirements/ai-knowledge-source.md",
-        "specifications/scenarios/ai-knowledge-source-vectors.json"
+        "specifications/scenarios/ai-knowledge-source-vectors.json",
+        "specifications/requirements/ai-knowledge-discovery.md"
       ]
     },
     {
@@ -11548,6 +11550,16 @@
       "copies": {
         "rust": "contracts/requirements/ai-knowledge-source.md",
         "go": "contracts/requirements/ai-knowledge-source.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/ai-knowledge-discovery.md",
+        "sha256": "24fc1d3593d5d66eb930f950c0ed5c991d7638618ffe5141b54723d7c4bc007f"
+      },
+      "copies": {
+        "rust": "contracts/requirements/ai-knowledge-discovery.md",
+        "go": "contracts/requirements/ai-knowledge-discovery.md"
       }
     },
     {
