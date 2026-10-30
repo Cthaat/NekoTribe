@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { H3Event } from 'h3';
 import oracledb from 'oracledb';
 import { requireFeatureSchema } from '~/server/database/readiness';
-import { v2Auth, v2BadRequest, v2DateString, v2Execute, v2NotFound, v2Number, v2One, v2ServerError, v2String } from '~/server/utils/v2';
+import { v2Auth, v2BadRequest, v2Conflict, v2DateString, v2Execute, v2NotFound, v2Number, v2One, v2ServerError, v2String } from '~/server/utils/v2';
 import { authorizeConversationScope, type ConversationPurpose } from './conversation-access';
 
 export interface ConversationRecord {
@@ -130,8 +130,32 @@ export async function appendUserMessage(
   id: string,
   content: unknown
 ): Promise<{ message_id: string; conversation_id: string; sequence_no: number; role: 'user' }> {
+  return appendMessage(event, connection, id, { role: 'user', content });
+}
+
+/** Trusted internal caller only. The client cannot select assistant role or model metadata. */
+export async function appendAssistantMessage(
+  event: H3Event,
+  connection: oracledb.Connection,
+  id: string,
+  input: { content: string; expectedSequence: number; modelId: string; configRevision: number }
+): Promise<{ message_id: string; conversation_id: string; sequence_no: number; role: 'assistant' }> {
+  if (!Number.isSafeInteger(input.expectedSequence) || input.expectedSequence < 1 ||
+      input.expectedSequence >= 9999999999 || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(input.modelId) ||
+      !Number.isSafeInteger(input.configRevision) || input.configRevision < 1 || input.configRevision > 999999999999999) {
+    v2BadRequest('模型回复参数错误');
+  }
+  return appendMessage(event, connection, id, { role: 'assistant', ...input });
+}
+
+type AppendInput = { role: 'user'; content: unknown } |
+  { role: 'assistant'; content: string; expectedSequence: number; modelId: string; configRevision: number };
+async function appendMessage<T extends AppendInput>(
+  event: H3Event, connection: oracledb.Connection, id: string, input: T
+): Promise<{ message_id: string; conversation_id: string; sequence_no: number; role: T['role'] }> {
   const actor = v2Auth(event);
   if (!validId(id)) v2NotFound('会话不存在');
+  const content = input.content;
   if (typeof content !== 'string' || content.length === 0 || Buffer.byteLength(content, 'utf8') > 65536) {
     v2BadRequest('消息内容错误');
   }
@@ -147,11 +171,14 @@ export async function appendUserMessage(
     const next = await v2One(connection, 'SELECT NVL(MAX(sequence_no),0)+1 AS next_sequence FROM n_ai_messages WHERE conversation_id=:conversation_id', { conversation_id: id });
     const sequenceNo = v2Number(next?.NEXT_SEQUENCE);
     if (!Number.isSafeInteger(sequenceNo) || sequenceNo <= 0 || sequenceNo > 9999999999) v2ServerError();
+    if (input.role === 'assistant' && sequenceNo !== input.expectedSequence + 1) v2Conflict('会话已变更，请重试');
     const messageId = randomUUID();
     const inserted = await v2Execute(connection, `INSERT INTO n_ai_messages
-      (message_id,conversation_id,sequence_no,role,content)
-      VALUES (:message_id,:conversation_id,:sequence_no,'user',:content)`,
-      { message_id: messageId, conversation_id: id, sequence_no: sequenceNo, content }, false);
+      (message_id,conversation_id,sequence_no,role,content,model_id,config_revision)
+      VALUES (:message_id,:conversation_id,:sequence_no,:role,:content,:model_id,:config_revision)`,
+      { message_id: messageId, conversation_id: id, sequence_no: sequenceNo, role: input.role, content,
+        model_id: input.role === 'assistant' ? input.modelId : null,
+        config_revision: input.role === 'assistant' ? input.configRevision : null }, false);
     if (inserted !== 1) v2ServerError();
     const updated = await v2Execute(connection, `UPDATE n_ai_conversations SET updated_at=CURRENT_TIMESTAMP
       WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`,
@@ -160,7 +187,7 @@ export async function appendUserMessage(
     await authorizeConversationScope(event, connection, { ownerUserId: actor.userId, purpose: scope.purpose, groupId: scope.group_id });
     commitStarted = true;
     await connection.commit();
-    return { message_id: messageId, conversation_id: id, sequence_no: sequenceNo, role: 'user' };
+    return { message_id: messageId, conversation_id: id, sequence_no: sequenceNo, role: input.role };
   } catch (error) {
     if (commitStarted) v2ServerError();
     try { await connection.rollback(); } catch { v2ServerError(); }

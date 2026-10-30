@@ -11,6 +11,7 @@ const stubs = {
     export const v2BadRequest=m=>{throw Error('400:'+m)};
     export const v2Forbidden=m=>{throw Error('403:'+m)};
     export const v2NotFound=m=>{throw Error('404:'+m)};
+    export const v2Conflict=m=>{throw Error('409:'+m)};
     export const v2ServerError=()=>{throw Error('500:internal')};
     export const v2String=v=>typeof v==='string'?v:'';
     export const v2Number=v=>Number(v)||0;
@@ -22,13 +23,13 @@ const stubs = {
   '~/server/services/v2/moderation': `export const requireModerationAccess=async(e,c)=>{if(!c.moderator)throw Error('403:需要审核权限')};`
 };
 const compiled = await build({
-  stdin: { contents: `export {createConversation,readConversation,appendUserMessage,listConversationMessages} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
+  stdin: { contents: `export {createConversation,readConversation,appendUserMessage,appendAssistantMessage,listConversationMessages} from './server/services/ai/conversation-store';`, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'conversation-store-boundaries', setup(builder) {
     builder.onResolve({ filter: /.*/ }, args => { if (Object.hasOwn(stubs, args.path)) return { path: args.path, namespace: 'stub' }; });
     builder.onLoad({ filter: /.*/, namespace: 'stub' }, args => ({ contents: stubs[args.path], loader: 'js' }));
   }}]
 });
-const { createConversation, readConversation, appendUserMessage, listConversationMessages } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+const { createConversation, readConversation, appendUserMessage, appendAssistantMessage, listConversationMessages } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 function database() {
   return { checks: [], permissionChecks: 0, allowed: true, moderator: true, saved: null, pending: null, messages: [], pendingMessage: null, commits: 0, rollbacks: 0,
     async insert(sql, binds, autoCommit) {
@@ -58,7 +59,7 @@ function database() {
       if (this.revokeDuringList) this.allowed = false;
       return { rows: this.messages.filter(m => m.sequence_no > binds.after_sequence).slice(0, binds.row_limit).map(m => ({
         MESSAGE_ID: m.message_id, CONVERSATION_ID: m.conversation_id, SEQUENCE_NO: m.sequence_no,
-        ROLE: 'user', CONTENT: m.content, MODEL_ID: null, MODEL_VERSION: null, CONFIG_REVISION: null, CREATED_AT: 'created'
+        ROLE: m.role, CONTENT: m.content, MODEL_ID: m.model_id, MODEL_VERSION: null, CONFIG_REVISION: m.config_revision, CREATED_AT: 'created'
       })) };
     },
     async commit() { this.commits++; if (this.failCommit) throw Error('private'); if (this.pending) this.saved = this.pending; this.pending = null; if (this.pendingMessage) this.messages.push(this.pendingMessage); this.pendingMessage = null; },
@@ -121,6 +122,29 @@ test('append reports an uncertain commit as failure without claiming rollback', 
   db.failCommit = true;
   await assert.rejects(() => appendUserMessage({ userId: 42 }, db, conversation.conversation_id, 'hello'), error => error.message === '500:internal');
   assert.equal(db.rollbacks, 0);
+});
+
+test('assistant message records model revision and rejects stale conversation history', async () => {
+  const db=database(), actor={userId:42};
+  const conversation=await createConversation(actor,db,{purpose:'writing'});
+  const user=await appendUserMessage(actor,db,conversation.conversation_id,'draft');
+  const answer=await appendAssistantMessage(actor,db,conversation.conversation_id,{content:'result',expectedSequence:user.sequence_no,modelId:'profile-a',configRevision:12});
+  assert.equal(answer.sequence_no,2);assert.equal(answer.role,'assistant');
+  assert.equal(db.messages[1].model_id,'profile-a');assert.equal(db.messages[1].config_revision,12);
+  const history=await listConversationMessages(actor,db,conversation.conversation_id,1,10);
+  assert.equal(history[0].role,'assistant');assert.equal(history[0].model_id,'profile-a');assert.equal(history[0].config_revision,12);
+  await assert.rejects(()=>appendAssistantMessage(actor,db,conversation.conversation_id,{content:'stale',expectedSequence:1,modelId:'profile-a',configRevision:12}),/409:/);
+  assert.equal(db.messages.length,2);assert.equal(db.rollbacks,1);
+});
+
+test('assistant message rejects invalid configuration metadata and revoked access', async () => {
+  const db=database(),actor={userId:42};
+  const conversation=await createConversation(actor,db,{purpose:'group',group_id:7});
+  const user=await appendUserMessage(actor,db,conversation.conversation_id,'draft');
+  await assert.rejects(()=>appendAssistantMessage(actor,db,conversation.conversation_id,{content:'x',expectedSequence:user.sequence_no,modelId:'profile-a',configRevision:1000000000000000}),/400:/);
+  db.revokeAfterMessage=true;
+  await assert.rejects(()=>appendAssistantMessage(actor,db,conversation.conversation_id,{content:'x',expectedSequence:user.sequence_no,modelId:'profile-a',configRevision:1}),/403:/);
+  assert.equal(db.messages.length,1);
 });
 
 test('create and read restrict ownership and never accept provider credentials', async () => {
