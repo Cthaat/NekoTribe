@@ -82,7 +82,7 @@ impl KnowledgeTransport for Transport {
                 .contains("不可信"));
             assert_eq!(input["messages"][1]["role"], "user");
             self.events.lock().unwrap().push("infer");
-            Ok("answer".into())
+            Ok(serde_json::json!({"answer":"answer","citations":[{"kind":"post","id":1,"version":"a".repeat(64)}]}).to_string())
         })
     }
 }
