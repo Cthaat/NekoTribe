@@ -129,14 +129,24 @@ void main() {
 }
 
 class _Storage implements FlutterSecureStorage {
+  final _values = <String, String?>{};
   bool fail = false;
   @override
   dynamic noSuchMethod(Invocation invocation) {
-    if (invocation.memberName == #read) return Future<String?>.value(null);
+    final key = invocation.namedArguments[#key] as String;
+    if (invocation.memberName == #read) {
+      return Future<String?>.value(_values[key]);
+    }
+    if (invocation.memberName == #write) {
+      _values[key] = invocation.namedArguments[#value] as String?;
+      return Future<void>.value();
+    }
     if (invocation.memberName == #delete) {
-      return fail
-          ? Future<void>.error(StateError('isolated storage failure'))
-          : Future<void>.value();
+      if (fail) {
+        return Future<void>.error(StateError('isolated storage failure'));
+      }
+      _values.remove(key);
+      return Future<void>.value();
     }
     return super.noSuchMethod(invocation);
   }

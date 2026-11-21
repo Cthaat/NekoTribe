@@ -1896,19 +1896,20 @@ void main() {
     test(
       'profile, follow, and email endpoints match current server API',
       () async {
-        final recorder = _ApiRecorder();
+        final recorder = _ApiRecorder()
+          ..publicProfileReceipt = {..._publicUserJson, 'user_id': 42};
         final api = UsersApi(_client(recorder));
 
-        await api.getUserById(12);
-        recorder.expectLast(method: 'GET', path: '/api/v2/users/12');
+        expect((await api.getUserById(42)).userId, 42);
+        recorder.expectLast(method: 'GET', path: '/api/v2/users/42');
 
-        await api.followUser(12);
-        recorder.expectLast(method: 'POST', path: '/api/v2/users/12/followers');
+        await api.followUser(42);
+        recorder.expectLast(method: 'POST', path: '/api/v2/users/42/followers');
 
-        await api.unfollowUser(12);
+        await api.unfollowUser(42);
         recorder.expectLast(
           method: 'DELETE',
-          path: '/api/v2/users/12/followers',
+          path: '/api/v2/users/42/followers',
         );
 
         await api.updateEmail(

@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:nekotribe/core/auth/token_store.dart';
 import 'package:nekotribe/core/config/app_config.dart';
 import 'package:nekotribe/core/network/api_client.dart';
+import 'package:nekotribe/features/ai/data/ai_writing_api.dart';
+import 'package:nekotribe/features/ai/presentation/ai_writing_screen.dart';
 import 'package:nekotribe/features/posts/domain/post_models.dart';
 import 'package:nekotribe/features/posts/presentation/compose_post_screen.dart';
 import 'package:nekotribe/features/posts/presentation/post_card.dart';
@@ -19,19 +21,25 @@ void main() {
     tester,
   ) async {
     final sentiment = _FakeSentimentFlowApi();
-    final router = await _pump(
+    await _pump(
       tester,
       sentiment: sentiment,
       child: const ComposePostScreen(),
     );
-    await tester.enterText(find.byType(TextField).first, 'My draft');
-    await tester.tap(find.byTooltip('AI 写作助手'));
+    final composer = find.byKey(const Key('compose-content-field'));
+    await tester.enterText(composer, 'My draft');
+    final open = find.byTooltip('AI 写作助手');
+    await tester.ensureVisible(open);
+    await tester.tap(open);
     await tester.pumpAndSettle();
-    expect(find.text('Writing destination'), findsOneWidget);
+    final writingScreen = find.byType(AiWritingScreen);
+    final draft = find.byKey(const Key('ai-writing-input'));
+    expect(writingScreen, findsOneWidget);
+    expect(tester.widget<TextField>(draft).controller!.text, 'My draft');
     expect(sentiment.predictedText, isNull);
-    router.pop();
+    Navigator.of(tester.element(writingScreen)).pop();
     await tester.pumpAndSettle();
-    expect(find.text('My draft'), findsOneWidget);
+    expect(tester.widget<TextField>(composer).controller!.text, 'My draft');
   });
   testWidgets(
     'post menu opens the knowledge assistant without sending the post',
@@ -53,7 +61,7 @@ void main() {
   );
 }
 
-Future<GoRouter> _pump(
+Future<void> _pump(
   WidgetTester tester, {
   required _FakeSentimentFlowApi sentiment,
   required Widget child,
@@ -68,10 +76,6 @@ Future<GoRouter> _pump(
     initialLocation: '/entry',
     routes: [
       GoRoute(path: '/entry', builder: (_, __) => child),
-      GoRoute(
-        path: '/ai/writing',
-        builder: (_, state) => assistant(state, 'Writing destination'),
-      ),
       GoRoute(
         path: '/ai/knowledge',
         builder: (_, state) => assistant(state, 'Knowledge destination'),
@@ -92,12 +96,14 @@ Future<GoRouter> _pump(
         }),
         usersRepositoryProvider.overrideWithValue(_FakeUsersRepository()),
         sentimentFlowApiProvider.overrideWithValue(sentiment),
+        aiAvailabilityProvider.overrideWith(
+          (_) async => const AiAvailability(knowledge: true, writing: true),
+        ),
       ],
       child: MaterialApp.router(routerConfig: router),
     ),
   );
   await tester.pumpAndSettle();
-  return router;
 }
 
 class _FakeSentimentFlowApi extends SentimentFlowApi {

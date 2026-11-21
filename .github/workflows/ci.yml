@@ -41,7 +41,7 @@ jobs:
       allow-missing: true
   web:
     if: github.event_name == 'push'
-    needs: [check, contracts]
+    needs: contracts
     permissions:
       contents: read
     uses: Cthaat/NekoTribe/.github/workflows/package.yml@master
@@ -51,7 +51,7 @@ jobs:
       ref: ${{ github.sha }}
   windows:
     if: github.event_name == 'push'
-    needs: [check, contracts]
+    needs: contracts
     permissions:
       contents: read
     uses: Cthaat/NekoTribe/.github/workflows/package.yml@master
@@ -60,8 +60,8 @@ jobs:
       runner: windows-latest
       ref: ${{ github.sha }}
   rolling:
-    if: ${{ !cancelled() && github.event_name == 'push' && needs.web.result == 'success' }}
-    needs: [web, windows]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.check.result == 'success' && needs.web.result == 'success' }}
+    needs: [check, web, windows]
     permissions:
       contents: write
       actions: read
