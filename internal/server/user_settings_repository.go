@@ -10,6 +10,8 @@ import (
 )
 
 var errSettingsSchema = errors.New("user settings schema unavailable")
+var errSettingsUserMissing = errors.New("user settings user missing")
+var errSettingsMissing = errors.New("user settings row missing")
 
 type userSettings struct {
 	UserID                         int64   `json:"user_id"`
@@ -67,13 +69,21 @@ func (s OracleSessions) applyUserSettings(ctx context.Context, user int64, patch
 	}
 	committed := false
 	defer func() {
-		if !committed && tx.Rollback() != nil {
-			result = userSettings{}
-			err = errSessionStore
+		if !committed {
+			rollbackErr := tx.Rollback()
+			// database/sql ends the Tx even when Commit returns an error.
+			if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+				result = userSettings{}
+				err = errSessionStore
+			}
 		}
 	}()
 	var lockedUser int64
-	if err = tx.QueryRowContext(ctx, `SELECT user_id FROM n_users WHERE user_id=:user_id FOR UPDATE`, sql.Named("user_id", user)).Scan(&lockedUser); err != nil || lockedUser != user {
+	err = tx.QueryRowContext(ctx, `SELECT user_id FROM n_users WHERE user_id=:user_id FOR UPDATE`, sql.Named("user_id", user)).Scan(&lockedUser)
+	if errors.Is(err, sql.ErrNoRows) {
+		return result, errSettingsUserMissing
+	}
+	if err != nil || lockedUser != user {
 		return result, errSessionStore
 	}
 	const merge = `MERGE INTO n_user_settings s USING (SELECT :user_id AS user_id FROM dual) src ON (s.user_id = src.user_id) WHEN NOT MATCHED THEN INSERT (user_id) VALUES (src.user_id)`
@@ -88,25 +98,28 @@ func (s OracleSessions) applyUserSettings(ctx context.Context, user int64, patch
 		}
 	}
 	const query = `SELECT user_id,two_factor_enabled,login_alerts,profile_visibility,show_online_status,allow_dm_from_strangers,push_notification_enabled,email_notification_enabled,ai_sentiment_enabled,ai_sentiment_model_id,ai_sentiment_return_probabilities,ai_sentiment_include_metadata,ai_sentiment_top_k,updated_at FROM n_user_settings WHERE user_id=:user_id`
-	var flags [9]sql.NullInt64
+	var flags [9]sql.NullFloat64
 	var visibility, model sql.NullString
 	var top sql.NullFloat64
 	var updated sql.NullTime
 	err = tx.QueryRowContext(ctx, query, sql.Named("user_id", user)).Scan(&result.UserID, &flags[0], &flags[1], &visibility, &flags[2], &flags[3], &flags[4], &flags[5], &flags[6], &model, &flags[7], &flags[8], &top, &updated)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
+		return userSettings{}, errSettingsMissing
+	}
+	if err != nil || result.UserID != user {
 		return userSettings{}, errSessionStore
 	}
-	result.TwoFactorEnabled = flags[0].Int64 == 1
-	result.LoginAlerts = flags[1].Int64 == 1
+	result.TwoFactorEnabled = flags[0].Float64 == 1
+	result.LoginAlerts = flags[1].Float64 == 1
 	result.ProfileVisibility = visibility.String
-	result.ShowOnlineStatus = flags[2].Int64 == 1
-	result.AllowDMFromStrangers = flags[3].Int64 == 1
-	result.PushNotificationEnabled = flags[4].Int64 == 1
-	result.EmailNotificationEnabled = flags[5].Int64 == 1
-	result.AISentimentEnabled = flags[6].Int64 == 1
+	result.ShowOnlineStatus = flags[2].Float64 == 1
+	result.AllowDMFromStrangers = flags[3].Float64 == 1
+	result.PushNotificationEnabled = flags[4].Float64 == 1
+	result.EmailNotificationEnabled = flags[5].Float64 == 1
+	result.AISentimentEnabled = flags[6].Float64 == 1
 	result.AISentimentModelID = nullableString(model)
-	result.AISentimentReturnProbabilities = !flags[7].Valid || flags[7].Int64 == 1
-	result.AISentimentIncludeMetadata = flags[8].Int64 == 1
+	result.AISentimentReturnProbabilities = !flags[7].Valid || flags[7].Float64 == 1
+	result.AISentimentIncludeMetadata = flags[8].Float64 == 1
 	result.AISentimentTopK = 3
 	if top.Valid && top.Float64 >= 1 && top.Float64 <= 10 {
 		result.AISentimentTopK = int64(top.Float64)
@@ -114,9 +127,9 @@ func (s OracleSessions) applyUserSettings(ctx context.Context, user int64, patch
 	if date := profileDate(updated); date != nil {
 		result.UpdatedAt = *date
 	}
-	committed = true
 	if tx.Commit() != nil {
 		return userSettings{}, errSessionStore
 	}
+	committed = true
 	return result, nil
 }

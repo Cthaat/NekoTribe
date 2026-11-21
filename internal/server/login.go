@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -30,6 +31,9 @@ type LoginSession struct {
 	UserID                                                                                 int64
 	SessionID, AccessJTI, RefreshHash, DeviceInfo, DeviceFingerprint, IPAddress, UserAgent string
 	AccessExpiresAt, RefreshExpiresAt                                                      time.Time
+	verifiedPasswordHash                                                                   string
+	trustedDeviceKey                                                                       string
+	factorCompletion                                                                       *factorCompletion
 }
 
 type SelfUser struct {
@@ -73,7 +77,8 @@ type LoginRepository interface {
 	UpdateLastLogin(context.Context, int64) error
 	SelfProfile(context.Context, int64) (SelfUser, bool, error)
 	KnownLoginDevice(context.Context, int64, string) (bool, error)
-	RecordLoginAlert(context.Context, LoginSession) error
+	RecordLoginAlert(context.Context, LoginSession) (LoginAlertDelivery, error)
+	NotificationByID(context.Context, int64, int64) (NotificationItem, bool, error)
 }
 
 func readLoginBody(r *http.Request) (map[string]interface{}, bool) {
@@ -145,7 +150,7 @@ func login(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, rep
 		beginTwoFactor(w, r, codec, store, user, account, remember, config)
 		return
 	}
-	issueLogin(w, r, codec, store, user, config)
+	issueLogin(w, r, codec, store, user, "账号或密码错误", config, loginSessionOptions{})
 }
 
 func matchesLoginPassword(hash, password string) bool {
@@ -231,67 +236,83 @@ func requestIP(r *http.Request, trustProxy bool) string {
 	return "unknown"
 }
 
-func issueLogin(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, store LoginRepository, user LoginAccount, config RefreshConfig) {
+type loginSessionOptions struct {
+	requiredKey string
+	issuedProof string
+	completion  *factorCompletion
+}
+
+func issueLogin(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, store LoginRepository, user LoginAccount, staleMessage string, config RefreshConfig, options loginSessionOptions) bool {
 	id, err := randomUUID()
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
+		return true
 	}
 	id = "sess_" + id
 	accessJTI, err := randomUUID()
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
+		return true
 	}
 	refreshJTI, err := randomUUID()
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
+		return true
 	}
 	claims := auth.Claims{UserID: user.UserID, UserName: user.Username, SessionID: id, JTI: accessJTI, Kind: auth.Access}
 	access, err := codec.Sign(claims, int64(config.AccessSeconds))
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
+		return true
 	}
 	claims.Kind = auth.Refresh
 	claims.JTI = refreshJTI
 	refresh, err := codec.Sign(claims, int64(config.RefreshSeconds))
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
+		return true
 	}
 	now := config.clock().UTC().Truncate(time.Millisecond)
 	session := LoginSession{UserID: user.UserID, SessionID: id, AccessJTI: accessJTI, RefreshHash: refreshHash(refresh), DeviceInfo: headerDefault(r, "X-Device-Info"), DeviceFingerprint: headerDefault(r, "X-Device-Fingerprint"), IPAddress: requestIP(r, config.TrustProxy), UserAgent: headerDefault(r, "User-Agent"), AccessExpiresAt: now.Add(time.Duration(config.AccessSeconds) * time.Second), RefreshExpiresAt: now.Add(time.Duration(config.RefreshSeconds) * time.Second)}
+	session.verifiedPasswordHash = user.PasswordHash
+	session.trustedDeviceKey = options.requiredKey
+	session.factorCompletion = options.completion
 	known, err := store.KnownLoginDevice(r.Context(), user.UserID, session.DeviceFingerprint)
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
+		return true
 	}
 	if err = store.InsertLoginSession(r.Context(), session); err != nil {
+		if errors.Is(err, errTrustedDeviceUnavailable) {
+			return false
+		}
+		if errors.Is(err, errLoginCredentialsChanged) || errors.Is(err, errFactorCompletionUnavailable) {
+			respond(w, 401, 40101, staleMessage, nil)
+			return true
+		}
 		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
+		return true
 	}
 	if err = store.UpdateLastLogin(r.Context(), user.UserID); err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
+		return true
 	}
 	if !known {
-		_ = store.RecordLoginAlert(r.Context(), session)
+		deliverLoginAlert(r.Context(), store, config, session)
 	}
 	profile, found, err := store.SelfProfile(r.Context(), user.UserID)
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
+		return true
 	}
 	if !found {
 		respond(w, 404, 40401, "用户不存在", nil)
-		return
+		return true
 	}
 	profile.AvatarURL, err = normalizeAvatarURL(config.Storage, profile.AvatarURL)
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
+		return true
 	}
 	for _, c := range []struct {
 		name, value string
@@ -299,6 +320,10 @@ func issueLogin(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager
 	}{{"access_token", access, config.AccessSeconds}, {"refresh_token", refresh, config.RefreshSeconds}} {
 		http.SetCookie(w, &http.Cookie{Name: c.name, Value: c.value, Path: "/", MaxAge: c.age, HttpOnly: true, Secure: config.CookieSecure, SameSite: http.SameSiteLaxMode})
 	}
+	if options.issuedProof != "" {
+		http.SetCookie(w, &http.Cookie{Name: trustedDeviceCookie, Value: options.issuedProof, Path: "/", MaxAge: int(trustedDeviceLifetime / time.Second), HttpOnly: true, Secure: config.CookieSecure, SameSite: http.SameSiteLaxMode})
+	}
 	const iso = "2006-01-02T15:04:05.000Z"
 	respond(w, 200, 200, "login success", map[string]interface{}{"two_factor_required": false, "user": profile, "tokens": map[string]string{"session_id": id, "access_token": access, "refresh_token": refresh, "access_token_expires_at": session.AccessExpiresAt.Format(iso), "refresh_token_expires_at": session.RefreshExpiresAt.Format(iso)}})
+	return true
 }

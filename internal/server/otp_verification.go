@@ -91,6 +91,9 @@ func verifyOTP(w http.ResponseWriter, r *http.Request, repository SessionReposit
 		respond(w, 400, 40001, "验证码不存在或已过期", nil)
 		return
 	}
+	if !requireOTPAttempt(w, r, config.OTPAttemptLimiter, id) {
+		return
+	}
 	if !matchesLoginPassword(hash, code) {
 		respond(w, 401, 40101, "验证码错误", nil)
 		return

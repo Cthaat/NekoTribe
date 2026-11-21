@@ -3,11 +3,13 @@ package auth
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,8 +17,30 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// OpenTwoFactorSecret reads the AES-256-GCM representation produced by Nuxt.
-// All decode/authentication failures use a single redacted error.
+// SealTwoFactorSecret writes the same AES-256-GCM representation as Nuxt.
+func (manager *TokenManager) SealTwoFactorSecret(secret string) (encrypted, iv, tag string, err error) {
+	if manager == nil || len(manager.refreshKey) == 0 {
+		return "", "", "", ErrInvalidToken
+	}
+	key := sha256.Sum256(manager.refreshKey)
+	block, e := aes.NewCipher(key[:])
+	if e != nil {
+		return "", "", "", ErrInvalidToken
+	}
+	gcm, e := cipher.NewGCM(block)
+	if e != nil {
+		return "", "", "", ErrInvalidToken
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, e = rand.Read(nonce); e != nil {
+		return "", "", "", ErrInvalidToken
+	}
+	sealed := gcm.Seal(nil, nonce, []byte(secret), nil)
+	n := len(sealed) - gcm.Overhead()
+	return base64.StdEncoding.EncodeToString(sealed[:n]), base64.StdEncoding.EncodeToString(nonce), base64.StdEncoding.EncodeToString(sealed[n:]), nil
+}
+
+// OpenTwoFactorSecret reads Nuxt-compatible data; failures use a redacted error.
 func (manager *TokenManager) OpenTwoFactorSecret(encrypted, iv, tag string) (string, error) {
 	if manager == nil || len(manager.refreshKey) == 0 {
 		return "", ErrInvalidToken
@@ -55,6 +79,8 @@ var ErrInvalidClaims = errors.New("invalid claims")
 var ErrInvalidTokenConfiguration = errors.New("invalid token configuration")
 
 const maxSafeInteger = 9007199254740991
+
+var decimalUserID = regexp.MustCompile(`^[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?$`)
 
 // TokenManager signs/verifies token encoding only. Database session expiration,
 // matching access JTI, refresh hash rotation and revocation are separate checks.
@@ -186,7 +212,10 @@ func safeUserID(value interface{}) (int64, bool) {
 	case json.Number:
 		text = string(number)
 	case string:
-		text = strings.TrimSpace(number)
+		text = strings.Trim(number, " \t\r\n\f\v")
+		if !decimalUserID.MatchString(text) {
+			return 0, false
+		}
 	default:
 		return 0, false
 	}

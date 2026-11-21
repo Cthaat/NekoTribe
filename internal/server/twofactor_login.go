@@ -3,9 +3,11 @@ package server
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha1"
 	"crypto/subtle"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -22,6 +24,7 @@ type LoginChallenge struct {
 	Remember                                      bool
 	DeviceInfo, Fingerprint, IPAddress, UserAgent string
 	ExpiresAt                                     time.Time
+	verifiedPasswordHash                          string
 }
 type FactorSecret struct {
 	Encrypted, IV, Tag string
@@ -32,14 +35,34 @@ type RecoveryCode struct {
 	Hash string
 }
 type TwoFactorRepository interface {
-	UseTrustedDevice(context.Context, int64, string, string, string, string) (bool, error)
 	CreateLoginChallenge(context.Context, LoginChallenge) error
 	FindLoginChallenge(context.Context, string) (LoginChallenge, bool, error)
 	FindFactorSecret(context.Context, int64) (FactorSecret, bool, error)
 	FindRecoveryCodes(context.Context, int64) ([]RecoveryCode, error)
-	ConsumeRecoveryCode(context.Context, int64) (bool, error)
-	ConsumeLoginChallenge(context.Context, string) (bool, error)
-	TrustLoginDevice(context.Context, LoginChallenge, time.Time) error
+}
+
+type factorCompletion struct {
+	challenge      LoginChallenge
+	verifiedSecret FactorSecret
+	recoveryCodeID *int64
+	trustedKey     string
+	trustedExpiry  time.Time
+}
+
+const factorChallengeExpired = "双因素验证已过期，请重新登录"
+const trustedDeviceCookie = "nekotribe_trusted_device"
+const trustedDeviceLifetime = 30 * 24 * time.Hour
+
+func trustedDeviceKey(r *http.Request) string {
+	cookie, err := r.Cookie(trustedDeviceCookie)
+	if err != nil || len(cookie.Value) != 68 || !strings.HasPrefix(cookie.Value, "td1_") {
+		return ""
+	}
+	value := cookie.Value[4:]
+	if _, err := hex.DecodeString(value); err != nil || value != strings.ToLower(value) {
+		return ""
+	}
+	return "td1_" + refreshHash(cookie.Value)
 }
 
 func truncateDevice(value string) string {
@@ -60,16 +83,9 @@ func beginTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.TokenMan
 	info := truncateDevice(headerDefault(r, "X-Device-Info"))
 	ip := requestIP(r, config.TrustProxy)
 	agent := headerDefault(r, "User-Agent")
-	if fingerprint != "" && fingerprint != "unknown" {
-		trusted, err := factor.UseTrustedDevice(r.Context(), user.UserID, fingerprint, info, ip, agent)
-		if err != nil {
-			respond(w, 500, 50001, "服务器内部错误", nil)
-			return
-		}
-		if trusted {
-			issueLogin(w, r, codec, store, user, config)
-			return
-		}
+	if key := trustedDeviceKey(r); key != "" &&
+		issueLogin(w, r, codec, store, user, "账号或密码错误", config, loginSessionOptions{requiredKey: key}) {
+		return
 	}
 	// Nuxt rechecks readiness before creating a challenge, after the trusted
 	// device lookup. Never assume an earlier successful check is still current.
@@ -83,7 +99,12 @@ func beginTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.TokenMan
 		return
 	}
 	challenge := LoginChallenge{ID: "2fa_" + id, UserID: user.UserID, Username: user.Username, Remember: remember, DeviceInfo: info, Fingerprint: fingerprint, IPAddress: ip, UserAgent: agent, ExpiresAt: config.clock().UTC().Truncate(time.Millisecond).Add(5 * time.Minute)}
+	challenge.verifiedPasswordHash = user.PasswordHash
 	if err = factor.CreateLoginChallenge(r.Context(), challenge); err != nil {
+		if errors.Is(err, errLoginCredentialsChanged) {
+			respond(w, 401, 40101, "账号或密码错误", nil)
+			return
+		}
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return
 	}
@@ -128,8 +149,12 @@ func completeTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.Token
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return
 	}
-	if !found {
-		respond(w, 401, 40101, "双因素验证已过期，请重新登录", nil)
+	storedFingerprint := challenge.Fingerprint
+	if storedFingerprint == "" {
+		storedFingerprint = "unknown"
+	}
+	if !found || storedFingerprint != truncateDevice(headerDefault(r, "X-Device-Fingerprint")) {
+		respond(w, 401, 40101, factorChallengeExpired, nil)
 		return
 	}
 	// Nuxt rechecks immediately before loading the 2FA secret. A previous
@@ -158,6 +183,7 @@ func completeTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.Token
 		respond(w, 400, 40001, "双因素密钥格式错误", nil)
 		return
 	}
+	completion := &factorCompletion{challenge: challenge, verifiedSecret: secret}
 	if !matched && !isSixDigits(normalized) {
 		codes, err := factor.FindRecoveryCodes(r.Context(), challenge.UserID)
 		if err != nil {
@@ -166,11 +192,8 @@ func completeTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.Token
 		}
 		for _, candidate := range codes {
 			if matchesLoginPassword(candidate.Hash, normalized) {
-				matched, err = factor.ConsumeRecoveryCode(r.Context(), candidate.ID)
-				if err != nil {
-					respond(w, 500, 50001, "服务器内部错误", nil)
-					return
-				}
+				completion.recoveryCodeID = &candidate.ID
+				matched = true
 				break
 			}
 		}
@@ -179,22 +202,20 @@ func completeTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.Token
 		respond(w, 401, 40101, "双因素验证码错误", nil)
 		return
 	}
-	consumed, err := factor.ConsumeLoginChallenge(r.Context(), challenge.ID)
-	if err != nil {
-		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
-	}
-	if !consumed {
-		respond(w, 401, 40101, "双因素验证已过期，请重新登录", nil)
-		return
-	}
+	proof := ""
 	if challenge.Remember && challenge.Fingerprint != "" && challenge.Fingerprint != "unknown" {
-		if err = factor.TrustLoginDevice(r.Context(), challenge, config.clock().UTC().Add(30*24*time.Hour)); err != nil {
+		var bytes [32]byte
+		if _, err = rand.Read(bytes[:]); err != nil {
 			respond(w, 500, 50001, "服务器内部错误", nil)
 			return
 		}
+		proof = "td1_" + hex.EncodeToString(bytes[:])
+		completion.trustedKey = "td1_" + refreshHash(proof)
+		completion.trustedExpiry = config.clock().UTC().Add(trustedDeviceLifetime)
 	}
-	issueLogin(w, r, codec, store, LoginAccount{UserID: challenge.UserID, Username: challenge.Username}, config)
+	user := LoginAccount{UserID: challenge.UserID, Username: challenge.Username, PasswordHash: challenge.verifiedPasswordHash}
+	issueLogin(w, r, codec, store, user, factorChallengeExpired, config,
+		loginSessionOptions{issuedProof: proof, completion: completion})
 }
 
 func normalizeFactorCode(code string) string {

@@ -97,8 +97,16 @@ func sessionPagination(values url.Values) SessionPage {
 	return SessionPage{Page: page, PageSize: size, Start: (page-1)*size + 1, End: page * size}
 }
 
-const sessionCountSQL = `SELECT COUNT(*) AS total FROM n_auth_sessions WHERE user_id = :user_id AND revoked_at IS NULL`
-const sessionListSQL = `SELECT session_id, device_info, ip_address, last_accessed_at, created_at FROM (SELECT session_id, device_info, ip_address, last_accessed_at, created_at, ROW_NUMBER() OVER (ORDER BY last_accessed_at DESC) AS rn FROM n_auth_sessions WHERE user_id = :user_id AND revoked_at IS NULL) WHERE rn BETWEEN :start_row AND :end_row`
+const sessionListSQL = `WITH eligible AS (
+  SELECT session_id, device_info, ip_address, last_accessed_at, created_at,
+         ROW_NUMBER() OVER (ORDER BY last_accessed_at DESC, session_id ASC) AS rn
+  FROM n_auth_sessions
+  WHERE user_id = :user_id AND revoked_at IS NULL
+)
+SELECT t.total, e.session_id, e.device_info, e.ip_address, e.last_accessed_at, e.created_at
+FROM (SELECT COUNT(*) AS total FROM eligible) t
+LEFT JOIN eligible e ON e.rn BETWEEN :start_row AND :end_row
+ORDER BY e.rn`
 
 func (s OracleSessions) ListSessions(ctx context.Context, user int64, page SessionPage) (items []SessionItem, total int64, err error) {
 	conn, e := s.DB.Conn(ctx)
@@ -112,9 +120,6 @@ func (s OracleSessions) ListSessions(ctx context.Context, user int64, page Sessi
 			err = errSessionStore
 		}
 	}()
-	if e = conn.QueryRowContext(ctx, sessionCountSQL, sql.Named("user_id", user)).Scan(&total); e != nil {
-		return nil, 0, errSessionStore
-	}
 	rows, e := conn.QueryContext(ctx, sessionListSQL, sql.Named("user_id", user), sql.Named("start_row", page.Start), sql.Named("end_row", page.End))
 	if e != nil {
 		return nil, 0, errSessionStore
@@ -130,8 +135,11 @@ func (s OracleSessions) ListSessions(ctx context.Context, user int64, page Sessi
 	for rows.Next() {
 		var id, device, ip sql.NullString
 		var last, created sql.NullTime
-		if e = rows.Scan(&id, &device, &ip, &last, &created); e != nil {
+		if e = rows.Scan(&total, &id, &device, &ip, &last, &created); e != nil {
 			return nil, 0, errSessionStore
+		}
+		if !id.Valid {
+			continue
 		}
 		item := SessionItem{SessionID: id.String, DeviceInfo: device.String, IPAddress: ip.String}
 		if value := profileDate(last); value != nil {

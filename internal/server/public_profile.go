@@ -37,16 +37,32 @@ func (s OracleSessions) PublicProfile(ctx context.Context, viewer, target int64)
 	return s.publicProfile(ctx, viewer, target)
 }
 func (s OracleSessions) publicProfile(ctx context.Context, viewer any, target int64) (PublicUser, bool, error) {
-	var v PublicUser
-	var username, avatar, display, bio, location, website, status, relation sql.NullString
-	var verified, followers, following, posts, likes sql.NullInt64
-	var seen sql.NullTime
-	err := s.DB.QueryRowContext(ctx, publicProfileSQL, sql.Named("viewer_id", viewer), sql.Named("user_id", target)).Scan(&v.UserID, &username, &avatar, &display, &bio, &location, &website, &verified, &followers, &following, &posts, &likes, &status, &seen, &relation)
+	return readPublicProfile(ctx, s.DB, viewer, target)
+}
+
+type publicProfileQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func readPublicProfile(ctx context.Context, db publicProfileQueryer, viewer any, target int64) (PublicUser, bool, error) {
+	v, err := scanPublicUser(db.QueryRowContext(ctx, publicProfileSQL, sql.Named("viewer_id", viewer), sql.Named("user_id", target)))
 	if errors.Is(err, sql.ErrNoRows) {
 		return PublicUser{}, false, nil
 	}
 	if err != nil {
 		return PublicUser{}, false, errSessionStore
+	}
+	return v, true, nil
+}
+
+func scanPublicUser(row interface{ Scan(...any) error }, extra ...any) (PublicUser, error) {
+	var v PublicUser
+	var username, avatar, display, bio, location, website, status, relation sql.NullString
+	var verified, followers, following, posts, likes sql.NullInt64
+	var seen sql.NullTime
+	fields := []any{&v.UserID, &username, &avatar, &display, &bio, &location, &website, &verified, &followers, &following, &posts, &likes, &status, &seen, &relation}
+	if err := row.Scan(append(fields, extra...)...); err != nil {
+		return PublicUser{}, err
 	}
 	v.Username = username.String
 	v.AvatarURL = avatar.String
@@ -71,7 +87,7 @@ func (s OracleSessions) publicProfile(ctx context.Context, viewer any, target in
 	if v.OnlineStatus != "hidden" {
 		v.LastSeenAt = profileDate(seen)
 	}
-	return v, true, nil
+	return v, nil
 }
 
 type publicProfileStore interface {

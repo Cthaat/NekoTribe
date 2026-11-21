@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"math/big"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -80,8 +81,26 @@ func createOTP(w http.ResponseWriter, r *http.Request, repository SessionReposit
 		return
 	}
 	store, ok := repository.(otpCreationStore)
+	if kind != "password_reset" && !validNewEmail(account) {
+		respond(w, 400, 40001, "邮箱格式错误", nil)
+		return
+	}
 	if !ok {
 		respond(w, 500, 50001, "服务器内部错误", nil)
+		return
+	}
+	if config.OTPSendLimiter == nil {
+		respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
+		return
+	}
+	retry, err := config.OTPSendLimiter.ReserveOTP(r.Context(), account)
+	if err != nil || retry < 0 || retry > 3600 {
+		respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
+		return
+	}
+	if retry > 0 {
+		w.Header().Set("Retry-After", strconv.FormatInt(retry, 10))
+		respond(w, 429, 42901, "验证码发送过于频繁，请稍后重试", nil)
 		return
 	}
 	number, err := rand.Int(rand.Reader, big.NewInt(1000000))

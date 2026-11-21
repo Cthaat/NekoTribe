@@ -40,6 +40,9 @@ func patchUserSettings(w http.ResponseWriter, r *http.Request, codec *auth.Token
 		return
 	}
 	settings, err := store.PatchUserSettings(r.Context(), user, patch)
+	if settingsMissingResponse(w, err) {
+		return
+	}
 	if errors.Is(err, errSettingsSchema) {
 		respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
 		return
@@ -73,6 +76,9 @@ func getUserSettings(w http.ResponseWriter, r *http.Request, codec *auth.TokenMa
 		return
 	}
 	settings, err := store.GetUserSettings(r.Context(), user)
+	if settingsMissingResponse(w, err) {
+		return
+	}
 	if errors.Is(err, errSettingsSchema) {
 		respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
 		return
@@ -82,4 +88,16 @@ func getUserSettings(w http.ResponseWriter, r *http.Request, codec *auth.TokenMa
 		return
 	}
 	respond(w, 200, 200, "success", settings)
+}
+
+func settingsMissingResponse(w http.ResponseWriter, err error) bool {
+	if errors.Is(err, errSettingsUserMissing) {
+		respond(w, 404, 40401, "用户不存在", nil)
+		return true
+	}
+	if errors.Is(err, errSettingsMissing) {
+		respond(w, 404, 40401, "用户设置不存在", nil)
+		return true
+	}
+	return false
 }
