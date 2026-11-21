@@ -18,6 +18,8 @@ import { schemaFixture } from './helpers/schema-fixture.mjs';
 import { listenForFetch } from './helpers/loopback-listener.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const moderationAppealListSql = JSON.parse(readFileSync(path.join(root, 'specifications/requirements/moderation-appeals.json'), 'utf8')).sql.list.replace(/\s+/g, ' ').trim();
+const moderationReportListSql = JSON.parse(readFileSync(path.join(root, 'specifications/requirements/moderation-reports.json'), 'utf8')).sql.list.replace(/\s+/g, ' ').trim();
 const banExpirySql = JSON.parse(readFileSync(path.join(root, 'specifications/requirements/moderation-ban-expiry.json'))).sql;
 const require = createRequire(import.meta.url);
 const runtime = { accessSecret: 'isolated-test-access-secret', refreshSecret: 'isolated-test-refresh-secret', accessExpiresIn: 900, refreshExpiresIn: 3600 };
@@ -435,7 +437,7 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
           assert.equal(binds.user_id,42);
           return rows([{USERNAME:mod.denied ? 'member' : 'REVIEWER',EMAIL:'fixture@example.test'}]);
         }
-        if (sql.startsWith('WITH filtered AS (') && sql.includes('FROM n_moderation_reports')) {
+        if (sql === moderationReportListSql) {
           assert.deepEqual(binds,{status:'pending',reason:'spam',target_type:'group_post',start_row:3,end_row:4});
           return rows([{REPORT_ID:null,TOTAL:2}]);
         }
@@ -457,7 +459,7 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
           const committed = mod.records.get(binds.report_id) ?? mod.pendingReport;
           return rows([{...committed, ...(mod.change?.fields ?? {})}]);
         }
-        if (sql.startsWith('WITH visible AS (') && sql.includes('FROM n_statement_appeals')) {
+        if (sql === moderationAppealListSql) {
           assert.deepEqual(binds,{viewer_id:42,status:'pending',start_row:3,end_row:4});
           return rows([{APPEAL_ID:0,TOTAL:2}]);
         }

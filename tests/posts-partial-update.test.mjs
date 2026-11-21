@@ -21,11 +21,18 @@ const stubs = {
     export const v2CommentCount = unexpected, v2MapComment = unexpected,
       v2MapPost = unexpected, v2MapPublicUser = unexpected,
       v2PostCountSql = unexpected, v2PostSelectSql = unexpected, v2SortOrder = unexpected;
+    export const v2VisiblePostCommentScope = 'unused comment scope';
   `,
   './notifications': 'export const v2CreateNotification = async () => {};',
   './api-cache': 'export const readApiResponseCache = async () => ({status:"disabled"}); export const writeApiResponseCache = async () => {}; export const invalidateApiResponseCache = async () => {}; export const shouldInvalidateApiResponseCache = () => false;',
   './logging': 'export const getRequestLogContext = () => null; export const logError = () => {}; export const logInfo = () => {}; export const serializeLogError = () => ({});',
-  './client': 'export const v2RequestData = async (path, options) => ({path, options}); export const v2Request = async () => {}; export const toV2PagedResult = value => value;',
+  './client': `export const v2RequestData = async (path, options) => ({path, options});
+    export const v2Request = async (path, options) => {
+      globalThis.__partialUpdateRequest = {path, options};
+      return {code: 200, message: 'post updated', meta: null,
+        data: {post_id: 7, author: {user_id: 1}, viewer_state: {can_delete: true}}};
+    };
+    export const toV2PagedResult = value => value;`,
   oracledb: 'export default {OUT_FORMAT_OBJECT: 4002};'
 };
 const compiled = await build({
@@ -139,10 +146,13 @@ for (const method of ['PATCH', 'PUT']) {
   });
 }
 
-test('Nuxt update client sends PATCH with the unchanged partial payload', async () => {
+test('Nuxt update client sends PATCH with the unchanged partial payload', async t => {
+  t.after(() => { delete globalThis.__partialUpdateRequest; });
   const payload = { location: null, tag_names: [] };
-  const request = await routes.updateClient(7, payload);
+  const saved = await routes.updateClient(7, payload);
+  const request = globalThis.__partialUpdateRequest;
   assert.equal(request.path, '/api/v2/posts/7');
   assert.equal(request.options.method, 'PATCH');
   assert.equal(request.options.body, payload);
+  assert.equal(saved.post_id, 7);
 });

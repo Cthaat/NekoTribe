@@ -11,6 +11,7 @@ const built=await build({
   stdin:{contents:"export {apiFetch} from './app/composables/useApi'; export {usePreferenceStore} from './app/stores/user'; export {authQueueFor} from './app/services/auth-request-queue'; export {v2Login,v2RefreshCurrentToken} from './app/api/v2/auth'; export {v2DeleteMe} from './app/api/v2/users';",resolveDir:root,loader:'ts'},
   alias:{'~':root+'app','@':root+'app'},bundle:true,write:false,platform:'node',format:'esm',
   banner:{js:`
+    const window={location:{origin:'http://example.test'},localStorage:{getItem:()=> 'fixture-device'}};
     const tryUseNuxtApp=()=>globalThis.__sessionContext??globalThis.__sessionOwner;
     const useRuntimeConfig=()=>tryUseNuxtApp().$config;
     const useRoute=()=>undefined;

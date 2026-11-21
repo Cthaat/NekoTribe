@@ -5,7 +5,16 @@ import { fileURLToPath } from 'node:url';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const built=await build({stdin:{contents:`export {writingApi} from './app/api/v2/ai-writing.ts'`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'v2-boundary',setup(b){
   b.onResolve({filter:/^\.\/client$/},()=>({path:'client',namespace:'stub'}));
-  b.onLoad({filter:/.*/,namespace:'stub'},()=>({contents:`export async function v2RequestData(path, options){globalThis.__aiWritingCalls.push({path,options});if(path.endsWith('/generate'))return {conversation_id:'abc',message_id:'reply',sequence_no:2,role:'assistant'};if(path.endsWith('/messages')&&options.method==='POST')return {conversation_id:'abc',message_id:'user',sequence_no:1,role:'user'};return {};}`,loader:'js'}));
+  b.onLoad({filter:/.*/,namespace:'stub'},()=>({contents:`
+    export async function v2RequestData(path, options) {
+      globalThis.__aiWritingCalls.push({path,options});
+      if (path.endsWith('/generate')) return {conversation_id:'abc',message_id:'reply',sequence_no:2,role:'assistant'};
+      if (path.endsWith('/messages')) {
+        return options.method === 'POST' ? {conversation_id:'abc',message_id:'user',sequence_no:1,role:'user'} : [];
+      }
+      return {};
+    }
+  `,loader:'js'}));
 }}]});
 const {writingApi}=await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`);
 test('writing client uses the shared v2 API contract',async()=>{

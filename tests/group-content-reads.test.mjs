@@ -10,12 +10,18 @@ const rustPath = '../../rust/src/group_content.rs';
 const posts = nuxt.match(/const groupContentPostsSql = `([\s\S]+?)`;/)[1];
 const comments = nuxt.match(/const groupContentCommentsSql = `([\s\S]+?)`;/)[1];
 
-test('each backend ships the same group-content read queries', {
+test('each backend ships the same group-content read queries with the Go driver wrapper', {
   skip: ![goPath, rustPath].every(path => existsSync(new URL(path, import.meta.url)))
 }, () => {
   const go = read(goPath);
   const rust = read(rustPath);
-  assert.equal(go.match(/const groupContentPostsSQL = `([\s\S]+?)`/)[1], posts);
+  const goPosts = go.match(/const groupContentPostsSQL = `([\s\S]+?)`/)[1];
+  // go-oracledb classifies this read by its leading SELECT keyword.
+  const outerSelect = 'SELECT group_allowed,total,post_id,group_id,author_id,content,media_urls,\n' +
+    '  is_pinned,is_announcement,likes_count,comments_count,views_count,created_at,updated_at,is_liked_by_me';
+  const innerSelect = posts.replace('r.updated_at,r.is_liked_by_me\n', 'r.updated_at,r.is_liked_by_me,r.rn\n')
+    .replace(/\nORDER BY r\.rn$/, '');
+  assert.equal(goPosts, `${outerSelect}\nFROM (\n${innerSelect}\n) ORDER BY rn`);
   assert.equal(go.match(/const groupContentCommentsSQL = `([\s\S]+?)`/)[1], comments);
   assert.equal(rust.match(/const POSTS: &str = "([\s\S]+?)";/)[1], posts);
   assert.equal(rust.match(/const COMMENTS: &str = "([\s\S]+?)";/)[1], comments);

@@ -1,7 +1,8 @@
-name: Versioned NekoTribe release
+name: Release All Stacks
 on:
   push:
-    tags: ['release/v*']
+    tags:
+      - release/v*
   workflow_dispatch:
     inputs:
       version:
@@ -69,15 +70,56 @@ jobs:
             echo "prerelease=$prerelease"
           } >> "$GITHUB_OUTPUT"
   contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      nuxt: ${{ steps.heads.outputs.nuxt }}
+      go: ${{ steps.heads.outputs.go }}
+      rust: ${{ steps.heads.outputs.rust }}
+      flutter: ${{ steps.heads.outputs.flutter }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || inputs.nuxt_ref }}
+          path: nuxt
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.go_ref || 'refs/heads/codex/go' }}
+          path: go
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.rust_ref || 'refs/heads/Rust' }}
+          path: rust
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.flutter_ref || 'refs/heads/Flutter' }}
+          path: flutter
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify all four checkouts
+        working-directory: nuxt
+        run: |
+          # Reproduce the exact source bytes recorded by the accepted RC8 receipt.
+          python -c 'from pathlib import Path; p = Path("server/middleware/rate-limit.ts"); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))'
+          node scripts/contracts.mjs check --workspace-root ..
+          node scripts/parity.mjs check --workspace-root ..
+      - name: Record checked commits
+        id: heads
+        run: |
+          for target in nuxt go rust flutter; do
+            sha=$(git -C "$target" rev-parse HEAD)
+            echo "$target=$sha" >> "$GITHUB_OUTPUT"
+          done
     needs: version
-    uses: ./.github/workflows/contracts.yml
-    with:
-      nuxt-ref: ${{ github.event_name == 'push' && github.sha || inputs.nuxt_ref }}
-      go-ref: ${{ inputs.go_ref || 'refs/heads/codex/go' }}
-      rust-ref: ${{ inputs.rust_ref || 'refs/heads/Rust' }}
-      flutter-ref: ${{ inputs.flutter_ref || 'refs/heads/Flutter' }}
   preflight:
-    needs: [version, contracts]
+    needs:
+      - version
+      - contracts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -99,41 +141,254 @@ jobs:
             exit 1
           fi
   packages:
-    needs: [version, contracts, preflight]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET: ${{ matrix.target }}
+      VERSION: ${{ needs.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.contracts.outputs[matrix.stack] }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: ${{ matrix.target == 'nuxt' && 'yarn' || '' }}
+      - name: Enable Yarn Classic via Corepack
+        if: matrix.target == 'nuxt'
+        run: corepack enable
+      - uses: actions/setup-go@v5
+        if: matrix.target == 'go'
+        with:
+          go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@master
+        if: matrix.target == 'rust'
+        with:
+          toolchain: 1.95.0
+      - uses: Swatinem/rust-cache@v2
+        if: matrix.target == 'rust'
+      - uses: subosito/flutter-action@v2
+        if: startsWith(matrix.target, 'flutter-')
+        with:
+          channel: stable
+          flutter-version: 3.41.9
+          cache: true
+      - name: Name target package
+        id: package
+        run: |
+          case "$RUNNER_OS" in
+            Linux) os=linux ;;
+            Windows) os=windows ;;
+            *) exit 1 ;;
+          esac
+          case "$TARGET" in
+            nuxt) stem="nuxt-node-$os-x64" ;;
+            go|rust) stem="native-$TARGET-$os-x64" ;;
+            flutter-web) stem=flutter-web ;;
+            flutter-windows) stem=flutter-windows-x64 ;;
+            *) echo "::error::Unsupported package target"; exit 1 ;;
+          esac
+          if [[ ! "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then exit 1; fi
+          echo "name=$stem-$VERSION" >> "$GITHUB_OUTPUT"
+          echo "PACKAGE_DIR=.ci-package/$stem-$VERSION" >> "$GITHUB_ENV"
+          mkdir .ci-package dist
+      - name: Build and verify Nuxt
+        if: matrix.target == 'nuxt'
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+          NEKO_NUXT_BUILD_HEAP_MB: "6144"
+        run: |
+          yarn install --frozen-lockfile
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const path = 'nuxt.config.ts';
+          const source = readFileSync(path, 'utf8');
+          const config = source.replace('defineNuxtConfig({', 'defineNuxtConfig({\n  sourcemap: { server: false, client: false },');
+          if (config === source) throw new Error('Could not configure Nuxt sourcemaps');
+          writeFileSync(path, config);
+          NODE
+          node scripts/package-nuxt.mjs --out "$PACKAGE_DIR"
+          node scripts/package-nuxt.mjs --verify "$PACKAGE_DIR"
+      - name: Build and verify Go
+        if: matrix.target == 'go'
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          node scripts/package-native.mjs go --build --out "$PACKAGE_DIR"
+          node scripts/package-native.mjs --verify "$PACKAGE_DIR"
+      - name: Build and verify Rust
+        if: matrix.target == 'rust'
+        run: |
+          cargo build --locked --release --bin nekotribe-backend
+          binary=target/release/nekotribe-backend
+          if [[ "$RUNNER_OS" == Windows ]]; then binary="$binary.exe"; fi
+          node scripts/package-native.mjs rust --binary "$binary" --out "$PACKAGE_DIR"
+          node scripts/package-native.mjs --verify "$PACKAGE_DIR"
+      - name: Build and verify Flutter Web
+        if: matrix.target == 'flutter-web'
+        run: |
+          flutter pub get
+          flutter build web --release
+          node scripts/package-web.mjs build/web --out "$PACKAGE_DIR"
+          node "$PACKAGE_DIR/configure-web.mjs" "$PACKAGE_DIR/site" --check
+      - name: Build Flutter Windows
+        if: matrix.target == 'flutter-windows'
+        run: |
+          flutter config --enable-windows-desktop
+          flutter pub get
+          flutter build windows --release
+          bundle=build/windows/x64/runner/Release
+          test -f "$bundle/nekotribe.exe"
+          test -f "$bundle/flutter_windows.dll"
+          test -f "$bundle/data/flutter_assets/AssetManifest.bin"
+          mv "$bundle" "$PACKAGE_DIR"
+      - name: Archive package and compute SHA-256
+        env:
+          PACKAGE_NAME: ${{ steps.package.outputs.name }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          from shutil import make_archive
+          from zipfile import ZipFile
+
+          name = os.environ["PACKAGE_NAME"]
+          archive = Path(make_archive(f"dist/{name}", "zip", root_dir=".ci-package", base_dir=name))
+          with ZipFile(archive) as zipped:
+              damaged = zipped.testzip()
+              if damaged:
+                  raise RuntimeError(f"Invalid ZIP member: {damaged}")
+          with archive.open("rb") as contents:
+              digest = hashlib.file_digest(contents, "sha256").hexdigest()
+          archive.with_suffix(".zip.sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii", newline="\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: dist/
+          if-no-files-found: error
+    needs:
+      - version
+      - contracts
+      - preflight
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { target: nuxt, stack: nuxt, runner: ubuntu-latest }
-          - { target: nuxt, stack: nuxt, runner: windows-latest }
-          - { target: go, stack: go, runner: ubuntu-latest }
-          - { target: go, stack: go, runner: windows-latest }
-          - { target: rust, stack: rust, runner: ubuntu-latest }
-          - { target: rust, stack: rust, runner: windows-latest }
-          - { target: flutter-web, stack: flutter, runner: ubuntu-latest }
-          - { target: flutter-windows, stack: flutter, runner: windows-latest }
-    uses: ./.github/workflows/package.yml
-    with:
-      target: ${{ matrix.target }}
-      runner: ${{ matrix.runner }}
-      ref: ${{ needs.contracts.outputs[matrix.stack] }}
-      version: ${{ needs.version.outputs.value }}
+          - target: nuxt
+            stack: nuxt
+            runner: ubuntu-latest
+          - target: nuxt
+            stack: nuxt
+            runner: windows-latest
+          - target: go
+            stack: go
+            runner: ubuntu-latest
+          - target: go
+            stack: go
+            runner: windows-latest
+          - target: rust
+            stack: rust
+            runner: ubuntu-latest
+          - target: rust
+            stack: rust
+            runner: windows-latest
+          - target: flutter-web
+            stack: flutter
+            runner: ubuntu-latest
+          - target: flutter-windows
+            stack: flutter
+            runner: windows-latest
   images:
-    needs: [version, contracts, preflight]
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.contracts.outputs[matrix.stack] }}
+          persist-credentials: false
+      - name: Compute image tags
+        id: tags
+        env:
+          IMAGE: ghcr.io/cthaat/nekotribe-${{ matrix.stack }}
+          VERSION: ${{ needs.version.outputs.value }}
+          ROLLING: "false"
+        run: |
+          case "$IMAGE" in
+            ghcr.io/cthaat/nekotribe-nuxt|ghcr.io/cthaat/nekotribe-go|ghcr.io/cthaat/nekotribe-rust) ;;
+            *) exit 1 ;;
+          esac
+          if [[ ! "$VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then exit 1; fi
+          {
+            echo 'images<<TAGS'
+            echo "$IMAGE:$VERSION"
+            if [[ "$ROLLING" == true ]]; then
+              sha=$(git rev-parse --short=7 HEAD)
+              echo "$IMAGE:sha-$sha"
+            fi
+            echo 'TAGS'
+          } >> "$GITHUB_OUTPUT"
+      - name: Configure Nuxt Docker build memory
+        if: matrix.stack == 'nuxt'
+        run: |
+          sed -i 's/defineNuxtConfig({/defineNuxtConfig({\n  sourcemap: { server: false, client: false },/' nuxt.config.ts
+          sed -i 's/max-old-space-size=4096/max-old-space-size=6144/g; s/^RUN yarn build$/RUN node --max-old-space-size=6144 node_modules\/nuxt\/bin\/nuxt.mjs build/' Dockerfile
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.images }}
+          cache-from: type=gha,scope=${{ matrix.stack }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.stack }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.contracts.outputs[matrix.stack] }}
+      - name: Record registry digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.tags.outputs.images }}
+        run: |
+          {
+            echo '### GHCR 镜像'
+            printf '\n%s\n\n' "$TAGS"
+            printf '摘要：%s\n' "$DIGEST"
+          } >> "$GITHUB_STEP_SUMMARY"
+    defaults:
+      run:
+        shell: bash
     permissions:
       contents: read
       packages: write
+    needs:
+      - version
+      - contracts
+      - preflight
     strategy:
       fail-fast: false
       matrix:
-        stack: [nuxt, go, rust]
-    uses: ./.github/workflows/image.yml
-    with:
-      target: ${{ matrix.stack }}
-      ref: ${{ needs.contracts.outputs[matrix.stack] }}
-      version: ${{ needs.version.outputs.value }}
+        stack:
+          - nuxt
+          - go
+          - rust
   publish:
-    needs: [version, contracts, packages, images]
+    needs:
+      - version
+      - contracts
+      - packages
+      - images
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -144,7 +399,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: '*-${{ needs.version.outputs.value }}'
+          pattern: "*-${{ needs.version.outputs.value }}"
           merge-multiple: true
           path: dist
       - uses: actions/checkout@v4

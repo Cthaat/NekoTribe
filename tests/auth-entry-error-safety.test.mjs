@@ -46,6 +46,8 @@ async function fixture(failAt) {
   const sessions = [];
   const database = {
     async close() {},
+    async commit() {},
+    async rollback() {},
     async execute(raw, binds = {}) {
       const sql = raw.replace(/\s+/g, ' ').trim();
       const metadata = schema.query(sql, binds);
@@ -73,6 +75,12 @@ async function fixture(failAt) {
       }
       if (sql.includes('FROM n_user_two_factor_secrets') && failAt === 'challenge-disabled') return {rows: []};
       if (sql.startsWith('SELECT COUNT')) return {rows: [{TOTAL: 1}]};
+      if (sql === 'SELECT user_id FROM n_users WHERE user_id = :user_id FOR UPDATE') {
+        return {rows: [{USER_ID: 1}]};
+      }
+      if (sql === "SELECT password_hash FROM n_users WHERE user_id = :user_id AND is_active = 1 AND status = 'active'") {
+        return {rows: [{PASSWORD_HASH: passwordHash}]};
+      }
       if (sql.startsWith('INSERT INTO n_auth_sessions')) { sessions.push(binds); return {rowsAffected: 1}; }
       if (sql.startsWith('UPDATE n_users')) return {rowsAffected: 1};
       throw new Error(`Unexpected isolated SQL ${sql}`);

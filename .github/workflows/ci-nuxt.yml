@@ -1,0 +1,398 @@
+name: Nuxt CI
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  schedule:
+    - cron: 29 3 * * 1
+concurrency:
+  group: ci-nuxt-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  check:
+    needs: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: nuxt
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: nuxt
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: needs.contracts.outputs.go != ''
+        with:
+          path: go
+          ref: ${{ needs.contracts.outputs.go }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: needs.contracts.outputs.rust != ''
+        with:
+          path: rust
+          ref: ${{ needs.contracts.outputs.rust }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: needs.contracts.outputs.flutter != ''
+        with:
+          path: flutter
+          ref: ${{ needs.contracts.outputs.flutter }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: yarn
+          cache-dependency-path: nuxt/yarn.lock
+      - run: corepack enable
+      - run: yarn install --frozen-lockfile
+      - name: Check contract sources
+        run: |
+          # The accepted RC8 source receipt hashes this file with Windows line endings.
+          python -c 'from pathlib import Path; p = Path("server/middleware/rate-limit.ts"); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))'
+          yarn contracts:check
+      - name: Verify parity receipts with their source checkouts
+        if: needs.contracts.outputs.nuxt != ''
+        run: yarn parity:check --workspace-root ..
+      - name: Check schema, public terms and types
+        run: |
+          yarn schema-catalog:check
+          yarn ai-terms:check
+          yarn typecheck --dotenv .env.example
+      - name: Run core Node tests
+        run: |
+          node --experimental-strip-types --test tests/ai-moderation-advice.test.mjs tests/moderation-reports-sql.test.mjs tests/moderation-appeals-sql.test.mjs tests/posts-compatibility.test.mjs tests/posts-creation-transaction.test.mjs
+    if: github.event_name != 'schedule'
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      nuxt: ${{ steps.heads.outputs.nuxt }}
+      go: ${{ steps.heads.outputs.go }}
+      rust: ${{ steps.heads.outputs.rust }}
+      flutter: ${{ steps.heads.outputs.flutter }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: nuxt
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/heads/codex/go
+          path: go
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/heads/Rust
+          path: rust
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/heads/Flutter
+          path: flutter
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify all four checkouts
+        working-directory: nuxt
+        run: |
+          # Reproduce the exact source bytes recorded by the accepted RC8 receipt.
+          python -c 'from pathlib import Path; p = Path("server/middleware/rate-limit.ts"); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))'
+          node scripts/contracts.mjs check --workspace-root ..
+          node scripts/parity.mjs check --workspace-root ..
+      - name: Record checked commits
+        id: heads
+        run: |
+          for target in nuxt go rust flutter; do
+            sha=$(git -C "$target" rev-parse HEAD)
+            echo "$target=$sha" >> "$GITHUB_OUTPUT"
+          done
+    if: github.event_name != 'schedule'
+  package:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET: nuxt
+      VERSION: latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: yarn
+      - name: Enable Yarn Classic via Corepack
+        run: corepack enable
+      - name: Name target package
+        id: package
+        run: |
+          case "$RUNNER_OS" in
+            Linux) os=linux ;;
+            Windows) os=windows ;;
+            *) exit 1 ;;
+          esac
+          case "$TARGET" in
+            nuxt) stem="nuxt-node-$os-x64" ;;
+            go|rust) stem="native-$TARGET-$os-x64" ;;
+            flutter-web) stem=flutter-web ;;
+            flutter-windows) stem=flutter-windows-x64 ;;
+            *) echo "::error::Unsupported package target"; exit 1 ;;
+          esac
+          if [[ ! "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then exit 1; fi
+          echo "name=$stem-$VERSION" >> "$GITHUB_OUTPUT"
+          echo "PACKAGE_DIR=.ci-package/$stem-$VERSION" >> "$GITHUB_ENV"
+          mkdir .ci-package dist
+      - name: Build and verify Nuxt
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+          NEKO_NUXT_BUILD_HEAP_MB: "6144"
+        run: |
+          yarn install --frozen-lockfile
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const path = 'nuxt.config.ts';
+          const source = readFileSync(path, 'utf8');
+          const config = source.replace('defineNuxtConfig({', 'defineNuxtConfig({\n  sourcemap: { server: false, client: false },');
+          if (config === source) throw new Error('Could not configure Nuxt sourcemaps');
+          writeFileSync(path, config);
+          NODE
+          node scripts/package-nuxt.mjs --out "$PACKAGE_DIR"
+          node scripts/package-nuxt.mjs --verify "$PACKAGE_DIR"
+      - name: Archive package and compute SHA-256
+        env:
+          PACKAGE_NAME: ${{ steps.package.outputs.name }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          from shutil import make_archive
+          from zipfile import ZipFile
+
+          name = os.environ["PACKAGE_NAME"]
+          archive = Path(make_archive(f"dist/{name}", "zip", root_dir=".ci-package", base_dir=name))
+          with ZipFile(archive) as zipped:
+              damaged = zipped.testzip()
+              if damaged:
+                  raise RuntimeError(f"Invalid ZIP member: {damaged}")
+          with archive.open("rb") as contents:
+              digest = hashlib.file_digest(contents, "sha256").hexdigest()
+          archive.with_suffix(".zip.sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii", newline="\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: dist/
+          if-no-files-found: error
+    needs:
+      - check
+      - contracts
+      - gitleaks
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-latest
+          - windows-latest
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Compute image tags
+        id: tags
+        env:
+          IMAGE: ghcr.io/cthaat/nekotribe-nuxt
+          VERSION: master
+          ROLLING: "true"
+        run: |
+          case "$IMAGE" in
+            ghcr.io/cthaat/nekotribe-nuxt|ghcr.io/cthaat/nekotribe-go|ghcr.io/cthaat/nekotribe-rust) ;;
+            *) exit 1 ;;
+          esac
+          if [[ ! "$VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then exit 1; fi
+          {
+            echo 'images<<TAGS'
+            echo "$IMAGE:$VERSION"
+            if [[ "$ROLLING" == true ]]; then
+              sha=$(git rev-parse --short=7 HEAD)
+              echo "$IMAGE:sha-$sha"
+            fi
+            echo 'TAGS'
+          } >> "$GITHUB_OUTPUT"
+      - name: Configure Nuxt Docker build memory
+        run: |
+          sed -i 's/defineNuxtConfig({/defineNuxtConfig({\n  sourcemap: { server: false, client: false },/' nuxt.config.ts
+          sed -i 's/max-old-space-size=4096/max-old-space-size=6144/g; s/^RUN yarn build$/RUN node --max-old-space-size=6144 node_modules\/nuxt\/bin\/nuxt.mjs build/' Dockerfile
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.images }}
+          cache-from: type=gha,scope=nuxt
+          cache-to: type=gha,mode=max,scope=nuxt
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Record registry digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.tags.outputs.images }}
+        run: |
+          {
+            echo '### GHCR 镜像'
+            printf '\n%s\n\n' "$TAGS"
+            printf '摘要：%s\n' "$DIGEST"
+          } >> "$GITHUB_STEP_SUMMARY"
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: read
+      packages: write
+    needs:
+      - check
+      - contracts
+      - gitleaks
+    if: github.event_name == 'push'
+  rolling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: nuxt-node-*-latest
+          merge-multiple: true
+          path: dist
+      - name: Verify download and record checksums
+        working-directory: dist
+        env:
+          PREFIX: nuxt-node
+        run: |
+          shopt -s nullglob
+          archives=("$PREFIX"-*-latest.zip)
+          expected=2
+          # Publish the web archive even if Windows was unavailable.
+          if [[ "$PREFIX" == flutter ]]; then
+            expected=1
+            test -f flutter-web-latest.zip
+          fi
+          test "${#archives[@]}" -ge "$expected"
+          {
+            echo '### 持续构建产物'
+            echo
+            echo '| 文件 | 大小（字节） | SHA-256 |'
+            echo '| --- | ---: | --- |'
+            for archive in "${archives[@]}"; do
+              read -r digest filename < "$archive.sha256"
+              filename="${filename%$'\r'}"
+              test "$filename" = "$archive"
+              printf '%s  %s\n' "$digest" "$archive" | sha256sum --check --status --strict -
+              printf '| %s | %s | %s |\n' "$archive" "$(stat -c %s "$archive")" "$digest"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Initialize rolling prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=rolling-latest
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            if ! gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target master \
+              --title 'NekoTribe rolling-latest' --prerelease --latest=false \
+              --notes '由四个分支的 GitHub Actions 更新。每个包均附 SHA-256。' --draft=false; then
+              # Another branch can create the shared release at the same time.
+              gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null
+            fi
+          fi
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rolling-latest
+          name: NekoTribe rolling-latest
+          prerelease: true
+          make_latest: false
+          target_commitish: master
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.zip
+            dist/*.zip.sha256
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: write
+      actions: read
+    needs: package
+    if: github.event_name == 'push'
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Gitleaks CLI
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          sums="gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          cd "$RUNNER_TEMP"
+          curl --fail --silent --show-error --location --retry 3 -O "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/$asset"
+          curl --fail --silent --show-error --location --retry 3 -O "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/$sums"
+          grep -F " $asset" "$sums" | sha256sum --check
+          tar -xzf "$asset" gitleaks
+      - name: Scan changed commits and reject private env paths
+        shell: bash
+        env:
+          EVENT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          RC8_BASE: 5a958c4c9784f9d2088e8f2d03f7ebe0a38ba126
+        run: |
+          git merge-base --is-ancestor "$RC8_BASE" HEAD
+          base="$RC8_BASE"
+          if [[ "$EVENT_BASE" =~ ^[a-f0-9]{40}$ ]] && git merge-base --is-ancestor "$RC8_BASE" "$EVENT_BASE"; then
+            base="$EVENT_BASE"
+          fi
+          range="$base..HEAD"
+          git ls-files -z > "$RUNNER_TEMP/tracked-paths"
+          git log --diff-filter=AMCR --name-only --format= -z "$range" >> "$RUNNER_TEMP/tracked-paths"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          files = (Path(os.environ["RUNNER_TEMP"]) / "tracked-paths").read_bytes().split(b"\0")
+          for path in files:
+              name = path.rsplit(b"/", 1)[-1].lower()
+              if (name == b".env" or name.startswith(b".env.")) and not name.endswith(b".example"):
+                  raise SystemExit("::error::A tracked private environment file was detected.")
+          PY
+          "$RUNNER_TEMP/gitleaks" git --redact=100 --no-banner --log-opts="$range" .
+    defaults:
+      run:
+        shell: bash

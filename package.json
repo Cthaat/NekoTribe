@@ -25,7 +25,7 @@
     "postinstall": "nuxt prepare",
     "tag": "node script/github/github-action.js",
     "release": "node script/github/github-action.js",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs server/utils/*.test.ts"
+    "test": "node --experimental-transform-types --test tests/*.test.mjs server/utils/*.test.ts"
   },
   "resolutions": {
     "vue": "3.5.33",

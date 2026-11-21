@@ -19,7 +19,11 @@ function fixture(t) {
   writeFileSync(join(root, 'nuxt/doc/v2.openapi.json'), JSON.stringify(spec) + '\n');
   writeFileSync(join(root, 'nuxt/doc/runtime-addresses.md'), '# Addresses\n');
   writeFileSync(join(root, 'nuxt/server/api/v2/items/[id].get.ts'), 'export default defineEventHandler(() => ({}));\n');
-  for (const path of ['start-native.mjs', 'package-native.mjs', 'check-deployment-endpoints.mjs', 'release/native/start.cmd', 'release/native/start.sh']) {
+  for (const path of [
+    'start-native.mjs', 'package-native.mjs', 'check-deployment-endpoints.mjs',
+    'release/native/start.cmd', 'release/native/start.sh',
+    'source/native/start.cmd', 'source/native/start.sh'
+  ]) {
     const target = join(root, 'nuxt/scripts', path);
     mkdirSync(dirname(target), { recursive: true });
     cpSync(new URL(`../scripts/${path}`, import.meta.url), target);

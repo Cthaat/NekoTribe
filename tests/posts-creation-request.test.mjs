@@ -28,7 +28,8 @@ const stubs = {
     const unused = () => { throw new Error('unexpected model'); };
     export const v2CommentCount = unused, v2MapComment = unused, v2MapPost = unused,
       v2MapPublicUser = unused, v2PostCountSql = unused, v2PostSelectSql = unused,
-      v2SortOrder = unused;`,
+      v2SortOrder = unused;
+    export const v2VisiblePostCommentScope = 'unused comment scope';`,
   './notifications': 'export const v2CreateNotification = async () => null;',
   './api-cache': `export const readApiResponseCache = async () => ({status: 'disabled'});
     export const writeApiResponseCache = async () => {};
@@ -100,6 +101,9 @@ function database() {
       if (sql.startsWith('SELECT p.post_id')) return {rows: [{POST_ID: 3}]};
       if (sql.startsWith('SELECT author_id')) return {rows: [{AUTHOR_ID: 2}]};
       if (sql.startsWith('SELECT DBMS_LOB.SUBSTR')) return {rows: [{CONTENT: 'posted'}]};
+      if (sql.startsWith('SELECT media_id, storage_key FROM n_media_assets')) {
+        return {rows: [{MEDIA_ID: binds.media_id, STORAGE_KEY: 'posts/request-fixture.jpg'}]};
+      }
       if (/^(INSERT INTO n_posts|INSERT INTO n_post_media|MERGE INTO n_tags|INSERT INTO n_post_tags|INSERT INTO n_post_mentions)/.test(sql)) {
         this.writes++;
         return {rowsAffected: 1};

@@ -14,7 +14,8 @@ const fixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/pos
 const stubs = {
   '~/server/models/v2': `const unused = () => { throw new Error('unexpected model'); };
     export const v2RequirePostById=unused, v2CommentCount=unused, v2MapComment=unused,
-      v2MapPost=unused, v2MapPublicUser=unused, v2PostCountSql=unused, v2PostSelectSql=unused, v2SortOrder=unused;`,
+      v2MapPost=unused, v2MapPublicUser=unused, v2PostCountSql=unused, v2PostSelectSql=unused, v2SortOrder=unused;
+    export const v2VisiblePostCommentScope = 'unused comment scope';`,
   './notifications': 'export const v2CreateNotification = () => { throw new Error("unexpected notification"); };',
   './api-cache': `export const readApiResponseCache=async()=>({status:'disabled'});
     export const writeApiResponseCache=async()=>{}, invalidateApiResponseCache=async()=>{};
