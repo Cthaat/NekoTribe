@@ -132,7 +132,11 @@ function requestBody(selection: AiModelSelection, input: unknown): { body: Objec
   if (((tools.length || hasHistory) && !selection.capabilities.includes('tools')) || (structured && !selection.capabilities.includes('structured-output'))) fail('UNSUPPORTED_CAPABILITY');
   const body: ObjectValue = { model: selection.model, messages, stream: false };
   if (selection.adapter === 'openai-compatible') { body.n = 1; body.max_tokens = selection.maxOutputTokens; }
-  else if (selection.adapter === 'ollama') body.options = { num_predict: selection.maxOutputTokens, num_ctx: selection.contextWindowTokens };
+  else if (selection.adapter === 'ollama') {
+    // Keep the bounded output budget available for the result returned to the user.
+    body.think = false;
+    body.options = { num_predict: selection.maxOutputTokens, num_ctx: selection.contextWindowTokens };
+  }
   else fail('INVALID_REQUEST');
   if (tools.length) body.tools = tools.map(tool => ({ type: 'function', function: tool }));
   if (structured) {

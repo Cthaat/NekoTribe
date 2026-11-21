@@ -1,12 +1,26 @@
 import type { IndexedSource } from './knowledge-source';
 
+export const isGroupKnowledgeKind = (kind: unknown): kind is 'group_post' | 'group_comment' =>
+  kind === 'group_post' || kind === 'group_comment';
+export const isKnowledgeKind = (kind: unknown): kind is IndexedSource['kind'] =>
+  kind === 'post' || kind === 'comment' || kind === 'terms' || isGroupKnowledgeKind(kind);
+
+export type RestoredCitation = IndexedSource & {post_id?:number;group_id?:number};
+const validId = (id: unknown): id is number =>
+  typeof id === 'number' && Number.isSafeInteger(id) && id >= 1 && id <= 999_999_999_999_999;
+
+export function validCitationLocation(source: RestoredCitation): boolean {
+  if (source.kind === 'terms') return source.id <= 8 && !('post_id' in source) && !('group_id' in source);
+  if (!validId(source.post_id) || ((source.kind === 'post' || source.kind === 'group_post') && source.id !== source.post_id)) return false;
+  return isGroupKnowledgeKind(source.kind) ? validId(source.group_id) : !('group_id' in source);
+}
 export class KnowledgeCitationError extends Error {
   constructor() {super('INVALID_CITATIONS');this.name='KnowledgeCitationError';}
 }
 const invalid=():never=>{throw new KnowledgeCitationError();};
 const key=(source:IndexedSource)=>`${source.kind}:${source.id}:${source.version}`;
 /** Validate references against the exact sources already checked for this turn. */
-export function parseKnowledgeAnswer(text:string,verified:IndexedSource[]):{answer:string;sources:IndexedSource[]} {
+export function parseKnowledgeAnswer(text:string,verified:IndexedSource[],numbered=false):{answer:string;sources:IndexedSource[]} {
   let value:unknown;
   try {value=JSON.parse(text);} catch {return invalid();}
   if(!value || typeof value!=='object' || Array.isArray(value)) return invalid();
@@ -15,13 +29,18 @@ export function parseKnowledgeAnswer(text:string,verified:IndexedSource[]):{answ
   const permitted=new Map(verified.map(source=>[key(source),source]));
   const seen=new Set<string>();const sources:IndexedSource[]=[];
   for(const raw of object.citations) {
-    if(!raw || typeof raw!=='object' || Array.isArray(raw)) return invalid();
-    const citation=raw as Record<string,unknown>;
-    if(Object.keys(citation).length!==3 || (citation.kind!=='post' && citation.kind!=='comment' && citation.kind!=='terms') || typeof citation.id!=='number' || !Number.isSafeInteger(citation.id) || citation.id<=0 || citation.id>999999999999999 || (citation.kind==='terms' && citation.id>8) || typeof citation.version!=='string') return invalid();
-    const id=key({kind:citation.kind,id:citation.id,version:citation.version});
-    const matched=permitted.get(id);
-    if(!matched || seen.has(id)) return invalid();
-    seen.add(id);sources.push({...matched});
+    let matched:IndexedSource|undefined;
+    if (numbered) {
+      if (typeof raw!=='number' || !Number.isInteger(raw) || raw<1 || raw>verified.length) return invalid();
+      matched=verified[raw-1];
+    } else {
+      if(!raw || typeof raw!=='object' || Array.isArray(raw)) return invalid();
+      const citation=raw as Record<string,unknown>;
+      if(Object.keys(citation).length!==3 || !isKnowledgeKind(citation.kind) || !validId(citation.id) || (citation.kind==='terms' && citation.id>8) || typeof citation.version!=='string') return invalid();
+      matched=permitted.get(key({kind:citation.kind,id:citation.id,version:citation.version}));
+    }
+    if(!matched || seen.has(key(matched))) return invalid();
+    seen.add(key(matched));sources.push({...matched});
   }
   return {answer:object.answer,sources};
 }

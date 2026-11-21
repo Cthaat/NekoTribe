@@ -1,42 +1,30 @@
 import type { Readable } from 'node:stream';
+import { readBoundedBody } from '../../utils/bounded-body';
+
+interface KnowledgeSearchBody {
+  phrase?: string;
+  skillId?: 'knowledge-answer';
+  expectedSequence?: number;
+}
+
+export function isExpectedAiSequence(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 9_999_999_999;
+}
 
 /** Read at most 4096 bytes into memory, regardless of request headers. */
-export function readKnowledgeSearchBody(stream: Readable): Promise<string | null> {
-  return new Promise((resolve, reject) => {
-    if (stream.destroyed || stream.readableEnded) { reject(new Error('INVALID_KNOWLEDGE_BODY')); return; }
-    const chunks: Buffer[] = [];
-    let size = 0;
-    const cleanup = () => {
-      stream.off('data', onData); stream.off('end', onEnd);
-      stream.off('error', onError); stream.off('close', onClose);
-    };
-    const onError = () => { cleanup(); reject(new Error('INVALID_KNOWLEDGE_BODY')); };
-    const onClose = () => { if (!stream.readableEnded) onError(); };
-    const onEnd = () => {
-      cleanup();
-      try { resolve(parseKnowledgeSearchBody(Buffer.concat(chunks, size))); }
-      catch { reject(new Error('INVALID_KNOWLEDGE_BODY')); }
-    };
-    const onData = (chunk: Buffer | string) => {
-      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      size += bytes.length;
-      if (size > 4096) {
-        cleanup();
-        const ignoreError = () => {};
-        stream.once('error', ignoreError);
-        stream.once('close', () => stream.off('error', ignoreError));
-        stream.resume(); reject(new Error('INVALID_KNOWLEDGE_BODY')); return;
-      }
-      chunks.push(bytes);
-    };
-    stream.on('error', onError); stream.on('close', onClose);
-    stream.on('end', onEnd); stream.on('data', onData);
+export function readKnowledgeSearchBody(stream: Readable): Promise<KnowledgeSearchBody> {
+  return readBoundedAiBody(stream).then(parseKnowledgeSearchBody);
+}
+
+export function readBoundedAiBody(stream: Readable): Promise<Buffer> {
+  return readBoundedBody(stream, 4096).catch(() => {
+    throw new Error('INVALID_KNOWLEDGE_BODY');
   });
 }
 
 /** Validates a bounded UTF-8 generation body before any business or model work. */
-export function parseKnowledgeSearchBody(bytes: Uint8Array): string | null {
-  if (bytes.length === 0) return null;
+export function parseKnowledgeSearchBody(bytes: Uint8Array): KnowledgeSearchBody {
+  if (bytes.length === 0) return {};
   if (bytes.length > 4096) throw new Error('INVALID_KNOWLEDGE_BODY');
   let value: unknown;
   let text: string;
@@ -47,6 +35,30 @@ export function parseKnowledgeSearchBody(bytes: Uint8Array): string | null {
     throw new Error('INVALID_KNOWLEDGE_BODY');
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('INVALID_KNOWLEDGE_BODY');
+  const body = value as Record<string, unknown>;
+  const keys = Object.keys(body);
+  if (keys.some(key => key !== 'search_phrase' && key !== 'skill_id' && key !== 'expected_sequence') ||
+      hasTooManyAiBodyMembers(text, keys.length)) throw new Error('INVALID_KNOWLEDGE_BODY');
+  const result: KnowledgeSearchBody = {};
+  if (Object.hasOwn(body, 'expected_sequence')) {
+    if (!isExpectedAiSequence(body.expected_sequence)) throw new Error('INVALID_KNOWLEDGE_BODY');
+    result.expectedSequence = body.expected_sequence;
+  }
+  if (Object.hasOwn(body, 'skill_id')) {
+    if (body.skill_id !== 'knowledge-answer') throw new Error('INVALID_KNOWLEDGE_BODY');
+    result.skillId = body.skill_id;
+  }
+  if (Object.hasOwn(body, 'search_phrase')) {
+    if (typeof body.search_phrase !== 'string' || !body.search_phrase.isWellFormed()) throw new Error('INVALID_KNOWLEDGE_BODY');
+    const phrase = body.search_phrase.trim();
+    if (!phrase || /[\u0000-\u001f\u007f]/.test(phrase) || Buffer.byteLength(phrase,'utf8') > 256) throw new Error('INVALID_KNOWLEDGE_BODY');
+    result.phrase = phrase;
+  }
+  return result;
+}
+
+/** JSON syntax must be checked before counting top-level keys. */
+export function hasTooManyAiBodyMembers(text: string, limit: number): boolean {
   let depth=0, fields=0, inString=false, escaped=false;
   for (const ch of text) {
     if (inString) {
@@ -56,13 +68,7 @@ export function parseKnowledgeSearchBody(bytes: Uint8Array): string | null {
     } else if (ch==='"') inString=true;
     else if (ch==='{' || ch==='[') depth++;
     else if (ch==='}' || ch===']') depth--;
-    else if (ch===':' && depth===1 && ++fields>1) throw new Error('INVALID_KNOWLEDGE_BODY');
+    else if (ch===':' && depth===1 && ++fields>limit) return true;
   }
-  const body = value as Record<string, unknown>;
-  const keys = Object.keys(body);
-  if (!keys.length) return null;
-  if (keys.length !== 1 || keys[0] !== 'search_phrase' || typeof body.search_phrase !== 'string' || !body.search_phrase.isWellFormed()) throw new Error('INVALID_KNOWLEDGE_BODY');
-  const phrase = body.search_phrase.trim();
-  if (!phrase || /[\u0000-\u001f\u007f]/.test(phrase) || Buffer.byteLength(phrase,'utf8') > 256) throw new Error('INVALID_KNOWLEDGE_BODY');
-  return phrase;
+  return false;
 }

@@ -1,6 +1,7 @@
 export type AiRole = 'knowledge' | 'writing' | 'agent' | 'moderation';
 export type AiCapability = 'tools' | 'structured-output' | 'vision';
 export type AiAdapter = 'openai-compatible' | 'ollama';
+export const MAX_STORED_MODEL_REVISION = 999999999999999;
 export type AiConfigurationErrorCode = 'INVALID_CONFIGURATION' | 'UNKNOWN_ROLE' |
   'UNSUPPORTED_CAPABILITY' | 'STALE_CONFIGURATION' | 'REVISION_REUSED';
 
@@ -29,6 +30,7 @@ interface Model {
   readonly id: string;
   readonly providerId: string;
   readonly model: string;
+  readonly modelVersion?: string;
   readonly capabilities: readonly AiCapability[];
   readonly contextWindowTokens: number;
   readonly maxOutputTokens: number;
@@ -47,6 +49,7 @@ export interface AiModelSelection {
   readonly adapter: AiAdapter;
   readonly baseUrl: string;
   readonly model: string;
+  readonly modelVersion?: string;
   readonly apiKeyEnv: string | null;
   readonly capabilities: readonly AiCapability[];
   readonly contextWindowTokens: number;
@@ -55,6 +58,9 @@ export interface AiModelSelection {
 
 const roles: readonly AiRole[] = ['knowledge', 'writing', 'agent', 'moderation'];
 const identifier = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+export function validAiModelVersion(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/.test(value) && !/\s/.test(value);
+}
 function fail(code: AiConfigurationErrorCode = 'INVALID_CONFIGURATION'): never { throw new AiConfigurationError(code); }
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail();
@@ -84,7 +90,7 @@ function capabilities(value: unknown, code: AiConfigurationErrorCode = 'INVALID_
   if (new Set(result).size !== result.length) fail(code);
   return Object.freeze(result.sort());
 }
-function baseUrl(value: unknown): string {
+export function normalizeAiHttpBaseUrl(value: unknown): string {
   const result = text(value);
   if (!/^https?:\/\//.test(result) || /[\p{White_Space}\uFEFF\u0000-\u0020\u007f]/u.test(result) ||
     result.includes('?') || result.includes('#') || result.includes('\\')) fail();
@@ -119,17 +125,20 @@ function provider(value: unknown): Provider {
     reference = text(entry.apiKeyEnv);
     if (!/^[A-Z_][A-Z0-9_]*$/.test(reference)) fail();
   }
-  return Object.freeze({ id: id(entry.id), adapter: entry.adapter, baseUrl: baseUrl(entry.baseUrl), apiKeyEnv: reference });
+  return Object.freeze({ id: id(entry.id), adapter: entry.adapter, baseUrl: normalizeAiHttpBaseUrl(entry.baseUrl), apiKeyEnv: reference });
 }
 function model(value: unknown): Model {
   const entry = record(value);
-  keys(entry, ['id', 'providerId', 'model', 'capabilities', 'contextWindowTokens', 'maxOutputTokens']);
+  keys(entry, ['id', 'providerId', 'model', 'capabilities', 'contextWindowTokens', 'maxOutputTokens'], ['modelVersion']);
   const name = text(entry.model);
   if ([...name].length > 256) fail();
+  const version = entry.modelVersion;
+  if (version !== null && version !== undefined && !validAiModelVersion(version)) fail();
   const context = integer(entry.contextWindowTokens, 2147483647);
   const output = integer(entry.maxOutputTokens, 2147483647);
   if (output >= context) fail();
   return Object.freeze({ id: id(entry.id), providerId: id(entry.providerId), model: name,
+    ...(version != null ? { modelVersion: version } : {}),
     capabilities: capabilities(entry.capabilities), contextWindowTokens: context, maxOutputTokens: output });
 }
 function parse(value: unknown): Configuration {
@@ -137,6 +146,7 @@ function parse(value: unknown): Configuration {
   keys(entry, ['schemaVersion', 'revision', 'providers', 'models', 'bindings']);
   if (entry.schemaVersion !== 1) fail();
   const revision = integer(entry.revision);
+  if (revision > MAX_STORED_MODEL_REVISION) fail('INVALID_CONFIGURATION');
   const providers = array(entry.providers).map(provider);
   const models = array(entry.models).map(model);
   if (new Set(providers.map(item => item.id)).size !== providers.length ||
@@ -173,6 +183,7 @@ export class AiModelRouter {
     return Object.freeze({ configurationRevision: configuration.revision, role: selectedRole,
       profileId: selected.id, providerId: target.id, adapter: target.adapter, baseUrl: target.baseUrl,
       model: selected.model, apiKeyEnv: target.apiKeyEnv, capabilities: Object.freeze([...selected.capabilities]),
+      ...(selected.modelVersion !== undefined ? { modelVersion: selected.modelVersion } : {}),
       contextWindowTokens: selected.contextWindowTokens, maxOutputTokens: selected.maxOutputTokens });
   }
 
