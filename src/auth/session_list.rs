@@ -33,7 +33,7 @@ pub struct SessionItem {
     pub is_current: bool,
 }
 
-fn number(value: &str) -> Option<f64> {
+pub(crate) fn number(value: &str) -> Option<f64> {
     static DECIMAL: OnceLock<Regex> = OnceLock::new();
     let value =
         value.trim_matches(|c: char| (c.is_whitespace() && c != '\u{0085}') || c == '\u{feff}');

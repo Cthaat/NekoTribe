@@ -2,6 +2,7 @@ use crate::{
     auth::{
         login::request_body,
         otp::required,
+        otp_attempt_limit::{require_otp_attempt, OtpAttemptLimit},
         password_reset_transaction::{RESET_COMMITTED, RESET_EXPIRED, RESET_USER_MISSING},
         sessions::NativeState,
     },
@@ -9,7 +10,7 @@ use crate::{
 };
 use axum::{
     body::{to_bytes, Body},
-    extract::State,
+    extract::{Extension, State},
     http::Request,
     response::{IntoResponse, Response},
     Json,
@@ -22,6 +23,7 @@ fn server_error() -> ApiError {
 
 pub(crate) async fn password_reset(
     State(state): State<NativeState>,
+    limiter: Option<Extension<OtpAttemptLimit>>,
     request: Request<Body>,
 ) -> Result<Response, ApiError> {
     let (parts, body) = request.into_parts();
@@ -33,12 +35,14 @@ pub(crate) async fn password_reset(
     let id = required(&body, "verification_id")?;
     let code = required(&body, "code")?;
     let password = required(&body, "new_password")?;
+    crate::auth::input::require_new_password(&password)?;
     let hash = state
         .repository
         .otp_lookup(&email, "password_reset", &id)
         .await
         .map_err(|_| server_error())?
         .ok_or_else(|| ApiError::bad_request("验证码不存在或已过期"))?;
+    require_otp_attempt(limiter, &id).await?;
     let compare_hash = hash.clone();
     let valid =
         tokio::task::spawn_blocking(move || bcrypt::verify(code, &compare_hash).unwrap_or(false))

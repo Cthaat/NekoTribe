@@ -140,7 +140,10 @@ impl TokenCodec {
         let payload = payload.as_object().ok_or(TokenError::InvalidToken)?;
         let user_id = match payload.get("userId") {
             Some(Value::Number(value)) => value.as_f64(),
-            Some(Value::String(value)) => value.trim().parse::<f64>().ok(),
+            Some(Value::String(value)) => value
+                .trim_matches([' ', '\t', '\r', '\n', '\x0c', '\x0b'])
+                .parse::<f64>()
+                .ok(),
             _ => None,
         }
         .filter(|value| value.is_finite() && value.fract() == 0.0)

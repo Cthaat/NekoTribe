@@ -4,7 +4,7 @@ use crate::{
 };
 use axum::{
     body::Body,
-    extract::{OriginalUri, State},
+    extract::{MatchedPath, OriginalUri, State},
     http::{HeaderMap, HeaderValue, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -25,16 +25,464 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
-    fn ai_conversation(&self, _user:u64, _operation:crate::ai::conversation_store::AiOperation, _policy:crate::ai::conversation_store::ModerationPolicy) -> StoreFuture<'_, Result<serde_json::Value,crate::ai::conversation_store::Error>> {
+    fn moderate_user(
+        &self,
+        _viewer: u64,
+        _input: crate::moderation::user_actions::Input,
+        _storage: crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'_, crate::moderation::user_actions::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn moderate_posts(
+        &self,
+        _viewer: u64,
+        _input: crate::moderation::post_actions::Input,
+        _storage: crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'_, crate::moderation::post_actions::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn moderation_content(
+        &self,
+        _viewer: u64,
+        _filters: crate::moderation::content_queue::Filters,
+    ) -> StoreFuture<'_, (Vec<serde_json::Value>, i64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn moderation_users(
+        &self,
+        _filters: crate::moderation::user_queue::Filters,
+    ) -> StoreFuture<'_, (Vec<serde_json::Value>, i64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn moderation_dashboard(
+        &self,
+        _actor: u64,
+        _operation: crate::moderation::dashboard::Operation,
+    ) -> StoreFuture<'_, serde_json::Value> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn moderation_report(
+        &self,
+        _viewer: u64,
+        _operation: crate::moderation::reports::Operation,
+    ) -> StoreFuture<'_, crate::moderation::reports::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn moderation_appeal(
+        &self,
+        _viewer: u64,
+        _operation: crate::moderation::appeals::Operation,
+    ) -> StoreFuture<'_, crate::moderation::appeals::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn account_statements(
+        &self,
+        _actor: u64,
+        _query: crate::users::statements::StatementQuery,
+    ) -> StoreFuture<'_, (Vec<serde_json::Value>, i64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn write_account_statement(
+        &self,
+        _actor: u64,
+        _target: u64,
+        _write: crate::users::statements::StatementWrite,
+    ) -> StoreFuture<'_, crate::users::statements::WriteOutcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn discover_users(
+        &self,
+        _viewer: u64,
+        _query: crate::users::discovery::DiscoveryQuery,
+    ) -> StoreFuture<'_, (Vec<serde_json::Value>, i64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn write_recommendation_feedback(
+        &self,
+        _actor: u64,
+        _input: crate::recommendation_feedback::FeedbackInput,
+    ) -> StoreFuture<'_, crate::recommendation_feedback::FeedbackOutcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn read_content_analytics(
+        &self,
+        _viewer: u64,
+        _id: u64,
+        _kind: crate::content_analytics::AnalyticsKind,
+    ) -> StoreFuture<'_, crate::content_analytics::AnalyticsOutcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn list_post_likers(
+        &self,
+        _viewer: u64,
+        _post_id: u64,
+        _page: crate::auth::session_list::SessionPage,
+    ) -> StoreFuture<'_, Option<(Vec<serde_json::Value>, i64)>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn list_user_follows(
+        &self,
+        _actor: u64,
+        _target: u64,
+        _kind: &'static str,
+        _page: crate::auth::session_list::SessionPage,
+    ) -> StoreFuture<'_, (Vec<serde_json::Value>, i64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn write_user_follow(
+        &self,
+        _actor: u64,
+        _target: u64,
+        _remove: bool,
+    ) -> StoreFuture<'_, crate::users::follow::FollowOutcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn prepare_follow_notification(
+        &self,
+        _actor: u64,
+        _target: u64,
+    ) -> StoreFuture<'_, Option<u64>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn list_user_visibility(
+        &self,
+        _viewer: u64,
+        _kind: crate::users::visibility::Kind,
+        _page: crate::auth::session_list::SessionPage,
+    ) -> StoreFuture<'_, (Vec<serde_json::Value>, i64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn write_user_visibility(
+        &self,
+        _actor: u64,
+        _target: u64,
+        _kind: crate::users::visibility::Kind,
+        _remove: bool,
+        _expiry: Option<String>,
+    ) -> StoreFuture<'_, bool> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn respond_group_invite(
+        &self,
+        _viewer: u64,
+        _invite: u64,
+        _accept: bool,
+    ) -> StoreFuture<'_, crate::group_invite_response::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn create_group_invite(
+        &self,
+        _viewer: u64,
+        _group: u64,
+        _input: crate::group_invite_create::Input,
+    ) -> StoreFuture<'_, crate::group_invite_create::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn read_group_invites<'a>(
+        &'a self,
+        _viewer: u64,
+        _request: crate::group_invite_reads::Request,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_invite_reads::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn group_administration<'a>(
+        &'a self,
+        _viewer: u64,
+        _group: u64,
+        _operation: crate::group_admin::Operation,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_admin::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn write_group_comment<'a>(
+        &'a self,
+        _actor: u64,
+        _input: crate::group_comment_write::Request,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_comment_write::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn group_comment_recipients(
+        &self,
+        _actor: u64,
+        _group: u64,
+        _post: u64,
+        _comment: u64,
+    ) -> StoreFuture<'_, Vec<crate::group_post_write::Recipient>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn write_group_post<'a>(
+        &'a self,
+        _actor: u64,
+        _input: crate::group_post_write::Request,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_post_write::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn group_post_recipients(
+        &self,
+        _actor: u64,
+        _group: u64,
+        _post: u64,
+    ) -> StoreFuture<'_, Vec<crate::group_post_write::Recipient>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn read_group_content<'a>(
+        &'a self,
+        _viewer: u64,
+        _request: crate::group_content::Request,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_content::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn create_group<'a>(
+        &'a self,
+        _actor: u64,
+        _input: crate::group_settings::Patch,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn patch_group_settings<'a>(
+        &'a self,
+        _viewer: u64,
+        _group: u64,
+        _patch: crate::group_settings::Patch,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_settings::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn dissolve_group(
+        &self,
+        _actor: u64,
+        _group: u64,
+    ) -> StoreFuture<'_, crate::group_dissolution::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn transfer_group_ownership(
+        &self,
+        _actor: u64,
+        _group: u64,
+        _target: u64,
+    ) -> StoreFuture<'_, crate::group_ownership::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn manage_group_admission(
+        &self,
+        _viewer: u64,
+        _group: u64,
+        _target: u64,
+        _action: crate::group_member_admission::Action,
+    ) -> StoreFuture<'_, crate::group_member_admission::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn list_group_members<'a>(
+        &'a self,
+        _viewer: u64,
+        _group: u64,
+        _request: crate::group_member_list::Request,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_member_list::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn change_group_membership(
+        &self,
+        _user: u64,
+        _group: u64,
+        _change: crate::group_membership::Change,
+    ) -> StoreFuture<'_, crate::group_membership::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn list_groups<'a>(
+        &'a self,
+        _viewer: u64,
+        _request: crate::group_list::Request,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_list::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn group_detail<'a>(
+        &'a self,
+        _viewer: u64,
+        _key: crate::group_detail::GroupLookup,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_detail::GroupDetail> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn list_chat_members<'a>(
+        &'a self,
+        _user: u64,
+        _group: u64,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, Option<Vec<serde_json::Value>>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn mutate_chat_message<'a>(
+        &'a self,
+        _user: u64,
+        _id: u64,
+        _change: crate::chat_message_mutation::Change,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::chat_message_mutation::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn send_chat_message<'a>(
+        &'a self,
+        _user: u64,
+        _channel: u64,
+        _input: crate::chat_message_send::Input,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::chat_message_send::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn list_chat_messages<'a>(
+        &'a self,
+        _user: u64,
+        _channel: u64,
+        _page: crate::auth::session_list::SessionPage,
+        _search: &'a str,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::chat_message_history::History> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn set_chat_channel_status(
+        &self,
+        _user: u64,
+        _channel: u64,
+        _operation: crate::chat_channel_status::Operation,
+    ) -> StoreFuture<'_, crate::chat_channel_status::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn write_chat_channel(
+        &self,
+        _user: u64,
+        _id: u64,
+        _change: crate::chat_channel_write::Change,
+    ) -> StoreFuture<'_, Option<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn list_chat_groups(
+        &self,
+        _viewer: u64,
+        _page: crate::auth::session_list::SessionPage,
+    ) -> StoreFuture<'_, (Vec<serde_json::Value>, u64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn list_chat_channels(
+        &self,
+        _user: u64,
+        _group: u64,
+    ) -> StoreFuture<'_, Option<Vec<serde_json::Value>>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn list_direct_conversations<'a>(
+        &'a self,
+        _viewer: u64,
+        _conversation: u64,
+        _page: crate::auth::session_list::SessionPage,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, (Vec<serde_json::Value>, u64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn create_direct_conversation<'a>(
+        &'a self,
+        _viewer: u64,
+        _target: u64,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::direct_conversations::ConversationCreation> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn send_direct_message<'a>(
+        &'a self,
+        _sender: u64,
+        _conversation: u64,
+        _content: &'a str,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::direct_send::DirectSend> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn direct_notification(
+        &self,
+        _user: u64,
+        _id: u64,
+    ) -> StoreFuture<'_, Option<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn list_direct_history(
+        &self,
+        _viewer: u64,
+        _conversation: u64,
+        _page: crate::auth::session_list::SessionPage,
+    ) -> StoreFuture<'_, crate::direct_history::DirectHistory> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn can_read_chat_channel(&self, _user_id: u64, _channel_id: u64) -> StoreFuture<'_, bool> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn can_deliver_direct_message(
+        &self,
+        _user: u64,
+        _conversation: u64,
+        _message: u64,
+        _deleted: bool,
+    ) -> StoreFuture<'_, bool> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn delete_direct_message(
+        &self,
+        _user: u64,
+        _conversation: u64,
+        _message: u64,
+    ) -> StoreFuture<'_, crate::direct_delete::DirectDelete> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn apply_factor_mutation<'a>(
+        &'a self,
+        _user: u64,
+        _mutation: &'a crate::auth::factor_management::FactorMutation,
+    ) -> StoreFuture<'a, crate::auth::factor_management::FactorOutcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn account_credential(
+        &self,
+        _user: u64,
+    ) -> StoreFuture<'_, Option<crate::auth::login::LoginAccount>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn delete_account_atomic<'a>(
+        &'a self,
+        _user: u64,
+        _old: &'a str,
+        _new: &'a str,
+    ) -> StoreFuture<'a, bool> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn ai_conversation(
+        &self,
+        _user: u64,
+        _operation: crate::ai::conversation_store::AiOperation,
+        _policy: crate::ai::conversation_store::ModerationPolicy,
+    ) -> StoreFuture<'_, Result<serde_json::Value, crate::ai::conversation_store::Error>> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn user_presence(&self, _user: u64) -> StoreFuture<'_, serde_json::Value> {
         Box::pin(async { Err(SessionStoreError) })
     }
-    fn patch_user_settings<'a>(&'a self, _user: u64, _patch: &'a crate::users::settings_patch::SettingsPatch) -> StoreFuture<'a, crate::users::settings_read::SettingsRead> {
+    fn patch_user_settings<'a>(
+        &'a self,
+        _user: u64,
+        _patch: &'a crate::users::settings_patch::SettingsPatch,
+    ) -> StoreFuture<'a, crate::users::settings_read::SettingsRead> {
         Box::pin(async { Err(SessionStoreError) })
     }
-    fn get_user_settings(&self, _user: u64) -> StoreFuture<'_, crate::users::settings_read::SettingsRead> {
+    fn get_user_settings(
+        &self,
+        _user: u64,
+    ) -> StoreFuture<'_, crate::users::settings_read::SettingsRead> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn preflight_private_media_upload(&self) -> StoreFuture<'_, ()> {
         Box::pin(async { Err(SessionStoreError) })
     }
     // An error means the commit outcome may be unknown; callers must retain the object.
@@ -42,20 +490,49 @@ pub trait SessionRepository: Send + Sync {
         &'a self,
         _input: &'a crate::media::upload_transaction::MediaUpload,
         _policy: &'a crate::auth::storage_urls::StorageUrlPolicy,
-    ) -> StoreFuture<'a, crate::media::upload_transaction::MediaUploadOutcome<serde_json::Value>> {
+    ) -> StoreFuture<'a, crate::media::upload_transaction::MediaUploadOutcome<serde_json::Value>>
+    {
         Box::pin(async { Err(SessionStoreError) })
     }
-    fn delete_media(&self, _user: u64, _id: f64) -> StoreFuture<'_, Option<crate::media::delete::MediaDelete>> {
+    fn replace_user_avatar(
+        &self,
+        _input: crate::users::avatar::AvatarUpload,
+    ) -> StoreFuture<'_, crate::media::upload_transaction::MediaUploadOutcome<i64>> {
         Box::pin(async { Err(SessionStoreError) })
     }
-    fn update_post_atomic<'a>(&'a self, _actor:u64, _id:u64, _input:&'a crate::posts::update_request::PostUpdateInput) -> StoreFuture<'a,crate::posts::update_transaction::PostUpdate> {
-        Box::pin(async {Err(SessionStoreError)})
+    fn delete_media(
+        &self,
+        _user: u64,
+        _id: f64,
+    ) -> StoreFuture<'_, crate::media::delete::MediaDeleteOutcome> {
+        Box::pin(async { Err(SessionStoreError) })
     }
-    fn delete_post<'a>(&'a self, _user: u64, _id: u64) -> StoreFuture<'a, crate::posts::delete::PostDelete> {
+    fn lookup_private_media(
+        &self,
+        _viewer_id: i64,
+        _media_id: i64,
+    ) -> StoreFuture<'_, crate::media::private_read::Lookup> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn update_post_atomic<'a>(
+        &'a self,
+        _actor: u64,
+        _id: u64,
+        _input: &'a crate::posts::update_request::PostUpdateInput,
+    ) -> StoreFuture<'a, crate::posts::update_transaction::PostUpdate> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn delete_post<'a>(
+        &'a self,
+        _user: u64,
+        _id: u64,
+    ) -> StoreFuture<'a, crate::posts::delete::PostDelete> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn create_post_atomic<'a>(
-        &'a self, _actor: u64, _input: &'a crate::posts::create_request::PostCreateInput,
+        &'a self,
+        _actor: u64,
+        _input: &'a crate::posts::create_request::PostCreateInput,
     ) -> StoreFuture<'a, crate::posts::create_transaction::PostCreation> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -72,8 +549,21 @@ pub trait SessionRepository: Send + Sync {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn store_post_create_notification<'a>(
-        &'a self, _input: &'a crate::posts::create_notification::PostNoticeInput,
+        &'a self,
+        _input: &'a crate::posts::create_notification::PostNoticeInput,
     ) -> StoreFuture<'a, Option<crate::auth::session_repository::StoredNotification>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn email_in_use<'a>(&'a self, _user: u64, _email: &'a str) -> StoreFuture<'a, bool> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn change_email_atomic<'a>(
+        &'a self,
+        _user: u64,
+        _email: &'a str,
+        _id: &'a str,
+        _hash: &'a str,
+    ) -> StoreFuture<'a, crate::users::email_change::EmailChange> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn reset_password_atomic<'a>(
@@ -101,7 +591,8 @@ pub trait SessionRepository: Send + Sync {
     fn registration_insert<'a>(
         &'a self,
         _record: &'a crate::auth::registration::RegistrationRecord,
-    ) -> StoreFuture<'a, ()> {
+        _verification_id: &'a str,
+    ) -> StoreFuture<'a, crate::auth::registration::Outcome> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn otp_next_id<'a>(&'a self) -> StoreFuture<'a, u64> {
@@ -170,23 +661,16 @@ pub trait SessionRepository: Send + Sync {
     fn two_factor_readiness<'a>(&'a self) -> StoreFuture<'a, ()> {
         Box::pin(async { Err(SessionStoreError) })
     }
-    fn login_trusted_device<'a>(
-        &'a self,
-        _user: u64,
-        _device: &'a crate::auth::login::LoginDevice,
-    ) -> StoreFuture<'a, bool> {
-        Box::pin(async { Err(SessionStoreError) })
-    }
     fn login_challenge<'a>(
         &'a self,
         _challenge: &'a crate::auth::login::LoginChallenge,
-    ) -> StoreFuture<'a, ()> {
+    ) -> StoreFuture<'a, bool> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn login_insert_session<'a>(
         &'a self,
         _session: &'a crate::auth::login::LoginSession,
-    ) -> StoreFuture<'a, ()> {
+    ) -> StoreFuture<'a, bool> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn known_login_device<'a>(
@@ -199,7 +683,7 @@ pub trait SessionRepository: Send + Sync {
     fn record_login_alert<'a>(
         &'a self,
         _session: &'a crate::auth::login::LoginSession,
-    ) -> StoreFuture<'a, ()> {
+    ) -> StoreFuture<'a, crate::auth::login::LoginAlertDelivery> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn update_self_profile<'a>(
@@ -241,11 +725,20 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, Option<crate::posts::like::StoredLikeNotification>> {
         Box::pin(async { Err(SessionStoreError) })
     }
-    fn set_comment_like<'a>(&'a self,_viewer:u64,_id:u64,_liked:bool) -> StoreFuture<'a,Option<crate::posts::like::PostLikeOutcome>> {
-        Box::pin(async {Err(SessionStoreError)})
+    fn set_comment_like<'a>(
+        &'a self,
+        _viewer: u64,
+        _id: u64,
+        _liked: bool,
+    ) -> StoreFuture<'a, Option<crate::posts::like::PostLikeOutcome>> {
+        Box::pin(async { Err(SessionStoreError) })
     }
-    fn prepare_comment_like_notification<'a>(&'a self,_viewer:u64,_id:u64) -> StoreFuture<'a,Option<crate::posts::like::StoredLikeNotification>> {
-        Box::pin(async {Err(SessionStoreError)})
+    fn prepare_comment_like_notification<'a>(
+        &'a self,
+        _viewer: u64,
+        _id: u64,
+    ) -> StoreFuture<'a, Option<crate::posts::like::StoredLikeNotification>> {
+        Box::pin(async { Err(SessionStoreError) })
     }
     fn read_notification<'a>(
         &'a self,
@@ -263,7 +756,9 @@ pub trait SessionRepository: Send + Sync {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn delete_post_comment<'a>(
-        &'a self, _user: u64, _id: u64,
+        &'a self,
+        _user: u64,
+        _id: u64,
     ) -> StoreFuture<'a, crate::posts::comment_delete::CommentDelete> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -277,17 +772,23 @@ pub trait SessionRepository: Send + Sync {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn comment_notice_context<'a>(
-        &'a self, _actor: u64, _post: u64, _comment: u64,
+        &'a self,
+        _actor: u64,
+        _post: u64,
+        _comment: u64,
     ) -> StoreFuture<'a, crate::posts::comment_create::CommentNoticeContext> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn comment_parent_notice<'a>(
-        &'a self, _parent: u64, _post_author: Option<u64>,
+        &'a self,
+        _parent: u64,
+        _post_author: Option<u64>,
     ) -> StoreFuture<'a, crate::posts::comment_create::CommentParentNotice> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn store_comment_notification<'a>(
-        &'a self, _input: &'a crate::posts::comment_create::CommentNoticeInput,
+        &'a self,
+        _input: &'a crate::posts::comment_create::CommentNoticeInput,
     ) -> StoreFuture<'a, Option<crate::posts::comment_create::StoredCommentNotification>> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -384,19 +885,6 @@ pub trait SessionRepository: Send + Sync {
         &'a self,
         _user: u64,
     ) -> StoreFuture<'a, Vec<crate::auth::login::RecoveryCode>> {
-        Box::pin(async { Err(SessionStoreError) })
-    }
-    fn consume_recovery<'a>(&'a self, _id: u64) -> StoreFuture<'a, u64> {
-        Box::pin(async { Err(SessionStoreError) })
-    }
-    fn consume_challenge<'a>(&'a self, _id: &'a str) -> StoreFuture<'a, u64> {
-        Box::pin(async { Err(SessionStoreError) })
-    }
-    fn trust_challenge_device<'a>(
-        &'a self,
-        _row: &'a crate::auth::login::ChallengeRow,
-        _expires_at: &'a str,
-    ) -> StoreFuture<'a, ()> {
         Box::pin(async { Err(SessionStoreError) })
     }
 }
@@ -545,18 +1033,119 @@ pub fn build_native_router_with_realtime_and_publisher(
     notification_publisher: Option<Arc<dyn crate::notification_events::NotificationPublisher>>,
 ) -> Router {
     Router::new()
-        .route("/api/v2/ai/conversations", post(crate::ai::conversation_http::create).get(crate::ai::conversation_http::list_owned))
-        .route("/api/v2/ai/conversations/{id}", get(crate::ai::conversation_http::read).delete(crate::ai::conversation_http::remove))
-        .route("/api/v2/ai/conversations/{id}/messages", get(crate::ai::conversation_http::list).post(crate::ai::conversation_http::append))
-        .route("/api/v2/ai/conversations/{id}/generate", post(crate::ai::conversation_http::generate))
-        .route("/api/v2/ai/conversations/{id}/knowledge-generate", post(crate::ai::conversation_http::generate_knowledge))
+        .route(
+            "/api/v2/ai/availability",
+            get(crate::ai::conversation_http::availability),
+        )
+        .route(
+            "/api/v2/ai/conversations",
+            post(crate::ai::conversation_http::create)
+                .get(crate::ai::conversation_http::list_owned),
+        )
+        .route(
+            "/api/v2/ai/conversations/{id}",
+            get(crate::ai::conversation_http::read).delete(crate::ai::conversation_http::remove),
+        )
+        .route(
+            "/api/v2/ai/conversations/{id}/messages",
+            get(crate::ai::conversation_http::list).post(crate::ai::conversation_http::append),
+        )
+        .route(
+            "/api/v2/ai/conversations/{id}/generate",
+            post(crate::ai::conversation_http::generate),
+        )
+        .route(
+            "/api/v2/ai/conversations/{id}/knowledge-generate",
+            post(crate::ai::conversation_http::generate_knowledge),
+        )
+        .route(
+            "/api/v2/ai/conversations/{id}/group-generate",
+            post(crate::ai::conversation_http::generate_group),
+        )
+        .route(
+            "/api/v2/ai/conversations/{id}/moderation-generate",
+            post(crate::ai::conversation_http::generate_moderation),
+        )
+        .route(
+            "/api/v2/ai/conversations/{id}/messages/{message_id}/moderation-feedback",
+            axum::routing::put(crate::ai::conversation_http::save_moderation_feedback),
+        )
         .route(
             "/api/health",
             get(|| async { Json(json!({"status":"ok","service":"nekotribe"})) }),
         )
         .route("/api/v2/auth/sessions/others", delete(revoke))
         .route("/api/v2/media/{id}", delete(crate::media::delete::remove))
+        .route(
+            crate::media::private_read::CONTENT_ROUTE,
+            get(crate::media::private_read::read).head(crate::media::private_read::read),
+        )
         .route("/api/v2/media", post(crate::media::upload::upload))
+        .route(
+            crate::media::upload::PRIVATE_UPLOAD_ROUTE,
+            post(crate::media::upload::upload_private),
+        )
+        .route(
+            "/api/v2/users/me/avatar",
+            axum::routing::put(crate::users::avatar::upload),
+        )
+        .route(
+            "/api/v2/users/me/account-statements",
+            get(crate::users::statements::list),
+        )
+        .route(
+            "/api/v2/users/me/account-statements/{id}",
+            patch(crate::users::statements::write),
+        )
+        .route(
+            "/api/v2/users/me/account-statements/{id}/appeals",
+            post(crate::users::statements::write),
+        )
+        .route(
+            "/api/v2/moderation/appeals",
+            get(crate::moderation::appeals::list),
+        )
+        .route(
+            "/api/v2/moderation/appeals/{appeal_id}",
+            patch(crate::moderation::appeals::decide),
+        )
+        .route(
+            "/api/v2/moderation/reports",
+            get(crate::moderation::reports::list),
+        )
+        .route(
+            "/api/v2/moderation/stats",
+            get(crate::moderation::dashboard::stats),
+        )
+        .route(
+            "/api/v2/moderation/users",
+            get(crate::moderation::user_queue::list),
+        )
+        .route(
+            "/api/v2/moderation/users/{user_id}/actions",
+            post(crate::moderation::user_actions::handle),
+        )
+        .route(
+            "/api/v2/moderation/content",
+            get(crate::moderation::content_queue::list),
+        )
+        .route(
+            "/api/v2/moderation/content/{post_id}/actions",
+            post(crate::moderation::post_actions::single),
+        )
+        .route(
+            "/api/v2/moderation/content/bulk-actions",
+            post(crate::moderation::post_actions::bulk),
+        )
+        .route(
+            "/api/v2/moderation/settings",
+            get(crate::moderation::dashboard::settings).patch(crate::moderation::dashboard::update),
+        )
+        .route("/api/v2/reports", post(crate::moderation::reports::submit))
+        .route(
+            "/api/v2/moderation/reports/{report_id}",
+            patch(crate::moderation::reports::update),
+        )
         .route(
             "/api/v2/auth/sessions",
             get(crate::auth::session_list::list_sessions),
@@ -589,20 +1178,216 @@ pub fn build_native_router_with_realtime_and_publisher(
             "/api/v2/posts/trending",
             get(crate::posts::list::list_posts),
         )
-        .route("/api/v2/posts/{id}", get(crate::posts::detail::get_post).delete(crate::posts::delete::remove).patch(crate::posts::update::edit).put(crate::posts::update::edit))
-        .route("/api/v2/posts/{id}/comments", get(crate::posts::comments::list_comments).post(crate::posts::comment_create::create))
-        .route("/api/v2/comments/{id}", axum::routing::delete(crate::posts::comment_delete::remove))
-        .route("/api/v2/comments/{id}/likes", post(crate::posts::comment_like::add).delete(crate::posts::comment_like::remove))
+        .route(
+            "/api/v2/posts/{id}",
+            get(crate::posts::detail::get_post)
+                .delete(crate::posts::delete::remove)
+                .patch(crate::posts::update::edit)
+                .put(crate::posts::update::edit),
+        )
+        .route(
+            "/api/v2/posts/{id}/comments",
+            get(crate::posts::comments::list_comments).post(crate::posts::comment_create::create),
+        )
+        .route(
+            "/api/v2/posts/{id}/analytics",
+            get(crate::content_analytics::read),
+        )
+        .route(
+            "/api/v2/recommendations/feedback",
+            post(crate::recommendation_feedback::write),
+        )
+        .route(
+            "/api/v2/integrations/sentiment-flow",
+            axum::routing::any(crate::sentiment_retirement::handle),
+        )
+        .route(
+            "/api/v2/integrations/sentiment-flow/{*path}",
+            axum::routing::any(crate::sentiment_retirement::handle),
+        )
+        .route(
+            "/api/v2/users/{id}/analytics",
+            get(crate::content_analytics::read),
+        )
+        .route(
+            "/api/v2/users/{id}/analytics/daily",
+            get(crate::content_analytics::read),
+        )
+        .route(
+            "/api/v2/comments/{id}",
+            axum::routing::delete(crate::posts::comment_delete::remove),
+        )
+        .route(
+            "/api/v2/comments/{id}/likes",
+            post(crate::posts::comment_like::add).delete(crate::posts::comment_like::remove),
+        )
         .route(
             "/api/v2/posts/{id}/bookmarks",
             post(crate::posts::bookmark::save).delete(crate::posts::bookmark::remove),
         )
         .route(
             "/api/v2/posts/{id}/likes",
-            post(crate::posts::like::add).delete(crate::posts::bookmark::remove_like),
+            get(crate::posts::likers::list)
+                .post(crate::posts::like::add)
+                .delete(crate::posts::bookmark::remove_like),
         )
-        .route("/api/v2/posts", get(crate::posts::list::list_posts).post(crate::posts::create::create))
+        .route(
+            "/api/v2/posts",
+            get(crate::posts::list::list_posts).post(crate::posts::create::create),
+        )
         .route("/api/v2/notifications", get(crate::notifications::list))
+        .route(
+            "/api/v2/chat/direct-conversations/{conversation_id}/messages",
+            get(crate::direct_history::list).post(crate::direct_send::send),
+        )
+        .route(
+            "/api/v2/chat/direct-conversations/{conversation_id}/messages/{message_id}",
+            delete(crate::direct_delete::remove),
+        )
+        .route(
+            "/api/v2/chat/direct-conversations",
+            get(crate::direct_conversations::list).post(crate::direct_conversations::create),
+        )
+        .route(
+            "/api/v2/chat/groups/{id}/channels",
+            get(crate::chat_channels::list).post(crate::chat_channel_write::create),
+        )
+        .route(
+            "/api/v2/chat/channels/{channel_id}",
+            patch(crate::chat_channel_write::update).delete(crate::chat_channel_write::remove),
+        )
+        .route(
+            "/api/v2/chat/channels/{channel_id}/read-status",
+            axum::routing::put(crate::chat_channel_status::read),
+        )
+        .route(
+            "/api/v2/chat/channels/{channel_id}/mute-status",
+            axum::routing::put(crate::chat_channel_status::mute),
+        )
+        .route(
+            "/api/v2/chat/channels/{channel_id}/messages",
+            get(crate::chat_message_history::list).post(crate::chat_message_send::send),
+        )
+        .route(
+            "/api/v2/chat/messages/{message_id}",
+            patch(crate::chat_message_mutation::edit).delete(crate::chat_message_mutation::remove),
+        )
+        .route(
+            "/api/v2/chat/messages/{message_id}/pin-status",
+            axum::routing::put(crate::chat_message_mutation::pin),
+        )
+        .route(
+            "/api/v2/chat/messages/{message_id}/reactions",
+            post(crate::chat_message_mutation::react).delete(crate::chat_message_mutation::unreact),
+        )
+        .route("/api/v2/chat/groups", get(crate::chat_groups::list))
+        .route(
+            "/api/v2/chat/groups/{id}/members",
+            get(crate::chat_members::list),
+        )
+        .route(
+            "/api/v2/groups/{id}",
+            get(crate::group_detail::by_id)
+                .patch(crate::group_settings::patch)
+                .delete(crate::group_dissolution::delete),
+        )
+        .route(
+            "/api/v2/groups",
+            get(crate::group_list::discover).post(crate::group_create::create),
+        )
+        .route(
+            "/api/v2/groups/{id}/posts",
+            get(crate::group_content::posts).post(crate::group_post_write::create),
+        )
+        .route(
+            "/api/v2/groups/{id}/posts/{post_id}",
+            get(crate::group_content::detail).delete(crate::group_post_write::delete),
+        )
+        .route(
+            "/api/v2/groups/{id}/posts/{post_id}/pin-status",
+            axum::routing::put(crate::group_post_write::pin),
+        )
+        .route(
+            "/api/v2/groups/{id}/posts/{post_id}/likes",
+            axum::routing::post(crate::group_post_write::like)
+                .delete(crate::group_post_write::like),
+        )
+        .route(
+            "/api/v2/groups/{id}/posts/{post_id}/comments",
+            get(crate::group_content::comments).post(crate::group_comment_write::create),
+        )
+        .route(
+            "/api/v2/groups/{id}/posts/{post_id}/comments/{comment_id}",
+            axum::routing::delete(crate::group_comment_write::delete),
+        )
+        .route(
+            "/api/v2/groups/{id}/posts/{post_id}/comments/{comment_id}/likes",
+            axum::routing::post(crate::group_comment_write::like)
+                .delete(crate::group_comment_write::like),
+        )
+        .route(
+            "/api/v2/groups/{id}/notification-preference",
+            get(crate::group_admin::get_preference).put(crate::group_admin::put_preference),
+        )
+        .route(
+            "/api/v2/groups/{id}/audit-logs",
+            get(crate::group_admin::audit_logs),
+        )
+        .route("/api/v2/groups/popular", get(crate::group_list::popular))
+        .route(
+            "/api/v2/groups/{id}/members/current",
+            post(crate::group_membership::join).delete(crate::group_membership::leave),
+        )
+        .route(
+            "/api/v2/groups/{id}/members",
+            get(crate::group_member_list::list),
+        )
+        .route(
+            "/api/v2/groups/{id}/invites",
+            get(crate::group_invite_reads::list).post(crate::group_invite_create::create),
+        )
+        .route(
+            "/api/v2/users/me/group-invites",
+            get(crate::group_invite_reads::inbox),
+        )
+        .route(
+            "/api/v2/groups/invites/{invite_id}/responses",
+            post(crate::group_invite_response::respond),
+        )
+        .route(
+            "/api/v2/groups/invite-codes/{code}",
+            get(crate::group_invite_reads::preview),
+        )
+        .route(
+            "/api/v2/groups/{id}/ownership",
+            axum::routing::put(crate::group_ownership::transfer),
+        )
+        .route(
+            "/api/v2/groups/{id}/members/{member_id}/approval-status",
+            axum::routing::put(crate::group_member_admission::approve),
+        )
+        .route(
+            "/api/v2/groups/{id}/members/{user_id}",
+            delete(crate::group_member_admission::remove),
+        )
+        .route(
+            "/api/v2/groups/{id}/members/{user_id}/role",
+            patch(crate::group_member_admission::role),
+        )
+        .route(
+            "/api/v2/groups/{id}/members/{user_id}/roles",
+            patch(crate::group_member_admission::role),
+        )
+        .route(
+            "/api/v2/groups/{id}/members/{user_id}/mute-status",
+            axum::routing::put(crate::group_member_admission::mute)
+                .delete(crate::group_member_admission::unmute),
+        )
+        .route("/api/v2/users/me/groups", get(crate::group_list::mine))
+        .route(
+            "/api/v2/groups/by-slug/{slug}",
+            get(crate::group_detail::by_slug),
+        )
         .route(
             "/api/v2/notifications/{id}",
             axum::routing::delete(crate::notifications::delete_notification),
@@ -658,13 +1443,69 @@ pub fn build_native_router_with_realtime_and_publisher(
             "/api/v2/users/{id}",
             get(crate::users::public_profile::get_public),
         )
+        .route("/api/v2/users", get(crate::users::discovery::list))
+        .route(
+            "/api/v2/users/recommendations",
+            get(crate::users::discovery::list),
+        )
         .route(
             "/api/v2/users/me",
-            get(crate::users::self_profile::get_me).patch(crate::users::self_profile::patch_me),
+            get(crate::users::self_profile::get_me)
+                .patch(crate::users::self_profile::patch_me)
+                .delete(crate::users::account_deletion::delete),
         )
-        .route("/api/v2/users/me/settings", get(crate::users::settings_read::get).patch(crate::users::settings_patch::patch))
+        .route(
+            "/api/v2/users/me/settings",
+            get(crate::users::settings_read::get).patch(crate::users::settings_patch::patch),
+        )
+        .route(
+            "/api/v2/users/me/blocks",
+            get(crate::users::visibility::list),
+        )
+        .route(
+            "/api/v2/users/me/mutes",
+            get(crate::users::visibility::list),
+        )
+        .route(
+            "/api/v2/users/me/blocks/{target_id}",
+            post(crate::users::visibility::write).delete(crate::users::visibility::write),
+        )
+        .route(
+            "/api/v2/users/me/mutes/{target_id}",
+            post(crate::users::visibility::write).delete(crate::users::visibility::write),
+        )
+        .route(
+            "/api/v2/users/{id}/followers",
+            get(crate::users::follow::handle)
+                .post(crate::users::follow::handle)
+                .delete(crate::users::follow::handle),
+        )
+        .route(
+            "/api/v2/users/{id}/following",
+            get(crate::users::follow::handle),
+        )
+        .route(
+            "/api/v2/users/{id}/mutual-following",
+            get(crate::users::follow::handle),
+        )
+        .route(
+            "/api/v2/users/me/email",
+            patch(crate::users::email_change::change_email),
+        )
+        .route(
+            "/api/v2/users/me/two-factor/setup",
+            post(crate::auth::factor_management::setup),
+        )
+        .route(
+            "/api/v2/users/me/two-factor/confirm",
+            post(crate::auth::factor_management::confirm),
+        )
+        .route(
+            "/api/v2/users/me/two-factor",
+            delete(crate::auth::factor_management::disable),
+        )
         .fallback(|| async { ApiError::route_not_found() })
-        .layer(middleware::from_fn(crate::ai::conversation_http::private_headers))
+        .layer(middleware::from_fn(crate::middleware::cache::api_no_store))
         .layer(middleware::from_fn_with_state(
             cors.clone(),
             cors_middleware,
@@ -688,16 +1529,7 @@ async fn logout(
 ) -> Result<Response, ApiError> {
     let (parts, body) = request.into_parts();
     let headers = parts.headers;
-    let refresh_cookie = named_cookie(&headers, "refresh_token");
-    let refresh = match refresh_cookie.filter(|value| !value.is_empty()) {
-        Some(value) => value.trim().to_owned(),
-        None => {
-            let bytes = axum::body::to_bytes(body, 1024 * 1024)
-                .await
-                .unwrap_or_default();
-            body_refresh_token(&headers, &bytes).unwrap_or_default()
-        }
-    };
+    let refresh = refresh_credential(&headers, body).await.unwrap_or_default();
     let access = || {
         if let Some(cookie) =
             named_cookie(&headers, "access_token").filter(|value| !value.is_empty())
@@ -766,18 +1598,7 @@ async fn refresh(
 ) -> Result<Response, ApiError> {
     let (parts, body) = request.into_parts();
     let headers = parts.headers;
-    let cookie = named_cookie(&headers, "refresh_token");
-    // Nuxt decides whether to read JSON using the untrimmed Cookie value.
-    let token = match cookie.filter(|v| !v.is_empty()) {
-        Some(value) => value.trim().to_owned(),
-        None => {
-            // Ignore malformed or oversized bodies, just like a failed Nuxt body parse.
-            let bytes = axum::body::to_bytes(body, 1024 * 1024)
-                .await
-                .unwrap_or_default();
-            body_refresh_token(&headers, &bytes).unwrap_or_default()
-        }
-    };
+    let token = refresh_credential(&headers, body).await.unwrap_or_default();
     let unauthorized = || ApiError::unauthorized("未认证或 token 无效");
     if token.is_empty() {
         return Err(unauthorized());
@@ -861,40 +1682,45 @@ async fn refresh(
     Ok(response)
 }
 
-fn body_refresh_token(headers: &HeaderMap, body: &[u8]) -> Option<String> {
-    let content_type = headers
+async fn refresh_credential(headers: &HeaderMap, body: Body) -> Option<String> {
+    use crate::auth::login::js_trim;
+
+    if let Some(value) = named_cookie(headers, "refresh_token").filter(|value| !value.is_empty()) {
+        return Some(js_trim(&value).to_owned());
+    }
+    let media_type = headers
         .get("content-type")
         .and_then(|h| h.to_str().ok())
-        .unwrap_or("");
-    if content_type.starts_with("text/") {
-        return None;
-    }
-    if content_type
-        .split(';')
-        .next()
+        .and_then(|value| value.split(';').next())
         .unwrap_or("")
         .trim()
-        .eq_ignore_ascii_case("application/x-www-form-urlencoded")
-    {
-        let mut url = reqwest::Url::parse("http://localhost/").ok()?;
-        let text = std::str::from_utf8(body).ok()?;
-        url.set_query(Some(text));
-        let values: Vec<_> = url
-            .query_pairs()
-            .filter(|(k, _)| k == "refresh_token")
-            .collect();
-        return if values.len() == 1 {
-            Some(values[0].1.trim().to_owned())
-        } else {
-            None
-        };
+        .to_ascii_lowercase();
+    if media_type.starts_with("text/") {
+        return None;
     }
-    serde_json::from_slice::<serde_json::Value>(body)
+    let bytes = axum::body::to_bytes(body, 1024 * 1024).await.ok()?;
+    if media_type == "application/x-www-form-urlencoded" {
+        let text = std::str::from_utf8(&bytes).ok()?;
+        if text.contains(';') {
+            return None;
+        }
+        let mut token = None;
+        for entry in text.split('&') {
+            let (key, value) = entry.split_once('=').unwrap_or((entry, ""));
+            let key = percent_decode(&key.replace('+', " "))?;
+            let value = percent_decode(&value.replace('+', " "))?;
+            if key == "refresh_token" && token.replace(js_trim(&value).to_owned()).is_some() {
+                return None;
+            }
+        }
+        return token;
+    }
+    serde_json::from_slice::<serde_json::Value>(&bytes)
         .ok()
         .and_then(|v| {
             v.get("refresh_token")
                 .and_then(|v| v.as_str())
-                .map(str::trim)
+                .map(js_trim)
                 .map(str::to_owned)
         })
 }
@@ -1079,6 +1905,21 @@ pub(crate) async fn cors_middleware(
     request: Request<Body>,
     next: Next,
 ) -> Response {
+    let private_media = request
+        .extensions()
+        .get::<MatchedPath>()
+        .is_some_and(|path| path.as_str() == crate::media::private_read::CONTENT_ROUTE);
+    let public_storage = request
+        .uri()
+        .path()
+        .strip_prefix("/storage/")
+        .is_some_and(|key| !key.is_empty());
+    let media_read = private_media || public_storage;
+    let allowed_methods = if media_read {
+        "GET,HEAD,OPTIONS"
+    } else {
+        ALLOWED_METHODS
+    };
     let h = request.headers();
     let origin = h
         .get("origin")
@@ -1089,7 +1930,7 @@ pub(crate) async fn cors_middleware(
     if let Some(method) = h.get("access-control-request-method").filter(|_| preflight) {
         allowed &= method
             .to_str()
-            .is_ok_and(|m| ALLOWED_METHODS.split(',').any(|v| v == m))
+            .is_ok_and(|m| allowed_methods.split(',').any(|v| v == m))
     }
     let mut requested = Vec::new();
     if let Some(headers) = h
@@ -1098,7 +1939,8 @@ pub(crate) async fn cors_middleware(
     {
         for name in headers.to_str().unwrap_or_default().split(',') {
             let name = name.trim().to_ascii_lowercase();
-            allowed &= ALLOWED_HEADERS.split(',').any(|v| v == name);
+            allowed &=
+                ALLOWED_HEADERS.split(',').any(|v| v == name) || (media_read && name == "range");
             if !requested.contains(&name) {
                 requested.push(name)
             }
@@ -1109,18 +1951,25 @@ pub(crate) async fn cors_middleware(
         for (name, value) in [
             ("access-control-allow-origin", origin.to_owned()),
             ("access-control-allow-credentials", "true".into()),
-            ("access-control-allow-methods", ALLOWED_METHODS.into()),
+            ("access-control-allow-methods", allowed_methods.into()),
             (
                 "access-control-allow-headers",
-                if requested.is_empty() {
-                    ALLOWED_HEADERS.into()
-                } else {
-                    requested.join(",")
+                match (requested.is_empty(), media_read) {
+                    (true, true) => format!("{ALLOWED_HEADERS},range"),
+                    (true, false) => ALLOWED_HEADERS.into(),
+                    (false, _) => requested.join(","),
                 },
             ),
             (
                 "access-control-expose-headers",
-                "content-length,content-type".into(),
+                if private_media {
+                    "content-length,content-type,Retry-After,content-range,accept-ranges,content-disposition"
+                } else if public_storage {
+                    "content-length,content-type,Retry-After,content-range,accept-ranges"
+                } else {
+                    "content-length,content-type,Retry-After"
+                }
+                .into(),
             ),
             ("access-control-max-age", "86400".into()),
         ] {
@@ -1142,6 +1991,12 @@ pub(crate) async fn cors_middleware(
         next.run(request).await
     };
     response.headers_mut().extend(cors);
+    if private_media && preflight {
+        response.headers_mut().insert(
+            axum::http::header::CACHE_CONTROL,
+            HeaderValue::from_static("private, no-store"),
+        );
+    }
     merge_vary(response.headers_mut());
     response
 }

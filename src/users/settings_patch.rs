@@ -56,6 +56,8 @@ pub(crate) async fn patch(
         .map_err(|_| ApiError::server_error("服务器内部错误"))?;
     let value = match result {
         SettingsRead::Ready(value) => value,
+        SettingsRead::UserMissing => return Err(ApiError::not_found("用户不存在")),
+        SettingsRead::SettingsMissing => return Err(ApiError::not_found("用户设置不存在")),
         SettingsRead::SchemaUnavailable => {
             return Err(ApiError::new(
                 axum::http::StatusCode::SERVICE_UNAVAILABLE,

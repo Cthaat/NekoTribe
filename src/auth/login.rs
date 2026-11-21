@@ -1,7 +1,9 @@
-//! Native password login. Database operations remain separate commits to match
-//! the existing Nuxt session model; failures must never bypass two-factor.
+//! Native password login and two-factor continuation.
 use crate::{
-    auth::{sessions::NativeState, IssuedToken, TokenKind},
+    auth::{
+        sessions::{named_cookie, NativeState},
+        IssuedToken, TokenKind,
+    },
     httpx::{errors::ApiError, response::V2Response},
 };
 use aes_gcm::{
@@ -21,6 +23,30 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
+pub(crate) const LOGIN_ALERT_TITLE: &str = "新设备登录提醒";
+const TRUSTED_DEVICE_COOKIE: &str = "nekotribe_trusted_device";
+const TRUSTED_DEVICE_SECONDS: u64 = 30 * 24 * 60 * 60;
+
+fn trusted_device_digest(proof: &str) -> String {
+    format!("td1_{}", hex::encode(Sha256::digest(proof.as_bytes())))
+}
+
+fn trusted_device_key(headers: &HeaderMap) -> Option<String> {
+    let proof = named_cookie(headers, TRUSTED_DEVICE_COOKIE)?;
+    let hex = proof.strip_prefix("td1_")?;
+    if hex.len() != 64 || !hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+        return None;
+    }
+    Some(trusted_device_digest(&proof))
+}
+
+#[derive(Default)]
+pub struct LoginAlertDelivery {
+    pub email: Option<String>,
+    pub message: String,
+    pub notification_id: Option<u64>,
+}
+
 pub struct LoginAccount {
     pub user_id: u64,
     pub username: String,
@@ -28,6 +54,7 @@ pub struct LoginAccount {
     pub status: String,
     pub active: bool,
 }
+#[derive(Clone)]
 pub struct LoginDevice {
     pub fingerprint: String,
     pub info: String,
@@ -40,6 +67,7 @@ pub struct LoginChallenge {
     pub remember: bool,
     pub device: LoginDevice,
     pub expires_at: String,
+    pub verified_password_hash: String,
 }
 pub struct LoginSession {
     pub id: String,
@@ -49,13 +77,81 @@ pub struct LoginSession {
     pub device: LoginDevice,
     pub access_expires_at: String,
     pub refresh_expires_at: String,
+    pub verified_password_hash: String,
+    pub trusted_device_key: Option<String>,
+    pub factor_completion: Option<FactorCompletion>,
+}
+
+pub struct FactorCompletion {
+    pub challenge_id: String,
+    pub verified_secret: EncryptedSecret,
+    pub recovery_code_id: Option<u64>,
+    pub remembered_device: Option<RememberedLoginDevice>,
+}
+
+pub struct RememberedLoginDevice {
+    pub device: LoginDevice,
+    pub expires_at: String,
+}
+
+#[derive(Default)]
+struct LoginSessionOptions {
+    trusted_device_key: Option<String>,
+    factor_completion: Option<FactorCompletion>,
+}
+
+async fn deliver_login_alert(state: &NativeState, session: &LoginSession) {
+    let Ok(delivery) = state.repository.record_login_alert(session).await else {
+        eprintln!("login alert storage unavailable");
+        return;
+    };
+    if let (Some(id), Some(publisher)) = (delivery.notification_id, &state.notification_publisher) {
+        match state
+            .repository
+            .read_notification(session.user_id, id)
+            .await
+        {
+            Ok(Some(notification)) => {
+                let data = serde_json::Map::from_iter([
+                    ("notification".into(), notification),
+                    ("notification_type".into(), "login_alert".into()),
+                ]);
+                if publisher
+                    .publish(session.user_id, "notification_created", &data)
+                    .await
+                    .is_err()
+                {
+                    eprintln!("login alert push unavailable");
+                }
+            }
+            Ok(None) => {}
+            Err(_) => eprintln!("login alert push unavailable"),
+        }
+    }
+    if let Some(email) = delivery.email {
+        if state
+            .otp_mailer
+            .send_login_alert(
+                &email,
+                &delivery.message,
+                &session.device.ip,
+                &session.device.user_agent,
+            )
+            .await
+            .is_err()
+        {
+            eprintln!("login alert email unavailable");
+        }
+    }
 }
 pub struct ChallengeRow {
     pub user_id: u64,
     pub username: String,
     pub remember: bool,
     pub device: LoginDevice,
+    pub verified_password_hash: String,
 }
+#[derive(Clone)]
 pub struct EncryptedSecret {
     pub encrypted: String,
     pub iv: String,
@@ -198,7 +294,7 @@ pub(crate) async fn login(
     if !account_row.active || account_row.status != "active" {
         return Err(ApiError::forbidden("账号不可用"));
     }
-    let hash = account_row.password_hash;
+    let hash = account_row.password_hash.clone();
     let matched =
         tokio::task::spawn_blocking(move || bcrypt::verify(password, &hash).unwrap_or(false))
             .await
@@ -226,13 +322,25 @@ pub(crate) async fn login(
         .login_two_factor(account_row.user_id)
         .await
         .map_err(|_| server_error())?;
-    if two_factor
-        && !state
-            .repository
-            .login_trusted_device(account_row.user_id, &device)
-            .await
-            .map_err(|_| server_error())?
-    {
+    if two_factor {
+        if let Some(key) = trusted_device_key(&headers) {
+            if let Some(response) = issue_session(
+                &state,
+                account_row.user_id,
+                account_row.username.clone(),
+                device.clone(),
+                account_row.password_hash.clone(),
+                "账号或密码错误",
+                LoginSessionOptions {
+                    trusted_device_key: Some(key),
+                    factor_completion: None,
+                },
+            )
+            .await?
+            {
+                return Ok(response);
+            }
+        }
         state.repository.two_factor_readiness().await.map_err(|_| {
             ApiError::new(
                 http::StatusCode::SERVICE_UNAVAILABLE,
@@ -249,18 +357,32 @@ pub(crate) async fn login(
             remember: body.get("remember_me") == Some(&Value::Bool(true)),
             device,
             expires_at: expiry.clone(),
+            verified_password_hash: account_row.password_hash,
         };
-        state
+        if !state
             .repository
             .login_challenge(&challenge)
             .await
-            .map_err(|_| server_error())?;
+            .map_err(|_| server_error())?
+        {
+            return Err(ApiError::unauthorized("账号或密码错误"));
+        }
         return Ok(Json(V2Response::ok_with_message(json!({"two_factor_required":true,"challenge_id":challenge.id,"account":account,"expires_at":expiry}), "two factor required")).into_response());
     }
-    issue_session(&state, account_row.user_id, account_row.username, device).await
+    issue_session(
+        &state,
+        account_row.user_id,
+        account_row.username,
+        device,
+        account_row.password_hash,
+        "账号或密码错误",
+        LoginSessionOptions::default(),
+    )
+    .await?
+    .ok_or_else(server_error)
 }
 
-fn decrypted_secret(key: &[u8; 32], secret: &EncryptedSecret) -> Option<String> {
+pub(crate) fn decrypted_secret(key: &[u8; 32], secret: &EncryptedSecret) -> Option<String> {
     let mut ciphertext = STANDARD.decode(&secret.encrypted).ok()?;
     let tag = STANDARD.decode(&secret.tag).ok()?;
     let iv = STANDARD.decode(&secret.iv).ok()?;
@@ -280,7 +402,7 @@ fn decrypted_secret(key: &[u8; 32], secret: &EncryptedSecret) -> Option<String> 
         .ok()?;
     String::from_utf8(plain).ok()
 }
-fn totp_valid(secret: &str, code: &str, now: u64) -> Result<bool, ApiError> {
+pub(crate) fn totp_valid(secret: &str, code: &str, now: u64) -> Result<bool, ApiError> {
     if code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {
         return Ok(false);
     }
@@ -360,12 +482,21 @@ pub(crate) async fn complete_challenge(
             "服务暂不可用，请稍后重试。",
         )
     })?;
-    let row = state
+    let mut row = state
         .repository
         .challenge_lookup(&id)
         .await
         .map_err(|_| server_error())?
-        .ok_or_else(|| ApiError::unauthorized("双因素验证已过期，请重新登录"))?;
+        .ok_or_else(expired_challenge)?;
+    let stored_fingerprint = if row.device.fingerprint.is_empty() {
+        "unknown"
+    } else {
+        row.device.fingerprint.as_str()
+    };
+    let fingerprint = header(&parts.headers, "x-device-fingerprint");
+    if !stored_fingerprint.chars().eq(fingerprint.chars().take(200)) {
+        return Err(expired_challenge());
+    }
     state.repository.two_factor_readiness().await.map_err(|_| {
         ApiError::new(
             http::StatusCode::SERVICE_UNAVAILABLE,
@@ -388,6 +519,7 @@ pub(crate) async fn complete_challenge(
     let decoded =
         decrypted_secret(state.codec.two_factor_key(), &secret).ok_or_else(server_error)?;
     let mut valid = totp_valid(&decoded, &normalized, (state.clock)())?;
+    let mut recovery_code_id = None;
     if !valid && !(normalized.len() == 6 && normalized.bytes().all(|b| b.is_ascii_digit())) {
         for candidate in state
             .repository
@@ -403,12 +535,8 @@ pub(crate) async fn complete_challenge(
             .await
             .map_err(|_| server_error())?;
             if matched {
-                valid = state
-                    .repository
-                    .consume_recovery(id)
-                    .await
-                    .map_err(|_| server_error())?
-                    == 1;
+                valid = true;
+                recovery_code_id = Some(id);
                 break;
             }
         }
@@ -416,28 +544,24 @@ pub(crate) async fn complete_challenge(
     if !valid {
         return Err(ApiError::unauthorized("双因素验证码错误"));
     }
-    if state
-        .repository
-        .consume_challenge(&id)
-        .await
-        .map_err(|_| server_error())?
-        != 1
+    let (proof, remembered_device) = if row.remember
+        && !row.device.fingerprint.is_empty()
+        && row.device.fingerprint != "unknown"
     {
-        return Err(ApiError::unauthorized("双因素验证已过期，请重新登录"));
-    }
-    if row.remember {
+        let mut bytes = [0; 32];
+        getrandom::fill(&mut bytes).map_err(|_| server_error())?;
+        let proof = format!("td1_{}", hex::encode(bytes));
+        row.device.fingerprint = trusted_device_digest(&proof);
         let expiry = timestamp(
             (state.clock)()
-                .checked_add(30 * 24 * 60 * 60)
+                .checked_add(TRUSTED_DEVICE_SECONDS)
                 .ok_or_else(server_error)?,
         )
         .ok_or_else(server_error)?;
-        state
-            .repository
-            .trust_challenge_device(&row, &expiry)
-            .await
-            .map_err(|_| server_error())?;
-    }
+        (Some(proof), Some(RememberedLoginDevice { device: row.device, expires_at: expiry }))
+    } else {
+        (None, None)
+    };
     let ip = client_ip(&parts.headers, &parts.extensions);
     let headers = parts.headers;
     let device = LoginDevice {
@@ -446,7 +570,42 @@ pub(crate) async fn complete_challenge(
         ip,
         user_agent: header(&headers, "user-agent"),
     };
-    issue_session(&state, row.user_id, row.username, device).await
+    let mut response = issue_session(
+        &state,
+        row.user_id,
+        row.username,
+        device,
+        row.verified_password_hash,
+        "双因素验证已过期，请重新登录",
+        LoginSessionOptions {
+            trusted_device_key: None,
+            factor_completion: Some(FactorCompletion {
+                challenge_id: id,
+                verified_secret: secret,
+                recovery_code_id,
+                remembered_device,
+            }),
+        },
+    )
+    .await?
+    .ok_or_else(server_error)?;
+    if let Some(proof) = proof {
+        let secure = if state.refresh_policy.cookie_secure {
+            "; Secure"
+        } else {
+            ""
+        };
+        let cookie = format!("{TRUSTED_DEVICE_COOKIE}={proof}; Max-Age={TRUSTED_DEVICE_SECONDS}; Path=/; HttpOnly; SameSite=Lax{secure}");
+        response.headers_mut().append(
+            "set-cookie",
+            HeaderValue::from_str(&cookie).map_err(|_| server_error())?,
+        );
+    }
+    Ok(response)
+}
+
+fn expired_challenge() -> ApiError {
+    ApiError::unauthorized("双因素验证已过期，请重新登录")
 }
 
 async fn issue_session(
@@ -454,7 +613,10 @@ async fn issue_session(
     user_id: u64,
     username: String,
     device: LoginDevice,
-) -> Result<Response, ApiError> {
+    verified_password_hash: String,
+    stale_message: &'static str,
+    options: LoginSessionOptions,
+) -> Result<Option<Response>, ApiError> {
     let now = (state.clock)();
     let access_exp = now
         .checked_add(state.refresh_policy.access_seconds)
@@ -494,20 +656,28 @@ async fn issue_session(
         device,
         access_expires_at: access_date.clone(),
         refresh_expires_at: refresh_date.clone(),
+        verified_password_hash,
+        trusted_device_key: options.trusted_device_key,
+        factor_completion: options.factor_completion,
     };
     let known = state
         .repository
         .known_login_device(user_id, &session.device.fingerprint)
         .await
         .map_err(|_| server_error())?;
-    state
+    if !state
         .repository
         .login_insert_session(&session)
         .await
-        .map_err(|_| server_error())?;
+        .map_err(|_| server_error())?
+    {
+        if session.trusted_device_key.is_some() {
+            return Ok(None);
+        }
+        return Err(ApiError::unauthorized(stale_message));
+    }
     if !known {
-        // Nuxt treats alert delivery as best effort after the session commits.
-        let _ = state.repository.record_login_alert(&session).await;
+        deliver_login_alert(state, &session).await;
     }
     let mut profile = state
         .repository
@@ -550,7 +720,7 @@ async fn issue_session(
             HeaderValue::from_str(&value).map_err(|_| server_error())?,
         );
     }
-    Ok(response)
+    Ok(Some(response))
 }
 
 #[cfg(test)]

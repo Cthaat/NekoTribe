@@ -1,5 +1,8 @@
 use crate::{
-    auth::session_repository::{RESET_CLAIM_SQL, RESET_PASSWORD_SQL, RESET_REVOKE_SQL},
+    auth::session_repository::{
+        RESET_CHALLENGES_SQL, RESET_CLAIM_SQL, RESET_DEVICES_SQL, RESET_PASSWORD_SQL,
+        RESET_REVOKE_SQL,
+    },
     db::{
         oracle::{BindMap, DbError},
         tx::OracleTx,
@@ -63,10 +66,12 @@ fn run<T: ResetTransaction>(
         if updated != 1 {
             return Err(DbError::SchemaNotReady);
         }
-        tx.execute(
-            RESET_REVOKE_SQL,
-            BindMap::from([("email".into(), DbValue::String(email.into()))]),
-        )?;
+        for statement in [RESET_REVOKE_SQL, RESET_CHALLENGES_SQL, RESET_DEVICES_SQL] {
+            tx.execute(
+                statement,
+                BindMap::from([("email".into(), DbValue::String(email.into()))]),
+            )?;
+        }
         Ok(RESET_COMMITTED)
     })();
     match result {
@@ -105,7 +110,7 @@ mod tests {
     struct Fake {
         calls: Mutex<Vec<(&'static str, BindMap)>>,
         events: Mutex<Vec<&'static str>>,
-        counts: [u64; 3],
+        counts: [u64; 5],
         fail_at: usize,
         fail_commit: bool,
     }
@@ -134,14 +139,16 @@ mod tests {
     #[test]
     fn claims_and_updates_or_rolls_back_as_one_unit() {
         for (counts, fail_at, expected, event, calls) in [
-            ([1, 1, 2], 0, Some(0), "commit", 3),
-            ([0, 1, 2], 0, Some(1), "rollback", 1),
-            ([1, 0, 2], 0, Some(2), "rollback", 2),
-            ([2, 1, 2], 0, None, "rollback", 1),
-            ([1, 2, 2], 0, None, "rollback", 2),
-            ([1, 1, 2], 1, None, "rollback", 1),
-            ([1, 1, 2], 2, None, "rollback", 2),
-            ([1, 1, 2], 3, None, "rollback", 3),
+            ([1, 1, 2, 1, 1], 0, Some(0), "commit", 5),
+            ([0, 1, 2, 1, 1], 0, Some(1), "rollback", 1),
+            ([1, 0, 2, 1, 1], 0, Some(2), "rollback", 2),
+            ([2, 1, 2, 1, 1], 0, None, "rollback", 1),
+            ([1, 2, 2, 1, 1], 0, None, "rollback", 2),
+            ([1, 1, 2, 1, 1], 1, None, "rollback", 1),
+            ([1, 1, 2, 1, 1], 2, None, "rollback", 2),
+            ([1, 1, 2, 1, 1], 3, None, "rollback", 3),
+            ([1, 1, 2, 1, 1], 4, None, "rollback", 4),
+            ([1, 1, 2, 1, 1], 5, None, "rollback", 5),
         ] {
             let fake = Fake {
                 calls: Mutex::new(Vec::new()),
@@ -173,8 +180,13 @@ mod tests {
                     DbValue::String("new-hash".into())
                 );
             }
-            if actual.len() > 2 {
-                assert_eq!(actual[2].1["email"], DbValue::String("fake';--".into()));
+            for ((statement, binds), expected) in actual.iter().skip(2).zip([
+                RESET_REVOKE_SQL,
+                RESET_CHALLENGES_SQL,
+                RESET_DEVICES_SQL,
+            ]) {
+                assert_eq!(*statement, expected);
+                assert_eq!(binds["email"], DbValue::String("fake';--".into()));
             }
         }
     }
@@ -184,7 +196,7 @@ mod tests {
         let fake = Fake {
             calls: Mutex::new(Vec::new()),
             events: Mutex::new(Vec::new()),
-            counts: [1, 1, 2],
+            counts: [1, 1, 2, 1, 1],
             fail_at: 0,
             fail_commit: true,
         };

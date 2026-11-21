@@ -1,14 +1,16 @@
 use crate::{
     auth::{
         login::{js_trim, request_body, scalar},
+        otp_attempt_limit::{require_otp_attempt, OtpAttemptLimit},
+        otp_send_limit::OtpSendLimit,
         sessions::NativeState,
     },
     httpx::{errors::ApiError, response::V2Response},
 };
 use axum::{
     body::{to_bytes, Body},
-    extract::State,
-    http::Request,
+    extract::{Extension, State},
+    http::{header::RETRY_AFTER, HeaderValue, Request, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -32,6 +34,15 @@ pub struct OtpEvent {
 pub type MailFuture<'a> = Pin<Box<dyn Future<Output = Result<(), ()>> + Send + 'a>>;
 pub trait OtpMailer: Send + Sync {
     fn send<'a>(&'a self, to: &'a str, code: &'a str) -> MailFuture<'a>;
+    fn send_login_alert<'a>(
+        &'a self,
+        _to: &'a str,
+        _message: &'a str,
+        _ip: &'a str,
+        _agent: &'a str,
+    ) -> MailFuture<'a> {
+        Box::pin(async { Err(()) })
+    }
 }
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct SmtpConfig {
@@ -67,51 +78,98 @@ impl SmtpConfig {
 impl OtpMailer for SmtpConfig {
     fn send<'a>(&'a self, to: &'a str, code: &'a str) -> MailFuture<'a> {
         Box::pin(async move {
-            if self.host.is_empty()
-                || self.user.is_empty()
-                || self.password.is_empty()
-                || self.host.contains(['/', '\r', '\n'])
-                || to.contains(['\r', '\n'])
-                || self.user.contains(['\r', '\n'])
-            {
-                return Err(());
-            }
-            let port = self.port.parse::<u16>().map_err(|_| ())?;
-            if port == 0 {
-                return Err(());
-            }
-            let message = Message::builder()
-                .from(self.user.parse().map_err(|_| ())?)
-                .to(to.parse().map_err(|_| ())?)
-                .subject("Your verification code")
-                .multipart(MultiPart::alternative_plain_html(
-                    format!("Your verification code is {code}"),
-                    format!("<p>Your verification code is <strong>{code}</strong></p>"),
-                ))
-                .map_err(|_| ())?;
-            #[allow(unused_mut)]
-            let mut builder = AsyncSmtpTransport::<Tokio1Executor>::relay(&self.host)
-                .map_err(|_| ())?
-                .port(port)
-                .timeout(Some(Duration::from_secs(15)))
-                .credentials(Credentials::new(self.user.clone(), self.password.clone()));
-            #[cfg(test)]
-            if let Some(cert) = &self.test_ca {
-                use lettre::transport::smtp::client::{Certificate, Tls, TlsParameters};
-                let ca = Certificate::from_der(cert.clone()).map_err(|_| ())?;
-                let tls = TlsParameters::builder(self.host.clone())
-                    .add_root_certificate(ca)
-                    .build()
-                    .map_err(|_| ())?;
-                builder = builder.tls(Tls::Wrapper(tls));
-            }
-            let transport = builder.build();
-            tokio::time::timeout(Duration::from_secs(15), transport.send(message))
-                .await
-                .map_err(|_| ())?
-                .map_err(|_| ())?;
-            Ok(())
+            self.send_mail(
+                to,
+                "Your verification code",
+                format!("Your verification code is {code}"),
+                format!("<p>Your verification code is <strong>{code}</strong></p>"),
+            )
+            .await
         })
+    }
+
+    fn send_login_alert<'a>(
+        &'a self,
+        to: &'a str,
+        message: &'a str,
+        ip: &'a str,
+        agent: &'a str,
+    ) -> MailFuture<'a> {
+        Box::pin(async move {
+            let advice = "如果这不是你本人操作，请尽快修改密码并注销其他设备。";
+            self.send_mail(
+                to,
+                crate::auth::login::LOGIN_ALERT_TITLE,
+                format!("{message}\nIP: {ip}\nUser-Agent: {agent}\n{advice}"),
+                format!(
+                    "<p>{}</p><p><strong>IP:</strong> {}</p><p><strong>User-Agent:</strong> {}</p><p>{advice}</p>",
+                    escape_html(message),
+                    escape_html(ip),
+                    escape_html(agent),
+                ),
+            )
+            .await
+        })
+    }
+}
+
+fn escape_html(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
+impl SmtpConfig {
+    async fn send_mail(
+        &self,
+        to: &str,
+        subject: &str,
+        text: String,
+        html: String,
+    ) -> Result<(), ()> {
+        if self.host.is_empty()
+            || self.user.is_empty()
+            || self.password.is_empty()
+            || self.host.contains(['/', '\r', '\n'])
+            || to.contains(['\r', '\n'])
+            || self.user.contains(['\r', '\n'])
+        {
+            return Err(());
+        }
+        let port = self.port.parse::<u16>().map_err(|_| ())?;
+        if port == 0 {
+            return Err(());
+        }
+        let message = Message::builder()
+            .from(self.user.parse().map_err(|_| ())?)
+            .to(to.parse().map_err(|_| ())?)
+            .subject(subject)
+            .multipart(MultiPart::alternative_plain_html(text, html))
+            .map_err(|_| ())?;
+        #[allow(unused_mut)]
+        let mut builder = AsyncSmtpTransport::<Tokio1Executor>::relay(&self.host)
+            .map_err(|_| ())?
+            .port(port)
+            .timeout(Some(Duration::from_secs(15)))
+            .credentials(Credentials::new(self.user.clone(), self.password.clone()));
+        #[cfg(test)]
+        if let Some(cert) = &self.test_ca {
+            use lettre::transport::smtp::client::{Certificate, Tls, TlsParameters};
+            let ca = Certificate::from_der(cert.clone()).map_err(|_| ())?;
+            let tls = TlsParameters::builder(self.host.clone())
+                .add_root_certificate(ca)
+                .build()
+                .map_err(|_| ())?;
+            builder = builder.tls(Tls::Wrapper(tls));
+        }
+        let transport = builder.build();
+        tokio::time::timeout(Duration::from_secs(15), transport.send(message))
+            .await
+            .map_err(|_| ())?
+            .map_err(|_| ())?;
+        Ok(())
     }
 }
 fn random_code() -> Result<String, ApiError> {
@@ -151,6 +209,7 @@ fn server_error() -> ApiError {
 }
 pub(crate) async fn create_otp(
     State(state): State<NativeState>,
+    limiter: Option<Extension<OtpSendLimit>>,
     request: Request<Body>,
 ) -> Result<Response, ApiError> {
     let (parts, body) = request.into_parts();
@@ -176,6 +235,38 @@ pub(crate) async fn create_otp(
             50101,
             "短信验证码暂不可用",
         ));
+    }
+    if kind != "password_reset" {
+        crate::auth::input::require_new_email(&account)?;
+    }
+    let unavailable = || {
+        ApiError::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            50301,
+            "服务暂不可用，请稍后重试。",
+        )
+    };
+    let Extension(limiter) = limiter.ok_or_else(unavailable)?;
+    let retry = limiter
+        .0
+        .reserve(&account)
+        .await
+        .map_err(|_| unavailable())?;
+    if retry > 3600 {
+        return Err(unavailable());
+    }
+    if retry > 0 {
+        let mut response = ApiError::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            42901,
+            "验证码发送过于频繁，请稍后重试",
+        )
+        .into_response();
+        response.headers_mut().insert(
+            RETRY_AFTER,
+            HeaderValue::from_str(&retry.to_string()).map_err(|_| unavailable())?,
+        );
+        return Ok(response);
     }
     let code = random_code()?;
     let id = random_id()?;
@@ -217,6 +308,7 @@ pub(crate) async fn create_otp(
 }
 pub(crate) async fn verify_otp(
     State(state): State<NativeState>,
+    limiter: Option<Extension<OtpAttemptLimit>>,
     request: Request<Body>,
 ) -> Result<Response, ApiError> {
     let (parts, body) = request.into_parts();
@@ -237,6 +329,7 @@ pub(crate) async fn verify_otp(
         .await
         .map_err(|_| server_error())?
         .ok_or_else(|| ApiError::bad_request("验证码不存在或已过期"))?;
+    require_otp_attempt(limiter, &id).await?;
     let valid = tokio::task::spawn_blocking(move || bcrypt::verify(code, &hash).unwrap_or(false))
         .await
         .map_err(|_| server_error())?;
